@@ -60,9 +60,6 @@
 /* Define if you have POSIX threads libraries and header files. */
 #undef HAVE_PTHREAD
 
-/* Define to 1 if you have the <pwd.h> header file. */
-#undef HAVE_PWD_H
-
 /* Define to 1 if you have the `sbrk' function. */
 #undef HAVE_SBRK
 
@@ -80,9 +77,6 @@
 
 /* Define to 1 if `eip' is member of `struct sigcontext'. */
 #undef HAVE_STRUCT_SIGCONTEXT_EIP
-
-/* Define to 1 if `regs->nip' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_REGS__NIP
 
 /* Define to 1 if `rip' is member of `struct sigcontext'. */
 #undef HAVE_STRUCT_SIGCONTEXT_RIP
@@ -107,9 +101,6 @@
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #undef HAVE_SYS_TYPES_H
-
-/* Define to 1 if compiler supports __thread */
-#undef HAVE_TLS
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
@@ -144,14 +135,8 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
-/* printf format code for printing a size_t and ssize_t */
-#undef PRIdS
-
-/* printf format code for printing a size_t and ssize_t */
+/* printf format code for printing a size_t */
 #undef PRIuS
-
-/* printf format code for printing a size_t and ssize_t */
-#undef PRIxS
 
 /* Define to necessary symbol if this constant uses a non-standard name on
    your system. */
@@ -166,8 +151,6 @@
 /* Version number of package */
 #undef VERSION
 
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
+/* Define as `__inline' if that's what the C compiler calls it, or to nothing
+   if it is not supported. */
 #undef inline
-#endif

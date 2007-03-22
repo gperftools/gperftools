@@ -27,6 +27,7 @@ Tue May 31 08:14:38 2005  Google Inc. <opensource@google.com>
 
 Fri Jun 24 18:02:26 2005  Google Inc. <opensource@google.com>
 
+	* google-perftools: version 0.3 release
 	* Add missing errno include for one of the unittests (csilvers)
 	* Reduce tcmalloc startup memory from 5M to 256K (sanjay)
 	* Add support for mallopt() and mallinfo (sanjay)
@@ -35,6 +36,7 @@ Fri Jun 24 18:02:26 2005  Google Inc. <opensource@google.com>
 
 Wed Oct 26 15:19:16 2005  Google Inc. <opensource@google.com>
 
+	* google-perftools: version 0.4 release
 	* Decrease fragmentation in tcmalloc (lefevere)
 	* Support for ARM in some of the thread-specific code (markus)
 	* Turn off heap-checker for statically-linked binaries, which
@@ -52,3 +54,10 @@ Wed Oct 26 15:19:16 2005  Google Inc. <opensource@google.com>
 	* tcmalloc now tracks those stack traces that allocate memory (sanjay)
 	* Work around a weird setspecific problem (sanjay)
 	* Fix tcmalloc overflow problems when an alloc is close to 2G/4G (sanjay)
+
+Mon Nov 14 17:28:59 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.5 release
+	* Add va_start/va_end calls around vsnprintf() (csilvers)
+	* Write our own __syscall_return(), since it's not defined
+	  consistently on all 64-bit linux distros (markus)

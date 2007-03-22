@@ -79,7 +79,9 @@ enum {INFO, WARNING, ERROR, FATAL, NUM_SEVERITIES};
 
 inline void LogPrintf(int severity, const char* pat, ...) {
   va_list ap;
+  va_start(ap, pat);
   vfprintf(stderr, pat, ap);
+  va_end(ap);
   fprintf(stderr, "\n");
   if ((severity) == FATAL)
     exit(1);

@@ -5,7 +5,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.4, opensource@google.com)
+AC_INIT(google-perftools, 0.5, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -32,6 +32,8 @@ AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(munmap)
 AC_FUNC_MMAP
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
+AC_CHECK_HEADERS(libunwind.h)   # for stacktrace (will be needed soon)
+AC_CHECK_HEADERS(unwind.h)      # for stacktrace (will be needed soon)
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms
 AC_CHECK_HEADERS(linux/ptrace.h)
 AC_CHECK_HEADERS(syscall.h)

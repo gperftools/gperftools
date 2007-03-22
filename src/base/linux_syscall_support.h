@@ -96,6 +96,14 @@
    * cancellable), which means we cannot call these functions. Instead,
    * we have to call syscall() directly.
    */
+  #define RETURN(type, res)                                                   \
+    do {                                                                      \
+      if ((unsigned long)(res) >= (unsigned long)(-125)) {                    \
+        errno = -(res);                                                       \
+        res = -1;                                                             \
+      }                                                                       \
+      return (type) (res);                                                    \
+    } while (0)
   #if defined(__i386__)
     /* In PIC mode (e.g. when building shared libraries), gcc for i386
      * reserves ebx. Unfortunately, most distribution ship with implementations
@@ -106,14 +114,14 @@
      * So, we just have to redefine all of the _syscallX() macros.
      */
     #define BODY(type,args...)                                                \
-        long __res;                                                           \
-        __asm__ __volatile__("push %%ebx\n"                                   \
-                             "movl %2,%%ebx\n"                                \
-                             "int $0x80\n"                                    \
-                             "pop %%ebx"                                      \
-                             args                                             \
-                             : "memory");                                     \
-        __syscall_return(type,__res)
+      long __res;                                                             \
+      __asm__ __volatile__("push %%ebx\n"                                     \
+                           "movl %2,%%ebx\n"                                  \
+                           "int $0x80\n"                                      \
+                           "pop %%ebx"                                        \
+                           args                                               \
+                           : "memory");                                       \
+      RETURN(type,__res)
     #undef  _syscall0
     #define _syscall0(type,name)                                              \
       type name(void) {                                                       \
@@ -122,7 +130,7 @@
                        : "=a" (__res)                                         \
                        : "0" (__NR_##name)                                    \
                        : "memory");                                           \
-      __syscall_return(type,__res);                                           \
+      RETURN(type,__res);                                                     \
       }
     #undef  _syscall1
     #define _syscall1(type,name,type1,arg1)                                   \
@@ -167,7 +175,7 @@
           __asm__ __volatile__ (__syscall(name)                               \
                                 : "=r"(__res_r0) : args : "lr", "memory");    \
           __res = __res_r0;                                                   \
-          __syscall_return(type, __res)
+          RETURN(type, __res)
     #undef _syscall0
     #define _syscall0(type, name)                                             \
         type name() {                                                         \
@@ -374,6 +382,7 @@
   }
   #undef REG
   #undef BODY
+  #undef RETURN
 #endif
 
 
