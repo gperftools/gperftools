@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -96,7 +96,7 @@ DEFINE_string(cpu_profile, "",
 typedef struct siginfo SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.si_faddr; // maybe not correct
-} 
+}
 
 #elif defined HAVE_STRUCT_SIGCONTEXT_SC_EIP
 typedef struct sigcontext SigStructure;
@@ -126,6 +126,13 @@ inline void* GetPC(const SigStructure& sig_structure ) {
 typedef struct ucontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.uc_mcontext.gregs[REG_RIP];
+}
+
+#elif defined HAVE_STRUCT_SIGCONTEXT_REGS__NIP
+typedef struct sigcontext SigStructure;
+inline void* GetPC(const SigStructure& sig_structure ) {
+  return (void*)sig_structure.regs->nip;
+}
 
 #else
 #error I dont know what your PC is
@@ -141,7 +148,7 @@ class ProfileData {
 
   // Is profiling turned on at all
   inline bool enabled() { return out_ >= 0; }
-    
+
   // What is the frequency of interrupts (ticks per second)
   inline int frequency() { return frequency_; }
 
@@ -156,7 +163,7 @@ class ProfileData {
   void Stop();
 
   void GetCurrentState(ProfilerState* state);
-  
+
  private:
   static const int kMaxStackDepth = 64;         // Max stack depth profiled
   static const int kMaxFrequency = 4000;        // Largest allowed frequency
@@ -189,7 +196,7 @@ class ProfileData {
   pthread_mutex_t table_lock_;  // Cannot use "Mutex" in signal handlers
 #endif
   Bucket*       hash_;          // hash table
-  
+
   Slot*         evict_;         // evicted entries
   int           num_evicted_;   // how many evicted entries?
   int           out_;           // fd for output file
@@ -297,8 +304,8 @@ ProfileData::ProfileData() :
 
   if (!Start(fname)) {
     fprintf(stderr, "Can't turn on cpu profiling: ");
-    perror(fname); 
-    exit(1); 
+    perror(fname);
+    exit(1);
   }
 }
 
@@ -322,8 +329,8 @@ bool ProfileData::Start(const char* fname) {
   fname_ = strdup(fname);
 
   LOCK(&table_lock_);
-  
-  // Reset counters 
+
+  // Reset counters
   num_evicted_ = 0;
   count_       = 0;
   evictions_   = 0;
@@ -484,8 +491,8 @@ void ProfileData::FlushTable() {
 void ProfileData::Add(unsigned long pc) {
   void* stack[kMaxStackDepth];
   stack[0] = (void*)pc;
-  int depth = GetStackTrace(stack+1, kMaxStackDepth-1, 
-                            3/*Removes sighandlers*/);
+  int depth = GetStackTrace(stack+1, kMaxStackDepth-1,
+                            4/*Removes Add,prof_handler,sighandlers*/);
   depth++;              // To account for pc value
 
   // Make hash-value
@@ -519,7 +526,7 @@ void ProfileData::Add(unsigned long pc) {
       }
     }
   }
-  
+
   if (!done) {
     // Evict entry with smallest count
     Entry* e = &bucket->entry[0];
@@ -532,7 +539,7 @@ void ProfileData::Add(unsigned long pc) {
       evictions_++;
       Evict(*e);
     }
-    
+
     // Use the newly evicted entry
     e->depth = depth;
     e->count = 1;
@@ -594,7 +601,7 @@ void ProfilerFlush() {
   pdata.FlushTable();
 }
 
-bool ProfilingIsEnabledForAllThreads() { 
+bool ProfilingIsEnabledForAllThreads() {
   return pdata.enabled();
 }
 

@@ -249,6 +249,7 @@ void MallocExtension::GetHeapSample(string* result) {
 
   // TODO(menage) Get this working in google-perftools
   //DumpAddressMap(DebugStringWriter, result);
+  delete[] entries;
 }
 
 void MallocExtension::GetHeapGrowthStacks(std::string* result) {

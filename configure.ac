@@ -5,7 +5,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.5, opensource@google.com)
+AC_INIT(google-perftools, 0.6, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -43,7 +43,8 @@ AC_CHECK_MEMBERS([struct sigcontext.sc_eip,
                   struct sigcontext.eip,
                   struct sigcontext.rip,
                   struct sigcontext.sc_ip,
-                  struct siginfo.si_faddr],,,
+                  struct siginfo.si_faddr,
+		  struct sigcontext.regs->nip],,,
                  [#include <signal.h>])
 
 # Defines PRIuS

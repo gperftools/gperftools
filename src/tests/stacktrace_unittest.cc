@@ -42,6 +42,7 @@
 // backtrace, and maybe print the backtrace to stdout. 
 
 //-----------------------------------------------------------------------//
+void CheckStackTraceLeaf();
 void CheckStackTrace4(int i);
 void CheckStackTrace3(int i);
 void CheckStackTrace2(int i);
@@ -51,8 +52,9 @@ void CheckStackTrace(int i);
 
 // The sequence of functions whose return addresses we expect to see in the
 // backtrace.
-const int BACKTRACE_STEPS = 5;
+const int BACKTRACE_STEPS = 6;
 void * expected_stack[BACKTRACE_STEPS] = { 
+  (void *) &CheckStackTraceLeaf,
   (void *) &CheckStackTrace4,
   (void *) &CheckStackTrace3,
   (void *) &CheckStackTrace2,
@@ -77,10 +79,6 @@ void * expected_stack[BACKTRACE_STEPS] = {
 // ...
 // stack[5] is ret addr within CheckStackTrace
 
-// The google version does not include the caller in the 
-// backtrace.  Some other version might.  (glibc backtrace()?)
-const int self_in_backtrace = 0;
-
 //-----------------------------------------------------------------------//
 
 void CheckRetAddrIsInFunction( void * ret_addr, void * function_start_addr)
@@ -96,14 +94,20 @@ void CheckStackTraceLeaf(void) {
   const int STACK_LEN = 10;
   void *stack[STACK_LEN];
   int size;
+    void *top, *bottom;
 
   size = GetStackTrace(stack, STACK_LEN, 0);
   printf("Obtained %d stack frames.\n", size);
   CHECK_LE(size, STACK_LEN);
-  
+
+  // GetStackExtent() may not be implemented
+  if (GetStackExtent(NULL, &top, &bottom)) {
+    printf("%p %p\n", top, bottom);
+  }
+
   for (int i = 0; i < BACKTRACE_STEPS; i++)
   {
-    CheckRetAddrIsInFunction(stack[i + self_in_backtrace], expected_stack[i]);
+    CheckRetAddrIsInFunction(stack[i], expected_stack[i]);
   }
 
 
@@ -111,6 +115,7 @@ void CheckStackTraceLeaf(void) {
   {
     char **strings = backtrace_symbols(stack, size);
     
+    printf("Obtained %d stack frames.\n", size);
     for (int i = 0; i < size; i++)
       printf("%s\n", strings[i]);
     printf("CheckStackTrace() addr: %p\n", &CheckStackTrace);

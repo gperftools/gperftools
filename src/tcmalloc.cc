@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -127,7 +127,7 @@ static const int kMinSystemAlloc = 1 << (20 - kPageShift);
 // amortize the lock overhead for accessing the central list.  Making
 // it too big may temporarily cause unnecessary memory wastage in the
 // per-thread free list until the scavenger cleans up the list.
-static const int kNumObjectsToMove = 32;
+static int num_objects_to_move[kNumClasses];
 
 // Maximum length we allow a per-thread free-list to have before we
 // move objects from it into the corresponding central free-list.  We
@@ -170,6 +170,22 @@ static size_t class_to_size[kNumClasses];
 // Mapping from size class to number of pages to allocate at a time
 static size_t class_to_pages[kNumClasses];
 
+
+
+// TransferCache is used to cache transfers of num_objects_to_move[size_class]
+// back and forth between thread caches and the central cache for a given size
+// class.
+struct TCEntry {
+  void *head;  // Head of chain of objects.
+  void *tail;  // Tail of chain of objects.
+};
+// A central cache freelist can have anywhere from 0 to kNumTransferEntries
+// slots to put link list chains into.  To keep memory usage bounded the total
+// number of TCEntries across size classes is fixed.  Currently each size
+// class is initially given one TCEntry which also means that the maximum any
+// one class can have is kNumClasses.
+static const int kNumTransferEntries = kNumClasses;
+
 // Return floor(log2(n)) for n > 0.
 #if (defined __i386__ || defined __x86_64__) && defined __GNUC__
 static inline int LgFloor(size_t n) {
@@ -201,6 +217,70 @@ static inline int LgFloor(size_t n) {
 }
 #endif
 
+
+// Some very basic linked list functions for dealing with using void * as
+// storage.
+
+static inline void *SLL_Next(void *t) {
+  return *(reinterpret_cast<void**>(t));
+}
+
+static inline void SLL_SetNext(void *t, void *n) {
+  *(reinterpret_cast<void**>(t)) = n;
+}
+
+static inline void SLL_Push(void **list, void *element) {
+  SLL_SetNext(element, *list);
+  *list = element;
+}
+
+static inline void *SLL_Pop(void **list) {
+  void *result = *list;
+  *list = SLL_Next(*list);
+  return result;
+}
+
+
+// Remove N elements from a linked list to which head points.  head will be
+// modified to point to the new head.  start and end will point to the first
+// and last nodes of the range.  Note that end will point to NULL after this
+// function is called.
+static inline void SLL_PopRange(void **head, int N, void **start, void **end) {
+  if (N == 0) {
+    *start = NULL;
+    *end = NULL;
+    return;
+  }
+
+  void *tmp = *head;
+  for (int i = 1; i < N; ++i) {
+    tmp = SLL_Next(tmp);
+  }
+
+  *start = *head;
+  *end = tmp;
+  *head = SLL_Next(tmp);
+  // Unlink range from list.
+  SLL_SetNext(tmp, NULL);
+}
+
+static inline void SLL_PushRange(void **head, void *start, void *end) {
+  if (!start) return;
+  SLL_SetNext(end, *head);
+  *head = start;
+}
+
+static inline size_t SLL_Size(void *head) {
+  int count = 0;
+  while (head) {
+    count++;
+    head = SLL_Next(head);
+  }
+  return count;
+}
+
+// Setup helper functions.
+
 static inline int SizeClass(size_t size) {
   if (size == 0) size = 1;
   const int lg = LgFloor(size);
@@ -211,6 +291,19 @@ static inline int SizeClass(size_t size) {
 // Get the byte-size for a specified class
 static inline size_t ByteSizeForClass(size_t cl) {
   return class_to_size[cl];
+}
+
+
+static int NumMoveSize(size_t size) {
+  if (size == 0) return 0;
+  // Use approx 64k transfers between thread and central caches.
+  int num = static_cast<int>(64.0 * 1024.0 / size);
+  if (num < 2) num = 2;
+  // Clamp well below kMaxFreeListLength to avoid ping pong between central
+  // and thread caches.
+  if (num > static_cast<int>(0.8 * kMaxFreeListLength))
+    num = static_cast<int>(0.8 * kMaxFreeListLength);
+  return num;
 }
 
 // Initialize the mapping arrays
@@ -289,6 +382,11 @@ static void InitSizeClasses() {
       MESSAGE("Bad size %" PRIuS " for %" PRIuS " (sc = %d)\n", s, size, sc);
       abort();
     }
+  }
+
+  // Initialize the num_objects_to_move array.
+  for (size_t cl = 1; cl  < kNumClasses; ++cl) {
+    num_objects_to_move[cl] = NumMoveSize(ByteSizeForClass(cl));
   }
 }
 
@@ -833,7 +931,7 @@ void TCMalloc_PageHeap::Dump(TCMalloc_Printer* out) {
 
 static void RecordGrowth(size_t growth) {
   StackTrace* t = stacktrace_allocator.New();
-  t->depth = GetStackTrace(t->stack, kMaxStackDepth-1, 4);
+  t->depth = GetStackTrace(t->stack, kMaxStackDepth-1, 3);
   t->size = growth;
   t->stack[kMaxStackDepth-1] = reinterpret_cast<void*>(growth_stacks);
   growth_stacks = t;
@@ -939,18 +1037,26 @@ class TCMalloc_ThreadCache_FreeList {
   void clear_lowwatermark() { lowater_ = length_; }
 
   void Push(void* ptr) {
-    *(reinterpret_cast<void**>(ptr)) = list_;
-    list_ = ptr;
+    SLL_Push(&list_, ptr);
     length_++;
   }
 
   void* Pop() {
     ASSERT(list_ != NULL);
-    void* result = list_;
-    list_ = *(reinterpret_cast<void**>(result));
     length_--;
     if (length_ < lowater_) lowater_ = length_;
-    return result;
+    return SLL_Pop(&list_);
+  }
+
+  void PushRange(int N, void *start, void *end) {
+    SLL_PushRange(&list_, start, end);
+    length_ += N;
+  }
+
+  void PopRange(int N, void **start, void **end) {
+    SLL_PopRange(&list_, N, start, end);
+    ASSERT(length_ >= N);
+    length_ -= N;
   }
 };
 
@@ -1017,34 +1123,98 @@ class TCMalloc_Central_FreeList {
  public:
   void Init(size_t cl);
 
-  // REQUIRES: lock_ is held
-  // Insert object.
-  // May temporarily release lock_.
-  void Insert(void* object);
+  // These methods all do internal locking.
 
+  // Insert the specified range into the central freelist.  N is the number of
+  // elements in the range.
+  void InsertRange(void *start, void *end, int N);
+
+  // Returns the actual number of fetched elements into N.
+  void RemoveRange(void **start, void **end, int *N);
+
+  // Returns the number of free objects in cache.
+  int length() {
+    SpinLockHolder h(&lock_);
+    return counter_;
+  }
+
+  // Returns the number of free objects in the transfer cache.
+  int tc_length() {
+    SpinLockHolder h(&lock_);
+    return used_slots_ * num_objects_to_move[size_class_];
+  }
+
+ private:
   // REQUIRES: lock_ is held
   // Remove object from cache and return.
   // Return NULL if no free entries in cache.
-  void* Remove();
+  void* FetchFromSpans();
+
+  // REQUIRES: lock_ is held
+  // Remove object from cache and return.  Fetches
+  // from pageheap if cache is empty.  Only returns
+  // NULL on allocation failure.
+  void* FetchFromSpansSafe();
+
+  // REQUIRES: lock_ is held
+  // Release a linked list of objects to spans.
+  // May temporarily release lock_.
+  void ReleaseListToSpans(void *start);
+
+  // REQUIRES: lock_ is held
+  // Release an object to spans.
+  // May temporarily release lock_.
+  void ReleaseToSpans(void* object);
 
   // REQUIRES: lock_ is held
   // Populate cache by fetching from the page heap.
   // May temporarily release lock_.
   void Populate();
 
-  // REQUIRES: lock_ is held
-  // Number of free objects in cache
-  int length() const { return counter_; }
+  // REQUIRES: lock is held.
+  // Tries to make room for a TCEntry.  If the cache is full it will try to
+  // expand it at the cost of some other cache size.  Return false if there is
+  // no space.
+  bool MakeCacheSpace();
 
-  // Lock -- exposed because caller grabs it before touching this object
+  // REQUIRES: lock_ for locked_size_class is held.
+  // Picks a "random" size class to steal TCEntry slot from.  In reality it
+  // just iterates over the sizeclasses but does so without taking a lock.
+  // Returns true on success.
+  // May temporarily lock a "random" size class.
+  static bool EvictRandomSizeClass(int locked_size_class, bool force);
+
+  // REQUIRES: lock_ is *not* held.
+  // Tries to shrink the Cache.  If force is true it will relase objects to
+  // spans if it allows it to shrink the cache.  Return false if it failed to
+  // shrink the cache.  Decrements cache_size_ on succeess.
+  // May temporarily take lock_.  If it takes lock_, the locked_size_class
+  // lock is released to the thread from holding two size class locks
+  // concurrently which could lead to a deadlock.
+  bool ShrinkCache(int locked_size_class, bool force);
+
+  // This lock protects all the data members.  cached_entries and cache_size_
+  // may be looked at without holding the lock.
   SpinLock lock_;
 
- private:
-  // We keep linked lists of empty and non-emoty spans.
+  // We keep linked lists of empty and non-empty spans.
   size_t   size_class_;     // My size class
   Span     empty_;          // Dummy header for list of empty spans
   Span     nonempty_;       // Dummy header for list of non-empty spans
   size_t   counter_;        // Number of free objects in cache entry
+
+  // Here we reserve space for TCEntry cache slots.  Since one size class can
+  // end up getting all the TCEntries quota in the system we just preallocate
+  // sufficient number of entries here.
+  TCEntry tc_slots_[kNumTransferEntries];
+
+  // Number of currently used cached entries in tc_slots_.  This variable is
+  // updated under a lock but can be read without one.
+  int32_t used_slots_;
+  // The current number of slots for this size class.  This is an
+  // adaptive value that is increased if there is lots of traffic
+  // on a given size class.
+  int32_t cache_size_;
 };
 
 // Pad each CentralCache object to multiple of 64 bytes
@@ -1104,9 +1274,21 @@ void TCMalloc_Central_FreeList::Init(size_t cl) {
   DLL_Init(&empty_);
   DLL_Init(&nonempty_);
   counter_ = 0;
+
+  cache_size_ = 1;
+  used_slots_ = 0;
+  ASSERT(cache_size_ <= kNumTransferEntries);
 }
 
-void TCMalloc_Central_FreeList::Insert(void* object) {
+void TCMalloc_Central_FreeList::ReleaseListToSpans(void* start) {
+  while (start) {
+    void *next = SLL_Next(start);
+    ReleaseToSpans(start);
+    start = next;
+  }
+}
+
+void TCMalloc_Central_FreeList::ReleaseToSpans(void* object) {
   const PageID p = reinterpret_cast<uintptr_t>(object) >> kPageShift;
   Span* span = pageheap->GetDescriptor(p);
   ASSERT(span != NULL);
@@ -1151,7 +1333,139 @@ void TCMalloc_Central_FreeList::Insert(void* object) {
   }
 }
 
-void* TCMalloc_Central_FreeList::Remove() {
+bool TCMalloc_Central_FreeList::EvictRandomSizeClass(
+    int locked_size_class, bool force) {
+  static int race_counter = 0;
+  int t = race_counter++;  // Updated without a lock, but who cares.
+  if (t >= kNumClasses) {
+    while (t >= kNumClasses) {
+      t -= kNumClasses;
+    }
+    race_counter = t;
+  }
+  ASSERT(t >= 0);
+  ASSERT(t < kNumClasses);
+  if (t == locked_size_class) return false;
+  return central_cache[t].ShrinkCache(locked_size_class, force);
+}
+
+bool TCMalloc_Central_FreeList::MakeCacheSpace() {
+  // Is there room in the cache?
+  if (used_slots_ < cache_size_) return true;
+  // Check if we can expand this cache?
+  if (cache_size_ == kNumTransferEntries) return false;
+  // Ok, we'll try to grab an entry from some other size class.
+  if (EvictRandomSizeClass(size_class_, false) ||
+      EvictRandomSizeClass(size_class_, true)) {
+    // Succeeded in evicting, we're going to make our cache larger.
+    cache_size_++;
+    return true;
+  }
+  return false;
+}
+
+
+namespace {
+class LockInverter {
+ private:
+  TCMalloc_SpinLock *held_, *temp_;
+ public:
+  inline explicit LockInverter(TCMalloc_SpinLock* held, TCMalloc_SpinLock *temp)
+    : held_(held), temp_(temp) { held_->Unlock(); temp_->Lock(); }
+  inline ~LockInverter() { temp_->Unlock(); held_->Lock();  }
+};
+}
+
+bool TCMalloc_Central_FreeList::ShrinkCache(int locked_size_class, bool force) {
+  // Start with a quick check without taking a lock.
+  if (cache_size_ == 0) return false;
+  // We don't evict from a full cache unless we are 'forcing'.
+  if (force == false && used_slots_ == cache_size_) return false;
+
+  // Grab lock, but first release the other lock held by this thread.  We use
+  // the lock inverter to ensure that we never hold two size class locks
+  // concurrently.  That can create a deadlock because there is no well
+  // defined nesting order.
+  LockInverter li(&central_cache[locked_size_class].lock_, &lock_);
+  ASSERT(used_slots_ <= cache_size_);
+  ASSERT(0 <= cache_size_);
+  if (cache_size_ == 0) return false;
+  if (used_slots_ == cache_size_) {
+    if (force == false) return false;
+    // ReleaseListToSpans releases the lock, so we have to make all the
+    // updates to the central list before calling it.
+    cache_size_--;
+    used_slots_--;
+    ReleaseListToSpans(tc_slots_[used_slots_].head);
+    return true;
+  }
+  cache_size_--;
+  return true;
+}
+
+void TCMalloc_Central_FreeList::InsertRange(void *start, void *end, int N) {
+  SpinLockHolder h(&lock_);
+  if (N == num_objects_to_move[size_class_] &&
+    MakeCacheSpace()) {
+    int slot = used_slots_++;
+    ASSERT(slot >=0);
+    ASSERT(slot < kNumTransferEntries);
+    TCEntry *entry = &tc_slots_[slot];
+    entry->head = start;
+    entry->tail = end;
+    return;
+  }
+  ReleaseListToSpans(start);
+}
+
+void TCMalloc_Central_FreeList::RemoveRange(void **start, void **end, int *N) {
+  int num = *N;
+  ASSERT(num > 0);
+
+  SpinLockHolder h(&lock_);
+  if (num == num_objects_to_move[size_class_] && used_slots_ > 0) {
+    int slot = --used_slots_;
+    ASSERT(slot >= 0);
+    TCEntry *entry = &tc_slots_[slot];
+    *start = entry->head;
+    *end = entry->tail;
+    return;
+  }
+
+  // TODO: Prefetch multiple TCEntries?
+  void *tail = FetchFromSpansSafe();
+  if (!tail) {
+    // We are completely out of memory.
+    *start = *end = NULL;
+    *N = 0;
+    return;
+  }
+
+  SLL_SetNext(tail, NULL);
+  void *head = tail;
+  int count = 1;
+  while (count < num) {
+    void *t = FetchFromSpans();
+    if (!t) break;
+    SLL_Push(&head, t);
+    count++;
+  }
+  *start = head;
+  *end = tail;
+  *N = count;
+}
+
+
+void* TCMalloc_Central_FreeList::FetchFromSpansSafe() {
+  void *t = FetchFromSpans();
+  if (!t) {
+    Populate();
+    t = FetchFromSpans();
+  }
+  return t;
+}
+
+void* TCMalloc_Central_FreeList::FetchFromSpans() {
   if (DLL_IsEmpty(&nonempty_)) return NULL;
   Span* span = nonempty_.next;
 
@@ -1244,11 +1558,8 @@ void TCMalloc_ThreadCache::Init(pthread_t tid) {
 void TCMalloc_ThreadCache::Cleanup() {
   // Put unused memory back into central cache
   for (int cl = 0; cl < kNumClasses; ++cl) {
-    FreeList* src = &list_[cl];
-    TCMalloc_Central_FreeList* dst = &central_cache[cl];
-    SpinLockHolder h(&dst->lock_);
-    while (!src->empty()) {
-      dst->Insert(src->Pop());
+    if (list_[cl].length() > 0) {
+      ReleaseToCentralCache(cl, list_[cl].length());
     }
   }
 }
@@ -1271,43 +1582,39 @@ inline void TCMalloc_ThreadCache::Deallocate(void* ptr, size_t cl) {
   list->Push(ptr);
   // If enough data is free, put back into central cache
   if (list->length() > kMaxFreeListLength) {
-    ReleaseToCentralCache(cl, kNumObjectsToMove);
+    ReleaseToCentralCache(cl, num_objects_to_move[cl]);
   }
   if (size_ >= per_thread_cache_size) Scavenge();
 }
 
 // Remove some objects of class "cl" from central cache and add to thread heap
 void TCMalloc_ThreadCache::FetchFromCentralCache(size_t cl) {
-  TCMalloc_Central_FreeList* src = &central_cache[cl];
-  FreeList* dst = &list_[cl];
-  SpinLockHolder h(&src->lock_);
-  for (int i = 0; i < kNumObjectsToMove; i++) {
-    void* object = src->Remove();
-   if (object == NULL) {
-      if (i == 0) {
-        src->Populate();        // Temporarily releases src->lock_
-        object = src->Remove();
-     }
-      if (object == NULL) {
-        break;
-      }
-    }
-    dst->Push(object);
-    size_ += ByteSizeForClass(cl);
-  }
+  int fetch_count = num_objects_to_move[cl];
+  void *start, *end;
+  central_cache[cl].RemoveRange(&start, &end, &fetch_count);
+  list_[cl].PushRange(fetch_count, start, end);
+  size_ += ByteSizeForClass(cl) * fetch_count;
 }
 
 // Remove some objects of class "cl" from thread heap and add to central cache
 void TCMalloc_ThreadCache::ReleaseToCentralCache(size_t cl, int N) {
+  ASSERT(N > 0);
   FreeList* src = &list_[cl];
-  TCMalloc_Central_FreeList* dst = &central_cache[cl];
-  SpinLockHolder h(&dst->lock_);
   if (N > src->length()) N = src->length();
   size_ -= N*ByteSizeForClass(cl);
-  while (N-- > 0) {
-    void* ptr = src->Pop();
-    dst->Insert(ptr);
+
+  // We return prepackaged chains of the correct size to the central cache.
+  // TODO: Use the same format internally in the thread caches?
+  int batch_size = num_objects_to_move[cl];
+  while (N > batch_size) {
+    void *tail, *head;
+    src->PopRange(batch_size, &head, &tail);
+    central_cache[cl].InsertRange(head, tail, batch_size);
+    N -= batch_size;
   }
+  void *tail, *head;
+  src->PopRange(N, &head, &tail);
+  central_cache[cl].InsertRange(head, tail, N);
 }
 
 // Release idle memory to the central cache
@@ -1395,7 +1702,7 @@ void TCMalloc_ThreadCache::InitTSD() {
   ASSERT(!tsd_inited);
   perftools_pthread_key_create(&heap_key, DeleteCache);
   tsd_inited = true;
-    
+
   // We may have used a fake pthread_t for the main thread.  Fix it.
   pthread_t zero;
   memset(&zero, 0, sizeof(zero));
@@ -1499,6 +1806,7 @@ struct TCMallocStats {
   uint64_t system_bytes;        // Bytes alloced from system
   uint64_t thread_bytes;        // Bytes in thread caches
   uint64_t central_bytes;       // Bytes in central cache
+  uint64_t transfer_bytes;      // Bytes in central transfer cache
   uint64_t pageheap_bytes;      // Bytes in page heap
   uint64_t metadata_bytes;      // Bytes alloced for metadata
 };
@@ -1506,11 +1814,14 @@ struct TCMallocStats {
 // Get stats into "r".  Also get per-size-class counts if class_count != NULL
 static void ExtractStats(TCMallocStats* r, uint64_t* class_count) {
   r->central_bytes = 0;
+  r->transfer_bytes = 0;
   for (int cl = 0; cl < kNumClasses; ++cl) {
-    SpinLockHolder h(&central_cache[cl].lock_);
     const int length = central_cache[cl].length();
+    const int tc_length = central_cache[cl].tc_length();
     r->central_bytes += static_cast<uint64_t>(ByteSizeForClass(cl)) * length;
-    if (class_count) class_count[cl] = length;
+    r->transfer_bytes +=
+      static_cast<uint64_t>(ByteSizeForClass(cl)) * tc_length;
+    if (class_count) class_count[cl] = length + tc_length;
   }
 
   // Add stats from per-thread heaps
@@ -1564,6 +1875,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
   const uint64_t bytes_in_use = stats.system_bytes
                                 - stats.pageheap_bytes
                                 - stats.central_bytes
+                                - stats.transfer_bytes
                                 - stats.thread_bytes;
 
   out->printf("------------------------------------------------\n"
@@ -1571,6 +1883,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
               "MALLOC: %12" LLU " Bytes in use by application\n"
               "MALLOC: %12" LLU " Bytes free in page heap\n"
               "MALLOC: %12" LLU " Bytes free in central cache\n"
+              "MALLOC: %12" LLU " Bytes free in transfer cache\n"
               "MALLOC: %12" LLU " Bytes free in thread caches\n"
               "MALLOC: %12" LLU " Spans in use\n"
               "MALLOC: %12" LLU " Thread heaps in use\n"
@@ -1580,6 +1893,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
               bytes_in_use,
               stats.pageheap_bytes,
               stats.central_bytes,
+              stats.transfer_bytes,
               stats.thread_bytes,
               uint64_t(span_allocator.inuse()),
               uint64_t(threadheap_allocator.inuse()),
@@ -1787,7 +2101,7 @@ static Span* DoSampledAllocation(size_t size) {
   }
 
   // Fill stack trace and record properly
-  stack->depth = GetStackTrace(stack->stack, kMaxStackDepth, 2);
+  stack->depth = GetStackTrace(stack->stack, kMaxStackDepth, 1);
   stack->size = size;
   span->sample = 1;
   span->objects = stack;
@@ -1797,28 +2111,34 @@ static Span* DoSampledAllocation(size_t size) {
 }
 
 static inline void* do_malloc(size_t size) {
+  void* ret = NULL;
 
-  if (TCMallocDebug::level >= TCMallocDebug::kVerbose) 
+  if (TCMallocDebug::level >= TCMallocDebug::kVerbose) {
     MESSAGE("In tcmalloc do_malloc(%" PRIuS")\n", size);
+  }
   // The following call forces module initialization
   TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
   if (heap->SampleAllocation(size)) {
     Span* span = DoSampledAllocation(size);
-    if (span == NULL) return NULL;
-    return reinterpret_cast<void*>(span->start << kPageShift);
+    if (span != NULL) {
+      ret = reinterpret_cast<void*>(span->start << kPageShift);
+    }
   } else if (size > kMaxSize) {
     // Use page-level allocator
     SpinLockHolder h(&pageheap_lock);
     Span* span = pageheap->New(pages(size));
-    if (span == NULL) return NULL;
-    return reinterpret_cast<void*>(span->start << kPageShift);
+    if (span != NULL) {
+      ret = reinterpret_cast<void*>(span->start << kPageShift);
+    }
   } else {
-    return heap->Allocate(size);
+    ret = heap->Allocate(size);
   }
+  if (ret == NULL) errno = ENOMEM;
+  return ret;
 }
 
 static inline void do_free(void* ptr) {
-  if (TCMallocDebug::level >= TCMallocDebug::kVerbose) 
+  if (TCMallocDebug::level >= TCMallocDebug::kVerbose)
     MESSAGE("In tcmalloc do_free(%p)\n", ptr);
   if (ptr == NULL) return;
   ASSERT(pageheap != NULL);  // Should not call free() before malloc()
@@ -1835,8 +2155,8 @@ static inline void do_free(void* ptr) {
       heap->Deallocate(ptr, cl);
     } else {
       // Delete directly into central cache
-      SpinLockHolder h(&central_cache[cl].lock_);
-      central_cache[cl].Insert(ptr);
+      SLL_SetNext(ptr, NULL);
+      central_cache[cl].InsertRange(ptr, ptr, 1);
     }
   } else {
     SpinLockHolder h(&pageheap_lock);
@@ -2045,39 +2365,88 @@ extern "C" void* realloc(void* old_ptr, size_t new_size) {
 }
 
 #ifndef COMPILER_INTEL
-#define OPNEW_THROW
-#define OPDELETE_THROW
+#define OP_THROWNOTHING
+#define OP_THROWBADALLOC
 #else
-#define OPNEW_THROW throw(std::bad_alloc)
-#define OPDELETE_THROW throw()
+#define OP_THROWNOTHING throw()
+#define OP_THROWBADALLOC throw(std::bad_alloc)
 #endif
 
-void* operator new(size_t size) OPNEW_THROW {
-  void* p = do_malloc(size);
-  if (p == NULL) {
-    MESSAGE("Unable to allocate %" PRIuS " bytes: new failed\n", size);
-    abort();
+static SpinLock set_new_handler_lock = SPINLOCK_INITIALIZER;
+
+static inline void* cpp_alloc(size_t size, bool nothrow) {
+  for (;;) {
+    void* p = do_malloc(size);
+#ifdef PREANSINEW
+    MallocHook::InvokeNewHook(p, size);
+    return p;
+#else
+    if (p == NULL) {  // allocation failed
+      // Get the current new handler.  NB: this function is not
+      // thread-safe.  We make a feeble stab at making it so here, but
+      // this lock only protects against tcmalloc interfering with
+      // itself, not with other libraries calling set_new_handler.
+      std::new_handler nh;
+      {
+        SpinLockHolder h(&set_new_handler_lock);
+        nh = std::set_new_handler(0);
+        (void) std::set_new_handler(nh);
+      }
+      // If no new_handler is established, the allocation failed.
+      if (!nh) {
+        if (nothrow) return 0;
+        throw std::bad_alloc();
+      }
+      // Otherwise, try the new_handler.  If it returns, retry the
+      // allocation.  If it throws std::bad_alloc, fail the allocation.
+      // if it throws something else, don't interfere.
+      try {
+        (*nh)();
+      } catch (const std::bad_alloc&) {
+        if (!nothrow) throw;
+        MallocHook::InvokeNewHook(p, size);
+        return p;
+      }
+    } else {  // allocation success
+      MallocHook::InvokeNewHook(p, size);
+      return p;
+    }
+#endif
   }
-  MallocHook::InvokeNewHook(p, size);
-  return p;
 }
 
-void operator delete(void* p) OPDELETE_THROW {
+void* operator new(size_t size) OP_THROWBADALLOC {
+  return cpp_alloc(size, false);
+}
+
+void* operator new(size_t size, const std::nothrow_t&) OP_THROWNOTHING {
+  return cpp_alloc(size, true);
+}
+
+void operator delete(void* p) OP_THROWNOTHING {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
 
-void* operator new[](size_t size) OPNEW_THROW {
-  void* p = do_malloc(size);
-  if (p == NULL) {
-    MESSAGE("Unable to allocate %" PRIuS " bytes: new failed\n", size);
-    abort();
-  }
-  MallocHook::InvokeNewHook(p, size);
-  return p;
+void operator delete(void* p, const std::nothrow_t&) OP_THROWNOTHING {
+  MallocHook::InvokeDeleteHook(p);
+  do_free(p);
 }
 
-void operator delete[](void* p) OPDELETE_THROW {
+void* operator new[](size_t size) OP_THROWBADALLOC {
+  return cpp_alloc(size, false);
+}
+
+void* operator new[](size_t size, const std::nothrow_t&) OP_THROWNOTHING {
+  return cpp_alloc(size, true);
+}
+
+void operator delete[](void* p) OP_THROWNOTHING {
+  MallocHook::InvokeDeleteHook(p);
+  do_free(p);
+}
+
+void operator delete[](void* p, const std::nothrow_t&) OP_THROWNOTHING {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
@@ -2143,11 +2512,14 @@ extern "C" struct mallinfo mallinfo(void) {
   // Unfortunately, the struct contains "int" field, so some of the
   // size values will be truncated.
   info.arena     = static_cast<int>(stats.system_bytes);
-  info.fsmblks   = static_cast<int>(stats.thread_bytes + stats.central_bytes);
+  info.fsmblks   = static_cast<int>(stats.thread_bytes
+                                    + stats.central_bytes
+                                    + stats.transfer_bytes);
   info.fordblks  = static_cast<int>(stats.pageheap_bytes);
   info.uordblks  = static_cast<int>(stats.system_bytes
                                     - stats.thread_bytes
                                     - stats.central_bytes
+                                    - stats.transfer_bytes
                                     - stats.pageheap_bytes);
 
   return info;

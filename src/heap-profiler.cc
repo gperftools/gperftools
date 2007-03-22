@@ -869,10 +869,14 @@ void HeapProfiler::EarlyStartLocked() {
   // Our first allocation after registering our hook is treated specially by
   // RecordAlloc();  It looks at the stack and counts how many frames up we
   // are.  First we record the current stack pointer.
-  void* here[1];
-  GetStackTrace(here, 1, 0);
-  // This actually records the frame above this one.  We take this into account
-  // in RecordAlloc.
+  // Note: The stacktrace implementations differ about how many args they
+  // fill when skip is non-zero.  Safest just to reserve maxdepth space.
+  void* here[2];
+  GetStackTrace(here, 2, 1);
+  // Skip the first frame.  It points to the current offset within this
+  // function, which will have changed by the time we get to the malloc()
+  // call which triggers.  Instead, we store our parent function's offset,
+  // which is shared by both us and by the malloc() call below.
   recordalloc_reference_stack_position_ = here[0];
   done_first_alloc_ = false; // Initialization has not occured yet
   void* first_alloc = malloc(kFirstAllocationNumBytes);

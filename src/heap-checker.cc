@@ -45,13 +45,14 @@
 #include <google/perftools/hash_set.h>
 #include <algorithm>
 
+#include <fcntl.h>
+#include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <string.h>
-#include <sys/stat.h>
+#include <sys/mman.h>
 #include <sys/poll.h>
+#include <sys/stat.h>
 #include <sys/types.h>
-#include <fcntl.h>
 #include <assert.h>
 
 #ifdef HAVE_LINUX_PTRACE_H
@@ -60,6 +61,8 @@
 #ifdef HAVE_SYSCALL_H
 #include <syscall.h>
 #endif
+
+#include <elf.h>
 
 #include <google/stacktrace.h>
 #include <google/heap-profiler.h>
@@ -393,51 +396,219 @@ static int GetStatusOutput(const char*  command, string* output) {
   return pclose(f);
 }
 
-// A ProcMapsTask to record global data to ignore later
-// that belongs to 'library' mapped at 'start_address' with 'file_offset'.
-static void RecordGlobalDataLocked(const char* library,
-                                   uint64 start_address,
-                                   uint64 file_offset) {
-  HeapProfiler::MESSAGE(2, "HeapChecker: Looking into %s\n", library);
-  string command("/usr/bin/objdump -hw ");
-  command.append(library);
-  string output;
-  if (GetStatusOutput(command.c_str(), &output) != 0) {
-    HeapProfiler::MESSAGE(-1, "HeapChecker: "
-                          "Failed executing %s\n", command.c_str());
+// RAII class for a file descriptor.
+
+class FileDescriptor {
+  public:
+   FileDescriptor(int fd) : fd_(fd) { ; }
+   ~FileDescriptor() { if (fd_ >= 0) close(fd_); }
+   int Close() { int fd = fd_; fd_ = -1; return close(fd); }
+   operator int() { return fd_; }
+  private:
+   int fd_;
+};
+
+// This function takes the fields from a /proc/self/maps line:
+//
+//   start_address  start address of a memory region.
+//   end_address    end address of a memory region
+//   permissions    rwx + private/shared bit
+//   file_offset    file offset within the mapped file
+//   (major:minor)  major and minor device number of the mapped file
+//   inode          inode number of the mapped file
+//   filename       filename of the mapped file
+//
+// First, if the region is not writeable, then it cannot have any heap
+// pointers in it.
+//
+// It would be simple to just mark every writeable memory region as live.
+// However, that would pick up unused bottom pieces of thread stacks
+// and other rot.  So we need more complexity:
+//
+// Second, if the region is anonymous, we ignore it.  That skips the
+// main stack and the thread stacks which are picked up elsewhere.
+// Unfortunately that also skips the BSS portions of shared library
+// segments, and we need to pick those up.
+//
+// So, for each writable memory region that is mapped to a file,
+// we recover the original segment information from that file
+// (segment headers, not section headers).  We pick out the segment
+// that contains the given "file_offset", figure out where that
+// segment was loaded into memory, and register all of the memory
+// addresses for that segment.
+//
+// Picking out the right segment is a bit of a mess because the
+// same file offset can appear in multiple segments!  For example:
+//
+//   LOAD  0x000000 0x08048000 0x08048000 0x231a8 0x231a8 R E 0x1000
+//   LOAD  0x0231a8 0x0806c1a8 0x0806c1a8 0x01360 0x014e8 RW  0x1000
+//
+// File offset 0x23000 appears in both segments.  The second segment
+// stars at 0x23000 because of rounding.  Fortunately, we skip the
+// first segment because it is not writeable.  Most of the shared
+// objects we see have one read-executable segment and one read-write
+// segment so we really skate.
+//
+// If a shared library has no initialized data, only BSS, then the
+// size of the read-write LOAD segment will be zero, the dynamic loader
+// will create an anonymous memory region for the BSS but no named
+// segment [I think -- gotta check ld-linux.so -- mec].  We will
+// overlook that segment and never get here.  This is a bug.
+
+static bool RecordGlobalDataLocked(uint64 start_address,
+                                   uint64 end_address,
+                                   const char* permissions,
+                                   uint64 file_offset,
+                                   int64 inode,
+                                   const char* filename) {
+  // Ignore non-writeable regions.
+  if (strchr(permissions, 'w') == NULL)
+    return true;
+
+  // Ignore anonymous regions.
+  // This drops BSS regions which causes us much work later.
+  if (inode == 0)
+    return true;
+
+  // Grab some ELF types.
+#ifdef _LP64
+  typedef Elf64_Ehdr ElfFileHeader;
+  typedef Elf64_Phdr ElfProgramHeader;
+#else
+  typedef Elf32_Ehdr ElfFileHeader;
+  typedef Elf32_Phdr ElfProgramHeader;
+#endif
+
+  // Cannot mmap the ELF file because of the live ProcMapsIterator.
+  // Have to read little pieces.  Fortunately there are just two.
+  HeapProfiler::MESSAGE(2, "HeapChecker: Looking into %s\n", filename);
+  FileDescriptor fd_elf(open(filename, O_RDONLY));
+  if (fd_elf < 0)
+    return false;
+
+  // Read and validate the file header.
+  ElfFileHeader efh;
+  if (read(fd_elf, &efh, sizeof(efh)) != sizeof(efh))
+    return false;
+  if (memcmp(&efh.e_ident[0], ELFMAG, SELFMAG) != 0)
+    return false;
+  if (efh.e_version != EV_CURRENT)
+    return false;
+  if (efh.e_type != ET_EXEC && efh.e_type != ET_DYN)
+    return false;
+
+  // Read the segment headers.
+  if (efh.e_phentsize != sizeof(ElfProgramHeader))
+    return false;
+  if (lseek(fd_elf, efh.e_phoff, SEEK_SET) != efh.e_phoff)
+    return false;
+  const size_t phsize = efh.e_phnum * efh.e_phentsize;
+  ElfProgramHeader* eph = new ElfProgramHeader[efh.e_phnum];
+  if (read(fd_elf, eph, phsize) != phsize) {
+    delete[] eph;
+    return false;
+  }
+
+  // Gonna need this page size for page boundary considerations.
+  // Better be a power of 2.
+  const int int_page_size = getpagesize();
+  if (int_page_size <= 0 || int_page_size & (int_page_size-1))
     abort();
-  }
-  const char* output_start = output.c_str();
+  const uint64 page_size = int_page_size;
 
-  if (FLAGS_heap_profile_log >= 5) {
-    HeapProfiler::MESSAGE(5, "HeapChecker: Looking at objdump\n");
-    write(STDERR_FILENO, output.data(), output.size());
-  }
+  // Walk the segment headers.
+  // Find the segment header that contains the given file offset.
+  bool found_load_segment = false;
+  for (int iph = 0; iph < efh.e_phnum; ++iph) {
+    HeapProfiler::MESSAGE(3, "HeapChecker: %s %d: p_type: %d p_flags: %x",
+                          filename, iph, eph[iph].p_type, eph[iph].p_flags);
+    if (eph[iph].p_type == PT_LOAD && eph[iph].p_flags & PF_W) {
+      // Sanity check the segment header.
+      if (eph[iph].p_vaddr != eph[iph].p_paddr) {
+        delete[] eph;
+        return false;
+      }
+      if ((eph[iph].p_vaddr  & (page_size-1)) !=
+          (eph[iph].p_offset & (page_size-1))) {
+        delete[] eph;
+        return false;
+      }
 
-  while (1) {
-    char sec_name[11];
-    uint64 sec_size, sec_vmaddr, sec_lmaddr, sec_offset;
-    if (sscanf(output_start, "%*d .%10s "LLX" "LLX" "LLX" "LLX" ",
-               sec_name, &sec_size, &sec_vmaddr,
-               &sec_lmaddr, &sec_offset) == 5) {
-      if (strcmp(sec_name, "data") == 0 ||
-          strcmp(sec_name, "bss") == 0) {
-        uint64 real_start = start_address + sec_offset - file_offset;
-        HeapProfiler::MESSAGE(4, "HeapChecker: "
-                              "Got section %s: %p of "LLX" bytes\n",
-                              sec_name,
-                              reinterpret_cast<void*>(real_start),
-                              sec_size);
-        (*library_live_objects)[library].
-          push_back(AllocObject(reinterpret_cast<void*>(real_start),
-                                sec_size, IN_GLOBAL_DATA));
+      // The segment is not aligned in the ELF file, but will be
+      // aligned in memory.  So round it to page boundaries.
+      // Note: we lose if p_end is on the last page.
+      const uint64 p_start = eph[iph].p_offset &~ (page_size-1);
+      const uint64 p_end = ((eph[iph].p_offset + eph[iph].p_memsz)
+                         + (page_size-1)) &~ (page_size-1);
+      if (p_end < p_start) {
+        delete[] eph;
+        return false;
+      }
+      if (file_offset >= p_start && file_offset < p_end) {
+        // Found it.
+        if (found_load_segment) {
+          delete[] eph;
+          return false;
+        }
+        found_load_segment = true;
+
+        // [p_start, p_end) is the file segment, where p_end is extended
+        // for BSS (which does not actually come from the file).
+        //
+        // [start_address, end_address) is the memory region from
+        // /proc/self/maps.
+        //
+        // The point of correspondence is:
+        //   file_offset in filespace <-> start_address in memoryspace
+        //
+        // This point of correspondence is reliable because the kernel
+        // virtual memory system actually uses this information for
+        // demand-paging the file.
+        //
+        // A single file segment can get loaded into several contiguous
+        // memory regions with different permissions.  I have seen as
+        // many as four regions: no-permission alignment region +
+        // read-only-after-relocation region + read-write data region +
+        // read-write anonymous bss region.  So file_offset from the
+        // memory region may not equal to p_start from the file segement;
+        // file_offset can be anywhere in [p_start, p_end).
+
+        // Check that [start_address, end_address) is wholly contained
+        // in [p_start, p_end).
+        if (end_address < start_address ||
+            end_address - start_address > p_end - file_offset) {
+          delete[] eph;
+          return false;
+        }
+
+        // Calculate corresponding address and length for [p_start, p_end).
+        if (file_offset - p_start > start_address) {
+          delete[] eph;
+          return false;
+        }
+        void* addr = reinterpret_cast<void*>(start_address -
+                                             (file_offset - p_start));
+        const uintptr_t length = p_end - p_start;
+
+        // That is what we need.
+        (*library_live_objects)[filename].
+          push_back(AllocObject(addr, length, IN_GLOBAL_DATA));
       }
     }
-    // skip to the next line
-    const char* next = strpbrk(output_start, "\n\r");
-    if (next == NULL) break;
-    output_start = next + 1;
   }
+  delete[] eph;
+
+  if (!found_load_segment) {
+    HeapProfiler::MESSAGE(-1,
+      "HeapChecker: no LOAD segment found in %s\n",
+      filename);
+    return false;
+  }
+
+  if (fd_elf.Close() < 0)
+    return false;
+
+  return true;
 }
 
 // See if 'library' from /proc/self/maps has base name 'library_base'
@@ -522,25 +693,31 @@ HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
     HeapProfiler::MESSAGE(4, "HeapChecker: "
                           "Looking at /proc/self/maps line:\n  %s\n",
                           proc_map_line);
-    if (proc_maps_task == DISABLE_LIBRARY_ALLOCS  &&
-        strncmp(permissions, "r-xp", 4) == 0  &&  inode != 0) {
-      if (start_address >= end_address)  abort();
-      DisableLibraryAllocs(filename,
-                           reinterpret_cast<void*>(start_address),
-                           reinterpret_cast<void*>(end_address));
-    }
-    if (proc_maps_task == RECORD_GLOBAL_DATA_LOCKED  &&
-        // grhat based on Red Hat Linux 9
-        (strncmp(permissions, "rw-p", 4) == 0  ||
-         // Fedora Core 3
-         strncmp(permissions, "rwxp", 4) == 0)  &&
-        inode != 0) {
-      if (start_address >= end_address)  abort();
-      RecordGlobalDataLocked(proc_map_line + size, start_address, file_offset);
-    }
+
+    if (start_address >= end_address)
+      abort();
+
     // Determine if any shared libraries are present.
-    if (strstr(filename, "lib") && strstr(filename, ".so")) {
+    if (inode != 0 && strstr(filename, "lib") && strstr(filename, ".so")) {
       saw_shared_lib = true;
+    }
+
+    if (proc_maps_task == DISABLE_LIBRARY_ALLOCS) {
+      if (inode != 0 && strncmp(permissions, "r-xp", 4) == 0) {
+        DisableLibraryAllocs(filename,
+                             reinterpret_cast<void*>(start_address),
+                             reinterpret_cast<void*>(end_address));
+      }
+    }
+
+    if (proc_maps_task == RECORD_GLOBAL_DATA_LOCKED) {
+      if (!RecordGlobalDataLocked(start_address, end_address, permissions,
+                                  file_offset, inode, filename)) {
+        HeapProfiler::MESSAGE(
+          -1, "HeapChecker: failed RECORD_GLOBAL_DATA_LOCKED on %s\n",
+          filename);
+        abort();
+      }
     }
   }
   fclose(fp);
@@ -825,7 +1002,7 @@ void HeapLeakChecker::DisableChecksUp(int stack_frames) {
   if (!heap_checker_on) return;
   if (stack_frames < 1)  abort();
   void* stack[1];
-  if (GetStackTrace(stack, 1, stack_frames) != 1)  abort();
+  if (GetStackTrace(stack, 1, stack_frames+1) != 1)  abort();
   DisableChecksAt(stack[0]);
 }
 
@@ -840,7 +1017,7 @@ bool HeapLeakChecker::HaveDisabledChecksUp(int stack_frames) {
   if (!heap_checker_on) return false;
   if (stack_frames < 1)  abort();
   void* stack[1];
-  if (GetStackTrace(stack, 1, stack_frames) != 1)  abort();
+  if (GetStackTrace(stack, 1, stack_frames+1) != 1)  abort();
   return HaveDisabledChecksAt(stack[0]);
 }
 
@@ -865,14 +1042,14 @@ void HeapLeakChecker::DisableChecksIn(const char* pattern) {
 void* HeapLeakChecker::GetDisableChecksStart() {
   if (!heap_checker_on) return NULL;
   void* start_address;
-  if (GetStackTrace(&start_address, 1, 0) != 1)  abort();
+  if (GetStackTrace(&start_address, 1, 1) != 1)  abort();
   return start_address;
 }
 
 void HeapLeakChecker::DisableChecksToHereFrom(void* start_address) {
   if (!heap_checker_on) return;
   void* end_address;
-  if (GetStackTrace(&end_address, 1, 0) != 1)  abort();
+  if (GetStackTrace(&end_address, 1, 1) != 1)  abort();
   if (start_address > end_address)  swap(start_address, end_address);
   DisableChecksFromTo(start_address, end_address,
                       10000);  // practically no stack depth limit:

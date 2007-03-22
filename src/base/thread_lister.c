@@ -31,6 +31,7 @@
  * Author: Markus Gutschke
  */
 
+#include <stdio.h>         // needed for NULL on some powerpc platforms (?!)
 #include "base/thread_lister.h"
 #include "base/linuxthreads.h"
 /* Include other thread listers here that define THREADS macro

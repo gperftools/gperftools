@@ -78,6 +78,9 @@
 /* Define to 1 if `eip' is member of `struct sigcontext'. */
 #undef HAVE_STRUCT_SIGCONTEXT_EIP
 
+/* Define to 1 if `regs->nip' is member of `struct sigcontext'. */
+#undef HAVE_STRUCT_SIGCONTEXT_REGS__NIP
+
 /* Define to 1 if `rip' is member of `struct sigcontext'. */
 #undef HAVE_STRUCT_SIGCONTEXT_RIP
 

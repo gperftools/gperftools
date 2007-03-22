@@ -1,6 +1,6 @@
 #! /usr/bin/perl -w
 
-# Copyright (c) 2005, Google Inc.
+# Copyright (c) 1998-2006, Google Inc.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -68,21 +68,31 @@
 use strict;
 use Getopt::Long;
 
-# These are the external binaries we use.  We hard-code in the path
-# because some people have colorizing versions of these binaries which
-# can cause trouble.
-my $OBJDUMP = "/usr/bin/objdump";
-my $NM = "/usr/bin/nm";
-my $ADDR2LINE = "/usr/bin/addr2line";
+# These are the object tools we use, which come from various sources.
+# We want to invoke them directly, rather than via users' aliases and/or
+# search paths, because some people have colorizing versions of them that
+# can cause trouble, or because the default versions on a system may not
+# deal with 64-bit objects if 64-bit profiles are being analyzed.
+# (However, we will default to the user's defaults if we can't find better.)
+# See ConfigureObjTools near the bottom of this script.
+my %obj_tool_map = (
+  "objdump" => "objdump",
+  "nm" => "nm",
+  "addr2line" => "addr2line",
+);
 my $DOT = "dot";          # leave non-absolute, since it may be in /usr/local
 my $GV = "gv";
+
+# There is a pervasive dependency on the length (in hex characters, i.e.,
+# nibbles) of an address, distinguishing between 32-bit and 64-bit profiles:
+my $address_length = 8;   # Hope for 32-bit, reset if 64-bit detected.
 
 ##### Argument parsing #####
 
 sub usage_string {
   return <<'EOF';
-Usage: pprof [options] <program> <profile>
-   Prints specified cpu- or heap-profile 
+Usage: pprof [options] <program> <profile> ...
+   Prints specified cpu- or heap-profile
    
 Options:
    --cum               Sort by cumulative data
@@ -111,7 +121,7 @@ Heap-Profile Options:
    --alloc_space       Display allocated (mega)bytes
    --alloc_objects     Display allocated objects
    --show_bytes        Display space in bytes
-   --drop_negative     Ignore negaive differences
+   --drop_negative     Ignore negative differences
    
 Call-graph Options:
    --nodecount=<n>     Show at most so many nodes [default=80]
@@ -121,6 +131,12 @@ Call-graph Options:
    --ignore=<regexp>   Ignore nodes matching <regexp>
    --scale=<n>         Set GV scaling [default=0]
    
+Miscellaneous:
+   --tools=<prefix>    Prefix for object tool pathnames
+   --test              Run unit tests
+   --help              This message
+   --version           Version information
+
 Examples:
    
 pprof /bin/ls ls.prof
@@ -140,9 +156,9 @@ EOF
 
 sub version_string {
   return <<'EOF'
-pprof (part of google-perftools 0.1)
+pprof (part of google-perftools 0.6)
 
-Copyright 1998-2005 Google Inc.
+Copyright 1998-2006 Google Inc.
 
 This is BSD licensed software; see the source for copying conditions
 and license information.
@@ -151,14 +167,14 @@ PARTICULAR PURPOSE.
 EOF
 }
 
-sub fatal {
+sub usage {
   my $msg = shift;
   print STDERR "$msg\n\n";
   print STDERR usage_string();
   print STDERR "\nFATAL ERROR: $msg\n";    # just as a reminder
   exit(1);
 }
-  
+
 
 $main::opt_help = 0;
 $main::opt_version = 0;
@@ -193,6 +209,10 @@ $main::opt_alloc_objects = 0;
 $main::opt_show_bytes    = 0;
 $main::opt_drop_negative = 0;
 $main::opt_interactive   = 0;
+
+$main::opt_tools   = "";
+$main::opt_debug   = 0;
+$main::opt_test    = 0;
 
 # Are we printing a heap profile?
 $main::heap_profile = 0;
@@ -229,7 +249,10 @@ GetOptions("help!"          => \$main::opt_help,
 	   "alloc_objects!" => \$main::opt_alloc_objects,
 	   "show_bytes!"    => \$main::opt_show_bytes,
 	   "drop_negative!" => \$main::opt_drop_negative,
-	   ) || fatal("Invalid option(s)");
+           "tools=s"        => \$main::opt_tools,
+           "test!"          => \$main::opt_test,
+           "debug!"         => \$main::opt_debug,
+	   ) || usage("Invalid option(s)");
 
 # Deal with the standard --help and --version
 if ($main::opt_help) {
@@ -255,7 +278,7 @@ if ($main::opt_inuse_space +
     $main::opt_inuse_objects +
     $main::opt_alloc_space +
     $main::opt_alloc_objects > 1) {
-  fatal("Specify at most on of --inuse/--alloc options");
+  usage("Specify at most on of --inuse/--alloc options");
 }
 
 # Check output granularities
@@ -266,7 +289,7 @@ my $grains =
   $main::opt_files +
   0;
 if ($grains > 1) {
-  fatal("Only specify one output granularity option");
+  usage("Only specify one output granularity option");
 }
 if ($grains == 0) {
   $main::opt_functions = 1;
@@ -282,14 +305,30 @@ my $modes =
   $main::opt_gif +
   0;
 if ($modes > 1) {
-  fatal("Only specify one output mode");
+  usage("Only specify one output mode");
 }
 if ($modes == 0) {
   $main::opt_text = 1;
 }
 
-my $prog = shift || fatal("Did not specify program");
-my $pfile_arg = shift || fatal("Did not specify profile file");
+if ($main::opt_test) {
+  RunUnitTests();
+  # Should not return
+  exit(1);
+}
+
+# Binary name and profile arguments list
+$main::prog = "";
+@main::pfile_args = ();
+
+$main::prog = shift || usage("Did not specify program");
+scalar(@ARGV) || usage("Did not specify profile file");
+
+# Parse profile file/location arguments
+foreach my $farg (@ARGV) {
+  unshift(@main::pfile_args, $farg);
+}
+ConfigureObjTools($main::prog);
 
 ##### Main section #####
 
@@ -298,16 +337,21 @@ $main::tmpfile_sym = "/tmp/pprof$$.sym";
 $main::tmpfile_ps = "/tmp/pprof$$";
 $main::next_tmpfile = 0;
 $main::collected_profile = undef;
+@main::profile_files = ();
+#$main::op_time = time();
 $SIG{'INT'} = \&sighandler;
 
-# Read profile data
-my $pfile = FetchDynamicProfile($prog, $pfile_arg);
-my $data = ReadProfile($prog, $pfile);
+# Fetch all profile data
+FetchDynamicProfiles();
+
+# Read one profile, pick the last item on the list
+my $data = ReadProfile($main::prog, pop(@main::profile_files));
 my $profile = $data->{profile};
 my $libs = $data->{libs};       # Info about main program and shared libraries
 
 # List of function names to skip
 $main::skip = ();
+$main::skip_regexp = 'NOMATCH';
 if ($main::heap_profile) {
   foreach my $name ('calloc',
                     'cfree',
@@ -317,22 +361,33 @@ if ($main::heap_profile) {
                     'pvalloc',
                     'valloc',
                     'realloc',
+                    'do_malloc',
+		    'DoSampledAllocation',
                     '__builtin_delete',
                     '__builtin_new',
                     '__builtin_vec_delete',
                     '__builtin_vec_new') {
     $main::skip{$name} = 1;
   }
+  $main::skip_regexp = "TCMalloc";
 }
 if ($main::lock_profile) {
-  foreach my $name ('Mutex::Unlock') {
-    $main::skip{$name} = 1;
+  foreach my $vname ('Mutex::Unlock', 'Mutex::UnlockSlow') {
+    $main::skip{$vname} = 1;
+  }
+}
+
+# Add additional profiles, if available.
+if (scalar(@main::profile_files) > 0) {
+  foreach my $pname (@main::profile_files) {
+    my $p = ReadProfile($main::prog, $pname)->{profile};
+    $profile = AddProfile($profile, $p);
   }
 }
 
 # Subtract base from profile, if specified
 if ($main::opt_base ne '') {
-  my $base = ReadProfile($prog, $main::opt_base)->{profile};
+  my $base = ReadProfile($main::prog, $main::opt_base)->{profile};
   $profile = SubtractProfile($profile, $base);
 }
 
@@ -369,13 +424,17 @@ if (!$main::opt_interactive) {
   } elsif ($main::opt_text) {
     PrintText($symbols, $flat, $cumulative, $total, -1);
   } else {
-    if (PrintDot($prog, $symbols, $profile, $flat, $cumulative, $total)) {
+    if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
       if ($main::opt_gv) {
-	# Some versions of gv use -scale, and some use --scale.  *sigh*
-	# We use --help to determine if gv expects one dash or two.
-	system("$GV --help >/dev/null 2>&1 " .
-	       "&& $GV --scale=$main::opt_scale $main::tmpfile_ps " .
-	       "|| $GV -scale $main::opt_scale $main::tmpfile_ps")
+        if (!system("$GV --version >/dev/null 2>&1")) {
+	  # Options using double dash are supported by this gv version.
+	  system("$GV --scale=$main::opt_scale " .
+		 PsTempName($main::next_tmpfile));
+        } else {
+          # Old gv version - only supports options that use single dash.
+	  system("$GV -scale $main::opt_scale " .
+		 PsTempName($main::next_tmpfile));
+        }
       }
     } else {
       exit(1);
@@ -390,108 +449,139 @@ exit(0);
 
 
 ##### Interactive helper routines #####
+
 sub InteractiveMode {
   $| = 1;	# Make output unbuffered for interactive mode
   my $orig_profile = $profile;
-  while (1) {
-    print "(pprof) ";
-    $_ = <STDIN>;
-    if (!defined($_)) {
-      print "\n";
-      last;
-    }
-    if (m/^ *quit/) {
-      last;
-    }
-    if (m/^ *help/) {
-      InteractiveHelpMessage();
-      next;
-    }
-    # Clear all the options
-    $main::opt_lines = 0;
-    $main::opt_text = 0;
-    $main::opt_disasm = 0;
-    $main::opt_list = 0;
-    $main::opt_gv = 0;
-    $main::opt_cum = 0;
 
-    if (m/^ *(text|top)(\d*) *(.*)/) {
-      $main::opt_text = 1;
-
-      my $line_limit = ($2 ne "") ? int($2) : 10;
-
-      my $routine;
-      my $ignore;
-      ($routine, $ignore) = ParseInteractiveArgs($3);
-
-      my $profile = ProcessProfile($orig_profile, "", $ignore);
-      my $reduced = ReduceProfile($symbols, $profile);
-
-      # Get derived profiles
-      my $flat = FlatProfile($reduced);
-      my $cumulative = CumulativeProfile($reduced);
-
-      PrintText($symbols, $flat, $cumulative, $total, $line_limit);
-      next;
-    }
-    if (m/^ *list *(.+)/) {
-      $main::opt_list = 1;
-
-      my $routine;
-      my $ignore;
-      ($routine, $ignore) = ParseInteractiveArgs($1);
-
-      my $profile = ProcessProfile($orig_profile, "", $ignore);
-      my $reduced = ReduceProfile($symbols, $profile);
-
-      # Get derived profiles
-      my $flat = FlatProfile($reduced);
-      my $cumulative = CumulativeProfile($reduced);
-
-      PrintListing($libs, $flat, $cumulative, $routine);
-      next;
-    }
-    if (m/^ *disasm *(.+)/) {
-      $main::opt_disasm = 1;
-
-      my $routine;
-      my $ignore;
-      ($routine, $ignore) = ParseInteractiveArgs($1);
-
-      # Process current profile to account for various settings
-      my $profile = ProcessProfile($orig_profile, "", $ignore);
-      my $reduced = ReduceProfile($symbols, $profile);
-
-      # Get derived profiles
-      my $flat = FlatProfile($reduced);
-      my $cumulative = CumulativeProfile($reduced);
-
-      PrintDisassembly($libs, $flat, $cumulative, $routine);
-      next;
-    }
-    if (m/^ *gv *(.*)/) {
-      $main::opt_gv = 1;
-
-      my $focus;
-      my $ignore;
-      ($focus, $ignore) = ParseInteractiveArgs($1);
-
-      # Process current profile to account for various settings
-      my $profile = ProcessProfile($orig_profile, $focus, $ignore);
-      my $reduced = ReduceProfile($symbols, $profile);
-
-      # Get derived profiles
-      my $flat = FlatProfile($reduced);
-      my $cumulative = CumulativeProfile($reduced);
-
-      if (PrintDot($prog, $symbols, $profile, $flat, $cumulative, $total)) {
-	system("gv -scale $main::opt_scale -noresize " . 
-	       PsTempName($main::next_tmpfile) . " &");
-	$main::next_tmpfile++;
+  # Use ReadLine if it's installed.
+  if ( defined(eval {require Term::ReadLine}) ) {
+    my $term = new Term::ReadLine 'pprof';
+    while ( defined ($_ = $term->readline('(pprof) '))) {
+      $term->addhistory($_) if /\S/;
+      if (!InteractiveCommand($orig_profile, $_)) {
+	last;    # exit when we get an interactive command to quit
       }
-      next;
+    }
+  } else {       # don't have readline
+    while (1) {
+      print "(pprof) ";
+      $_ = <STDIN>;
+      if (!InteractiveCommand($orig_profile, $_)) {
+	last;    # exit when we get an interactive command to quit
+      }
     }
   }
+}
+
+# Takes two args: orig profile, and command to run.
+# Returns 1 if we should keep going, or 0 if we were asked to quit
+sub InteractiveCommand {
+  my($orig_profile, $command) = @_;
+  $_ = $command;                # just to make future m//'s easier
+  if (!defined($_)) {
+    print "\n";
+    return 0;
+  }
+  if (m/^ *quit/) {
+    return 0;
+  }
+  if (m/^ *help/) {
+    InteractiveHelpMessage();
+    return 1;
+  }
+  # Clear all the options
+  $main::opt_lines = 0;
+  $main::opt_text = 0;
+  $main::opt_disasm = 0;
+  $main::opt_list = 0;
+  $main::opt_gv = 0;
+  $main::opt_cum = 0;
+
+  if (m/^ *(text|top)(\d*) *(.*)/) {
+    $main::opt_text = 1;
+
+    my $line_limit = ($2 ne "") ? int($2) : 10;
+
+    my $routine;
+    my $ignore;
+    ($routine, $ignore) = ParseInteractiveArgs($3);
+
+    my $profile = ProcessProfile($orig_profile, "", $ignore);
+    my $reduced = ReduceProfile($symbols, $profile);
+
+    # Get derived profiles
+    my $flat = FlatProfile($reduced);
+    my $cumulative = CumulativeProfile($reduced);
+
+    PrintText($symbols, $flat, $cumulative, $total, $line_limit);
+    return 1;
+  }
+  if (m/^ *list *(.+)/) {
+    $main::opt_list = 1;
+
+    my $routine;
+    my $ignore;
+    ($routine, $ignore) = ParseInteractiveArgs($1);
+
+    my $profile = ProcessProfile($orig_profile, "", $ignore);
+    my $reduced = ReduceProfile($symbols, $profile);
+
+    # Get derived profiles
+    my $flat = FlatProfile($reduced);
+    my $cumulative = CumulativeProfile($reduced);
+
+    PrintListing($libs, $flat, $cumulative, $routine);
+    return 1;
+  }
+  if (m/^ *disasm *(.+)/) {
+    $main::opt_disasm = 1;
+
+    my $routine;
+    my $ignore;
+    ($routine, $ignore) = ParseInteractiveArgs($1);
+
+    # Process current profile to account for various settings
+    my $profile = ProcessProfile($orig_profile, "", $ignore);
+    my $reduced = ReduceProfile($symbols, $profile);
+
+    # Get derived profiles
+    my $flat = FlatProfile($reduced);
+    my $cumulative = CumulativeProfile($reduced);
+
+    PrintDisassembly($libs, $flat, $cumulative, $routine);
+    return 1;
+  }
+  if (m/^ *gv *(.*)/) {
+    $main::opt_gv = 1;
+
+    my $focus;
+    my $ignore;
+    ($focus, $ignore) = ParseInteractiveArgs($1);
+
+    # Process current profile to account for various settings
+    my $profile = ProcessProfile($orig_profile, $focus, $ignore);
+    my $reduced = ReduceProfile($symbols, $profile);
+
+    # Get derived profiles
+    my $flat = FlatProfile($reduced);
+    my $cumulative = CumulativeProfile($reduced);
+
+    if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
+      if (!system("$GV --version >/dev/null 2>&1")) {
+        # Options using double dash are supported by this gv version.
+        system("$GV --scale=$main::opt_scale --noresize " .
+               PsTempName($main::next_tmpfile) . " &");
+      } else {
+        # Old gv version - only supports options that use single dash.
+        system("$GV -scale $main::opt_scale -noresize " .
+               PsTempName($main::next_tmpfile) . " &");
+      }
+      $main::next_tmpfile++;
+    }
+    return 1;
+  }
+  return 1;
 }
 
 
@@ -503,19 +593,23 @@ sub ProcessProfile {
   # Process current profile to account for various settings
   my $profile = $orig_profile;
   my $total_count = TotalProfile($profile);
-  print "Total: ", $total_count, " samples\n";
+  printf("Total: %s %s\n", Unparse($total_count), Units());
   if ($focus ne '') {
     $profile = FocusProfile($symbols, $profile, $focus);
     my $focus_count = TotalProfile($profile);
-    printf "After focusing on '%s': %d samples of %d (%0.1f%%)\n", 
-      $focus, $focus_count, $total_count, ($focus_count*100.0) / $total_count;
+    printf("After focusing on '%s': %s %s of %s (%0.1f%%)\n",
+	   $focus,
+	   Unparse($focus_count), Units(),
+	   Unparse($total_count), ($focus_count*100.0) / $total_count);
   }
   if ($ignore ne '') {
     $profile = IgnoreProfile($symbols, $profile, $ignore);
     my $ignore_count = TotalProfile($profile);
-    printf "After ignoring '%s': %d samples of %d (%0.1f%%)\n", 
-      $ignore, $ignore_count, $total_count, 
-	($ignore_count*100.0) / $total_count;
+    printf("After ignoring '%s': %s %s of %s (%0.1f%%)\n",
+	   $ignore,
+	   Unparse($ignore_count), Units(),
+	   Unparse($total_count),
+	   ($ignore_count*100.0) / $total_count);
   }
 
   return $profile;
@@ -531,12 +625,12 @@ Commands:
       Show graphical hierarchical display of current profile.  Without
       any arguments, shows all samples in the profile.  With the optional
       "focus" argument, restricts the samples shown to just those where
-      the "focus" regular expression matches a routine name on the stack 
+      the "focus" regular expression matches a routine name on the stack
       trace.
 
   list [routine_regexp] [-ignore1] [-ignore2]
       Show source listing of routines whose names match "routine_regexp"
-  
+
   top [--cum] [-ignore1] [-ignore2]
   top20 [--cum] [-ignore1] [-ignore2]
   top37 [--cum] [-ignore1] [-ignore2]
@@ -585,7 +679,7 @@ sub PsTempName {
   my $fnum = shift;
   return "$main::tmpfile_ps" . "." . "$fnum" . ".ps";
 }
-  
+
 # Print text output
 sub PrintText {
   my $symbols = shift;
@@ -636,24 +730,27 @@ sub PrintDisassembly {
 
   foreach my $lib (@{$libs}) {
     my $symbol_table = GetProcedureBoundaries($lib->[0], $disasm_opts);
-    my $offset = $lib->[1] - $lib->[3];
-    foreach my $routine (keys(%{$symbol_table})) {
+    my $offset = AddressSub($lib->[1], $lib->[3]);
+    foreach my $routine (sort ByName keys(%{$symbol_table})) {
       my $start_addr = $symbol_table->{$routine}->[0];
       my $end_addr = $symbol_table->{$routine}->[1];
       # See if there are any samples in this routine
       my $total_flat = 0;
       my $total_cum = 0;
-      for (my $addr = $start_addr; $addr < $end_addr; $addr++) {
-        $total_flat += GetEntry($flat, sprintf("0x%x", $addr+$offset));
-        $total_cum += GetEntry($cumulative, sprintf("0x%x", $addr+$offset));
+      my $length = hex(AddressSub($end_addr, $start_addr));
+      my $addr = AddressAdd($start_addr, $offset);
+      for (my $i = 0; $i < $length; $i++) {
+        $total_cum += GetEntry($cumulative, $addr);
+        $total_flat += GetEntry($flat, $addr);
+        $addr = AddressInc($addr);
       }
 
       # Skip disassembly if there are no samples in routine
       next if ($total_cum == 0);
 
       print "ROUTINE ====================== $routine\n";
-      printf "%6s %6s Total samples (flat / cumulative)\n",
-        Unparse($total_flat), Unparse($total_cum);
+      printf "%6s %6s Total %s (flat / cumulative)\n",
+        Unparse($total_flat), Unparse($total_cum), Units();
 
       my @instructions = Disassemble($lib->[0], $offset,
                                      $start_addr, $end_addr);
@@ -666,7 +763,8 @@ sub PrintDisassembly {
         }
         my $f = GetEntry($flat, $e->[0]);
         my $c = GetEntry($cumulative, $e->[0]);
-        my $address = $e->[0];  $address =~ s/^0x//;
+        my $address = $e->[0];
+        $address =~ s/^0x//;
         printf("%6s %6s %-20s %8s: %6s\n",
                UnparseAlt($f),
                UnparseAlt($c),
@@ -689,10 +787,11 @@ sub Disassemble {
   my $start_addr = shift;
   my $end_addr = shift;
 
-  my $cmd = sprintf("$OBJDUMP -d -l --no-show-raw-insn " .
-                    "--start-address=%d --stop-address=%d $prog",
-                    $start_addr, $end_addr);
-  open(OBJDUMP, "$cmd |") || error("$OBJDUMP: $!\n");
+  my $objdump = $obj_tool_map{"objdump"};
+  my $cmd = sprintf("$objdump -d -l --no-show-raw-insn " .
+                    "--start-address=0x$start_addr " .
+                    "--stop-address=0x$end_addr $prog");
+  open(OBJDUMP, "$cmd |") || error("$objdump: $!\n");
   my @result = ();
   my $filename = "";
   my $linenumber = -1;
@@ -704,8 +803,9 @@ sub Disassemble {
       $filename = $1;
       $linenumber = $2;
     } elsif (m/^ +([0-9a-f]+):\s*(.*)/) {
-      # Disassembly line
-      my $k = sprintf("0x%x", hex($1) + $offset);
+      # Disassembly line -- zero-extend address to full length
+      my $addr = HexExtend($1);
+      my $k = AddressAdd($addr, $offset);
       push(@result, [$k, $filename, $linenumber, $2]);
     }
   }
@@ -727,18 +827,21 @@ sub PrintListing {
 
   foreach my $lib (@{$libs}) {
     my $symbol_table = GetProcedureBoundaries($lib->[0], $list_opts);
-    my $offset = $lib->[1] - $lib->[3];
+    my $offset = AddressSub($lib->[1], $lib->[3]);
     foreach my $routine (sort ByName keys(%{$symbol_table})) {
       # Print if there are any samples in this routine
       my $start_addr = $symbol_table->{$routine}->[0];
       my $end_addr = $symbol_table->{$routine}->[1];
-      for (my $addr = $start_addr; $addr < $end_addr; $addr++) {
-        if (defined($cumulative->{sprintf("0x%x", $addr+$offset)})) {
+      my $length = hex(AddressSub($end_addr, $start_addr));
+      my $addr = AddressAdd($start_addr, $offset);
+      for (my $i = 0; $i < $length; $i++) {
+        if (defined($cumulative->{$addr})) {
           PrintSource($lib->[0], $offset,
                       $routine, $flat, $cumulative,
                       $start_addr, $end_addr);
           last;
         }
+        $addr = AddressInc($addr);
       }
     }
   }
@@ -794,7 +897,7 @@ sub PrintSource {
     }
   }
 
-  # Hack 3: Extend last line forward until its indentation is less than 
+  # Hack 3: Extend last line forward until its indentation is less than
   # the indentation we saw on $firstline
   my $oldlastline = $lastline;
   {
@@ -808,17 +911,17 @@ sub PrintSource {
       $l++;
       my $indent = Indentation($_);
       if ($l >= $firstline) {
-	if ($first_indentation < 0 && $indent >= 0) {
-	  $first_indentation = $indent;
-	  last if ($first_indentation == 0);
-	}
+        if ($first_indentation < 0 && $indent >= 0) {
+          $first_indentation = $indent;
+          last if ($first_indentation == 0);
+        }
       }
       if ($l >= $lastline && $indent >= 0) {
-	if ($indent >= $first_indentation) {
-	  $lastline = $l+1;
-	} else {
-	  last;
-	}
+        if ($indent >= $first_indentation) {
+          $lastline = $l+1;
+        } else {
+          last;
+        }
       }
     }
     close(FILE);
@@ -871,8 +974,8 @@ sub PrintSource {
   my $l = 0;
   while (<FILE>) {
     $l++;
-    if ($l >= $firstline - 5 && 
-	(($l <= $oldlastline + 5) || ($l <= $lastline))) {
+    if ($l >= $firstline - 5 &&
+        (($l <= $oldlastline + 5) || ($l <= $lastline))) {
       chop;
       my $text = $_;
       printf("%6s %6s %4d: %s\n",
@@ -1000,20 +1103,21 @@ sub PrintDot {
 
   # Get edges and counts per edge
   my %edge = ();
+  my $n;
   foreach my $k (keys(%{$raw})) {
     # TODO: omit low %age edges
-    my $n = $raw->{$k};
+    $n = $raw->{$k};
     my @addrs = split(/\n/, $k);
     for (my $i = 1; $i <= $#addrs; $i++) {
       my $src = OutputKey($symbols, $addrs[$i]);
       my $dst = OutputKey($symbols, $addrs[$i-1]);
       #next if ($src eq $dst);  # Avoid self-edges?
       if (exists($node{$src}) && exists($node{$dst})) {
-        my $e = "$src\001$dst";
-        if (!exists($edge{$e})) {
-          $edge{$e} = 0;
+        my $edge_label = "$src\001$dst";
+        if (!exists($edge{$edge_label})) {
+          $edge{$edge_label} = 0;
         }
-        $edge{$e} += $n;
+        $edge{$edge_label} += $n;
       }
     }
   }
@@ -1021,7 +1125,7 @@ sub PrintDot {
   # Print edges
   foreach my $e (keys(%edge)) {
     my @x = split(/\001/, $e);
-    my $n = $edge{$e};
+    $n = $edge{$e};
 
     if (abs($n) > $edgelimit) {
       # Compute line width based on edge count
@@ -1054,8 +1158,10 @@ sub OutputKey {
   my $a = shift;
 
   # Skip large addresses since they sometimes show up as fake entries on RH9
-  if (hex($a) > 0x7fffffff) {
-    return '';
+  if (length($a) > 8) {
+    if ($a gt "7fffffffffffffff") { return ''; }
+  } else {
+    if (hex($a) > 0x7fffffff) { return ''; }
   }
 
   # Extract symbolic info for address
@@ -1069,7 +1175,7 @@ sub OutputKey {
   }
 
   # We drop a few well-known names
-  if ($main::skip{$func}) {
+  if ($main::skip{$func} || ($func =~ m/$main::skip_regexp/)) {
     return '';
   }
 
@@ -1114,6 +1220,8 @@ sub Unparse {
         return sprintf("%.1f", $num / 1048576.0);
       }
     }
+  } elsif ($main::lock_profile) {
+    return sprintf("%.3f", $num / 1e9);	# Convert nanoseconds to seconds
   } else {
     return sprintf("%d", $num);
   }
@@ -1141,6 +1249,8 @@ sub Units {
         return "MB";
       }
     }
+  } elsif ($main::lock_profile) {
+    return "seconds";
   } else {
     return "samples";
   }
@@ -1264,6 +1374,25 @@ sub TotalProfile {
   return $result;
 }
 
+# Add A to B
+sub AddProfile {
+  my $A = shift;
+  my $B = shift;
+
+  my $R = {};
+  # add all keys in A
+  foreach my $k (keys(%{$A})) {
+    my $v = $A->{$k};
+    AddEntry($R, $k, $v);
+  }
+  # add all keys in B
+  foreach my $k (keys(%{$B})) {
+    my $v = $B->{$k};
+    AddEntry($R, $k, $v);
+  }
+  return $R;
+}
+
 # Subtract B from A
 sub SubtractProfile {
   my $A = shift;
@@ -1278,7 +1407,7 @@ sub SubtractProfile {
     AddEntry($R, $k, $v);
   }
   if (!$main::opt_drop_negative) {
-    # take care of when substracted profile has more things
+    # Take care of when subtracted profile has more entries
     foreach my $k (keys(%{$B})) {
       if (!exists($A->{$k})) {
         AddEntry($R, $k, 0 - $B->{$k});
@@ -1310,14 +1439,88 @@ sub AddEntry {
   $profile->{$k} += $n;
 }
 
+# Add a stack of entries to specified profile, and add them to the $pcs
+# list.
+sub AddEntries {
+  my $profile = shift;
+  my $pcs = shift;
+  my $stack = shift;
+  my $count = shift;
+  my @k = ();
+
+  foreach my $e (split(/\s+/, $stack)) {
+    my $pc = HexExtend($e);
+    $pcs->{$pc} = 1;
+    push @k, $pc;
+  }
+  AddEntry($profile, (join "\n", @k), $count);
+}
+
 ##### Code to profile a server dynamically #####
 
 sub FetchDynamicProfile {
   my $binary_name = shift;
   my $profile_name = shift;
+  my $fetch_name_only = shift;
+  my $encourage_patience = shift;
 
   # TODO: Add support for fetching profiles dynamically from a server
   return $profile_name;
+}
+
+# Collect profiles in parallel
+sub FetchDynamicProfiles {
+  my $items = scalar(@main::pfile_args);
+  my $levels = log($items) / log(2);
+
+  if ($items == 1) {
+    $main::profile_files[0] = FetchDynamicProfile($main::prog, $main::pfile_args[0], 0, 1);
+  } else {
+    # math rounding issues
+    if ((2 ** $levels) < $items) {
+     $levels++;
+    }
+    my $count = scalar(@main::pfile_args);
+    for (my $i = 0; $i < $count; $i++) {
+      $main::profile_files[$i] = FetchDynamicProfile($main::prog, $main::pfile_args[$i], 1, 0);
+    }
+    print STDERR "Fetching $count profiles, Be patient...\n";
+    FetchDynamicProfilesRecurse($levels, 0, 0);
+    $main::collected_profile = join(" \\\n    ", @main::profile_files);
+  }
+}
+
+# Recursively fork a process to get enough processes
+# collecting profiles
+sub FetchDynamicProfilesRecurse {
+  my $maxlevel = shift;
+  my $level = shift;
+  my $position = shift;
+
+  if (my $pid = fork()) {
+    $position = 0 | ($position << 1);
+    TryCollectProfile($maxlevel, $level, $position);
+    wait;
+  } else {
+    $position = 1 | ($position << 1);
+    TryCollectProfile($maxlevel, $level, $position);
+    exit(0);
+  }
+}
+
+# Collect a single profile
+sub TryCollectProfile {
+  my $maxlevel = shift;
+  my $level = shift;
+  my $position = shift;
+
+  if ($level >= ($maxlevel - 1)) {
+    if ($position < scalar(@main::pfile_args)) {
+      FetchDynamicProfile($main::prog, $main::pfile_args[$position], 0, 0);
+    }
+  } else {
+    FetchDynamicProfilesRecurse($maxlevel, $level+1, $position);
+  }
 }
 
 ##### Parsing code #####
@@ -1328,7 +1531,7 @@ sub FetchDynamicProfile {
 #      $result->{period}      Sampling period (in microseconds)
 #      $result->{profile}     Profile object
 #      $result->{map}         Memory map info from profile
-#      $result->{pcs}         List of all PC values seen
+#      $result->{pcs}         Hash of all PC values seen, key is hex address
 sub ReadProfile {
   my $prog = shift;
   my $fname = shift;
@@ -1371,6 +1574,12 @@ sub ReadCPUProfile {
   my $nbytes = read(PROFILE, $str, (stat PROFILE)[7]);   # read entire file
   close(PROFILE);
 
+  my $version;
+  my $period;
+  my $i;
+  my $profile = {};
+  my $pcs = {};
+
   # Parse string into array of slots.
   # L! is needed for 64-bit # platforms, but not supported on 5.005
   # (despite the manpage claims)
@@ -1384,37 +1593,95 @@ sub ReadCPUProfile {
 
   my @slots = unpack($format, $str);
 
-  # Read header
-  if ($#slots < 1 || $slots[0] != 0 || $slots[1] < 3) {
+  # Read header.  The current header version is a 5-element structure
+  # containing:
+  #   0: header count (always 0)
+  #   1: header "words" (after this one: 3)
+  #   2: format version (0)
+  #   3: sampling period (usec)
+  #   4: unused padding (always 0)
+  # The header words are 32-bit or 64-bit depending on the ABI of the program
+  # that generated the profile.  In the 64-bit case, since our x86-architecture
+  # machines are little-endian, the actual value of each of these elements is
+  # in the first 32-bit word, and the second is always zero.  The @slots array
+  # above was read as a sequence of 32-bit words in both cases, so we need to
+  # explicitly check for both cases.  A typical slot sequence for each is:
+  #   32-bit:  0 3 0 100 0
+  #   64-bit:  0 0  3 0  0 0  100 0  0 0
+  #
+  if ($#slots < 4 || $slots[0] != 0 ) {
     error("$fname: not a profile file, or old format profile file\n");
   }
-  my $version = $slots[2];
-  my $period = $slots[3];
-  my $i = 2 + $slots[1];
+  if ($slots[1] >= 3) {
+    # Normal 32-bit header:
+    $version = $slots[2];
+    $period = $slots[3];
+    $i = 2 + $slots[1];
+    $address_length = 8;
 
-  # Parse profile
-  my $profile = {};
-  my $pcs = {};
-  while ($i <= $#slots) {
-    my $n = $slots[$i++];
-    my $d = $slots[$i++];
-    if ($slots[$i] == 0) {
-      # End of profile data marker
+    # Parse profile
+    while ($i <= $#slots) {
+      my $n = $slots[$i++];
+      my $d = $slots[$i++];
+      if ($slots[$i] == 0) {
+        # End of profile data marker
+        $i += $d;
+        last;
+      }
+
+      # Make key out of the stack entries
+      my @k = ();
+      for (my $j = 0; $j < $d; $j++) {
+        my $pc = sprintf("%08x", $slots[$i+$j]);
+        $pcs->{$pc} = 1;
+        push @k, $pc;
+      }
+
+      AddEntry($profile, (join "\n", @k), $n);
       $i += $d;
-      last;
     }
 
-    # Make key out of the stack entries
-    my $k = "";
-    for (my $j = 0; $j < $d; $j++) {
-      my $pc = $slots[$i+$j];
-      $pcs->{$pc} = 1;
-      $k .= sprintf("\n0x%x", $pc);
-    }
-    $k =~ s/^\n//;
+  # Normal 64-bit header:  All entries are doubled in size.  The first
+  # word (little-endian) should contain the real value, the second should
+  # be zero.
+  } elsif ($#slots < 9 || $slots[1] != 0 || $slots[2] < 3 || $slots[3] != 0
+        || $slots[5] != 0 || $slots[7] != 0) {
+      error("$fname: not a profile file, or old format profile file\n");
+  } else {
+    $version = $slots[4];
+    $period = $slots[6];
+    $i = 4 + 2 * $slots[2];
+    $address_length = 16;
 
-    AddEntry($profile, $k, $n);
-    $i += $d;
+    # Parse profile
+    while ($i <= $#slots) {
+      my $n = $slots[$i++];
+      my $nhi = $slots[$i++];
+      # Huge counts may coerce to floating point, keeping scale, not precision
+      if ($nhi != 0) { $n += $nhi*(2**32); }
+      my $d = $slots[$i++];
+      if ($slots[$i++] != 0) {
+        my $addr = sprintf("%o", 4 * $i);
+        print STDERR "At index $i ($addr):\n";
+        error("$fname: stack trace depth >= 2**32\n");
+      }
+      if ($slots[$i] == 0 && $slots[$i+1] == 0) {
+        # End of profile data marker
+        $i += 2 * $d;
+        last;
+      }
+
+      # Make key out of the stack entries
+      my @k = ();
+      for (my $j = $d; $j--; ) {
+        my $pclo = $slots[$i++];
+        my $pchi = $slots[$i++];
+        my $pc = sprintf("%08x%08x", $pchi, $pclo);
+        $pcs->{$pc} = 1;
+        push @k, $pc;
+      }
+      AddEntry($profile, (join "\n", @k), $n);
+    }
   }
 
   # Parse map
@@ -1458,6 +1725,7 @@ sub ReadHeapProfile {
   my $profile = {};
   my $pcs = {};
   my $map = "";
+
   while (<PROFILE>) {
     if (/^MAPPED_LIBRARIES:/) {
       # Read the /proc/self/maps data
@@ -1493,15 +1761,7 @@ sub ReadHeapProfile {
       my ($n1, $s1, $n2, $s2) = ($1, $2, $3, $4);
 
       my @counts = ($n1, $s1, $n2, $s2);
-      my $n = $counts[$index];
-      my $k = "";
-      foreach my $e (split(/\s+/, $stack)) {
-        my $pc = hex($e);
-        $pcs->{$pc} = 1;
-        $k .= sprintf("\n0x%x", $pc);
-      }
-      $k =~ s/^\n//;
-      AddEntry($profile, $k, $n);
+      AddEntries($profile, $pcs, $stack, $counts[$index]);
     }
   }
 
@@ -1516,28 +1776,33 @@ sub ReadHeapProfile {
 
 sub ReadSynchProfile {
   my ($prog, $fname, $header) = @_;
-  my ($line, $map, $pc, @k, $count, $stack);
 
-  $map = '';
+  my $map = '';
   my $profile = {};
   my $pcs = {};
   my $sampling_period = 1;
+  my $cyclespernanosec = 2.8;	# Default assumption for old binaries
+  my $seen_clockrate = 0;
+  my $line;
 
   while ( $line = <PROFILE> ) {
     if ( $line =~ /^(slow release).*thread \d+  \@\s*(.*?)\s*$/ ||
          $line =~ /^\s*(\d+) \@\s*(.*?)\s*$/ ) {
-      # Sample entry
-      ($count, $stack) = ($1, $2);
-      $count = 1 if $count !~ /^\d+$/;
-
-      @k = ();
-      foreach $pc (split /\s+/, $stack) {
-        $pcs->{hex($pc)} = 1;
-        push @k, $pc;
+      my ($count, $stack) = ($1, $2);
+      if ($count !~ /^\d+$/) {
+        next;
       }
-      AddEntry($profile, (join "\n", @k), $count);
+
+      # Convert cycles to nanoseconds
+      $count /= $cyclespernanosec;
+      AddEntries($profile, $pcs, $stack, $count);
+
+    } elsif ( $line =~ m|cycles/second = (\d+)|) {
+      $cyclespernanosec = $1 / 1e9;
+      $seen_clockrate = 1;
     } elsif ( $line =~ /sampling period = (\d+)/ ) {
       $sampling_period = $1;
+
     } else {
       # Memory map entry
       $map .= $line;
@@ -1545,13 +1810,28 @@ sub ReadSynchProfile {
   }
   close PROFILE;
 
+  if (!$seen_clockrate) {
+    printf STDERR ("No cycles/second entry in profile; Guessing %.1f GHz\n",
+                   $cyclespernanosec);
+  }
+
   my $r = {};
-  $r->{'version'} = 0;
-  $r->{'period'} = $sampling_period;
-  $r->{'profile'} = $profile;
-  $r->{'libs'} = ParseLibraries($prog, $map, $pcs);
-  $r->{'pcs'} = $pcs;
+  $r->{version} = 0;
+  $r->{period} = $sampling_period;
+  $r->{profile} = $profile;
+  $r->{libs} = ParseLibraries($prog, $map, $pcs);
+  $r->{pcs} = $pcs;
   return $r;
+}
+
+# Given a hex value in the form "0x1abcd" return "0001abcd" or
+# "000000000001abcd", depending on the current address length.
+# There's probably a more idiomatic (or faster) way to do this...
+sub HexExtend {
+  my $addr = shift;
+
+  $addr =~ s/^0x//;
+  return substr("000000000000000".$addr, -$address_length);
 }
 
 ##### Symbol extraction #####
@@ -1564,7 +1844,14 @@ sub ParseLibraries {
 
   my $result = [];
   my $h = "[a-f0-9]+";
+  my $zero_offset = HexExtend("0");
+
+  my $buildvar = "";
   foreach my $l (split("\n", $map)) {
+    if ($l =~ m/^\s*build=(.*)$/) {
+      $buildvar = $1;
+    }
+
     my $start;
     my $finish;
     my $offset;
@@ -1572,32 +1859,40 @@ sub ParseLibraries {
     if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.so(\.\d+)*\w*)/) {
       # Full line from /proc/self/maps.  Example:
       #   40000000-40015000 r-xp 00000000 03:01 12845071   /lib/ld-2.3.2.so
-      $start = hex($1);
-      $finish = hex($2);
-      $offset = hex($3);
+      $start = HexExtend($1);
+      $finish = HexExtend($2);
+      $offset = HexExtend($3);
       $lib = $4;
     } elsif ($l =~ /^\s*($h)-($h):\s*(\S+\.so(\.\d+)*)/) {
       # Cooked line from DumpAddressMap.  Example:
       #   40000000-40015000: /lib/ld-2.3.2.so
-      $start = hex($1);
-      $finish = hex($2);
-      $offset = 0;
+      $start = HexExtend($1);
+      $finish = HexExtend($2);
+      $offset = $zero_offset;
       $lib = $3;
     } else {
       next;
     }
 
+    # Expand "$build" variable if available
+    $lib =~ s/\$build\b/$buildvar/g;
+
     # Get objdump output from the library file to figure out how to
     # map between mapped addresses and addresses in the library.
-    open(OBJDUMP, "$OBJDUMP -h $lib |") || error("$OBJDUMP $lib: $!\n");
+    my $objdump = $obj_tool_map{"objdump"};
+    open(OBJDUMP, "$objdump -h $lib |")
+                  || error("$objdump $lib: $!\n");
     while (<OBJDUMP>) {
       # Idx Name          Size      VMA       LMA       File off  Algn
       #  10 .text         00104b2c  420156f0  420156f0  000156f0  2**4
+      # For 64-bit objects, VMA and LMA will be 16 hex digits, size and file
+      # offset may still be 8.  But AddressSub below will still handle that.
       my @x = split;
       if (($#x >= 6) && ($x[1] eq '.text')) {
-        my $vma = hex($x[3]);
-        my $file_offset = hex($x[5]);
-        $offset += $vma - $file_offset;
+        my $vma = $x[3];
+        my $file_offset = $x[5];
+        my $vma_offset = AddressSub($vma, $file_offset);
+        $offset = AddressAdd($offset, $vma_offset);
         last;
       }
     }
@@ -1607,13 +1902,171 @@ sub ParseLibraries {
   }
 
   # Append special entry for the main program
-  my $max_pc = 0;
+  my $max_pc = "0";
   foreach my $pc (keys(%{$pcs})) {
-    if ($pc > $max_pc) { $max_pc = $pc; }
+    if ($pc gt $max_pc) { $max_pc = $pc; }
   }
-  push(@{$result}, [$prog, 0, $max_pc, 0]);
+  push(@{$result}, [$prog, $zero_offset, $max_pc, $zero_offset]);
 
   return $result;
+}
+
+# Add two hex addresses of length $address_length.
+# Run pprof --test for unit test if this is changed.
+sub AddressAdd {
+  my $addr1 = shift;
+  my $addr2 = shift;
+  my $sum;
+
+  if ($address_length == 8) {
+    # Perl doesn't cope with wraparound arithmetic, so do it explicitly:
+    $sum = (hex($addr1)+hex($addr2)) % (0x10000000 * 16);
+    return sprintf("%08x", $sum);
+
+  } else {
+    # Do the addition in 7-nibble chunks to trivialize carry handling.
+
+    if ($main::opt_debug and $main::opt_test) {
+      print STDERR "AddressAdd $addr1 + $addr2 = ";
+    }
+
+    my $a1 = substr($addr1,-7);
+    $addr1 = substr($addr1,0,-7);
+    my $a2 = substr($addr2,-7);
+    $addr2 = substr($addr2,0,-7);
+    $sum = hex($a1) + hex($a2);
+    my $c = 0;
+    if ($sum > 0xfffffff) {
+      $c = 1;
+      $sum -= 0x10000000;
+    }
+    my $r = sprintf("%07x", $sum);
+
+    $a1 = substr($addr1,-7);
+    $addr1 = substr($addr1,0,-7);
+    $a2 = substr($addr2,-7);
+    $addr2 = substr($addr2,0,-7);
+    $sum = hex($a1) + hex($a2) + $c;
+    $c = 0;
+    if ($sum > 0xfffffff) {
+      $c = 1;
+      $sum -= 0x10000000;
+    }
+    $r = sprintf("%07x", $sum) . $r;
+
+    $sum = hex($addr1) + hex($addr2) + $c;
+    if ($sum > 0xff) { $sum -= 0x100; }
+    $r = sprintf("%02x", $sum) . $r;
+
+    if ($main::opt_debug and $main::opt_test) { print STDERR "$r\n"; }
+
+    return $r;
+  }
+}
+
+
+# Subtract two hex addresses of length $address_length.
+# Run pprof --test for unit test if this is changed.
+sub AddressSub {
+  my $addr1 = shift;
+  my $addr2 = shift;
+  my $diff;
+
+  if ($address_length == 8) {
+    # Perl doesn't cope with wraparound arithmetic, so do it explicitly:
+    $diff = (hex($addr1)-hex($addr2)) % (0x10000000 * 16);
+    return sprintf("%08x", $diff);
+
+  } else {
+    # Do the addition in 7-nibble chunks to trivialize borrow handling.
+    # if ($main::opt_debug) { print STDERR "AddressSub $addr1 - $addr2 = "; }
+
+    my $a1 = hex(substr($addr1,-7));
+    $addr1 = substr($addr1,0,-7);
+    my $a2 = hex(substr($addr2,-7));
+    $addr2 = substr($addr2,0,-7);
+    my $b = 0;
+    if ($a2 > $a1) {
+      $b = 1;
+      $a1 += 0x10000000;
+    }
+    $diff = $a1 - $a2;
+    my $r = sprintf("%07x", $diff);
+
+    $a1 = hex(substr($addr1,-7));
+    $addr1 = substr($addr1,0,-7);
+    $a2 = hex(substr($addr2,-7)) + $b;
+    $addr2 = substr($addr2,0,-7);
+    $b = 0;
+    if ($a2 > $a1) {
+      $b = 1;
+      $a1 += 0x10000000;
+    }
+    $diff = $a1 - $a2;
+    $r = sprintf("%07x", $diff) . $r;
+
+    $a1 = hex($addr1);
+    $a2 = hex($addr2) + $b;
+    if ($a2 > $a1) { $a1 += 0x100; }
+    $diff = $a1 - $a2;
+    $r = sprintf("%02x", $diff) . $r;
+
+    # if ($main::opt_debug) { print STDERR "$r\n"; }
+
+    return $r;
+  }
+}
+
+# Increment a hex addresses of length $address_length.
+# Run pprof --test for unit test if this is changed.
+sub AddressInc {
+  my $addr = shift;
+  my $sum;
+
+  if ($address_length == 8) {
+    # Perl doesn't cope with wraparound arithmetic, so do it explicitly:
+    $sum = (hex($addr)+1) % (0x10000000 * 16);
+    return sprintf("%08x", $sum);
+
+  } else {
+    # Do the addition in 7-nibble chunks to trivialize carry handling.
+    # We are always doing this to step through the addresses in a function,
+    # and will almost never overflow the first chunk, so we check for this
+    # case and exit early.
+
+    # if ($main::opt_debug) { print STDERR "AddressInc $addr1 = "; }
+
+    my $a1 = substr($addr,-7);
+    $addr = substr($addr,0,-7);
+    $sum = hex($a1) + 1;
+    my $r = sprintf("%07x", $sum);
+    if ($sum <= 0xfffffff) {
+      $r = $addr . $r;
+      # if ($main::opt_debug) { print STDERR "$r\n"; }
+      return HexExtend($r);
+    } else {
+      $r = "0000000";
+    }
+
+    $a1 = substr($addr,-7);
+    $addr = substr($addr,0,-7);
+    $sum = hex($a1) + 1;
+    $r = sprintf("%07x", $sum) . $r;
+    if ($sum <= 0xfffffff) {
+      $r = $addr . $r;
+      # if ($main::opt_debug) { print STDERR "$r\n"; }
+      return HexExtend($r);
+    } else {
+      $r = "00000000000000";
+    }
+
+    $sum = hex($addr) + 1;
+    if ($sum > 0xff) { $sum -= 0x100; }
+    $r = sprintf("%02x", $sum) . $r;
+
+    # if ($main::opt_debug) { print STDERR "$r\n"; }
+    return $r;
+  }
 }
 
 # Extract symbols for all PC values found in profile
@@ -1635,13 +2088,13 @@ sub ExtractSymbols {
     # Get list of pcs that belong in this library.
     my $contained = [];
     foreach my $pc (keys(%{$pcset})) {
-      if (!$seen{$pc} && ($pc >= $start) && ($pc <= $finish)) {
+      if (!$seen{$pc} && ($pc ge $start) && ($pc le $finish)) {
         $seen{$pc} = 1;
         push(@{$contained}, $pc);
       }
     }
     # Map to symbols
-    MapToSymbols($libname, $start - $offset, $contained, $symbols);
+    MapToSymbols($libname, AddressSub($start, $offset), $contained, $symbols);
   }
 
   return $symbols;
@@ -1675,13 +2128,15 @@ sub GetLineNumbers {
   # Make file with all PC values
   open(ADDRESSES, ">$main::tmpfile_sym") || error("$main::tmpfile_sym: $!\n");
   for (my $i = 0; $i <= $#{$pclist}; $i++) {
-    printf ADDRESSES ("0x%x\n", $pclist->[$i] - $offset);
+    # addr2line always reads hex addresses, and does not need '0x' prefix.
+    printf ADDRESSES ("%s\n", AddressSub($pclist->[$i], $offset));
   }
   close(ADDRESSES);
 
   # Pass to addr2line
-  open(SYMBOLS, "$ADDR2LINE -f -C -e $image <$main::tmpfile_sym |")
-    || error("$ADDR2LINE: $!\n");
+  my $addr2line = $obj_tool_map{"addr2line"};
+  open(SYMBOLS, "$addr2line -f -C -e $image <$main::tmpfile_sym |")
+    || error("$addr2line: $!\n");
   my $count = 0;
   while (<SYMBOLS>) {
     chop;
@@ -1694,7 +2149,7 @@ sub GetLineNumbers {
       $filelinenum =~ s|^.*/([^/]+:\d+)$|$1|;    # Remove directory name
     }
 
-    my $pcstr = sprintf("0x%x", $pclist->[$count]);
+    my $pcstr = $pclist->[$count];
     if (defined($symbols->{$pcstr})) {
       # Override just the line-number portion.  The function name portion
       # is less buggy when computed using nm instead of addr2line.
@@ -1708,7 +2163,7 @@ sub GetLineNumbers {
   close(SYMBOLS);
 }
 
-# Alternate implementation
+# Use nm to map the list of referenced PCs to symbols
 sub MapSymbolsWithNM {
   my $image = shift;
   my $offset = shift;
@@ -1717,14 +2172,15 @@ sub MapSymbolsWithNM {
 
   # Get nm output sorted by increasing address
   my $symbol_table = GetProcedureBoundaries($image, ".");
-  my @names = sort { $symbol_table->{$a}->[0] <=> $symbol_table->{$b}->[0] }
+  # Start addresses are already the right length (8 or 16 hex digits).
+  my @names = sort { $symbol_table->{$a}->[0] cmp $symbol_table->{$b}->[0] }
     keys(%{$symbol_table});
 
   if ($#names < 0) {
-    # No symbols: just use address
+    # No symbols: just use addresses
     foreach my $pc (@{$pclist}) {
-      my $pcstr = sprintf("0x%x", $pc);
-      $symbols->{$pcstr} = [$pcstr, "?", $pcstr];
+      my $pcstr = "0x" . $pc;
+      $symbols->{$pc} = [$pcstr, "?", $pcstr];
     }
     return;
   }
@@ -1733,28 +2189,91 @@ sub MapSymbolsWithNM {
   my $index = 0;
   my $fullname = $names[0];
   my $name = ShortFunctionName($fullname);
-  foreach my $pc (sort { $a <=> $b } @{$pclist}) {
+  foreach my $pc (sort { $a cmp $b } @{$pclist}) {
     # Adjust for mapped offset
-    my $mpc = $pc - $offset;
-    while (($index < $#names) && ($mpc >= $symbol_table->{$fullname}->[1])){
+    my $mpc = AddressSub($pc, $offset);
+    while (($index < $#names) && ($mpc ge $symbol_table->{$fullname}->[1])){
       $index++;
       $fullname = $names[$index];
       $name = ShortFunctionName($fullname);
     }
-    my $pcstr = sprintf("0x%x", $pc);
-    $symbols->{$pcstr} = [$name, "?", $fullname];
+    $symbols->{$pc} = [$name, "?", $fullname];
   }
 }
 
 sub ShortFunctionName {
   my $function = shift;
-  while ($function =~ s/\([^()]*\)//g) { }   # Remove argument types
+  while ($function =~ s/\([^()]*\)(\s*const)?//g) { }   # Argument types
   while ($function =~ s/<[^<>]*>//g)  { }    # Remove template arguments
   $function =~ s/^.*\s+(\w+::)/$1/;          # Remove leading type
   return $function;
 }
 
 ##### Miscellaneous #####
+
+# Find the right versions of the above object tools to use.  The argument
+# is the program file being analyzed, and should be an ELF 32-bit or ELF
+# 64-bit executable file.  If it is, we select the default tools location
+# based on that; otherwise, we'll emit a warning and take the user's
+# defaults.
+sub ConfigureObjTools {
+  my $prog_file = shift;
+
+  # Figure out the right default pathname prefix based on the program file
+  # type:
+  my $default_prefix = "/usr/bin/";
+  my $file_type = `/usr/bin/file $prog_file`;
+  if ($file_type =~ /ELF 32-bit/) {
+    $default_prefix = "/usr/bin/";
+  } elsif ($file_type =~ /ELF 64-bit/) {
+    # Change $address_length to 16 if the program file is ELF 64-bit.
+    # We can't detect this from many (most?) heap or lock contention
+    # profiles, since the actual addresses referenced are generally in low
+    # memory even for 64-bit programs.
+    $address_length = 16;
+  } else {
+    print STDERR "WARNING: program $prog_file is apparently not an ELF file\n";
+    # Don't change the default prefix.
+  }
+
+  # Go fill in %obj_tool_map with the pathnames to use:
+  foreach my $tool (keys %obj_tool_map) {
+    $obj_tool_map{$tool} = ConfigureTool($tool, $default_prefix);
+  }
+}
+
+sub ConfigureTool {
+  my $tool = shift;
+  my $prefix = shift;
+  my $path;
+
+  if ($main::opt_debug) {
+    print STDERR "Configuring '$tool' with default prefix '$prefix'\n";
+  }
+
+  # Try a specific prefix specified by the user:
+  if ($main::opt_tools ne "") {
+    $path = $main::opt_tools . $tool;
+    if ($main::opt_debug) { print STDERR "  (a) Trying '$path'\n"; }
+    if (-x $path) { return $path; }
+  }
+
+  # Try the default prefix passed to us:
+  $path = $prefix . $tool;
+  if ($main::opt_debug) { print STDERR "  (b) Trying '$path'\n"; }
+  if (-x $path) { return $path; }
+
+  # Try the normal system default (/usr/bin/):
+  if ($prefix ne "/usr/bin") {
+    $path = "/usr/bin/$tool";
+    if ($main::opt_debug) { print STDERR "  (c) Trying '$path'\n"; }
+    if (-x $path) { return $path; }
+  }
+
+  # If all else fails, hope the bare toolname works:
+  if ($main::opt_debug) { print STDERR "  Returning '$tool'\n"; }
+  return $tool;
+}
 
 sub cleanup {
   unlink($main::tmpfile_sym);
@@ -1763,12 +2282,15 @@ sub cleanup {
   }
   # We leave any collected profiles in $HOME/pprof in case the user wants
   # to look at them later.  We print a message informing them of this.
-  if (defined($main::collected_profile)) {
-    print STDERR "Dynamically gathered profile is in $main::collected_profile\n";
+  if ((scalar(@main::profile_files) > 0) &&
+      defined($main::collected_profile)) {
+    if (scalar(@main::profile_files) == 1) {
+      print STDERR "Dynamically gathered profile is in $main::collected_profile\n";
+    }
     print STDERR "If you want to investigate this profile further, you can do:\n";
     print STDERR "\n";
     print STDERR "  pprof \\\n";
-    print STDERR "    $prog \\\n";
+    print STDERR "    $main::prog \\\n";
     print STDERR "    $main::collected_profile\n";
     print STDERR "\n";
   }
@@ -1786,16 +2308,6 @@ sub error {
   exit(1);
 }
 
-# Return a list of all routines that match $regexp.
-# For each routine, the following list is returned:
-#       $result->[i]->[0]       Routine name
-#       $result->[i]->[1]       Start address
-#       $result->[i]->[2]       Finish address
-#       $result->[i]->[3]       Image file name (program or shared library)
-#       $result->[i]->[4]       Offset for image in address space
-sub GetMatchingRoutines {
-}
-
 
 # Gets the procedure boundaries for all routines in "$image" whose names
 # match "$regexp" and returns them in a hashtable mapping from procedure
@@ -1805,15 +2317,16 @@ sub GetProcedureBoundaries {
   my $regexp = shift;
 
   my $symbol_table = {};
-  open(NM, "$NM -C -n $image |") || error("$NM: $!\n");
-  my $last_start = "0x0";
+  my $nm = $obj_tool_map{"nm"};
+  open(NM, "$nm -C -n $image |") || error("$nm: $!\n");
+  my $last_start = "0";
   my $routine = "";
   while (<NM>) {
     if (m/^([0-9a-f]+) . (..*)/) {
       my $start_val = $1;
       my $this_routine = $2;
       if (defined($routine) && $routine =~ m/$regexp/) {
-        $symbol_table->{$routine} = [hex($last_start), hex($start_val)];
+        $symbol_table->{$routine} = [$last_start, $start_val];
       }
       $last_start = $start_val;
       $routine = $this_routine;
@@ -1822,4 +2335,219 @@ sub GetProcedureBoundaries {
   close(NM);
 
   return $symbol_table;
+}
+
+
+# The test vectors for AddressAdd/Sub/Inc are 8-16-nibble hex strings.
+# To make them more readable, we add underscores at interesting places.
+# This routine removes the underscores, producing the canonical representation
+# used by pprof to represent addresses, particularly in the tested routines.
+sub CanonicalHex {
+  my $arg = shift;
+  return join '', (split '_',$arg);
+}
+
+
+# Unit test for AddressAdd:
+sub AddressAddUnitTest {
+  my $test_data_8 = shift;
+  my $test_data_16 = shift;
+  my $error_count = 0;
+  my $fail_count = 0;
+  my $pass_count = 0;
+  # print STDERR "AddressAddUnitTest: ", 1+$#{$test_data_8}, " tests\n";
+
+  # First a few 8-nibble addresses.  Note that this implementation uses
+  # plain old arithmetic, so a quick sanity check along with verifying what
+  # happens to overflow (we want it to wrap):
+  $address_length = 8;
+  foreach my $row (@{$test_data_8}) {
+    if ($main::opt_debug and $main::opt_test) { print STDERR "@{$row}\n"; }
+    my $sum = AddressAdd ($row->[0], $row->[1]);
+    if ($sum ne $row->[2]) {
+      printf STDERR "ERROR: %s != %s + %s = %s\n", $sum,
+             $row->[0], $row->[1], $row->[2];
+      ++$fail_count;
+    } else {
+      ++$pass_count;
+    }
+  }
+  printf STDERR "AddressAdd 32-bit tests: %d passes, %d failures\n",
+         $pass_count, $fail_count;
+  $error_count = $fail_count;
+  $fail_count = 0;
+  $pass_count = 0;
+
+  # Now 16-nibble addresses.
+  $address_length = 16;
+  foreach my $row (@{$test_data_16}) {
+    if ($main::opt_debug and $main::opt_test) { print STDERR "@{$row}\n"; }
+    my $sum = AddressAdd (CanonicalHex($row->[0]), CanonicalHex($row->[1]));
+    my $expected = join '', (split '_',$row->[2]);
+    if ($sum ne CanonicalHex($row->[2])) {
+      printf STDERR "ERROR: %s != %s + %s = %s\n", $sum,
+             $row->[0], $row->[1], $row->[2];
+      ++$fail_count;
+    } else {
+      ++$pass_count;
+    }
+  }
+  printf STDERR "AddressAdd 64-bit tests: %d passes, %d failures\n",
+         $pass_count, $fail_count;
+  $error_count += $fail_count;
+
+  return $error_count;
+}
+
+
+# Unit test for AddressSub:
+sub AddressSubUnitTest {
+  my $test_data_8 = shift;
+  my $test_data_16 = shift;
+  my $error_count = 0;
+  my $fail_count = 0;
+  my $pass_count = 0;
+  # print STDERR "AddressSubUnitTest: ", 1+$#{$test_data_8}, " tests\n";
+
+  # First a few 8-nibble addresses.  Note that this implementation uses
+  # plain old arithmetic, so a quick sanity check along with verifying what
+  # happens to overflow (we want it to wrap):
+  $address_length = 8;
+  foreach my $row (@{$test_data_8}) {
+    if ($main::opt_debug and $main::opt_test) { print STDERR "@{$row}\n"; }
+    my $sum = AddressSub ($row->[0], $row->[1]);
+    if ($sum ne $row->[3]) {
+      printf STDERR "ERROR: %s != %s - %s = %s\n", $sum,
+             $row->[0], $row->[1], $row->[3];
+      ++$fail_count;
+    } else {
+      ++$pass_count;
+    }
+  }
+  printf STDERR "AddressSub 32-bit tests: %d passes, %d failures\n",
+         $pass_count, $fail_count;
+  $error_count = $fail_count;
+  $fail_count = 0;
+  $pass_count = 0;
+
+  # Now 16-nibble addresses.
+  $address_length = 16;
+  foreach my $row (@{$test_data_16}) {
+    if ($main::opt_debug and $main::opt_test) { print STDERR "@{$row}\n"; }
+    my $sum = AddressSub (CanonicalHex($row->[0]), CanonicalHex($row->[1]));
+    if ($sum ne CanonicalHex($row->[3])) {
+      printf STDERR "ERROR: %s != %s - %s = %s\n", $sum,
+             $row->[0], $row->[1], $row->[3];
+      ++$fail_count;
+    } else {
+      ++$pass_count;
+    }
+  }
+  printf STDERR "AddressSub 64-bit tests: %d passes, %d failures\n",
+         $pass_count, $fail_count;
+  $error_count += $fail_count;
+
+  return $error_count;
+}
+
+
+# Unit test for AddressInc:
+sub AddressIncUnitTest {
+  my $test_data_8 = shift;
+  my $test_data_16 = shift;
+  my $error_count = 0;
+  my $fail_count = 0;
+  my $pass_count = 0;
+  # print STDERR "AddressIncUnitTest: ", 1+$#{$test_data_8}, " tests\n";
+
+  # First a few 8-nibble addresses.  Note that this implementation uses
+  # plain old arithmetic, so a quick sanity check along with verifying what
+  # happens to overflow (we want it to wrap):
+  $address_length = 8;
+  foreach my $row (@{$test_data_8}) {
+    if ($main::opt_debug and $main::opt_test) { print STDERR "@{$row}\n"; }
+    my $sum = AddressInc ($row->[0]);
+    if ($sum ne $row->[4]) {
+      printf STDERR "ERROR: %s != %s + 1 = %s\n", $sum,
+             $row->[0], $row->[4];
+      ++$fail_count;
+    } else {
+      ++$pass_count;
+    }
+  }
+  printf STDERR "AddressInc 32-bit tests: %d passes, %d failures\n",
+         $pass_count, $fail_count;
+  $error_count = $fail_count;
+  $fail_count = 0;
+  $pass_count = 0;
+
+  # Now 16-nibble addresses.
+  $address_length = 16;
+  foreach my $row (@{$test_data_16}) {
+    if ($main::opt_debug and $main::opt_test) { print STDERR "@{$row}\n"; }
+    my $sum = AddressInc (CanonicalHex($row->[0]));
+    if ($sum ne CanonicalHex($row->[4])) {
+      printf STDERR "ERROR: %s != %s + 1 = %s\n", $sum,
+             $row->[0], $row->[4];
+      ++$fail_count;
+    } else {
+      ++$pass_count;
+    }
+  }
+  printf STDERR "AddressInc 64-bit tests: %d passes, %d failures\n",
+         $pass_count, $fail_count;
+  $error_count += $fail_count;
+
+  return $error_count;
+}
+
+
+# Driver for unit tests.
+# Currently just the address add/subtract/increment routines for 64-bit.
+sub RunUnitTests {
+  my $error_count = 0;
+
+  # This is a list of tuples [a, b, a+b, a-b, a+1]
+  my $unit_test_data_8 = [
+    [qw(aaaaaaaa 50505050 fafafafa 5a5a5a5a aaaaaaab)],
+    [qw(50505050 aaaaaaaa fafafafa a5a5a5a6 50505051)],
+    [qw(ffffffff aaaaaaaa aaaaaaa9 55555555 00000000)],
+    [qw(00000001 ffffffff 00000000 00000002 00000002)],
+    [qw(00000001 fffffff0 fffffff1 00000011 00000002)],
+  ];
+  my $unit_test_data_16 = [
+    # The implementation handles data in 7-nibble chunks, so those are the
+    # interesting boundaries.
+    [qw(aaaaaaaa 50505050
+        00_000000f_afafafa 00_0000005_a5a5a5a 00_000000a_aaaaaab)],
+    [qw(50505050 aaaaaaaa
+        00_000000f_afafafa ff_ffffffa_5a5a5a6 00_0000005_0505051)],
+    [qw(ffffffff aaaaaaaa
+        00_000001a_aaaaaa9 00_0000005_5555555 00_0000010_0000000)],
+    [qw(00000001 ffffffff
+        00_0000010_0000000 ff_ffffff0_0000002 00_0000000_0000002)],
+    [qw(00000001 fffffff0
+        00_000000f_ffffff1 ff_ffffff0_0000011 00_0000000_0000002)],
+
+    [qw(00_a00000a_aaaaaaa 50505050
+        00_a00000f_afafafa 00_a000005_a5a5a5a 00_a00000a_aaaaaab)],
+    [qw(0f_fff0005_0505050 aaaaaaaa
+        0f_fff000f_afafafa 0f_ffefffa_5a5a5a6 0f_fff0005_0505051)],
+    [qw(00_000000f_fffffff 01_800000a_aaaaaaa
+        01_800001a_aaaaaa9 fe_8000005_5555555 00_0000010_0000000)],
+    [qw(00_0000000_0000001 ff_fffffff_fffffff
+        00_0000000_0000000 00_0000000_0000002 00_0000000_0000002)],
+    [qw(00_0000000_0000001 ff_fffffff_ffffff0
+        ff_fffffff_ffffff1 00_0000000_0000011 00_0000000_0000002)],
+  ];
+
+  $error_count += AddressAddUnitTest($unit_test_data_8, $unit_test_data_16);
+  $error_count += AddressSubUnitTest($unit_test_data_8, $unit_test_data_16);
+  $error_count += AddressIncUnitTest($unit_test_data_8, $unit_test_data_16);
+  if ($error_count > 0) {
+    print STDERR $error_count, " errors: FAILED\n";
+  } else {
+    print STDERR "PASS\n";
+  }
+  exit ($error_count);
 }

@@ -21,7 +21,7 @@ perftoolsincludedir = $(googleincludedir)/perftools
 # We'll add to this later, on a library-by-library basis
 perftoolsinclude_HEADERS =
 
-docdir = $(prefix)/doc/$(PACKAGE)-$(VERSION)
+docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
 # This is for HTML and other documentation you want to install.
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
@@ -53,7 +53,11 @@ dist_doc_DATA += doc/index.html
 ### The header files we use.  We divide into categories based on directory
 S_STACKTRACE_INCLUDES =
 SG_STACKTRACE_INCLUDES = src/google/stacktrace.h
-SGP_STACKTRACE_INCLUDES = src/config.h
+SGP_STACKTRACE_INCLUDES = src/config.h \
+			  src/stacktrace_generic-inl.h \
+			  src/stacktrace_libunwind-inl.h \
+			  src/stacktrace_x86_64-inl.h \
+			  src/stacktrace_x86-inl.h
 STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES) $(SGP_STACKTRACE_INCLUDES)
 googleinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SGP_STACKTRACE_INCLUDES)
@@ -324,7 +328,7 @@ CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisab
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
 
 ### Unittests
-check_SCRIPTS += profiler_unittest_sh
+check_SCRIPTS += profiler_unittest_sh pprof_unittest
 noinst_SCRIPTS += src/tests/profiler_unittest.sh
 
 # These are sub-programs used by profiler_unittest.sh
@@ -351,6 +355,9 @@ profiler4_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
 profiler4_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) -DWITH_THREADS
 profiler4_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 profiler4_unittest_LDADD = -lprofiler $(PTHREAD_LIBS)
+
+pprof_unittest: $(top_srcdir)/src/pprof
+	$< -test
 
 ### Documentation
 dist_man_MANS = doc/pprof.1

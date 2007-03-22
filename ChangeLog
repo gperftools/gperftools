@@ -61,3 +61,17 @@ Mon Nov 14 17:28:59 2005  Google Inc. <opensource@google.com>
 	* Add va_start/va_end calls around vsnprintf() (csilvers)
 	* Write our own __syscall_return(), since it's not defined
 	  consistently on all 64-bit linux distros (markus)
+
+Fri Jan 27 14:04:27 2006  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.6 release
+	* More sophisticated stacktrace usage, possibly using libunwind (aruns)
+	* Update pprof to handle 64-bit profiles (dehnert)
+	* Fix GetStackTrace to correctly return top stackframe (sanjay)
+	* Add ANSI compliance for new and new[], including new_handler (jkearney)
+	* More accuracy by reading ELF files directly rather than objdump (mec)
+	* Add readline support for pprof (addi)
+	* Add #includes for PPC (csilvers)
+	* New PC-detection routine for ibook powerpc (asbestoshead)
+	* Vastly improved tcmalloc unittest (csilvers)
+	* Move documentation from /usr/doc to /usr/share/doc

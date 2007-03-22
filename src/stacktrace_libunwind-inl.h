@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -28,43 +28,42 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // ---
-// Author: Sanjay Ghemawat
+// Author: Arun Sharma
 //
-// Produce stack trace
+// Produce stack trace using libunwind
 
-#include "config.h"
-#include <stdlib.h>
+extern "C" {
+#include <assert.h>
+#include <libunwind.h>
+}
 #include "google/stacktrace.h"
 
-#undef IMPLEMENTED_STACK_TRACE
+int GetStackTrace(void** result, int max_depth, int skip_count) {
+  void *ip;
+  int ret, n = 0;
+  unw_cursor_t cursor;
+  unw_context_t uc;
 
-// Linux/x86 implementation (requires the binary to be compiled with
-// frame pointers)
-#if defined(__i386__) && defined(__linux) && !defined(NO_FRAME_POINTER)
-#define IMPLEMENTED_STACK_TRACE
-#include "stacktrace_x86-inl.h"
-#endif
+  unw_getcontext(&uc);
+  ret = unw_init_local(&cursor, &uc);
+  assert(ret >= 0);
+  skip_count++;         // Do not include the "GetStackTrace" frame
 
-#if !defined(IMPLEMENTED_STACK_TRACE) && defined(USE_LIBUNWIND) && HAVE_LIBUNWIND_H
-#define IMPLEMENTED_STACK_TRACE
-// This is turned off by default. Possible reasons for turning on in the
-// future:
-// 1. Compiler independence
-// 2. Architecture independence
-// 3. A more liberal MIT license, which allows use with multiple compilers
-#include "stacktrace_libunwind-inl.h"
-#endif
+  do {
+    ret = unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip);
+    assert(ret == 0);
+    if (skip_count > 0) {
+      skip_count--;
+    } else {
+      result[n++] = ip;
+    }
+    ret = unw_step(&cursor);
+    assert(ret >= 0);
+  } while ((n < max_depth) && (ret > 0));
 
-#if !defined(IMPLEMENTED_STACK_TRACE) && defined(__x86_64__) && HAVE_UNWIND_H
-#define IMPLEMENTED_STACK_TRACE
-#include "stacktrace_x86_64-inl.h"
-#endif
+  return n;
+}
 
-#if !defined(IMPLEMENTED_STACK_TRACE) && !defined(__x86_64__) && HAVE_EXECINFO_H
-#define IMPLEMENTED_STACK_TRACE
-#include "stacktrace_generic-inl.h"
-#endif
-
-#ifndef IMPLEMENTED_STACK_TRACE
-#error Cannot calculate stack trace: will need to write for your environment
-#endif
+bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
+  return false;  // Not implemented yet
+}
