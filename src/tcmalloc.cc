@@ -307,12 +307,12 @@ template <class T>
 class PageHeapAllocator {
  private:
   // How much to allocate from system at a time
-  static const int kAllocIncrement = 256 << 10;
+  static const int kAllocIncrement = 32 << 10;
 
   // Aligned size of T
   static const size_t kAlignedSize
   = (((sizeof(T) + kAlignment - 1) / kAlignment) * kAlignment);
-  
+
   // Free area from which to carve new objects
   char* free_area_;
   size_t free_avail_;
@@ -330,7 +330,6 @@ class PageHeapAllocator {
     free_area_ = NULL;
     free_avail_ = 0;
     free_list_ = NULL;
-    New(); New(); // Reduces cache conflicts?
   }
 
   T* New() {
@@ -522,7 +521,7 @@ static Span sampled_objects;
 // Map from page-id to per-page data
 // -------------------------------------------------------------------------
 
-// We use PageMap1<> for 32-bit and PageMap3<> for 64-bit machines.
+// We use PageMap2<> for 32-bit and PageMap3<> for 64-bit machines.
 
 // Selector class -- general selector uses 3-level map
 template <int BITS> class MapSelector {
@@ -530,10 +529,10 @@ template <int BITS> class MapSelector {
   typedef TCMalloc_PageMap3<BITS-kPageShift> Type;
 };
 
-// A single-level map for 32-bit machines
+// A two-level map for 32-bit machines
 template <> class MapSelector<32> {
  public:
-  typedef TCMalloc_PageMap1<32-kPageShift> Type;
+  typedef TCMalloc_PageMap2<32-kPageShift> Type;
 };
 
 // -------------------------------------------------------------------------
@@ -585,14 +584,7 @@ class TCMalloc_PageHeap {
 
   // Return number of free bytes in heap
   uint64_t FreeBytes() const {
-    Length pages = 0;
-    for (int length = 0; length < kMaxPages; length++) {
-      pages += length * DLL_Length(&free_[length]);
-    }
-    for (Span* s = large_.next; s != &large_; s = s->next) {
-      pages += s->length;
-    }
-    return (static_cast<uint64_t>(pages) << kPageShift);
+    return (static_cast<uint64_t>(free_pages_) << kPageShift);
   }
 
   bool Check();
@@ -608,6 +600,9 @@ class TCMalloc_PageHeap {
 
   // Array mapping from span length to a doubly linked list of free spans
   Span free_[kMaxPages];
+
+  // Number of pages kept in free lists
+  uintptr_t free_pages_;
 
   // Bytes allocated from system
   uint64_t system_bytes_;
@@ -630,6 +625,7 @@ class TCMalloc_PageHeap {
 };
 
 TCMalloc_PageHeap::TCMalloc_PageHeap() : pagemap_(MetaDataAlloc),
+                                         free_pages_(0),
                                          system_bytes_(0) {
   DLL_Init(&large_);
   for (int i = 0; i < kMaxPages; i++) {
@@ -647,6 +643,7 @@ Span* TCMalloc_PageHeap::New(Length n) {
       Span* result = free_[s].next;
       Carve(result, n);
       ASSERT(Check());
+      free_pages_ -= n;
       return result;
     }
   }
@@ -665,6 +662,7 @@ Span* TCMalloc_PageHeap::New(Length n) {
     if (best != NULL) {
       Carve(best, n);
       ASSERT(Check());
+      free_pages_ -= n;
       return best;
     }
     if (i == 0) {
@@ -764,6 +762,7 @@ void TCMalloc_PageHeap::Delete(Span* span) {
   } else {
     DLL_InsertOrdered(&large_, span);
   }
+  free_pages_ += n;
 
   ASSERT(Check());
 }
@@ -786,7 +785,8 @@ void TCMalloc_PageHeap::Dump(TCMalloc_Printer* out) {
     if (!DLL_IsEmpty(&free_[s])) nonempty_sizes++;
   }
   out->printf("------------------------------------------------\n");
-  out->printf("PageHeap: %d sizes\n", nonempty_sizes);
+  out->printf("PageHeap: %d sizes; %6.1f MB free\n", nonempty_sizes,
+              (static_cast<double>(free_pages_) * kPageSize) / 1048576.0);
   out->printf("------------------------------------------------\n");
   uint64_t cumulative = 0;
   for (int s = 0; s < kMaxPages; s++) {
@@ -830,13 +830,15 @@ bool TCMalloc_PageHeap::GrowHeap(Length n) {
   system_bytes_ += (ask << kPageShift);
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   ASSERT(p > 0);
-  
+
   // Make sure pagemap_ has entries for all of the new pages.
   // Plus ensure one before and one after so coalescing code
   // does not need bounds-checking.
   if (pagemap_.Ensure(p-1, ask+2)) {
     // Pretend the new area is allocated and then Delete() it to
     // cause any necessary coalescing to occur.
+    //
+    // We do not adjust free_pages_ here since Delete() will do it for us.
     Span* span = NewSpan(p, ask);
     RecordSpan(span);
     Delete(span);
@@ -1025,8 +1027,12 @@ static TCMalloc_Central_FreeListPadded central_cache[kNumClasses];
 
 // Page-level allocator
 static SpinLock pageheap_lock = SPINLOCK_INITIALIZER;
-static TCMalloc_PageHeap* pageheap = NULL;
 static char pageheap_memory[sizeof(TCMalloc_PageHeap)];
+static bool phinited = false;
+
+// Avoid extra level of indirection by making "pageheap" be just an alias
+// of pageheap_memory.
+#define pageheap ((TCMalloc_PageHeap*) pageheap_memory)
 
 // Thread-specific key.  Initialization here is somewhat tricky
 // because some Linux startup code invokes malloc() before it
@@ -1085,7 +1091,7 @@ void TCMalloc_Central_FreeList::Insert(void* object) {
       ASSERT(p != object);
       got++;
     }
-    ASSERT(got + span->refcount == 
+    ASSERT(got + span->refcount ==
            (span->length<<kPageShift)/ByteSizeForClass(span->sizeclass));
   }
 
@@ -1333,16 +1339,19 @@ void TCMalloc_ThreadCache::InitModule() {
   // by doing one in the constructor of the module_enter_exit_hook
   // object declared below.
   SpinLockHolder h(&pageheap_lock);
-  if (pageheap == NULL) {
+  if (!phinited) {
     InitSizeClasses();
     threadheap_allocator.Init();
     span_allocator.Init();
+    span_allocator.New(); // Reduce cache conflicts
+    span_allocator.New(); // Reduce cache conflicts
     stacktrace_allocator.Init();
     DLL_Init(&sampled_objects);
     for (int i = 0; i < kNumClasses; ++i) {
       central_cache[i].Init(i);
     }
-    pageheap = new ((void*)pageheap_memory) TCMalloc_PageHeap;
+    new ((void*)pageheap_memory) TCMalloc_PageHeap;
+    phinited = 1;
   }
 }
 
@@ -1488,7 +1497,7 @@ static void ExtractStats(TCMallocStats* r, uint64_t* class_count) {
     r->pageheap_bytes = pageheap->FreeBytes();
   }
 }
-                     
+
 // WRITE stats to "out"
 static void DumpStats(TCMalloc_Printer* out, int level) {
   TCMallocStats stats;
@@ -1514,7 +1523,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     SpinLockHolder h(&pageheap_lock);
     pageheap->Dump(out);
   }
-  
+
   const uint64_t bytes_in_use = stats.system_bytes
                                 - stats.pageheap_bytes
                                 - stats.central_bytes
@@ -1568,7 +1577,7 @@ static void** DumpStackTraces() {
             needed_slots);
     return NULL;
   }
-  
+
   SpinLockHolder h(&pageheap_lock);
   int used_slots = 0;
   for (Span* s = sampled_objects.next; s != &sampled_objects; s = s->next) {
@@ -1597,7 +1606,13 @@ class TCMallocImplementation : public MallocExtension {
   virtual void GetStats(char* buffer, int buffer_length) {
     ASSERT(buffer_length > 0);
     TCMalloc_Printer printer(buffer, buffer_length);
-    DumpStats(&printer, 2);
+
+    // Print level one stats unless lots of space is available
+    if (buffer_length < 10000) {
+      DumpStats(&printer, 1);
+    } else {
+      DumpStats(&printer, 2);
+    }
   }
 
   virtual void** ReadStackTraces() {
@@ -1627,9 +1642,8 @@ class TCMallocImplementation : public MallocExtension {
     if (strcmp(name, "tcmalloc.slack_bytes") == 0) {
       // We assume that bytes in the page heap are not fragmented too
       // badly, and are therefore available for allocation.
-      TCMallocStats stats;
-      ExtractStats(&stats, NULL);
-      *value = stats.pageheap_bytes;
+      SpinLockHolder l(&pageheap_lock);
+      *value = pageheap->FreeBytes();
       return true;
     }
 
@@ -1667,6 +1681,14 @@ class TCMallocImplementation : public MallocExtension {
   }
 };
 
+// RedHat 9's pthread manager allocates an object directly by calling
+// a __libc_XXX() routine.  This memory block is not known to tcmalloc.
+// At cleanup time, the pthread manager calls free() on this
+// pointer, which then crashes.
+//
+// We hack around this problem by disabling all deallocations
+// after a global object destructor in this module has been called.
+static bool tcmalloc_is_destroyed = false;
 
 //-------------------------------------------------------------------
 // Helpers for the exported routines below
@@ -1694,7 +1716,7 @@ static Span* DoSampledAllocation(size_t size) {
   span->sample = 1;
   span->objects = stack;
   DLL_Prepend(&sampled_objects, span);
-  
+
   return span;
 }
 
@@ -1722,10 +1744,22 @@ static inline void* do_malloc(size_t size) {
 static inline void do_free(void* ptr) {
   if (TCMallocDebug::level >= TCMallocDebug::kVerbose) 
     MESSAGE("In tcmalloc do_free(%p)\n", ptr);
-  if (ptr == NULL) return;
+  if (ptr == NULL  ||  tcmalloc_is_destroyed) return;
   ASSERT(pageheap != NULL);  // Should not call free() before malloc()
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   Span* span = pageheap->GetDescriptor(p);
+
+  if (span == NULL) {
+    // We've seen systems where a piece of memory allocated using the
+    // allocator built in to libc is deallocated using free() and
+    // therefore ends up inside tcmalloc which can't find the
+    // corresponding span.  We silently throw this object on the floor
+    // instead of crashing.
+    MESSAGE("tcmalloc: ignoring potential glibc-2.3.5 induced free "
+            "of an unknown object %p\n", ptr);
+    return;
+  }
+
   ASSERT(span != NULL);
   ASSERT(!span->free);
   const size_t cl = span->sizeclass;
@@ -2023,6 +2057,31 @@ extern "C" void malloc_stats(void) {
   PrintStats(1);
 }
 
+extern "C" int mallopt(int cmd, int value) {
+  return 1;     // Indicates error
+}
+
+extern "C" struct mallinfo mallinfo(void) {
+  TCMallocStats stats;
+  ExtractStats(&stats, NULL);
+
+  // Just some of the fields are filled in.
+  struct mallinfo info;
+  memset(&info, 0, sizeof(info));
+
+  // Unfortunately, the struct contains "int" field, so some of the
+  // size values will be truncated.
+  info.arena     = static_cast<int>(stats.system_bytes);
+  info.fsmblks   = static_cast<int>(stats.thread_bytes + stats.central_bytes);
+  info.fordblks  = static_cast<int>(stats.pageheap_bytes);
+  info.uordblks  = static_cast<int>(stats.system_bytes
+                                    - stats.thread_bytes
+                                    - stats.central_bytes
+                                    - stats.pageheap_bytes);
+
+  return info;
+}
+
 //-------------------------------------------------------------------
 // Some library routines on RedHat 9 allocate memory using malloc()
 // and free it using __libc_free() (or vice-versa).  Since we provide
@@ -2042,7 +2101,7 @@ extern "C" {
   void* __libc_memalign(size_t align, size_t s) ALIAS("memalign");
   void* __libc_valloc(size_t size)              ALIAS("valloc");
   void* __libc_pvalloc(size_t size)             ALIAS("pvalloc");
-  void* __posix_memalign(void** r, size_t a, size_t s) ALIAS("posix_memalign");
+  int __posix_memalign(void** r, size_t a, size_t s) ALIAS("posix_memalign");
 #undef ALIAS
 #else
   // Portable wrappers
@@ -2054,7 +2113,7 @@ extern "C" {
   void* __libc_memalign(size_t align, size_t s) { return memalign(align, s); }
   void* __libc_valloc(size_t size)              { return valloc(size);       }
   void* __libc_pvalloc(size_t size)             { return pvalloc(size);      }
-  void* __posix_memalign(void** r, size_t a, size_t s) {
+  int __posix_memalign(void** r, size_t a, size_t s) {
     return posix_memalign(r, a, s);
   }
 #endif

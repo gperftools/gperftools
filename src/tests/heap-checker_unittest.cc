@@ -78,6 +78,7 @@
 #include <set>
 #include <string>
 
+#include <errno.h>              // errno
 #include <netinet/in.h>         // inet_ntoa
 #include <arpa/inet.h>          // inet_ntoa
 #ifdef HAVE_EXECINFO_H

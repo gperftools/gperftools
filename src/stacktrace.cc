@@ -40,8 +40,8 @@
 
 // Linux/x86 implementation (requires the binary to be compiled with
 // frame pointers)
-#if (defined(__i386__) || defined(__x86_64)) && \
-    defined(__linux) && !defined(NO_FRAME_POINTER) && !defined(_LP64)
+#if (defined(__i386__) || defined(__x86_64__)) && \
+    defined(__linux) && !defined(NO_FRAME_POINTER)
 #define IMPLEMENTED_STACK_TRACE
 
 #include <stdint.h>   // for uintptr_t
@@ -129,6 +129,9 @@ bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
 #endif
 
 // Portable implementation - just use glibc
+// 
+// Note:  The glibc implementation may cause a call to malloc.
+// This can cause a deadlock in HeapProfiler.
 #if !defined(IMPLEMENTED_STACK_TRACE) && defined(HAVE_EXECINFO_H)
 #include <stdlib.h>
 #include <execinfo.h>

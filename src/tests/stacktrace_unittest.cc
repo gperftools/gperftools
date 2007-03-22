@@ -38,11 +38,60 @@
 #include <execinfo.h>
 #endif
 
-void CheckStackTrace(int i);
+// Obtain a backtrace, verify that the expected callers are present in the
+// backtrace, and maybe print the backtrace to stdout. 
 
-/* Obtain a backtrace, verify that we are the great-great-grandchild of
- * CheckStackTrace, and maybe print the backtrace to stdout. 
- */
+//-----------------------------------------------------------------------//
+void CheckStackTrace4(int i);
+void CheckStackTrace3(int i);
+void CheckStackTrace2(int i);
+void CheckStackTrace1(int i);
+void CheckStackTrace(int i);
+//-----------------------------------------------------------------------//
+
+// The sequence of functions whose return addresses we expect to see in the
+// backtrace.
+const int BACKTRACE_STEPS = 5;
+void * expected_stack[BACKTRACE_STEPS] = { 
+  (void *) &CheckStackTrace4,
+  (void *) &CheckStackTrace3,
+  (void *) &CheckStackTrace2,
+  (void *) &CheckStackTrace1,
+  (void *) &CheckStackTrace,
+};
+
+// Depending on the architecture/compiler/libraries, (not sure which)
+// the current function may or may not appear in the backtrace.
+// For gcc-2:
+//
+// stack[0] is ret addr within CheckStackTrace4
+// stack[1] is ret addr within CheckStackTrace3
+// stack[2] is ret addr within CheckStackTrace2
+// stack[3] is ret addr within CheckStackTrace1
+// stack[4] is ret addr within CheckStackTrace
+//
+// For gcc3-k8:
+//
+// stack[0] is ret addr within CheckStackTraceLeaf
+// stack[1] is ret addr within CheckStackTrace4
+// ...
+// stack[5] is ret addr within CheckStackTrace
+
+// The google version does not include the caller in the 
+// backtrace.  Some other version might.  (glibc backtrace()?)
+const int self_in_backtrace = 0;
+
+//-----------------------------------------------------------------------//
+
+void CheckRetAddrIsInFunction( void * ret_addr, void * function_start_addr)
+{
+  const int typ_fn_len = 0x40; // assume relevant functions are only 0x40 bytes long
+  CHECK_GE(ret_addr, function_start_addr);
+  CHECK_LE(ret_addr, (void *) ((char *) function_start_addr + typ_fn_len));
+}
+
+//-----------------------------------------------------------------------//
+
 void CheckStackTraceLeaf(void) {
   const int STACK_LEN = 10;
   void *stack[STACK_LEN];
@@ -52,14 +101,10 @@ void CheckStackTraceLeaf(void) {
   printf("Obtained %d stack frames.\n", size);
   CHECK_LE(size, STACK_LEN);
   
-  // for some reason, CheckStackTraceLeaf doesn't show up in the backtrace
-  // stack[size - 1] is in CheckStackTrace4
-  // stack[size - 2] is in CheckStackTrace3
-  // stack[size - 3] is in CheckStackTrace2
-  // stack[size - 4] is in CheckStackTrace1
-  // stack[size - 5] is in CheckStackTrace
-  CHECK_GE(stack[size - 4], (void*) &CheckStackTrace);
-  CHECK_LE(stack[size - 4], (char*) &CheckStackTrace + 0x40);	// assume function is only 0x40 bytes long
+  for (int i = 0; i < BACKTRACE_STEPS; i++)
+  {
+    CheckRetAddrIsInFunction(stack[i + self_in_backtrace], expected_stack[i]);
+  }
 
 
 #ifdef HAVE_EXECINFO_H
@@ -75,12 +120,16 @@ void CheckStackTraceLeaf(void) {
 
 }
 
+//-----------------------------------------------------------------------//
+
 /* Dummy functions to make the backtrace more interesting. */
 void CheckStackTrace4(int i) { for (int j = i; j >= 0; j--) CheckStackTraceLeaf(); }
 void CheckStackTrace3(int i) { for (int j = i; j >= 0; j--) CheckStackTrace4(j); }
 void CheckStackTrace2(int i) { for (int j = i; j >= 0; j--) CheckStackTrace3(j); }
 void CheckStackTrace1(int i) { for (int j = i; j >= 0; j--) CheckStackTrace2(j); }
 void CheckStackTrace(int i)  { for (int j = i; j >= 0; j--) CheckStackTrace1(j); }
+
+//-----------------------------------------------------------------------//
 
 int main(int argc, char ** argv) {
   

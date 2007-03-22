@@ -24,3 +24,11 @@ Tue May 31 08:14:38 2005  Google Inc. <opensource@google.com>
 	* Better error reporting when we can't access /proc/maps (etune)
 	* Get rid of the libc-preallocate code (which could crash on some
 	  systems); no longer needed with local-threads fix (csilvers)
+
+Fri Jun 24 18:02:26 2005  Google Inc. <opensource@google.com>
+
+	* Add missing errno include for one of the unittests (csilvers)
+	* Reduce tcmalloc startup memory from 5M to 256K (sanjay)
+	* Add support for mallopt() and mallinfo (sanjay)
+	* Improve stacktrace's performance on some 64-bit systems (etune)
+	* Improve the stacktrace unittest (etune)
