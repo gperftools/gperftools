@@ -1,0 +1,47 @@
+CPU PROFILER
+------------
+See doc/cpu-profiler.html for information about how to use the CPU
+profiler and analyze its output.
+
+As a quick-start, do the following after installing this package:
+
+1) Link your executable with -lprofiler
+2) Run your executable with the CPUPROFILE environment var set:
+     $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
+3) Run pprof to analyze the CPU usage
+     $ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
+     $ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output
+
+There are other environment variables, besides CPUPROFILE, you can set
+to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
+
+
+HEAP CHECKER
+------------
+In order to catch all heap leaks, this library must be linked *last*
+into your executable.  It will not find leaks in libraries listed
+after it on the link line.
+
+
+TCMALLOC
+--------
+Just link this in to get the advantages of tcmalloc.  See below for
+some environment variables you can use with tcmalloc, as well.
+
+
+ENVIRONMENT VARIABLES
+---------------------
+These libraries were written to be able to be linked into your
+applications all the time.  They'll lie dormant, using no memory or
+CPU, until you turn them on.  The easiest way to turn them on is by
+setting the appropriate environment variables.  We have many variables
+that let you enable/disable features as well as tweak parameters.
+
+CPUPROFILE=<file> -- turns on cpu profiling and dumps data to this file.
+PROFILESELECTED=1 -- if set, cpu-profiler will only profile regions of code
+                     surrounded with ProfilerEnable()/ProfilerDisable().
+FREQUENCY         -- how may interrupts/second the cpu-profiler samples.
+
+TCMALLOC_DEBUG=<level> -- the higher level, the more messages malloc emits
+MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
+

@@ -1,0 +1,262 @@
+<!doctype html public "-//w3c//dtd html 4.01 transitional//en">
+<!-- $Id: $ -->
+<html>
+<head>
+<title>TCMalloc : Thread-Caching Malloc</title>
+<link rel="stylesheet" href="../../designdocs/designstyle.css">
+<style type="text/css">
+  em {
+    color: red;
+    font-style: normal;
+  }
+</style>
+</head>
+<body>
+
+<h1>TCMalloc : Thread-Caching Malloc</h1>
+
+<address>Sanjay Ghemawat</address>
+
+<h2>Motivation</h2>
+
+TCMalloc is faster than the glibc malloc, ptmalloc2 and other mallocs
+that I have tested.  ptmalloc2 takes approximately 300 nanoseconds to
+execute a malloc/free pair on a 2.8 GHz P4 (for small objects).  The
+TCMalloc implementation takes approximately 50 nanoseconds for the
+same operation pair.  Speed is important for a malloc implementation
+because if malloc is not fast enough, application writers are inclined
+to write their own custom free lists on top of malloc.  This can lead
+to extra complexity, and more memory usage unless the application
+writer is very careful to appropriately size the free lists and
+scavenge idle objects out of the free list
+
+<p>
+TCMalloc also reduces lock contention for multi-threaded programs.
+For small objects, there is virtually zero contention.  For large
+objects, TCMalloc tries to use fine grained and efficient spinlocks.
+ptmalloc2 also reduces lock contention by using per-thread arenas but
+there is a big problem with ptmalloc2's use of per-thread arenas.  In
+ptmalloc2 memory can never move from one arena to another.  This can
+lead to huge amounts of wasted space.  For example, in one of the
+MapReduce operations used by the segment-indexer, the map phase would
+allocate approximately 300MB of memory for URL canonicalization data
+structures.  When the map phase finished, another map phase would be
+started in the same address space.  If this map phase was assigned a
+different arena than the one used by the first phase, this phase would
+not reuse any of the memory left after the first phase and would add
+another 300MB to the address space.  Similar memory blowup problems
+were also noticed in <code>gfs_chunkserver</code>.
+
+<p>
+Another benefit of TCMalloc is space-efficient representation of small
+objects.  For example, N 8-byte objects can be allocated while using
+space approximately <code>8N * 1.01</code> bytes.  I.e., a one-percent
+space overhead.  ptmalloc2 uses a four-byte header for each object and
+(I think) rounds up the size to a multiple of 8 bytes and ends up
+using <code>16N</code> bytes.
+
+<h2>Overview</h2>
+
+TCMalloc assigns each thread a thread-local cache.  Small allocations
+are satisfied from the thread-local cache.  Objects are moved from
+central data structures into a thread-local cache as needed, and
+periodic garbage collections are used to migrate memory back from a
+thread-local cache into the central data structures.
+<center><img src="overview.gif"></center>
+
+<p>
+TCMalloc treates objects with size &lt;= 32K ("small" objects)
+differently from larger objects.  Large objects are allocated
+directly from the central heap using a page-level allocator
+(a page is a 4K aligned region of memory).  I.e., a large object
+is always page-aligned and occupies an integral number of pages.
+
+<p>
+A run of pages can be carved up into a sequence of small objects, each
+equally sized.  For example a run of one page (4K) can be carved up
+into 32 objects of size 128 bytes each.
+
+<h2>Small Object Allocation</h2>
+
+Each small object size maps to one of approximately 170 allocatable
+size-classes.  For example, all allocations in the range 961 to 1024
+bytes are rounded up to 1024.  The size-classes are spaced so that
+small sizes are separated by 8 bytes, larger sizes by 16 bytes, even
+larger sizes by 32 bytes, and so forth.  The maximal spacing (for sizes
+>= ~2K) is 256 bytes.
+
+<p>
+A thread cache contains a singly linked list of free objects per size-class.
+<center><img src="threadheap.gif"></center>
+
+When allocating a small object: (1) We map its size to the
+corresponding size-class.  (2) Look in the corresponding free list in
+the thread cache for the current thread.  (3) If the free list is not
+empty, we remove the first object from the list and return it.  When
+following this fast path, TCMalloc acquires no locks at all.  This
+helps speed-up allocation significantly because a lock/unlock pair
+takes approximately 100 nanoseconds on a 2.8 GHz Xeon.
+
+<p>
+If the free list is empty: (1) We fetch a bunch of objects from a
+central free list for this size-class (the central free list is shared
+by all threads).  (2) Place them in the thread-local free list.  (3)
+Return one of the newly fetched objects to the applications.
+
+<p>
+If the central free list is also empty: (1) We allocate a run of pages
+from the central page allocator.  (2) Split the run into a set of
+objects of this size-class.  (3) Place the new objects on the central
+free list.  (4) As before, move some of these objects to the
+thread-local free list.
+
+<h2>Large Object Allocation</h2>
+
+A large object size (&gt; 32K) is rounded up to a page size (4K) and
+is handled by a central page heap.  The central page heap is again an
+array of free lists.  For <code>i &lt; 256</code>, the
+<code>k</code>th entry is a free list of runs that consist of
+<code>k</code> pages.  The <code>256</code>th entry is a free list of
+runs that have length <code>&gt;= 256</code> pages: 
+<center><img src="pageheap.gif"></center>
+
+<p>
+An allocation for <code>k</code> pages is satisfied by looking in the
+<code>k</code>th free list.  If that free list is empty, we look in
+the next free list, and so forth.  Eventually, we look in the last
+free list if necessary.  If that fails, we fetch memory from the
+system (using sbrk, mmap, or by mapping in portions of /dev/mem).
+
+<p>
+If an allocation for <code>k</code> pages is satisfied by a run
+of pages of length &gt; <code>k</code>, the remainder of the
+run is re-inserted back into the appropriate free list in the
+page heap.
+
+<h2>Spans</h2>
+
+The heap managed by TCMalloc consists of a set of pages.  A run of
+contiguous pages is represented by a <code>Span</code> object.  A span
+can either be <em>allocated</em>, or <em>free</em>.  If free, the span
+is one of the entries in a page heap linked-list.  If allocated, it is
+either a large object that has been handed off to the application, or
+a run of pages that have been split up into a sequence of small
+objects.  If split into small objects, the size-class of the objects
+is recorded in the span.
+
+<p>
+A central array indexed by page number can be used to find the span to
+which a page belongs.  For example, span <em>a</em> below occupies 2
+pages, span <em>b</em> occupies 1 page, span <em>c</em> occupies 5
+pages and span <em>d</em> occupies 3 pages.
+<center><img src="spanmap.gif"></center>
+A 32-bit address space can fit 2^20 4K pages, so this central array
+takes 4MB of space, which seems acceptable.  On 64-bit machines, we
+use a 3-level radix tree instead of an array to map from a page number
+to the corresponding span pointer.
+
+<h2>Deallocation</h2>
+
+When an object is deallocated, we compute its page number and look it up
+in the central array to find the corresponding span object.  The span tells
+us whether or not the object is small, and its size-class if it is
+small.  If the object is small, we insert it into the appropriate free
+list in the current thread's thread cache.  If the thread cache now
+exceeds a predetermined size (2MB by default), we run a garbage
+collector that moves unused objects from the thread cache into central
+free lists.
+
+<p>
+If the object is large, the span tells us the range of pages covered
+by the object.  Suppose this range is <code>[p,q]</code>.  We also
+lookup the spans for pages <code>p-1</code> and <code>q+1</code>.  If
+either of these neighboring spans are free, we coalesce them with the
+<code>[p,q]</code> span.  The resulting span is inserted into the
+appropriate free list in the page heap.
+
+<h2>Central Free Lists for Small Objects</h2>
+
+As mentioned before, we keep a central free list for each size-class.
+Each central free list is organized as a two-level data structure:
+a set of spans, and a linked list of free objects per span.
+
+<p>
+An object is allocated from a central free list by removing the
+first entry from the linked list of some span.  (If all spans
+have empty linked lists, a suitably sized span is first allocated
+from the central page heap.)
+
+<p>
+An object is returned to a central free list by adding it to the
+linked list of its containing span.  If the linked list length now
+equals the total number of small objects in the span, this span is now
+completely free and is returned to the page heap.
+
+<h2>Garbage Collection of Thread Caches</h2>
+
+A thread cache is garbage collected when the combined size of all
+objects in the cache exceeds 2MB.  The garbage collection threshold
+is automatically decreased as the number of threads increases so that
+we don't waste an inordinate amount of memory in a program with lots
+of threads.
+
+<p>
+We walk over all free lists in the cache and move some number of
+objects from the free list to the corresponding central list.
+
+<p>
+The number of objects to be moved from a free list is determined using
+a per-list low-water-mark <code>L</code>.  <code>L</code> records the
+minimum length of the list since the last garbage collection.  Note
+that we could have shortened the list by <code>L</code> objects at the
+last garbage collection without requiring any extra accesses to the
+central list.  We use this past history as a predictor of future
+accesses and move <code>L/2</code> objects from the thread cache free
+list to the corresponding central free list.  This algorithm has the
+nice property that if a thread stops using a particular size, all
+objects of that size will quickly move from the thread cache to the
+central free list where they can be used by other threads.
+
+<h2>Caveats</h2>
+
+TCMalloc may be somewhat more memory hungry than other mallocs, (but
+tends not to have the huge blowups that can happen with other
+mallocs).  In particular, at startup TCMalloc allocates approximately
+6 MB of memory.  It would be easy to roll a specialized version
+that trades-off a little bit of speed for more space efficiency.
+
+<p>
+TCMalloc currently does not return any memory to the system.
+
+<p>
+Don't try to load TCMalloc into a running binary (e.g., using
+JNI in Java programs).  The binary will have allocated some
+objects using the system malloc, and may try to pass them
+to TCMalloc for deallocation.  TCMalloc will not be able
+to handle such objects.
+
+<h2>Performance Notes</h2>
+
+Here is a log of some of the performance improvements seen
+by switching to tcmalloc:
+<p>
+
+<center>
+<table frame=box rules=all cellpadding=5>
+<tr> <th>Date       <th>Program                <th>Tester        <th>Improvement            </tr>
+<tr> <td>2003/10/30 <td>indexserver            <td>Gauthum       <td>5.8% speedup</tr>
+<tr> <td>2003/10/30 <td>Caribou storage server <td>Peter Mattis  <td>10% speedup</tr>
+<tr> <td>2003/11/28 <td>indexserver            <td>Paul Menage   <td>Allows 9 microshards instead of 8 on 4GB Xeons</tr>
+<tr> <td>2003/12/15 <td>concentrator           <td>Andrew Kirmse <td>Stopped "leak" of several hundred KB per minute</tr>
+</table>
+</center>
+
+<p>
+<address>
+October 26, 2003<br>
+This document is <A HREF="http://www.corp.google.com/confidential.html">
+Google Confidential</A>.
+</address>
+
+</body>
+</html>

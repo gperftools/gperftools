@@ -1,0 +1,35 @@
+HEAP PROFILER
+
+1) Fix heap profiling under STL
+   * Find out how to force non-glibc STL libraries to call new() and
+     delete() for every allocation / deallocation.
+   * Make heap profiler ignore STL-internal allocations for those
+     libraries under which we cannot profile accurately, so we only
+     see object-level leaks.
+2) Remove dependency on tcmalloc
+3) Port to non-linux O/Ses (right now code uses /proc for library info)
+4) Port to non-x86 architectures (locking code in internal_spinlock is
+   x86-specific)
+5) Port to C?
+
+HEAP CHECKER
+
+[1) Uses heap profiler, so its TODOs apply here as well]
+2) Remove requirement that the heap-checker must be linked last into
+   an application (hard! -- it needs its global constructor to run
+   first)
+
+TCMALLOC
+
+1) Implement mallinfo/mallopt
+2) Have tcmalloc work correctly when libpthread is not linked in
+3) Return memory to the system when requirements drop
+4) Explore coloring allocated objects to avoid cache conflicts
+5) Explore biasing reclamation to larger addresses
+
+STACKTRACE
+
+1) Document and advertise libstacktrace
+2) Remove dependency on linux/x86
+
+28 February 2005

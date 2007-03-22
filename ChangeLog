@@ -1,0 +1,7 @@
+Tue Feb 8 09:57:17 2005  El Goog <opensource@google.com>
+
+	* google-perftools: initial release:
+	  The google-perftools package contains some utilities to improve
+	  and analyze the performance of C++ programs.  This includes an
+	  optimized thread-caching malloc() and cpu and heap profiling
+	  utilities.
