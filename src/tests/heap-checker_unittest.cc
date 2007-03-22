@@ -273,6 +273,7 @@ static void DoRunHidden(Closure* c, int n) {
   if (n) {
     run_hidden_ptr(c, n-1);
     wipe_stack_ptr(n);
+    sleep(0);  // undo -foptimize-sibling-calls
   } else {
     c->Run();
   }
@@ -284,6 +285,7 @@ static void DoWipeStack(int n) {
     volatile int arr[sz];
     for (int i = 0; i < sz; ++i)  arr[i] = 0;
     wipe_stack_ptr(n-1);
+    sleep(0);  // undo -foptimize-sibling-calls
   }
 }
 
@@ -463,14 +465,14 @@ static void TestHeapLeakCheckerPProf() {
 // trick heap change: same total # of bytes and objects, but
 // different individual object sizes
 static void TestHeapLeakCheckerTrick() {
-  void* bar1 = AllocHidden(60 * sizeof(int));
+  void* bar1 = AllocHidden(240 * sizeof(int));
   Use(&bar1);
-  void* bar2 = AllocHidden(40 * sizeof(int));
+  void* bar2 = AllocHidden(160 * sizeof(int));
   Use(&bar2);
   HeapLeakChecker check("trick");
-  void* foo1 = AllocHidden(70 * sizeof(int));
+  void* foo1 = AllocHidden(280 * sizeof(int));
   Use(&foo1);
-  void* foo2 = AllocHidden(30 * sizeof(int));
+  void* foo2 = AllocHidden(120 * sizeof(int));
   Use(&foo2);
   DeAllocHidden(&bar1);
   DeAllocHidden(&bar2);
@@ -482,16 +484,16 @@ static void TestHeapLeakCheckerTrick() {
 
 // no false negatives from pprof
 static void TestHeapLeakCheckerDeathTrick() {
-  void* bar1 = AllocHidden(60 * sizeof(int));
+  void* bar1 = AllocHidden(240 * sizeof(int));
   Use(&bar1);
-  void* bar2 = AllocHidden(40 * sizeof(int));
+  void* bar2 = AllocHidden(160 * sizeof(int));
   Use(&bar2);
   HeapLeakChecker check("death_trick");
   DeAllocHidden(&bar1);
   DeAllocHidden(&bar2);
-  void* foo1 = AllocHidden(70 * sizeof(int));
+  void* foo1 = AllocHidden(280 * sizeof(int));
   Use(&foo1);
-  void* foo2 = AllocHidden(30 * sizeof(int));
+  void* foo2 = AllocHidden(120 * sizeof(int));
   Use(&foo2);
   // TODO(maxim): use the above if we make pprof work in automated test runs
   if (!FLAGS_maybe_stripped) {
@@ -733,13 +735,19 @@ static void* HeapBusyThreadBody(void* a) {
       }
     }
     if (FLAGS_test_register_leak) {
-      // Hide the register pointer value with an xor mask.
+      // Hide the register "ptr" value with an xor mask.
       // If one provides --test_register_leak flag, the test should
       // (with very high probability) crash on some leak check
       // with a leak report (of some x * sizeof(int) + y * sizeof(int*) bytes)
       // pointing at the two lines above in this function
       // with "new (initialized) int" in them as the allocators
       // of the leaked objects.
+      // CAVEAT: We can't really prevent a compiler to save some
+      // temporary values of "ptr" on the stack and thus let us find
+      // the heap objects not via the register.
+      // Hence it's normal if for certain compilers or optimization modes
+      // --test_register_leak does not cause a leak crash of the above form
+      // (this happens e.g. for gcc 4.0.1 in opt mode).
       ptr = reinterpret_cast<int **>(
           reinterpret_cast<uintptr_t>(ptr) ^ kHideMask);
       // busy loop to get the thread interrupted at:

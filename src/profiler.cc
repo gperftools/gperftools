@@ -460,12 +460,12 @@ void ProfileData::SetHandler(void (*handler)(int)) {
 }
 
 void ProfileData::FlushTable() {
-  if (out_ < 0) {
-    // Profiling is not enabled
-    return;
-  }
-
   LOCK(&state_lock_); {
+    if (out_ < 0) {
+      // Profiling is not enabled
+      UNLOCK(&state_lock_);
+      return;
+    }
     SetHandler(SIG_IGN);       // Disable timer interrupts while we're flushing
     LOCK(&table_lock_); {
       // Move data from hash table to eviction buffer

@@ -85,3 +85,18 @@ Thu Apr 13 20:59:09 2006  Google Inc. <opensource@google.com>
 	* Syscall support for older kernels, including _syscall6 (markus)
 	* Support PIC mode (markus, mbland, iant)
 	* Better support for running in non-threaded contexts (csilvers)
+
+Wed Jun 14 15:11:14 2006  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.8 release
+	* Experimental support for remote profiling added to pprof (many)
+	* Fixed race condition in ProfileData::FlushTable (etune)
+	* Better support for weird /proc maps (maxim, mec)
+	* Fix heap-checker interaction with gdb (markus)
+	* Better 64-bit support in pprof (aruns)
+	* Reduce scavenging cost in tcmalloc by capping NumMoveSize (sanjay)
+	* Cast syscall(SYS_mmap); works on more 64-bit systems now (menage)
+	* Document the text output of pprof! (csilvers)
+	* Better compiler support for no-THREADS and for old compilers (csilvers)
+	* Make libunwind the default stack unwinder for x86-64 (aruns)
+	* Somehow the COPYING file got erased.  Regenerate it (csilvers)

@@ -109,6 +109,24 @@ detail below.</p>
   annotated with the flat and cumulative sample counts at each PC value.
 </pre>
 
+<h3>Analyzing Text Output</h3>
+
+<p>Text mode has lines of output that look like this:</p>
+<pre>
+       14   2.1%  17.2%       58   8.7% std::_Rb_tree::find
+</pre>
+
+<p>Here is how to interpret the columns:</p>
+<ol>
+  <li> Number of profiling samples in this function
+  <li> Percentage of profiling samples in this function
+  <li> Percentage of profiling samples in the functions printed so far
+  <li> Number of profiling samples in this function and its callees
+  <li> Percentage of profiling samples in this function and its callees
+  <li> Function name
+</ol>
+
+
 <h3>Node Information</h3>
 
 <p>In the various graphical modes of pprof, the output is a call graph

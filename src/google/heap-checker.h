@@ -255,6 +255,19 @@ class HeapCleaner {
 };
 
 class HeapLeakChecker {
+ public:  // Static functions for working with (whole-program) leak checking.
+ 
+  // If heap leak checking is currently active in some mode
+  // e.g. if leak checking was started (and is still active now)
+  // due to any valid non-empty --heap_check flag value
+  // (including "local") on the command-line
+  // or via a dependency on //base:heapcheck.
+  // The return value reflects iff HeapLeakChecker objects manually 
+  // constructed right now will be doing leak checking or nothing.
+  // Note that we can go from active to inactive state during InitGoogle()
+  // if FLAGS_heap_check gets set to "" by some code before/during InitGoogle().
+  static bool IsActive();
+
  public:  // Non-static functions for starting and doing leak checking.
 
   // Start checking and name the leak check performed.

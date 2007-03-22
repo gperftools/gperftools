@@ -45,6 +45,14 @@
 #if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__)) && \
     defined(__linux)
 
+#ifdef __cplusplus
+/* Some system header files in older versions of gcc neglect to properly
+ * handle being included from C++. As it appears to be harmless to have
+ * multiple nested 'extern "C"' blocks, just add another one here.
+ */
+extern "C" {
+#endif
+
 #include <errno.h>
 #include <signal.h>
 #include <stdarg.h>
@@ -79,35 +87,47 @@
 
 #if defined(__i386__)
 #ifndef __NR_getdents64
-#define __NR_getdents64   220
+#define __NR_getdents64         220
 #endif
 #ifndef __NR_gettid
-#define __NR_gettid       224
+#define __NR_gettid             224
 #endif
 #ifndef __NR_futex
-#define __NR_futex        240
+#define __NR_futex              240
+#endif
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity  241
+#define __NR_sched_getaffinity  242
 #endif
 /* End of i386 definitions                                                   */
 #elif defined(__ARM_ARCH_3__)
 #ifndef __NR_getdents64
-#define __NR_getdents64   217
+#define __NR_getdents64         (__NR_SYSCALL_BASE + 217)
 #endif
 #ifndef __NR_gettid
-#define __NR_gettid       224
+#define __NR_gettid             (__NR_SYSCALL_BASE + 224)
 #endif
 #ifndef __NR_futex
-#define __NR_futex        240
+#define __NR_futex              (__NR_SYSCALL_BASE + 240)
+#endif
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity  (__NR_SYSCALL_BASE + 241)
+#define __NR_sched_getaffinity  (__NR_SYSCALL_BASE + 242)
 #endif
 /* End of ARM 3 definitions                                                  */
 #elif defined(__x86_64__)
 #ifndef __NR_getdents64
-#define __NR_getdents64   217
+#define __NR_getdents64         217
 #endif
 #ifndef __NR_gettid
-#define __NR_gettid       186
+#define __NR_gettid             186
 #endif
 #ifndef __NR_futex
-#define __NR_futex        202
+#define __NR_futex              202
+#endif
+#ifndef __NR_sched_setaffinity
+#define __NR_sched_setaffinity  203
+#define __NR_sched_getaffinity  204
 #endif
 /* End of x86-64 definitions                                                 */
 #endif
@@ -306,9 +326,11 @@ struct dirent64;
   #endif
   #if defined(__x86_64__)
     struct msghdr;
+    struct sockaddr;
     #define __NR_sys_mmap           __NR_mmap
     #define __NR_sys_recvmsg        __NR_recvmsg
     #define __NR_sys_sendmsg        __NR_sendmsg
+    #define __NR_sys_sendto         __NR_sendto
     #define __NR_sys_shutdown       __NR_shutdown
     #define __NR_sys_rt_sigaction   __NR_rt_sigaction
     #define __NR_sys_rt_sigprocmask __NR_rt_sigprocmask
@@ -322,6 +344,10 @@ struct dirent64;
                             struct msghdr*,          m, int, f);
     static inline _syscall3(int, sys_sendmsg,        int,   s,
                             const struct msghdr*,    m, int, f);
+    static inline _syscall6(int, sys_sendto,         int,   s,
+                            const void*,             m, size_t, l,
+                            int,                     f,
+                            const struct sockaddr*,  a, int, t);
     static inline _syscall2(int, sys_shutdown,       int,   s,
                             int,                     h);
     static inline _syscall4(int, sys_rt_sigaction,   int,   s,
@@ -378,6 +404,8 @@ struct dirent64;
     }
     #define sys_recvmsg(s,m,f)      sys_socketcall(17,      (s), (m), (f))
     #define sys_sendmsg(s,m,f)      sys_socketcall(16,      (s), (m), (f))
+    #define sys_sendto(s,m,l,f,a,t) sys_socketcall(11,      (s), (m), (l),(f),\
+                                                            (a), (t))
     #define sys_shutdown(s,h)       sys_socketcall(13,      (s), (h))
     #define sys_socket(d,t,p)       sys_socketcall(1,       (d), (t), (p))
     #define sys_socketpair(d,t,p,s) sys_socketcall(8,       (d), (t), (p),(s))
@@ -387,39 +415,41 @@ struct dirent64;
     static inline _syscall3(pid_t, sys_waitpid,      pid_t, p,
                             int*,              s,    int,   o);
   #endif
-  #define __NR_sys_close        __NR_close
-  #define __NR_sys_dup          __NR_dup
-  #define __NR_sys_dup2         __NR_dup2
-  #define __NR_sys_execve       __NR_execve
-  #define __NR_sys__exit        __NR_exit
-  #define __NR_sys_fcntl        __NR_fcntl
-  #define __NR_sys_fork         __NR_fork
-  #define __NR_sys_fstat        __NR_fstat
-  #define __NR_sys_getdents     __NR_getdents
-  #define __NR_sys_getdents64   __NR_getdents64
-  #define __NR_sys_getegid      __NR_getegid
-  #define __NR_sys_geteuid      __NR_geteuid
-  #define __NR_sys_getpgrp      __NR_getpgrp
-  #define __NR_sys_getpid       __NR_getpid
-  #define __NR_sys_getppid      __NR_getppid
-  #define __NR_sys_getpriority  __NR_getpriority
-  #define __NR_sys_getrlimit    __NR_getrlimit
-  #define __NR_sys_getsid       __NR_getsid
-  #define __NR__gettid          __NR_gettid
-  #define __NR_sys_kill         __NR_kill
-  #define __NR_sys_lseek        __NR_lseek
-  #define __NR_sys_munmap       __NR_munmap
-  #define __NR_sys_open         __NR_open
-  #define __NR_sys_pipe         __NR_pipe
-  #define __NR_sys_prctl        __NR_prctl
-  #define __NR_sys_ptrace       __NR_ptrace
-  #define __NR_sys_read         __NR_read
-  #define __NR_sys_readlink     __NR_readlink
-  #define __NR_sys_sched_yield  __NR_sched_yield
-  #define __NR_sys_sigaltstack  __NR_sigaltstack
-  #define __NR_sys_stat         __NR_stat
-  #define __NR_sys_write        __NR_write
-  #define __NR_sys_futex        __NR_futex
+  #define __NR_sys_close              __NR_close
+  #define __NR_sys_dup                __NR_dup
+  #define __NR_sys_dup2               __NR_dup2
+  #define __NR_sys_execve             __NR_execve
+  #define __NR_sys__exit              __NR_exit
+  #define __NR_sys_fcntl              __NR_fcntl
+  #define __NR_sys_fork               __NR_fork
+  #define __NR_sys_fstat              __NR_fstat
+  #define __NR_sys_futex              __NR_futex
+  #define __NR_sys_getdents           __NR_getdents
+  #define __NR_sys_getdents64         __NR_getdents64
+  #define __NR_sys_getegid            __NR_getegid
+  #define __NR_sys_geteuid            __NR_geteuid
+  #define __NR_sys_getpgrp            __NR_getpgrp
+  #define __NR_sys_getpid             __NR_getpid
+  #define __NR_sys_getppid            __NR_getppid
+  #define __NR_sys_getpriority        __NR_getpriority
+  #define __NR_sys_getrlimit          __NR_getrlimit
+  #define __NR_sys_getsid             __NR_getsid
+  #define __NR__gettid                __NR_gettid
+  #define __NR_sys_kill               __NR_kill
+  #define __NR_sys_lseek              __NR_lseek
+  #define __NR_sys_munmap             __NR_munmap
+  #define __NR_sys_open               __NR_open
+  #define __NR_sys_pipe               __NR_pipe
+  #define __NR_sys_prctl              __NR_prctl
+  #define __NR_sys_ptrace             __NR_ptrace
+  #define __NR_sys_read               __NR_read
+  #define __NR_sys_readlink           __NR_readlink
+  #define __NR_sys_sched_getaffinity  __NR_sched_getaffinity
+  #define __NR_sys_sched_setaffinity  __NR_sched_setaffinity
+  #define __NR_sys_sched_yield        __NR_sched_yield
+  #define __NR_sys_sigaltstack        __NR_sigaltstack
+  #define __NR_sys_stat               __NR_stat
+  #define __NR_sys_write              __NR_write
   static inline _syscall1(int,     sys_close,       int,         f);
   static inline _syscall1(int,     sys_dup,         int,         f);
   static inline _syscall2(int,     sys_dup2,        int,         s,
@@ -432,6 +462,8 @@ struct dirent64;
   static inline _syscall0(pid_t,   sys_fork);
   static inline _syscall2(int,     sys_fstat,       int,         f,
                           struct stat*,   b);
+  static inline _syscall4(int, sys_futex, int*, addrx, int, opx, int, valx,
+                          struct timespec *, timeoutx);
   static inline _syscall3(int,   sys_getdents,      int,         f,
                           struct dirent*, d, int,    c);
   static inline _syscall3(int,   sys_getdents64,    int,         f,
@@ -464,6 +496,10 @@ struct dirent64;
                           void *,         b, size_t, c);
   static inline _syscall3(int,     sys_readlink,    const char*, p,
                           char*,          b, size_t, s);
+  static inline _syscall3(int, sys_sched_getaffinity, pid_t, pid,
+                          unsigned int, len, unsigned long *, mask);
+  static inline _syscall3(int, sys_sched_setaffinity, pid_t, pid,
+                          unsigned int, len, unsigned long *, mask);
   static inline _syscall0(int,     sys_sched_yield);
   static inline _syscall2(int,     sys_sigaltstack, const stack_t*, s,
                           const stack_t*, o);
@@ -471,8 +507,6 @@ struct dirent64;
                           struct stat*,   b);
   static inline _syscall3(ssize_t, sys_write,        int,        f,
                           const void *,   b, size_t, c);
-  static inline _syscall4(int, sys_futex, int*, addrx, int, opx, int, valx,
-                          struct timespec *, timeoutx);
 
   static inline int sys_sysconf(int name) {
     extern int __getpagesize(void);
@@ -517,6 +551,9 @@ struct dirent64;
   #undef RETURN
 #endif
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif
 #endif

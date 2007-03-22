@@ -115,7 +115,7 @@ extern "C" void* mmap64(void *start, size_t length,
                         int fd, __off64_t offset) __THROW {
 
   void *result;
-  result = syscall(SYS_mmap, start, length, prot, flags, fd, offset);
+  result = (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
 }

@@ -166,6 +166,21 @@ struct StackTraceHash {
     }
     return h;
   }
+  // Less operator for MSVC's hash containers.
+  bool operator()(void** entry1, void** entry2) const {
+    if (Depth(entry1) != Depth(entry2))
+      return Depth(entry1) < Depth(entry2);
+    for (int i = 0; i < Depth(entry1); i++) {
+      if (PC(entry1, i) != PC(entry2, i)) {
+        return PC(entry1, i) < PC(entry2, i);
+      }
+    }
+    return false;  // entries are equal
+  }
+  // These two public members are required by msvc.  4 and 8 are the
+  // default values.
+  static const size_t bucket_size = 4;
+  static const size_t min_buckets = 8;
 };
 
 struct StackTraceEqual {

@@ -399,11 +399,14 @@ static void TestHugeAllocations() {
   for (size_t i = 0; i < 10000; i++) {
     TryHugeAllocation(kMaxSize - i);
   }
-
-  // Check that asking for stuff near signed/unsigned boundary returns NULL
+  // Asking for memory sizes near signed/unsigned boundary (kMaxSignedSize)
+  // might work or not, depending on the amount of virtual memory.
   for (size_t i = 0; i < 100; i++) {
-    TryHugeAllocation(kMaxSignedSize - i);
-    TryHugeAllocation(kMaxSignedSize + i);
+    void* p = NULL;
+    p = malloc(kMaxSignedSize + i);
+    if (p) free(p);    // if: free(NULL) is not necessarily defined
+    p = malloc(kMaxSignedSize - i);
+    if (p) free(p);
   }
 }
 
@@ -560,18 +563,6 @@ int main(int argc, char** argv) {
     free(p);
   }
 
-  // Check that large allocations fail with NULL instead of crashing
-  fprintf(LOGSTREAM, "==== Testing out of memory\n");
-  for (int s = 0; ; s += (10<<20)) {
-    void* large_object = malloc(s);
-    if (large_object == NULL) break;
-    free(large_object);
-  }
-
-  // Check that huge allocations fail with NULL instead of crashing
-  fprintf(LOGSTREAM, "==== Testing huge allocations\n");
-  TestHugeAllocations();
-
   // Check calloc() with various arguments
   fprintf(LOGSTREAM, "==== Testing calloc\n");
   TestCalloc(0, 0, true);
@@ -611,10 +602,16 @@ int main(int argc, char** argv) {
     threads[i] = new TesterThread(i);
   }
 
-  // Start
+  // Start the threads.
+  // Set the stack size to a small value to avoid inheriting 120MB+
+  // limit when running under the google make system.
+  pthread_attr_t attr;
+  pthread_attr_init(&attr);
+  pthread_attr_setstacksize(&attr, 1 << 20);
   for (int i = 0; i < FLAGS_numthreads; ++i) {
-    CHECK_EQ(pthread_create(&thread_ids[i], NULL, RunThread, threads[i]), 0);
+    CHECK_EQ(pthread_create(&thread_ids[i], &attr, RunThread, threads[i]), 0);
   }
+  pthread_attr_destroy(&attr);
 
   // Wait
   for (int i = 0; i < FLAGS_numthreads; ++i) {
@@ -623,6 +620,21 @@ int main(int argc, char** argv) {
   }
 
   for (int i = 0; i < FLAGS_numthreads; ++i) delete threads[i];    // Cleanup
+
+  // Do the memory intensive tests after threads are done, since exhausting
+  // the available address space can make pthread_create to fail.
+
+  // Check that huge allocations fail with NULL instead of crashing
+  fprintf(LOGSTREAM, "==== Testing huge allocations\n");
+  TestHugeAllocations();
+
+  // Check that large allocations fail with NULL instead of crashing
+  fprintf(LOGSTREAM, "==== Testing out of memory\n");
+  for (int s = 0; ; s += (10<<20)) {
+    void* large_object = malloc(s);
+    if (large_object == NULL) break;
+    free(large_object);
+  }
 
   fprintf(LOGSTREAM, "PASS\n");
   return 0;

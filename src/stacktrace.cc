@@ -45,17 +45,14 @@
 #include "stacktrace_x86-inl.h"
 #endif
 
-#if !defined(IMPLEMENTED_STACK_TRACE) && defined(USE_LIBUNWIND) && HAVE_LIBUNWIND_H
+#if !defined(IMPLEMENTED_STACK_TRACE) && defined(__x86_64__) && HAVE_LIBUNWIND_H
 #define IMPLEMENTED_STACK_TRACE
-// This is turned off by default. Possible reasons for turning on in the
-// future:
-// 1. Compiler independence
-// 2. Architecture independence
-// 3. A more liberal MIT license, which allows use with multiple compilers
+#define UNW_LOCAL_ONLY
 #include "stacktrace_libunwind-inl.h"
 #endif
 
 #if !defined(IMPLEMENTED_STACK_TRACE) && defined(__x86_64__) && HAVE_UNWIND_H
+// This implementation suffers from deadlocks. Don't enable it.
 #define IMPLEMENTED_STACK_TRACE
 #include "stacktrace_x86_64-inl.h"
 #endif

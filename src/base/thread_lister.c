@@ -31,7 +31,8 @@
  * Author: Markus Gutschke
  */
 
-#include <stdio.h>         // needed for NULL on some powerpc platforms (?!)
+#include <stdio.h>         /* needed for NULL on some powerpc platforms (?!) */
+#include <sys/prctl.h>
 #include "base/thread_lister.h"
 #include "base/linuxthreads.h"
 /* Include other thread listers here that define THREADS macro
@@ -46,16 +47,23 @@
 
 int ListAllProcessThreads(void *parameter,
                           ListAllProcessThreadsCallBack callback, ...) {
-  int     rc;
+  int rc;
   va_list ap;
 
+  int dumpable = prctl(PR_GET_DUMPABLE, 0);
+  if (!dumpable)
+    prctl(PR_SET_DUMPABLE, 1);
   va_start(ap, callback);
-  rc = callback(parameter, 0, NULL, ap);
+  pid_t pid = getpid();
+  rc = callback(parameter, 1, &pid, ap);
   va_end(ap);
+  if (!dumpable)
+    prctl(PR_SET_DUMPABLE, 0);
   return rc;
 }
 
-void ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
+int ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
+  return 1;
 }
 
 #endif

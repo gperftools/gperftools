@@ -79,6 +79,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <stdarg.h>
+#include "base/commandlineflags.h"
 #include "google/malloc_hook.h"
 #include "google/malloc_extension.h"
 #include "google/stacktrace.h"
@@ -147,12 +148,27 @@ static const size_t kDefaultOverallThreadCacheSize = 16 << 20;
 // REQUIRED: kMaxPages >= kMinSystemAlloc;
 static const size_t kMaxPages = kMinSystemAlloc;
 
+/* The smallest prime > 2^n */
+static unsigned int primes_list[] = {
+	// Small values might cause high rates of sampling
+	// and hence commented out.
+	// 2, 5, 11, 17, 37, 67, 131, 257,
+	// 521, 1031, 2053, 4099, 8209, 16411,
+	32771, 65537, 131101, 262147, 524309, 1048583,
+	2097169, 4194319, 8388617, 16777259, 33554467 };
+
 // Twice the approximate gap between sampling actions.
 // I.e., we take one sample approximately once every
-//      kSampleParameter/2
+//      tcmalloc_sample_parameter/2
 // bytes of allocation, i.e., ~ once every 128KB.
 // Must be a prime number.
-static const size_t kSampleParameter = 266053;
+DEFINE_int64(tcmalloc_sample_parameter, 262147,
+	     "Twice the approximate gap between sampling actions."
+	     " Must be a prime number. Otherwise will be rounded up to a "
+	     " larger prime number");
+static size_t sample_period = 262147;
+// Protects sample_period above
+static SpinLock sample_period_lock = SPINLOCK_INITIALIZER;
 
 //-------------------------------------------------------------------
 // Mapping from size to size_class and vice versa
@@ -303,6 +319,17 @@ static int NumMoveSize(size_t size) {
   // and thread caches.
   if (num > static_cast<int>(0.8 * kMaxFreeListLength))
     num = static_cast<int>(0.8 * kMaxFreeListLength);
+
+  // Also, avoid bringing in too many objects into small object free
+  // lists.  There are lots of such lists, and if we allow each one to
+  // fetch too many at a time, we end up having to scavenge too often
+  // (especially when there are lots of threads and each thread gets a
+  // small allowance for its thread cache).
+  //
+  // TODO: Make thread cache free list sizes dynamic so that we do not
+  // have to equally divide a fixed resource amongst lots of threads.
+  if (num > 32) num = 32;
+
   return num;
 }
 
@@ -918,7 +945,7 @@ void TCMalloc_PageHeap::Dump(TCMalloc_Printer* out) {
   uint64_t large_pages = 0;
   int large_spans = 0;
   for (Span* s = large_.next; s != &large_; s = s->next) {
-    out->printf("   [ %6" PRIuS " spans ]\n", s->length);
+    out->printf("   [ %6" PRIuS " pages ]\n", s->length);
     large_pages += s->length;
     large_spans++;
   }
@@ -1057,6 +1084,7 @@ class TCMalloc_ThreadCache_FreeList {
     SLL_PopRange(&list_, N, start, end);
     ASSERT(length_ >= N);
     length_ -= N;
+    if (length_ < lowater_) lowater_ = length_;
   }
 };
 
@@ -1669,9 +1697,23 @@ void TCMalloc_ThreadCache::PickNextSample() {
   uint32_t r = rnd_;
   rnd_ = (r << 1) ^ ((static_cast<int32_t>(r) >> 31) & kPoly);
 
-  // Next point is "rnd_ % (2*sample_period)".  I.e., average
-  // increment is "sample_period".
-  bytes_until_sample_ = rnd_ % kSampleParameter;
+  // Next point is "rnd_ % (sample_period)".  I.e., average
+  // increment is "sample_period/2".
+  const int flag_value = FLAGS_tcmalloc_sample_parameter;
+  static int last_flag_value = -1;
+
+  if (flag_value != last_flag_value) {
+    SpinLockHolder h(&sample_period_lock);
+    int i;
+    for (i = 0; i < (sizeof(primes_list)/sizeof(primes_list[0]) - 1); i++) {
+      if (primes_list[i] >= flag_value) {
+        break;
+      }
+    }
+    sample_period = primes_list[i];
+    last_flag_value = flag_value;
+  }
+  bytes_until_sample_ = rnd_ % sample_period;
 }
 
 void TCMalloc_ThreadCache::InitModule() {
@@ -2118,7 +2160,7 @@ static inline void* do_malloc(size_t size) {
   }
   // The following call forces module initialization
   TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
-  if (heap->SampleAllocation(size)) {
+  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
     Span* span = DoSampledAllocation(size);
     if (span != NULL) {
       ret = reinterpret_cast<void*>(span->start << kPageShift);

@@ -51,6 +51,10 @@
 #include "base/linux_syscall_support.h"
 #include "base/thread_lister.h"
 
+#ifndef CLONE_UNTRACED
+#define CLONE_UNTRACED 0x00800000
+#endif
+
 
 /* itoa() is not a standard function, and we cannot safely call printf()
  * after suspending threads. So, we just implement our own copy. A
@@ -97,8 +101,19 @@ static int local_clone (int (*fn)(void *), void *arg, ...) {
    * Leave 4kB of gap between the callers stack and the new clone. This
    * should be more than sufficient for the caller to call waitpid() until
    * the cloned thread terminates.
+   *
+   * It is important that we set the CLONE_UNTRACED flag, because newer
+   * versions of "gdb" otherwise attempt to attach to our thread, and will
+   * attempt to reap its status codes. This subsequently results in the
+   * caller hanging indefinitely in waitpid(), waiting for a change in
+   * status that will never happen. By setting the CLONE_UNTRACED flag, we
+   * prevent "gdb" from stealing events, but we still expect the thread
+   * lister to fail, because it cannot PTRACE_ATTACH to the process that
+   * is being debugged. This is OK and the error code will be reported
+   * correctly.
    */
-  return clone(fn, (char *)&arg - 4096, CLONE_VM|CLONE_FS|CLONE_FILES, arg);
+  return clone(fn, (char *)&arg - 4096,
+               CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_UNTRACED, arg);
 }
 
 
@@ -209,7 +224,8 @@ struct ListerParams {
 static void ListerThread(struct ListerParams *args) {
   static const int  signals[]  = { SIGABRT, SIGILL, SIGFPE, SIGSEGV, SIGBUS,
                                    SIGXCPU, SIGXFSZ };
-  pid_t             clone_pid  = sys_gettid();
+  int               found_parent = 0;
+  pid_t             clone_pid  = sys_gettid(), ppid = sys_getppid();
   char              proc_self_task[80], marker_name[48], *marker_path;
   const char        *proc_paths[3];
   const char *const *proc_path = proc_paths;
@@ -239,8 +255,7 @@ static void ListerThread(struct ListerParams *args) {
   }
 
   /* Compute search paths for finding thread directories in /proc            */
-  local_itoa(strrchr(strcpy(proc_self_task, "/proc/"), '\000'),
-             sys_getppid());
+  local_itoa(strrchr(strcpy(proc_self_task, "/proc/"), '\000'), ppid);
   marker_path = strrchr(strcpy(marker_name, proc_self_task), '\000');
   strcat(proc_self_task, "/task/");
   proc_paths[0] = proc_self_task; /* /proc/$$/task/                          */
@@ -417,6 +432,7 @@ static void ListerThread(struct ListerParams *args) {
                   num_threads--;
                   sig_num_threads = num_threads;
                 } else {
+                  found_parent |= pid == ppid;
                   added_entries++;
                 }
               }
@@ -434,6 +450,16 @@ static void ListerThread(struct ListerParams *args) {
       if (num_threads > 1 || !*++proc_path) {
         NO_INTR(sys_close(marker));
         sig_marker = marker = -1;
+
+        /* If we never found the parent process, something is very wrong.
+         * Most likely, we are running in debugger. Any attempt to operate
+         * on the threads would be very incomplete. Let's just report an
+         * error to the caller.
+         */
+        if (!found_parent) {
+          ResumeAllProcessThreads(num_threads, pids);
+          sys__exit(3);
+        }
 
         /* Now we are ready to call the callback,
          * which takes care of resuming the threads for us.
@@ -528,6 +554,9 @@ int ListAllProcessThreads(void *parameter,
       switch (WEXITSTATUS(status)) {
       case 0: break;             /* Normal process termination               */
       case 2: args.err = EFAULT; /* Some fault (e.g. SIGSEGV) detected       */
+              args.result = -1;
+              break;
+      case 3: args.err = EPERM;  /* Process is already being traced          */
               args.result = -1;
               break;
       default:args.err = ECHILD; /* Child died unexpectedly                  */

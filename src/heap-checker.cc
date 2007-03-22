@@ -468,6 +468,18 @@ static bool RecordGlobalDataLocked(uint64 start_address,
   if (inode == 0)
     return true;
 
+  // Sometimes people mmap their own files read-write.  That would cause
+  // the strict ELF checker later to reject them.  We do not want to loosen
+  // up the ELF checker, because we need to catch freaky files if they
+  // show up.  So, make an exception for common files that we have seen.
+  //
+  // TODO(mec): the longer this gets, the more attractive it is to
+  // check for the ELF header and just accept all non-ELF files.
+  if (inode != 0) {
+    if (filename && strcmp(filename, "/dev/zero") == 0)
+      return true;
+  }
+
   // Grab some ELF types.
 #ifdef _LP64
   typedef Elf64_Ehdr ElfFileHeader;
@@ -692,8 +704,15 @@ HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
                           "Looking at /proc/self/maps line:\n  %s\n",
                           proc_map_line);
 
-    if (start_address >= end_address)
-      abort();
+    if (start_address >= end_address) {
+      // Crash if a line we can be interested in is ill-formed:
+      if (inode != 0)  abort();
+      // Skip other ill-formed lines: some are possible
+      // probably due to the interplay of how /proc/self/maps is updated
+      // while we read it in chunks in ProcMapsIterator and
+      // do things in this loop.
+      continue;
+    }
 
     // Determine if any shared libraries are present.
     if (inode != 0 && strstr(filename, "lib") && strstr(filename, ".so")) {
@@ -738,6 +757,14 @@ static int64 live_bytes_total = 0;
 // (protected by our lock; IgnoreAllLiveObjectsLocked sets it)
 static pid_t self_thread_pid = 0;
 
+// Status of our thread listing callback execution
+// (protected by our lock; used from within IgnoreAllLiveObjectsLocked)
+static enum {
+  CALLBACK_NOT_STARTED,
+  CALLBACK_STARTED,
+  CALLBACK_COMPLETED,
+} thread_listing_status = CALLBACK_NOT_STARTED;
+
 // Ideally to avoid deadlocks this function should not result in any libc
 // or other function calls that might need to lock a mutex:
 // It is called when all threads of a process are stopped
@@ -774,6 +801,7 @@ int HeapLeakChecker::IgnoreLiveThreads(void* parameter,
                                        int num_threads,
                                        pid_t* thread_pids,
                                        va_list ap) {
+  thread_listing_status = CALLBACK_STARTED;
   if (HeapProfiler::kMaxLogging) {
     HeapProfiler::MESSAGE(2, "HeapChecker: Found %d threads (from pid %d)\n",
                           num_threads, getpid());
@@ -838,6 +866,7 @@ int HeapLeakChecker::IgnoreLiveThreads(void* parameter,
   IgnoreNonThreadLiveObjectsLocked();
   // Can now resume the threads:
   ResumeAllProcessThreads(num_threads, thread_pids);
+  thread_listing_status = CALLBACK_COMPLETED;
   return failures;
 }
 
@@ -928,7 +957,8 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
     UseProcMaps(RECORD_GLOBAL_DATA_LOCKED);
   }
   // Ignore all thread stacks:
-  bool executed_with_threads_stopped = false;
+  thread_listing_status = CALLBACK_NOT_STARTED;
+  bool need_to_ignore_non_thread_objects = true;
   self_thread_pid = getpid();
   self_thread_stack = self_stack;
   if (FLAGS_heap_check_ignore_thread_live) {
@@ -939,10 +969,22 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
     //  if not suspended they could still mess with the pointer
     //  graph while we walk it).
     int r = ListAllProcessThreads(NULL, IgnoreLiveThreads);
-    executed_with_threads_stopped = (r >= 0);
-    if (r == -1) {
-      HeapProfiler::MESSAGE(0, "HeapChecker: Could not find thread stacks; "
-                               "may get false leak reports\n");
+    need_to_ignore_non_thread_objects = r < 0;
+    if (r < 0) {
+      HeapProfiler::MESSAGE(0, "HeapChecker: thread finding failed "
+                               "with %d errno=%d\n", r, errno);
+      if (thread_listing_status == CALLBACK_COMPLETED) {
+        HeapProfiler::MESSAGE(0, "HeapChecker: thread finding callback "
+                                 "finished ok; hopefully everything is fine\n");
+        need_to_ignore_non_thread_objects = false;
+      } else if (thread_listing_status == CALLBACK_STARTED) {
+        HeapProfiler::MESSAGE(0, "HeapChecker: thread finding callback was "
+                                 "interrupted or crashed; can't fix this\n");
+        abort();
+      } else {  // CALLBACK_NOT_STARTED
+        HeapProfiler::MESSAGE(0, "HeapChecker: Could not find thread stacks; "
+                                 "may get false leak reports\n");
+      }
     } else if (r != 0) {
       HeapProfiler::MESSAGE(0, "HeapChecker: Thread stacks not found "
                                "for %d threads; may get false leak reports\n",
@@ -960,7 +1002,7 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
   }
   // Do all other live data ignoring here if we did not do it
   // within thread listing callback with all threads stopped.
-  if (!executed_with_threads_stopped)  IgnoreNonThreadLiveObjectsLocked();
+  if (need_to_ignore_non_thread_objects)  IgnoreNonThreadLiveObjectsLocked();
   if (live_objects_total) {
     HeapProfiler::MESSAGE(0, "HeapChecker: "
                           "Ignoring "LLD" reachable "
@@ -1349,10 +1391,13 @@ bool HeapLeakChecker::DoNoLeaks(bool same_heap,
       (same_heap ? (inuse_bytes_increase_ != 0 || inuse_allocs_increase_ != 0)
                  : (inuse_bytes_increase_ > 0 || inuse_allocs_increase_ > 0));
     if (see_leaks || do_full) {
+      bool pprof_can_ignore = false;
+      const char* command_tail = " --text 2>/dev/null";  // normal command
       const char* gv_command_tail
         = " --edgefraction=1e-10 --nodefraction=1e-10 --gv 2>/dev/null";
       string ignore_re;
       if (disabled_regexp) {
+        pprof_can_ignore = true;
         ignore_re += " --ignore='^";
         ignore_re += *disabled_regexp;
         ignore_re += "$'";
@@ -1361,22 +1406,29 @@ bool HeapLeakChecker::DoNoLeaks(bool same_heap,
       // some STLs can give us spurious leak alerts (since the STL tries to
       // do its own memory pooling), so we avoid it by using STL as little
       // as possible for "big" objects that might require "lots" of memory.
-      char command[6 * PATH_MAX + 200];
+      char base_command[6 * PATH_MAX + 200];
+      char beg_profile[PATH_MAX+1], end_profile[PATH_MAX+1];
       if (use_initial_profile) {
+        snprintf(beg_profile, sizeof(beg_profile), "%s.%s-beg.heap",
+                 profile_prefix->c_str(), name_);
         // compare against initial profile only if need to
         const char* drop_negative = same_heap ? "" : " --drop_negative";
-        snprintf(command, sizeof(command), "%s --base=\"%s.%s-beg.heap\" %s ",
-                 pprof_path(), profile_prefix->c_str(), name_,
-                 drop_negative);
+        snprintf(base_command, sizeof(base_command),
+                 "%s --base=\"%s\" %s ",
+                 pprof_path(), beg_profile, drop_negative);
       } else {
-        snprintf(command, sizeof(command), "%s",
+        beg_profile[0] = '\0';
+        snprintf(base_command, sizeof(base_command), "%s",
                  pprof_path());
       }
-      snprintf(command + strlen(command), sizeof(command) - strlen(command),
-               " %s \"%s.%s-end.heap\" %s --inuse_objects --lines",
-               invocation_path(), profile_prefix->c_str(),
-               name_, ignore_re.c_str());
+      snprintf(end_profile, sizeof(end_profile), "%s.%s-end.heap",
+               profile_prefix->c_str(), name_);
+      snprintf(base_command + strlen(base_command),
+               sizeof(base_command) - strlen(base_command),
+               " %s \"%s\" %s --inuse_objects --lines",
+               invocation_path(), end_profile, ignore_re.c_str());
                    // --lines is important here to catch leaks when !see_leaks
+
       char cwd[PATH_MAX+1];
       if (getcwd(cwd, sizeof(cwd)) != cwd)  abort();
       if (see_leaks) {
@@ -1390,7 +1442,7 @@ bool HeapLeakChecker::DoNoLeaks(bool same_heap,
                               "To investigate leaks manually use e.g.\n"
                               "cd %s; "  // for proper symbol resolution
                               "%s%s\n\n",
-                              cwd, command, gv_command_tail);
+                              cwd, base_command, gv_command_tail);
       }
       string output;
       int checked_leaks = 0;
@@ -1403,14 +1455,18 @@ bool HeapLeakChecker::DoNoLeaks(bool same_heap,
         } else {
           // We don't care about pprof's stderr as long as it
           // succeeds with empty report:
-          checked_leaks = GetStatusOutput(command, &output);
+          char full_command[6 * PATH_MAX + 200];   // needed to concatenate
+          snprintf(full_command, sizeof(full_command), "%s%s",
+                   base_command, command_tail);
+          checked_leaks = GetStatusOutput(full_command, &output);
           if (checked_leaks != 0) {
             HeapProfiler::MESSAGE(-1, "ERROR: Could not run pprof at %s\n",
                                   pprof_path());
             abort();
           }
         }
-        if (see_leaks && output.empty() && checked_leaks == 0) {
+        if (see_leaks && pprof_can_ignore &&
+            output.empty() && checked_leaks == 0) {
           HeapProfiler::MESSAGE(-1, "HeapChecker: "
                                 "These must be leaks that we disabled"
                                 " (pprof succeeded)! This check WILL FAIL"
@@ -1420,7 +1476,24 @@ bool HeapLeakChecker::DoNoLeaks(bool same_heap,
         // do not fail the check just due to us being a stripped binary
         if (!see_leaks  &&  strstr(output.c_str(), "nm: ") != NULL  &&
             strstr(output.c_str(), ": no symbols") != NULL)  output.resize(0);
-        if (!(see_leaks || checked_leaks == 0))  abort();
+      }
+      // Make sure the profiles we created are still there.
+      // They can get deleted e.g. if the program forks/executes itself
+      // and FLAGS_cleanup_old_heap_profiles was kept as true.
+      if (access(end_profile, R_OK) != 0  ||
+          (beg_profile[0]  &&  access(beg_profile, R_OK) != 0)) {
+        HeapProfiler::MESSAGE(-1, "HeapChecker: "
+                              "One of the heap profiles is gone: %s %s\n",
+                              beg_profile, end_profile);
+        abort();
+      }
+      if (!(see_leaks || checked_leaks == 0)) {
+        // Crash if something went wrong with executing pprof
+        // and we rely on pprof to do its work:
+        HeapProfiler::MESSAGE(-1, "HeapChecker: "
+                              "pprof command failed: %s%s\n",
+                              base_command, command_tail);
+        abort();
       }
       if (see_leaks  &&  use_initial_profile) {
         HeapProfiler::MESSAGE(-1, "HeapChecker: "
@@ -1438,7 +1511,7 @@ bool HeapLeakChecker::DoNoLeaks(bool same_heap,
                               "To investigate leaks manually uge e.g.\n"
                               "cd %s; "  // for proper symbol resolution
                               "%s%s\n\n",
-                              name_, cwd, command, gv_command_tail);
+                              name_, cwd, base_command, gv_command_tail);
         if (use_initial_profile) {
           HeapProfiler::MESSAGE(-1, "HeapChecker: "
                                 "CAVEAT: Some of the reported leaks might have "
@@ -1490,6 +1563,10 @@ HeapLeakChecker::~HeapLeakChecker() {
 //----------------------------------------------------------------------
 // HeapLeakChecker overall heap check components
 //----------------------------------------------------------------------
+
+bool HeapLeakChecker::IsActive() {
+  return heap_checker_on;
+}
 
 vector<HeapCleaner::void_function>* HeapCleaner::heap_cleanups_ = NULL;
 
@@ -1653,7 +1730,7 @@ void HeapLeakChecker::DoMainHeapCheck() {
     HeapProfiler::MESSAGE(0, "HeapChecker: "
                              "Checking for whole-program memory leaks\n");
     if (!main_heap_checker->DoNoLeaks(same_heap, do_full, do_report)) {
-      HeapProfiler::MESSAGE(-1, "ERROR: Leaks found in main heap check, aborting\n");
+      HeapProfiler::MESSAGE(-1, "HeapChecker: crashing because of leaks\n");
       abort();
     }
     delete main_heap_checker;

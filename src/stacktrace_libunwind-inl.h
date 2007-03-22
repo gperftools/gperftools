@@ -51,14 +51,14 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 
   do {
     ret = unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip);
-    assert(ret == 0);
+    if (ret < 0)
+      break;
     if (skip_count > 0) {
       skip_count--;
     } else {
       result[n++] = ip;
     }
     ret = unw_step(&cursor);
-    assert(ret >= 0);
   } while ((n < max_depth) && (ret > 0));
 
   return n;
