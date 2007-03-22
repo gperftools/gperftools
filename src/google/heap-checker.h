@@ -484,9 +484,15 @@ class HeapLeakChecker {
   static void DoMainHeapCheck();
 
   // Type of task for UseProcMaps
-  enum ProcMapsTask { RECORD_GLOBAL_DATA_LOCKED, DISABLE_LIBRARY_ALLOCS };
+  enum ProcMapsTask { 
+    RECORD_GLOBAL_DATA_LOCKED, 
+    DISABLE_LIBRARY_ALLOCS 
+  };
+  // Success/Error Return codes for UseProcMaps.
+  enum ProcMapsResult { PROC_MAPS_USED, CANT_OPEN_PROC_MAPS,
+                        NO_SHARED_LIBS_IN_PROC_MAPS };
   // Read /proc/self/maps, parse it, and do the 'proc_maps_task' for each line.
-  static void UseProcMaps(ProcMapsTask proc_maps_task);
+  static ProcMapsResult UseProcMaps(ProcMapsTask proc_maps_task);
   // A ProcMapsTask to disable allocations from 'library'
   // that is mapped to [start_address..end_address)
   // (only if library is a certain system library).

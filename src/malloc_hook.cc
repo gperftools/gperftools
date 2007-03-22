@@ -40,17 +40,24 @@ MallocHook::MunmapHook MallocHook::munmap_hook_ = NULL;
 
 // On Linux/x86, we override mmap/munmap and provide support for
 // calling the related hooks.  
-#if defined(__i386__) && defined(__linux)
+//
+// We define mmap() and mmap64(), which somewhat reimplements libc's mmap 
+// syscall stubs.  Unfortunately libc only exports the stubs via weak symbols 
+// (which we're overriding with our mmap64() and mmap() wrappers) so we can't 
+// just call through to them.
 
+
+#if defined(__linux) && (defined(__i386__) || defined(__x86_64__))
 #include <unistd.h>
 #include <syscall.h>
 #include <sys/mman.h>
 #include <errno.h>
 
-// This somewhat reimplements libc's mmap syscall stubs. Unfortunately
-// libc only exports the stubs via weak symbols (which we're
-// overriding with our mmap64() and mmap() wrappers) so we can't just
-// call through to them.
+// The x86-32 case and the x86-64 case differ:
+// 32b has a mmap2() syscall, 64b does not.
+// 64b and 32b have different calling conventions for mmap().
+# if defined(__i386__) 
+
 extern "C" void* mmap64(void *start, size_t length,
                         int prot, int flags, 
                         int fd, __off64_t offset) __THROW {
@@ -97,6 +104,29 @@ extern "C" void* mmap64(void *start, size_t length,
   return result;
 
 }
+
+//--------------------------------------------------------------------------//
+
+# elif defined(__x86_64__)
+
+#define __NR_wrapped_mmap   __NR_mmap
+#define __NR_wrapped_munmap __NR_munmap
+static inline _syscall6(void *, wrapped_mmap, void  *,  start,  
+                        size_t, length, int, prot, int, flags, int,
+                        fd, __off64_t, offset);
+static inline _syscall2(int, wrapped_munmap, void *, start, size_t, length);
+
+extern "C" void* mmap64(void *start, size_t length,
+                        int prot, int flags, 
+                        int fd, __off64_t offset) __THROW {
+
+  void *result;
+  result = wrapped_mmap(start, length, prot, flags, fd, offset );
+  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
+  return result;
+}
+
+# endif
 
 extern "C" void* mmap(void *start, size_t length,
                       int prot, int flags, 

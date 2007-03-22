@@ -35,13 +35,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
 #include "google/malloc_extension.h"
 
 #define BUFSIZE (100 << 10)
 
 int main(int argc, char **argv) {
-
-  
   char *buf1 = (char *)malloc(BUFSIZE);
   memset(buf1, 0, BUFSIZE);
   printf("Allocated buf1 via malloc() at %p\n", buf1);

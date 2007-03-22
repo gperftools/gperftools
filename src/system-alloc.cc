@@ -83,6 +83,10 @@ DEFINE_int32(malloc_devmem_limit, 0,
 #ifdef HAVE_SBRK
 
 static void* TrySbrk(size_t size, size_t alignment) {
+  // sbrk will release memory if passed a negative number, so we do
+  // a strict check here
+  if (static_cast<ptrdiff_t>(size + alignment) < 0) return NULL;
+
   size = ((size + alignment - 1) / alignment) * alignment;
   void* result = sbrk(size);
   if (result == reinterpret_cast<void*>(-1)) {
@@ -131,6 +135,11 @@ static void* TryMmap(size_t size, size_t alignment) {
   if (alignment > pagesize) {
     extra = alignment - pagesize;
   }
+
+  // Note: size + extra does not overflow since:
+  //            size + alignment < (1<<NBITS).
+  // and        extra <= alignment
+  // therefore  size + extra < (1<<NBITS)
   void* result = mmap(NULL, size + extra,
                       PROT_READ|PROT_WRITE,
                       MAP_PRIVATE|MAP_ANONYMOUS,
@@ -200,10 +209,16 @@ static void* TryDevMem(size_t size, size_t alignment) {
   }
   
   // check to see if we have any memory left
-  if (physmem_limit != 0 && physmem_base + size + extra > physmem_limit) {
+  if (physmem_limit != 0 &&
+      ((size + extra) > (physmem_limit - physmem_base))) {
     devmem_failure = true;
     return NULL;
   }
+
+  // Note: size + extra does not overflow since:
+  //            size + alignment < (1<<NBITS).
+  // and        extra <= alignment
+  // therefore  size + extra < (1<<NBITS)
   void *result = mmap(0, size + extra, PROT_WRITE|PROT_READ,
                       MAP_SHARED, physmem_fd, physmem_base);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
@@ -233,6 +248,9 @@ static void* TryDevMem(size_t size, size_t alignment) {
 }
 
 void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
+  // Discard requests that overflow
+  if (size + alignment < size) return NULL;
+
   if (TCMallocDebug::level >= TCMallocDebug::kVerbose) {
     MESSAGE("TCMalloc_SystemAlloc(%" PRIuS ", %" PRIuS")\n", 
             size, alignment);

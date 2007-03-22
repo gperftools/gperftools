@@ -451,12 +451,14 @@ static bool IsLibraryNamed(const char* library, const char* library_base) {
 void HeapLeakChecker::DisableLibraryAllocs(const char* library,
                                            void* start_address,
                                            void* end_address) {
+  int depth = 0;
   // TODO(maxim): maybe this should be extended to also use objdump
   //              and pick the text portion of the library more precisely.
   if (IsLibraryNamed(library, "/libpthread")  ||
-        // pthread has a lot of small "system" leaks we don't care about
+        // libpthread has a lot of small "system" leaks we don't care about.
+        // In particular it allocates memory to store data supplied via
+        // pthread_setspecific (which can be the only pointer to a heap object).
       IsLibraryNamed(library, "/libdl")  ||
-      IsLibraryNamed(library, "/ld")  ||
         // library loaders leak some "system" heap that we don't care about
       IsLibraryNamed(library, "/libcrypto")
       // Sometimes libcrypto of OpenSSH is compiled with -fomit-frame-pointer
@@ -464,16 +466,36 @@ void HeapLeakChecker::DisableLibraryAllocs(const char* library,
       // is so important for making crypto usable).  We ignore all its
       // allocations because we can't see the call stacks.
      ) {
+    depth = 1;  // only disable allocation calls directly from the library code
+  } else if (IsLibraryNamed(library, "/ld")
+               // library loader leaks some "system" heap
+               // (e.g. thread-local storage) that we don't care about
+            ) {
+    depth = 2;  // disable allocation calls directly from the library code
+                // and at depth 2 from it.
+    // We need depth 2 here solely because of a libc bug that
+    // forces us to jump through __memalign_hook and MemalignOverride hoops
+    // in tcmalloc.cc.
+    // Those buggy __libc_memalign() calls are in ld-linux.so and happen for
+    // thread-local storage allocations that we want to ignore here.
+    // We go with the depth-2 hack as a workaround for this libc bug:
+    // otherwise we'd need to extend MallocHook interface
+    // so that correct stack depth adjustment can be propagated from
+    // the exceptional case of MemalignOverride.
+    // Using depth 2 here should not mask real leaks because ld-linux.so
+    // does not call user code.
+  }
+  if (depth) {
     HeapProfiler::MESSAGE(1, "HeapChecker: "
-                          "Disabling direct allocations from %s :\n",
-                          library);
+                          "Disabling allocations from %s at depth %d:\n",
+                          library, depth);
     DisableChecksFromTo(start_address, end_address,
-                        1);  // only disable allocation calls directly
-                             // from the library code
+                        depth);
   }
 }
 
-void HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
+HeapLeakChecker::ProcMapsResult
+HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
   FILE* const fp = fopen("/proc/self/maps", "r");
   if (!fp) {
     int errsv = errno;
@@ -481,27 +503,29 @@ void HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
                           "Could not open /proc/self/maps: errno=%d.  "
                           "Libraries will not be handled correctly.\n",
                           errsv);
-    return;
+    return CANT_OPEN_PROC_MAPS;
   }
   char proc_map_line[1024];
+  bool saw_shared_lib = false;
   while (fgets(proc_map_line, sizeof(proc_map_line), fp) != NULL) {
     // All lines starting like
     // "401dc000-4030f000 r??p 00132000 03:01 13991972  lib/bin"
     // identify a data and code sections of a shared library or our binary
     uint64 start_address, end_address, file_offset, inode;
     int size;
-    char permissions[5];
+    char permissions[5], *filename;
     if (sscanf(proc_map_line, LLX"-"LLX" %4s "LLX" %*x:%*x "LLD" %n",
                &start_address, &end_address, permissions,
                &file_offset, &inode, &size) != 5) continue;
     proc_map_line[strlen(proc_map_line) - 1] = '\0';  // zap the newline
+    filename = proc_map_line + size;
     HeapProfiler::MESSAGE(4, "HeapChecker: "
                           "Looking at /proc/self/maps line:\n  %s\n",
                           proc_map_line);
     if (proc_maps_task == DISABLE_LIBRARY_ALLOCS  &&
         strncmp(permissions, "r-xp", 4) == 0  &&  inode != 0) {
       if (start_address >= end_address)  abort();
-      DisableLibraryAllocs(proc_map_line + size,
+      DisableLibraryAllocs(filename,
                            reinterpret_cast<void*>(start_address),
                            reinterpret_cast<void*>(end_address));
     }
@@ -514,8 +538,21 @@ void HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
       if (start_address >= end_address)  abort();
       RecordGlobalDataLocked(proc_map_line + size, start_address, file_offset);
     }
+    // Determine if any shared libraries are present.
+    if (strstr(filename, "lib") && strstr(filename, ".so")) {
+      saw_shared_lib = true;
+    }
   }
   fclose(fp);
+
+  if (!saw_shared_lib) {
+    HeapProfiler::MESSAGE(-1, "HeapChecker: "
+                              "No shared libs detected.  "
+                              "Will likely report false leak positives "
+                              "for statically linked executables.\n");
+    return NO_SHARED_LIBS_IN_PROC_MAPS;
+  }
+  return PROC_MAPS_USED;
 }
 
 // Total number and size of live objects dropped from the profile.
@@ -527,11 +564,12 @@ static int64 live_bytes_total = 0;
 static int last_num_threads = 0;
 static pid_t* last_thread_pids = NULL;
 
-// Callback for GetAllProcessThreads to ignore
+// Callback for ListAllProcessThreads to ignore
 // thread stacks and registers for all our threads.
 static int IgnoreLiveThreads(void* parameter,
                              int num_threads,
-                             pid_t* thread_pids) {
+                             pid_t* thread_pids,
+                             va_list ap) {
   last_num_threads = num_threads;
   assert(last_thread_pids == NULL);
   last_thread_pids = new pid_t[num_threads];
@@ -547,7 +585,7 @@ static int IgnoreLiveThreads(void* parameter,
     i386_regs thread_regs;
 #define sys_ptrace(r,p,a,d)  syscall(SYS_ptrace, (r), (p), (a), (d))
     // We use sys_ptrace to avoid thread locking
-    // because this is called from GetAllProcessThreads
+    // because this is called from ListAllProcessThreads
     // when all but this thread are suspended.
     // (This does not seem to matter much though: allocations and
     //  logging with HeapProfiler::MESSAGE seem to work just fine.)
@@ -600,8 +638,8 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
   if (HeapProfiler::ignored_objects_)  abort();
   HeapProfiler::ignored_objects_ = new HeapProfiler::IgnoredObjectSet;
   // Record global data as live:
-  // We need to do it before we stop the threads in GetAllProcessThreads below;
-  // otherwise deadlocks are possible
+  // We need to do it before we stop the threads in ListAllProcessThreads
+  // below; otherwise deadlocks are possible
   // when we try to fork to execute objdump in UseProcMaps.
   if (FLAGS_heap_check_ignore_global_live) {
     library_live_objects = new LibraryLiveObjectsStacks;
@@ -613,7 +651,7 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
     // and keep them suspended for the whole time of liveness checking
     // (they can't (de)allocate due to profiler's lock but they could still
     //  mess with the pointer graph while we walk it).
-    int r = GetAllProcessThreads(NULL, IgnoreLiveThreads);
+    int r = ListAllProcessThreads(NULL, IgnoreLiveThreads);
     if (r == -1) {
       HeapProfiler::MESSAGE(0, "HeapChecker: Could not find thread stacks; "
                                "may get false leak reports\n");
@@ -1312,9 +1350,15 @@ void HeapLeakChecker::InternalInitStart(const string& heap_check_type) {
     assert(heap_checker_pid == getpid());
     heap_checker_on = true;
     if (!HeapProfiler::is_on_)  abort();
-    UseProcMaps(DISABLE_LIBRARY_ALLOCS);
+    ProcMapsResult pm_result = UseProcMaps(DISABLE_LIBRARY_ALLOCS);
       // might neeed to do this more than once
       // if one later dynamically loads libraries that we want disabled
+    if (pm_result != HeapLeakChecker::PROC_MAPS_USED) {
+      heap_checker_on = false;
+      HeapProfiler::MESSAGE(0, "HeapChecker: Turning itself off\n");
+      HeapProfiler::StopForLeaks();
+      return;
+    }
 
     // make a good place and name for heap profile leak dumps
     profile_prefix = new string(dump_directory());

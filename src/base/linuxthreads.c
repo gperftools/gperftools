@@ -35,67 +35,14 @@
 
 #ifdef THREADS
 
-#include <errno.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/prctl.h>
-#include <sys/ptrace.h>
-#include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/syscall.h>
 #include <sys/wait.h>
-#include <unistd.h>
 
+#include "base/linux_syscall_support.h"
 #include "base/thread_lister.h"
-
-#ifndef O_DIRECTORY
-#define O_DIRECTORY 0200000
-#endif
-
-#if __BOUNDED_POINTERS__
-  #error "Need to port invocations of syscalls for bounded ptrs"
-#else
-  /* (Most of) the code in this file gets executed after threads have been
-   * suspended. As a consequence, we cannot call any functions that acquire
-   * locks. Unfortunately, libc wraps most system calls (e.g. in order to
-   * implement pthread_atfork, and to make calls cancellable), which means
-   * we cannot call these functions. Instead, we have to call syscall()
-   * directly.
-   */
-  #include <asm/stat.h>
-  #include <asm/posix_types.h>
-  #include <asm/types.h>
-  #include <linux/dirent.h>
-  #include <stdarg.h>
-  #include <syscall.h>
-  #ifdef __x86_64__
-    #define sys_socket(d,t,p)  syscall(SYS_socket,   (d), (t), (p))
-    #define sys_waitpid(p,s,o) syscall(SYS_wait4,    (p), (s), (o), (void *)0)
-  #else
-    static int sys_socketcall(int op, ...) {
-      int rc;
-      va_list ap;
-      va_start(ap, op);
-      rc = syscall(SYS_socketcall, op, ap);
-      va_end(ap);
-      return rc;
-    }
-    #define sys_socket(d,t,p)  sys_socketcall(1,     (d), (t), (p))
-    #define sys_waitpid(p,s,o) syscall(SYS_waitpid,  (p), (s), (o))
-  #endif
-
-  #define sys_close(f)         syscall(SYS_close,    (f))
-  #define sys_fcntl(f,c,a)     syscall(SYS_fcntl,    (f), (c), (a))
-  #define sys_fstat(f,b)       syscall(SYS_fstat,    (f), (b))
-  #define sys_getdents(f,d,c)  syscall(SYS_getdents, (f), (d), (c))
-  #define sys_getpid()         syscall(SYS_getpid)
-  #define sys_lseek(f,o,w)     syscall(SYS_lseek,    (f), (o), (w))
-  #define sys_open(f,p,m)      syscall(SYS_open,     (f), (p), (m))
-  #define sys_prctl(o,a)       syscall(SYS_prctl,    (o), (a))
-  #define sys_ptrace(r,p,a,d)  syscall(SYS_ptrace,   (r), (p), (a), (d))
-  #define sys_stat(f,b)        syscall(SYS_stat,     (f), (b))
-#endif
 
 
 /* itoa() is not a standard function, and we cannot safely call printf()
@@ -149,13 +96,15 @@ static int c_open(const char *fname, int flags, int mode) {
  * 'callback' is supposed to do or arrange for ResumeAllProcessThreads.
  * We return -1 on error and the return value of 'callback' on success.
  */
-int GetAllProcessThreads(void *parameter,
-                         GetAllProcessThreadsCallBack callback) {
-  int              marker = -1, proc = -1, dumpable = 1;
-  int              num_threads = 0, max_threads = 0;
-  char             marker_name[48], *marker_path;
-  struct stat      proc_sb, marker_sb;
-  pid_t            my_pid = sys_getpid();
+int ListAllProcessThreads(void *parameter,
+                          ListAllProcessThreadsCallBack callback, ...) {
+  static const char *const proc_paths[] = { "/proc/self/task/", "/proc/", 0 };
+  const char *const *proc_path = proc_paths;
+  int               marker = -1, proc = -1, dumpable = 1;
+  int               num_threads = 0, max_threads = 0;
+  char              marker_name[48], *marker_path;
+  struct stat       proc_sb, marker_sb;
+  pid_t             my_pid = sys_getpid();
 
   /* Create "marker" that we can use to detect threads sharing the same
    * address space and the same file handles. By setting the FD_CLOEXEC flag
@@ -186,9 +135,12 @@ int GetAllProcessThreads(void *parameter,
      * a separate "task" directory. We check there first, and then fall back
      * on the older naming convention if necessary.
      */
-    if (((proc = c_open("/proc/self/task/", O_RDONLY|O_DIRECTORY, 0)) < 0 &&
-         (proc = c_open("/proc/", O_RDONLY|O_DIRECTORY, 0)) < 0) ||
-        sys_fstat(proc, &proc_sb) < 0)
+    if ((proc = c_open(*proc_path, O_RDONLY|O_DIRECTORY, 0)) < 0) {
+      if (*++proc_path != NULL)
+        continue;
+      goto failure;
+    }
+    if (sys_fstat(proc, &proc_sb) < 0)
       goto failure;
 
     /* Since we are suspending threads, we cannot call any libc functions that
@@ -251,7 +203,7 @@ int GetAllProcessThreads(void *parameter,
               if (sys_stat(fname, &tmp_sb) >= 0 &&
                   marker_sb.st_dev == tmp_sb.st_dev &&
                   marker_sb.st_ino == tmp_sb.st_ino) {
-                int i, j;
+                long i, j;
 
                 /* Found one of our threads, make sure it is no duplicate    */
                 for (i = 0; i < num_threads; i++) {
@@ -282,7 +234,7 @@ int GetAllProcessThreads(void *parameter,
                 }
                 while (sys_waitpid(pid, (void *)0, __WALL) < 0) {
                   if (errno != EINTR) {
-                    sys_ptrace(PTRACE_DETACH, pid, (void *)0, (void *)0);
+                    sys_ptrace_detach(pid);
                     goto next_entry;
                   }
                 }
@@ -293,7 +245,7 @@ int GetAllProcessThreads(void *parameter,
                    * show the "marker". This is probably a forked child
                    * process rather than a thread.
                    */
-                  sys_ptrace(PTRACE_DETACH, pid, (void *)0, (void *)0);
+                  sys_ptrace_detach(pid);
                 } else {
                   pids[num_threads++] = pid;
                   added_entries++;
@@ -304,19 +256,27 @@ int GetAllProcessThreads(void *parameter,
        next_entry:;
         }
       }
-      NO_INTR(sys_close(marker));
       NO_INTR(sys_close(proc));
 
-      /* Now we are ready to call the callback,
-       * which takes care of resuming the threads for us.
+      /* If we failed to find any threads, try looking somewhere else in
+       * /proc. Maybe, threads are reported differently on this system.
        */
-      result = callback(parameter, num_threads, pids);
+      if (num_threads > 1 || !*++proc_path) {
+        va_list ap;
+        NO_INTR(sys_close(marker));
 
-      /* Restore the "dumpable" state of the process                         */
-      if (!dumpable)
-        sys_prctl(PR_SET_DUMPABLE, dumpable);
-      return result;
-
+        /* Now we are ready to call the callback,
+         * which takes care of resuming the threads for us.
+         */
+        va_start(ap, callback);
+        result = callback(parameter, num_threads, pids, ap);
+        va_end(ap);
+  
+        /* Restore the "dumpable" state of the process                       */
+        if (!dumpable)
+          sys_prctl(PR_SET_DUMPABLE, dumpable);
+        return result;
+      }
    detach_threads:
       /* Resume all threads prior to retrying the operation                  */
       ResumeAllProcessThreads(num_threads, pids);
@@ -336,11 +296,11 @@ failure:
 }
 
 /* This function resumes the list of all linux threads that
- * GetAllProcessThreads pauses before giving to its callback.
+ * ListAllProcessThreads pauses before giving to its callback.
  */
 void ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
   while (num_threads-- > 0) {
-    sys_ptrace(PTRACE_DETACH, thread_pids[num_threads], (void *)0, (void *)0);
+    sys_ptrace_detach(thread_pids[num_threads]);
   }
 }
 

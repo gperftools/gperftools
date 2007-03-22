@@ -134,6 +134,7 @@ void HeapProfiler::MESSAGE(int level, const char* format, ...) {
   va_start(ap, format);
   char buf[600];
   vsnprintf(buf, sizeof(buf), format, ap);
+  va_end(ap);
   write(STDERR_FILENO, buf, strlen(buf));
 }
 

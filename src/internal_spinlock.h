@@ -45,7 +45,7 @@
 #endif
 #include <stdlib.h>	/* for abort() */
 
-#if defined __i386__ && defined __GNUC__
+#if (defined __i386__ || defined __x86_64__) && defined __GNUC__
 
 static void TCMalloc_SlowLock(volatile unsigned int* lockword);
 

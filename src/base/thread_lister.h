@@ -34,15 +34,17 @@
 #ifndef _THREAD_LISTER_H
 #define _THREAD_LISTER_H
 
+#include <stdarg.h>
 #include <sys/types.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int (*GetAllProcessThreadsCallBack)(void *parameter,
-                                            int num_threads,
-                                            pid_t *thread_pids);
+typedef int (*ListAllProcessThreadsCallBack)(void *parameter,
+                                             int num_threads,
+                                             pid_t *thread_pids,
+                                             va_list ap);
 
 /* This function gets the list of all linux threads of the current process
  * but this one and passes them to the 'callback' along with the 'parameter'
@@ -51,11 +53,11 @@ typedef int (*GetAllProcessThreadsCallBack)(void *parameter,
  * 'callback' is supposed to do or arrange for ResumeAllProcessThreads.
  * We return -1 on error and the return value of 'callback' on success.
  */
-int GetAllProcessThreads(void *parameter,
-                         GetAllProcessThreadsCallBack callback);
+int ListAllProcessThreads(void *parameter,
+                          ListAllProcessThreadsCallBack callback, ...);
 
 /* This function resumes the list of all linux threads that
- * GetAllProcessThreads pauses before giving to its callback.
+ * ListAllProcessThreads pauses before giving to its callback.
  */
 void ResumeAllProcessThreads(int num_threads, pid_t *thread_pids);
 

@@ -43,9 +43,15 @@
  * or if the multi-threading code has not been ported, yet.
  */
 
-int GetAllProcessThreads(void *parameter,
-                         GetAllProcessThreadsCallBack callback) {
-  return callback(parameter, 0, NULL);
+int ListAllProcessThreads(void *parameter,
+                          ListAllProcessThreadsCallBack callback, ...) {
+  int     rc;
+  va_list ap;
+
+  va_start(ap, callback);
+  rc = callback(parameter, 0, NULL, ap);
+  va_end(ap);
+  return rc;
 }
 
 void ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {

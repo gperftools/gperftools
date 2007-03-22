@@ -76,6 +76,8 @@ class TCMalloc_PageMap1 {
     return true;
   }
 
+  void PreallocateMoreMemory() {}
+
   // REQUIRES "k" is in range "[0,2^BITS-1]".
   // REQUIRES "k" has been ensured before.
   //
@@ -151,6 +153,11 @@ class TCMalloc_PageMap2 {
       key = ((key >> LEAF_BITS) + 1) << LEAF_BITS;
     }
     return true;
+  }
+
+  void PreallocateMoreMemory() {
+    // Allocate enough to keep track of all possible pages
+    Ensure(0, 1 << BITS);
   }
 };
 
@@ -235,6 +242,9 @@ class TCMalloc_PageMap3 {
       key = ((key >> LEAF_BITS) + 1) << LEAF_BITS;
     }
     return true;
+  }
+
+  void PreallocateMoreMemory() {
   }
 };
 

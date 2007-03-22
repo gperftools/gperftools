@@ -32,20 +32,28 @@
 //
 // Module for CPU profiling based on periodic pc-sampling.
 //
-// To use this module, link it into your program.  To activate it
-// at runtime, set the environment variable "CPUPROFILE" to be the
-// name of the file in which the profile data should be written.
-// (If you don't set the environment variable, no profiling will
-// happen, and the program should run without any slowdowns.)
+// To use this module, link it into your program.  There should
+// be no slowdown caused by this unless you activate the profiler
+// using one of the steps given below.
 //
-// Once you have done this, there are two ways to determine which
-// region(s) of code should be profiled:
+// To activate the profiler, do one of the following:
 //
-// 1. If you set the "PROFILESELECTED" environment variable,
-//    only regions of code that are surrounded with "ProfilerEnable()"
-//    and "ProfilerDisable()" will be profiled.
-// 2. Otherwise, the main thread, and any thread that has had 
-//    ProfilerRegisterThread() called on it, will be profiled.
+//    1. Before starting the program, set the environment variable
+//       "CPUPROFILE" to be the name of the file to which the profile
+//       data should be written.
+//
+//    2. Programmatically, start and stop the profiler using
+//       the routines "ProfilerStart(filename)" and "ProfilerStop()".
+//
+// All threads in the program are profiled whenever profiling is on.
+// There used to be a mechanism where a subset of the threads could be
+// profiled, but that functionality no longer exists (it would not
+// work correctly in new systems since the interval timer used by the
+// profiler is a per-address-space setting in new systems instead of
+// being a per-thread setting in 2.4 and earlier systems).
+//
+// Limitation: on 2.4 and earlier kernels, just the main thread will
+// be profiled.
 //
 // Use pprof to view the resulting profile output.  If you have dot and
 // gv installed, you can also get a graphical representation of CPU usage.
@@ -56,6 +64,8 @@
 #ifndef _GOOGLE_PROFILER_H
 #define _GOOGLE_PROFILER_H
 
+#include <time.h>       // For time_t
+
 // Start profiling and write profile info into fname.
 extern bool ProfilerStart(const char* fname);
 
@@ -63,24 +73,35 @@ extern bool ProfilerStart(const char* fname);
 // the currently accumulated profiling data will be cleared.
 extern void ProfilerStop();
 
+// Flush any currently buffered profiling state to the profile file.
+// Has no effect if the profiler has not been started.
+extern void ProfilerFlush();
 
-// These functions have no effect if profiling has not been activated
-// globally (by specifying the "CPUPROFILE" environment variable or by
-// calling ProfilerStart() ).
 
-// Profile in the given thread.  This is most usefully called when a
-// new thread is first entered.  Note this may not work if
-// PROFILESELECTED is set.
-extern void ProfilerRegisterThread();
-
-// Turn profiling on and off, if PROFILESELECTED has been called.
+// DEPRECATED: these functions were used to enable/disable profiling
+// in the current thread, but no longer do anything.
 extern void ProfilerEnable();
 extern void ProfilerDisable();
 
-// Write out the current profile information to disk.
-extern void ProfilerFlush();
+// Returns true if profile is currently enabled
+extern bool ProfilingIsEnabledForAllThreads();
+
+// Routine for registering new threads with the profiler.  This is
+// most usefully called when a new thread is first entered.
+extern void ProfilerRegisterThread();
+
+// Stores state about profiler's current status into "*state".
+struct ProfilerState {
+  bool   enabled;                // Is profiling currently enabled?
+  time_t start_time;             // If enabled, when was profiling started?
+  char   profile_name[1024];     // Name of profile file being written, or '\0'
+  int    samples_gathered;       // Number of samples gatheered to far (or 0)
+};
+extern void ProfilerGetCurrentState(ProfilerState* state);
 
 // ------------------------- ProfilerThreadState -----------------------
+// DEPRECATED: this class is no longer needed.
+//
 // A small helper class that allows a thread to periodically check if
 // profiling has been enabled or disabled, and to react appropriately
 // to ensure that activity in the current thread is included in the
@@ -92,15 +113,13 @@ extern void ProfilerFlush();
 //    profile_state.ThreadCheck();
 //  }
 class ProfilerThreadState {
-public:
-  ProfilerThreadState();
+ public:
+  ProfilerThreadState() { }
 
   // Called in a thread to enable or disable profiling on the thread
   // based on whether profiling is currently on or off.
-  void ThreadCheck();
-
-private:
-  bool          was_enabled_;   // True if profiling was on in our last call
+  // DEPRECATED: No longer needed
+  void ThreadCheck() { }
 };
 
 #endif /* _GOOGLE_PROFILER_H */

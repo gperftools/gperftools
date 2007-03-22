@@ -1,4 +1,4 @@
-## Process this file with automake to produce Makefile.in       
+## Process this file with automake to produce Makefile.in
 
 # Note: for every library we create, we're explicit about what symbols
 # we export.  In order to avoid complications with C++ mangling, we always
@@ -26,7 +26,7 @@ docdir = $(prefix)/doc/$(PACKAGE)-$(VERSION)
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README TODO 
+dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README TODO
 
 # The libraries (.so's) you want to install
 # We'll add to this later, on a library-by-library basis
@@ -75,7 +75,7 @@ stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
 stacktrace_unittest_LDADD = libstacktrace.la
 
 ### Documentation
-dist_doc_DATA += 
+dist_doc_DATA +=
 
 ### ------- tcmalloc_minimal (thread-caching malloc)
 
@@ -90,7 +90,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/config.h \
                               src/maybe_threads.h
 SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
                                src/google/malloc_extension.h \
-                               src/google/stacktrace.h 
+                               src/google/stacktrace.h
 SGP_TCMALLOC_MINIMAL_INCLUDES = src/google/perftools/hash_set.h
 TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) $(SGP_TCMALLOC_MINIMAL_INCLUDES)
 googleinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
@@ -135,6 +135,12 @@ tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
 tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 tcmalloc_unittest_LDADD = libtcmalloc.la $(PTHREAD_LIBS)
 
+TESTS += tcmalloc_large_unittest
+tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
+tcmalloc_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
+tcmalloc_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
+tcmalloc_large_unittest_LDADD = libtcmalloc.la $(PTHREAD_LIBS)
+
 # performance/unittests originally from ptmalloc2
 TESTS += ptmalloc_unittest1 ptmalloc_unittest2
 PTMALLOC_UNITTEST_INCLUDES = src/tests/ptmalloc/t-test.h \
@@ -144,7 +150,7 @@ PTMALLOC_UNITTEST_INCLUDES = src/tests/ptmalloc/t-test.h \
                              src/tests/ptmalloc/malloc-machine.h
 ptmalloc_unittest1_SOURCES = src/tests/ptmalloc/t-test1.c \
                              $(PTMALLOC_UNITTEST_INCLUDES)
-ptmalloc_unittest1_CFLAGS = $(PTHREAD_CFLAGS) -DUSE_PTHREADS 
+ptmalloc_unittest1_CFLAGS = $(PTHREAD_CFLAGS) -DUSE_PTHREADS
 ptmalloc_unittest1_LDFLAGS = $(PTHREAD_CFLAGS)
 ptmalloc_unittest1_LDADD = $(PTHREAD_LIBS)
 ptmalloc_unittest2_SOURCES = src/tests/ptmalloc/t-test2.c \
@@ -180,7 +186,7 @@ dist_doc_DATA += doc/tcmalloc.html \
                  doc/tcmalloc-opspersec.vs.size.3.threads.png 		\
                  doc/tcmalloc-opspersec.vs.size.4.threads.png 		\
                  doc/tcmalloc-opspersec.vs.size.5.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.8.threads.png 
+                 doc/tcmalloc-opspersec.vs.size.8.threads.png
 
 # I don't know how to say "distribute the .dot files but don't install them";
 # noinst doesn't seem to work with data.  I separate them out anyway, in case
@@ -206,6 +212,7 @@ S_TCMALLOC_INCLUDES = src/config.h \
                       src/base/logging.h \
                       src/base/googleinit.h \
                       src/base/elfcore.h \
+                      src/base/linux_syscall_support.h \
                       src/base/linuxthreads.h \
                       src/base/thread_lister.h \
                       src/maybe_threads.h
@@ -213,7 +220,7 @@ SG_TCMALLOC_INCLUDES = src/google/malloc_hook.h \
                        src/google/malloc_extension.h \
                        src/google/heap-profiler.h \
                        src/google/heap-checker.h \
-                       src/google/stacktrace.h 
+                       src/google/stacktrace.h
 SGP_TCMALLOC_INCLUDES = src/google/perftools/hash_set.h
 TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_INCLUDES) $(SGP_TCMALLOC_INCLUDES)
 googleinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
@@ -230,7 +237,6 @@ libtcmalloc_la_SOURCES = src/internal_logging.cc \
                          src/heap-profiler.cc \
                          src/heap-checker.cc \
                          src/heap-checker-bcad.cc \
-                         src/base/elfcore.c \
                          src/base/linuxthreads.c \
                          src/base/thread_lister.c \
                          $(TCMALLOC_INCLUDES)
@@ -304,7 +310,7 @@ S_CPU_PROFILER_INCLUDES = src/config.h \
                           src/base/logging.h
 SG_CPU_PROFILER_INCLUDES = src/google/profiler.h \
                            src/google/stacktrace.h
-SGP_CPU_PROFILER_INCLUDES = 
+SGP_CPU_PROFILER_INCLUDES =
 CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES) $(SGP_CPU_PROFILER_INCLUDES)
 googleinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
 perftoolsinclude_HEADERS += $(SGP_CPU_PROFILER_INCLUDES)

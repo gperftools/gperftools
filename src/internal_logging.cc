@@ -42,6 +42,7 @@ void TCMalloc_MESSAGE(const char* format, ...) {
   va_start(ap, format);
   char buf[800];
   vsnprintf(buf, sizeof(buf), format, ap);
+  va_end(ap);
   write(STDERR_FILENO, buf, strlen(buf));
 }
 
@@ -50,6 +51,7 @@ void TCMalloc_Printer::printf(const char* format, ...) {
     va_list ap;
     va_start(ap, format);
     const int r = vsnprintf(buf_, left_, format, ap);
+    va_end(ap);
     if (r < 0) {
       // Perhaps an old glibc that returns -1 on truncation?
       left_ = 0;

@@ -34,7 +34,7 @@
 # or by the heap profiler (common/debugallocation.cc)
 #
 # The profile contains a sequence of entries of the form:
-#	<count> <stack trace>
+#       <count> <stack trace>
 # This program parses the profile, and generates user-readable
 # output.
 #
@@ -87,6 +87,7 @@ Usage: pprof [options] <program> <profile>
 Options:
    --cum               Sort by cumulative data
    --base=<base>       Subtract <base> from <profile> before display
+   --interactive       Run in interactive mode (interactive "help" gives help)
    
 Reporting Granularity:
    --addresses         Report at address level
@@ -191,9 +192,13 @@ $main::opt_alloc_space   = 0;
 $main::opt_alloc_objects = 0;
 $main::opt_show_bytes    = 0;
 $main::opt_drop_negative = 0;
+$main::opt_interactive   = 0;
 
 # Are we printing a heap profile?
 $main::heap_profile = 0;
+
+# Are we printing a lock profile?
+$main::lock_profile = 0;
 
 GetOptions("help!"          => \$main::opt_help,
 	   "version!"       => \$main::opt_version,
@@ -211,6 +216,7 @@ GetOptions("help!"          => \$main::opt_help,
 	   "ps!"            => \$main::opt_ps,
 	   "pdf!"           => \$main::opt_pdf,
 	   "gif!"           => \$main::opt_gif,
+	   "interactive!"   => \$main::opt_interactive,
 	   "nodecount=i"    => \$main::opt_nodecount,
 	   "nodefraction=f" => \$main::opt_nodefraction,
 	   "edgefraction=f" => \$main::opt_edgefraction,
@@ -283,35 +289,43 @@ if ($modes == 0) {
 }
 
 my $prog = shift || fatal("Did not specify program");
-my $pfile = shift || fatal("Did not specify profile file");
+my $pfile_arg = shift || fatal("Did not specify profile file");
 
 ##### Main section #####
 
 # Setup tmp-file name and handler to clean it up
 $main::tmpfile_sym = "/tmp/pprof$$.sym";
-$main::tmpfile_ps = "/tmp/pprof$$.ps";
+$main::tmpfile_ps = "/tmp/pprof$$";
+$main::next_tmpfile = 0;
+$main::collected_profile = undef;
 $SIG{'INT'} = \&sighandler;
 
 # Read profile data
+my $pfile = FetchDynamicProfile($prog, $pfile_arg);
 my $data = ReadProfile($prog, $pfile);
 my $profile = $data->{profile};
-my $libs = $data->{libs};	# Info about main program and shared libraries
+my $libs = $data->{libs};       # Info about main program and shared libraries
 
 # List of function names to skip
 $main::skip = ();
 if ($main::heap_profile) {
   foreach my $name ('calloc',
-		    'cfree',
-		    'malloc',
-		    'free',
-		    'memalign',
-		    'pvalloc',
-		    'valloc',
-		    'realloc',
-		    '__builtin_delete',
-		    '__builtin_new',
-		    '__builtin_vec_delete',
-		    '__builtin_vec_new') {
+                    'cfree',
+                    'malloc',
+                    'free',
+                    'memalign',
+                    'pvalloc',
+                    'valloc',
+                    'realloc',
+                    '__builtin_delete',
+                    '__builtin_new',
+                    '__builtin_vec_delete',
+                    '__builtin_vec_new') {
+    $main::skip{$name} = 1;
+  }
+}
+if ($main::lock_profile) {
+  foreach my $name ('Mutex::Unlock') {
     $main::skip{$name} = 1;
   }
 }
@@ -347,41 +361,246 @@ my $flat = FlatProfile($reduced);
 my $cumulative = CumulativeProfile($reduced);
 
 # Print
-if ($main::opt_disasm) {
-  PrintDisassembly($libs, $flat, $cumulative);
-} elsif ($main::opt_list) {
-  PrintListing($libs, $flat, $cumulative);
-} elsif ($main::opt_text) {
-  PrintText($symbols, $flat, $cumulative, $total);
-} else {
-  PrintDot($prog, $symbols, $profile, $flat, $cumulative, $total);
-  if ($main::opt_gv) {
-    # Some versions of gv use -scale, and some use --scale.  *sigh*
-    # We use --help to determine if gv expects one dash or two.
-    system("$GV --help >/dev/null 2>&1 " .
-	   "&& $GV --scale=$main::opt_scale $main::tmpfile_ps " .
-	   "|| $GV -scale $main::opt_scale $main::tmpfile_ps")
+if (!$main::opt_interactive) {
+  if ($main::opt_disasm) {
+    PrintDisassembly($libs, $flat, $cumulative, $main::opt_disasm);
+  } elsif ($main::opt_list) {
+    PrintListing($libs, $flat, $cumulative, $main::opt_list);
+  } elsif ($main::opt_text) {
+    PrintText($symbols, $flat, $cumulative, $total, -1);
+  } else {
+    if (PrintDot($prog, $symbols, $profile, $flat, $cumulative, $total)) {
+      if ($main::opt_gv) {
+	# Some versions of gv use -scale, and some use --scale.  *sigh*
+	# We use --help to determine if gv expects one dash or two.
+	system("$GV --help >/dev/null 2>&1 " .
+	       "&& $GV --scale=$main::opt_scale $main::tmpfile_ps " .
+	       "|| $GV -scale $main::opt_scale $main::tmpfile_ps")
+      }
+    } else {
+      exit(1);
+    }
   }
+} else {
+  InteractiveMode();
 }
 
 cleanup();
 exit(0);
 
+
+##### Interactive helper routines #####
+sub InteractiveMode {
+  $| = 1;	# Make output unbuffered for interactive mode
+  my $orig_profile = $profile;
+  while (1) {
+    print "(pprof) ";
+    $_ = <STDIN>;
+    if (!defined($_)) {
+      print "\n";
+      last;
+    }
+    if (m/^ *quit/) {
+      last;
+    }
+    if (m/^ *help/) {
+      InteractiveHelpMessage();
+      next;
+    }
+    # Clear all the options
+    $main::opt_lines = 0;
+    $main::opt_text = 0;
+    $main::opt_disasm = 0;
+    $main::opt_list = 0;
+    $main::opt_gv = 0;
+    $main::opt_cum = 0;
+
+    if (m/^ *(text|top)(\d*) *(.*)/) {
+      $main::opt_text = 1;
+
+      my $line_limit = ($2 ne "") ? int($2) : 10;
+
+      my $routine;
+      my $ignore;
+      ($routine, $ignore) = ParseInteractiveArgs($3);
+
+      my $profile = ProcessProfile($orig_profile, "", $ignore);
+      my $reduced = ReduceProfile($symbols, $profile);
+
+      # Get derived profiles
+      my $flat = FlatProfile($reduced);
+      my $cumulative = CumulativeProfile($reduced);
+
+      PrintText($symbols, $flat, $cumulative, $total, $line_limit);
+      next;
+    }
+    if (m/^ *list *(.+)/) {
+      $main::opt_list = 1;
+
+      my $routine;
+      my $ignore;
+      ($routine, $ignore) = ParseInteractiveArgs($1);
+
+      my $profile = ProcessProfile($orig_profile, "", $ignore);
+      my $reduced = ReduceProfile($symbols, $profile);
+
+      # Get derived profiles
+      my $flat = FlatProfile($reduced);
+      my $cumulative = CumulativeProfile($reduced);
+
+      PrintListing($libs, $flat, $cumulative, $routine);
+      next;
+    }
+    if (m/^ *disasm *(.+)/) {
+      $main::opt_disasm = 1;
+
+      my $routine;
+      my $ignore;
+      ($routine, $ignore) = ParseInteractiveArgs($1);
+
+      # Process current profile to account for various settings
+      my $profile = ProcessProfile($orig_profile, "", $ignore);
+      my $reduced = ReduceProfile($symbols, $profile);
+
+      # Get derived profiles
+      my $flat = FlatProfile($reduced);
+      my $cumulative = CumulativeProfile($reduced);
+
+      PrintDisassembly($libs, $flat, $cumulative, $routine);
+      next;
+    }
+    if (m/^ *gv *(.*)/) {
+      $main::opt_gv = 1;
+
+      my $focus;
+      my $ignore;
+      ($focus, $ignore) = ParseInteractiveArgs($1);
+
+      # Process current profile to account for various settings
+      my $profile = ProcessProfile($orig_profile, $focus, $ignore);
+      my $reduced = ReduceProfile($symbols, $profile);
+
+      # Get derived profiles
+      my $flat = FlatProfile($reduced);
+      my $cumulative = CumulativeProfile($reduced);
+
+      if (PrintDot($prog, $symbols, $profile, $flat, $cumulative, $total)) {
+	system("gv -scale $main::opt_scale -noresize " . 
+	       PsTempName($main::next_tmpfile) . " &");
+	$main::next_tmpfile++;
+      }
+      next;
+    }
+  }
+}
+
+
+sub ProcessProfile {
+  my $orig_profile = shift;
+  my $focus = shift;
+  my $ignore = shift;
+
+  # Process current profile to account for various settings
+  my $profile = $orig_profile;
+  my $total_count = TotalProfile($profile);
+  print "Total: ", $total_count, " samples\n";
+  if ($focus ne '') {
+    $profile = FocusProfile($symbols, $profile, $focus);
+    my $focus_count = TotalProfile($profile);
+    printf "After focusing on '%s': %d samples of %d (%0.1f%%)\n", 
+      $focus, $focus_count, $total_count, ($focus_count*100.0) / $total_count;
+  }
+  if ($ignore ne '') {
+    $profile = IgnoreProfile($symbols, $profile, $ignore);
+    my $ignore_count = TotalProfile($profile);
+    printf "After ignoring '%s': %d samples of %d (%0.1f%%)\n", 
+      $ignore, $ignore_count, $total_count, 
+	($ignore_count*100.0) / $total_count;
+  }
+
+  return $profile;
+}
+
+sub InteractiveHelpMessage {
+  print <<ENDOFHELP;
+Interactive pprof mode
+
+Commands:
+  gv
+  gv [focus] [-ignore1] [-ignore2]
+      Show graphical hierarchical display of current profile.  Without
+      any arguments, shows all samples in the profile.  With the optional
+      "focus" argument, restricts the samples shown to just those where
+      the "focus" regular expression matches a routine name on the stack 
+      trace.
+
+  list [routine_regexp] [-ignore1] [-ignore2]
+      Show source listing of routines whose names match "routine_regexp"
+  
+  top [--cum] [-ignore1] [-ignore2]
+  top20 [--cum] [-ignore1] [-ignore2]
+  top37 [--cum] [-ignore1] [-ignore2]
+      Show top lines ordered by flat profile count, or cumulative count
+      if --cum is specified.  If a number is present after 'top', the
+      top K routines will be shown (defaults to showing the top 10)
+  
+  disasm [routine_regexp] [-ignore1] [-ignore2]
+      Show disassembly of routines whose names match "routine_regexp",
+      annotated with sample counts.
+
+  help - This listing
+  quit or ^D - End pprof
+
+For commands that accept optional -ignore tags, samples where any routine in
+the stack trace matches the regular expression in any of the -ignore
+parameters will be ignored.
+
+ENDOFHELP
+}
+sub ParseInteractiveArgs {
+  my $args = shift;
+  my $focus = "";
+  my $ignore = "";
+  my @x = split(/ +/, $args);
+  foreach $a (@x) {
+    if ($a =~ m/^(--|-)lines$/) {
+      $main::opt_lines = 1;
+    } elsif ($a =~ m/^(--|-)cum$/) {
+      $main::opt_cum = 1;
+    } elsif ($a =~ m/^-(.*)/) {
+      $ignore .= (($ignore ne "") ? "|" : "" ) . $1;
+    } else {
+      $focus .= (($focus ne "") ? "|" : "" ) . $a;
+    }
+  }
+  if ($ignore ne "") {
+    print "Ignoring samples in call stacks that match '$ignore'\n";
+  }
+  return ($focus, $ignore);
+}
+
 ##### Output code #####
 
+sub PsTempName {
+  my $fnum = shift;
+  return "$main::tmpfile_ps" . "." . "$fnum" . ".ps";
+}
+  
 # Print text output
 sub PrintText {
   my $symbols = shift;
   my $flat = shift;
   my $cumulative = shift;
   my $total = shift;
+  my $line_limit = shift;
 
   # Which profile to sort by?
   my $s = $main::opt_cum ? $cumulative : $flat;
 
   my $running_sum = 0;
+  my $lines = 0;
   foreach my $k (sort { GetEntry($s,$b) <=> GetEntry($s, $a) }
-		 keys(%{$cumulative})) {
+                 keys(%{$cumulative})) {
     my $f = GetEntry($flat, $k);
     my $c = GetEntry($cumulative, $k);
     $running_sum += $f;
@@ -390,7 +609,7 @@ sub PrintText {
     if (exists($symbols->{$k})) {
       $sym = $symbols->{$k}->[0] . " " . $symbols->{$k}->[1];
       if ($main::opt_addresses) {
-	$sym = $k . " " . $sym;
+        $sym = $k . " " . $sym;
       }
     }
 
@@ -403,6 +622,8 @@ sub PrintText {
              Percent($c, $total),
              $sym);
     }
+    $lines++;
+    last if ($line_limit >= 0 && $lines > $line_limit);
   }
 }
 
@@ -411,9 +632,10 @@ sub PrintDisassembly {
   my $libs = shift;
   my $flat = shift;
   my $cumulative = shift;
+  my $disasm_opts = shift;
 
   foreach my $lib (@{$libs}) {
-    my $symbol_table = GetProcedureBoundaries($lib->[0], $main::opt_disasm);
+    my $symbol_table = GetProcedureBoundaries($lib->[0], $disasm_opts);
     my $offset = $lib->[1] - $lib->[3];
     foreach my $routine (keys(%{$symbol_table})) {
       my $start_addr = $symbol_table->{$routine}->[0];
@@ -422,8 +644,8 @@ sub PrintDisassembly {
       my $total_flat = 0;
       my $total_cum = 0;
       for (my $addr = $start_addr; $addr < $end_addr; $addr++) {
-	$total_flat += GetEntry($flat, sprintf("0x%x", $addr+$offset));
-	$total_cum += GetEntry($cumulative, sprintf("0x%x", $addr+$offset));
+        $total_flat += GetEntry($flat, sprintf("0x%x", $addr+$offset));
+        $total_cum += GetEntry($cumulative, sprintf("0x%x", $addr+$offset));
       }
 
       # Skip disassembly if there are no samples in routine
@@ -431,26 +653,26 @@ sub PrintDisassembly {
 
       print "ROUTINE ====================== $routine\n";
       printf "%6s %6s Total samples (flat / cumulative)\n",
-	Unparse($total_flat), Unparse($total_cum);
+        Unparse($total_flat), Unparse($total_cum);
 
       my @instructions = Disassemble($lib->[0], $offset,
-				     $start_addr, $end_addr);
+                                     $start_addr, $end_addr);
       foreach my $e (@instructions) {
-	my $location = ($e->[2] >= 0) ? "$e->[1]:$e->[2]" : "";
-	$location =~ s|.*/||;	# Remove directory portion, if any
-	if (length($location) >= 20) {
-	  # For long locations, just show the last 20 characters
-	  $location = substr($location, -20);
-	}
-	my $f = GetEntry($flat, $e->[0]);
-	my $c = GetEntry($cumulative, $e->[0]);
-	my $address = $e->[0];	$address =~ s/^0x//;
-	printf("%6s %6s %-20s %8s: %6s\n",
-	       UnparseAlt($f),
-	       UnparseAlt($c),
-	       $location,
-	       $address,
-	       $e->[3]);
+        my $location = ($e->[2] >= 0) ? "$e->[1]:$e->[2]" : "";
+        $location =~ s|.*/||;   # Remove directory portion, if any
+        if (length($location) >= 20) {
+          # For long locations, just show the last 20 characters
+          $location = substr($location, -20);
+        }
+        my $f = GetEntry($flat, $e->[0]);
+        my $c = GetEntry($cumulative, $e->[0]);
+        my $address = $e->[0];  $address =~ s/^0x//;
+        printf("%6s %6s %-20s %8s: %6s\n",
+               UnparseAlt($f),
+               UnparseAlt($c),
+               $location,
+               $address,
+               $e->[3]);
       }
       close(OBJDUMP);
     }
@@ -458,9 +680,9 @@ sub PrintDisassembly {
 }
 
 # Return reference to array of tuples of the form:
-#	[address, filename, linenumber, instruction]
+#       [address, filename, linenumber, instruction]
 # E.g.,
-#	["0x806c43d", "/foo/bar.cc", 131, "ret"]
+#       ["0x806c43d", "/foo/bar.cc", 131, "ret"]
 sub Disassemble {
   my $prog = shift;
   my $offset = shift;
@@ -468,8 +690,8 @@ sub Disassemble {
   my $end_addr = shift;
 
   my $cmd = sprintf("$OBJDUMP -d -l --no-show-raw-insn " .
-		    "--start-address=%d --stop-address=%d $prog",
-		    $start_addr, $end_addr);
+                    "--start-address=%d --stop-address=%d $prog",
+                    $start_addr, $end_addr);
   open(OBJDUMP, "$cmd |") || error("$OBJDUMP: $!\n");
   my @result = ();
   my $filename = "";
@@ -501,23 +723,35 @@ sub PrintListing {
   my $libs = shift;
   my $flat = shift;
   my $cumulative = shift;
+  my $list_opts = shift;
 
   foreach my $lib (@{$libs}) {
-    my $symbol_table = GetProcedureBoundaries($lib->[0], $main::opt_list);
+    my $symbol_table = GetProcedureBoundaries($lib->[0], $list_opts);
     my $offset = $lib->[1] - $lib->[3];
     foreach my $routine (sort ByName keys(%{$symbol_table})) {
       # Print if there are any samples in this routine
       my $start_addr = $symbol_table->{$routine}->[0];
       my $end_addr = $symbol_table->{$routine}->[1];
       for (my $addr = $start_addr; $addr < $end_addr; $addr++) {
-	if (defined($cumulative->{sprintf("0x%x", $addr+$offset)})) {
-	  PrintSource($lib->[0], $offset,
-		      $routine, $flat, $cumulative,
-		      $start_addr, $end_addr);
-	  last;
-	}
+        if (defined($cumulative->{sprintf("0x%x", $addr+$offset)})) {
+          PrintSource($lib->[0], $offset,
+                      $routine, $flat, $cumulative,
+                      $start_addr, $end_addr);
+          last;
+        }
       }
     }
+  }
+}
+
+# Returns the indentation of the line, if it has any non-whitespace
+# characters.  Otherwise, returns -1.
+sub Indentation {
+  my $line = shift;
+  if (m/^(\s*)\S/) {
+    return length($1);
+  } else {
+    return -1;
   }
 }
 
@@ -560,15 +794,45 @@ sub PrintSource {
     }
   }
 
+  # Hack 3: Extend last line forward until its indentation is less than 
+  # the indentation we saw on $firstline
+  my $oldlastline = $lastline;
+  {
+    if (!open(FILE, "<$filename")) {
+      print STDERR "$filename: $!\n";
+      return;
+    }
+    my $l = 0;
+    my $first_indentation = -1;
+    while (<FILE>) {
+      $l++;
+      my $indent = Indentation($_);
+      if ($l >= $firstline) {
+	if ($first_indentation < 0 && $indent >= 0) {
+	  $first_indentation = $indent;
+	  last if ($first_indentation == 0);
+	}
+      }
+      if ($l >= $lastline && $indent >= 0) {
+	if ($indent >= $first_indentation) {
+	  $lastline = $l+1;
+	} else {
+	  last;
+	}
+      }
+    }
+    close(FILE);
+  }
+
   # Assign all samples to the range $firstline,$lastline,
-  # Hack 3: If an instruction does not occur in the range, its samples
+  # Hack 4: If an instruction does not occur in the range, its samples
   # are moved to the next instruction that occurs in the range.
   my $samples1 = {};
   my $samples2 = {};
-  my $running1 = 0;	# Unassigned flat counts
-  my $running2 = 0;	# Unassigned cumulative counts
-  my $total1 = 0;	# Total flat counts
-  my $total2 = 0;	# Total cumulative counts
+  my $running1 = 0;     # Unassigned flat counts
+  my $running2 = 0;     # Unassigned cumulative counts
+  my $total1 = 0;       # Total flat counts
+  my $total2 = 0;       # Total cumulative counts
   foreach my $e (@instructions) {
     my $c1 = GetEntry($flat, $e->[0]);
     my $c2 = GetEntry($cumulative, $e->[0]);
@@ -594,12 +858,12 @@ sub PrintSource {
   AddEntry($samples2, $lastline, $running2);
 
   printf("ROUTINE ====================== %s in %s\n" .
-	 "%6s %6s Total %s (flat / cumulative)\n",
-	 ShortFunctionName($routine),
-	 $filename,
-	 Units(),
-	 Unparse($total1),
-	 Unparse($total2));
+         "%6s %6s Total %s (flat / cumulative)\n",
+         ShortFunctionName($routine),
+         $filename,
+         Units(),
+         Unparse($total1),
+         Unparse($total2));
   if (!open(FILE, "<$filename")) {
     print STDERR "$filename: $!\n";
     return;
@@ -607,14 +871,15 @@ sub PrintSource {
   my $l = 0;
   while (<FILE>) {
     $l++;
-    if ($l >= $firstline - 5 && $l <= $lastline + 5) {
+    if ($l >= $firstline - 5 && 
+	(($l <= $oldlastline + 5) || ($l <= $lastline))) {
       chop;
       my $text = $_;
       printf("%6s %6s %4d: %s\n",
-	     UnparseAlt(GetEntry($samples1, $l)),
-	     UnparseAlt(GetEntry($samples2, $l)),
-	     $l,
-	     $text);
+             UnparseAlt(GetEntry($samples1, $l)),
+             UnparseAlt(GetEntry($samples2, $l)),
+             $l,
+             $text);
     };
   }
   close(FILE);
@@ -638,7 +903,7 @@ sub PrintDot {
   # Find nodes to include
   my @list = (sort { abs(GetEntry($cumulative, $b)) <=>
                      abs(GetEntry($cumulative, $a)) }
-	      keys(%{$cumulative}));
+              keys(%{$cumulative}));
   my $last = $nodecount - 1;
   if ($last > $#list) {
     $last = $#list;
@@ -649,17 +914,20 @@ sub PrintDot {
   }
   if ($last < 0) {
     print STDERR "No nodes to print\n";
-    exit(1);
+    cleanup();
+    return 0;
   }
 
-  printf STDERR ("Dropping nodes with <= %s %s; edges with <= %s abs(%s)\n",
-		 Unparse($nodelimit), Units(),
-		 Unparse($edgelimit), Units());
+  if ($nodelimit > 0 || $edgelimit > 0) {
+    printf STDERR ("Dropping nodes with <= %s %s; edges with <= %s abs(%s)\n",
+		   Unparse($nodelimit), Units(),
+		   Unparse($edgelimit), Units());
+  }
 
   # Open DOT output file
   my $output;
   if ($main::opt_gv) {
-    $output = "| $DOT -Tps >$main::tmpfile_ps";
+    $output = "| $DOT -Tps >" . PsTempName($main::next_tmpfile);
   } elsif ($main::opt_ps) {
     $output = "| $DOT -Tps";
   } elsif ($main::opt_pdf) {
@@ -673,26 +941,26 @@ sub PrintDot {
 
   # Title
   printf DOT ("digraph \"%s; %s %s\" {\n",
-	      $prog,
-	      Unparse($overall_total),
-	      Units());
+              $prog,
+              Unparse($overall_total),
+              Units());
   if ($main::opt_pdf) {
-    # The output is more printable if we set the page size for dot. 
+    # The output is more printable if we set the page size for dot.
     printf DOT ("size=\"8,11\"\n");
-  }   
+  }
   printf DOT ("node [width=0.375,height=0.25];\n");
 
   # Print legend
   printf DOT ("Legend [shape=box,fontsize=24,shape=plaintext," .
-	      "label=\"%s\\l%s\\l%s\\l%s\\l%s\\l\"];\n",
-	      $prog,
-	      sprintf("Total %s: %s", Units(), Unparse($overall_total)),
-	      sprintf("Focusing on: %s", Unparse($local_total)),
-	      sprintf("Dropped nodes with <= %s abs(%s)",
-		      Unparse($nodelimit), Units()),
-	      sprintf("Dropped edges with <= %s %s",
-		      Unparse($edgelimit), Units())
-	      );
+              "label=\"%s\\l%s\\l%s\\l%s\\l%s\\l\"];\n",
+              $prog,
+              sprintf("Total %s: %s", Units(), Unparse($overall_total)),
+              sprintf("Focusing on: %s", Unparse($local_total)),
+              sprintf("Dropped nodes with <= %s abs(%s)",
+                      Unparse($nodelimit), Units()),
+              sprintf("Dropped edges with <= %s %s",
+                      Unparse($edgelimit), Units())
+              );
 
   # Print nodes
   my %node = ();
@@ -739,13 +1007,13 @@ sub PrintDot {
     for (my $i = 1; $i <= $#addrs; $i++) {
       my $src = OutputKey($symbols, $addrs[$i]);
       my $dst = OutputKey($symbols, $addrs[$i-1]);
-      #next if ($src eq $dst);	# Avoid self-edges?
+      #next if ($src eq $dst);  # Avoid self-edges?
       if (exists($node{$src}) && exists($node{$dst})) {
-	my $e = "$src\001$dst";
-	if (!exists($edge{$e})) {
-	  $edge{$e} = 0;
-	}
-	$edge{$e} += $n;
+        my $e = "$src\001$dst";
+        if (!exists($edge{$e})) {
+          $edge{$e} = 0;
+        }
+        $edge{$e} += $n;
       }
     }
   }
@@ -757,25 +1025,26 @@ sub PrintDot {
 
     if (abs($n) > $edgelimit) {
       # Compute line width based on edge count
-      my $fraction = $local_total ? (3 * ($n / $local_total)) : 0;
+      my $fraction = abs($local_total ? (3 * ($n / $local_total)) : 0);
       if ($fraction > 1) { $fraction = 1; }
       my $w = $fraction * 2;
       #if ($w < 1) { $w = 1; }
 
       # Use a slightly squashed function of the edge count as the weight
       printf DOT ("N%s -> N%s [label=%s, weight=%d, " .
-		  "style=\"setlinewidth(%f)\"];\n", 
-		  $node{$x[0]},
-		  $node{$x[1]},
-		  Unparse($n),
-		  int($n ** 0.7),
-		  $w);
+                  "style=\"setlinewidth(%f)\"];\n",
+                  $node{$x[0]},
+                  $node{$x[1]},
+                  Unparse($n),
+                  int(abs($n) ** 0.7),
+                  $w);
     }
   }
 
   print DOT ("}\n");
 
   close(DOT);
+  return 1;
 }
 
 # Generate the key under which a given address should be counted
@@ -919,14 +1188,14 @@ sub ReduceProfile {
     my @addrs = split(/\n/, $k);
     my @path = ();
     my %seen = ();
-    $seen{''} = 1;	# So that empty keys are skipped
+    $seen{''} = 1;      # So that empty keys are skipped
     foreach my $a (@addrs) {
       # To avoid double-counting due to recursion, skip a stack-trace
       # entry if it has already been seen
       my $key = OutputKey($symbols, $a);
       if (!$seen{$key}) {
-	$seen{$key} = 1;
-	push(@path, $key);
+        $seen{$key} = 1;
+        push(@path, $key);
       }
     }
     my $reduced_path = join("\n", @path);
@@ -946,12 +1215,12 @@ sub FocusProfile {
     my @addrs = split(/\n/, $k);
     foreach my $a (@addrs) {
       # Reply if it matches either the address/shortname/fileline
-      if (($a =~ m/$focus/o) ||
-	  (exists($symbols->{$a}) &&
-	   (($symbols->{$a}->[0] =~ m/$focus/o) ||
-	    ($symbols->{$a}->[1] =~ m/$focus/o)))) {
-	AddEntry($result, $k, $count);
-	last;
+      if (($a =~ m/$focus/) ||
+          (exists($symbols->{$a}) &&
+           (($symbols->{$a}->[0] =~ m/$focus/) ||
+            ($symbols->{$a}->[1] =~ m/$focus/)))) {
+        AddEntry($result, $k, $count);
+        last;
       }
     }
   }
@@ -970,12 +1239,12 @@ sub IgnoreProfile {
     my $matched = 0;
     foreach my $a (@addrs) {
       # Reply if it matches either the address/shortname/fileline
-      if (($a =~ m/$ignore/o) ||
-	  (exists($symbols->{$a}) &&
-	   (($symbols->{$a}->[0] =~ m/$ignore/o) ||
-	    ($symbols->{$a}->[1] =~ m/$ignore/o)))) {
-	$matched = 1;
-	last;
+      if (($a =~ m/$ignore/) ||
+          (exists($symbols->{$a}) &&
+           (($symbols->{$a}->[0] =~ m/$ignore/) ||
+            ($symbols->{$a}->[1] =~ m/$ignore/)))) {
+        $matched = 1;
+        last;
       }
     }
     if (!$matched) {
@@ -1041,6 +1310,16 @@ sub AddEntry {
   $profile->{$k} += $n;
 }
 
+##### Code to profile a server dynamically #####
+
+sub FetchDynamicProfile {
+  my $binary_name = shift;
+  my $profile_name = shift;
+
+  # TODO: Add support for fetching profiles dynamically from a server
+  return $profile_name;
+}
+
 ##### Parsing code #####
 
 # Parse profile generated by common/profiler.cc and return a reference
@@ -1054,19 +1333,30 @@ sub ReadProfile {
   my $prog = shift;
   my $fname = shift;
 
+  $main::heap_profile = 0;
+  $main::lock_profile = 0;
+
   # Look at first line to see if it is a heap or a CPU profile
   open(PROFILE, "<$fname") || error("$fname: $!\n");
-  binmode PROFILE;	# New perls do UTF-8 processing
+  binmode PROFILE;      # New perls do UTF-8 processing
   my $header = <PROFILE>;
   if ($header =~ m/^heap profile:/) {
     $main::heap_profile = 1;
-    return ReadHeapProfile($prog, $fname);
+    return ReadHeapProfile($prog, $fname, $header);
+  } elsif ($header =~ m/^--- *contentionz/ ) {
+    $main::lock_profile = 1;
+    return ReadSynchProfile($prog, $fname);
+  } elsif ($header =~ m/^--- *Stacks:/ ) {
+    print STDERR
+      "Old format contention profile: mistakenly reports " .
+      "condition variable signals as lock contentions.\n";
+    $main::lock_profile = 1;
+    return ReadSynchProfile($prog, $fname);
   } else {
     # Need to unread the line we just read
     close(PROFILE);
     open(PROFILE, "<$fname") || error("$fname: $!\n");
-    binmode PROFILE;	# New perls do UTF-8 processing
-    $main::heap_profile = 0;
+    binmode PROFILE;    # New perls do UTF-8 processing
     return ReadCPUProfile($prog, $fname);
   }
 }
@@ -1143,6 +1433,7 @@ sub ReadCPUProfile {
 sub ReadHeapProfile {
   my $prog = shift;
   my $fname = shift;
+  my $header = shift;
 
   my $index = 1;
   if ($main::opt_inuse_space) {
@@ -1155,6 +1446,15 @@ sub ReadHeapProfile {
     $index = 2;
   }
 
+  # Find the type of this profile
+  chomp($header);
+  my $type = "unknown";
+  if ($header =~ m/^heap profile:\s*(\d+):\s+(\d+)\s+\[\s*(\d+):\s+(\d+)\](\s*@\s*(.*))?/) {
+    if (defined($6) && ($6 ne '')) {
+      $type = $6;
+    }
+  }
+
   my $profile = {};
   my $pcs = {};
   my $map = "";
@@ -1162,15 +1462,24 @@ sub ReadHeapProfile {
     if (/^MAPPED_LIBRARIES:/) {
       # Read the /proc/self/maps data
       while (<PROFILE>) {
-	$map .= $_;
+        $map .= $_;
       }
       last;
     }
 
     if (/^--- Memory map:/) {
       # Read /proc/self/maps data as formatted by DumpAddressMap()
+      my $buildvar = "";
       while (<PROFILE>) {
-	$map .= $_;
+	# Parse "build=<dir>" specification if supplied
+	if (m/^\s*build=(.*)\n/) {
+	  $buildvar = $1;
+	}
+
+	# Expand "$build" variable if available
+	$_ =~ s/\$build\b/$buildvar/g;
+
+        $map .= $_;
       }
       last;
     }
@@ -1181,7 +1490,9 @@ sub ReadHeapProfile {
     s/\s*$//;
     if (m/^\s*(\d+):\s+(\d+)\s+\[\s*(\d+):\s+(\d+)\]\s+@\s+(.*)$/) {
       my $stack = $5;
-      my @counts = ($1, $2, $3, $4);
+      my ($n1, $s1, $n2, $s2) = ($1, $2, $3, $4);
+
+      my @counts = ($n1, $s1, $n2, $s2);
       my $n = $counts[$index];
       my $k = "";
       foreach my $e (split(/\s+/, $stack)) {
@@ -1200,6 +1511,46 @@ sub ReadHeapProfile {
   $r->{profile} = $profile;
   $r->{libs} = ParseLibraries($prog, $map, $pcs);
   $r->{pcs} = $pcs;
+  return $r;
+}
+
+sub ReadSynchProfile {
+  my ($prog, $fname, $header) = @_;
+  my ($line, $map, $pc, @k, $count, $stack);
+
+  $map = '';
+  my $profile = {};
+  my $pcs = {};
+  my $sampling_period = 1;
+
+  while ( $line = <PROFILE> ) {
+    if ( $line =~ /^(slow release).*thread \d+  \@\s*(.*?)\s*$/ ||
+         $line =~ /^\s*(\d+) \@\s*(.*?)\s*$/ ) {
+      # Sample entry
+      ($count, $stack) = ($1, $2);
+      $count = 1 if $count !~ /^\d+$/;
+
+      @k = ();
+      foreach $pc (split /\s+/, $stack) {
+        $pcs->{hex($pc)} = 1;
+        push @k, $pc;
+      }
+      AddEntry($profile, (join "\n", @k), $count);
+    } elsif ( $line =~ /sampling period = (\d+)/ ) {
+      $sampling_period = $1;
+    } else {
+      # Memory map entry
+      $map .= $line;
+    }
+  }
+  close PROFILE;
+
+  my $r = {};
+  $r->{'version'} = 0;
+  $r->{'period'} = $sampling_period;
+  $r->{'profile'} = $profile;
+  $r->{'libs'} = ParseLibraries($prog, $map, $pcs);
+  $r->{'pcs'} = $pcs;
   return $r;
 }
 
@@ -1227,7 +1578,7 @@ sub ParseLibraries {
       $lib = $4;
     } elsif ($l =~ /^\s*($h)-($h):\s*(\S+\.so(\.\d+)*)/) {
       # Cooked line from DumpAddressMap.  Example:
-      #	  40000000-40015000: /lib/ld-2.3.2.so
+      #   40000000-40015000: /lib/ld-2.3.2.so
       $start = hex($1);
       $finish = hex($2);
       $offset = 0;
@@ -1244,10 +1595,10 @@ sub ParseLibraries {
       #  10 .text         00104b2c  420156f0  420156f0  000156f0  2**4
       my @x = split;
       if (($#x >= 6) && ($x[1] eq '.text')) {
-	my $vma = hex($x[3]);
-	my $file_offset = hex($x[5]);
-	$offset += $vma - $file_offset;
-	last;
+        my $vma = hex($x[3]);
+        my $file_offset = hex($x[5]);
+        $offset += $vma - $file_offset;
+        last;
       }
     }
     close(OBJDUMP);
@@ -1285,8 +1636,8 @@ sub ExtractSymbols {
     my $contained = [];
     foreach my $pc (keys(%{$pcset})) {
       if (!$seen{$pc} && ($pc >= $start) && ($pc <= $finish)) {
-	$seen{$pc} = 1;
-	push(@{$contained}, $pc);
+        $seen{$pc} = 1;
+        push(@{$contained}, $pc);
       }
     }
     # Map to symbols
@@ -1307,7 +1658,10 @@ sub MapToSymbols {
   if ($#{$pclist} < 0) { return; }
 
   MapSymbolsWithNM($image, $offset, $pclist, $symbols);
-  if ($main::opt_lines || $main::opt_files || $main::opt_list) {
+  if ($main::opt_interactive ||
+      $main::opt_lines       ||
+      $main::opt_files       ||
+      $main::opt_list) {
     GetLineNumbers($image, $offset, $pclist, $symbols);
   }
 }
@@ -1396,7 +1750,7 @@ sub ShortFunctionName {
   my $function = shift;
   while ($function =~ s/\([^()]*\)//g) { }   # Remove argument types
   while ($function =~ s/<[^<>]*>//g)  { }    # Remove template arguments
-  $function =~ s/^.*\s+(\w+::)/$1/;	     # Remove leading type
+  $function =~ s/^.*\s+(\w+::)/$1/;          # Remove leading type
   return $function;
 }
 
@@ -1404,7 +1758,20 @@ sub ShortFunctionName {
 
 sub cleanup {
   unlink($main::tmpfile_sym);
-  unlink($main::tmpfile_ps);
+  for (my $i = 0; $i < $main::next_tmpfile; $i++) {
+    unlink(PsTempName($i));
+  }
+  # We leave any collected profiles in $HOME/pprof in case the user wants
+  # to look at them later.  We print a message informing them of this.
+  if (defined($main::collected_profile)) {
+    print STDERR "Dynamically gathered profile is in $main::collected_profile\n";
+    print STDERR "If you want to investigate this profile further, you can do:\n";
+    print STDERR "\n";
+    print STDERR "  pprof \\\n";
+    print STDERR "    $prog \\\n";
+    print STDERR "    $main::collected_profile\n";
+    print STDERR "\n";
+  }
 }
 
 sub sighandler {
@@ -1421,11 +1788,11 @@ sub error {
 
 # Return a list of all routines that match $regexp.
 # For each routine, the following list is returned:
-#	$result->[i]->[0]	Routine name
-#	$result->[i]->[1]	Start address
-#	$result->[i]->[2]	Finish address
-#	$result->[i]->[3]	Image file name (program or shared library)
-#	$result->[i]->[4]	Offset for image in address space
+#       $result->[i]->[0]       Routine name
+#       $result->[i]->[1]       Start address
+#       $result->[i]->[2]       Finish address
+#       $result->[i]->[3]       Image file name (program or shared library)
+#       $result->[i]->[4]       Offset for image in address space
 sub GetMatchingRoutines {
 }
 
@@ -1446,7 +1813,7 @@ sub GetProcedureBoundaries {
       my $start_val = $1;
       my $this_routine = $2;
       if (defined($routine) && $routine =~ m/$regexp/) {
-	$symbol_table->{$routine} = [hex($last_start), hex($start_val)];
+        $symbol_table->{$routine} = [hex($last_start), hex($start_val)];
       }
       $last_start = $start_val;
       $routine = $this_routine;

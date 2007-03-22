@@ -108,6 +108,10 @@ void** MallocExtension::ReadStackTraces() {
   return NULL;
 }
 
+void** MallocExtension::ReadHeapGrowthStackTraces() {
+  return NULL;
+}
+
 // The current malloc extension object.  We also keep a pointer to
 // the default implementation so that the heap-leak checker does not
 // complain about a memory leak.
@@ -178,9 +182,37 @@ struct StackTraceEqual {
 
 typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash, StackTraceEqual> StackTraceTable;
 
-void DebugStringWriter(const char* str, void* arg) {
-  string* result = reinterpret_cast<string*>(arg);
-  *result += str;
+void PrintHeader(string* result, const char* label, void** entries) {
+  // Compute the total count and total size
+  uintptr_t total_count = 0;
+  uintptr_t total_size = 0;
+  for (void** entry = entries; Count(entry) != 0; entry += 3 + Depth(entry)) {
+    total_count += Count(entry);
+    total_size += Size(entry);
+  }
+
+  char buf[200];
+  snprintf(buf, sizeof(buf),
+           "heap profile: %6lld: %8lld [%6lld: %8lld] @ %s\n",
+           static_cast<long long>(total_count),
+           static_cast<long long>(total_size),
+           static_cast<long long>(total_count),
+           static_cast<long long>(total_size),
+           label);
+  *result += buf;
+}
+
+void PrintStackEntry(string* result, void** entry) {
+  char buf[100];
+  snprintf(buf, sizeof(buf), "%6d: %8d [%6d: %8d] @",
+           int(Count(entry)), int(Size(entry)),
+           int(Count(entry)), int(Size(entry)));
+  *result += buf;
+  for (int i = 0; i < Depth(entry); i++) {
+    snprintf(buf, sizeof(buf), " %p", PC(entry, i));
+    *result += buf;
+  }
+  *result += "\n";
 }
 
 }
@@ -188,18 +220,16 @@ void DebugStringWriter(const char* str, void* arg) {
 void MallocExtension::GetHeapSample(string* result) {
   void** entries = ReadStackTraces();
   if (entries == NULL) {
-    *result += "this malloc implementation does not support sampling\n";
+    *result += "This malloc implementation does not support sampling.\n"
+               "As of 2005/01/26, only tcmalloc supports sampling, and you\n"
+               "are probably running a binary that does not use tcmalloc.\n";
     return;
   }
 
   // Group together all entries with same stack trace
   StackTraceTable table;
-  int total_count = 0;
-  int total_size = 0;
   for (void** entry = entries; Count(entry) != 0; entry += 3 + Depth(entry)) {
     StackTraceTable::iterator iter = table.find(entry);
-    total_count += Count(entry);
-    total_size += Size(entry);
     if (iter == table.end()) {
       // New occurrence
       table.insert(entry);
@@ -210,27 +240,37 @@ void MallocExtension::GetHeapSample(string* result) {
     }
   }
 
-  char buf[100];
-  snprintf(buf, sizeof(buf), "heap profile: %6d: %8d [%6d: %8d] @\n",
-           total_count, total_size, total_count, total_size);
-  *result += buf;
+  PrintHeader(result, "heap", entries);
   for (StackTraceTable::iterator iter = table.begin();
        iter != table.end();
        ++iter) {
-    void** entry = *iter;
-    snprintf(buf, sizeof(buf), "%6d: %8d [%6d: %8d] @",
-             int(Count(entry)), int(Size(entry)),
-             int(Count(entry)), int(Size(entry)));
-    *result += buf;
-    for (int i = 0; i < Depth(entry); i++) {
-      snprintf(buf, sizeof(buf), " %p", PC(entry, i));
-      *result += buf;
-    }
-    *result += "\n";
+    PrintStackEntry(result, *iter);
   }
 
   // TODO(menage) Get this working in google-perftools
   //DumpAddressMap(DebugStringWriter, result);
+}
 
+void MallocExtension::GetHeapGrowthStacks(std::string* result) {
+  void** entries = ReadHeapGrowthStackTraces();
+  if (entries == NULL) {
+    *result += "This malloc implementation does not support "
+               "ReadHeapGrowhStackTraces().\n"
+               "As of 2005/09/27, only tcmalloc supports this, and you\n"
+               "are probably running a binary that does not use tcmalloc.\n";
+    return;
+  }
+
+  // Do not canonicalize the stack entries, so that we get a
+  // time-ordered list of stack traces, which may be useful if the
+  // client wants to focus on the latest stack traces.
+
+  PrintHeader(result, "growth", entries);
+  for (void** entry = entries; Count(entry) != 0; entry += 3 + Depth(entry)) {
+    PrintStackEntry(result, entry);
+  }
   delete[] entries;
+
+  // TODO(menage) Get this working in google-perftools
+  //DumpAddressMap(DebugStringWriter, result);
 }

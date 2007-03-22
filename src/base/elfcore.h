@@ -37,8 +37,10 @@
 /* We currently only support x86-32 and x86-64 on Linux. Porting to
  * other related platforms should not be difficult.
  */
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__linux)
+#if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__)) && \
+    defined(__linux)
 
+#include <stdarg.h>
 #include <stdint.h>
 #include <sys/types.h>
 #include "config.h"
@@ -57,30 +59,40 @@
  * core file.
  */
 
-typedef struct i386_regs {      /* Normal (non-FPU) CPU registers            */
-#ifdef __x86_64__
-  #define BP rbp
-  #define SP rsp
-  #define IP rip
-  uint64_t  r15,r14,r13,r12,rbp,rbx,r11,r10;
-  uint64_t  r9,r8,rax,rcx,rdx,rsi,rdi,orig_rax;
-  uint64_t  rip,cs,eflags;
-  uint64_t  rsp,ss;
-  uint64_t  fs_base, gs_base;
-  uint64_t  ds,es,fs,gs;
-#else
-  #define BP ebp
-  #define SP esp
-  #define IP eip
-  uint32_t  ebx, ecx, edx, esi, edi, ebp, eax;
-  uint16_t  ds, __ds, es, __es;
-  uint16_t  fs, __fs, gs, __gs;
-  uint32_t  orig_eax, eip;
-  uint16_t  cs, __cs;
-  uint32_t  eflags, esp;
-  uint16_t  ss, __ss;
+#if defined(__i386__) || defined(__x86_64__)
+  typedef struct i386_regs {    /* Normal (non-FPU) CPU registers            */
+  #ifdef __x86_64__
+    #define BP rbp
+    #define SP rsp
+    #define IP rip
+    uint64_t  r15,r14,r13,r12,rbp,rbx,r11,r10;
+    uint64_t  r9,r8,rax,rcx,rdx,rsi,rdi,orig_rax;
+    uint64_t  rip,cs,eflags;
+    uint64_t  rsp,ss;
+    uint64_t  fs_base, gs_base;
+    uint64_t  ds,es,fs,gs;
+  #else
+    #define BP ebp
+    #define SP esp
+    #define IP eip
+    uint32_t  ebx, ecx, edx, esi, edi, ebp, eax;
+    uint16_t  ds, __ds, es, __es;
+    uint16_t  fs, __fs, gs, __gs;
+    uint32_t  orig_eax, eip;
+    uint16_t  cs, __cs;
+    uint32_t  eflags, esp;
+    uint16_t  ss, __ss;
+  #endif
+  } i386_regs;
+#elif defined(__ARM_ARCH_3__)
+  typedef struct arm_regs {     /* General purpose registers                 */
+    #define BP uregs[11]        /* Frame pointer                             */
+    #define SP uregs[13]        /* Stack pointer                             */
+    #define IP uregs[15]        /* Program counter                           */
+    #define LR uregs[14]        /* Link register                             */
+    long uregs[18];
+  } arm_regs;
 #endif
-} i386_regs;
 
 #if defined(__i386__) && defined(__GNUC__)
   /* On x86 we provide an optimized version of the FRAME() macro, if the
@@ -88,7 +100,7 @@ typedef struct i386_regs {      /* Normal (non-FPU) CPU registers            */
    * more accurate values for CPU registers.
    */
   typedef struct Frame {
-    struct i386_regs regs;
+    struct i386_regs uregs;
     int              errno_;
   } Frame;
   #define FRAME(f) Frame f;                                           \
@@ -135,7 +147,39 @@ typedef struct i386_regs {      /* Normal (non-FPU) CPU registers            */
   #define SET_FRAME(f,r)                                              \
                      do {                                             \
                        errno = (f).errno_;                            \
-                       (r)   = (f).regs;                              \
+                       (r)   = (f).uregs;                             \
+                     } while (0)
+#elif defined(__ARM_ARCH_3__) && defined(__GNUC__)
+  /* ARM calling conventions are a little more tricky. A little assembly
+   * helps in obtaining an accurate snapshot of all registers.
+   */
+  typedef struct Frame {
+    struct arm_regs arm;
+    int             errno_;
+  } Frame;
+  #define FRAME(f) Frame f;                                           \
+                   do {                                               \
+                     long cpsr;                                       \
+                     f.errno_ = errno;                                \
+                     __asm__ volatile(                                \
+                       "stmia %0, {r0-r15}\n" /* All integer regs   */\
+                       : : "r"(&f.arm) : "memory");                   \
+                     f.arm.uregs[16] = 0;                             \
+                     __asm__ volatile(                                \
+                       "mrs %0, cpsr\n"       /* Condition code reg */\
+                       : "=r"(cpsr));                                 \
+                     f.arm.uregs[17] = cpsr;                          \
+                   } while (0)
+  #define SET_FRAME(f,r)                                              \
+                     do {                                             \
+                       /* Don't override the FPU status register.   */\
+                       /* Use the value obtained from ptrace(). This*/\
+                       /* works, because our code does not perform  */\
+                       /* any FPU operations, itself.               */\
+                       long fps      = (f).arm.uregs[16];             \
+                       errno         = (f).errno_;                    \
+                       (r)           = (f).arm;                       \
+                       (r).uregs[16] = fps;                           \
                      } while (0)
 #else
   /* If we do not have a hand-optimized assembly version of the FRAME()
@@ -179,7 +223,7 @@ typedef struct i386_regs {      /* Normal (non-FPU) CPU registers            */
  * dumps. If called as
  *
  *   FRAME(frame);
- *   InternalGetCoreDump(&frame, 0, NULL);
+ *   InternalGetCoreDump(&frame, 0, NULL, ap);
  *
  * it creates a core file that only contains information about the
  * calling thread.
@@ -205,7 +249,11 @@ typedef struct i386_regs {      /* Normal (non-FPU) CPU registers            */
  * threaded environment, but it is ultimately the caller's responsibility
  * to provide locking.
  */
-int InternalGetCoreDump(void *frame, int num_threads, pid_t *thread_pids);
+int InternalGetCoreDump(void *frame, int num_threads, pid_t *thread_pids,
+                        va_list ap
+                     /* const char *PATH,
+                        const struct CoredumperCompressor *compressors,
+                        const struct CoredumperCompressor **selected_comp */);
 
 #endif
 

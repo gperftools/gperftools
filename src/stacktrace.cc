@@ -46,6 +46,26 @@
 
 #include <stdint.h>   // for uintptr_t
 
+// Given a pointer to a stack frame, locate and return the calling
+// stackframe, or return NULL if no stackframe can be found. Perform
+// sanity checks to reduce the chance that a bad pointer is returned.
+static void **NextStackFrame(void **old_sp) {
+  void **new_sp = (void **) *old_sp;
+
+  // Check that the transition from frame pointer old_sp to frame
+  // pointer new_sp isn't clearly bogus
+  if (new_sp <= old_sp) return NULL;
+  if ((uintptr_t)new_sp & (sizeof(void *) - 1)) return NULL;
+#ifdef __i386__
+  // On 64-bit machines, the stack pointer can be very close to
+  // 0xffffffff, so we explicitly check for a pointer into the
+  // last two pages in the address space
+  if ((uintptr_t)new_sp >= 0xffffe000) return NULL;
+#endif
+  if ((uintptr_t)new_sp - (uintptr_t)old_sp > 100000) return NULL;
+  return new_sp;
+}
+
 // Note: the code for GetStackExtent below is pretty similar to this one;
 //       change both if chaning one.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
@@ -68,18 +88,18 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   int n = 0;
   skip_count++;         // Do not include the "GetStackTrace" frame
   while (sp && n < max_depth) {
+    if (*(sp+1) == (void *)0) {
+      // In 64-bit code, we often see a frame that
+      // points to itself and has a return address of 0.
+      break;
+    }
     if (skip_count > 0) {
       skip_count--;
     } else {
       result[n++] = *(sp+1);
     }
-    void** new_sp = (void**) *sp;
-
-    // A little bit of sanity checking to avoid crashes
-    if (new_sp < sp ||
-        (uintptr_t)new_sp - (uintptr_t)sp > 100000) {
-      break;
-    }
+    void** new_sp = NextStackFrame(sp);
+    if (!new_sp) break;
     sp = new_sp;
   }
   return n;
@@ -112,16 +132,14 @@ bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
   }
 
   while (cur_sp) {
-    void** new_sp = (void**)*cur_sp;
-    // A little bit of sanity checking to avoid crashes
-    if (new_sp < cur_sp ||
-        (uintptr_t)new_sp - (uintptr_t)cur_sp > 100000) {
+    void** new_sp = NextStackFrame(cur_sp);
+    if (!new_sp) {
       *stack_bottom = (void*)cur_sp;
       return true;
     }
     cur_sp = new_sp;
     if (*stack_top == NULL)  *stack_top = (void*)cur_sp;
-      // get out of the stack frame for this call
+    // get out of the stack frame for this call
   }
   return false;
 }

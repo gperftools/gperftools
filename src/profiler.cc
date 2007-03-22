@@ -31,6 +31,11 @@
 // Author: Sanjay Ghemawat
 //
 // Profile current program by sampling stack-trace every so often
+//
+// TODO: Detect whether or not setitimer() applies to all threads in
+// the process.  If so, instead of starting and stopping by changing
+// the signal handler, start and stop by calling setitimer() and
+// do nothing in the per-thread registration code.
 
 #include "config.h"
 #include <assert.h>
@@ -137,9 +142,6 @@ class ProfileData {
   // Is profiling turned on at all
   inline bool enabled() { return out_ >= 0; }
     
-  // Should we automatically profile all threads
-  inline bool profile_all() { return (out_ >= 0) && profile_all_; }
-
   // What is the frequency of interrupts (ticks per second)
   inline int frequency() { return frequency_; }
 
@@ -152,6 +154,8 @@ class ProfileData {
   bool Start(const char* fname);
   // Stop profiling and flush the data
   void Stop();
+
+  void GetCurrentState(ProfilerState* state);
   
  private:
   static const int kMaxStackDepth = 64;         // Max stack depth profiled
@@ -177,20 +181,24 @@ class ProfileData {
   };
 
 #ifdef HAVE_PTHREAD
-  pthread_mutex_t lock_;        // Cannot use "Mutex" in signal handlers
-  pthread_mutex_t flush_lock_;  // Acquired during explicit flushes
+  // Invariant: table_lock_ is only grabbed by handler, or by other code
+  // when the signal is being ignored (via SIG_IGN).
+  //
+  // Locking order is "state_lock_" first, and then "table_lock_"
+  pthread_mutex_t state_lock_;  // Protects filename, etc.(not used in handler)
+  pthread_mutex_t table_lock_;  // Cannot use "Mutex" in signal handlers
 #endif
   Bucket*       hash_;          // hash table
   
   Slot*         evict_;         // evicted entries
   int           num_evicted_;   // how many evicted entries?
   int           out_;           // fd for output file
-  bool          profile_all_;   // profile all threads automatically?
   int           count_;         // How many interrupts recorded
   int           evictions_;     // How many evictions
   size_t        total_bytes_;   // How much output
   char*         fname_;         // Profile file name
   int           frequency_;     // Interrupts per second
+  time_t        start_time_;    // Start time, or 0
 
   // Add "pc -> count" to eviction buffer
   void Evict(const Entry& entry);
@@ -226,19 +234,15 @@ ProfileData::ProfileData() :
   evict_(0),
   num_evicted_(0),
   out_(-1),
-  profile_all_(false),
   count_(0),
   evictions_(0),
   total_bytes_(0),
   fname_(0),
-  frequency_(0) {
+  frequency_(0),
+  start_time_(0) {
 
-  PCALL(pthread_mutex_init(&lock_, NULL));
-  PCALL(pthread_mutex_init(&flush_lock_, NULL));
-
-  if (getenv("PROFILESELECTED") == NULL) {
-    profile_all_ = true;
-  }
+  PCALL(pthread_mutex_init(&state_lock_, NULL));
+  PCALL(pthread_mutex_init(&table_lock_, NULL));
 
   // Get frequency of interrupts (if specified)
   char junk;
@@ -251,7 +255,12 @@ ProfileData::ProfileData() :
     frequency_ = kDefaultFrequency;
   }
 
-  // Should profiling be enabled?
+  // Ignore signals until we decide to turn profiling on
+  SetHandler(SIG_IGN);
+
+  ProfilerRegisterThread();
+
+  // Should profiling be enabled automatically at start?
   char* cpuprofile = getenv("CPUPROFILE");
   if (!cpuprofile || cpuprofile[0] == '\0') {
     return;
@@ -294,10 +303,10 @@ ProfileData::ProfileData() :
 }
 
 bool ProfileData::Start(const char* fname) {
-  LOCK(&lock_);
+  LOCK(&state_lock_);
   if (enabled()) {
     // profiling is already enabled
-    UNLOCK(&lock_);
+    UNLOCK(&state_lock_);
     return false;
   }
 
@@ -305,19 +314,23 @@ bool ProfileData::Start(const char* fname) {
   int fd = open(fname, O_CREAT | O_WRONLY | O_TRUNC, 0666);
   if (fd < 0) {
     // Can't open outfile for write
-    UNLOCK(&lock_);
+    UNLOCK(&state_lock_);
     return false;
   }
+
+  start_time_ = time(NULL);
+  fname_ = strdup(fname);
+
+  LOCK(&table_lock_);
   
   // Reset counters 
   num_evicted_ = 0;
   count_       = 0;
   evictions_   = 0;
   total_bytes_ = 0;
-  // But leave profile_all_ and frequency_ alone (i.e., ProfilerStart()
-  // doesn't affect their values originally set in the constructor)
+  // But leave frequency_ alone (i.e., ProfilerStart() doesn't affect
+  // their values originally set in the constructor)
 
-  fname_ = strdup(fname);
   out_  = fd;
 
   hash_ = new Bucket[kBuckets];
@@ -331,13 +344,12 @@ bool ProfileData::Start(const char* fname) {
   evict_[num_evicted_++] = 1000000 / frequency_;  // Period (microseconds)
   evict_[num_evicted_++] = 0;                     // Padding
 
+  UNLOCK(&table_lock_);
+
   // Setup handler for SIGPROF interrupts
   SetHandler((void (*)(int)) prof_handler);
 
-  // Start profiling on this thread if automatic profiling is on
-  ProfilerRegisterThread();
-
-  UNLOCK(&lock_);
+  UNLOCK(&state_lock_);
   return true;
 }
 
@@ -348,15 +360,18 @@ ProfileData::~ProfileData() {
 
 // Stop profiling and write out any collected profile data
 void ProfileData::Stop() {
+  LOCK(&state_lock_);
+
   // Prevent handler from running anymore
   SetHandler(SIG_IGN);
 
   // This lock prevents interference with signal handlers in other threads
-  LOCK(&lock_);
+  LOCK(&table_lock_);
 
   if (out_ < 0) {
     // Profiling is not enabled
-    UNLOCK(&lock_);
+    UNLOCK(&table_lock_);
+    UNLOCK(&state_lock_);
     return;
   }
 
@@ -401,15 +416,35 @@ void ProfileData::Stop() {
   evict_ = 0;
   free(fname_);
   fname_ = 0;
+  start_time_ = 0;
 
   out_ = -1;
-  UNLOCK(&lock_);
+  UNLOCK(&table_lock_);
+  UNLOCK(&state_lock_);
+}
+
+void ProfileData::GetCurrentState(ProfilerState* state) {
+  LOCK(&state_lock_);
+  if (enabled()) {
+    state->enabled = true;
+    state->start_time = start_time_;
+    state->samples_gathered = count_;
+    int buf_size = sizeof(state->profile_name);
+    strncpy(state->profile_name, fname_, buf_size);
+    state->profile_name[buf_size-1] = '\0';
+  } else {
+    state->enabled = false;
+    state->start_time = 0;
+    state->samples_gathered = 0;
+    state->profile_name[0] = '\0';
+  }
+  UNLOCK(&state_lock_);
 }
 
 void ProfileData::SetHandler(void (*handler)(int)) {
   struct sigaction sa;
   sa.sa_handler = handler;
-  sa.sa_flags   = 0;
+  sa.sa_flags   = SA_RESTART;
   sigemptyset(&sa.sa_mask);
   if (sigaction(SIGPROF, &sa, NULL) != 0) {
     perror("sigaction(SIGPROF)");
@@ -423,9 +458,9 @@ void ProfileData::FlushTable() {
     return;
   }
 
-  LOCK(&flush_lock_); {
+  LOCK(&state_lock_); {
     SetHandler(SIG_IGN);       // Disable timer interrupts while we're flushing
-    LOCK(&lock_); {
+    LOCK(&table_lock_); {
       // Move data from hash table to eviction buffer
       for (int b = 0; b < kBuckets; b++) {
         Bucket* bucket = &hash_[b];
@@ -440,9 +475,9 @@ void ProfileData::FlushTable() {
 
       // Write out all pending data
       FlushEvicted();
-    } UNLOCK(&lock_);
+    } UNLOCK(&table_lock_);
     SetHandler((void (*)(int)) prof_handler);
-  } UNLOCK(&flush_lock_);
+  } UNLOCK(&state_lock_);
 }
 
 // Record the specified "pc" in the profile data
@@ -456,12 +491,12 @@ void ProfileData::Add(unsigned long pc) {
   // Make hash-value
   Slot h = 0;
   for (int i = 0; i < depth; i++) {
-    Slot pc = reinterpret_cast<Slot>(stack[i]);
+    Slot slot = reinterpret_cast<Slot>(stack[i]);
     h = (h << 8) | (h >> (8*(sizeof(h)-1)));
-    h += (pc * 31) + (pc * 7) + (pc * 3);
+    h += (slot * 31) + (slot * 7) + (slot * 3);
   }
 
-  LOCK(&lock_);
+  LOCK(&table_lock_);
   count_++;
 
   // See if table already has an entry for this stack trace
@@ -505,7 +540,7 @@ void ProfileData::Add(unsigned long pc) {
       e->stack[i] = reinterpret_cast<Slot>(stack[i]);
     }
   }
-  UNLOCK(&lock_);
+  UNLOCK(&table_lock_);
 }
 
 // Write all evicted data to the profile file
@@ -538,49 +573,29 @@ void ProfileData::prof_handler(int sig, SigStructure sig_structure) {
   errno = saved_errno;
 }
 
-// Start interval timer for the current thread
-void ProfilerEnable() {
-  // Generate periodic interrupts
-  if (pdata.enabled()) {
-    // TODO: Randomize the initial interrupt value?
-    // TODO: Randmize the inter-interrupt period on every interrupt?
-    struct itimerval timer;
-    timer.it_interval.tv_sec = 0;
-    timer.it_interval.tv_usec = 1000000 / pdata.frequency();
-    timer.it_value = timer.it_interval;
-    setitimer(ITIMER_PROF, &timer, 0);
-  }
-}
-
-static void ProfilerTurnOffIntervalTimer() {
+// Start interval timer for the current thread.  We do this for
+// every known thread.  If profiling is off, the generated signals
+// are ignored, otherwise they are captured by prof_handler().
+void ProfilerRegisterThread() {
+  // TODO: Randomize the initial interrupt value?
+  // TODO: Randomize the inter-interrupt period on every interrupt?
   struct itimerval timer;
   timer.it_interval.tv_sec = 0;
-  timer.it_interval.tv_usec = 0;
+  timer.it_interval.tv_usec = 1000000 / pdata.frequency();
   timer.it_value = timer.it_interval;
   setitimer(ITIMER_PROF, &timer, 0);
 }
 
-// Stop interval timer for the current thread
-void ProfilerDisable() {
-  if (pdata.enabled()) {
-    ProfilerTurnOffIntervalTimer();
-  }
-}
+// DEPRECATED routines
+void ProfilerEnable() { }
+void ProfilerDisable() { }
 
 void ProfilerFlush() {
-  if (pdata.enabled()) {
-    pdata.FlushTable();
-  }
-}
-
-void ProfilerRegisterThread() {
-  if (pdata.profile_all()) {
-    ProfilerEnable();
-  }
+  pdata.FlushTable();
 }
 
 bool ProfilingIsEnabledForAllThreads() { 
-  return pdata.profile_all();
+  return pdata.enabled();
 }
 
 bool ProfilerStart(const char* fname) {
@@ -591,24 +606,10 @@ void ProfilerStop() {
   pdata.Stop();
 }
 
-
-ProfilerThreadState::ProfilerThreadState() {
-  was_enabled_ = pdata.profile_all();
+void ProfilerGetCurrentState(ProfilerState* state) {
+  pdata.GetCurrentState(state);
 }
 
-void ProfilerThreadState::ThreadCheck() {
-  bool is_enabled = pdata.profile_all();
-  if (was_enabled_ != is_enabled) {
-    if (is_enabled) {
-      LOG("Enabling profiling in thread");
-      ProfilerRegisterThread();
-    } else {
-      LOG("Profiling disabled in thread");
-      ProfilerTurnOffIntervalTimer();
-    }
-    was_enabled_ = is_enabled;
-  }
-}
 
 REGISTER_MODULE_INITIALIZER(profiler, {
   if (!FLAGS_cpu_profile.empty()) {

@@ -79,6 +79,15 @@ class MallocExtension {
   // contents of "*result" are preserved.
   virtual void GetHeapSample(std::string* result);
 
+  // Get a string that contains the stack traces that caused growth in
+  // the addres sspace size.  The format of the returned string is
+  // equivalent to the output of the heap profiler and can therefore
+  // be passed to "pprof".
+  //
+  // The generated data is *appended* to "*result".  I.e., the old
+  // contents of "*result" are preserved.
+  virtual void GetHeapGrowthStacks(std::string* result);
+
   // -------------------------------------------------------------------
   // Control operations for getting and setting malloc implementation
   // specific parameters.  Some currently useful properties:
@@ -155,6 +164,10 @@ class MallocExtension {
   // This is an internal extension.  Callers should use the more
   // convenient "GetHeapSample(string*)" method defined above.
   virtual void** ReadStackTraces();
+
+  // Like ReadStackTraces(), but returns stack traces that caused growth
+  // in the address space size.
+  virtual void** ReadHeapGrowthStackTraces();
 };
 
 #endif  // _GOOGLE_MALLOC_EXTENSION_H__

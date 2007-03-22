@@ -110,6 +110,10 @@ static const size_t kAlignShift = 3;
 static const size_t kAlignment  = 1 << kAlignShift;
 static const size_t kNumClasses = 170;
 
+// Allocates a big block of memory for the pagemap once we reach more than
+// 128MB
+static const size_t kPageMapBigAllocationThreshold = 128 << 20;
+
 // Minimum number of pages to fetch from system at a time.  Must be
 // significantly bigger than kBlockSize to amortize system-call
 // overhead, and also to reduce external fragementation.  Also, we
@@ -167,12 +171,12 @@ static size_t class_to_size[kNumClasses];
 static size_t class_to_pages[kNumClasses];
 
 // Return floor(log2(n)) for n > 0.
-#if defined __i386__ && defined __GNUC__
+#if (defined __i386__ || defined __x86_64__) && defined __GNUC__
 static inline int LgFloor(size_t n) {
   // "ro" for the input spec means the input can come from either a
   // register ("r") or offsetable memory ("o").
-  int result;
-  __asm__("bsrl  %1, %0"
+  size_t result;
+  __asm__("bsr  %1, %0"
           : "=r" (result)               // Output spec
           : "ro" (n)                    // Input spec
           : "cc"                        // Clobbers condition-codes
@@ -307,7 +311,7 @@ template <class T>
 class PageHeapAllocator {
  private:
   // How much to allocate from system at a time
-  static const int kAllocIncrement = 32 << 10;
+  static const int kAllocIncrement = 128 << 10;
 
   // Aligned size of T
   static const size_t kAlignedSize
@@ -330,6 +334,8 @@ class PageHeapAllocator {
     free_area_ = NULL;
     free_avail_ = 0;
     free_list_ = NULL;
+    // Reserve some space at the beginning to avoid fragmentation.
+    Delete(New());
   }
 
   T* New() {
@@ -517,6 +523,12 @@ struct StackTrace {
 static PageHeapAllocator<StackTrace> stacktrace_allocator;
 static Span sampled_objects;
 
+// Linked list of stack traces recorded every time we allocated memory
+// from the system.  Useful for finding allocation sites that cause
+// increase in the footprint of the system.  The linked list pointer
+// is stored in trace->stack[kMaxStackDepth-1].
+static StackTrace* growth_stacks = NULL;
+
 // -------------------------------------------------------------------------
 // Map from page-id to per-page data
 // -------------------------------------------------------------------------
@@ -548,6 +560,8 @@ class TCMalloc_PageHeap {
   TCMalloc_PageHeap();
 
   // Allocate a run of "n" pages.  Returns zero if out of memory.
+  // Caller should not pass "n == 0" -- instead, n should have
+  // been rounded up already.
   Span* New(Length n);
 
   // Delete the span "[p, p+n-1]".
@@ -635,10 +649,12 @@ TCMalloc_PageHeap::TCMalloc_PageHeap() : pagemap_(MetaDataAlloc),
 
 Span* TCMalloc_PageHeap::New(Length n) {
   ASSERT(Check());
-  if (n == 0) n = 1;
+
+  // n==0 occurs iff pages() overflowed when we added kPageSize-1 to n
+  if (n == 0) return NULL;
 
   // Find first size >= n that has a non-empty list
-  for (int s = n; s < kMaxPages; s++) {
+  for (Length s = n; s < kMaxPages; s++) {
     if (!DLL_IsEmpty(&free_[s])) {
       Span* result = free_[s].next;
       Carve(result, n);
@@ -815,6 +831,14 @@ void TCMalloc_PageHeap::Dump(TCMalloc_Printer* out) {
               (cumulative << kPageShift) / 1048576.0);
 }
 
+static void RecordGrowth(size_t growth) {
+  StackTrace* t = stacktrace_allocator.New();
+  t->depth = GetStackTrace(t->stack, kMaxStackDepth-1, 4);
+  t->size = growth;
+  t->stack[kMaxStackDepth-1] = reinterpret_cast<void*>(growth_stacks);
+  growth_stacks = t;
+}
+
 bool TCMalloc_PageHeap::GrowHeap(Length n) {
   ASSERT(kMaxPages >= kMinSystemAlloc);
   Length ask = (n>kMinSystemAlloc) ? n : static_cast<Length>(kMinSystemAlloc);
@@ -827,9 +851,21 @@ bool TCMalloc_PageHeap::GrowHeap(Length n) {
     }
     if (ptr == NULL) return false;
   }
+  RecordGrowth(ask << kPageShift);
+
+  uint64_t old_system_bytes = system_bytes_;
   system_bytes_ += (ask << kPageShift);
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   ASSERT(p > 0);
+
+  // If we have already a lot of pages allocated, just pre allocate a bunch of
+  // memory for the page map. This prevents fragmentation by pagemap metadata
+  // when a program keeps allocating and freeing large blocks.
+
+  if (old_system_bytes < kPageMapBigAllocationThreshold
+      && system_bytes_ >= kPageMapBigAllocationThreshold) {
+    pagemap_.PreallocateMoreMemory();
+  }
 
   // Make sure pagemap_ has entries for all of the new pages.
   // Plus ensure one before and one after so coalescing code
@@ -928,7 +964,7 @@ class TCMalloc_ThreadCache {
 
   size_t        size_;                  // Combined size of data
   pthread_t     tid_;                   // Which thread owns it
-  bool          setspecific_;           // Called pthread_setspecific?
+  bool          in_setspecific_;        // In call to pthread_setspecific?
   FreeList      list_[kNumClasses];     // Array indexed by size-class
 
   // We sample allocations, biased by the size of the allocation
@@ -1193,7 +1229,7 @@ void TCMalloc_ThreadCache::Init(pthread_t tid) {
   next_ = NULL;
   prev_ = NULL;
   tid_  = tid;
-  setspecific_ = false;
+  in_setspecific_ = false;
   for (size_t cl = 0; cl < kNumClasses; ++cl) {
     list_[cl].Init();
   }
@@ -1409,12 +1445,13 @@ void* TCMalloc_ThreadCache::CreateCacheIfNecessary() {
   }
 
   // We call pthread_setspecific() outside the lock because it may
-  // call malloc() recursively.  The recursive call will never get
-  // here again because it will find the already allocated heap in the
-  // linked list of heaps.
-  if (!heap->setspecific_ && tsd_inited) {
-    heap->setspecific_ = true;
+  // call malloc() recursively.  We check for the recursive call using
+  // the "in_setspecific_" flag so that we can avoid calling
+  // pthread_setspecific() if we are already inside pthread_setspecific().
+  if (!heap->in_setspecific_ && tsd_inited) {
+    heap->in_setspecific_ = true;
     perftools_pthread_setspecific(heap_key, heap);
+    heap->in_setspecific_ = false;
   }
   return heap;
 }
@@ -1600,6 +1637,50 @@ static void** DumpStackTraces() {
   return result;
 }
 
+static void** DumpHeapGrowthStackTraces() {
+  // Count how much space we need
+  int needed_slots = 0;
+  {
+    SpinLockHolder h(&pageheap_lock);
+    for (StackTrace* t = growth_stacks;
+         t != NULL;
+         t = reinterpret_cast<StackTrace*>(t->stack[kMaxStackDepth-1])) {
+      needed_slots += 3 + t->depth;
+    }
+    needed_slots += 100;            // Slop in case list grows
+    needed_slots += needed_slots/8; // An extra 12.5% slop
+  }
+
+  void** result = new void*[needed_slots];
+  if (result == NULL) {
+    MESSAGE("tcmalloc: could not allocate %d slots for stack traces\n",
+            needed_slots);
+    return NULL;
+  }
+
+  SpinLockHolder h(&pageheap_lock);
+  int used_slots = 0;
+  for (StackTrace* t = growth_stacks;
+       t != NULL;
+       t = reinterpret_cast<StackTrace*>(t->stack[kMaxStackDepth-1])) {
+    ASSERT(used_slots < needed_slots);  // Need to leave room for terminator
+    if (used_slots + 3 + t->depth >= needed_slots) {
+      // No more room
+      break;
+    }
+
+    result[used_slots+0] = reinterpret_cast<void*>(1);
+    result[used_slots+1] = reinterpret_cast<void*>(t->size);
+    result[used_slots+2] = reinterpret_cast<void*>(t->depth);
+    for (int d = 0; d < t->depth; d++) {
+      result[used_slots+3+d] = t->stack[d];
+    }
+    used_slots += 3 + t->depth;
+  }
+  result[used_slots] = reinterpret_cast<void*>(0);
+  return result;
+}
+
 // TCMalloc's support for extra malloc interfaces
 class TCMallocImplementation : public MallocExtension {
  public:
@@ -1617,6 +1698,10 @@ class TCMallocImplementation : public MallocExtension {
 
   virtual void** ReadStackTraces() {
     return DumpStackTraces();
+  }
+
+  virtual void** ReadHeapGrowthStackTraces() {
+    return DumpHeapGrowthStackTraces();
   }
 
   virtual bool GetNumericProperty(const char* name, size_t* value) {
@@ -1681,15 +1766,6 @@ class TCMallocImplementation : public MallocExtension {
   }
 };
 
-// RedHat 9's pthread manager allocates an object directly by calling
-// a __libc_XXX() routine.  This memory block is not known to tcmalloc.
-// At cleanup time, the pthread manager calls free() on this
-// pointer, which then crashes.
-//
-// We hack around this problem by disabling all deallocations
-// after a global object destructor in this module has been called.
-static bool tcmalloc_is_destroyed = false;
-
 //-------------------------------------------------------------------
 // Helpers for the exported routines below
 //-------------------------------------------------------------------
@@ -1744,21 +1820,10 @@ static inline void* do_malloc(size_t size) {
 static inline void do_free(void* ptr) {
   if (TCMallocDebug::level >= TCMallocDebug::kVerbose) 
     MESSAGE("In tcmalloc do_free(%p)\n", ptr);
-  if (ptr == NULL  ||  tcmalloc_is_destroyed) return;
+  if (ptr == NULL) return;
   ASSERT(pageheap != NULL);  // Should not call free() before malloc()
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   Span* span = pageheap->GetDescriptor(p);
-
-  if (span == NULL) {
-    // We've seen systems where a piece of memory allocated using the
-    // allocator built in to libc is deallocated using free() and
-    // therefore ends up inside tcmalloc which can't find the
-    // corresponding span.  We silently throw this object on the floor
-    // instead of crashing.
-    MESSAGE("tcmalloc: ignoring potential glibc-2.3.5 induced free "
-            "of an unknown object %p\n", ptr);
-    return;
-  }
 
   ASSERT(span != NULL);
   ASSERT(!span->free);
@@ -1796,6 +1861,8 @@ static inline void do_free(void* ptr) {
 static void* do_memalign(size_t align, size_t size) {
   ASSERT((align & (align - 1)) == 0);
   ASSERT(align > 0);
+  if (size + align < size) return NULL;         // Overflow
+
   if (pageheap == NULL) TCMalloc_ThreadCache::InitModule();
 
   // Allocate at least one byte to avoid boundary conditions below
@@ -1920,11 +1987,15 @@ extern "C" void free(void* ptr) {
 }
 
 extern "C" void* calloc(size_t n, size_t elem_size) {
-  void* result = do_malloc(n * elem_size);
+  // Overflow check
+  const size_t size = n * elem_size;
+  if (elem_size != 0 && size / elem_size != n) return NULL;
+
+  void* result = do_malloc(size);
   if (result != NULL) {
-    memset(result, 0, n * elem_size);
+    memset(result, 0, size);
   }
-  MallocHook::InvokeNewHook(result, n * elem_size);
+  MallocHook::InvokeNewHook(result, size);
   return result;
 }
 
@@ -2118,3 +2189,17 @@ extern "C" {
   }
 #endif
 }
+
+// Override __libc_memalign in libc on linux boxes specially.
+// They have a bug in libc that causes them to (very rarely) allocate
+// with __libc_memalign() yet deallocate with free() and the
+// definitions above don't catch it.
+// This function is an exception to the rule of calling MallocHook method
+// from the stack frame of the allocation function;
+// heap-checker handles this special case explicitly.
+static void *MemalignOverride(size_t align, size_t size, const void *caller) {
+  void* result = do_memalign(align, size);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+void *(*__memalign_hook)(size_t, size_t, const void *) = MemalignOverride;

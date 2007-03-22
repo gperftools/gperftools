@@ -32,3 +32,23 @@ Fri Jun 24 18:02:26 2005  Google Inc. <opensource@google.com>
 	* Add support for mallopt() and mallinfo (sanjay)
 	* Improve stacktrace's performance on some 64-bit systems (etune)
 	* Improve the stacktrace unittest (etune)
+
+Wed Oct 26 15:19:16 2005  Google Inc. <opensource@google.com>
+
+	* Decrease fragmentation in tcmalloc (lefevere)
+	* Support for ARM in some of the thread-specific code (markus)
+	* Turn off heap-checker for statically-linked binaries, which
+	  cause error leak reports now (etune)
+	* Many pprof improvements, including a command-line interface (jeff)
+	* CPU profiling now automatically affects all threads in linux 2.6.
+	  (Kernel bugs break CPU profiling and threads in linux 2.4 a bit.)
+	  ProfilerEnable() and ProfilerDisable() are deprecated.  (sanjay)
+	* tcmalloc now correctly intercepts memalign (m3b, maxim)
+	* Syntax fix: added missing va_end()s.  Helps non-gcc compiling (etune)
+	* Fixed a few coredumper bugs: race condition after PTRACE_DETACH,
+	  ignore non-aligned stackframe pointers (markus, menage)
+	* 64-bit cleanup, especially for spinlock code (etune) and mmap (sanjay)
+	* Better support for finding threads in linux (markus)
+	* tcmalloc now tracks those stack traces that allocate memory (sanjay)
+	* Work around a weird setspecific problem (sanjay)
+	* Fix tcmalloc overflow problems when an alloc is close to 2G/4G (sanjay)
