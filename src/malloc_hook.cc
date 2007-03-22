@@ -32,6 +32,7 @@
 
 #include <google/malloc_hook.h>
 #include "base/basictypes.h"
+#include "base/linux_syscall_support.h"
 
 MallocHook::NewHook    MallocHook::new_hook_ = NULL;
 MallocHook::DeleteHook MallocHook::delete_hook_ = NULL;
@@ -109,19 +110,12 @@ extern "C" void* mmap64(void *start, size_t length,
 
 # elif defined(__x86_64__)
 
-#define __NR_wrapped_mmap   __NR_mmap
-#define __NR_wrapped_munmap __NR_munmap
-static inline _syscall6(void *, wrapped_mmap, void  *,  start,  
-                        size_t, length, int, prot, int, flags, int,
-                        fd, __off64_t, offset);
-static inline _syscall2(int, wrapped_munmap, void *, start, size_t, length);
-
 extern "C" void* mmap64(void *start, size_t length,
                         int prot, int flags, 
                         int fd, __off64_t offset) __THROW {
 
   void *result;
-  result = wrapped_mmap(start, length, prot, flags, fd, offset );
+  result = syscall(SYS_mmap, start, length, prot, flags, fd, offset);
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
 }

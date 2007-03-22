@@ -73,6 +73,7 @@
 #else
 #include <sys/types.h>          // our last best hope
 #endif
+#include <unistd.h>             // for sleep()
 #include <iostream>             // for cout
 #include <vector>
 #include <set>
@@ -149,6 +150,7 @@ using namespace std;
 
 static bool FLAGS_maybe_stripped = false;   // TODO(csilvers): use this?
 static bool FLAGS_interfering_threads = true;
+static bool FLAGS_test_register_leak = false;  // TODO(csilvers): this as well?
 
 // Set to true at end of main, so threads know.  Not entirely thread-safe!,
 // but probably good enough.
@@ -694,7 +696,18 @@ static void* HeapBusyThreadBody(void* a) {
   TestLibCAllocate();
 
   int user = 0;
-  register int** ptr = NULL;
+  // Try to hide ptr from heap checker in a CPU register:
+  // Here we are just making a best effort to put the only pointer
+  // to a heap object into a thread register to test
+  // the thread-register finding machinery in the heap checker.
+#if defined(__i386__) && \
+    (__GNUC__ == 2 || __GNUC__ == 3 || __GNUC__ == 4 || \
+     defined(__INTEL_COMPILER))
+  register int** ptr asm("esi");
+#else
+  register int** ptr;
+#endif
+  ptr = NULL;
   typedef set<int> Set;
   Set s1;
   while (1) {
@@ -719,8 +732,23 @@ static void* HeapBusyThreadBody(void* a) {
         new (&s1) Set;
       }
     }
-    poll(NULL, 0, random() % 100);
-      // try to hide ptr from heap checker in a CPU register
+    if (FLAGS_test_register_leak) {
+      // Hide the register pointer value with an xor mask.
+      // If one provides --test_register_leak flag, the test should
+      // (with very high probability) crash on some leak check
+      // with a leak report (of some x * sizeof(int) + y * sizeof(int*) bytes)
+      // pointing at the two lines above in this function
+      // with "new (initialized) int" in them as the allocators
+      // of the leaked objects.
+      ptr = reinterpret_cast<int **>(
+          reinterpret_cast<uintptr_t>(ptr) ^ kHideMask);
+      // busy loop to get the thread interrupted at:
+      for (int i = 1; i < 1000000; ++i)  user += (1 + user * user * 5) / i;
+      ptr = reinterpret_cast<int **>(
+          reinterpret_cast<uintptr_t>(ptr) ^ kHideMask);
+    } else {
+      poll(NULL, 0, random() % 100);
+    }
     if (random() % 3 == 0) {
       delete [] *ptr;
       delete [] ptr;
@@ -751,10 +779,23 @@ REGISTER_MODULE_INITIALIZER(heap_checker_unittest, {
   HeapLeakChecker::DisableChecksIn("NamedDisabledLeaks");
 });
 
+// NOTE: For NamedDisabledLeaks, NamedTwoDisabledLeaks
+// and NamedThreeDisabledLeaks for the name-based disabling to work in opt mode
+// we need to undo the tail-recursion optimization effect
+// of -foptimize-sibling-calls that is enabled by -O2 in gcc 3.* and 4.*
+// so that for the leaking calls we can find the stack frame 
+// that resolves to a Named*DisabledLeaks function.
+// We do this by adding a fake last statement to these functions
+// so that tail-recursion optimization is done with it.
+
 // have leaks that we disable via our function name in MODULE_INITIALIZER
 static void NamedDisabledLeaks() {
   AllocHidden(5 * sizeof(float));
+  sleep(0);  // undo -foptimize-sibling-calls
 }
+
+// to trick complier into preventing inlining
+static void (*named_disabled_leaks)() = &NamedDisabledLeaks;
 
 // have leaks that we disable via our function name ourselves
 static void NamedTwoDisabledLeaks() {
@@ -764,34 +805,48 @@ static void NamedTwoDisabledLeaks() {
     first = false;
   }
   AllocHidden(5 * sizeof(double));
+  sleep(0);  // undo -foptimize-sibling-calls
 }
+
+// to trick complier into preventing inlining
+static void (*named_two_disabled_leaks)() = &NamedTwoDisabledLeaks;
 
 // have leaks that we disable via our function name in our caller
 static void NamedThreeDisabledLeaks() {
   AllocHidden(5 * sizeof(float));
+  sleep(0);  // undo -foptimize-sibling-calls
 }
+
+// to trick complier into preventing inlining
+static void (*named_three_disabled_leaks)() = &NamedThreeDisabledLeaks;
+
+static bool range_disable_named = false;
 
 // have leaks that we disable via function names
 static void* RunNamedDisabledLeaks(void* a) {
-  void* start_address = NULL;
-  if (a)  start_address = HeapLeakChecker::GetDisableChecksStart();
+  // We get the address unconditionally here to fool gcc 4.1.0 in opt mode:
+  // else it reorders the binary code so that our return address bracketing
+  // does not work here.
+  void* start_address = HeapLeakChecker::GetDisableChecksStart();
 
-  NamedDisabledLeaks();
-  NamedTwoDisabledLeaks();
-  NamedThreeDisabledLeaks();
+  named_disabled_leaks();
+  named_two_disabled_leaks();
+  named_three_disabled_leaks();
 
   // TODO(maxim): do not need this if we make pprof work in automated test runs
-  if (a)  HeapLeakChecker::DisableChecksToHereFrom(start_address);
-
+  if (range_disable_named) {
+    HeapLeakChecker::DisableChecksToHereFrom(start_address);
+  }
+  sleep(0);  // undo -foptimize-sibling-calls
   return a;
 }
 
 // have leaks inside of threads that we disable via function names
-static void ThreadNamedDisabledLeaks(void* a = NULL) {
+static void ThreadNamedDisabledLeaks() {
   pthread_t tid;
   pthread_attr_t attr;
   CHECK(pthread_attr_init(&attr) == 0);
-  CHECK(pthread_create(&tid, &attr, RunNamedDisabledLeaks, a) == 0);
+  CHECK(pthread_create(&tid, &attr, RunNamedDisabledLeaks, NULL) == 0);
   void* res;
   CHECK(pthread_join(tid, &res) == 0);
 }
@@ -1000,18 +1055,22 @@ int main(int argc, char** argv) {
   // The following two modes test whether the whole-program leak checker
   // appropriately detects leaks on exit.
   if (getenv("HEAPCHECK_TEST_LEAK")) {
-    void* arr = new (initialized) set<int>(data, data+10);
+    void* arr = AllocHidden(10 * sizeof(int));
+    Use(&arr);
     LogPrintf(INFO, "Leaking %p", arr);
-    return 0;  // whole-program leak check should catch it
+    return 0;  // whole-program leak-check should (with very high probability)
+               // catch the leak of arr (10 * sizeof(int) bytes)
   }
 
   if (getenv("HEAPCHECK_TEST_LOOP_LEAK")) {
-    void** arr1 = new (initialized) void*[2];
-    void** arr2 = new (initialized) void*[2];
-    arr1[1] = (void*)arr2;
-    arr2[1] = (void*)arr1;
+    void* arr1;
+    void* arr2;
+    RunHidden(NewCallback(MakeDeathLoop, &arr1, &arr2));
+    Use(&arr1);
+    Use(&arr2);
     LogPrintf(INFO, "Loop leaking %p and %p", arr1, arr2);
-    return 0;  // whole-program leak check should catch it
+    return 0;  // whole-program leak-check should (with very high probability)
+               // catch the leak of arr1 and arr2 (4 * sizeof(void*) bytes)
   }
 
   TestHeapLeakCheckerLiveness();
@@ -1071,8 +1130,10 @@ int main(int argc, char** argv) {
     cout << "overall leaks are caught; we must be using stripped binary\n";
   }
 
-  int a;
-  ThreadNamedDisabledLeaks(&a);
+  // This will also disable (w/o relying on pprof anymore)
+  // all leaks that earlier occured inside of ThreadNamedDisabledLeaks:
+  range_disable_named = true;
+  ThreadNamedDisabledLeaks();
 
   HeapLeakChecker::IgnoreObject(new (initialized) set<int>(data, data + 13));
     // This checks both that IgnoreObject works, and

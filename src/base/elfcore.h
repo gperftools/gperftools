@@ -45,6 +45,7 @@
 #include <sys/types.h>
 #include "config.h"
 
+
 /* Define the DUMPER symbol to make sure that there is exactly one
  * core dumper built into the library.
  */
@@ -102,47 +103,48 @@
   typedef struct Frame {
     struct i386_regs uregs;
     int              errno_;
+    pid_t            tid;
   } Frame;
   #define FRAME(f) Frame f;                                           \
                    do {                                               \
                      f.errno_ = errno;                                \
+                     f.tid    = sys_gettid();                         \
                      __asm__ volatile (                               \
-                       "push %%eax\n"                                 \
-                       "mov  %%ebp,%%eax\n"                           \
                        "push %%ebp\n"                                 \
-                       "lea  %0,%%ebp\n"                              \
-                       "mov  %%ebx,0(%%ebp)\n"                        \
-                       "mov  %%ecx,4(%%ebp)\n"                        \
-                       "mov  %%edx,8(%%ebp)\n"                        \
-                       "mov  %%esi,12(%%ebp)\n"                       \
-                       "mov  %%edi,16(%%ebp)\n"                       \
-                       "mov  %%eax,20(%%ebp)\n"                       \
-                       "mov  4(%%esp),%%eax\n"                        \
-                       "mov  %%eax,24(%%ebp)\n"                       \
-                       "mov  %%ds,%%eax\n"                            \
-                       "mov  %%eax,28(%%ebp)\n"                       \
-                       "mov  %%es,%%eax\n"                            \
-                       "mov  %%eax,32(%%ebp)\n"                       \
-                       "mov  %%fs,%%eax\n"                            \
-                       "mov  %%eax,36(%%ebp)\n"                       \
-                       "mov  %%gs,%%eax\n"                            \
-                       "mov  %%eax, 40(%%ebp)\n"                      \
-                       "lea  0f,%%eax\n"                              \
-                       "mov  %%eax,48(%%ebp)\n"                       \
-                       "mov  %%cs,%%eax\n"                            \
-                       "mov  %%eax,52(%%ebp)\n"                       \
+                       "push %%ebx\n"                                 \
+                       "mov  %%ebx,0(%%eax)\n"                        \
+                       "mov  %%ecx,4(%%eax)\n"                        \
+                       "mov  %%edx,8(%%eax)\n"                        \
+                       "mov  %%esi,12(%%eax)\n"                       \
+                       "mov  %%edi,16(%%eax)\n"                       \
+                       "mov  %%ebp,20(%%eax)\n"                       \
+                       "mov  %%eax,24(%%eax)\n"                       \
+                       "mov  %%ds,%%ebx\n"                            \
+                       "mov  %%ebx,28(%%eax)\n"                       \
+                       "mov  %%es,%%ebx\n"                            \
+                       "mov  %%ebx,32(%%eax)\n"                       \
+                       "mov  %%fs,%%ebx\n"                            \
+                       "mov  %%ebx,36(%%eax)\n"                       \
+                       "mov  %%gs,%%ebx\n"                            \
+                       "mov  %%ebx, 40(%%eax)\n"                      \
+                       "call 0f\n"                                    \
+                     "0:pop %%ebx\n"                                  \
+                       "add  $1f-0b,%%ebx\n"                          \
+                       "mov  %%ebx,48(%%eax)\n"                       \
+                       "mov  %%cs,%%ebx\n"                            \
+                       "mov  %%ebx,52(%%eax)\n"                       \
                        "pushf\n"                                      \
-                       "pop  %%eax\n"                                 \
-                       "mov  %%eax,56(%%ebp)\n"                       \
-                       "mov  %%esp,%%eax\n"                           \
-                       "add  $8,%%eax\n"                              \
-                       "mov  %%eax,60(%%ebp)\n"                       \
-                       "mov  %%ss,%%eax\n"                            \
-                       "mov  %%eax,64(%%ebp)\n"                       \
+                       "pop  %%ebx\n"                                 \
+                       "mov  %%ebx,56(%%eax)\n"                       \
+                       "mov  %%esp,%%ebx\n"                           \
+                       "add  $8,%%ebx\n"                              \
+                       "mov  %%ebx,60(%%eax)\n"                       \
+                       "mov  %%ss,%%ebx\n"                            \
+                       "mov  %%ebx,64(%%eax)\n"                       \
+                       "pop  %%ebx\n"                                 \
                        "pop  %%ebp\n"                                 \
-                       "pop  %%eax\n"                                 \
-                     "0:"                                             \
-                       : : "m" (f) : "memory");                       \
+                     "1:"                                             \
+                       : : "a" (&f) : "memory");                      \
                      } while (0)
   #define SET_FRAME(f,r)                                              \
                      do {                                             \
@@ -156,11 +158,13 @@
   typedef struct Frame {
     struct arm_regs arm;
     int             errno_;
+    pid_t           tid;
   } Frame;
   #define FRAME(f) Frame f;                                           \
                    do {                                               \
                      long cpsr;                                       \
                      f.errno_ = errno;                                \
+                     f.tid    = sys_gettid();                         \
                      __asm__ volatile(                                \
                        "stmia %0, {r0-r15}\n" /* All integer regs   */\
                        : : "r"(&f.arm) : "memory");                   \
@@ -183,36 +187,14 @@
                      } while (0)
 #else
   /* If we do not have a hand-optimized assembly version of the FRAME()
-   * macro, we fall back to a generic version, which works across different
-   * platforms. This code has been tested on x86_32 and x86_64 with both
-   * gcc and icc.
+   * macro, we cannot reliably unroll the stack. So, we show a few additional
+   * stack frames for the coredumper.
    */
-  #ifdef HAVE_BUILTIN_STACK_POINTER
-    #define BUILTIN_STACK_POINTER() __builtin_stack_pointer()
-  #else
-    #define BUILTIN_STACK_POINTER() __builtin_frame_address(0)
-  #endif
   typedef struct Frame {
-    void *frame_address;
-    void *stack_pointer;
-    void *instruction_pointer;
-    int  errno_;
+    pid_t tid;
   } Frame;
-  #define FRAME(f) Frame f = { __builtin_frame_address(0),            \
-                               BUILTIN_STACK_POINTER(),               \
-                               &&label };                             \
-                   /* Prevent the compiler from moving the label */   \
-                   do {                                               \
-                     f.errno_ = errno;                                \
-                     label: if (!f.instruction_pointer) goto label;   \
-                   } while (!f.stack_pointer)
-  #define SET_FRAME(f,r)                                              \
-                   do {                                               \
-                     errno  = (f).errno_;                             \
-                     (r).BP = (unsigned long)(f).frame_address;       \
-                     (r).SP = (unsigned long)(f).stack_pointer;       \
-                     (r).IP = (unsigned long)(f).instruction_pointer; \
-                   } while (0)
+  #define FRAME(f) Frame f; do { f.tid = sys_gettid(); } while (0)
+  #define SET_FRAME(f,r) do { } while (0)
 #endif
 
 

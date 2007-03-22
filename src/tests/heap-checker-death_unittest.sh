@@ -40,8 +40,9 @@ export HEAPCHECK=strict
 HEAPCHECK_TEST_LEAK=1 ./heap-checker_unittest
 
 if [ "$?" == 0 ] ; then
-  echo >&2 "Heap checker unittest did not crash when it was supposed to.";
-  exit 1;
+  echo >&2 "Heap checker unittest did not crash when it was supposed to"
+  echo >&2 "for test HEAPCHECK_TEST_LEAK=1"
+  exit 1
 fi
 
 # When the environment variable HEAP_CHECKER_TEST_LOOP_LEAK is set,
@@ -50,8 +51,9 @@ fi
 HEAPCHECK_TEST_LOOP_LEAK=1 ./heap-checker_unittest
 
 if [ "$?" == 0 ] ; then
-  echo >&2 "Heap checker unittest did not crash when it was supposed to.";
-  exit 1;
+  echo >&2 "Heap checker unittest did not crash when it was supposed to"
+  echo >&2 "for test HEAPCHECK_TEST_LOOP_LEAK=1"
+  exit 1
 fi
 
 echo PASS

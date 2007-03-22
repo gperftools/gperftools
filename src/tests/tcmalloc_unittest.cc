@@ -51,6 +51,7 @@
 #include <stdio.h>
 #include <stdint.h>      // for intptr_t
 #include <unistd.h>      // for getpid()
+#include <assert.h>
 #include <pthread.h>
 #include <vector>
 #include <string>
@@ -246,7 +247,8 @@ class TesterThread {
   void AllocateObject() {
     Object object;
     object.size = rnd_.Skewed(FLAGS_lgmaxsize);
-    object.ptr = reinterpret_cast<char*>(malloc(object.size));
+    object.ptr = static_cast<char*>(malloc(object.size));
+    CHECK(object.ptr);
     object.generation = 0;
     FillContents(&object);
     heap_.push_back(object);
@@ -524,6 +526,7 @@ int main(int argc, char** argv) {
     for ( int i = 200; i < 240; ++i ) {
       int size = i << 20;
       void *test1 = malloc(size);
+      CHECK(test1);
       for ( int j = 0; j < size; j += (1 << 12) ) {
         static_cast<char*>(test1)[j] = 1;
       }
@@ -548,11 +551,12 @@ int main(int argc, char** argv) {
     free(p2);
   }
 
-  // Check that 512MB can be allocated
+  // Check that "lots" of memory can be allocated
   fprintf(LOGSTREAM, "==== Testing large allocation\n");
   {
-    void* p = malloc(512<<20);
-    CHECK(p != NULL);   // could not allocate 512MB
+    const int mb_to_allocate = 100;
+    void* p = malloc(mb_to_allocate << 20);
+    CHECK(p != NULL);  // could not allocate
     free(p);
   }
 

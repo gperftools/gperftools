@@ -119,7 +119,7 @@ inline void* GetPC(const SigStructure& sig_structure ) {
 #elif defined HAVE_STRUCT_SIGCONTEXT_SC_IP
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.ip;
+  return (void*)sig_structure.sc_ip;
 }
 
 #elif defined HAVE_STRUCT_UCONTEXT_UC_MCONTEXT

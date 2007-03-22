@@ -90,6 +90,8 @@ using STL_NAMESPACE::sort;
 // Flags that control heap-profiling
 //----------------------------------------------------------------------
 
+DEFINE_bool(cleanup_old_heap_profiles, true,
+            "At initialization time, delete old heap profiles.");
 DEFINE_int64(heap_profile_allocation_interval, 1 << 30 /*1GB*/,
              "Dump heap profiling information once every specified "
              "number of bytes allocated by the program.");
@@ -1023,6 +1025,8 @@ void HeapProfiler::Init() {
 }
 
 void HeapProfiler::CleanupProfiles(const char* prefix) {
+  if (!FLAGS_cleanup_old_heap_profiles)
+    return;
   string pattern(prefix);
   pattern += ".*.heap";
   glob_t g;

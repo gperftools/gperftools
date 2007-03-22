@@ -75,6 +75,7 @@
 #include "base/logging.h"
 #include "base/elfcore.h"              // for i386_regs
 #include "base/thread_lister.h"
+#include "maybe_threads.h"
 
 #ifdef HAVE_INTTYPES_H
 #define __STDC_FORMAT_MACROS
@@ -219,6 +220,7 @@ enum ObjectPlacement {
   IGNORED_ON_HEAP,  // Is a live (ignored) object on heap.
   IN_GLOBAL_DATA,   // Is part of global data region of the executable.
   THREAD_STACK,     // Part of a thread stack
+  THREAD_REGISTERS, // Values in registers of some thread
 };
 
 // Information about an allocated object
@@ -274,13 +276,9 @@ static DisabledRangeMap* disabled_ranges = NULL;
 // Stack range map: maps from the start address to the end address.
 // These are used to not disable all allocated memory areas
 // that are used for stacks so that we do treat stack pointers
-// from dead stack frmes as live.
+// from dead stack frames as live.
 typedef map<uintptr_t, uintptr_t> StackRangeMap;
 static StackRangeMap* stack_ranges = NULL;
-
-// We put the registers from other threads here
-// to make pointers stored in them live.
-static vector<void*>* thread_registers = NULL;
 
 // This routine is called for every thread stack we know about.
 static void RegisterStackRange(void* top, void* bottom) {
@@ -520,7 +518,7 @@ static bool RecordGlobalDataLocked(uint64 start_address,
   // Find the segment header that contains the given file offset.
   bool found_load_segment = false;
   for (int iph = 0; iph < efh.e_phnum; ++iph) {
-    HeapProfiler::MESSAGE(3, "HeapChecker: %s %d: p_type: %d p_flags: %x",
+    HeapProfiler::MESSAGE(3, "HeapChecker: %s %d: p_type: %d p_flags: %x\n",
                           filename, iph, eph[iph].p_type, eph[iph].p_flags);
     if (eph[iph].p_type == PT_LOAD && eph[iph].p_flags & PF_W) {
       // Sanity check the segment header.
@@ -736,24 +734,60 @@ HeapLeakChecker::UseProcMaps(ProcMapsTask proc_maps_task) {
 static int64 live_objects_total = 0;
 static int64 live_bytes_total = 0;
 
-// Arguments from the last call to IgnoreLiveThreads,
-// so we can resume the threads later.
-static int last_num_threads = 0;
-static pid_t* last_thread_pids = NULL;
+// pid of the thread that is doing the current leak check
+// (protected by our lock; IgnoreAllLiveObjectsLocked sets it)
+static pid_t self_thread_pid = 0;
 
-// Callback for ListAllProcessThreads to ignore
-// thread stacks and registers for all our threads.
-static int IgnoreLiveThreads(void* parameter,
-                             int num_threads,
-                             pid_t* thread_pids,
-                             va_list ap) {
-  last_num_threads = num_threads;
-  assert(last_thread_pids == NULL);
-  last_thread_pids = new pid_t[num_threads];
-  memcpy(last_thread_pids, thread_pids, num_threads * sizeof(pid_t));
+// Ideally to avoid deadlocks this function should not result in any libc
+// or other function calls that might need to lock a mutex:
+// It is called when all threads of a process are stopped
+// at arbitrary points thus potentially holding those locks.
+//
+// In practice we are calling some simple i/o functions
+// for logging messages and use the memory allocator in here.
+// This is known to be buggy: It is able to cause deadlocks
+// when we request a lock that a stopped thread happens to hold.
+// But both of the above as far as we know have so far
+// not resulted in any deadlocks in practice,
+// so for now we are taking our change that the deadlocks
+// have insignificant frequency.
+//
+// If such deadlocks become a problem we should make the i/o calls
+// into appropriately direct system calls (or eliminate them),
+// in particular write() is not safe and vsnprintf() is potentially dangerous
+// due to reliance on locale functions
+// (these are called through HeapProfiler::MESSAGE()).
+//
+// Eliminating the potential for deadlocks in
+// (or the need itself for) the memory allocator is more involved.
+// With some lock-all-allocator's-locks helper hooks into our allocator
+// implementations we can avoid deadlocks in our allocator code itself,
+// but the potential for deadlock in a libc functions the allocator uses
+// is still there as long as there are such lock-using functions that
+// can also be called on their own e.g. by third-party code.
+// This is e.g. the case for __libc_malloc that debugallocation.cc uses.
+// It might be a better idea to reorganize the data structures so that
+// everything that happens within IgnoreLiveThreads does not need to
+// allocate more memory.
+//
+int HeapLeakChecker::IgnoreLiveThreads(void* parameter,
+                                       int num_threads,
+                                       pid_t* thread_pids,
+                                       va_list ap) {
+  if (HeapProfiler::kMaxLogging) {
+    HeapProfiler::MESSAGE(2, "HeapChecker: Found %d threads (from pid %d)\n",
+                          num_threads, getpid());
+  }
+
+  // We put the registers from other threads here
+  // to make pointers stored in them live.
+  vector<void*> thread_registers;
 
   int failures = 0;
   for (int i = 0; i < num_threads; ++i) {
+    // the leak checking thread itself is handled
+    // specially via self_thread_stack, not here:
+    if (thread_pids[i] == self_thread_pid) continue;
     if (HeapProfiler::kMaxLogging) {
       HeapProfiler::MESSAGE(2, "HeapChecker: Handling thread with pid %d\n",
                             thread_pids[i]);
@@ -764,8 +798,6 @@ static int IgnoreLiveThreads(void* parameter,
     // We use sys_ptrace to avoid thread locking
     // because this is called from ListAllProcessThreads
     // when all but this thread are suspended.
-    // (This does not seem to matter much though: allocations and
-    //  logging with HeapProfiler::MESSAGE seem to work just fine.)
     if (sys_ptrace(PTRACE_GETREGS, thread_pids[i], NULL, &thread_regs) == 0) {
       void* stack_top;
       void* stack_bottom;
@@ -783,7 +815,7 @@ static int IgnoreLiveThreads(void* parameter,
         if (HeapProfiler::kMaxLogging) {
           HeapProfiler::MESSAGE(3, "HeapChecker: Thread register %p\n", *p);
         }
-        thread_registers->push_back(*p);
+        thread_registers.push_back(*p);
       }
     } else {
       failures += 1;
@@ -792,6 +824,20 @@ static int IgnoreLiveThreads(void* parameter,
     failures += 1;
 #endif
   }
+  // Use all the collected thread (stack) liveness sources:
+  IgnoreLiveObjectsLocked("threads stack data", "");
+  if (thread_registers.size()) {
+    // Make thread registers be live heap data sources.
+    // we rely here on the fact that vector is in one memory chunk:
+    live_objects->push_back(AllocObject(&thread_registers[0],
+                                        thread_registers.size() * sizeof(void*),
+                                        THREAD_REGISTERS));
+    IgnoreLiveObjectsLocked("threads register data", "");
+  }
+  // Do all other liveness walking while all threads are stopped:
+  IgnoreNonThreadLiveObjectsLocked();
+  // Can now resume the threads:
+  ResumeAllProcessThreads(num_threads, thread_pids);
   return failures;
 }
 
@@ -802,51 +848,21 @@ struct HeapLeakChecker::StackExtent {
   void* bottom;
 };
 
-// For this call we are free to call new/delete from this thread:
-// heap profiler will ignore them without acquiring its lock:
-void HeapLeakChecker::
-IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
-  if (live_objects)  abort();
-  live_objects = new LiveObjectsStack;
-  thread_registers = new vector<void*>;
-  IgnoreObjectLocked(thread_registers, true);
-    // in case we are not ignoring global data
-  stack_ranges = new StackRangeMap;
-  if (HeapProfiler::ignored_objects_)  abort();
-  HeapProfiler::ignored_objects_ = new HeapProfiler::IgnoredObjectSet;
-  // Record global data as live:
-  // We need to do it before we stop the threads in ListAllProcessThreads
-  // below; otherwise deadlocks are possible
-  // when we try to fork to execute objdump in UseProcMaps.
-  if (FLAGS_heap_check_ignore_global_live) {
-    library_live_objects = new LibraryLiveObjectsStacks;
-    UseProcMaps(RECORD_GLOBAL_DATA_LOCKED);
-  }
-  // Ignore all thread stacks:
-  if (FLAGS_heap_check_ignore_thread_live) {
-    // We fully suspend the threads right here before any liveness checking
-    // and keep them suspended for the whole time of liveness checking
-    // (they can't (de)allocate due to profiler's lock but they could still
-    //  mess with the pointer graph while we walk it).
-    int r = ListAllProcessThreads(NULL, IgnoreLiveThreads);
-    if (r == -1) {
-      HeapProfiler::MESSAGE(0, "HeapChecker: Could not find thread stacks; "
-                               "may get false leak reports\n");
-    } else if (r != 0) {
-      HeapProfiler::MESSAGE(0, "HeapChecker: Thread stacks not found "
-                               "for %d threads; may get false leak reports\n",
-                            r);
-    }
-    IgnoreLiveObjectsLocked("thread (stack) data", "");
-  }
+// Stack info of the thread that is doing the current leak check
+// (protected by our lock; IgnoreAllLiveObjectsLocked sets it)
+static HeapLeakChecker::StackExtent self_thread_stack;
+
+void HeapLeakChecker::IgnoreNonThreadLiveObjectsLocked() {
   // Register our own stack:
   if (HeapProfiler::kMaxLogging) {
     HeapProfiler::MESSAGE(2, "HeapChecker: Handling self thread with pid %d\n",
-                          getpid());
+                          self_thread_pid);
   }
-  if (self_stack.have) {
-    RegisterStackRange(self_stack.top, self_stack.bottom);
-      // DoNoLeaks sets these
+  if (self_thread_stack.have) {
+    // important that all stack ranges
+    // (including the one from the check initiator here)
+    // are known before we start looking at them in MakeDisabledLiveCallback:
+    RegisterStackRange(self_thread_stack.top, self_thread_stack.bottom);
     IgnoreLiveObjectsLocked("stack data", "");
   } else {
     HeapProfiler::MESSAGE(0, "HeapChecker: Stack not found "
@@ -892,12 +908,59 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
     }
     delete library_live_objects;
   }
-  // Can now resume the threads:
-  if (FLAGS_heap_check_ignore_thread_live) {
-    ResumeAllProcessThreads(last_num_threads, last_thread_pids);
-    delete [] last_thread_pids;
-    last_thread_pids = NULL;
+}
+
+// For this call we are free to call new/delete from this thread:
+// heap profiler will ignore them without acquiring its lock:
+void HeapLeakChecker::
+IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
+  if (live_objects)  abort();
+  live_objects = new LiveObjectsStack;
+  stack_ranges = new StackRangeMap;
+  if (HeapProfiler::ignored_objects_)  abort();
+  HeapProfiler::ignored_objects_ = new HeapProfiler::IgnoredObjectSet;
+  // Record global data as live:
+  // We need to do it before we stop the threads in ListAllProcessThreads
+  // below; otherwise deadlocks are possible
+  // when we try to fork to execute objdump in UseProcMaps.
+  if (FLAGS_heap_check_ignore_global_live) {
+    library_live_objects = new LibraryLiveObjectsStacks;
+    UseProcMaps(RECORD_GLOBAL_DATA_LOCKED);
   }
+  // Ignore all thread stacks:
+  bool executed_with_threads_stopped = false;
+  self_thread_pid = getpid();
+  self_thread_stack = self_stack;
+  if (FLAGS_heap_check_ignore_thread_live) {
+    // We fully suspend the threads right here before any liveness checking
+    // and keep them suspended for the whole time of liveness checking
+    // inside of the IgnoreLiveThreads callback.
+    // (The threads can't (de)allocate due to profiler's lock but
+    //  if not suspended they could still mess with the pointer
+    //  graph while we walk it).
+    int r = ListAllProcessThreads(NULL, IgnoreLiveThreads);
+    executed_with_threads_stopped = (r >= 0);
+    if (r == -1) {
+      HeapProfiler::MESSAGE(0, "HeapChecker: Could not find thread stacks; "
+                               "may get false leak reports\n");
+    } else if (r != 0) {
+      HeapProfiler::MESSAGE(0, "HeapChecker: Thread stacks not found "
+                               "for %d threads; may get false leak reports\n",
+                            r);
+    } else {
+      if (HeapProfiler::kMaxLogging) {
+        HeapProfiler::MESSAGE(2, "HeapChecker: Thread stacks appear"
+                                 " to be found for all threads\n");
+      }
+    }
+  } else {
+    HeapProfiler::MESSAGE(0, "HeapChecker: Not looking for thread stacks; "
+                             "objects reachable only from there "
+                             "will be reported as leaks\n");
+  }
+  // Do all other live data ignoring here if we did not do it
+  // within thread listing callback with all threads stopped.
+  if (!executed_with_threads_stopped)  IgnoreNonThreadLiveObjectsLocked();
   if (live_objects_total) {
     HeapProfiler::MESSAGE(0, "HeapChecker: "
                           "Ignoring "LLD" reachable "
@@ -907,9 +970,6 @@ IgnoreAllLiveObjectsLocked(const StackExtent& self_stack) {
   // Free these: we made them here and heap profiler never saw them
   delete live_objects;
   live_objects = NULL;
-  ignored_objects->erase(reinterpret_cast<uintptr_t>(thread_registers));
-  delete thread_registers;
-  thread_registers = NULL;
   delete stack_ranges;
   stack_ranges = NULL;
 }
@@ -1059,21 +1119,20 @@ void HeapLeakChecker::DisableChecksToHereFrom(void* start_address) {
 void HeapLeakChecker::IgnoreObject(void* ptr) {
   if (!heap_checker_on) return;
   if (pthread_mutex_lock(&heap_checker_lock) != 0)  abort();
-  IgnoreObjectLocked(ptr, false);
+  IgnoreObjectLocked(ptr);
   if (pthread_mutex_unlock(&heap_checker_lock) != 0)  abort();
 }
 
-void HeapLeakChecker::IgnoreObjectLocked(void* ptr, bool profiler_locked) {
+void HeapLeakChecker::IgnoreObjectLocked(void* ptr) {
   HeapProfiler::AllocValue alloc_value;
-  if (profiler_locked ? HeapProfiler::HaveOnHeapLocked(&ptr, &alloc_value)
-                      : HeapProfiler::HaveOnHeap(&ptr, &alloc_value)) {
+  if (HeapProfiler::HaveOnHeap(&ptr, &alloc_value)) {
     HeapProfiler::MESSAGE(1, "HeapChecker: "
                           "Going to ignore live object "
                           "at %p of %"PRIuS" bytes\n",
                           ptr, alloc_value.bytes);
     if (ignored_objects == NULL)  {
       ignored_objects = new IgnoredObjectsMap;
-      IgnoreObjectLocked(ignored_objects, profiler_locked);
+      IgnoreObjectLocked(ignored_objects);
         // ignore self in case we are not ignoring global data
     }
     if (!ignored_objects->insert(make_pair(reinterpret_cast<uintptr_t>(ptr),
@@ -1606,6 +1665,29 @@ void HeapLeakChecker::DoMainHeapCheck() {
 // HeapLeakChecker global constructor/destructor ordering components
 //----------------------------------------------------------------------
 
+// This is a workaround for nptl threads library in glibc
+// (that is e.g. commonly used for 2.6 linux kernel-based distributons).
+// nptl has an optimization for allocating thread-specific data,
+// that we have to work around here:
+// It preallocates (as specific_1stblock) the first second-level block
+// of PTHREAD_KEY_2NDLEVEL_SIZE pointers to thread-specific data
+// inside of the thread descriptor data structure itself.
+// Since we sometimes can't proclaim this first block as live data,
+// the workaround here simply uses up that block 
+// (by allocating a bunch of pthread-specific keys and forgeting about them)
+// as to force allocation of new second-level thread-specific data pointer
+// blocks, which would be know to heap profiler/checker for sure
+// since it's active by now.
+static inline void PThreadSpecificHack() {
+  // the value 32 corresponds to PTHREAD_KEY_2NDLEVEL_SIZE
+  // in glibc's pthread implementation
+  const int kKeyBlock = 32;
+  for (int i = 0; i < kKeyBlock; ++i) {
+    pthread_key_t key;
+    if (perftools_pthread_key_create(&key, NULL) != 0)  abort();
+  }
+}
+
 void HeapLeakChecker::BeforeConstructors() {
   // The user indicates a desire for heap-checking via the HEAPCHECK
   // environment variable.  If it's not set, there's no way to do
@@ -1629,6 +1711,8 @@ void HeapLeakChecker::BeforeConstructors() {
   // If not, we need to do it manually here.
   HeapProfiler::StartForLeaks();
   heap_checker_on = true;
+  PThreadSpecificHack();
+
 
   // The value of HEAPCHECK is the mode they want.  If we don't
   // recognize it, we default to "normal".
@@ -1682,7 +1766,7 @@ void HeapLeakChecker::DisableChecksInLocked(const char* pattern) {
   // make disabled_regexp
   if (disabled_regexp == NULL) {
     disabled_regexp = new string;
-    IgnoreObjectLocked(disabled_regexp, false);
+    IgnoreObjectLocked(disabled_regexp);
       // in case we are not ignoring global data
   }
   HeapProfiler::MESSAGE(1, "HeapChecker: "
@@ -1699,7 +1783,7 @@ void HeapLeakChecker::DisableChecksFromTo(void* start_address,
   if (pthread_mutex_lock(&heap_checker_lock) != 0)  abort();
   if (disabled_ranges == NULL) {
     disabled_ranges = new DisabledRangeMap;
-    IgnoreObjectLocked(disabled_ranges, false);
+    IgnoreObjectLocked(disabled_ranges);
       // in case we are not ignoring global data
   }
   RangeValue value;
@@ -1719,7 +1803,7 @@ void HeapLeakChecker::DisableChecksFromTo(void* start_address,
 void HeapLeakChecker::DisableChecksAtLocked(void* address) {
   if (disabled_addresses == NULL) {
     disabled_addresses = new DisabledAddressSet;
-    IgnoreObjectLocked(disabled_addresses, false);
+    IgnoreObjectLocked(disabled_addresses);
       // in case we are not ignoring global data
   }
   // disable the requested address

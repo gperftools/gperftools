@@ -44,8 +44,8 @@
 //  and <name> is given in the HeapLeakChecker's constructor)
 // and will return false in case the amount of in-use memory
 // is more at the time of *NoLeaks() call than
-// (or respectively differs at the time of *SameHeap() from)
-// what it was at the time of our construction.
+// (or respectively differs at the time of *SameHeap())
+// from what it was at the time of our construction.
 // It will also in this case print a message on how to process the dumped
 // profiles to locate leaks.
 //
@@ -75,7 +75,7 @@
 // is checked for the absence of heap memory leaks.
 //
 // NOTE: For all but "draconian" whole-program leak check we also
-// ignore all heap objects reachable (a the time of the check)
+// ignore all heap objects reachable (at the time of the check)
 // from any global variable or any live thread stack variable
 // or from any object identified by a HeapLeakChecker::IgnoreObject() call.
 //
@@ -126,7 +126,8 @@
 //   leaked objects are live.
 //   When we end the local check the heap profile snapshot now correctly
 //   determines that those objects are unreachable and reports them as leaks
-//   for this leak check, whereas they had been already leaked before it.
+//   for this leak check, whereas they had been already leaked before
+//   this leak check has started.
 //
 // THREADS and heap leak checking: At the time of HeapLeakChecker's
 // construction and during *NoLeaks()/*SameHeap() calls we grab a lock so that
@@ -307,7 +308,8 @@ class HeapLeakChecker {
   ssize_t BytesLeaked() const;
   ssize_t ObjectsLeaked() const;
 
-  // Destructor (verifies that some *NoLeaks method has been called).
+  // Destructor
+  // (verifies that some *SameHeap or *NoLeaks method has been called).
   ~HeapLeakChecker();
 
   // Accessors to determine various internal parameters.  These should
@@ -463,7 +465,7 @@ class HeapLeakChecker {
   // Helper for *NoLeaks and *SameHeap
   bool DoNoLeaks(bool same_heap, bool do_full, bool do_report);
   // Helper for IgnoreObject
-  static void IgnoreObjectLocked(void* ptr, bool profiler_locked);
+  static void IgnoreObjectLocked(void* ptr);
   // Helper for DisableChecksAt
   static void DisableChecksAtLocked(void* address);
   // Helper for DisableChecksIn
@@ -474,8 +476,35 @@ class HeapLeakChecker {
                                   int max_depth);
   // Helper for DoNoLeaks to ignore all objects reachable from all live data
   static void IgnoreAllLiveObjectsLocked(const StackExtent& self_stack);
-  // Helper for IgnoreAllLiveObjectsLocked to ignore all heap objects
+  // Callback we pass to ListAllProcessThreads (see thread_lister.h)
+  // that is invoked when all threads of our process are found and stopped.
+  // The call back does the things needed to ignore live data reachable from
+  // thread stacks and registers for all our threads
+  // as well as do other global-live-data ignoring
+  // (via IgnoreNonThreadLiveObjectsLocked)
+  // during the quiet state of all threads being stopped.
+  // For the argument meaning see the comment by ListAllProcessThreads.
+  // Here we only use num_threads and thread_pids, that ListAllProcessThreads
+  // fills for us with the number and pids of all the threads of our process
+  // it found and attached to.
+  static int IgnoreLiveThreads(void* parameter,
+                               int num_threads,
+                               pid_t* thread_pids,
+                               va_list ap);
+  // Helper for IgnoreAllLiveObjectsLocked and IgnoreLiveThreads
+  // that we prefer to execute from IgnoreLiveThreads
+  // while all threads are stopped.
+  // This helper does live object discovery and ignoring
+  // for all objects that are reachable from everything
+  // not related to thread stacks and registers.
+  static void IgnoreNonThreadLiveObjectsLocked();
+  // Helper for IgnoreNonThreadLiveObjectsLocked and IgnoreLiveThreads
+  // to discover and ignore all heap objects
   // reachable from currently considered live objects
+  // (live_objects static global variable in out .cc file).
+  // "name", "name2" are two strings that we print one after another
+  // in a debug message to describe what kind of live object sources
+  // are being used.
   static void IgnoreLiveObjectsLocked(const char* name, const char* name2);
   // Runs REGISTER_HEAPCHECK_CLEANUP cleanups and potentially
   // calls DoMainHeapCheck

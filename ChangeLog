@@ -75,3 +75,13 @@ Fri Jan 27 14:04:27 2006  Google Inc. <opensource@google.com>
 	* New PC-detection routine for ibook powerpc (asbestoshead)
 	* Vastly improved tcmalloc unittest (csilvers)
 	* Move documentation from /usr/doc to /usr/share/doc
+
+Thu Apr 13 20:59:09 2006  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.7 release
+	* Major rewrite of thread introspection for new kernels (markus)
+	* Major rewrite of heap-checker to use new thread tools (maxim)
+	* Add proper support for following data in thread registers (maxim)
+	* Syscall support for older kernels, including _syscall6 (markus)
+	* Support PIC mode (markus, mbland, iant)
+	* Better support for running in non-threaded contexts (csilvers)
