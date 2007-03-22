@@ -62,7 +62,7 @@
 // * allocation of a reasonably complicated struct
 //   goes from about 1100 ns to about 300 ns.
 
-#include "google/perftools/config.h"
+#include "config.h"
 #include <new>
 #include <stdio.h>
 #include <stddef.h>
@@ -80,12 +80,13 @@
 #include <errno.h>
 #include <stdarg.h>
 #include "google/malloc_hook.h"
-#include "google/malloc_interface.h"
+#include "google/malloc_extension.h"
 #include "google/stacktrace.h"
 #include "internal_logging.h"
 #include "internal_spinlock.h"
 #include "pagemap.h"
 #include "system-alloc.h"
+#include "maybe_threads.h"
 
 #if defined HAVE_INTTYPES_H
 #define __STDC_FORMAT_MACROS
@@ -1240,11 +1241,11 @@ void TCMalloc_ThreadCache::FetchFromCentralCache(size_t cl) {
   SpinLockHolder h(&src->lock_);
   for (int i = 0; i < kNumObjectsToMove; i++) {
     void* object = src->Remove();
-    if (object == NULL) {
+   if (object == NULL) {
       if (i == 0) {
         src->Populate();        // Temporarily releases src->lock_
         object = src->Remove();
-      }
+     }
       if (object == NULL) {
         break;
       }
@@ -1297,7 +1298,7 @@ inline TCMalloc_ThreadCache* TCMalloc_ThreadCache::GetCache() {
   if (!tsd_inited) {
     InitModule();
   } else {
-    ptr = pthread_getspecific(heap_key);
+    ptr = perftools_pthread_getspecific(heap_key);
   }
   if (ptr == NULL) ptr = CreateCacheIfNecessary();
   return reinterpret_cast<TCMalloc_ThreadCache*>(ptr);
@@ -1308,7 +1309,8 @@ inline TCMalloc_ThreadCache* TCMalloc_ThreadCache::GetCache() {
 // already cleaned up the cache for this thread.
 inline TCMalloc_ThreadCache* TCMalloc_ThreadCache::GetCacheIfPresent() {
   if (!tsd_inited) return NULL;
-  return reinterpret_cast<TCMalloc_ThreadCache*>(pthread_getspecific(heap_key));
+  return reinterpret_cast<TCMalloc_ThreadCache*>
+    (perftools_pthread_getspecific(heap_key));
 }
 
 void TCMalloc_ThreadCache::PickNextSample() {
@@ -1344,11 +1346,9 @@ void TCMalloc_ThreadCache::InitModule() {
   }
 }
 
-
-
 void TCMalloc_ThreadCache::InitTSD() {
   ASSERT(!tsd_inited);
-  pthread_key_create(&heap_key, DeleteCache);
+  perftools_pthread_key_create(&heap_key, DeleteCache);
   tsd_inited = true;
     
   // We may have used a fake pthread_t for the main thread.  Fix it.
@@ -1405,7 +1405,7 @@ void* TCMalloc_ThreadCache::CreateCacheIfNecessary() {
   // linked list of heaps.
   if (!heap->setspecific_ && tsd_inited) {
     heap->setspecific_ = true;
-    pthread_setspecific(heap_key, heap);
+    perftools_pthread_setspecific(heap_key, heap);
   }
   return heap;
 }
@@ -1592,7 +1592,7 @@ static void** DumpStackTraces() {
 }
 
 // TCMalloc's support for extra malloc interfaces
-class TCMallocImplementation : public MallocInterface {
+class TCMallocImplementation : public MallocExtension {
  public:
   virtual void GetStats(char* buffer, int buffer_length) {
     ASSERT(buffer_length > 0);
@@ -1667,40 +1667,6 @@ class TCMallocImplementation : public MallocInterface {
   }
 };
 
-
-
-// The constructor allocates an object to ensure that initialization
-// runs before main(), and therefore we do not have a chance to become
-// multi-threaded before initialization.  We also create the TSD key
-// here.  Presumably by the time this constructor runs, glibc is in
-// good enough shape to handle pthread_key_create().
-//
-// The destructor prints stats when the program exits.
-
-class TCMallocGuard {
- public:
-  TCMallocGuard() {
-    char *envval;
-    if ((envval = getenv("TCMALLOC_DEBUG"))) {
-      TCMallocDebug::level = atoi(envval);
-      MESSAGE("Set tcmalloc debugging level to %d\n", TCMallocDebug::level);
-    }
-    free(malloc(1));
-    TCMalloc_ThreadCache::InitTSD();
-    free(malloc(1));
-    MallocInterface::Register(new TCMallocImplementation);
-  }
-
-  ~TCMallocGuard() {
-    const char* env = getenv("MALLOCSTATS");
-    if (env != NULL) {
-      int level = atoi(env);
-      if (level < 1) level = 1;
-      PrintStats(level);
-    }
-  }
-};
-static TCMallocGuard module_enter_exit_hook;
 
 //-------------------------------------------------------------------
 // Helpers for the exported routines below
@@ -1856,6 +1822,48 @@ static void* do_memalign(size_t align, size_t size) {
   }
   return reinterpret_cast<void*>(span->start << kPageShift);
 }
+
+
+
+// The constructor allocates an object to ensure that initialization
+// runs before main(), and therefore we do not have a chance to become
+// multi-threaded before initialization.  We also create the TSD key
+// here.  Presumably by the time this constructor runs, glibc is in
+// good enough shape to handle pthread_key_create().
+//
+// The constructor also takes the opportunity to tell STL to use
+// tcmalloc.  We want to do this early, before construct time, so
+// all user STL allocations go through tcmalloc (which works really
+// well for STL).
+//
+// The destructor prints stats when the program exits.
+
+class TCMallocGuard {
+ public:
+  TCMallocGuard() {
+    char *envval;
+    if ((envval = getenv("TCMALLOC_DEBUG"))) {
+      TCMallocDebug::level = atoi(envval);
+      MESSAGE("Set tcmalloc debugging level to %d\n", TCMallocDebug::level);
+    }
+    do_free(do_malloc(1));
+    TCMalloc_ThreadCache::InitTSD();
+    do_free(do_malloc(1));
+    MallocExtension::Register(new TCMallocImplementation);
+  }
+
+  ~TCMallocGuard() {
+    const char* env = getenv("MALLOCSTATS");
+    if (env != NULL) {
+      int level = atoi(env);
+      if (level < 1) level = 1;
+      PrintStats(level);
+    }
+  }
+};
+
+static TCMallocGuard module_enter_exit_hook;
+
 
 //-------------------------------------------------------------------
 // Exported routines

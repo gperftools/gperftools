@@ -34,9 +34,11 @@
 // Define WITH_THREADS to add pthread functionality as well (otherwise, btw,
 // the num_threads argument to this program is ingored).
 
-#include "google/perftools/config.h"
+#include "config.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <unistd.h>                 // for fork()
+#include <sys/wait.h>               // for wait()
 #include "google/profiler.h"
 
 static int result = 0;
@@ -97,7 +99,8 @@ int main(int argc, char** argv) {
     fprintf(stderr, "USAGE: %s <iters> [num_threads] [filename]\n", argv[0]);
     fprintf(stderr, "   iters: How many million times to run the XOR test.\n");
     fprintf(stderr, "   num_threads: how many concurrent threads.\n");
-    fprintf(stderr, "                0 or 1 for single-threaded mode.\n");
+    fprintf(stderr, "                0 or 1 for single-threaded mode,\n");
+    fprintf(stderr, "                -# to fork instead of thread.\n");
     fprintf(stderr, "   filename: The name of the output profile.\n");
     fprintf(stderr, ("             If you don't specify, set CPUPROFILE "
                      "in the environment instead!\n"));
@@ -130,6 +133,24 @@ int main(int argc, char** argv) {
     thread_id = pthread_create(&thr, NULL, &test_other_thread, &iters);
   }
 #endif
+
+  // Or maybe they asked to fork.  The fork test is only interesting
+  // when we use CPUPROFILE to name, so check for that
+  for (; num_threads < 0; ++num_threads) {   // -<num_threads> to fork
+    if (filename) {
+      printf("FORK test only makes sense when no filename is specified.\n");
+      return 2;
+    }
+    switch (fork()) {
+      case -1: 
+        printf("FORK failed!\n"); 
+        return 1;
+      case 0:             // child
+        return execl(argv[0], argv[0], argv[1], NULL);
+      default:
+        wait(NULL);       // we'll let the kids run one at a time
+    }
+  }
 
   int r = test_main_thread(iters);
   printf("The XOR test returns %d\n", r);

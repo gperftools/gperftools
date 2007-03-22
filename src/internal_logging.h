@@ -35,7 +35,7 @@
 #ifndef TCMALLOC_INTERNAL_LOGGING_H__
 #define TCMALLOC_INTERNAL_LOGGING_H__
 
-#include "google/perftools/config.h"
+#include "config.h"
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>

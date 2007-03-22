@@ -32,14 +32,17 @@
 //
 // Author: Maxim Lifantsev
 //
-// A file to ensure that components of heap leak checker run
-// before all global object constructors
-// and after all global object destructors.
+// A file to ensure that components of heap leak checker run before
+// all global object constructors and after all global object
+// destructors.
 //
-// This file must be the last google library any google binary links against
-// (we achieve this by making //base:base depend
-//  on //base:heap-checker-bcad, the library containing this .cc)
-//
+// This file must be the last library any binary links against.
+// Otherwise, the heap checker may not be able to run early enough to
+// catalog all the global objects in your program.  If this happens,
+// and later in the program you allocate memory and have one of these
+// "uncataloged" global objects point to it, the heap checker will
+// consider that allocation to be a leak, even though it's not (since
+// the allocated object is reachable from global data and hence "live").
 
 #include <stdlib.h>      // for abort()
 

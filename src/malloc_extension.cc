@@ -30,7 +30,7 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
-#include "google/perftools/config.h"
+#include "config.h"
 #include <assert.h>
 #include <string.h>
 #include <pthread.h>
@@ -44,31 +44,59 @@
 #endif
 #include <string>
 #include "google/perftools/hash_set.h"
-#include "google/malloc_interface.h"
+#include "google/malloc_extension.h"
+#include "maybe_threads.h"
 
 using STL_NAMESPACE::string;
 
+// Note: this routine is meant to be called before threads are spawned.
+void MallocExtension::Initialize() {
+  static bool initialize_called = false;
+
+  if (initialize_called) return;
+  initialize_called = true;
+
+  // GNU libc++ versions 3.3 and 3.4 obey the environment variables
+  // GLIBCPP_FORCE_NEW and GLIBCXX_FORCE_NEW respectively.  Setting
+  // one of these variables forces the STL default allocator to call
+  // new() or delete() for each allocation or deletion.  Otherwise
+  // the STL allocator tries to avoid the high cost of doing
+  // allocations by pooling memory internally.  However, tcmalloc
+  // does allocations really fast, especially for the types of small
+  // items one sees in STL, so it's better off just using us.
+  // TODO: control whether we do this via an environment variable?
+  setenv("GLIBCPP_FORCE_NEW", "1", false /* no overwrite*/);
+  setenv("GLIBCXX_FORCE_NEW", "1", false /* no overwrite*/);
+
+  // Now we need to make the setenv 'stick', which it may not do since
+  // the env is flakey before main() is called.  But luckily stl only
+  // looks at this env var the first time it tries to do an alloc, and
+  // caches what it finds.  So we just cause an stl alloc here.
+  string dummy("I need to be allocated");
+  dummy += "!";         // so the definition of dummy isn't optimized out
+}
+
 // Default implementation -- does nothing
-MallocInterface::~MallocInterface() { }
-bool MallocInterface::VerifyAllMemory() { return true; }
-bool MallocInterface::VerifyNewMemory(void* p) { return true; }
-bool MallocInterface::VerifyArrayNewMemory(void* p) { return true; }
-bool MallocInterface::VerifyMallocMemory(void* p) { return true; }
+MallocExtension::~MallocExtension() { }
+bool MallocExtension::VerifyAllMemory() { return true; }
+bool MallocExtension::VerifyNewMemory(void* p) { return true; }
+bool MallocExtension::VerifyArrayNewMemory(void* p) { return true; }
+bool MallocExtension::VerifyMallocMemory(void* p) { return true; }
 
-bool MallocInterface::GetNumericProperty(const char* property, size_t* value) {
+bool MallocExtension::GetNumericProperty(const char* property, size_t* value) {
   return false;
 }
 
-bool MallocInterface::SetNumericProperty(const char* property, size_t value) {
+bool MallocExtension::SetNumericProperty(const char* property, size_t value) {
   return false;
 }
 
-void MallocInterface::GetStats(char* buffer, int length) {
+void MallocExtension::GetStats(char* buffer, int length) {
   assert(length > 0);
   buffer[0] = '\0';
 }
 
-bool MallocInterface::MallocMemoryStats(int* blocks, size_t* total,
+bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total,
                                        int histogram[kMallocHistogramSize]) {
   *blocks = 0;
   *total = 0;
@@ -76,30 +104,30 @@ bool MallocInterface::MallocMemoryStats(int* blocks, size_t* total,
   return true;
 }
 
-void** MallocInterface::ReadStackTraces() {
+void** MallocExtension::ReadStackTraces() {
   return NULL;
 }
 
-// The current malloc interface object.  We also keep a pointer to
+// The current malloc extension object.  We also keep a pointer to
 // the default implementation so that the heap-leak checker does not
 // complain about a memory leak.
 
 static pthread_once_t module_init = PTHREAD_ONCE_INIT;
-static MallocInterface* default_instance = NULL;
-static MallocInterface* current_instance = NULL;
+static MallocExtension* default_instance = NULL;
+static MallocExtension* current_instance = NULL;
 
 static void InitModule() {
-  default_instance = new MallocInterface;
+  default_instance = new MallocExtension;
   current_instance = default_instance;
 }
 
-MallocInterface* MallocInterface::instance() {
-  pthread_once(&module_init, InitModule);
+MallocExtension* MallocExtension::instance() {
+  perftools_pthread_once(&module_init, InitModule);
   return current_instance;
 }
 
-void MallocInterface::Register(MallocInterface* implementation) {
-  pthread_once(&module_init, InitModule);
+void MallocExtension::Register(MallocExtension* implementation) {
+  perftools_pthread_once(&module_init, InitModule);
   current_instance = implementation;
 }
 
@@ -127,7 +155,7 @@ void* PC(void** entry, int i) {
 struct StackTraceHash {
   size_t operator()(void** entry) const {
     uintptr_t h = 0;
-    for (int i = 0; i < Depth(entry); i++) {
+    for (unsigned int i = 0; i < Depth(entry); i++) {
       uintptr_t pc = reinterpret_cast<uintptr_t>(PC(entry, i));
       h = (h << 8) | (h >> (8*(sizeof(h)-1)));
       h += (pc * 31) + (pc * 7) + (pc * 3);
@@ -157,7 +185,7 @@ void DebugStringWriter(const char* str, void* arg) {
 
 }
 
-void MallocInterface::GetHeapSample(string* result) {
+void MallocExtension::GetHeapSample(string* result) {
   void** entries = ReadStackTraces();
   if (entries == NULL) {
     *result += "this malloc implementation does not support sampling\n";

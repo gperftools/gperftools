@@ -39,7 +39,7 @@
 #ifndef BASE_HEAP_PROFILER_INL_H__
 #define BASE_HEAP_PROFILER_INL_H__
 
-#include <google/perftools/config.h>
+#include "config.h"
 
 #if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
@@ -49,7 +49,7 @@
 #include <sys/types.h>          // our last best hope
 #endif
 #include <pthread.h>
-#include <google/perftools/basictypes.h>
+#include "base/basictypes.h"
 #include <google/heap-profiler.h>
 #include <map>
 #include <google/perftools/hash_set.h>
@@ -80,16 +80,7 @@ class HeapProfiler {
   };
   typedef AddressMap<AllocValue> AllocationMap;
 
-  // Value stored in the map of disabled address ranges;
-  // its key is the end of the address range.
-  // We'll ignore allocations with a return address in a disabled range
-  // if the address occurs at 'max_depth' or less in the stack trace.
-  struct RangeValue {
-    uintptr_t start_address;  // the start of the range
-    int       max_depth;      // the maximal stack depth to disable at
-  };
-  typedef STL_NAMESPACE::map<uintptr_t, RangeValue> DisabledRangeMap;
-  typedef HASH_NAMESPACE::hash_set<uintptr_t> DisabledAddressesSet;
+  typedef HASH_NAMESPACE::hash_set<uintptr_t> IgnoredObjectSet;
 
  private:  // state variables
            // NOTE: None of these have destructors that change their state.
@@ -97,19 +88,21 @@ class HeapProfiler {
 
   // Is heap-profiling on as a subsytem
   static bool is_on_;
+  // Is heap-profiling needed for heap leak checking.
+  static bool need_for_leaks_;
+  // Has Init() been called?  Used by heap-profiler to avoid initting
+  // more than once (since heap-checker may call Init() manually.)
+  static bool init_has_been_called_;
   // If we are disabling heap-profiling recording for incoming
-  // (de)allocation calls from the thread specified by temp_disabled_tid_.
+  // (de)allocation calls from the thread specified by self_disabled_tid_.
   // This is done for (de)allocations that are internal
   // to heap profiler or heap checker, so that we can hold the global
-  // profiler's lock and pause heap activity from other threads.
-  static bool temp_disable_;
-  static pthread_t temp_disabled_tid_;
-  // The disabled addresses registered
-  // with HeapLeakChecker::DisableChecksUp
-  static DisabledAddressesSet* disabled_addresses_;
-  // The disabled address ranges registered
-  // with HeapLeakChecker::DisableChecksFromTo.
-  static DisabledRangeMap* disabled_ranges_;
+  // profiler's lock and pause heap activity from other threads
+  // while working freely in our thread.
+  static bool self_disable_;
+  static pthread_t self_disabled_tid_;
+  // The ignored live object addresses for profile dumping.
+  static IgnoredObjectSet* ignored_objects_;
   // Flag if we are doing heap dump for leaks checking vs.
   // for general memory profiling
   static bool dump_for_leaks_;
@@ -119,9 +112,9 @@ class HeapProfiler {
   static Bucket total_;
   // Last dumped profile stats
   static Bucket profile_;
-  // Stats for the disabled part of the last dumped profile
-  static Bucket disabled_;
-  // Prefix used for profile file names (NULL if not ready for dumping yet)
+  // Stats for the (de)allocs disabled with the use of self_disable_
+  static Bucket self_disabled_;
+  // Prefix used for profile file names (NULL if no need for dumping yet)
   static char* filename_prefix_;
   // Map of all currently allocated object we know about
   static AllocationMap* allocation_;
@@ -147,9 +140,9 @@ class HeapProfiler {
   static void* Malloc(size_t bytes);
   static void Free(void* p);
   // Helper for HeapProfilerDump:
-  // second_prefix is not NULL when the dumped profile
-  // is to be named differently for leaks checking
-  static void DumpLocked(const char *reason, const char* second_prefix);
+  // If file_name is not NULL when it gives the name for the dumped profile,
+  // else we use the standard sequential name.
+  static void DumpLocked(const char *reason, const char* file_name);
 
  private:  // helpers of heap-checker.cc
 
@@ -165,15 +158,25 @@ class HeapProfiler {
 
   // Get bucket for current stack trace (skip "skip_count" most recent frames)
   static Bucket* GetBucket(int skip_count);
-  static int UnparseBucket(char* buf, int buflen, int bufsize, Bucket* b);
+  // Unparse bucket b and print its portion of profile dump into buf.
+  // We return the amount of space in buf that we use.  We start printing
+  // at buf + buflen, and promise not to go beyond buf + bufsize.
+  static int UnparseBucket(char* buf, int buflen, int bufsize, const Bucket* b);
+  // Add ignored_objects_ 'adjust' times (ususally -1 or 1)
+  // to the profile bucket data.
+  static void AdjustByIgnoredObjects(int adjust);
   static void RecordAlloc(void* ptr, size_t bytes, int skip_count);
   static void RecordFree(void* ptr);
-  static void RecordFreeLocked(void* ptr);
   // Activates profile collection before profile dumping.
   // Can be called before global object constructors.
   static void EarlyStartLocked();
+  // Cleanup any old profile files
+  static void CleanupProfiles(const char* prefix);
+  // Profiling subsystem starting and stopping.
   static void StartLocked(const char* prefix);
   static void StopLocked();
+  static void StartForLeaks();
+  static void StopForLeaks();
   static void NewHook(void* ptr, size_t size);
   static void DeleteHook(void* ptr);
   static void MmapHook(void* result,
@@ -202,6 +205,12 @@ class HeapProfiler {
     __attribute__ ((__format__ (__printf__, 2, 3)))
 #endif
 ;
+
+  // Set this to true when you want maximal logging for
+  // debugging problems in heap profiler or checker themselves.
+  // We use this constant instead of logging_level in MESSAGE()
+  // to completely compile-out this extra logging in all normal cases.
+  static const bool kMaxLogging = false;
 
   // Module initialization
   static void Init();

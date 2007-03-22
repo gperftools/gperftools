@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include "google/malloc_interface.h"
+#include "google/malloc_extension.h"
 
 #define BUFSIZE (100 << 10)
 
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
   delete[] buf2;
 
   char buffer[10 << 10];
-  MallocInterface::instance()->GetStats(buffer, sizeof(buffer));
+  MallocExtension::instance()->GetStats(buffer, sizeof(buffer));
   printf("Malloc stats:\n%s\n", buffer);
 
   return 0;

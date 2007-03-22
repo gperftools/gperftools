@@ -32,38 +32,24 @@
 //
 // Module for heap-profiling.
 //
-// This module is safe to link into any program you may wish to profile at some
-// point.  It will not cause any noticeable slowdowns unless you activate it at
-// some point in your program.  So, for instance, you can do something like
-// this (using GNU getopt-long extensions):
+// This module is safe to link into any program you may wish to
+// profile at some point.  It will not cause any noticeable slowdowns
+// unless you activate by setting the environment variable
+// HEAPPROFILE, e.g.:
+// $ export HEAPPROFILE=/tmp/my_program_profile ; ./my_program
+// $ ls /tmp/my_program_profile.*
+//    /tmp/my_program_profile.0000.heap
+//    /tmp/my_program_profile.0001.heap
+//    /tmp/my_program_profile.0002.heap
+//    ...
 //
-// int main (int argc, char **argv) {
-//   static struct option long_options[] = {
-//     {"heap-profile", 1, 0, 0},
-//   };
-//   int option_index = 0;
-//   int c = getopt_long (argc, argv, "", long_options, &option_index);
-//
-//   if (c == 0 && !strcmp(long_options[option_index].name, "heap-profile")) {
-//     HeapProfilerStart(optarg);
-//   }
-//
-//   /* ... */
-// }
-//
-// This allows you to easily profile your program at any time without having to
-// recompile, and doesn't slow things down if you are not profiling.
-//
-// Heap profiles will be written to a sequence of files whose name
-// starts with the supplied prefix.
-//
-// Example:
-//   % bin/programname --heap_profile=foo ...
-//   % ls foo.*
-//      foo.0000.heap
-//      foo.0001.heap
-//      foo.0002.heap
-//      ...
+// This allows you to easily profile your program at any time without
+// having to recompile, and doesn't slow things down if HEAPPROFILE is
+// unset.  We refuse to do profiling if uid != euid, to avoid
+// environment-based security issues if your program is accidentally
+// setuid.  Note that this library should generally not be linked into
+// setuid programs.  It has not been reviewed or tested for security
+// under setuid conditions.
 //
 // If heap-profiling is turned on, a profile file is dumped every GB
 // of allocated data.  You can override this behavior by calling
@@ -77,24 +63,25 @@
 // high-water-mark.  This number can be changed by calling
 // HeapProfilerSetInuseInterval() with a different byte-value.
 //
-// STL WARNING: The HeapProfiler does not accurately track allocations in
-// many STL implementations.  This is because it is common for the default STL
-// allocator to keep an internal pool of memory and nevery return it to the
-// system.  This means that large allocations may be attributed to an object
-// that you know was destroyed.  For a simple example, see
-// TestHeapLeakCheckerSTL in src/tests/heap-checker_unittest.cc.
+// STL WARNING: The HeapProfiler does not accurately track allocations
+// in many STL implementations.  This is because it is common for the
+// default STL allocator to keep an internal pool of memory and nevery
+// return it to the system.  This means that large allocations may be
+// attributed to an object that you know was destroyed.  For a simple
+// example, see TestHeapLeakCheckerSTL in
+// src/tests/heap-checker_unittest.cc.
 //
-// This issue is resolved for GCC 3.3 and 3.4 by setting the environment
-// variable GLIBCXX_FORCE_NEW, which forces the STL allocator to call `new' and
-// `delete' explicitly for every allocation and deallocation.  For GCC 3.2 and
-// previous you will need to compile your source with -D__USE_MALLOC.  For
-// other compilers / STL libraries, there may be a similar solution;  See your
-// implementation's documentation for information.
+// This issue is resolved for GCC 3.3 and 3.4 by setting the
+// environment variable GLIBCXX_FORCE_NEW, which forces the STL
+// allocator to call `new' and `delete' explicitly for every
+// allocation and deallocation.  For GCC 3.2 and previous you will
+// need to compile your source with -D__USE_MALLOC.  For other
+// compilers / STL libraries, there may be a similar solution; See
+// your implementation's documentation for information.
 
 #ifndef _HEAP_PROFILER_H
 #define _HEAP_PROFILER_H
 
-#include <google/perftools/basictypes.h> // For int64 definition
 #include <stddef.h>
 
 // Start profiling and arrange to write profile data to file names
@@ -117,22 +104,17 @@ extern char* GetHeapProfile();
 
 // ---- Configuration accessors ----
 
-// Prefix to which we dump heap profiles.  If empty, we do not dump.  This
-// must be set to your desired value before HeapProfiler::Init() is called.
-// Default: empty
-extern void HeapProfilerSetDumpPath(const char* path);
-
 // Level of logging used by the heap profiler and heap checker (if applicable)
 // Default: 0
 extern void HeapProfilerSetLogLevel(int level);
 
 // Dump heap profiling information once every specified number of bytes
 // allocated by the program.  Default: 1GB
-extern void HeapProfilerSetAllocationInterval(int64 interval);
+extern void HeapProfilerSetAllocationInterval(size_t interval);
 
 // Dump heap profiling information whenever the high-water 
 // memory usage mark increases by the specified number of
 // bytes.  Default: 100MB
-extern void HeapProfilerSetInuseInterval(int64 interval);
+extern void HeapProfilerSetInuseInterval(size_t interval);
 
 #endif /* _HEAP_PROFILER_H */

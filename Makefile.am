@@ -26,7 +26,7 @@ docdir = $(prefix)/doc/$(PACKAGE)-$(VERSION)
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README TODO
+dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README TODO 
 
 # The libraries (.so's) you want to install
 # We'll add to this later, on a library-by-library basis
@@ -46,12 +46,14 @@ noinst_SCRIPTS =
 
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
+dist_doc_DATA += doc/index.html
+
 ### ------- stack trace
 
 ### The header files we use.  We divide into categories based on directory
 S_STACKTRACE_INCLUDES =
 SG_STACKTRACE_INCLUDES = src/google/stacktrace.h
-SGP_STACKTRACE_INCLUDES = src/google/perftools/config.h
+SGP_STACKTRACE_INCLUDES = src/config.h
 STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES) $(SGP_STACKTRACE_INCLUDES)
 googleinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SGP_STACKTRACE_INCLUDES)
@@ -75,55 +77,58 @@ stacktrace_unittest_LDADD = libstacktrace.la
 ### Documentation
 dist_doc_DATA += 
 
-### ------- tcmalloc (thread-caching malloc)
+### ------- tcmalloc_minimal (thread-caching malloc)
 
 ### The header files we use.  We divide into categories based on directory
-S_TCMALLOC_INCLUDES = src/internal_logging.h \
-                      src/system-alloc.h \
-                      src/internal_spinlock.h \
-                      src/base/commandlineflags.h \
-                      src/pagemap.h 
-SG_TCMALLOC_INCLUDES = src/google/malloc_hook.h \
-                       src/google/malloc_interface.h \
-                       src/google/stacktrace.h 
-SGP_TCMALLOC_INCLUDES = src/google/perftools/config.h \
-                        src/google/perftools/basictypes.h \
-                        src/google/perftools/hash_set.h
-TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_INCLUDES) $(SGP_TCMALLOC_INCLUDES)
-googleinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
-perftoolsinclude_HEADERS += $(SGP_TCMALLOC_INCLUDES)
+S_TCMALLOC_MINIMAL_INCLUDES = src/config.h \
+                              src/internal_logging.h \
+                              src/system-alloc.h \
+                              src/internal_spinlock.h \
+                              src/base/commandlineflags.h \
+                              src/base/basictypes.h \
+                              src/pagemap.h \
+                              src/maybe_threads.h
+SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
+                               src/google/malloc_extension.h \
+                               src/google/stacktrace.h 
+SGP_TCMALLOC_MINIMAL_INCLUDES = src/google/perftools/hash_set.h
+TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) $(SGP_TCMALLOC_MINIMAL_INCLUDES)
+googleinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
+perftoolsinclude_HEADERS += $(SGP_TCMALLOC_MINIMAL_INCLUDES)
 
 ### Making the library
-lib_LTLIBRARIES += libtcmalloc.la
-libtcmalloc_la_SOURCES = src/internal_logging.cc \
-                         src/system-alloc.cc \
-                         src/tcmalloc.cc \
-                         src/malloc_hook.cc \
-                         src/malloc_interface.cc \
-                         $(TCMALLOC_INCLUDES)
-libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG
-TCMALLOC_SYMBOLS = '(malloc|free|realloc|calloc|cfree|memalign|valloc|pvalloc|posix_memalign|malloc_stats|MallocInterface|MallocHook)'
-libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -export-symbols-regex $(TCMALLOC_SYMBOLS)
-libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
+lib_LTLIBRARIES += libtcmalloc_minimal.la
+libtcmalloc_minimal_la_SOURCES = src/internal_logging.cc \
+                                 src/system-alloc.cc \
+                                 src/tcmalloc.cc \
+                                 src/malloc_hook.cc \
+                                 src/malloc_extension.cc \
+                                 src/maybe_threads.cc \
+                                 $(TCMALLOC_MINIMAL_INCLUDES)
+libtcmalloc_minimal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG
+TCMALLOC_MINIMAL_SYMBOLS = '(malloc|free|realloc|calloc|cfree|memalign|valloc|pvalloc|posix_memalign|malloc_stats|MallocExtension|MallocHook)'
+libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS) -export-symbols-regex $(TCMALLOC_MINIMAL_SYMBOLS)
+libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
 
 ### Unittests
 TESTS += malloc_unittest
-MALLOC_UNITEST_INCLUDES = src/google/malloc_interface.h \
+MALLOC_UNITEST_INCLUDES = src/config.h \
+                          src/google/malloc_extension.h \
                           src/google/malloc_hook.h \
-                          src/google/perftools/basictypes.h \
-                          src/google/perftools/config.h \
+                          src/base/basictypes.h \
                           src/google/perftools/hash_set.h \
-                          src/google/malloc_interface.h
+                          src/maybe_threads.h
 malloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                           src/malloc_hook.cc \
-                          src/malloc_interface.cc \
+                          src/malloc_extension.cc \
+                          src/maybe_threads.cc \
                           $(MALLOC_UNITTEST_INCLUDES)
 malloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
 malloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 malloc_unittest_LDADD = $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_unittest
-TCMALLOC_UNITTEST_INCLUDES = src/google/malloc_interface.h
+TCMALLOC_UNITTEST_INCLUDES = src/google/malloc_extension.h
 tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                             $(TCMALLOC_UNITTEST_INCLUDES)
 tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
@@ -153,7 +158,29 @@ dist_doc_DATA += doc/tcmalloc.html \
                  doc/overview.gif \
                  doc/pageheap.gif \
                  doc/spanmap.gif \
-                 doc/threadheap.gif
+                 doc/threadheap.gif \
+                 doc/t-test1.times.txt \
+                 doc/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
+                 doc/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
+                 doc/tcmalloc-opspersec.vs.size.1.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.12.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.16.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.2.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.20.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.3.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.4.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.5.threads.png 		\
+                 doc/tcmalloc-opspersec.vs.size.8.threads.png 
 
 # I don't know how to say "distribute the .dot files but don't install them";
 # noinst doesn't seem to work with data.  I separate them out anyway, in case
@@ -164,15 +191,120 @@ dist_doc_DATA += doc/overview.dot \
                  doc/spanmap.dot \
                  doc/threadheap.dot
 
+### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
+
+### The header files we use.  We divide into categories based on directory
+S_TCMALLOC_INCLUDES = src/config.h \
+                      src/internal_logging.h \
+                      src/system-alloc.h \
+                      src/internal_spinlock.h \
+                      src/pagemap.h \
+                      src/heap-profiler-inl.h \
+                      src/addressmap-inl.h \
+                      src/base/basictypes.h \
+                      src/base/commandlineflags.h \
+                      src/base/logging.h \
+                      src/base/googleinit.h \
+                      src/base/elfcore.h \
+                      src/base/linuxthreads.h \
+                      src/base/thread_lister.h \
+                      src/maybe_threads.h
+SG_TCMALLOC_INCLUDES = src/google/malloc_hook.h \
+                       src/google/malloc_extension.h \
+                       src/google/heap-profiler.h \
+                       src/google/heap-checker.h \
+                       src/google/stacktrace.h 
+SGP_TCMALLOC_INCLUDES = src/google/perftools/hash_set.h
+TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_INCLUDES) $(SGP_TCMALLOC_INCLUDES)
+googleinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
+perftoolsinclude_HEADERS += $(SGP_TCMALLOC_INCLUDES)
+
+### Making the library
+lib_LTLIBRARIES += libtcmalloc.la
+libtcmalloc_la_SOURCES = src/internal_logging.cc \
+                         src/system-alloc.cc \
+                         src/tcmalloc.cc \
+                         src/malloc_hook.cc \
+                         src/malloc_extension.cc \
+                         src/maybe_threads.cc \
+                         src/heap-profiler.cc \
+                         src/heap-checker.cc \
+                         src/heap-checker-bcad.cc \
+                         src/base/elfcore.c \
+                         src/base/linuxthreads.c \
+                         src/base/thread_lister.c \
+                         $(TCMALLOC_INCLUDES)
+libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG
+TCMALLOC_SYMBOLS = '(malloc|free|realloc|calloc|cfree|memalign|valloc|pvalloc|posix_memalign|malloc_stats|MallocExtension|MallocHook|HeapProfilerStart|HeapProfilerStop|HeapProfilerDump|GetHeapProfile|HeapCleaner|HeapLeakChecker)'
+libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -export-symbols-regex $(TCMALLOC_SYMBOLS)
+libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
+
+### Unittests
+TESTS += addressmap_unittest
+ADDRESSMAP_UNITTEST_INCLUDES = src/addressmap-inl.h \
+                               src/base/logging.h \
+                               src/base/commandlineflags.h
+addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc \
+                              $(ADDRESSMAP_UNITTEST_INCLUDES)
+addressmap_unittest_CXXFLAGS = -g
+
+check_SCRIPTS += heap-profiler_unittest_sh
+noinst_SCRIPTS += src/tests/heap-profiler_unittest.sh
+
+# These are sub-programs used by heap-profiler_unittest.sh
+HEAP_PROFILER_UNITTESTS = heap-profiler_unittest
+heap-profiler_unittest_sh: $(HEAP_PROFILER_UNITTESTS)
+	$(top_srcdir)/src/tests/heap-profiler_unittest.sh . $(top_srcdir)/src
+
+HEAP_PROFILER_UNITTEST_INCLUDES = src/google/heap-profiler.h
+heap_profiler_unittest_SOURCES = src/tests/heap-profiler_unittest.cc \
+                                 $(HEAP_PROFILER_UNITTEST_INCLUDES)
+heap_profiler_unittest_CXXFLAGS = -g
+heap_profiler_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS)
+heap_profiler_unittest_LDADD = libtcmalloc.la $(PTHREAD_LIBS)
+
+check_SCRIPTS += heap_checker_unittest_sh
+noinst_SCRIPTS += src/tests/heap-checker_unittest.sh
+
+# These are sub-programs used by heap-checker_unittest.sh
+HEAP_CHECKER_UNITTESTS = heap-checker_unittest
+heap_checker_unittest_sh: $(HEAP_CHECKER_UNITTESTS)
+	$(top_srcdir)/src/tests/heap-checker_unittest.sh . $(top_srcdir)/src
+
+HEAP_CHECKER_UNITTEST_INCLUDES = src/config.h \
+                                 src/base/logging.h \
+                                 src/base/googleinit.h \
+                                 src/google/heap-profiler.h \
+                                 src/google/heap-checker.h
+heap_checker_unittest_SOURCES = src/tests/heap-checker_unittest.cc \
+                                $(HEAP_CHECKER_UNITTEST_INCLUDES)
+heap_checker_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS)
+heap_checker_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS)
+# tcmalloc has to be specified last!
+heap_checker_unittest_LDADD =  $(PTHREAD_LIBS) -ltcmalloc
+
+check_SCRIPTS += heap-checker-death_unittest
+noinst_SCRIPTS += src/tests/heap-checker-death_unittest.sh
+
+heap-checker-death_unittest:
+	PPROF_PATH=$(top_srcdir)/src/pprof sh $(top_srcdir)/src/tests/heap-checker-death_unittest.sh
+
+### Documentation (above and beyond tcmalloc_minimal documentation)
+dist_doc_DATA += doc/heap_profiler.html \
+                 doc/heap-example1.png \
+                 doc/heap_checker.html
+
+
 ### ------- CPU profiler
 
 ### The header files we use.  We divide into categories based on directory
-S_CPU_PROFILER_INCLUDES = src/base/commandlineflags.h \
+S_CPU_PROFILER_INCLUDES = src/config.h \
+                          src/base/commandlineflags.h \
                           src/base/googleinit.h \
                           src/base/logging.h
 SG_CPU_PROFILER_INCLUDES = src/google/profiler.h \
                            src/google/stacktrace.h
-SGP_CPU_PROFILER_INCLUDES = src/google/perftools/config.h
+SGP_CPU_PROFILER_INCLUDES = 
 CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES) $(SGP_CPU_PROFILER_INCLUDES)
 googleinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
 perftoolsinclude_HEADERS += $(SGP_CPU_PROFILER_INCLUDES)
@@ -186,16 +318,16 @@ CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisab
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
 
 ### Unittests
-check_SCRIPTS += profiler_unittest
+check_SCRIPTS += profiler_unittest_sh
 noinst_SCRIPTS += src/tests/profiler_unittest.sh
 
 # These are sub-programs used by profiler_unittest.sh
 PROFILER_UNITTESTS = profiler1_unittest profiler2_unittest profiler3_unittest \
                      profiler4_unittest
-profiler_unittest: $(PROFILER_UNITTESTS)
+profiler_unittest_sh: $(PROFILER_UNITTESTS)
 	$(top_srcdir)/src/tests/profiler_unittest.sh . $(top_srcdir)/src
 
-PROFILER_UNITTEST_INCLUDES = src/google/perftools/config.h \
+PROFILER_UNITTEST_INCLUDES = src/config.h \
                             src/google/profiler.h
 PROFILER_UNITTEST_SRCS = src/tests/profiler_unittest.cc \
                         $(PROFILER_UNITTEST_INCLUDES)
@@ -222,112 +354,14 @@ dist_doc_DATA += doc/cpu_profiler.html \
                  doc/pprof-vsnprintf-big.gif \
                  doc/pprof-vsnprintf.gif
 
-
-### ------- Heap profiler
-
-### The header files we use.  We divide into categories based on directory
-S_HEAP_PROFILER_INCLUDES = src/heap-profiler-inl.h \
-                           src/internal_spinlock.h \
-                           src/addressmap-inl.h \
-                           src/base/commandlineflags.h \
-                           src/base/logging.h \
-                           src/base/googleinit.h
-SG_HEAP_PROFILER_INCLUDES = src/google/malloc_hook.h \
-                            src/google/heap-profiler.h \
-                            src/google/stacktrace.h 
-SGP_HEAP_PROFILER_INCLUDES = src/google/perftools/config.h \
-                             src/google/perftools/basictypes.h \
-                             src/google/perftools/hash_set.h
-HEAP_PROFILER_INCLUDES = $(S_HEAP_PROFILER_INCLUDES) $(SG_HEAP_PROFILER_INCLUDES) $(SGP_HEAP_PROFILER_INCLUDES)
-googleinclude_HEADERS += $(SG_HEAP_PROFILER_INCLUDES)
-perftoolsinclude_HEADERS += $(SGP_HEAP_PROFILER_INCLUDES)
-
-### Making the library
-lib_LTLIBRARIES += libheapprofiler.la
-libheapprofiler_la_SOURCES = src/heap-profiler.cc \
-                             src/heap-checker-bcad.cc \
-                             $(HEAP_PROFILER_INCLUDES)
-# We only need pthreads because we're linking with tcmalloc
-libheapprofiler_la_CXXFLAGS = $(PTHREAD_CFLAGS)
-# TODO: The lowercased symbols in this list are member variables of
-# HeapProfiler that the HeapLeakChecker requires access to in order to do its
-# job.  We should refactor the HeapProfiler so that these are proper accessors
-# (probably protected ones)
-HEAP_PROFILER_SYMBOLS = '(HeapProfilerStart|HeapProfilerStop|HeapProfilerDump|GetHeapProfile|filename_prefix_|is_on_|dumping_|temp_disable_|dump_for_leaks_|profile_)'
-libheapprofiler_la_LDFLAGS = $(PTHREAD_CFLAGS) -export-symbols-regex $(HEAP_PROFILER_SYMBOLS)
-# We may as well depend of libtcmalloc since it is part of the same package,
-# but it is worth noting that it would be easy to break this dependency by
-# depending on a malloc_normal.cc that overrides the system malloc & friends
-# with a version that has hooks into malloc_hook.cc.
-libheapprofiler_la_LIBADD = libtcmalloc.la $(PTHREAD_LIBS)
-
-### Unittests
-TESTS += addressmap_unittest
-ADDRESSMAP_UNITTEST_INCLUDES = src/addressmap-inl.h \
-                               src/base/logging.h \
-                               src/base/commandlineflags.h
-addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc \
-                              $(ADDRESSMAP_UNITTEST_INCLUDES)
-addressmap_unittest_CXXFLAGS = -g
-
-### Documentation
-dist_doc_DATA += doc/heap_profiler.html \
-                 doc/heap-example1.png
-
-### ------- Heap checker
-
-### The header files we use.  We divide into categories based on directory
-S_HEAP_CHECKER_INCLUDES = src/heap-profiler-inl.h \
-                          src/base/commandlineflags.h \
-                          src/base/logging.h
-SG_HEAP_CHECKER_INCLUDES = src/google/heap-profiler.h \
-                           src/google/heap-checker.h \
-                           src/google/stacktrace.h 
-SGP_HEAP_CHECKER_INCLUDES = src/google/perftools/config.h
-HEAP_CHECKER_INCLUDES = $(S_HEAP_CHECKER_INCLUDES) $(SG_HEAP_CHECKER_INCLUDES) $(SGP_HEAP_CHECKER_INCLUDES)
-googleinclude_HEADERS += $(SG_HEAP_CHECKER_INCLUDES)
-perftoolsinclude_HEADERS += $(SGP_HEAP_CHECKER_INCLUDES)
-
-### Making the library
-lib_LTLIBRARIES += libheapchecker.la
-libheapchecker_la_SOURCES = src/heap-checker.cc \
-                            src/heap-checker-bcad.cc \
-                            $(HEAP_CHECKER_INCLUDES)
-libheapchecker_la_CXXFLAGS = $(PTHREAD_CFLAGS)
-HEAP_CHECKER_SYMBOLS = '(HeapCleaner|HeapLeakChecker)'
-libheapchecker_la_LDFLAGS = $(PTHREAD_CFLAGS) -export-symbols-regex $(HEAP_CHECKER_SYMBOLS)
-libheapchecker_la_LIBADD = libheapprofiler.la $(PTHREAD_LIBS)
-
-### Unittests
-TESTS += heap-checker_unittest
-TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
-HEAP_CHECKER_UNITTEST_INCLUDES = src/google/perftools/config.h \
-                                 src/base/logging.h \
-                                 src/base/googleinit.h \
-                                 src/google/heap-profiler.h \
-                                 src/google/heap-checker.h
-heap_checker_unittest_SOURCES = src/tests/heap-checker_unittest.cc \
-                                $(HEAP_CHECKER_UNITTEST_INCLUDES)
-heap_checker_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS)
-heap_checker_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS)
-heap_checker_unittest_LDADD = libheapchecker.la $(PTHREAD_LIBS)
-
-check_SCRIPTS += heap-checker-death_unittest
-noinst_SCRIPTS += src/tests/heap-checker-death_unittest.sh
-heap-checker-death_unittest:
-	PPROF_PATH=$(top_srcdir)/src/pprof sh $(top_srcdir)/src/tests/heap-checker-death_unittest.sh
-
-### Documentation
-# TODO
-dist_doc_DATA +=
-
 ## ^^^^ END OF RULES TO MAKE YOUR LIBRARIES, BINARIES, AND UNITTESTS
 
 
 # This should always include $(TESTS), but may also include other
 # binaries that you compile but don't want automatically installed.
 # We'll add to this later, on a library-by-library basis
-noinst_PROGRAMS = $(TESTS) $(PROFILER_UNITTESTS)
+noinst_PROGRAMS = $(TESTS) $(PROFILER_UNITTESTS) $(HEAP_PROFILER_UNITTESTS) \
+                  $(HEAP_CHECKER_UNITTESTS)
 bin_SCRIPTS = src/pprof
 
 rpm: dist-gzip packages/rpm.sh packages/rpm/rpm.spec

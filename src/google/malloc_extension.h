@@ -35,19 +35,26 @@
 // application can link against a malloc that does not implement these
 // interfaces, and it will get default versions that do nothing.
 
-#ifndef _GOOGLE_MALLOC_INTERFACE_H__
-#define _GOOGLE_MALLOC_INTERFACE_H__
+#ifndef _GOOGLE_MALLOC_EXTENSION_H__
+#define _GOOGLE_MALLOC_EXTENSION_H__
 
-#include <google/perftools/config.h>
 #include <stddef.h>
 #include <string>
 
 static const int kMallocHistogramSize = 64;
 
 // The default implementations of the following routines do nothing.
-class MallocInterface {
+class MallocExtension {
  public:
-  virtual ~MallocInterface();
+  virtual ~MallocExtension();
+
+  // Call this very early in the program execution -- say, in a global
+  // constructor -- to set up parameters and state needed by all
+  // instrumented malloc implemenatations.  One example: this routine
+  // sets environemnt variables to tell STL to use libc's malloc()
+  // instead of doing its own memory management.  This is safe to call
+  // multiple times, as long as each time is before threads start up.
+  static void Initialize();
 
   // See "verify_memory.h" to see what these routines do
   virtual bool VerifyAllMemory();
@@ -70,7 +77,7 @@ class MallocInterface {
   //
   // The generated data is *appended* to "*result".  I.e., the old
   // contents of "*result" are preserved.
-  virtual void GetHeapSample(STL_NAMESPACE::string* result);
+  virtual void GetHeapSample(std::string* result);
 
   // -------------------------------------------------------------------
   // Control operations for getting and setting malloc implementation
@@ -122,11 +129,11 @@ class MallocInterface {
   virtual bool SetNumericProperty(const char* property, size_t value);
 
   // The current malloc implementation.  Always non-NULL.
-  static MallocInterface* instance();
+  static MallocExtension* instance();
 
   // Change the malloc implementation.  Typically called by the
   // malloc implementation during initialization.
-  static void Register(MallocInterface* implementation);
+  static void Register(MallocExtension* implementation);
 
  protected:
   // Get a list of stack traces of sampled allocation points.
@@ -145,9 +152,9 @@ class MallocInterface {
   //
   // May return NULL to indicate no results.
   //
-  // This is an internal interface.  Callers should use the more
+  // This is an internal extension.  Callers should use the more
   // convenient "GetHeapSample(string*)" method defined above.
   virtual void** ReadStackTraces();
 };
 
-#endif  // _GOOGLE_MALLOC_INTERFACE_H__
+#endif  // _GOOGLE_MALLOC_EXTENSION_H__

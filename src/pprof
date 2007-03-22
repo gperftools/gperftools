@@ -75,6 +75,7 @@ my $OBJDUMP = "/usr/bin/objdump";
 my $NM = "/usr/bin/nm";
 my $ADDR2LINE = "/usr/bin/addr2line";
 my $DOT = "dot";          # leave non-absolute, since it may be in /usr/local
+my $GV = "gv";
 
 ##### Argument parsing #####
 
@@ -138,9 +139,14 @@ EOF
 
 sub version_string {
   return <<'EOF'
-pprof (part of google-perftools)
+pprof (part of google-perftools 0.1)
 
-Copyright (c) 2005 Google Inc.
+Copyright 1998-2005 Google Inc.
+
+This is BSD licensed software; see the source for copying conditions
+and license information.
+There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.
 EOF
 }
 
@@ -350,7 +356,11 @@ if ($main::opt_disasm) {
 } else {
   PrintDot($prog, $symbols, $profile, $flat, $cumulative, $total);
   if ($main::opt_gv) {
-    system("gv -scale $main::opt_scale $main::tmpfile_ps");
+    # Some versions of gv use -scale, and some use --scale.  *sigh*
+    # We use --help to determine if gv expects one dash or two.
+    system("$GV --help >/dev/null 2>&1 " .
+	   "&& $GV --scale=$main::opt_scale $main::tmpfile_ps " .
+	   "|| $GV -scale $main::opt_scale $main::tmpfile_ps")
   }
 }
 
@@ -1068,7 +1078,7 @@ sub ReadCPUProfile {
 
   # Read entire profile into a string
   my $str;
-  my $nbytes = read(PROFILE, $str, 100000000);
+  my $nbytes = read(PROFILE, $str, (stat PROFILE)[7]);   # read entire file
   close(PROFILE);
 
   # Parse string into array of slots.
@@ -1208,7 +1218,7 @@ sub ParseLibraries {
     my $finish;
     my $offset;
     my $lib;
-    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.so(\.\d+)*)/) {
+    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.so(\.\d+)*\w*)/) {
       # Full line from /proc/self/maps.  Example:
       #   40000000-40015000 r-xp 00000000 03:01 12845071   /lib/ld-2.3.2.so
       $start = hex($1);

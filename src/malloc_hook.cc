@@ -31,7 +31,7 @@
 // Author: Sanjay Ghemawat <opensource@google.com>
 
 #include <google/malloc_hook.h>
-#include <google/perftools/basictypes.h>
+#include "base/basictypes.h"
 
 MallocHook::NewHook    MallocHook::new_hook_ = NULL;
 MallocHook::DeleteHook MallocHook::delete_hook_ = NULL;
@@ -47,21 +47,62 @@ MallocHook::MunmapHook MallocHook::munmap_hook_ = NULL;
 #include <sys/mman.h>
 #include <errno.h>
 
-extern "C" void* mmap(void *start, size_t length,
-                      int prot, int flags, 
-                      int fd, off_t offset) __THROW {
-  // Old syscall interface cannot handle six args, so pass in an array
-  int32 args[6] = { (int32) start, length, prot, flags, fd, (off_t) offset };
-  void* result = (void *)syscall(SYS_mmap, args);
-  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
-  return result;
-}
-  
+// This somewhat reimplements libc's mmap syscall stubs. Unfortunately
+// libc only exports the stubs via weak symbols (which we're
+// overriding with our mmap64() and mmap() wrappers) so we can't just
+// call through to them.
 extern "C" void* mmap64(void *start, size_t length,
                         int prot, int flags, 
                         int fd, __off64_t offset) __THROW {
-  // TODO: Use 64 bit mmap2 system call if kernel is new enough
-  return mmap(start, length, prot, flags, fd, static_cast<off_t>(offset));
+
+  void *result;
+
+  // Try mmap2() unless it's not supported
+  static bool have_mmap2 = true;
+  if (have_mmap2) {
+    static int pagesize = 0;
+    if (!pagesize) pagesize = getpagesize();
+
+    // Check that the offset is page aligned
+    if (offset & (pagesize - 1)) {
+      result = MAP_FAILED;
+      errno = EINVAL;
+      goto out;
+    }
+
+    result = (void *)syscall(SYS_mmap2, 
+                             start, length, prot, flags, fd, offset / pagesize);
+    if (result != MAP_FAILED || errno != ENOSYS)  goto out;
+
+    // We don't have mmap2() after all - don't bother trying it in future
+    have_mmap2 = false;
+  }
+
+  if (((off_t)offset) != offset) {
+    // If we're trying to map a 64-bit offset, fail now since we don't
+    // have 64-bit mmap() support.
+    result = MAP_FAILED;
+    errno = EINVAL;
+    goto out;
+  }
+
+  {
+    // Fall back to old 32-bit offset mmap() call
+    // Old syscall interface cannot handle six args, so pass in an array
+    int32 args[6] = { (int32) start, length, prot, flags, fd, (off_t) offset };
+    result = (void *)syscall(SYS_mmap, args);
+  }
+ out:
+  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
+  return result;
+
+}
+
+extern "C" void* mmap(void *start, size_t length,
+                      int prot, int flags, 
+                      int fd, off_t offset) __THROW {
+  return mmap64(start, length, prot, flags, fd, 
+                static_cast<size_t>(offset)); // avoid sign extension
 }
 
 extern "C" int munmap(void* start, size_t length) __THROW {

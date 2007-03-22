@@ -33,6 +33,8 @@
 # Run the heap checker unittest in a mode where it is supposed to crash and
 # return an error if it doesn't
 
+export HEAPCHECK=strict
+
 # When the environment variable HEAP_CHECKER_TEST_LEAK is set,
 # heap-checker_unittest should leak some memory and then crash on exit.
 HEAPCHECK_TEST_LEAK=1 ./heap-checker_unittest

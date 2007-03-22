@@ -1,7 +1,26 @@
-Tue Feb 8 09:57:17 2005  El Goog <opensource@google.com>
+Tue Feb 8 09:57:17 2005  Google Inc. <opensource@google.com>
 
 	* google-perftools: initial release:
 	  The google-perftools package contains some utilities to improve
 	  and analyze the performance of C++ programs.  This includes an
 	  optimized thread-caching malloc() and cpu and heap profiling
 	  utilities.
+
+Tue May 31 08:14:38 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.2 release
+	* Use mmap2() instead of mmap(), to map more memory (menage)
+	* Do correct pthread-local checking in heap-checker! (maxim)
+	* Avoid overflow on 64-bit machines in pprof (sanjay)
+	* Add a few more GetPC() functions, including for AMD (csilvers)
+	* Better method for overriding pthread functions (menage)
+	* (Hacky) fix to avoid overwriting profile files after fork() (csilvers)
+	* Crashing bugfix involving dumping heaps on small-stack threads (tudor)
+	* Allow library versions with letters at the end (csilvers)
+	* Config fixes for systems that don't define PATH_MAX (csilvers)
+	* Confix fixes so we no longer need config.h after install (csilvers)
+	* Fix to pprof to correctly read very big cpu profiles (csilvers)
+	* Fix to pprof to deal with new commandline flags in modern gv's
+	* Better error reporting when we can't access /proc/maps (etune)
+	* Get rid of the libc-preallocate code (which could crash on some
+	  systems); no longer needed with local-threads fix (csilvers)

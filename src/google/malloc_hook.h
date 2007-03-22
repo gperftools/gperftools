@@ -39,13 +39,7 @@
 #ifndef _GOOGLE_MALLOC_HOOK_H
 #define _GOOGLE_MALLOC_HOOK_H
 
-#include <google/perftools/config.h>
 #include <stddef.h>
-#if defined HAVE_STDINT_H
-#include <stdint.h>
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
 #include <sys/types.h>
 
 class MallocHook {

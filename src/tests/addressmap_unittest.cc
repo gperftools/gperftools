@@ -31,6 +31,7 @@
 // Author: Sanjay Ghemawat
 
 #include <vector>
+#include <set>
 #include <algorithm>
 #include "addressmap-inl.h"
 #include "base/logging.h"
@@ -39,8 +40,16 @@
 DEFINE_int32(iters, 20, "Number of test iterations");
 DEFINE_int32(N, 100000,  "Number of elements to test per iteration");
 
+using std::pair;
+using std::make_pair;
 using std::vector;
 using std::random_shuffle;
+
+static std::set<pair<void*, int> > check_set;
+
+static void SetCheckCallback(void* ptr, int val) {
+  check_set.insert(make_pair(ptr, val));
+}
 
 int main(int argc, char** argv) {
   // Get a bunch of pointers
@@ -96,11 +105,15 @@ int main(int argc, char** argv) {
     }
 
     // Check all entries
+    map.Iterate(SetCheckCallback);
+    CHECK_EQ(check_set.size(), N);
     for (int i = 0; i < N; ++i) {
       void* p = ptrs[i];
+      check_set.erase(make_pair(p, i + 2*N));
       CHECK(map.Find(p, &result));
       CHECK_EQ(result, i + 2*N);
     }
+    CHECK_EQ(check_set.size(), 0);
 
   }
 

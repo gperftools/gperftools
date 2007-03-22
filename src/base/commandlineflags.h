@@ -49,7 +49,7 @@
 #define BASE_COMMANDLINEFLAGS_H__
 
 #include <string>
-#include <google/perftools/basictypes.h>
+#include "base/basictypes.h"
 
 #define DECLARE_VARIABLE(type, name)                                          \
   namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead {  \

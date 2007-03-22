@@ -16,32 +16,87 @@ There are other environment variables, besides CPUPROFILE, you can set
 to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
 
 
-HEAP CHECKER
-------------
-In order to catch all heap leaks, this library must be linked *last*
-into your executable.  It will not find leaks in libraries listed
-after it on the link line.
-
-
 TCMALLOC
 --------
-Just link this in to get the advantages of tcmalloc.  See below for
-some environment variables you can use with tcmalloc, as well.
+Just link in -ltcmalloc to get the advantages of tcmalloc.  See below
+for some environment variables you can use with tcmalloc, as well.
+
+
+HEAP PROFILER
+-------------
+See doc/heap-profiler.html for information about how to use tcmalloc's
+heap profiler and analyze its output.
+
+As a quick-start, do the following after installing this package:
+
+1) Link your executable with -ltcmalloc
+2) Run your executable with the HEAPPROFILE environment var set:
+     $ HEAPROFILE=/tmp/heapprof <path/to/binary> [binary args]
+3) Run pprof to analyze the heap usage
+     $ pprof <path/to/binary> /tmp/heapprof.0045.heap  # run 'ls' to see options
+     $ pprof --gv <path/to/binary> /tmp/heapprof.0045.heap
+
+You can also use LD_PRELOAD to heap-profile an executable that you
+didn't compile.
+
+There are other environment variables, besides HEAPPROFILE, you can
+set to adjust the heap-profiler behavior; cf "ENVIRONMENT VARIABLES"
+below.
+
+
+HEAP CHECKER
+------------
+See doc/heap-checker.html for information about how to use tcmalloc's
+heap checker.
+
+In order to catch all heap leaks, tcmalloc must be linked *last* into
+your executable.  The heap checker may mischaracterize some memory
+accesses in libraries listed after it on the link line.  For instance,
+it may report these libraries as leaking memory when they're not.
+(See the source code for more details.)
+
+Here's a quick-start for how to use:
+
+As a quick-start, do the following after installing this package:
+
+1) Link your executable with -ltcmalloc
+2) Run your executable with the HEAPCHECK environment var set:
+     $ HEAPCHECK=1 <path/to/binary> [binary args]
+
+Other values for HEAPCHECK: normal (equivalent to "1"), strict, draconian
+
+You can also use LD_PRELOAD to heap-check an executable that you
+didn't compile.
+
+IMPORTANT NOTE: pthreads handling is currently incomplete.  Heap leak
+checks will fail with bogus leaks if there are pthreads live at
+construction or leak checking time.  One solution, for global
+heap-checking, is to make sure all threads but the main thread have
+exited at program-end time.  We hope (as of March 2005) to have a fix
+soon.
 
 
 ENVIRONMENT VARIABLES
 ---------------------
-These libraries were written to be able to be linked into your
-applications all the time.  They'll lie dormant, using no memory or
-CPU, until you turn them on.  The easiest way to turn them on is by
-setting the appropriate environment variables.  We have many variables
-that let you enable/disable features as well as tweak parameters.
+The cpu profiler, heap checker, and heap profiler will lie dormant,
+using no memory or CPU, until you turn them on.  (Thus, there's no
+harm in linking -lprofiler into every application, and also -ltcmalloc
+assuming you're ok using the non-libc malloc library.)
+
+The easiest way to turn them on is by setting the appropriate
+environment variables.  We have several variables that let you
+enable/disable features as well as tweak parameters.
 
 CPUPROFILE=<file> -- turns on cpu profiling and dumps data to this file.
 PROFILESELECTED=1 -- if set, cpu-profiler will only profile regions of code
                      surrounded with ProfilerEnable()/ProfilerDisable().
-FREQUENCY         -- how may interrupts/second the cpu-profiler samples.
+PROFILEFREQUENCY=x-- how many interrupts/second the cpu-profiler samples.
+
+HEAPPROFILE=<pre> -- turns on heap profiling and dumps data using this prefix
+HEAPCHECK=<type>  -- turns on heap checking with strictness 'type'
 
 TCMALLOC_DEBUG=<level> -- the higher level, the more messages malloc emits
 MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 
+---
+16 March 2005

@@ -33,7 +33,7 @@
 #ifndef TCMALLOC_INTERNAL_SPINLOCK_H__
 #define TCMALLOC_INTERNAL_SPINLOCK_H__
 
-#include "google/perftools/config.h"
+#include "config.h"
 #include <time.h>       /* For nanosleep() */
 #include <sched.h>      /* For sched_yield() */
 #if defined HAVE_STDINT_H

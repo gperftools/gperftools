@@ -68,7 +68,8 @@ fi
 
 rm -rf "$destdir"
 mkdir -p "$destdir"
-mv "$RPM_SOURCE_DIR"/*/"$fullname"*.rpm "$destdir"
+# We want to get not only the main package but devel etc, hence the middle *
+mv "$RPM_SOURCE_DIR"/*/"${PACKAGE}"-*"${VERSION}"*.rpm "$destdir"
 
 echo
 echo "The rpm package file(s) are located in $PWD/$destdir"

@@ -3,7 +3,6 @@
 <html>
 <head>
 <title>TCMalloc : Thread-Caching Malloc</title>
-<link rel="stylesheet" href="../../designdocs/designstyle.css">
 <style type="text/css">
   em {
     color: red;
@@ -15,11 +14,12 @@
 
 <h1>TCMalloc : Thread-Caching Malloc</h1>
 
-<address>Sanjay Ghemawat</address>
+<address>Sanjay Ghemawat, Paul Menage &lt;opensource@google.com&gt;</address>
 
 <h2>Motivation</h2>
 
-TCMalloc is faster than the glibc malloc, ptmalloc2 and other mallocs
+TCMalloc is faster than the glibc 2.3 malloc (available as a separate
+library called ptmalloc2) and other mallocs
 that I have tested.  ptmalloc2 takes approximately 300 nanoseconds to
 execute a malloc/free pair on a 2.8 GHz P4 (for small objects).  The
 TCMalloc implementation takes approximately 50 nanoseconds for the
@@ -37,15 +37,14 @@ objects, TCMalloc tries to use fine grained and efficient spinlocks.
 ptmalloc2 also reduces lock contention by using per-thread arenas but
 there is a big problem with ptmalloc2's use of per-thread arenas.  In
 ptmalloc2 memory can never move from one arena to another.  This can
-lead to huge amounts of wasted space.  For example, in one of the
-MapReduce operations used by the segment-indexer, the map phase would
-allocate approximately 300MB of memory for URL canonicalization data
-structures.  When the map phase finished, another map phase would be
-started in the same address space.  If this map phase was assigned a
+lead to huge amounts of wasted space.  For example, in one Google application, the first phase would
+allocate approximately 300MB of memory for its data
+structures.  When the first phase finished, a second phase would be
+started in the same address space.  If this second phase was assigned a
 different arena than the one used by the first phase, this phase would
 not reuse any of the memory left after the first phase and would add
 another 300MB to the address space.  Similar memory blowup problems
-were also noticed in <code>gfs_chunkserver</code>.
+were also noticed in other applications.
 
 <p>
 Another benefit of TCMalloc is space-efficient representation of small
@@ -54,6 +53,33 @@ space approximately <code>8N * 1.01</code> bytes.  I.e., a one-percent
 space overhead.  ptmalloc2 uses a four-byte header for each object and
 (I think) rounds up the size to a multiple of 8 bytes and ends up
 using <code>16N</code> bytes.
+
+
+<h2>Usage</h2>
+
+<p>To use TCmalloc, just link tcmalloc into your application via the
+"-ltcmalloc" linker flag.</p>
+
+<p>
+You can use tcmalloc in applications you didn't compile yourself, by
+using LD_PRELOAD:
+</p>
+<pre>
+   $ LD_PRELOAD="/usr/lib/libtcmalloc.so" <binary>
+</pre>
+<p>
+LD_PRELOAD is tricky, and we don't necessarily recommend this mode of
+usage.
+</p>
+
+<p>TCMalloc includes a <A HREF="heap_checker.html">heap checker</A>
+and <A HREF="heap_profiler.html">heap profiler</A> as well.</p>
+
+<p>If you'd rather link in a version of TCMalloc that does not include
+the heap profiler and checker (perhaps to reduce binary size for a
+static binary), you can link in <code>libtcmalloc_minimal</code>
+instead.</p>
+
 
 <h2>Overview</h2>
 
@@ -217,13 +243,122 @@ nice property that if a thread stops using a particular size, all
 objects of that size will quickly move from the thread cache to the
 central free list where they can be used by other threads.
 
+<h2>Performance Notes</h2>
+
+<h3>PTMalloc2 unittest</h3>
+The PTMalloc2 package (now part of glibc) contains a unittest program
+t-test1.c. This forks a number of threads and performs a series of
+allocations and deallocations in each thread; the threads do not
+communicate other than by synchronization in the memory allocator.
+
+<p> t-test1 (included in google-perftools/tests/tcmalloc, and compiled
+as ptmalloc_unittest1) was run with a varying numbers of threads
+(1-20) and maximum allocation sizes (64 bytes - 32Kbytes). These tests
+were run on a 2.4GHz dual Xeon system with hyper-threading enabled,
+using Linux glibc-2.3.2 from RedHat 9, with one million operations per
+thread in each test. In each case, the test was run once normally, and
+once with LD_PRELOAD=libtcmalloc.so.
+
+<p>The graphs below show the performance of TCMalloc vs PTMalloc2 for
+several different metrics. Firstly, total operations (millions) per elapsed
+second vs max allocation size, for varying numbers of threads. The raw
+data used to generate these graphs (the output of the "time" utility)
+is available in t-test1.times.txt.
+
+<p>
+<table>
+<tr>
+<td><img src="tcmalloc-opspersec.vs.size.1.threads.png"></td>
+<td><img src="tcmalloc-opspersec.vs.size.2.threads.png"></td>
+<td><img src="tcmalloc-opspersec.vs.size.3.threads.png"></td>
+</tr>
+<tr>
+<td><img src="tcmalloc-opspersec.vs.size.4.threads.png"></td>
+<td><img src="tcmalloc-opspersec.vs.size.5.threads.png"></td>
+<td><img src="tcmalloc-opspersec.vs.size.8.threads.png"></td>
+</tr>
+<tr>
+<td><img src="tcmalloc-opspersec.vs.size.12.threads.png"></td>
+<td><img src="tcmalloc-opspersec.vs.size.16.threads.png"></td>
+<td><img src="tcmalloc-opspersec.vs.size.20.threads.png"></td>
+</tr>
+</table>
+
+
+<ul> 
+
+<li> TCMalloc is much more consistently scalable than PTMalloc2 - for
+all thread counts >1 it achieves ~7-9 million ops/sec for small
+allocations, falling to ~2 million ops/sec for larger allocations. The
+single-thread case is an obvious outlier, since it is only able to
+keep a single processor busy and hence can achieve fewer
+ops/sec. PTMalloc2 has a much higher variance on operations/sec -
+peaking somewhere around 4 million ops/sec for small allocations and
+falling to <1 million ops/sec for larger allocations.
+
+<li> TCMalloc is faster than PTMalloc2 in the vast majority of cases,
+and particularly for small allocations. Contention between threads is
+less of a problem in TCMalloc.
+
+<li> TCMalloc's performance drops off as the allocation size
+increases. This is because the per-thread cache is garbage-collected
+when it hits a threshold (defaulting to 2MB). With larger allocation
+sizes, fewer objects can be stored in the cache before it is
+garbage-collected.
+
+<li> There is a noticeably drop in the TCMalloc performance at ~32K
+maximum allocation size; at larger sizes performance drops less
+quickly. This is due to the 32K maximum size of objects in the
+per-thread caches; for objects larger than this tcmalloc allocates
+from the central page heap.
+
+</ul>
+
+<p> Next, operations (millions) per second of CPU time vs number of threads, for
+max allocation size 64 bytes - 128 Kbytes.
+
+<p>
+<table>
+<tr>
+<td><img src="tcmalloc-opspercpusec.vs.threads.64.bytes.png"></td>
+<td><img src="tcmalloc-opspercpusec.vs.threads.256.bytes.png"></td>
+<td><img src="tcmalloc-opspercpusec.vs.threads.1024.bytes.png"></td>
+</tr>
+<tr>
+<td><img src="tcmalloc-opspercpusec.vs.threads.4096.bytes.png"></td>
+<td><img src="tcmalloc-opspercpusec.vs.threads.8192.bytes.png"></td>
+<td><img src="tcmalloc-opspercpusec.vs.threads.16384.bytes.png"></td>
+</tr>
+<tr>
+<td><img src="tcmalloc-opspercpusec.vs.threads.32768.bytes.png"></td>
+<td><img src="tcmalloc-opspercpusec.vs.threads.65536.bytes.png"></td>
+<td><img src="tcmalloc-opspercpusec.vs.threads.131072.bytes.png"></td>
+</tr>
+</table>
+
+<p> Here we see again that TCMalloc is both more consistent and more
+efficient than PTMalloc2. For max allocation sizes &lt;32K, TCMalloc
+typically achieves ~2-2.5 million ops per second of CPU time with a
+large number of threads, whereas PTMalloc achieves generally 0.5-1
+million ops per second of CPU time, with a lot of cases achieving much
+less than this figure. Above 32K max allocation size, TCMalloc drops
+to 1-1.5 million ops per second of CPU time, and PTMalloc drops almost
+to zero for large numbers of threads (i.e. with PTMalloc, lots of CPU
+time is being burned spinning waiting for locks in the heavily
+multi-threaded case).
+
 <h2>Caveats</h2>
 
-TCMalloc may be somewhat more memory hungry than other mallocs, (but
-tends not to have the huge blowups that can happen with other
-mallocs).  In particular, at startup TCMalloc allocates approximately
-6 MB of memory.  It would be easy to roll a specialized version
-that trades-off a little bit of speed for more space efficiency.
+<p>For some systems, TCMalloc may not work correctly on with
+applications that aren't linked against libpthread.so (or the
+equivalent on your OS). It should work on Linux using glibc 2.3, but
+other OS/libc combinations have not been tested.
+
+<p>TCMalloc may be somewhat more memory hungry than other mallocs,
+though it tends not to have the huge blowups that can happen with
+other mallocs.  In particular, at startup TCMalloc allocates
+approximately 6 MB of memory.  It would be easy to roll a specialized
+version that trades a little bit of speed for more space efficiency.
 
 <p>
 TCMalloc currently does not return any memory to the system.
@@ -235,28 +370,6 @@ objects using the system malloc, and may try to pass them
 to TCMalloc for deallocation.  TCMalloc will not be able
 to handle such objects.
 
-<h2>Performance Notes</h2>
-
-Here is a log of some of the performance improvements seen
-by switching to tcmalloc:
-<p>
-
-<center>
-<table frame=box rules=all cellpadding=5>
-<tr> <th>Date       <th>Program                <th>Tester        <th>Improvement            </tr>
-<tr> <td>2003/10/30 <td>indexserver            <td>Gauthum       <td>5.8% speedup</tr>
-<tr> <td>2003/10/30 <td>Caribou storage server <td>Peter Mattis  <td>10% speedup</tr>
-<tr> <td>2003/11/28 <td>indexserver            <td>Paul Menage   <td>Allows 9 microshards instead of 8 on 4GB Xeons</tr>
-<tr> <td>2003/12/15 <td>concentrator           <td>Andrew Kirmse <td>Stopped "leak" of several hundred KB per minute</tr>
-</table>
-</center>
-
-<p>
-<address>
-October 26, 2003<br>
-This document is <A HREF="http://www.corp.google.com/confidential.html">
-Google Confidential</A>.
-</address>
 
 </body>
 </html>

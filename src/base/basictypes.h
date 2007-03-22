@@ -30,7 +30,7 @@
 #ifndef _BASICTYPES_H_
 #define _BASICTYPES_H_
 
-#include <google/perftools/config.h>
+#include "config.h"
 
 // To use this in an autoconf setting, make sure you run the following
 // autoconf macros:

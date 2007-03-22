@@ -35,7 +35,6 @@
 #ifndef _GOOGLE_STACKTRACE_H
 #define _GOOGLE_STACKTRACE_H
 
-extern int GetStackTrace(void** result, int max_depth, int skip_count);
 // Skip the most recent "skip_count" stack frames (also skips the
 // frame generated for the "GetStackTrace" routine itself), and then
 // record the pc values for upto the next "max_depth" frames in
@@ -59,5 +58,24 @@ extern int GetStackTrace(void** result, int max_depth, int skip_count);
 //
 // This routine currently produces non-empty stack traces only for
 // Linux/x86 machines.
+extern int GetStackTrace(void** result, int max_depth, int skip_count);
+
+// Compute the extent of the function call stack by traversing it up.
+// Input: "sp" is either NULL, or is a stack pointer
+// (e.g., a value of the ebp register for x86).
+// If "sp == NULL", the stack pointer for the current thread is implied.
+//
+// Stores the range of addresses covered by the specified stack
+// in *stack_top and *stack_bottom.  Returns true if successful,
+// false on failure (e.g., an inability to walk the stack).
+//
+// If it returns true, *stack_top and *stack_bottom respectively correspond
+// to the most-recetly pushed frame of the call stack
+// and the intial frame that started the call stack.
+// Their relative ordering as integers though
+// depends on the underlying machine's architecture.
+extern bool GetStackExtent(void* sp,
+                           void** stack_top,
+                           void** stack_bottom);
 
 #endif /* _GOOGLE_STACKTRACE_H */

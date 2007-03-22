@@ -32,7 +32,7 @@
 //
 // Profile current program by sampling stack-trace every so often
 
-#include "google/perftools/config.h"
+#include "config.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -58,6 +58,14 @@
 #include "conflict-signal.h"          /* used on msvc machines */
 #endif
 #include "base/logging.h"
+
+#ifndef	PATH_MAX
+#ifdef MAXPATHLEN
+#define	PATH_MAX	MAXPATHLEN
+#else
+#define	PATH_MAX	4096         // seems conservative for max filename len!
+#endif
+#endif
 
 #if HAVE_PTHREAD
 #  include <pthread.h>
@@ -95,6 +103,12 @@ inline void* GetPC(const SigStructure& sig_structure ) {
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.eip;
+}
+
+#elif defined HAVE_STRUCT_SIGCONTEXT_RIP
+typedef struct sigcontext SigStructure;
+inline void* GetPC(const SigStructure& sig_structure ) {
+  return (void*)sig_structure.rip;
 }
 
 #elif defined HAVE_STRUCT_SIGCONTEXT_SC_IP
@@ -228,7 +242,7 @@ ProfileData::ProfileData() :
 
   // Get frequency of interrupts (if specified)
   char junk;
-  const char* fr = getenv("FREQUENCY");
+  const char* fr = getenv("PROFILEFREQUENCY");
   if (fr != NULL && (sscanf(fr, "%d%c", &frequency_, &junk) == 1) &&
       (frequency_ > 0)) {
     // Limit to kMaxFrequency
@@ -238,13 +252,39 @@ ProfileData::ProfileData() :
   }
 
   // Should profiling be enabled?
-  const char* fname = getenv("CPUPROFILE");
-  if (fname == 0) {
+  char* cpuprofile = getenv("CPUPROFILE");
+  if (!cpuprofile || cpuprofile[0] == '\0') {
     return;
   }
   // We don't enable profiling if setuid -- it's a security risk
   if (getuid() != geteuid())
     return;
+
+  // If we're a child process of the 'main' process, we can't just use
+  // the name CPUPROFILE -- the parent process will be using that.
+  // Instead we append our pid to the name.  How do we tell if we're a
+  // child process?  Ideally we'd set an environment variable that all
+  // our children would inherit.  But -- and perhaps this is a bug in
+  // gcc -- if you do a setenv() in a shared libarary in a global
+  // constructor, the environment setting is lost by the time main()
+  // is called.  The only safe thing we can do in such a situation is
+  // to modify the existing envvar.  So we do a hack: in the parent,
+  // we set the high bit of the 1st char of CPUPROFILE.  In the child,
+  // we notice the high bit is set and append the pid().  This works
+  // assuming cpuprofile filenames don't normally have the high bit
+  // set in their first character!  If that assumption is violated,
+  // we'll still get a profile, but one with an unexpected name.
+  // TODO(csilvers): set an envvar instead when we can do it reliably.
+  char fname[PATH_MAX];
+  if (cpuprofile[0] & 128) {                    // high bit is set
+    snprintf(fname, sizeof(fname), "%c%s_%u",   // add pid and clear high bit
+             cpuprofile[0] & 127, cpuprofile+1, (unsigned int)(getpid()));
+  } else {
+    snprintf(fname, sizeof(fname), "%s", cpuprofile);
+    cpuprofile[0] |= 128;                       // set high bit for kids to see
+  }
+
+  // process being profiled.  CPU profiles are messed up in that case.
 
   if (!Start(fname)) {
     fprintf(stderr, "Can't turn on cpu profiling: ");

@@ -32,7 +32,7 @@
 //
 // TODO: Log large allocations
 
-#include <google/perftools/config.h>
+#include "config.h"
 
 #include <malloc.h>
 #include <unistd.h>
@@ -52,13 +52,14 @@
 
 #include <google/heap-profiler.h>
 #include <google/stacktrace.h>
+#include <google/malloc_extension.h>
 #include <google/malloc_hook.h>
-#include <google/perftools/basictypes.h>
 
 #include "heap-profiler-inl.h"
 #include "internal_spinlock.h"
 #include "addressmap-inl.h"
 
+#include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/googleinit.h"
 #include "base/commandlineflags.h"
@@ -71,20 +72,24 @@
 #define LLD    "lld"                // hope for the best
 #endif
 
+#ifndef	PATH_MAX
+#ifdef MAXPATHLEN
+#define	PATH_MAX	MAXPATHLEN
+#else
+#define	PATH_MAX	4096         // seems conservative for max filename len!
+#endif
+#endif
+
 #define LOGF  STL_NAMESPACE::cout   // where we log to; LOGF is a historical name
 
 using HASH_NAMESPACE::hash_set;
-using std::string;
-using std::sort;
+using STL_NAMESPACE::string;
+using STL_NAMESPACE::sort;
 
 //----------------------------------------------------------------------
 // Flags that control heap-profiling
 //----------------------------------------------------------------------
 
-DEFINE_string(heap_profile, "",
-              "If non-empty, turn heap-profiling on, and dump heap "
-              "profiles to a sequence of files prefixed with the "
-              "specified --heap_profile string.");
 DEFINE_int64(heap_profile_allocation_interval, 1 << 30 /*1GB*/,
              "Dump heap profiling information once every specified "
              "number of bytes allocated by the program.");
@@ -97,18 +102,6 @@ DEFINE_bool(mmap_profile, false, "If heap-profiling on, also profile mmaps");
 DEFINE_int32(heap_profile_log, 0,
              "Logging level for heap profiler/checker messages");
 
-// Prefix to which we dump heap profiles.  If empty, we do not dump.
-// Default: empty
-void HeapProfilerSetDumpPath(const char* path) {
-  if (HeapProfiler::IsOn()) {
-    HeapProfiler::MESSAGE(-1,
-      "Cannot set dump path to %s, heap profiler is already running!\n",
-      path);
-  } else {
-    FLAGS_heap_profile = path;
-  }
-}
-
 // Level of logging used by the heap profiler and heap checker (if applicable)
 // Default: 0
 void HeapProfilerSetLogLevel(int level) {
@@ -117,14 +110,14 @@ void HeapProfilerSetLogLevel(int level) {
 
 // Dump heap profiling information once every specified number of bytes
 // allocated by the program.  Default: 1GB
-void HeapProfilerSetAllocationInterval(int64 interval) {
+void HeapProfilerSetAllocationInterval(size_t interval) {
   FLAGS_heap_profile_allocation_interval = interval;
 }
 
 // Dump heap profiling information whenever the high-water 
 // memory usage mark increases by the specified number of
 // bytes.  Default: 100MB
-void HeapProfilerSetInuseInterval(int64 interval) {
+void HeapProfilerSetInuseInterval(size_t interval) {
   FLAGS_heap_profile_inuse_interval = interval;
 }
 
@@ -139,7 +132,7 @@ void HeapProfiler::MESSAGE(int level, const char* format, ...) {
   // buffering because that may invoke malloc()
   va_list ap;
   va_start(ap, format);
-  char buf[500];
+  char buf[600];
   vsnprintf(buf, sizeof(buf), format, ap);
   write(STDERR_FILENO, buf, strlen(buf));
 }
@@ -177,7 +170,7 @@ class HeapProfilerMemory {
     const size_t pagesize = getpagesize();
     size = ((size + pagesize -1 ) / pagesize) * pagesize;
 
-    HeapProfiler::MESSAGE(0, "HeapProfiler: allocating %"PRIuS
+    HeapProfiler::MESSAGE(1, "HeapProfiler: allocating %"PRIuS
                           " bytes for internal use\n", size);
     if (nblocks_ == kMaxBlocks) {
       HeapProfiler::MESSAGE(-1, "HeapProfilerMemory: Alloc out of memory\n");
@@ -262,13 +255,23 @@ void HeapProfiler::Free(void* p) {
 // So we use a simple spinlock (just like the spinlocks used in tcmalloc)
 
 static TCMalloc_SpinLock heap_lock;
-static struct timespec delay = { 0, 5000000 };  // Five milliseconds
 
 void HeapProfiler::Lock() {
+  if (kMaxLogging) {
+    // for debugging deadlocks
+    HeapProfiler::MESSAGE(10, "HeapProfiler: Lock from %d\n",
+                          int(pthread_self()));
+  }
+
   heap_lock.Lock();
 }
 
 void HeapProfiler::Unlock() {
+  if (kMaxLogging) {
+    HeapProfiler::MESSAGE(10, "HeapProfiler: Unlock from %d\n",
+                          int(pthread_self()));
+  }
+
   heap_lock.Unlock();
 }
 
@@ -280,14 +283,15 @@ void HeapProfiler::Unlock() {
 typedef HeapProfiler::Bucket Bucket;
 
 bool HeapProfiler::is_on_ = false;
-bool HeapProfiler::temp_disable_ = false;
-pthread_t HeapProfiler::temp_disabled_tid_;
-HeapProfiler::DisabledAddressesSet* HeapProfiler::disabled_addresses_ = NULL;
-HeapProfiler::DisabledRangeMap* HeapProfiler::disabled_ranges_ = NULL;
+bool HeapProfiler::init_has_been_called_ = false;
+bool HeapProfiler::need_for_leaks_ = false;
+bool HeapProfiler::self_disable_ = false;
+pthread_t HeapProfiler::self_disabled_tid_;
+HeapProfiler::IgnoredObjectSet* HeapProfiler::ignored_objects_ = NULL;
 bool HeapProfiler::dump_for_leaks_ = false;
 bool HeapProfiler::dumping_ = false;
 Bucket HeapProfiler::total_;
-Bucket HeapProfiler::disabled_;
+Bucket HeapProfiler::self_disabled_;
 Bucket HeapProfiler::profile_;
 char* HeapProfiler::filename_prefix_ = NULL;
 
@@ -314,43 +318,18 @@ static bool ByAllocatedSpace(Bucket* a, Bucket* b) {
   return (a->alloc_size_ - a->free_size_) > (b->alloc_size_ - b->free_size_);
 }
 
-// We return the amount of space in buf that we use.  We start printing
-// at buf + buflen, and promise not to go beyond buf + bufsize.
-int HeapProfiler::UnparseBucket(char* buf, int buflen, int bufsize, Bucket* b) {
-  // do not dump the address-disabled allocations
-  if (dump_for_leaks_  &&  (disabled_addresses_ || disabled_ranges_)) {
-    bool disable = false;
-    for (int depth = 0; !disable && depth < b->depth_; depth++) {
-      uintptr_t addr = reinterpret_cast<uintptr_t>(b->stack_[depth]);
-      if (disabled_addresses_  &&
-          disabled_addresses_->find(addr) != disabled_addresses_->end()) {
-        disable = true;  // found; dropping
-      }
-      if (disabled_ranges_) {
-        DisabledRangeMap::const_iterator iter
-          = disabled_ranges_->lower_bound(addr);
-        if (iter != disabled_ranges_->end()) {
-          assert(iter->first > addr);
-          if (iter->second.start_address < addr  &&
-              iter->second.max_depth > depth) {
-            disable = true;  // in range; dropping
-          }
-        }
-      }
-    }
-    if (disable) {
-      disabled_.allocs_ += b->allocs_;
-      disabled_.alloc_size_ += b->alloc_size_;
-      disabled_.frees_ += b->frees_;
-      disabled_.free_size_ += b->free_size_;
-      return buflen;
-    }
-  }
-  // count non-disabled allocations for leaks checking
+int HeapProfiler::UnparseBucket(char* buf, int buflen, int bufsize,
+                                const Bucket* b) {
   profile_.allocs_ += b->allocs_;
   profile_.alloc_size_ += b->alloc_size_;
   profile_.frees_ += b->frees_;
   profile_.free_size_ += b->free_size_;
+  if (dump_for_leaks_  &&
+      b->allocs_ - b->frees_ == 0  &&
+      b->alloc_size_ - b->free_size_ == 0) {
+    // don't waste the profile space on buckets that do not matter
+    return buflen;
+  }
   int printed =
     snprintf(buf + buflen, bufsize - buflen, "%6d: %8"LLD" [%6d: %8"LLD"] @",
              b->allocs_ - b->frees_,
@@ -372,23 +351,73 @@ int HeapProfiler::UnparseBucket(char* buf, int buflen, int bufsize, Bucket* b) {
   return buflen;
 }
 
+void HeapProfiler::AdjustByIgnoredObjects(int adjust) {
+  if (ignored_objects_) {
+    assert(dump_for_leaks_);
+    for (IgnoredObjectSet::const_iterator i = ignored_objects_->begin();
+         i != ignored_objects_->end(); ++i) {
+      AllocValue v;
+      if (!allocation_->Find(reinterpret_cast<void*>(*i), &v))  abort();
+         // must be in
+      v.bucket->allocs_ += adjust;
+      v.bucket->alloc_size_ += adjust * int64(v.bytes);
+        // need explicit size_t to int64 conversion before multiplication
+        // in case size_t is unsigned and adjust is negative
+      assert(v.bucket->allocs_ >= 0  &&  v.bucket->alloc_size_ >= 0);
+      if (kMaxLogging  &&  adjust < 0) {
+        HeapProfiler::MESSAGE(4, "HeapChecker: "
+                              "Ignoring object of %"PRIuS" bytes\n", v.bytes);
+      }
+    }
+  }
+}
+
 char* GetHeapProfile() {
   // We used to be smarter about estimating the required memory and
   // then capping it to 1MB and generating the profile into that.
   // However it should not cost us much to allocate 1MB every time.
   static const int size = 1 << 20;
+  int buflen = 0;
   char* buf = reinterpret_cast<char*>(malloc(size));
   if (buf == NULL) {
     return NULL;
   }
 
-  // Grab the lock and generate the profile
-  // (for leak checking the lock is acquired higher up).
-  if (!HeapProfiler::dump_for_leaks_)  HeapProfiler::Lock();
-  if (HeapProfiler::is_on_) {
+  Bucket **list = NULL;
+
+  // We can't allocate list on the stack, as this would overflow on threads
+  // running with a small stack size.  We can't allocate it under the lock
+  // either, as this would cause a deadlock.  But num_buckets is only valid
+  // while holding the lock- new buckets can be created at any time otherwise.
+  // So we'll read num_buckets dirtily, allocate room for all the current
+  // buckets + a few more, and check the count when we get the lock; if we
+  // don't have enough, we release the lock and try again.
+  while (true) {
+    int nb = num_buckets + num_buckets / 16 + 8;
+
+    if (list)
+      delete[] list;
+
+    list = new Bucket *[nb];
+
+    // Grab the lock and generate the profile
+    // (for leak checking the lock is acquired higher up).
+    if (!HeapProfiler::dump_for_leaks_)  HeapProfiler::Lock();
+    if (!HeapProfiler::is_on_) {
+      if (!HeapProfiler::dump_for_leaks_)  HeapProfiler::Unlock();
+      break;
+    }
+
     // Get all buckets and sort
     assert(table != NULL);
-    Bucket* list[num_buckets];
+
+    // If we have allocated some extra buckets while waiting for the lock, we
+    // may have to reallocate list
+    if (num_buckets > nb) {
+      if (!HeapProfiler::dump_for_leaks_) HeapProfiler::Unlock();
+      continue;
+    }
+
     int n = 0;
     for (int b = 0; b < kHashTableSize; b++) {
       for (Bucket* x = table[b]; x != 0; x = x->next_) {
@@ -398,19 +427,23 @@ char* GetHeapProfile() {
     assert(n == num_buckets);
     sort(list, list + num_buckets, ByAllocatedSpace);
 
-    int buflen = snprintf(buf, size-1, "heap profile: ");
-    buflen =
-      HeapProfiler::UnparseBucket(buf, buflen, size-1, &HeapProfiler::total_);
+    buflen = snprintf(buf, size-1, "heap profile: ");
+    buflen = HeapProfiler::UnparseBucket(buf, buflen, size-1,
+                                         &HeapProfiler::total_);
     memset(&HeapProfiler::profile_, 0, sizeof(HeapProfiler::profile_));
-    memset(&HeapProfiler::disabled_, 0, sizeof(HeapProfiler::disabled_));
+    HeapProfiler::AdjustByIgnoredObjects(-1);  // drop from profile
     for (int i = 0; i < num_buckets; i++) {
       Bucket* b = list[i];
       buflen = HeapProfiler::UnparseBucket(buf, buflen, size-1, b);
     }
+    HeapProfiler::AdjustByIgnoredObjects(1);  // add back to profile
     assert(buflen < size);
-    buf[buflen] = '\0';
+    if (!HeapProfiler::dump_for_leaks_)  HeapProfiler::Unlock();
+    break;
   }
-  if (!HeapProfiler::dump_for_leaks_)  HeapProfiler::Unlock();
+
+  buf[buflen] = '\0';
+  delete[] list;
 
   return buf;
 }
@@ -421,25 +454,21 @@ extern char* HeapProfile() {
   return GetHeapProfile();
 }
 
-// second_prefix is not NULL when the dumped profile
-// is to be named differently for leaks checking
-void HeapProfiler::DumpLocked(const char *reason, const char* second_prefix) {
+void HeapProfiler::DumpLocked(const char *reason, const char* file_name) {
   assert(is_on_);
 
-  if (filename_prefix_ == NULL)  return;
-    // we are not yet ready for dumping
+  if (filename_prefix_ == NULL  &&  file_name == NULL)  return;
+    // we do not yet need dumping
 
   dumping_ = true;
 
   // Make file name
   char fname[1000];
-  if (second_prefix == NULL) {
+  if (file_name == NULL) {
     dump_count++;
     snprintf(fname, sizeof(fname), "%s.%04d.heap",
              filename_prefix_, dump_count);
-  } else {
-    snprintf(fname, sizeof(fname), "%s.%s.heap",
-             filename_prefix_, second_prefix);
+    file_name = fname;
   }
 
   // Release allocation lock around the meat of this routine
@@ -451,8 +480,8 @@ void HeapProfiler::DumpLocked(const char *reason, const char* second_prefix) {
     HeapProfiler::MESSAGE(dump_for_leaks_ ? 1 : 0,
                           "HeapProfiler: "
                           "Dumping heap profile to %s (%s)\n",
-                          fname, reason);
-    FILE* f = fopen(fname, "w");
+                          file_name, reason);
+    FILE* f = fopen(file_name, "w");
     if (f != NULL) {
       const char* profile = HeapProfile();
       fputs(profile, f);
@@ -475,7 +504,7 @@ void HeapProfiler::DumpLocked(const char *reason, const char* second_prefix) {
     } else {
       HeapProfiler::MESSAGE(0, "HeapProfiler: "
                             "FAILED Dumping heap profile to %s (%s)\n",
-                            fname, reason);
+                            file_name, reason);
       if (dump_for_leaks_)  abort();  // no sense to continue
     }
   }
@@ -489,12 +518,19 @@ void HeapProfilerDump(const char *reason) {
   if (HeapProfiler::is_on_ && (num_buckets > 0)) {
 
     HeapProfiler::Lock();
-    if(!HeapProfiler::dumping_) {
+    if (!HeapProfiler::dumping_) {
       HeapProfiler::DumpLocked(reason, NULL);
     }
     HeapProfiler::Unlock();
   }
 }
+
+// Allocation map for heap objects (de)allocated
+// while HeapProfiler::self_disable_ is true.
+// We use it to test if heap leak checking itself changed the heap state.
+// An own map seems cleaner than trying to keep everything
+// in HeapProfiler::allocation_.
+HeapProfiler::AllocationMap* self_disabled_allocation = NULL;
 
 // This is the number of bytes allocated by the first call to malloc() after
 // registering this handler.  We want to sanity check that our first call is
@@ -519,7 +555,7 @@ void HeapProfiler::RecordAlloc(void* ptr, size_t bytes, int skip_count) {
     int i;
     for (i = 0; i < depth; i++) {
       if (stack[i] == recordalloc_reference_stack_position_) {
-        MESSAGE(-1, "Determined strip_frames_ to be %d\n", i - 1);
+        MESSAGE(1, "Determined strip_frames_ to be %d\n", i - 1);
         // Subtract one to offset the fact that
         // recordalloc_reference_stack_position_ actually records the stack
         // position one frame above the spot in EarlyStartLocked where we are
@@ -542,11 +578,22 @@ void HeapProfiler::RecordAlloc(void* ptr, size_t bytes, int skip_count) {
   // is not an overhead because with profiling off
   // this hook is not called at all.
 
-  // Uncomment for debugging:
-  // HeapProfiler::MESSAGE(7, "HeapProfiler: Alloc %p : %"PRIuS"\n",
-  //                       ptr, bytes);
+  if (kMaxLogging) {
+    HeapProfiler::MESSAGE(7, "HeapProfiler: Alloc: %p of %"PRIuS" from %d\n",
+                          ptr, bytes, int(pthread_self()));
+  }
 
-  if (temp_disable_  &&  temp_disabled_tid_ == pthread_self())  return;
+  if (self_disable_  &&  self_disabled_tid_ == pthread_self()) {
+    self_disabled_.allocs_++;
+    self_disabled_.alloc_size_ += bytes;
+    AllocValue v;
+    v.bucket = NULL;  // initialize just to make smart tools happy
+                      // (no one will read it)
+    v.bytes = bytes;
+    self_disabled_allocation->Insert(ptr, v);
+    return;
+  }
+
   HeapProfiler::Lock();
   if (is_on_) {
     Bucket* b = GetBucket(skip_count+1);
@@ -560,12 +607,17 @@ void HeapProfiler::RecordAlloc(void* ptr, size_t bytes, int skip_count) {
     v.bytes = bytes;
     allocation_->Insert(ptr, v);
 
+    if (kMaxLogging) {
+      HeapProfiler::MESSAGE(8, "HeapProfiler: Alloc Recorded: %p of %"PRIuS"\n",
+                            ptr, bytes);
+    }
+
     const int64 inuse_bytes = total_.alloc_size_ - total_.free_size_;
     if (!dumping_) {
       bool need_dump = false;
       char buf[128];
-      if(total_.alloc_size_ >=
-         last_dump + FLAGS_heap_profile_allocation_interval) {
+      if (total_.alloc_size_ >=
+          last_dump + FLAGS_heap_profile_allocation_interval) {
         snprintf(buf, sizeof(buf), "%"LLD" MB allocated",
                  total_.alloc_size_ >> 20);
         // Track that we made a "total allocation size" dump
@@ -588,29 +640,50 @@ void HeapProfiler::RecordAlloc(void* ptr, size_t bytes, int skip_count) {
   HeapProfiler::Unlock();
 }
 
-void HeapProfiler::RecordFreeLocked(void* ptr) {
-  assert(is_on_);
-  AllocValue v;
-  if (allocation_->FindAndRemove(ptr, &v)) {
-    Bucket* b = v.bucket;
-    b->frees_++;
-    b->free_size_ += v.bytes;
-    total_.frees_++;
-    total_.free_size_ += v.bytes;
-  }
-}
-
 void HeapProfiler::RecordFree(void* ptr) {
   // All activity before if (is_on_)
   // is not an overhead because with profiling turned off this hook
   // is not called at all.
 
-  // Uncomment for debugging:
-  // HeapProfiler::MESSAGE(7, "HeapProfiler: Free %p\n", ptr);
+  if (kMaxLogging) {
+    HeapProfiler::MESSAGE(7, "HeapProfiler: Free %p from %d\n",
+                          ptr, int(pthread_self()));
+  }
 
-  if (temp_disable_  &&  temp_disabled_tid_ == pthread_self())  return;
+  if (self_disable_  &&  self_disabled_tid_ == pthread_self()) {
+    AllocValue v;
+    if (self_disabled_allocation->FindAndRemove(ptr, &v)) {
+      self_disabled_.free_size_ += v.bytes;
+      self_disabled_.frees_++;
+    } else {
+      // Try to mess the counters up and fail later in
+      // HeapLeakChecker::DumpProfileLocked instead of failing right now:
+      // presently execution gets here only from within the guts
+      // of pthread library and only when being in an address space
+      // that is about to disappear completely.
+      // I.e. failing right here is wrong, but failing later if
+      // this happens in the course of normal execution is needed.
+      self_disabled_.free_size_ += 100000000;
+      self_disabled_.frees_ += 100000000;
+    }
+    return;
+  }
+
   HeapProfiler::Lock();
-  if (is_on_)  RecordFreeLocked(ptr);
+  if (is_on_) {
+    AllocValue v;
+    if (allocation_->FindAndRemove(ptr, &v)) {
+      Bucket* b = v.bucket;
+      b->frees_++;
+      b->free_size_ += v.bytes;
+      total_.frees_++;
+      total_.free_size_ += v.bytes;
+
+      if (kMaxLogging) {
+        HeapProfiler::MESSAGE(8, "HeapProfiler: Free Recorded: %p\n", ptr);
+      }
+    }
+  }
   HeapProfiler::Unlock();
 }
 
@@ -639,6 +712,10 @@ bool HeapProfiler::HaveOnHeapLocked(void** ptr, AllocValue* alloc_value) {
     // this case is to account for the array size stored inside of
     // the memory allocated by new FooClass[size] for classes with destructors
     *ptr = reinterpret_cast<char*>(*ptr) - kArraySizeOffset;
+    if (kMaxLogging) {
+      HeapProfiler::MESSAGE(7, "HeapProfiler: Got poiter into %p at +%d\n",
+                            ptr, kArraySizeOffset);
+    }
   } else if (allocation_->Find(reinterpret_cast<char*>(*ptr)
                                - kStringOffset,
                                alloc_value)  &&
@@ -647,6 +724,10 @@ bool HeapProfiler::HaveOnHeapLocked(void** ptr, AllocValue* alloc_value) {
     // newer C++ library versions when the kept pointer points to inside of
     // the allocated region
     *ptr = reinterpret_cast<char*>(*ptr) - kStringOffset;
+    if (kMaxLogging) {
+      HeapProfiler::MESSAGE(7, "HeapProfiler: Got poiter into %p at +%d\n",
+                            ptr, kStringOffset);
+    }
   } else {
     result = false;
   }
@@ -756,22 +837,13 @@ Bucket* HeapProfiler::GetBucket(int skip_count) {
 void HeapProfiler::EarlyStartLocked() {
   assert(!is_on_);
 
-  // GNU libc++ versions 3.3 and 3.4 obey the environment variables
-  // GLIBCPP_FORCE_NEW and GLIBCXX_FORCE_NEW respectively.  Setting one of
-  // these variables forces the STL default allocator to call new() or delete()
-  // for each allocation or deletion.  Otherwise the STL allocator tries to
-  // avoid the high cost of doing allocations by pooling memory internally.
-  // This STL pool makes it impossible to get an accurate heap profile.
-  // Luckily, our tcmalloc implementation gives us similar performance
-  // characteristics *and* allows to to profile accurately.
-  setenv("GLIBCPP_FORCE_NEW", "1", false /* no overwrite*/);
-  setenv("GLIBCXX_FORCE_NEW", "1", false /* no overwrite*/);
-
   heap_profiler_memory.Init();
 
   is_on_ = true;
-  if (temp_disable_) abort();
-  filename_prefix_ = NULL;
+  // we should be really turned off:
+  if (need_for_leaks_)  abort();
+  if (self_disable_)  abort();
+  if (filename_prefix_ != NULL)  abort();
 
   // Make the table
   const int table_bytes = kHashTableSize * sizeof(Bucket*);
@@ -807,13 +879,15 @@ void HeapProfiler::EarlyStartLocked() {
 
   MallocHook::SetDeleteHook(DeleteHook);
 
-  HeapProfiler::MESSAGE(0, "HeapProfiler: Starting heap tracking\n");
+  HeapProfiler::MESSAGE(1, "HeapProfiler: Starting heap tracking\n");
 }
 
 void HeapProfiler::StartLocked(const char* prefix) {
-  assert(filename_prefix_ == NULL);
+  if (filename_prefix_ != NULL) return;
 
-  if (!is_on_) EarlyStartLocked();
+  if (!is_on_) {
+    EarlyStartLocked();
+  }
 
   // Copy filename prefix
   const int prefix_length = strlen(prefix);
@@ -823,7 +897,14 @@ void HeapProfiler::StartLocked(const char* prefix) {
 }
 
 void HeapProfiler::StopLocked() {
-  assert(is_on_);
+  if (!is_on_) return;
+
+  filename_prefix_ = NULL;
+
+  if (need_for_leaks_)  return;
+
+  // Turn us off completely:
+
   MallocHook::SetNewHook(NULL);
   MallocHook::SetDeleteHook(NULL);
 
@@ -831,22 +912,43 @@ void HeapProfiler::StopLocked() {
   heap_profiler_memory.Clear();
 
   table             = NULL;
-  filename_prefix_  = NULL;
   allocation_       = NULL;
   is_on_            = false;
 }
 
+void HeapProfiler::StartForLeaks() {
+  Lock();
+
+  if (!is_on_) {
+    EarlyStartLocked();  // fire-up HeapProfiler hooks
+  }
+  need_for_leaks_ = true;
+
+  memset(&self_disabled_, 0, sizeof(self_disabled_));  // zero the counters
+
+  // Make allocation map for self-disabled allocations
+  void* aptr = Malloc(sizeof(AllocationMap));
+  self_disabled_allocation = new (aptr) AllocationMap(Malloc, Free);
+
+  Unlock();
+}
+
+void HeapProfiler::StopForLeaks() {
+  Lock();
+  need_for_leaks_ = false;
+  if (filename_prefix_ == NULL) StopLocked();
+  Unlock();
+}
+
 void HeapProfilerStart(const char* prefix) {
   HeapProfiler::Lock();
-  if (HeapProfiler::filename_prefix_ == NULL) {
-    HeapProfiler::StartLocked(prefix);
-  }
+  HeapProfiler::StartLocked(prefix);
   HeapProfiler::Unlock();
 }
 
 void HeapProfilerStop() {
   HeapProfiler::Lock();
-  if (HeapProfiler::is_on_) HeapProfiler::StopLocked();
+  HeapProfiler::StopLocked();
   HeapProfiler::Unlock();
 }
 
@@ -854,34 +956,78 @@ void HeapProfilerStop() {
 // Initialization/finalization code
 //----------------------------------------------------------------------
 
-// helper function for HeapProfiler::Init()
-inline static bool GlobOk(int r) {
-  return r == 0 || r == GLOB_NOMATCH;
-}
-
 // Initialization code
 void HeapProfiler::Init() {
+  // depending on the ordering of the global constructors (undefined
+  // according to the C++ spec, HeapProfiler::Init() can either be
+  // called from this file directly, or from heap-checker.cc's global
+  // constructor if it gets run first.  Either way is fine by us; we
+  // just want to be sure not to run twice.
+  if (init_has_been_called_)  return;  // we were already run, I guess
+  init_has_been_called_ = true;
+
+  // We want to make sure tcmalloc is set up properly, in order to
+  // profile as much as we can.
+  MallocExtension::Initialize();
+
   if (FLAGS_mmap_profile || FLAGS_mmap_log) {
     MallocHook::SetMmapHook(MmapHook);
     MallocHook::SetMunmapHook(MunmapHook);
   }
 
-  if (FLAGS_heap_profile.empty()) return;
+  // Everything after this point is for setting up the profiler based on envvar
 
-  // Cleanup any old profile files
-  string pattern = FLAGS_heap_profile + ".[0-9][0-9][0-9][0-9].heap";
+  char* heapprofile = getenv("HEAPPROFILE");
+  if (!heapprofile || heapprofile[0] == '\0') {
+    return;
+  }
+  // We do a uid check so we don't write out files in a setuid executable.
+  if (getuid() != geteuid()) {
+    HeapProfiler::MESSAGE(0, ("HeapProfiler: ignoring HEAPPROFILE because "
+                              "program seems to be setuid\n"));
+    return;
+  }
+
+  // If we're a child process of the 'main' process, we can't just use
+  // the name HEAPPROFILE -- the parent process will be using that.
+  // Instead we append our pid to the name.  How do we tell if we're a
+  // child process?  Ideally we'd set an environment variable that all
+  // our children would inherit.  But -- and perhaps this is a bug in
+  // gcc -- if you do a setenv() in a shared libarary in a global
+  // constructor, the environment setting is lost by the time main()
+  // is called.  The only safe thing we can do in such a situation is
+  // to modify the existing envvar.  So we do a hack: in the parent,
+  // we set the high bit of the 1st char of HEAPPROFILE.  In the child,
+  // we notice the high bit is set and append the pid().  This works
+  // assuming cpuprofile filenames don't normally have the high bit
+  // set in their first character!  If that assumption is violated,
+  // we'll still get a profile, but one with an unexpected name.
+  // TODO(csilvers): set an envvar instead when we can do it reliably.
+  char fname[PATH_MAX];
+  if (heapprofile[0] & 128) {                   // high bit is set
+    snprintf(fname, sizeof(fname), "%c%s_%u",   // add pid and clear high bit
+             heapprofile[0] & 127, heapprofile+1, (unsigned int)(getpid()));
+  } else {
+    snprintf(fname, sizeof(fname), "%s", heapprofile);
+    heapprofile[0] |= 128;                      // set high bit for kids to see
+  }
+
+  CleanupProfiles(fname);
+
+  HeapProfilerStart(fname);
+}
+
+void HeapProfiler::CleanupProfiles(const char* prefix) {
+  string pattern(prefix);
+  pattern += ".*.heap";
   glob_t g;
   const int r = glob(pattern.c_str(), GLOB_ERR, NULL, &g);
-  pattern = FLAGS_heap_profile + ".*-beg.heap";
-  const int r2 = glob(pattern.c_str(), GLOB_ERR|GLOB_APPEND, NULL, &g);
-  pattern = FLAGS_heap_profile + ".*-end.heap";
-  const int r3 = glob(pattern.c_str(), GLOB_ERR|GLOB_APPEND, NULL, &g);
-  if (GlobOk(r) && GlobOk(r2) && GlobOk(r3)) {
-    const int prefix_length = FLAGS_heap_profile.size();
+  if (r == 0 || r == GLOB_NOMATCH) {
+    const int prefix_length = strlen(prefix);
     for (int i = 0; i < g.gl_pathc; i++) {
       const char* fname = g.gl_pathv[i];
       if ((strlen(fname) >= prefix_length) &&
-          (memcmp(fname, FLAGS_heap_profile.data(), prefix_length) == 0)) {
+          (memcmp(fname, prefix, prefix_length) == 0)) {
         HeapProfiler::MESSAGE(0, "HeapProfiler: "
                               "Removing old profile %s\n", fname);
         unlink(fname);
@@ -889,8 +1035,6 @@ void HeapProfiler::Init() {
     }
   }
   globfree(&g);
-
-  HeapProfilerStart(FLAGS_heap_profile.c_str());
 }
 
 // class used for finalization -- dumps the heap-profile at program exit

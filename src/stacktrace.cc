@@ -32,7 +32,8 @@
 //
 // Produce stack trace
 
-#include "google/perftools/config.h"
+#include "config.h"
+#include <stdlib.h>
 #include "google/stacktrace.h"
 
 #undef IMPLEMENTED_STACK_TRACE
@@ -43,6 +44,10 @@
     defined(__linux) && !defined(NO_FRAME_POINTER) && !defined(_LP64)
 #define IMPLEMENTED_STACK_TRACE
 
+#include <stdint.h>   // for uintptr_t
+
+// Note: the code for GetStackExtent below is pretty similar to this one;
+//       change both if chaning one.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void **sp;
 #ifdef __i386__
@@ -71,13 +76,56 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
     void** new_sp = (void**) *sp;
 
     // A little bit of sanity checking to avoid crashes
-    if (new_sp < sp || new_sp > sp + 100000) {
+    if (new_sp < sp ||
+        (uintptr_t)new_sp - (uintptr_t)sp > 100000) {
       break;
     }
     sp = new_sp;
   }
   return n;
 }
+
+// Note: the code is pretty similar to GetStackTrace above;
+//       change both if chaning one.
+bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
+  void** cur_sp;
+
+  if (sp != NULL) {
+    cur_sp = (void**)sp;
+    *stack_top = sp;
+  } else {
+#ifdef __i386__
+    // Stack frame format:
+    //    sp[0]   pointer to previous frame
+    //    sp[1]   caller address
+    //    sp[2]   first argument
+    //    ...
+    cur_sp = (void**)&sp - 2;
+#endif
+
+#ifdef __x86_64__
+    // Arguments are passed in registers on x86-64, so we can't just
+    // offset from &result
+    cur_sp = (void**)__builtin_frame_address(0);
+#endif
+    *stack_top = NULL;
+  }
+
+  while (cur_sp) {
+    void** new_sp = (void**)*cur_sp;
+    // A little bit of sanity checking to avoid crashes
+    if (new_sp < cur_sp ||
+        (uintptr_t)new_sp - (uintptr_t)cur_sp > 100000) {
+      *stack_bottom = (void*)cur_sp;
+      return true;
+    }
+    cur_sp = new_sp;
+    if (*stack_top == NULL)  *stack_top = (void*)cur_sp;
+      // get out of the stack frame for this call
+  }
+  return false;
+}
+
 #endif
 
 // Portable implementation - just use glibc
@@ -89,7 +137,7 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   static const int kStackLength = 64;
   void * stack[kStackLength];
   int size;
-  
+
   size = backtrace(stack, kStackLength);
   skip_count++;  // we want to skip the current frame as well
   int result_count = size - skip_count;
@@ -103,6 +151,11 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 
   return result_count;
 }
+
+bool GetStackExtent(void* sp,  void** stack_bottom, void** stack_top) {
+  return false;  // can't climb up
+}
+
 #endif
 
 #if !defined(IMPLEMENTED_STACK_TRACE) && !defined(HAVE_EXECINFO_H)
