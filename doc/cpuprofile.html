@@ -1,48 +1,57 @@
+<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
 <HTML>
 
 <HEAD>
-<title>Google CPU Profiler</title>
+  <link rel="stylesheet" href="designstyle.css">
+  <title>Google CPU Profiler</title>
 </HEAD>
 
 <BODY>
 
-This is the CPU profiler we use at Google.  There are three parts to
-using it: linking the library into an application, running the code,
-and analyzing the output.
+<p align=right>
+  <i>Last modified
+  <script type=text/javascript>
+    var lm = new Date(document.lastModified);
+    document.write(lm.toDateString());
+  </script></i>
+</p>
+
+<p>This is the CPU profiler we use at Google.  There are three parts
+to using it: linking the library into an application, running the
+code, and analyzing the output.</p>
 
 
 <H1>Linking in the Library</H1>
 
-<p>To install the CPU profiler into your executable, add -lprofiler to
-the link-time step for your executable.  (It's also probably possible
-to add in the profiler at run-time using LD_PRELOAD, but this isn't
-necessarily recommended.)</p>
+<p>To install the CPU profiler into your executable, add
+<code>-lprofiler</code> to the link-time step for your executable.
+(It's also probably possible to add in the profiler at run-time using
+<code>LD_PRELOAD</code>, but this isn't necessarily recommended.)</p>
 
-<p>This does <i>not</i> turn on CPU profiling; it just inserts the code.
-For that reason, it's practical to just always link -lprofiler into a
-binary while developing; that's what we do at Google.  (However, since
-any user can turn on the profiler by setting an environment variable,
-it's not necessarily recommended to install profiler-linked binaries
-into a production, running system.)</p>
+<p>This does <i>not</i> turn on CPU profiling; it just inserts the
+code.  For that reason, it's practical to just always link
+<code>-lprofiler</code> into a binary while developing; that's what we
+do at Google.  (However, since any user can turn on the profiler by
+setting an environment variable, it's not necessarily recommended to
+install profiler-linked binaries into a production, running
+system.)</p>
 
 
 <H1>Running the Code</H1>
 
-<p>There are two alternatives to actually turn on CPU profiling for a
-given run of an executable:</p>
+<p>There are several alternatives to actually turn on CPU profiling
+for a given run of an executable:</p>
 
 <ol>
-<li> Define the environment variable CPUPROFILE to the filename to dump the
-     profile to.  For instance, to profile /usr/local/netscape:
-     <pre>
-      $ CPUPROFILE=/tmp/profile /usr/local/netscape           # sh
-      % setenv CPUPROFILE /tmp/profile; /usr/local/netscape   # csh
-     </pre>
-     OR
+  <li> <p>Define the environment variable CPUPROFILE to the filename
+       to dump the profile to.  For instance, to profile
+       <code>/usr/local/bin/my_binary_compiled_with_tcmalloc</code>:</p>
+       <pre>% env CPUPROFILE=/tmp/mybin.prof /usr/local/bin/my_binary_compiled_with_tcmalloc</pre>
 
-<li> In your code, bracket the code you want profiled in calls to
-     ProfilerStart() and ProfilerStop().  ProfilerStart() will take the
-     profile-filename as an argument.
+  <li> <p>In your code, bracket the code you want profiled in calls to
+       <code>ProfilerStart()</code> and <code>ProfilerStop()</code>.
+       <code>ProfilerStart()</code> will take
+       the profile-filename as an argument.</p>
 </ol>
 
 <p>In Linux 2.6 and above, profiling works correctly with threads,
@@ -55,59 +64,58 @@ CPUPROFILE with the child's process id).</p>
 <p>For security reasons, CPU profiling will not write to a file -- and
 is thus not usable -- for setuid programs.</p>
 
-<H2>Controlling Behavior via the Environment</H2>
+<H2>Modifying Runtime Behavior</H2>
 
-<p>In addition to the environment variable <code>CPUPROFILE</code>,
-which determines where profiles are written, there are several
-environment variables which control the performance of the CPU
-profile.</p>
+<p>You can more finely control the behavior of the CPU profiler via
+environment variables.</p>
 
 <table frame=box rules=sides cellpadding=5 width=100%>
-<tr>
-<td><code>PROFILEFREQUENCY=<i>x</i></code></td>
-    <td>How many interrupts/second the cpu-profiler samples.
-    </td>
+
+<tr valign=top>
+  <td><code>CPUPROFILE_FREQUENCY=<i>x</i></code></td>
+  <td>
+    How many interrupts/second the cpu-profiler samples.
+  </td>
 </tr>
+
 </table>
 
-<H1>Analyzing the Output</H1>
 
-<p>pprof is the script used to analyze a profile.  It has many output
-modes, both textual and graphical.  Some give just raw numbers, much
-like the -pg output of gcc, and others show the data in the form of a
-dependency graph.</p>
+<h1><a name="pprof">Analyzing the Output</a></h1>
 
-<p>pprof <b>requires</b> perl5 to be installed to run.  It also
-requires dot to be installed for any of the graphical output routines,
-and gv to be installed for --gv mode (described below).</p>
+<p><code>pprof</code> is the script used to analyze a profile.  It has
+many output modes, both textual and graphical.  Some give just raw
+numbers, much like the <code>-pg</code> output of <code>gcc</code>,
+and others show the data in the form of a dependency graph.</p>
+
+<p>pprof <b>requires</b> <code>perl5</code> to be installed to run.
+It also requires <code>dot</code> to be installed for any of the
+graphical output routines, and <code>gv</code> to be installed for
+<code>--gv</code> mode (described below).
+</p>
 
 <p>Here are some ways to call pprof.  These are described in more
 detail below.</p>
 
 <pre>
-% pprof "program" "profile"
-  Generates one line per procedure
-
-% pprof --gv "program" "profile"
-  Generates annotated call-graph and displays via "gv"
-
-% pprof --gv --focus=Mutex "program" "profile"
-  Restrict to code paths that involve an entry that matches "Mutex"
-
-% pprof --gv --focus=Mutex --ignore=string "program" "profile"
-  Restrict to code paths that involve an entry that matches "Mutex"
-  and does not match "string"
-
-% pprof --list=IBF_CheckDocid "program" "profile"
-  Generates disassembly listing of all routines with at least one
-  sample that match the --list=<regexp> pattern.  The listing is
-  annotated with the flat and cumulative sample counts at each line.
-
-% pprof --disasm=IBF_CheckDocid "program" "profile"
-  Generates disassembly listing of all routines with at least one
-  sample that match the --disasm=<regexp> pattern.  The listing is
-  annotated with the flat and cumulative sample counts at each PC value.
+% pprof /bin/ls ls.prof
+                       Enters "interactive" mode
+% pprof --text /bin/ls ls.prof
+                       Outputs one line per procedure
+% pprof --gv /bin/ls ls.prof
+                       Displays annotated call-graph via 'gv'
+% pprof --gv --focus=Mutex /bin/ls ls.prof
+                       Restricts to code paths including a .*Mutex.* entry
+% pprof --gv --focus=Mutex --ignore=string /bin/ls ls.prof
+                       Code paths including Mutex but not string
+% pprof --list=getdir /bin/ls ls.prof
+                       (Per-line) annotated source listing for getdir()
+% pprof --disasm=getdir /bin/ls ls.prof
+                       (Per-PC) annotated disassembly for getdir()
+% pprof --text localhost:1234
+                       Outputs one line per procedure for localhost:1234
 </pre>
+
 
 <h3>Analyzing Text Output</h3>
 
@@ -138,9 +146,8 @@ annotated with timing information, like so:</p>
 </td></tr></table></center>
 </A>
 
-<p>Each node represents a procedure.
-The directed edges indicate caller to callee relations.  Each node is
-formatted as follows:</p>
+<p>Each node represents a procedure.  The directed edges indicate
+caller to callee relations.  Each node is formatted as follows:</p>
 
 <center><pre>
 Class Name
@@ -157,34 +164,38 @@ time spent executing the instructions directly contained in the
 procedure (and in any other procedures that were inlined into the
 procedure).  The "cumulative" time is the sum of the "local" time and
 the time spent in any callees.  If the cumulative time is the same as
-the local time, it is not printed.
+the local time, it is not printed.</p>
 
 <p>For instance, the timing information for test_main_thread()
 indicates that 155 units (about 1.55 seconds) were spent executing the
-code in test_main_thread() and 200 units were spent while executing
-test_main_thread() and its callees such as snprintf().</p>
+code in <code>test_main_thread()</code> and 200 units were spent while
+executing <code>test_main_thread()</code> and its callees such as
+<code>snprintf()</code>.</p>
 
 <p>The size of the node is proportional to the local count.  The
 percentage displayed in the node corresponds to the count divided by
 the total run time of the program (that is, the cumulative count for
-main()).</p>
+<code>main()</code>).</p>
 
 <h3>Edge Information</h3>
 
 <p>An edge from one node to another indicates a caller to callee
 relationship.  Each edge is labelled with the time spent by the callee
-on behalf of the caller.  E.g, the edge from test_main_thread() to
-snprintf() indicates that of the 200 samples in
-test_main_thread(), 37 are because of calls to snprintf().</p>
+on behalf of the caller.  E.g, the edge from
+<code>test_main_thread()</code> to <code>snprintf()</code> indicates
+that of the 200 samples in <code>test_main_thread()</code>, 37 are
+because of calls to <code>snprintf()</code>.</p>
 
-<p>Note that test_main_thread() has an edge to vsnprintf(), even
-though test_main_thread() doesn't call that function directly.  This
-is because the code was compiled with -O2; the profile reflects the
-optimized control flow.</p>
+<p>Note that <code>test_main_thread()</code> has an edge to
+<code>vsnprintf()</code>, even though <code>test_main_thread()</code>
+doesn't call that function directly.  This is because the code was
+compiled with <code>-O2</code>; the profile reflects the optimized
+control flow.</p>
 
 <h3>Meta Information</h3>
 
-The top of the display should contain some meta information like:
+<p>The top of the display should contain some meta information
+like:</p>
 <pre>
       /tmp/profiler2_unittest
       Total samples: 202
@@ -193,13 +204,13 @@ The top of the display should contain some meta information like:
       Dropped edges with &lt;= 0 samples
 </pre>
 
-This section contains the name of the program, and the total samples
-collected during the profiling run.  If the --focus option is on (see
-the <a href="#focus">Focus</a> section below), the legend also
-contains the number of samples being shown in the focused display.
-Furthermore, some unimportant nodes and edges are dropped to reduce
-clutter.  The characteristics of the dropped nodes and edges are also
-displayed in the legend.
+<p>This section contains the name of the program, and the total
+samples collected during the profiling run.  If the
+<code>--focus</code> option is on (see the <a href="#focus">Focus</a>
+section below), the legend also contains the number of samples being
+shown in the focused display.  Furthermore, some unimportant nodes and
+edges are dropped to reduce clutter.  The characteristics of the
+dropped nodes and edges are also displayed in the legend.</p>
 
 <h3><a name=focus>Focus and Ignore</a></h3>
 
@@ -208,7 +219,8 @@ piece of the program.  You specify a regular expression.  Any portion
 of the call-graph that is on a path which contains at least one node
 matching the regular expression is preserved.  The rest of the
 call-graph is dropped on the floor.  For example, you can focus on the
-vsnprintf() libc call in profiler2_unittest as follows:</p>
+<code>vsnprintf()</code> libc call in <code>profiler2_unittest</code>
+as follows:</p>
 
 <pre>
 % pprof --gv --focus=vsnprintf /tmp/profiler2_unittest test.prof
@@ -219,16 +231,27 @@ vsnprintf() libc call in profiler2_unittest as follows:</p>
 </td></tr></table></center>
 </A>
 
-<p>
-Similarly, you can supply the --ignore option to ignore
-samples that match a specified regular expression.  E.g.,
-if you are interested in everything except calls to snprintf(),
-you can say:
+<p>Similarly, you can supply the <code>--ignore</code> option to
+ignore samples that match a specified regular expression.  E.g., if
+you are interested in everything except calls to
+<code>snprintf()</code>, you can say:</p>
 <pre>
 % pprof --gv --ignore=snprintf /tmp/profiler2_unittest test.prof
 </pre>
 
+
+<h3>Interactive mode</a></h3>
+
+<p>By default -- if you don't specify any flags to the contrary --
+pprof runs in interactive mode.  At the <code>(pprof)</code> prompt,
+you can run many of the commands described above.  You can type
+<code>help</code> for a list of what commands are available in
+interactive mode.</p>
+
 <h3><a name=options>pprof Options</a></h3>
+
+For a complete list of pprof options, you can run <code>pprof
+--help</code>.
 
 <h4>Output Type</h4>
 
@@ -238,39 +261,46 @@ you can say:
 <tr valign=top>
   <td><code>--text</code></td>
   <td>
-    Produces a textual listing.  This is currently the default
-    since it does not need to access to an X display, or
-    dot or gv.  However if you
-    have these programs installed, you will probably be
-    happier with the --gv output.
+    Produces a textual listing.  (Note: If you have an X display, and
+    <code>dot</code> and <code>gv</code> installed, you will probably
+    be happier with the <code>--gv</code> output.)
   </td>
 </tr>
 <tr valign=top>
   <td><code>--gv</code></td>
   <td>
     Generates annotated call-graph, converts to postscript, and
-    displays via gv.
+    displays via gv (requres <code>dot</code> and <code>gv</code> be
+    installed).
   </td>
 </tr>
 <tr valign=top>
   <td><code>--dot</code></td>
   <td>
     Generates the annotated call-graph in dot format and
-    emits to stdout.
+    emits to stdout (requres <code>dot</code> be installed).
   </td>
 </tr>
 <tr valign=top>
   <td><code>--ps</code></td>
   <td>
     Generates the annotated call-graph in Postscript format and
-    emits to stdout.
+    emits to stdout (requres <code>dot</code> be installed).
+  </td>
+</tr>
+<tr valign=top>
+  <td><code>--pdf</code></td>
+  <td>
+    Generates the annotated call-graph in PDF format and emits to
+    stdout (requires <code>dot</code> and <code>ps2pdf</code> be
+    installed).
   </td>
 </tr>
 <tr valign=top>
   <td><code>--gif</code></td>
   <td>
     Generates the annotated call-graph in GIF format and
-    emits to stdout.
+    emits to stdout (requres <code>dot</code> be installed).
   </td>
 </tr>
 <tr valign=top>
@@ -304,8 +334,8 @@ you can say:
 
 <p>By default, pprof produces one entry per procedure.  However you can
 use one of the following options to change the granularity of the
-output.  The --files option seems to be particularly useless, and may
-be removed eventually.</p>
+output.  The <code>--files</code> option seems to be particularly
+useless, and may be removed eventually.</p>
 
 <center>
 <table frame=box rules=sides cellpadding=5 width=100%>
@@ -398,42 +428,49 @@ display.  The following options control this effect:</p>
 
 <p>The dropped edges and nodes account for some count mismatches in
 the display.  For example, the cumulative count for
-snprintf() in the first diagram above was 41.  However the local
-count (1) and the count along the outgoing edges (12+1+20+6) add up to
-only 40.</p>
+<code>snprintf()</code> in the first diagram above was 41.  However
+the local count (1) and the count along the outgoing edges (12+1+20+6)
+add up to only 40.</p>
 
 
 <h1>Caveats</h1>
 
 <ul>
-<li> If the program exits because of a signal, the generated profile
-     will be <font color=red>incomplete, and may perhaps be
-     completely empty.</font>
-<li> The displayed graph may have disconnected regions because
-     of the edge-dropping heuristics described above.
-<li> If the program linked in a library that was not compiled
-     with enough symbolic information, all samples associated
-     with the library may be charged to the last symbol found
-     in the program before the libary.  This will artificially
-     inflate the count for that symbol.
-<li> If you run the program on one machine, and profile it on another,
-     and the shared libraries are different on the two machines, the
-     profiling output may be confusing: samples that fall within
-     the shared libaries may be assigned to arbitrary procedures.
-<li> If your program forks, the children will also be profiled (since
-     they inherit the same CPUPROFILE setting).  Each process is
-     profiled separately; to distinguish the child profiles from the
-     parent profile and from each other, all children will have their
-     process-id appended to the CPUPROFILE name.
-<li> Due to a hack we make to work around a possible gcc bug, your
-     profiles may end up named strangely if the first character of
-     your CPUPROFILE variable has ascii value greater than 127.  This
-     should be exceedingly rare, but if you need to use such a name,
-     just set prepend <code>./</code> to your filename:
-     <code>CPUPROFILE=./&Auml;gypten</code>.
+  <li> If the program exits because of a signal, the generated profile
+       will be <font color=red>incomplete, and may perhaps be
+       completely empty</font>.
+  <li> The displayed graph may have disconnected regions because
+       of the edge-dropping heuristics described above.
+  <li> If the program linked in a library that was not compiled
+       with enough symbolic information, all samples associated
+       with the library may be charged to the last symbol found
+       in the program before the library.  This will artificially
+       inflate the count for that symbol.
+  <li> If you run the program on one machine, and profile it on
+       another, and the shared libraries are different on the two
+       machines, the profiling output may be confusing: samples that
+       fall within  shared libaries may be assigned to arbitrary
+       procedures.
+  <li> If your program forks, the children will also be profiled
+       (since they inherit the same CPUPROFILE setting).  Each process
+       is profiled separately; to distinguish the child profiles from
+       the parent profile and from each other, all children will have
+       their process-id appended to the CPUPROFILE name.
+  <li> Due to a hack we make to work around a possible gcc bug, your
+       profiles may end up named strangely if the first character of
+       your CPUPROFILE variable has ascii value greater than 127.
+       This should be exceedingly rare, but if you need to use such a
+       name, just set prepend <code>./</code> to your filename:
+       <code>CPUPROFILE=./&Auml;gypten</code>.
 </ul>
 
+
 <hr>
-Last modified: Wed Apr 20 04:54:23 PDT 2005
-</body>
-</html>
+<address>Sanjay Ghemawat<br>
+<!-- Created: Tue Dec 19 10:43:14 PST 2000 -->
+<!-- hhmts start -->
+Last modified: Sat Feb 24 13:11:38 PST 2007  (csilvers)
+<!-- hhmts end -->
+</address>
+</BODY>
+</HTML>

@@ -43,12 +43,12 @@ DEFINE_int32(N, 100000,  "Number of elements to test per iteration");
 using std::pair;
 using std::make_pair;
 using std::vector;
+using std::set;
 using std::random_shuffle;
 
-static std::set<pair<void*, int> > check_set;
-
-static void SetCheckCallback(void* ptr, int val) {
-  check_set.insert(make_pair(ptr, val));
+static void SetCheckCallback(void* ptr, int val,
+                             set<pair<void*, int> >* check_set) {
+  check_set->insert(make_pair(ptr, val));
 }
 
 int main(int argc, char** argv) {
@@ -105,7 +105,8 @@ int main(int argc, char** argv) {
     }
 
     // Check all entries
-    map.Iterate(SetCheckCallback);
+    set<pair<void*, int> > check_set;
+    map.Iterate(SetCheckCallback, &check_set);
     CHECK_EQ(check_set.size(), N);
     for (int i = 0; i < N; ++i) {
       void* p = ptrs[i];

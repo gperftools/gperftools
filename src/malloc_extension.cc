@@ -112,6 +112,14 @@ void** MallocExtension::ReadHeapGrowthStackTraces() {
   return NULL;
 }
 
+void MallocExtension::MarkThreadIdle() {
+  // Default implementation does nothing
+}
+
+void MallocExtension::ReleaseFreeMemory() {
+  // Default implementation does nothing
+}
+
 // The current malloc extension object.  We also keep a pointer to
 // the default implementation so that the heap-leak checker does not
 // complain about a memory leak.
@@ -159,11 +167,13 @@ void* PC(void** entry, int i) {
 struct StackTraceHash {
   size_t operator()(void** entry) const {
     uintptr_t h = 0;
-    for (unsigned int i = 0; i < Depth(entry); i++) {
-      uintptr_t pc = reinterpret_cast<uintptr_t>(PC(entry, i));
-      h = (h << 8) | (h >> (8*(sizeof(h)-1)));
-      h += (pc * 31) + (pc * 7) + (pc * 3);
+    for (int i = 0; i < Depth(entry); i++) {
+      h += reinterpret_cast<uintptr_t>(PC(entry, i));
+      h += h << 10;
+      h ^= h >> 6;
     }
+    h += h << 3;
+    h ^= h >> 11;
     return h;
   }
   // Less operator for MSVC's hash containers.
@@ -267,11 +277,11 @@ void MallocExtension::GetHeapSample(string* result) {
   delete[] entries;
 }
 
-void MallocExtension::GetHeapGrowthStacks(std::string* result) {
+void MallocExtension::GetHeapGrowthStacks(string* result) {
   void** entries = ReadHeapGrowthStackTraces();
   if (entries == NULL) {
     *result += "This malloc implementation does not support "
-               "ReadHeapGrowhStackTraces().\n"
+               "ReadHeapGrowthStackTraces().\n"
                "As of 2005/09/27, only tcmalloc supports this, and you\n"
                "are probably running a binary that does not use tcmalloc.\n";
     return;

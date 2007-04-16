@@ -37,20 +37,40 @@ extern "C" {
 #include <libunwind.h>
 }
 #include "google/stacktrace.h"
+#include "base/spinlock.h"
+
+// Sometimes, we can try to get a stack trace from within a stack
+// trace, because libunwind can call mmap/sbrk (maybe indirectly via
+// malloc), and that mmap gets trapped and causes a stack-trace
+// request.  If were to try to honor that recursive request, we'd end
+// up with infinite recursion or deadlock.  Luckily, it's safe to
+// ignore those subsequent traces.  In such cases, we return 0 to
+// indicate the situation.
+static SpinLock libunwind_lock(SpinLock::LINKER_INITIALIZED);
+static bool in_get_stack_trace = false;
 
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void *ip;
-  int ret, n = 0;
+  int n = 0;
   unw_cursor_t cursor;
   unw_context_t uc;
+
+  {
+    SpinLockHolder sh(&libunwind_lock);
+    if (in_get_stack_trace) {
+      return 0;
+    } else {
+      in_get_stack_trace = true;
+    }
+  }
 
   unw_getcontext(&uc);
   ret = unw_init_local(&cursor, &uc);
   assert(ret >= 0);
   skip_count++;         // Do not include the "GetStackTrace" frame
 
-  do {
-    ret = unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip);
+  while (n < max_depth) {
+    int ret = unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip);
     if (ret < 0)
       break;
     if (skip_count > 0) {
@@ -59,11 +79,12 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
       result[n++] = ip;
     }
     ret = unw_step(&cursor);
-  } while ((n < max_depth) && (ret > 0));
+    if (ret <= 0)
+      break;
+  }
+
+  SpinLockHolder sh(&libunwind_lock);
+  in_get_stack_trace = false;
 
   return n;
-}
-
-bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
-  return false;  // Not implemented yet
 }

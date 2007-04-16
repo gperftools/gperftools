@@ -46,23 +46,23 @@
 const static int kMaxCount = 100000;
 int* g_array[kMaxCount];              // an array of int-vectors
 
-int Allocate(int start, int end, int size) {
+static void Allocate(int start, int end, int size) {
   for (int i = start; i < end; ++i) {
     if (i < kMaxCount)
       g_array[i] = new int[size];
   }
 }
 
-int Allocate2(int start, int end, int size) {
+static void Allocate2(int start, int end, int size) {
   for (int i = start; i < end; ++i) {
     if (i < kMaxCount)
       g_array[i] = new int[size];
   }
 }
 
-int Deallocate(int start, int end) {
+static void Deallocate(int start, int end) {
   for (int i = start; i < end; ++i) {
-    delete g_array[i];
+    delete[] g_array[i];
     g_array[i] = 0;
   }
 }
@@ -76,8 +76,6 @@ int main(int argc, char** argv) {
   if (argc == 2) {
     num_forks = atoi(argv[1]);
   }
-
-  HeapProfilerSetInuseInterval(10 << 10);   // set inuse interval at 10MB
 
   Allocate(0, 40, 100);
   Deallocate(0, 40);
@@ -96,8 +94,8 @@ int main(int argc, char** argv) {
 
   while (num_forks-- > 0) {
     switch (fork()) {
-      case -1: 
-        printf("FORK failed!\n"); 
+      case -1:
+        printf("FORK failed!\n");
         return 1;
       case 0:             // child
         return execl(argv[0], argv[0], NULL);   // run child with no args

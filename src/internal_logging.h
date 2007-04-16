@@ -44,12 +44,6 @@
 // Utility routines
 //-------------------------------------------------------------------
 
-struct TCMallocDebug {
-  static int level;
-  
-  enum { kNone, kInfo, kVerbose };
-};
-
 // Safe debugging routine: we write directly to the stderr file
 // descriptor and avoid FILE buffering because that may invoke
 // malloc()

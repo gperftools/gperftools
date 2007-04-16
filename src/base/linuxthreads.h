@@ -1,4 +1,4 @@
-/* Copyright (c) 2005, Google Inc.
+/* Copyright (c) 2005-2007, Google Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -40,8 +40,8 @@
 /* We currently only support x86-32 and x86-64 on Linux. Porting to other
  * related platforms should not be difficult.
  */
-#if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__)) && \
-    defined(__linux)
+#if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__) || \
+     defined(mips)) && defined(__linux)
 
 /* Define the THREADS symbol to make sure that there is exactly one core dumper
  * built into the library.

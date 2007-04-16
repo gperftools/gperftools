@@ -1,10 +1,10 @@
-/* Copyright (c) 2005, Google Inc.
+/* Copyright (c) 2005-2007, Google Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
  *     * Neither the name of Google Inc. nor the names of its
  * contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -33,12 +33,15 @@
 
 #ifndef _ELFCORE_H
 #define _ELFCORE_H
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-/* We currently only support x86-32 and x86-64 on Linux. Porting to
- * other related platforms should not be difficult.
+/* We currently only support x86-32, x86-64, ARM, and MIPS on Linux.
+ * Porting to other related platforms should not be difficult.
  */
-#if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__)) && \
-    defined(__linux)
+#if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__) || \
+     defined(mips)) && defined(__linux)
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -93,6 +96,18 @@
     #define LR uregs[14]        /* Link register                             */
     long uregs[18];
   } arm_regs;
+#elif defined(mips)
+  typedef struct mips_regs {
+    unsigned long pad[6];       /* Unused padding to match kernel structures */
+    unsigned long uregs[32];    /* General purpose registers.                */
+    unsigned long cp0_status;
+    unsigned long lo;           /* Used for multiplication and division.     */
+    unsigned long hi;
+    unsigned long cp0_badvaddr;
+    unsigned long cp0_cause;
+    unsigned long cp0_epc;      /* Program counter.                          */
+    unsigned long unused;
+  } mips_regs;
 #endif
 
 #if defined(__i386__) && defined(__GNUC__)
@@ -151,6 +166,69 @@
                        errno = (f).errno_;                            \
                        (r)   = (f).uregs;                             \
                      } while (0)
+#elif defined(__x86_64__) && defined(__GNUC__)
+  /* The FRAME and SET_FRAME macros for x86_64.  */
+  typedef struct Frame {
+    struct i386_regs uregs;
+    int              errno_;
+    pid_t            tid;
+  } Frame;
+  #define FRAME(f) Frame f;                                           \
+                   do {                                               \
+                     f.errno_ = errno;                                \
+                     f.tid    = sys_gettid();                         \
+                     __asm__ volatile (                               \
+                       "push %%rbp\n"                                 \
+                       "push %%rbx\n"                                 \
+                       "mov  %%r15,0(%%rax)\n"                        \
+                       "mov  %%r14,8(%%rax)\n"                        \
+                       "mov  %%r13,16(%%rax)\n"                       \
+                       "mov  %%r12,24(%%rax)\n"                       \
+                       "mov  %%rbp,32(%%rax)\n"                       \
+                       "mov  %%rbx,40(%%rax)\n"                       \
+                       "mov  %%r11,48(%%rax)\n"                       \
+                       "mov  %%r10,56(%%rax)\n"                       \
+                       "mov  %%r9,64(%%rax)\n"                        \
+                       "mov  %%r8,72(%%rax)\n"                        \
+                       "mov  %%rax,80(%%rax)\n"                       \
+                       "mov  %%rcx,88(%%rax)\n"                       \
+                       "mov  %%rdx,96(%%rax)\n"                       \
+                       "mov  %%rsi,104(%%rax)\n"                      \
+                       "mov  %%rdi,112(%%rax)\n"                      \
+                       "mov  %%ds,%%rbx\n"                            \
+                       "mov  %%rbx,184(%%rax)\n"                      \
+                       "mov  %%es,%%rbx\n"                            \
+                       "mov  %%rbx,192(%%rax)\n"                      \
+                       "mov  %%fs,%%rbx\n"                            \
+                       "mov  %%rbx,200(%%rax)\n"                      \
+                       "mov  %%gs,%%rbx\n"                            \
+                       "mov  %%rbx,208(%%rax)\n"                      \
+                       "call 0f\n"                                    \
+                     "0:pop %%rbx\n"                                  \
+                       "add  $1f-0b,%%rbx\n"                          \
+                       "mov  %%rbx,128(%%rax)\n"                      \
+                       "mov  %%cs,%%rbx\n"                            \
+                       "mov  %%rbx,136(%%rax)\n"                      \
+                       "pushf\n"                                      \
+                       "pop  %%rbx\n"                                 \
+                       "mov  %%rbx,144(%%rax)\n"                      \
+                       "mov  %%rsp,%%rbx\n"                           \
+                       "add  $16,%%ebx\n"                             \
+                       "mov  %%rbx,152(%%rax)\n"                      \
+                       "mov  %%ss,%%rbx\n"                            \
+                       "mov  %%rbx,160(%%rax)\n"                      \
+                       "pop  %%rbx\n"                                 \
+                       "pop  %%rbp\n"                                 \
+                     "1:"                                             \
+                       : : "a" (&f) : "memory");                      \
+                     } while (0)
+  #define SET_FRAME(f,r)                                              \
+                     do {                                             \
+                       errno = (f).errno_;                            \
+                       (f).uregs.fs_base = (r).fs_base;               \
+                       (f).uregs.gs_base = (r).gs_base;               \
+                       (r)   = (f).uregs;                             \
+                     } while (0)
 #elif defined(__ARM_ARCH_3__) && defined(__GNUC__)
   /* ARM calling conventions are a little more tricky. A little assembly
    * helps in obtaining an accurate snapshot of all registers.
@@ -185,6 +263,67 @@
                        (r)           = (f).arm;                       \
                        (r).uregs[16] = fps;                           \
                      } while (0)
+#elif defined(mips) && defined(__GNUC__)
+  typedef struct Frame {
+    struct mips_regs mips_regs;
+    int              errno_;
+    pid_t            tid;
+  } Frame;
+  #define MIPSREG(n) ({ register unsigned long r __asm__("$"#n); r; })
+  #define FRAME(f) Frame f = { 0 };                                   \
+                   do {                                               \
+                     unsigned long hi, lo;                            \
+                     register unsigned long pc __asm__("$31");        \
+                     f.mips_regs.uregs[ 0] = MIPSREG( 0);             \
+                     f.mips_regs.uregs[ 1] = MIPSREG( 1);             \
+                     f.mips_regs.uregs[ 2] = MIPSREG( 2);             \
+                     f.mips_regs.uregs[ 3] = MIPSREG( 3);             \
+                     f.mips_regs.uregs[ 4] = MIPSREG( 4);             \
+                     f.mips_regs.uregs[ 5] = MIPSREG( 5);             \
+                     f.mips_regs.uregs[ 6] = MIPSREG( 6);             \
+                     f.mips_regs.uregs[ 7] = MIPSREG( 7);             \
+                     f.mips_regs.uregs[ 8] = MIPSREG( 8);             \
+                     f.mips_regs.uregs[ 9] = MIPSREG( 9);             \
+                     f.mips_regs.uregs[10] = MIPSREG(10);             \
+                     f.mips_regs.uregs[11] = MIPSREG(11);             \
+                     f.mips_regs.uregs[12] = MIPSREG(12);             \
+                     f.mips_regs.uregs[13] = MIPSREG(13);             \
+                     f.mips_regs.uregs[14] = MIPSREG(14);             \
+                     f.mips_regs.uregs[15] = MIPSREG(15);             \
+                     f.mips_regs.uregs[16] = MIPSREG(16);             \
+                     f.mips_regs.uregs[17] = MIPSREG(17);             \
+                     f.mips_regs.uregs[18] = MIPSREG(18);             \
+                     f.mips_regs.uregs[19] = MIPSREG(19);             \
+                     f.mips_regs.uregs[20] = MIPSREG(20);             \
+                     f.mips_regs.uregs[21] = MIPSREG(21);             \
+                     f.mips_regs.uregs[22] = MIPSREG(22);             \
+                     f.mips_regs.uregs[23] = MIPSREG(23);             \
+                     f.mips_regs.uregs[24] = MIPSREG(24);             \
+                     f.mips_regs.uregs[25] = MIPSREG(25);             \
+                     f.mips_regs.uregs[26] = MIPSREG(26);             \
+                     f.mips_regs.uregs[27] = MIPSREG(27);             \
+                     f.mips_regs.uregs[28] = MIPSREG(28);             \
+                     f.mips_regs.uregs[29] = MIPSREG(29);             \
+                     f.mips_regs.uregs[30] = MIPSREG(30);             \
+                     f.mips_regs.uregs[31] = MIPSREG(31);             \
+                     __asm__ volatile ("mfhi %0" : "=r"(hi));         \
+                     __asm__ volatile ("mflo %0" : "=r"(lo));         \
+                     __asm__ volatile ("jal 1f; 1:nop" : "=r"(pc));   \
+                     f.mips_regs.hi       = hi;                       \
+                     f.mips_regs.lo       = lo;                       \
+                     f.mips_regs.cp0_epc  = pc;                       \
+                     f.errno_             = errno;                    \
+                     f.tid                = sys_gettid();             \
+                   } while (0)
+  #define SET_FRAME(f,r)                                              \
+                   do {                                               \
+                     errno       = (f).errno_;                        \
+                     memcpy((r).uregs, (f).mips_regs.uregs,           \
+                            32*sizeof(unsigned long));                \
+                     (r).hi      = (f).mips_regs.hi;                  \
+                     (r).lo      = (f).mips_regs.lo;                  \
+                     (r).cp0_epc = (f).mips_regs.cp0_epc;             \
+                   } while (0)
 #else
   /* If we do not have a hand-optimized assembly version of the FRAME()
    * macro, we cannot reliably unroll the stack. So, we show a few additional
@@ -239,4 +378,7 @@ int InternalGetCoreDump(void *frame, int num_threads, pid_t *thread_pids,
 
 #endif
 
+#ifdef __cplusplus
+}
+#endif
 #endif /* _ELFCORE_H */

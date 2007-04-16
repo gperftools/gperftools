@@ -55,7 +55,3 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 
   return result_count;
 }
-
-bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
-  return false;  // can't climb up
-}

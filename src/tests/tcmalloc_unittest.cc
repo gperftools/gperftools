@@ -57,6 +57,7 @@
 #include <string>
 #include <new>
 #include "base/logging.h"
+#include "google/malloc_extension.h"
 
 #define LOGSTREAM   stdout
 
@@ -64,7 +65,7 @@ using std::vector;
 using std::string;
 
 static const int FLAGS_numtests = 50000;
-static const int FLAGS_log_every_n_tests = 10000;
+static const int FLAGS_log_every_n_tests = 50000; // log exactly once
 
 // Testing parameters
 static const int FLAGS_lgmaxsize = 16;   // lg() of the max size object to alloc
@@ -156,6 +157,7 @@ void TestHarness::AddType(int type, int weight, const char* name) {
 
 int TestHarness::PickType() {
   if (num_tests_ >= FLAGS_numtests) return -1;
+  num_tests_++;
 
   assert(total_weight_ > 0);
   // This is a little skewed if total_weight_ doesn't divide 2^31, but it's close
@@ -170,10 +172,9 @@ int TestHarness::PickType() {
 
   assert(i < types_->size());
   if ((num_tests_ % FLAGS_log_every_n_tests) == 0) {
-    fprintf(LOGSTREAM, "Test %d out of %d: %s\n",
+    fprintf(LOGSTREAM, "  Test %d out of %d: %s\n",
             num_tests_, FLAGS_numtests, (*types_)[i].name.c_str());
   }
-  num_tests_++;
   return (*types_)[i].type;
 }
 
@@ -211,8 +212,9 @@ class TesterThread {
   }
 
   virtual ~TesterThread() {
-    fprintf(LOGSTREAM, "Thread %2d: locks %6d ok; %6d trylocks failed\n",
-            id_, locks_ok_, locks_failed_);
+    if (FLAGS_verbose)
+      fprintf(LOGSTREAM, "Thread %2d: locks %6d ok; %6d trylocks failed\n",
+              id_, locks_ok_, locks_failed_);
     if (locks_ok_ + locks_failed_ >= 1000) {
       CHECK_LE(locks_failed_, locks_ok_ / 2);
     }
@@ -408,15 +410,22 @@ static void TestHugeAllocations() {
     p = malloc(kMaxSignedSize - i);
     if (p) free(p);
   }
+
+  // Check that ReleaseFreeMemory has no visible effect (aka, does not
+  // crash the test):
+  MallocExtension* inst = MallocExtension::instance();
+  CHECK(inst);
+  inst->ReleaseFreeMemory();
 }
 
 static void TestCalloc(size_t n, size_t s, bool ok) {
   char* p = reinterpret_cast<char*>(calloc(n, s));
-  fprintf(LOGSTREAM, "calloc(%x, %x): %p\n", n, s, p);
+  if (FLAGS_verbose)
+    fprintf(LOGSTREAM, "calloc(%x, %x): %p\n", n, s, p);
   if (!ok) {
-    CHECK(p == NULL);  // calloc(n, s) should succeed
+    CHECK(p == NULL);  // calloc(n, s) should not succeed
   } else {
-    CHECK(p != NULL);  // calloc(n, s) should not succeed
+    CHECK(p != NULL);  // calloc(n, s) should succeed
     for (int i = 0; i < n*s; i++) {
       CHECK(p[i] == '\0');
     }
@@ -525,7 +534,7 @@ int main(int argc, char** argv) {
   // before this test, it may break).
   {
     size_t memory_usage = MemoryUsage(getpid());
-    fprintf(LOGSTREAM, "==== Testing fragmentation\n");
+    fprintf(LOGSTREAM, "Testing fragmentation\n");
     for ( int i = 200; i < 240; ++i ) {
       int size = i << 20;
       void *test1 = malloc(size);
@@ -543,7 +552,7 @@ int main(int argc, char** argv) {
 #endif
 
   // Check that empty allocation works
-  fprintf(LOGSTREAM, "==== Testing empty allocation\n");
+  fprintf(LOGSTREAM, "Testing empty allocation\n");
   {
     void* p1 = malloc(0);
     CHECK(p1 != NULL);
@@ -555,7 +564,7 @@ int main(int argc, char** argv) {
   }
 
   // Check that "lots" of memory can be allocated
-  fprintf(LOGSTREAM, "==== Testing large allocation\n");
+  fprintf(LOGSTREAM, "Testing large allocation\n");
   {
     const int mb_to_allocate = 100;
     void* p = malloc(mb_to_allocate << 20);
@@ -564,7 +573,7 @@ int main(int argc, char** argv) {
   }
 
   // Check calloc() with various arguments
-  fprintf(LOGSTREAM, "==== Testing calloc\n");
+  fprintf(LOGSTREAM, "Testing calloc\n");
   TestCalloc(0, 0, true);
   TestCalloc(0, 1, true);
   TestCalloc(1, 1, true);
@@ -592,10 +601,10 @@ int main(int argc, char** argv) {
   TestNew(&::operator new);
   fprintf(LOGSTREAM, "Testing operator new[].\n");
   TestNew(&::operator new[]);
-  fprintf(LOGSTREAM, "Done testing C++ operators.\n");
 
   // Create threads
-  fprintf(LOGSTREAM, "==== Testing threaded allocation/deallocation\n");
+  fprintf(LOGSTREAM, "Testing threaded allocation/deallocation (%d threads)\n",
+          FLAGS_numthreads);
   threads = new TesterThread*[FLAGS_numthreads];
   pthread_t* thread_ids = new pthread_t[FLAGS_numthreads];
   for (int i = 0; i < FLAGS_numthreads; ++i) {
@@ -625,11 +634,11 @@ int main(int argc, char** argv) {
   // the available address space can make pthread_create to fail.
 
   // Check that huge allocations fail with NULL instead of crashing
-  fprintf(LOGSTREAM, "==== Testing huge allocations\n");
+  fprintf(LOGSTREAM, "Testing huge allocations\n");
   TestHugeAllocations();
 
   // Check that large allocations fail with NULL instead of crashing
-  fprintf(LOGSTREAM, "==== Testing out of memory\n");
+  fprintf(LOGSTREAM, "Testing out of memory\n");
   for (int s = 0; ; s += (10<<20)) {
     void* large_object = malloc(s);
     if (large_object == NULL) break;

@@ -32,37 +32,29 @@
 //
 // Module for CPU profiling based on periodic pc-sampling.
 //
-// To use this module, link it into your program.  There should
-// be no slowdown caused by this unless you activate the profiler
-// using one of the steps given below.
+// For full(er) information, see doc/cpuprofile.html
 //
-// To activate the profiler, do one of the following:
+// This module is linked into your program with
+// no slowdown caused by this unless you activate the profiler
+// using one of the following methods:
 //
 //    1. Before starting the program, set the environment variable
-//       "CPUPROFILE" to be the name of the file to which the profile
+//       "PROFILE" to be the name of the file to which the profile
 //       data should be written.
 //
-//    2. Programmatically, start and stop the profiler using
-//       the routines "ProfilerStart(filename)" and "ProfilerStop()".
+//    2. Programmatically, start and stop the profiler using the
+//       routines "ProfilerStart(filename)" and "ProfilerStop()".
 //
 // All threads in the program are profiled whenever profiling is on.
-// There used to be a mechanism where a subset of the threads could be
-// profiled, but that functionality no longer exists (it would not
-// work correctly in new systems since the interval timer used by the
-// profiler is a per-address-space setting in new systems instead of
-// being a per-thread setting in 2.4 and earlier systems).
+// (Note: if using linux 2.4 or earlier, only the main thread may be
+// profiled.)
 //
-// Limitation: on 2.4 and earlier kernels, just the main thread will
-// be profiled.
-//
-// Use pprof to view the resulting profile output.  If you have dot and
-// gv installed, you can also get a graphical representation of CPU usage.
+// Use pprof to view the resulting profile output.
 //    % pprof <path_to_executable> <profile_file_name>
-//    % pprof --dot <path_to_executable> <profile_file_name>
 //    % pprof --gv  <path_to_executable> <profile_file_name>
 
-#ifndef _GOOGLE_PROFILER_H
-#define _GOOGLE_PROFILER_H
+#ifndef BASE_PROFILER_H__
+#define BASE_PROFILER_H__
 
 #include <time.h>       // For time_t
 
@@ -122,4 +114,4 @@ class ProfilerThreadState {
   void ThreadCheck() { }
 };
 
-#endif /* _GOOGLE_PROFILER_H */
+#endif /* BASE_PROFILER_H__ */

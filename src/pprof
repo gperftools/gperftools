@@ -1,6 +1,6 @@
-#! /usr/bin/perl -w
+#! /usr/bin/env perl
 
-# Copyright (c) 1998-2006, Google Inc.
+# Copyright (c) 1998-2007, Google Inc.
 # All rights reserved.
 # 
 # Redistribution and use in source and binary forms, with or without
@@ -69,6 +69,7 @@
 # TODO: Use color to indicate files?
 
 use strict;
+use warnings;
 use Getopt::Long;
 
 my $PPROF_VERSION = "0.8";
@@ -88,6 +89,7 @@ my %obj_tool_map = (
 );
 my $DOT = "dot";          # leave non-absolute, since it may be in /usr/local
 my $GV = "gv";
+my $PS2PDF = "ps2pdf";
 # These are used for dynamic profiles
 my $WGET = "wget";
 my $CURL = "curl";
@@ -104,6 +106,9 @@ my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 # There is a pervasive dependency on the length (in hex characters, i.e.,
 # nibbles) of an address, distinguishing between 32-bit and 64-bit profiles:
 my $address_length = 8;   # Hope for 32-bit, reset if 64-bit detected.
+
+# A list of paths to search for shared object files
+my @prefix_list = ();
 
 ##### Argument parsing #####
 
@@ -133,6 +138,8 @@ Options:
    --base=<base>       Subtract <base> from <profile> before display
    --interactive       Run in interactive mode (interactive "help" gives help) [default]
    --seconds=<n>       Length of time for dynamic profiles [default=30 secs]
+   --add_lib=<file>    Read additional symbols and line info from the given library
+   --lib_prefix=<dir>  Comma separated list of library path prefixes
 
 Reporting Granularity:
    --addresses         Report at address level
@@ -170,6 +177,8 @@ Call-graph Options:
    --focus=<regexp>    Focus on nodes matching <regexp>
    --ignore=<regexp>   Ignore nodes matching <regexp>
    --scale=<n>         Set GV scaling [default=0]
+   --heapcheck         Make nodes with non-0 object counts
+                       (i.e. direct leak generators) more visible
 
 Miscellaneous:
    --tools=<prefix>    Prefix for object tool pathnames
@@ -180,6 +189,8 @@ Miscellaneous:
 Examples:
 
 pprof /bin/ls ls.prof
+                       Enters "interactive" mode
+pprof --text /bin/ls ls.prof
                        Outputs one line per procedure
 pprof --gv /bin/ls ls.prof
                        Displays annotated call-graph via 'gv'
@@ -191,7 +202,7 @@ pprof --list=getdir /bin/ls ls.prof
                        (Per-line) annotated source listing for getdir()
 pprof --disasm=getdir /bin/ls ls.prof
                        (Per-PC) annotated disassembly for getdir()
-pprof localhost:1234
+pprof --text localhost:1234
                        Outputs one line per procedure for localhost:1234
 EOF
 }
@@ -200,7 +211,7 @@ sub version_string {
   return <<EOF
 pprof (part of google-perftools $PPROF_VERSION)
 
-Copyright 1998-2006 Google Inc.
+Copyright 1998-2007 Google Inc.
 
 This is BSD licensed software; see the source for copying conditions
 and license information.
@@ -236,6 +247,7 @@ sub Init() {
   $main::opt_lines = 0;
   $main::opt_functions = 0;
   $main::opt_files = 0;
+  $main::opt_lib_prefix = "";
 
   $main::opt_text = 0;
   $main::opt_list = "";
@@ -252,7 +264,9 @@ sub Init() {
   $main::opt_focus = '';
   $main::opt_ignore = '';
   $main::opt_scale = 0;
+  $main::opt_heapcheck = 0;
   $main::opt_seconds = 30;
+  $main::opt_lib = "";
 
   $main::opt_inuse_space   = 0;
   $main::opt_inuse_objects = 0;
@@ -273,17 +287,21 @@ sub Init() {
   # Are we using $SYMBOL_PAGE?
   $main::use_symbol_page = 0;
 
-  # Are we printing a heap profile?
-  $main::heap_profile = 0;
-
-  # Are we printing a lock profile?
-  $main::lock_profile = 0;
+  # Type of profile we are dealing with
+  # Supported types:
+  #	cpu
+  #	heap
+  #	growth
+  #	contention
+  $main::profile_type = '';	# Empty type means "unknown"
 
   GetOptions("help!"          => \$main::opt_help,
              "version!"       => \$main::opt_version,
              "cum!"           => \$main::opt_cum,
              "base=s"         => \$main::opt_base,
              "seconds=i"      => \$main::opt_seconds,
+             "add_lib=s"      => \$main::opt_lib,
+             "lib_prefix=s"   => \$main::opt_lib_prefix,
              "functions!"     => \$main::opt_functions,
              "lines!"         => \$main::opt_lines,
              "addresses!"     => \$main::opt_addresses,
@@ -303,6 +321,7 @@ sub Init() {
              "focus=s"        => \$main::opt_focus,
              "ignore=s"       => \$main::opt_ignore,
              "scale=i"        => \$main::opt_scale,
+             "heapcheck"      => \$main::opt_heapcheck,
              "inuse_space!"   => \$main::opt_inuse_space,
              "inuse_objects!" => \$main::opt_inuse_objects,
              "alloc_space!"   => \$main::opt_alloc_space,
@@ -361,6 +380,8 @@ sub Init() {
   # Check output modes
   my $modes =
       $main::opt_text +
+      ($main::opt_list eq '' ? 0 : 1) +
+      ($main::opt_disasm eq '' ? 0 : 1) +
       $main::opt_gv +
       $main::opt_dot +
       $main::opt_ps +
@@ -429,6 +450,15 @@ sub Init() {
   } else {
     ConfigureObjTools($main::prog)
   }
+
+  # Break the opt_list_prefix into the prefix_list array
+  @prefix_list = split (',', $main::opt_lib_prefix);
+
+  # Remove trailing / from the prefixes, in the list to prevent
+  # searching things like /my/path//lib/mylib.so
+  foreach (@prefix_list) {
+    s|/+$||;
+  }
 }
 
 sub Main() {
@@ -443,43 +473,15 @@ sub Main() {
   # Read one profile, pick the last item on the list
   my $data = ReadProfile($main::prog, pop(@main::profile_files));
   my $profile = $data->{profile};
+  my $pcs = $data->{pcs};
   my $libs = $data->{libs};   # Info about main program and shared libraries
-
-  # List of function names to skip
-  $main::skip = ();
-  $main::skip_regexp = 'NOMATCH';
-  if ($main::heap_profile) {
-    foreach my $name ('calloc',
-                      'cfree',
-                      'malloc',
-                      'free',
-                      'memalign',
-                      'pvalloc',
-                      'valloc',
-                      'realloc',
-                      'do_malloc',
-                      'DoSampledAllocation',
-		      'simple_alloc::allocate',
-		      '__malloc_alloc_template::allocate',
-                      '__builtin_delete',
-                      '__builtin_new',
-                      '__builtin_vec_delete',
-                      '__builtin_vec_new') {
-      $main::skip{$name} = 1;
-    }
-    $main::skip_regexp = "TCMalloc";
-  }
-  if ($main::lock_profile) {
-    foreach my $vname ('Mutex::Unlock', 'Mutex::UnlockSlow') {
-      $main::skip{$vname} = 1;
-    }
-  }
 
   # Add additional profiles, if available.
   if (scalar(@main::profile_files) > 0) {
     foreach my $pname (@main::profile_files) {
-      my $p = ReadProfile($main::prog, $pname)->{profile};
-      $profile = AddProfile($profile, $p);
+      my $data2 = ReadProfile($main::prog, $pname);
+      $profile = AddProfile($profile, $data2->{profile});
+      $pcs = AddPcs($pcs, $data2->{pcs});
     }
   }
 
@@ -495,10 +497,13 @@ sub Main() {
   # Collect symbols
   my $symbols = undef;
   if ($main::use_symbol_page) {
-    $symbols = FetchSymbols($data->{pcs});
+    $symbols = FetchSymbols($pcs);
   } else {
-    $symbols = ExtractSymbols($libs, $profile, $data->{pcs});
+    $symbols = ExtractSymbols($libs, $profile, $pcs);
   }
+
+  # Remove uniniteresting stack items
+  $profile = RemoveUninterestingFrames($symbols, $profile);
 
   # Focus?
   if ($main::opt_focus ne '') {
@@ -573,6 +578,8 @@ sub ReadlineMightFail {
 sub InteractiveMode {
   $| = 1;  # Make output unbuffered for interactive mode
   my ($orig_profile, $symbols, $libs, $total) = @_;
+
+  print "Welcome to pprof!  For help, type 'help'.\n";
 
   # Use ReadLine if it's installed.
   if ( !ReadlineMightFail() &&
@@ -780,6 +787,7 @@ parameters will be ignored.
 Further pprof details are available at this location (or one similar):
 
  /usr/doc/google-perftools-$PPROF_VERSION/cpu_profiler.html
+ /usr/doc/google-perftools-$PPROF_VERSION/heap_profiler.html
 
 ENDOFHELP
 }
@@ -1003,14 +1011,12 @@ sub PrintSource {
   # Disassemble all instructions (just to get line numbers)
   my @instructions = Disassemble($prog, $offset, $start_addr, $end_addr);
 
-  # Hack 1: assume that the last source location mentioned in the
-  # disassembly is the end of the source code.
+  # Hack 1: assume that the first source file encountered in the
+  # disassembly contains the routine
   my $filename = undef;
-  my $lastline = -1;
-  for (my $i = $#instructions; $i >= 0; $i--) {
+  for (my $i = 0; $i <= $#instructions; $i++) {
     if ($instructions[$i]->[2] >= 0) {
       $filename = $instructions[$i]->[1];
-      $lastline = $instructions[$i]->[2];
       last;
     }
   }
@@ -1019,7 +1025,21 @@ sub PrintSource {
     return;
   }
 
-  # Hack 2: assume the first source location from "filename" is the start of
+  # Hack 2: assume that the largest line number from $filename is the
+  # end of the procedure.  This is typically safe since if P1 contains
+  # an inlined call to P2, then P2 usually occurs earlier in the
+  # source file.  If this does not work, we might have to compute a
+  # density profile or just print all regions we find.
+  my $lastline = 0;
+  for (my $i = 0; $i <= $#instructions; $i++) {
+    my $f = $instructions[$i]->[1];
+    my $l = $instructions[$i]->[2];
+    if (($f eq $filename) && ($l > $lastline)) {
+      $lastline = $l;
+    }
+  }
+
+  # Hack 3: assume the first source location from "filename" is the start of
   # the source code.
   my $firstline = 1;
   for (my $i = 0; $i <= $#instructions; $i++) {
@@ -1029,7 +1049,7 @@ sub PrintSource {
     }
   }
 
-  # Hack 3: Extend last line forward until its indentation is less than
+  # Hack 4: Extend last line forward until its indentation is less than
   # the indentation we saw on $firstline
   my $oldlastline = $lastline;
   {
@@ -1110,11 +1130,13 @@ sub PrintSource {
         (($l <= $oldlastline + 5) || ($l <= $lastline))) {
       chop;
       my $text = $_;
+      if ($l == $firstline) { printf("---\n"); }
       printf("%6s %6s %4d: %s\n",
              UnparseAlt(GetEntry($samples1, $l)),
              UnparseAlt(GetEntry($samples2, $l)),
              $l,
              $text);
+      if ($l == $lastline)  { printf("---\n"); }
     };
   }
   close(FILE);
@@ -1166,7 +1188,7 @@ sub PrintDot {
   } elsif ($main::opt_ps) {
     $output = "| $DOT -Tps";
   } elsif ($main::opt_pdf) {
-    $output = "| $DOT -Tps | ps2pdf - -";
+    $output = "| $DOT -Tps | $PS2PDF - -";
   } elsif ($main::opt_gif) {
     $output = "| $DOT -Tgif";
   } else {
@@ -1222,14 +1244,27 @@ sub PrintDot {
                        Unparse($c),
                        Percent($c, $overall_total));
     }
+    my $style = "";
+    if ($main::opt_heapcheck) {
+      if ($f > 0) {
+        # make leak-causing nodes more visible (add a background)
+        $style = ",style=filled,fillcolor=gray"
+      } elsif ($f < 0) {
+        # make anti-leak-causing nodes (which almost never occur)
+        # stand out as well (triple border)
+        $style = ",peripheries=3"
+      }
+    }
+
     printf DOT ("N%d [label=\"%s\\n%s (%s)%s\\r" .
-                "\",shape=box,fontsize=%.1f];\n",
+                "\",shape=box,fontsize=%.1f%s];\n",
                 $node{$a},
                 $sym,
                 Unparse($f),
                 Percent($f, $overall_total),
                 $extra,
                 $fs,
+                $style,
                );
   }
 
@@ -1304,11 +1339,6 @@ sub OutputKey {
     $fileline = $symbols->{$a}->[1];
   }
 
-  # We drop a few well-known names
-  if ($main::skip{$func} || ($func =~ m/$main::skip_regexp/)) {
-    return '';
-  }
-
   if ($main::opt_disasm || $main::opt_list) {
     return $a;   # We want just the address for the key
   } elsif ($main::opt_addresses) {
@@ -1340,7 +1370,7 @@ sub Percent {
 # Generate pretty-printed form of number
 sub Unparse {
   my $num = shift;
-  if ($main::heap_profile) {
+  if ($main::profile_type eq 'heap' || $main::profile_type eq 'growth') {
     if ($main::opt_inuse_objects || $main::opt_alloc_objects) {
       return sprintf("%d", $num);
     } else {
@@ -1350,7 +1380,7 @@ sub Unparse {
         return sprintf("%.1f", $num / 1048576.0);
       }
     }
-  } elsif ($main::lock_profile && !$main::opt_contentions) {
+  } elsif ($main::profile_type eq 'contention' && !$main::opt_contentions) {
     return sprintf("%.3f", $num / 1e9);	# Convert nanoseconds to seconds
   } else {
     return sprintf("%d", $num);
@@ -1369,7 +1399,7 @@ sub UnparseAlt {
 
 # Return output units
 sub Units {
-  if ($main::heap_profile) {
+  if ($main::profile_type eq 'heap' || $main::profile_type eq 'growth') {
     if ($main::opt_inuse_objects || $main::opt_alloc_objects) {
       return "objects";
     } else {
@@ -1379,7 +1409,7 @@ sub Units {
         return "MB";
       }
     }
-  } elsif ($main::lock_profile && !$main::opt_contentions) {
+  } elsif ($main::profile_type eq 'contention' && !$main::opt_contentions) {
     return "seconds";
   } else {
     return "samples";
@@ -1420,6 +1450,120 @@ sub CumulativeProfile {
   return $result;
 }
 
+# If the second-youngest PC on the stack is always the same, returns
+# that pc.  Otherwise, returns undef.
+sub IsSecondPcAlwaysTheSame {
+  my $profile = shift;
+
+  my $second_pc = undef;
+  foreach my $k (keys(%{$profile})) {
+    my @addrs = split(/\n/, $k);
+    if ($#addrs < 1) {
+      return undef;
+    }
+    if (not defined $second_pc) {
+      $second_pc = $addrs[1];
+    } else {
+      if ($second_pc ne $addrs[1]) {
+        return undef;
+      }
+    }
+  }
+  return $second_pc;
+}
+
+sub RemoveUninterestingFrames {
+  my $symbols = shift;
+  my $profile = shift;
+
+  # List of function names to skip
+  my %skip = ();
+  my $skip_regexp = 'NOMATCH';
+  if ($main::profile_type eq 'heap' || $main::profile_type eq 'growth') {
+    foreach my $name ('calloc',
+                      'cfree',
+                      'malloc',
+                      'free',
+                      'memalign',
+                      'pvalloc',
+                      'valloc',
+                      'realloc',
+                      'do_malloc',
+                      'DoSampledAllocation',
+		      'simple_alloc::allocate',
+		      '__malloc_alloc_template::allocate',
+                      '__builtin_delete',
+                      '__builtin_new',
+                      '__builtin_vec_delete',
+                      '__builtin_vec_new',
+                      'operator new',
+                      'operator new[]') {
+      $skip{$name} = 1;
+    }
+    $skip_regexp = "TCMalloc";
+  } elsif ($main::profile_type eq 'contention') {
+    foreach my $vname ('Mutex::Unlock', 'Mutex::UnlockSlow') {
+      $skip{$vname} = 1;
+    }
+  } elsif ($main::profile_type eq 'cpu') {
+    # Drop signal handlers used for CPU profile collection
+    # TODO(dpeng): this should not be necessary; it's taken
+    # care of by the general 2nd-pc mechanism below.
+    foreach my $name ('ProfileData::Add',
+		      'ProfileData::prof_handler',
+		      '__pthread_sighandler',
+		      '__restore') {
+      $skip{$name} = 1;
+    }
+  } else {
+    # Nothing skipped for unknown types
+  }
+
+  if ($main::profile_type eq 'cpu') {
+    # If all the second-youngest program counters are the same,
+    # this STRONGLY suggests that it is an artifact of measurement,
+    # i.e., stack frames pushed by the CPU profiler signal handler.
+    # Hence, we delete them.
+    # (The topmost PC is read from the signal structure, not from
+    # the stack, so it does not get involved.)
+    while (my $second_pc = IsSecondPcAlwaysTheSame($profile)) {
+      my $result = {};
+      my $func = '';
+      if (exists($symbols->{$second_pc})) {
+        $second_pc = $symbols->{$second_pc}->[0];
+      }
+      print STDERR "Removing $second_pc from all stack traces.\n";
+      foreach my $k (keys(%{$profile})) {
+        my $count = $profile->{$k};
+        my @addrs = split(/\n/, $k);
+        splice @addrs, 1, 1;
+        my $reduced_path = join("\n", @addrs);
+        AddEntry($result, $reduced_path, $count);
+      }
+      $profile = $result;
+    }
+  }
+
+  my $result = {};
+  foreach my $k (keys(%{$profile})) {
+    my $count = $profile->{$k};
+    my @addrs = split(/\n/, $k);
+    my @path = ();
+    foreach my $a (@addrs) {
+      if (exists($symbols->{$a})) {
+	my $func = $symbols->{$a}->[0];
+	if ($skip{$func} || ($func =~ m/$skip_regexp/)) {
+	  next;
+	}
+      }
+      push(@path, $a);
+    }
+    my $reduced_path = join("\n", @path);
+    AddEntry($result, $reduced_path, $count);
+  }
+  return $result;
+}
+
 # Reduce profile to granularity given by user
 sub ReduceProfile {
   my $symbols = shift;
@@ -1436,8 +1580,8 @@ sub ReduceProfile {
       # entry if it has already been seen
       my $key = OutputKey($symbols, $a);
       if (!$seen{$key}) {
-        $seen{$key} = 1;
-        push(@path, $key);
+	$seen{$key} = 1;
+	push(@path, $key);
       }
     }
     my $reduced_path = join("\n", @path);
@@ -1521,6 +1665,23 @@ sub AddProfile {
   foreach my $k (keys(%{$B})) {
     my $v = $B->{$k};
     AddEntry($R, $k, $v);
+  }
+  return $R;
+}
+
+# Add A to B
+sub AddPcs {
+  my $A = shift;
+  my $B = shift;
+
+  my $R = {};
+  # add all keys in A
+  foreach my $k (keys(%{$A})) {
+    $R->{$k} = 1
+  }
+  # add all keys in B
+  foreach my $k (keys(%{$B})) {
+    $R->{$k} = 1
   }
   return $R;
 }
@@ -1671,7 +1832,7 @@ sub FetchSymbols {
 
   my $url = SymbolPageURL();
   # Here we use curl for sending data via POST since old
-  # wgets don't't have --post-file option.
+  # wget doesn't have --post-file option.
   $url = ResolveRedirectionForCurl($url);
   my $command_line = "$CURL -sd '\@$main::tmpfile_sym' '$url'";
   # We use c++filt in case $SYMBOL_PAGE gives us mangled symbols.
@@ -1680,7 +1841,8 @@ sub FetchSymbols {
 
   my %map;
   while (<SYMBOL>) {
-    if (m/^0x([0-9a-f]+)\s+(.+)/) {
+    # Removes all the leading zeroes from the symbols, see comment below.
+    if (m/^0x0*([0-9a-f]+)\s+(.+)/) {
       $map{$1} = $2;
     }
   }
@@ -1689,8 +1851,15 @@ sub FetchSymbols {
   my $symbols = {};
   for my $pc (@pcs) {
     my $fullname;
-    if (defined($map{$pc})) {
-      $fullname = $map{$pc};
+    # For 64 bits binaries, symbols are extracted with 8 leading zeroes.
+    # Then /symbolz reads the long symbols in as uint64, and outputs
+    # the result with a "0x%08llx" format which get rid of the zeroes.
+    # By removing all the leading zeroes in both $pc and the symbols from
+    # /symbolz, the symbols match and are retrievable from the map.
+    my $shortpc = $pc;
+    $shortpc =~ s/^0*//;
+    if (defined($map{$shortpc})) {
+      $fullname = $map{$shortpc};
     } else {
       $fullname = "0x" . $pc;  # Just use addresses
     }
@@ -1720,11 +1889,6 @@ sub FetchDynamicProfile {
   my $fetch_name_only = shift;
   my $encourage_patience = shift;
 
-  my $user_dir = $ENV{HOME};
-  my $profile_dir = $user_dir . "/pprof";
-  if (!(-d $profile_dir)) {
-    mkdir($profile_dir) || die("Unable to create profile directory $profile_dir\n");
-  }
   if (!IsProfileURL($profile_name)) {
     return $profile_name;
   } else {
@@ -1751,6 +1915,12 @@ sub FetchDynamicProfile {
       $profile_file .= "$suffix";
       $url = "http://$host:$port$type";
       $wget_timeout = "";
+    }
+
+    my $profile_dir = $ENV{"PPROF_TMPDIR"} || ($ENV{HOME} . "/pprof");
+    if (!(-d $profile_dir)) {
+      mkdir($profile_dir)
+	  || die("Unable to create profile directory $profile_dir: $!\n");
     }
     my $tmp_profile = "$profile_dir/.tmp.$profile_file";
     my $real_profile = "$profile_dir/$profile_file";
@@ -1845,28 +2015,31 @@ sub ReadProfile {
   my $prog = shift;
   my $fname = shift;
 
-  $main::heap_profile = 0;
-  $main::lock_profile = 0;
+  $main::profile_type = '';
 
   # Look at first line to see if it is a heap or a CPU profile
   open(PROFILE, "<$fname") || error("$fname: $!\n");
   binmode PROFILE;      # New perls do UTF-8 processing
   my $header = <PROFILE>;
   my $contention_marker = substr($CONTENTION_PAGE, 1);   # remove leading /
-  if ($header =~ m/^heap profile:/) {
-    $main::heap_profile = 1;
+  if ($header =~ m/^heap profile:.*growthz/) {
+    $main::profile_type = 'growth';
+    return ReadHeapProfile($prog, $fname, $header);
+  } elsif ($header =~ m/^heap profile:/) {
+    $main::profile_type = 'heap';
     return ReadHeapProfile($prog, $fname, $header);
   } elsif ($header =~ m/^--- *$contention_marker/o ) {
-    $main::lock_profile = 1;
+    $main::profile_type = 'contention';
     return ReadSynchProfile($prog, $fname);
   } elsif ($header =~ m/^--- *Stacks:/ ) {
     print STDERR
       "Old format contention profile: mistakenly reports " .
       "condition variable signals as lock contentions.\n";
-    $main::lock_profile = 1;
+    $main::profile_type = 'contention';
     return ReadSynchProfile($prog, $fname);
   } else {
     # Need to unread the line we just read
+    $main::profile_type = 'cpu';
     close(PROFILE);
     open(PROFILE, "<$fname") || error("$fname: $!\n");
     binmode PROFILE;    # New perls do UTF-8 processing
@@ -2159,6 +2332,10 @@ sub ReadSynchProfile {
       # Convert cycles to nanoseconds
       $cycles /= $cyclespernanosec;
 
+      # Adjust for sampling done by application
+      $cycles *= $sampling_period;
+      $count *= $sampling_period;
+
       my @values = ($cycles, $count, $cycles / $count);
       AddEntries($profile, $pcs, $stack, $values[$index]);
 
@@ -2171,14 +2348,33 @@ sub ReadSynchProfile {
 
       # Convert cycles to nanoseconds
       $cycles /= $cyclespernanosec;
+
+      # Adjust for sampling done by application
+      $cycles *= $sampling_period;
+
       AddEntries($profile, $pcs, $stack, $cycles);
 
-    } elsif ( $line =~ m|cycles/second = (\d+)|) {
-      $cyclespernanosec = $1 / 1e9;
-      $seen_clockrate = 1;
-    } elsif ( $line =~ /sampling period = (\d+)/ ) {
-      $sampling_period = $1;
-
+    } elsif ( $line =~ m/^([^=]*)=(.*)$/ ) {
+      my ($variable, $value) = ($1,$2);
+      for ($variable, $value) {
+        s/^\s+//;
+        s/\s+$//;
+      }
+      if($variable eq "cycles/second") {
+        $cyclespernanosec = $value / 1e9;
+        $seen_clockrate = 1;
+      } elsif ($variable eq "sampling period") {
+        $sampling_period = $value;
+      } elsif ($variable eq "ms since reset") {
+        # Currently nothing is done with this value in pprof
+        # So we just silently ignore it for now
+      } elsif ($variable eq "discarded samples") {
+        # Currently nothing is done with this value in pprof
+        # So we just silently ignore it for now
+      } else {
+        printf STDERR ("Ignoring unnknown variable in /contentionz output: " .
+                       "'%s' = '%s'\n",$variable,$value);
+      }
     } else {
       # Memory map entry
       $map .= $line;
@@ -2211,6 +2407,72 @@ sub HexExtend {
 }
 
 ##### Symbol extraction #####
+
+# Aggressively search the lib_prefix values for the given library
+# If all else fails, just return the name of the library unmodified.
+# If the lib_prefix is "/my/path,/other/path" and $file is "/lib/dir/mylib.so"
+# it will search the following locations in this order, until it finds a file:
+#   /my/path/lib/dir/mylib.so
+#   /other/path/lib/dir/mylib.so
+#   /my/path/dir/mylib.so
+#   /other/path/dir/mylib.so
+#   /my/path/mylib.so
+#   /other/path/mylib.so
+#   /lib/dir/mylib.so              (returned as last resort)
+sub FindLibrary {
+  my $file = shift;
+  my $suffix = $file;
+
+  # Search for the library as described above
+  do {
+    foreach my $prefix (@prefix_list) {
+      my $fullpath = $prefix . $suffix;
+      if (-e $fullpath) {
+        return $fullpath;
+      }
+    }
+  } while ($suffix =~ s|^/[^/]+/|/|);
+  return $file;
+}
+
+# Parse text section header of a library using objdump
+sub ParseTextSectionHeader {
+   my $lib = shift;
+
+   my $size = undef;
+   my $vma;
+   my $file_offset;
+   # Get objdump output from the library file to figure out how to
+   # map between mapped addresses and addresses in the library.
+   my $objdump = $obj_tool_map{"objdump"};
+   open(OBJDUMP, "$objdump -h $lib |")
+                 || error("$objdump $lib: $!\n");
+   while (<OBJDUMP>) {
+     # Idx Name          Size      VMA       LMA       File off  Algn
+     #  10 .text         00104b2c  420156f0  420156f0  000156f0  2**4
+     # For 64-bit objects, VMA and LMA will be 16 hex digits, size and file
+     # offset may still be 8.  But AddressSub below will still handle that.
+     my @x = split;
+     if (($#x >= 6) && ($x[1] eq '.text')) {
+       $size = $x[2];
+       $vma = $x[3];
+       $file_offset = $x[5];
+       last;
+     }
+   }
+   close(OBJDUMP);
+
+   if (!defined($size)) {
+      return undef;
+   }
+
+   my $r = {};
+   $r->{size} = $size;
+   $r->{vma} = $vma;
+   $r->{file_offset} = $file_offset;
+
+   return $r;
+}
 
 # Split /proc/pid/maps dump into a list of libraries
 sub ParseLibraries {
@@ -2254,28 +2516,26 @@ sub ParseLibraries {
     # Expand "$build" variable if available
     $lib =~ s/\$build\b/$buildvar/g;
 
-    # Get objdump output from the library file to figure out how to
-    # map between mapped addresses and addresses in the library.
-    my $objdump = $obj_tool_map{"objdump"};
-    open(OBJDUMP, "$objdump -h $lib |")
-                  || error("$objdump $lib: $!\n");
-    while (<OBJDUMP>) {
-      # Idx Name          Size      VMA       LMA       File off  Algn
-      #  10 .text         00104b2c  420156f0  420156f0  000156f0  2**4
-      # For 64-bit objects, VMA and LMA will be 16 hex digits, size and file
-      # offset may still be 8.  But AddressSub below will still handle that.
-      my @x = split;
-      if (($#x >= 6) && ($x[1] eq '.text')) {
-        my $vma = $x[3];
-        my $file_offset = $x[5];
-        my $vma_offset = AddressSub($vma, $file_offset);
-        $offset = AddressAdd($offset, $vma_offset);
-        last;
-      }
+    $lib = FindLibrary($lib);
+
+    my $text = ParseTextSectionHeader($lib);
+    if (defined($text)) {
+       my $vma_offset = AddressSub($text->{vma}, $text->{file_offset});
+       $offset = AddressAdd($offset, $vma_offset);
     }
-    close(OBJDUMP);
 
     push(@{$result}, [$lib, $start, $finish, $offset]);
+  }
+
+  # Append special entry for additional library (not relocated)
+  if ($main::opt_lib ne "") {
+    my $text = ParseTextSectionHeader($main::opt_lib);
+    if (defined($text)) {
+       my $start = $text->{vma};
+       my $finish = AddressAdd($start, $text->{size});
+
+       push(@{$result}, [$main::opt_lib, $start, $finish, $start]);
+    }
   }
 
   # Append special entry for the main program
@@ -2489,6 +2749,7 @@ sub MapToSymbols {
 
   MapSymbolsWithNM($image, $offset, $pclist, $symbols);
   if ($main::opt_interactive ||
+      $main::opt_addresses   ||
       $main::opt_lines       ||
       $main::opt_files       ||
       $main::opt_list) {
@@ -2574,7 +2835,12 @@ sub MapSymbolsWithNM {
       $fullname = $names[$index];
       $name = ShortFunctionName($fullname);
     }
-    $symbols->{$pc} = [$name, "?", $fullname];
+    if ($mpc lt $symbol_table->{$fullname}->[1]) {
+      $symbols->{$pc} = [$name, "?", $fullname];
+    } else {
+      my $pcstr = "0x" . $pc;
+      $symbols->{$pc} = [$pcstr, "?", $pcstr];
+    }
   }
 }
 
@@ -2599,7 +2865,8 @@ sub ConfigureObjTools {
   # Figure out the right default pathname prefix based on the program file
   # type:
   my $default_prefix = "/usr/bin/";
-  my $file_type = `/usr/bin/file $prog_file`;
+  # Follow symlinks (at least for systems where "file" supports that)
+  my $file_type = `/usr/bin/file -L $prog_file || /usr/bin/file $prog_file`;
   if ($file_type =~ /ELF 32-bit/) {
     $default_prefix = "/usr/bin/";
   } elsif ($file_type =~ /ELF 64-bit/) {
@@ -2686,16 +2953,15 @@ sub error {
 }
 
 
-# Gets the procedure boundaries for all routines in "$image" whose names
-# match "$regexp" and returns them in a hashtable mapping from procedure
-# name to a two-element vector of [start address, end address]
-sub GetProcedureBoundaries {
-  my $image = shift;
+# Run $nm_command and get all the resulting procedure boundaries whose
+# names match "$regexp" and returns them in a hashtable mapping from
+# procedure name to a two-element vector of [start address, end address]
+sub GetProcedureBoundariesViaNm {
+  my $nm_command = shift;
   my $regexp = shift;
 
   my $symbol_table = {};
-  my $nm = $obj_tool_map{"nm"};
-  open(NM, "$nm -C -n $image |") || error("$nm: $!\n");
+  open(NM, "$nm_command |") || error("$nm_command: $!\n");
   my $last_start = "0";
   my $routine = "";
   while (<NM>) {
@@ -2711,6 +2977,29 @@ sub GetProcedureBoundaries {
   }
   close(NM);
 
+  return $symbol_table;
+}
+
+# Gets the procedure boundaries for all routines in "$image" whose names
+# match "$regexp" and returns them in a hashtable mapping from procedure
+# name to a two-element vector of [start address, end address]
+sub GetProcedureBoundaries {
+  my $image = shift;
+  my $regexp = shift;
+
+  # For libc libraries, the copy in /usr/lib/debug contains debugging symbols
+  if ($image =~ m|^/| && -f "/usr/lib/debug$image") {
+    $image = "/usr/lib/debug$image";
+  }
+  my $nm = $obj_tool_map{"nm"};
+  my $nm_command = "$nm -C -n $image";
+  my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
+  if (!(%{$symbol_table})) {
+    # Coulnd't get any symbols: probably $image isn't a debug library.
+    # In that case, we can at least get the *exported* symbols via -D
+    $nm_command = "$nm -C -D -n $image";
+    $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
+  }
   return $symbol_table;
 }
 

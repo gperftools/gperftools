@@ -35,9 +35,14 @@
 // NULL, they are not invoked.
 //
 // One important user of these hooks is the heap profiler.
+//
+// CAVEAT: If you add new MallocHook::Invoke* calls (not for chaining hooks),
+// then those calls must be directly in the code of the (de)allocation
+// function that is provided to the user and that function must have
+// an ATTRIBUTE_SECTION(malloc_hook_callers) attribute.
 
-#ifndef _GOOGLE_MALLOC_HOOK_H
-#define _GOOGLE_MALLOC_HOOK_H
+#ifndef _MALLOC_HOOK_H
+#define _MALLOC_HOOK_H
 
 #include <stddef.h>
 #include <sys/types.h>
@@ -72,7 +77,7 @@ class MallocHook {
 
   // The MmapHook is invoked whenever a region of memory is mapped.
   // It may be passed MAP_FAILED if the mmap failed.
-  typedef void (*MmapHook)(void* result, 
+  typedef void (*MmapHook)(void* result,
                            void* start,
                            size_t size,
                            int protection,
@@ -98,7 +103,7 @@ class MallocHook {
                                           fd, offset);
   }
 
-  // The MunmapHook is invoked whenever an object is deallocated.
+  // The MunmapHook is invoked whenever a region of memory is unmapped.
   typedef void (*MunmapHook)(void* ptr, size_t size);
   inline static MunmapHook GetMunmapHook() { return munmap_hook_; }
   inline static MunmapHook SetMunmapHook(MunmapHook hook) {
@@ -110,12 +115,57 @@ class MallocHook {
     if (munmap_hook_ != NULL) (*munmap_hook_)(p, size);
   }
 
+  // The MremapHook is invoked whenever a region of memory is remapped.
+  typedef void (*MremapHook)(void* result,
+                             void* old_addr,
+                             size_t old_size,
+                             size_t new_size,
+                             int flags,
+                             void* new_addr);
+  inline static MremapHook GetMremapHook() { return mremap_hook_; }
+  inline static MremapHook SetMremapHook(MremapHook hook) {
+    MremapHook result = mremap_hook_;
+    mremap_hook_ = hook;
+    return result;
+  }
+  inline static void InvokeMremapHook(void* result,
+                                      void* old_addr,
+                                      size_t old_size,
+                                      size_t new_size,
+                                      int flags,
+                                      void* new_addr) {
+    if (mremap_hook_ != NULL) (*mremap_hook_)(result,
+                                              old_addr, old_size,
+                                              new_size, flags, new_addr);
+  }
+
+  // The SbrkHook is invoked whenever sbrk is called.
+  typedef void (*SbrkHook)(void* result, ptrdiff_t increment);
+  inline static SbrkHook GetSbrkHook() { return sbrk_hook_; }
+  inline static SbrkHook SetSbrkHook(SbrkHook hook) {
+    SbrkHook result = sbrk_hook_;
+    sbrk_hook_ = hook;
+    return result;
+  }
+  inline static void InvokeSbrkHook(void* result, ptrdiff_t increment) {
+    if (sbrk_hook_ != NULL) (*sbrk_hook_)(result, increment);
+  }
+
+  // Get the current stack trace.  Try to skip all routines up to and
+  // and including the caller of MallocHook::Invoke*.
+  // Use "skip_count" (similarly to GetStackTrace from stacktrace.h)
+  // as a hint about how many routines to skip if better information
+  // is not available.
+  static int GetCallerStackTrace(void** result, int max_depth, int skip_count);
+
  private:
+
   static NewHook     new_hook_;
   static DeleteHook  delete_hook_;
   static MmapHook    mmap_hook_;
   static MunmapHook  munmap_hook_;
-
+  static MremapHook  mremap_hook_;
+  static SbrkHook    sbrk_hook_;
 };
 
-#endif /* _GOOGLE_MALLOC_HOOK_H */
+#endif /* _MALLOC_HOOK_H */

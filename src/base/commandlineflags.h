@@ -49,6 +49,7 @@
 #define BASE_COMMANDLINEFLAGS_H__
 
 #include <string>
+#include <string.h>               // for memchr
 #include "base/basictypes.h"
 
 #define DECLARE_VARIABLE(type, name)                                          \
@@ -106,5 +107,20 @@
   char FLAGS_no##name;                                                        \
   }                                                                           \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead::FLAGS_##name
+
+// These macros (could be functions, but I don't want to bother with a .cc
+// file), make it easier to initialize flags from the environment.
+
+#define EnvToString(envname, dflt)   \
+  (!getenv(envname) ? (dflt) : getenv(envname))
+
+#define EnvToBool(envname, dflt)   \
+  (!getenv(envname) ? (dflt) : memchr("tTyY1\0", getenv(envname)[0], 6) != NULL)
+
+#define EnvToInt(envname, dflt)  \
+  (!getenv(envname) ? (dflt) : strtol(getenv(envname), NULL, 10))
+
+#define EnvToInt64(envname, dflt)  \
+  (!getenv(envname) ? (dflt) : strtoll(getenv(envname), NULL, 10))
 
 #endif  // BASE_COMMANDLINEFLAGS_H__

@@ -5,6 +5,101 @@ Foundation, Inc.
 unlimited permission to copy, distribute and modify it.
 
 
+Perftools-Specific Install Notes
+================================
+
+Perftools right now has only been tested on linux systems, both 32-bit
+and 64-bit.  tcmalloc_minimal, the basic memory-allocation library,
+may also work on *BSD systems.  However, the advanced tools, including
+the cpu-profiler, heap-profiler, and heap-checker, have quite a bit of
+linux- and x86-specific code, and are unlikely to work on other
+architectures.
+
+
+*** NOTE FOR 64-BIT LINUX SYSTEMS
+
+   The glibc built-in stack-unwinder on 64-bit systems has some
+problems with the perftools libraries.  (In particular, the cpu/heap
+profiler may be in the middle of malloc, holding some malloc related
+locks when they invoke the stack unwinder.  The built-in
+stack-unwinder may call malloc recursively, which may require the
+thread to acquire a lock it already holds: deadlock.)
+
+   For that reason, if you use a 64-bit system, we strongly recommend
+you install libunwind before trying to configure or install google
+perftools.  libunwind can be found at
+
+   http://download.savannah.nongnu.org/releases/libunwind/libunwind-snap-070410.tar.gz
+
+   Even if you already have libunwind installed, you will probably
+still need to install from the snapshot to get the latest version.
+
+   CAUTION: if you install libunwind from the url above, be aware that
+you may have trouble if you try to statically link your binary with
+pertools: that is, if you link with 'gcc -static -lgcc_eh ...'.  This
+is because both libunwind and libgcc implement the same C++ exception
+handling APIs, but they implement them differently on some platforms.
+This is not likely to be a problem on ia64, but may be on x86-64.
+Using -static is rare, though, so unless you know this will affect you
+it probably won't.
+
+   If you cannot or do not wish to install libunwind, you can still
+try to use the built-in stack-unwinder.  The built-in stack-unwinder
+requires that your application, the tcmalloc library, and system
+libraries like libc, all be compiled with a frame pointer.  This is
+*not* the default for x86-64.
+
+   If you are on x86-64 system, know that you have a set of system
+libraries with frame-pointers enabled, and compile all your
+applications with -fno-omit-frame-pointer, then you can enable the
+built-in perftools stack-unwinder by passing the
+--enable-frame-pointers flag to configure.
+
+   Even with the use of libunwind, there are still known problems
+with stack-unwinding on 64-bit systems, particularly x86-64.  See
+the "64-BIT ISSUES" section in README.
+
+
+*** NOTE FOR *BSD SYSTEMS
+
+   This code does not yet run fully on *BSD systems such as FreeBSD,
+but it may not be that far away.  We've gotten the basic tcmalloc
+library, tcmalloc_minimal, to compile and run on a FreeBSD 6.0 system.
+To compile only tcmalloc_minimal:
+   % make tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest
+   % ./tcmalloc_minimal_unittest    # should say PASS if all goes well!
+   % ./tcmalloc_minimal_large_unittest
+
+   The cpu-profiler, heap-profiler, and heap-checker all depend on
+Linux kernel-specific syscalls, and will be harder to port.  However,
+tcmalloc_minimal.so itself is perfectly usable as a malloc/new
+replacement.
+
+
+*** NOTE FOR SOLARIS SYSTEMS
+
+   This code does not yet run fully on Solaris systems such as Solaris
+10, but we've gotten the basic tcmalloc library, tcmalloc_minimal,
+to compile and run on a Solaris 10 6/06 system.  Note that this uses
+g++ rather than the Sun C++ compiler; porting to Sun's cc may be a
+significantly more difficult task.  To compile only tcmalloc_minimal:
+   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure LDFLAGS="-Lsrc/solaris -lrt"
+   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make -k tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest
+   % ./tcmalloc_minimal_unittest    # should say PASS if all goes well!
+   % ./tcmalloc_minimal_large_unittest
+
+   If you're curious in the details of these commands: the PATH allows
+use of gcc, and the LDFLAGS both works around a Solaris 10 bug (see
+src/solaris/libstdc++.la for more info) and does a cheap hack to
+introduce a needed solaris library.  (This *should* be done as inside
+configure.am.  Maybe one day.)
+
+   The cpu-profiler, heap-profiler, and heap-checker all depend on
+Linux kernel-specific syscalls, and will be harder to port.  However,
+tcmalloc_minimal.so itself is perfectly usable as a malloc/new
+replacement.
+
+
 Basic Installation
 ==================
 

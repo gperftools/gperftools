@@ -36,20 +36,65 @@
 #define _LOGGING_H_
 
 #include <stdarg.h>
-#include <stdio.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <unistd.h>    // for write()
+#include <string.h>    // for strlen()
+#include <assert.h>
+#include <errno.h>     // for errno
+#include "base/commandlineflags.h"
+
+// We log all messages at this log-level and below.
+// INFO == -1, WARNING == -2, ERROR == -3, FATAL == -4
+DECLARE_int32(verbose);
 
 // CHECK dies with a fatal error if condition is not true.  It is *not*
 // controlled by NDEBUG, so the check will be executed regardless of
 // compilation mode.  Therefore, it is safe to do things like:
 //    CHECK(fp->Write(x) == 4)
-#define CHECK(condition)  \
-  do { \
-    if (!(condition)) { \
-      fprintf(stderr, "Check failed: %s\n", #condition); \
-      exit(1); \
-    } \
-  } while (0) \
+// Note we use write instead of printf/puts to avoid the risk we'll
+// call malloc().
+#define CHECK(condition)                                        \
+  do {                                                          \
+    if (!(condition)) {                                         \
+      write(STDERR_FILENO, "Check failed: " #condition "\n",    \
+            sizeof("Check failed: " #condition "\n")-1);        \
+      exit(1);                                                  \
+    }                                                           \
+  } while (0)
+
+// This takes a message to print.  The name is historical.
+#define RAW_CHECK(condition, message)                                      \
+  do {                                                                     \
+    if (!(condition)) {                                                    \
+      write(STDERR_FILENO, "Check failed: " #condition ": " message "\n",  \
+            sizeof("Check failed: " #condition ": " message "\n")-1);      \
+      exit(1);                                                             \
+    }                                                                      \
+  } while (0)
+
+// This is like RAW_CHECK, but only in debug-mode
+#ifdef NDEBUG
+enum { DEBUG_MODE = 0 };
+#define RAW_DCHECK(condition, message)
+#else
+enum { DEBUG_MODE = 1 };
+#define RAW_DCHECK(condition, message)  RAW_CHECK(condition, message)
+#endif
+
+// This prints errno as well.  Note we use write instead of printf/puts to
+// avoid the risk we'll call malloc().
+#define PCHECK(condition)                                               \
+  do {                                                                  \
+    if (!(condition)) {                                                 \
+      const int err_no = errno;                                         \
+      write(STDERR_FILENO, "Check failed: " #condition ": ",            \
+            sizeof("Check failed: " #condition ": ")-1);                \
+      write(STDERR_FILENO, strerror(err_no), strlen(strerror(err_no))); \
+      write(STDERR_FILENO, "\n", sizeof("\n")-1);                       \
+      exit(1);                                                          \
+    }                                                                   \
+  } while (0)
 
 // Helper macro for binary operators; prints the two values on error
 // Don't use this macro directly in your code, use CHECK_EQ et al below
@@ -60,12 +105,12 @@
 
 // TODO(jandrews): Also print the values in case of failure.  Requires some
 // sort of type-sensitive ToString() function.
-#define CHECK_OP(op, val1, val2)  \
-  do { \
-    if (!((val1) op (val2))) { \
-      fprintf(stderr, "Check failed: %s %s %s\n", #val1, #op, #val2); \
-      exit(1); \
-    } \
+#define CHECK_OP(op, val1, val2)                                        \
+  do {                                                                  \
+    if (!((val1) op (val2))) {                                          \
+      fprintf(stderr, "Check failed: %s %s %s\n", #val1, #op, #val2);   \
+      exit(1);                                                          \
+    }                                                                   \
   } while (0)
 
 #define CHECK_EQ(val1, val2) CHECK_OP(==, val1, val2)
@@ -75,16 +120,39 @@
 #define CHECK_GE(val1, val2) CHECK_OP(>=, val1, val2)
 #define CHECK_GT(val1, val2) CHECK_OP(> , val1, val2)
 
-enum {INFO, WARNING, ERROR, FATAL, NUM_SEVERITIES};
+enum {INFO = -1, WARNING = -2, ERROR = -3, FATAL = -4};
 
+// NOTE: we add a newline to the end of the output if it's not there already
 inline void LogPrintf(int severity, const char* pat, ...) {
   va_list ap;
   va_start(ap, pat);
-  vfprintf(stderr, pat, ap);
+  // We write directly to the stderr file descriptor and avoid FILE
+  // buffering because that may invoke malloc()
+  char buf[600];
+  vsnprintf(buf, sizeof(buf)-1, pat, ap);
   va_end(ap);
-  fprintf(stderr, "\n");
+  if (buf[0] != '\0' && buf[strlen(buf)-1] != '\n') {
+    assert(strlen(buf)+1 < sizeof(buf));
+    strcat(buf, "\n");
+  }
+  write(STDERR_FILENO, buf, strlen(buf));
   if ((severity) == FATAL)
-    exit(1);
+    abort(); // LOG(FATAL) indicates a big problem, so don't run atexit() calls
 }
+
+// Note that since the order of global constructors is unspecified,
+// global code that calls RAW_LOG may execute before FLAGS_verbose is set.
+// Such code will run with verbosity == 0 no matter what.
+#define RAW_LOG(severity, pat...) do {          \
+  if (FLAGS_verbose >= severity) LogPrintf(INFO, pat);      \
+} while (0)
+
+// Some synonyms used in unittests
+#define RAW_VLOG(severity, pat...) RAW_LOG(severity, pat)
+#define LOG(severity, pat...)            RAW_LOG(severity, pat)
+#define VLOG(severity, pat...)           RAW_VLOG(severity, pat)
+#define LOG_IF(severity, cond, pat...)   if (cond)  LOG(severity, pat)
+
+#define VLOG_IS_ON(severity) (FLAGS_verbose >= severity)
 
 #endif // _LOGGING_H_

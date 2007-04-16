@@ -45,9 +45,10 @@
 // the allocated object is reachable from global data and hence "live").
 
 #include <stdlib.h>      // for abort()
+#include <google/malloc_extension.h>
 
-// A dummy variable to refer from heap-checker.cc.
-// This is to make sure this file is not optimized out by the linker.
+// A dummy variable to refer from heap-checker.cc.  This is to make
+// sure this file is not optimized out by the linker.
 bool heap_leak_checker_bcad_variable;
 
 extern void HeapLeakChecker_BeforeConstructors();  // in heap-checker.cc
@@ -59,7 +60,15 @@ extern void HeapLeakChecker_AfterDestructors();  // in heap-checker.cc
 class HeapLeakCheckerGlobalPrePost {
  public:
   HeapLeakCheckerGlobalPrePost() {
-    if (count_ == 0)  HeapLeakChecker_BeforeConstructors();
+    if (count_ == 0) {
+      HeapLeakChecker_BeforeConstructors();
+      // This needs to be called before the first allocation of an STL
+      // object, but after libc is done setting up threads (because it
+      // calls setenv, which requires a thread-aware errno).  By
+      // putting it here, we hope it's the first bit of code executed
+      // after the libc global-constructor code.
+      MallocExtension::Initialize();
+    }
     ++count_;
   }
   ~HeapLeakCheckerGlobalPrePost() {

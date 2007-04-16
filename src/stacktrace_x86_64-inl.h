@@ -43,8 +43,6 @@ typedef struct {
   int max_depth;
   int skip_count;
   int count;
-  void *top;
-  void *bottom;
 } trace_arg_t;
 
 
@@ -100,35 +98,4 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   _Unwind_Backtrace(GetOneFrame, &targ);
 
   return targ.count;
-}
-
-static _Unwind_Reason_Code SearchExtents(struct _Unwind_Context *uc, void *opq) {
-  trace_arg_t *targ = (trace_arg_t *) opq;
-
-  targ->bottom = (void *) _Unwind_GetCFA(uc);
-
-  if (targ->top == NULL)
-    targ->top = targ->bottom;
-
-  return _URC_NO_REASON;
-}
-
-bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
-  if (!ready_to_run)
-    return false;
-
-  trace_arg_t targ;
-
-  targ.top = NULL;
-  targ.bottom = NULL;
-
-  _Unwind_Backtrace(SearchExtents, &targ);
-
-  if ((targ.top != NULL) && (targ.bottom != NULL)) {
-    *stack_bottom = targ.bottom;
-    *stack_top = targ.top;
-    return true;
-  }
-
-  return false;
 }

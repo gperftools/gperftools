@@ -40,9 +40,9 @@
 #include <stdio.h>
 #include <set>
 
-#define CHECK(b)  do {                                                  \
-  if (b) {} else { fprintf(stderr, "TEST FAILED: " #b); exit(1); }      \
-} while (0)
+#include "base/logging.h"
+
+using std::set;
 
 // Alloc a size that should always fail.
 
@@ -90,7 +90,7 @@ int main (int argc, char** argv) {
   {
     static const int kZeroTimes = 1024;
     printf("Test malloc(0) x %d\n", kZeroTimes);
-    std::set<char*> p_set;
+    set<char*> p_set;
     for ( int i = 0; i < kZeroTimes; ++i ) {
       char* p = new char;
       CHECK(p != NULL);

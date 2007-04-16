@@ -1,4 +1,4 @@
-#!/bin/sh -e
+#!/bin/sh
 
 # Copyright (c) 2005, Google Inc.
 # All rights reserved.
@@ -36,52 +36,54 @@
 # This is necessary because we turn on features like the heap profiler
 # and heap checker via environment variables.  This test makes sure
 # they all play well together.
-#
-# Notice that we run this script with -e, so *any* error is fatal.
 
-if [ -z "$2" ]
-then
-    echo "USAGE: $0 <unittest dir> <pprof dir>"
-    exit 1
+# We expect BINDIR and PPROF_PATH to be set in the environment.
+# If not, we set them to some reasonable values
+BINDIR="${BINDIR:-.}"
+PPROF_PATH="${PPROF_PATH:-$BINDIR/src/pprof}"
+
+if [ "x$1" = "x-h" -o "$1" = "x--help" ]; then
+  echo "USAGE: $0 [unittest dir] [path to pprof]"
+  echo "       By default, unittest_dir=$BINDIR, pprof_path=$PPROF_PATH"
+  exit 1
 fi
 
-UNITTEST_DIR=$1
-PPROF=$2/pprof
-
-HEAP_CHECKER="$1/heap-checker_unittest"
+HEAP_CHECKER="${1:-$BINDIR}/heap-checker_unittest"
+PPROF_PATH="${2:-$PPROF_PATH}"
 
 TMPDIR=/tmp/heap_check_info
+rm -rf $TMPDIR || exit 2
+mkdir $TMPDIR || exit 3
 
-rm -rf $TMPDIR
-mkdir $TMPDIR
-
-# $1: value of heap-profile env. var.  $2: value of heap-check env. var.
+# $1: value of heap-check env. var.
 run_check() {
-    export PPROF_PATH="$PPROF"
-    [ -n "$1" ] && export HEAPPROFILE="$1" || unset HEAPPROFILE
-    [ -n "$2" ] && export HEAPCHECK="$2" || unset HEAPCHECK
+    export PPROF_PATH="$PPROF_PATH"
+    [ -n "$1" ] && export HEAPCHECK="$1" || unset HEAPPROFILE
 
-    echo ""
-    echo ">>> TESTING $HEAP_CHECKER with HEAPPROFILE=$1 and HEAPCHECK=$2"
-    $HEAP_CHECKER
-    echo ">>> DONE testing $HEAP_CHECKER with HEAPPROFILE=$1 and HEAPCHECK=$2"
+    echo -n "Testing $HEAP_CHECKER with HEAPCHECK=$1 ... "
+    if $HEAP_CHECKER > $TMPDIR/output 2>&1; then
+      echo "OK"
+    else
+      echo "FAILED"
+      echo "Output from the failed run:"
+      echo "----"
+      cat $TMPDIR/output
+      echo "----"      
+      exit 4
+    fi
 
     # If we set HEAPPROFILE, then we expect it to actually have emitted
     # a profile.  Check that it did.
     if [ -n "$HEAPPROFILE" ]; then
-      [ -e "$HEAPPROFILE.0001.heap" ] || exit 1
+      [ -e "$HEAPPROFILE.0001.heap" ] || exit 5
     fi
 }
 
-run_check "" ""
-run_check "" "local"
-run_check "" "normal"
-run_check "" "strict"
-run_check "$TMPDIR/profile" ""
-run_check "$TMPDIR/profile" "local"
-run_check "$TMPDIR/profile" "normal"
-run_check "$TMPDIR/profile" "strict"
+run_check ""
+run_check "local"
+run_check "normal"
+run_check "strict"
 
 rm -rf $TMPDIR      # clean up
 
-echo "ALL TESTS PASSED"
+echo "PASS"

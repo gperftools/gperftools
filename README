@@ -1,3 +1,9 @@
+IMPORTANT NOTE FOR 64-BIT USERS
+-------------------------------
+There are known issues with some perftools functionality on x86_64
+systems.  See 64-BIT ISSUES, below.
+
+
 CPU PROFILER
 ------------
 See doc/cpu-profiler.html for information about how to use the CPU
@@ -68,13 +74,6 @@ Other values for HEAPCHECK: normal (equivalent to "1"), strict, draconian
 You can also use LD_PRELOAD to heap-check an executable that you
 didn't compile.
 
-IMPORTANT NOTE: pthreads handling is currently incomplete.  Heap leak
-checks will fail with bogus leaks if there are pthreads live at
-construction or leak checking time.  One solution, for global
-heap-checking, is to make sure all threads but the main thread have
-exited at program-end time.  We hope (as of March 2005) to have a fix
-soon.
-
 
 ENVIRONMENT VARIABLES
 ---------------------
@@ -87,6 +86,8 @@ The easiest way to turn them on is by setting the appropriate
 environment variables.  We have several variables that let you
 enable/disable features as well as tweak parameters.
 
+Here are some of the most important variables:
+
 CPUPROFILE=<file> -- turns on cpu profiling and dumps data to this file.
 PROFILESELECTED=1 -- if set, cpu-profiler will only profile regions of code
                      surrounded with ProfilerEnable()/ProfilerDisable().
@@ -98,5 +99,80 @@ HEAPCHECK=<type>  -- turns on heap checking with strictness 'type'
 TCMALLOC_DEBUG=<level> -- the higher level, the more messages malloc emits
 MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 
+For a full list of variables, see the documentation pages:
+   doc/cpuprofile.html
+   doc/heapprofile.html
+   doc/heap_checker.html
+
+
+COMPILING ON NON-LINUX SYSTEMS
+------------------------------
+
+Perftools was developed and tested on x86 Linux systems, and it works
+in its full generality only on those systems.  However, we've
+successfully built and tested the core tcmalloc library
+(tcmalloc_minimal) on both FreeBSD and Solaris x86.  See INSTALL for
+details.
+
+
+64-BIT ISSUES
+-------------
+
+There are two issues that can cause program hangs or crashes on x86_64
+64-bit systems, which use the libunwind library to get stack-traces.
+Neither issue should affect the core tcmalloc library; they both
+affect the perftools tools such as cpu-profiler, heap-checker, and
+heap-profiler.
+
+1) Some libc's -- at least glibc 2.4 on x86_64 -- have a bug where the
+libc function dl_iterate_phdr() acquires its locks in the wrong
+order.  This bug should not affect tcmalloc, but may cause occasional
+deadlock with the cpu-profiler, heap-profiler, and heap-checker.
+Its likeliness increases the more dlopen() commands an executable has.
+Most executables don't have any, though several library routines like
+getgrgid() call dlopen() behind the scnees.
+
+2) On x86-64 64-bit systems, while tcmalloc itself works fine, the
+cpu-profiler tool is unreliable: it will sometimes work, but sometimes
+cause a segfault.  I'll explain the problem first, and then some
+workarounds.
+
+Note that this only affects the cpu-profiler, which is a
+google-perftools featuure you must turn on manually by setting the
+CPUPROFILE environment variable.  If you do not turn on cpu-profiling,
+you shouldn't see any crashes due to perftools.
+
+The gory details: The underlying problem is in the backtrace()
+function, which is a built-in function in libc.  (However, we
+*strongly* recommend for x86-64, that you use the libunwind
+functionality for backtraces instead; see the top of INSTALL.)
+Backtracing is fairly straightforward in the normal case, but can run
+into problems when having to backtrace across a signal frame.
+Unfortunately, the cpu-profiler uses signals in order to register a
+profiling event, so every backtrace that the profiler does crosses a
+signal frame.
+
+In our experience, the only time there is trouble is when the signal
+fires in the middle of pthread_mutex_lock.  pthread_mutex_lock is
+called quite a bit from system libraries, particular at program
+startup and when creating a new thread.
+
+The solution: The dwarf debugging format has support for 'cfi
+annotations', which make it easy to recognize a signal frame.  Some OS
+distributions, such as Fedora and gentoo 2007.0, already have added
+cfi annotations to their libc.  A future version of libunwind should
+recognize these annotations; these systems should not see any
+crashses.
+
+Workarounds: If you see problems with crashes when running the
+cpu-profiler, consider inserting ProfilerStart()/ProfilerStop() into
+your code, rather than setting CPUPROFILE.  This will profile only
+those sections of the codebase.  Though we haven't done much testing,
+in theory this should reduce the chance of crashes by limiting the
+signal generation to only a small part of the codebase.  Ideally, you
+would not use ProfilerStart()/ProfilerStop() around code that spawns
+new threads, or is otherwise likely to cause a call to
+pthread_mutex_lock!
+
 ---
-16 March 2005
+12 April 2007

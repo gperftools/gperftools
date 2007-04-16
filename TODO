@@ -8,8 +8,7 @@ HEAP PROFILER
      see object-level leaks.
 2) Remove dependency on tcmalloc?
 3) Port to non-linux O/Ses (right now code uses /proc for library info)
-4) Port to non-x86 architectures (locking code in internal_spinlock is
-   x86-specific)
+4) Port to non-x86 architectures (locking code in spinlock is x86-specific)
 5) Port to C?
 6) Figure out how to get setenv() to work properly before main() in
    shared libaries, and get rid of the profile-naming hack once we
@@ -18,11 +17,9 @@ HEAP PROFILER
 
 HEAP CHECKER
 
-[1) Uses heap profiler, so its TODOs apply here as well]
-2) Remove requirement that the heap-checker must be linked last into
+1) Remove requirement that the heap-checker must be linked last into
    an application (hard! -- it needs its global constructor to run
    first)
-3) Improve heap_checker.html documentation.
 
 TCMALLOC
 
@@ -32,12 +29,15 @@ TCMALLOC
 3) Return memory to the system when requirements drop
 4) Explore coloring allocated objects to avoid cache conflicts
 5) Explore biasing reclamation to larger addresses
+6) Add contention stats to a synchronization.cc (can do spinlocks,
+   but threads? -- may have to provide our own thread implementation)
 
 CPU PROFILER
 
 1) Figure out how to get setenv() to work properly before main() in
    shared libaries(), and get rid of the profile-naming hack once we
-   do.  (See ProfileData::ProfileData().)
+   do.  (See Profiler::GetUniquePathFromEnv().)
+2) Resolve crashing problems on x86_64 (see README)
 
 STACKTRACE
 
@@ -45,4 +45,4 @@ STACKTRACE
 2) Remove dependency on linux/x86
 
 ---
-20 May 2005
+4 April 2007

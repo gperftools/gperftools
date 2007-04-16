@@ -30,21 +30,202 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
+#include "config.h"
+
+// Disable the glibc prototype of mremap(), as older versions of the
+// system headers define this function with only four arguments,
+// whereas newer versions allow an optional fifth argument: 
+#define mremap glibc_mremap
+#include <sys/mman.h>
+#undef mremap
+
 #include <google/malloc_hook.h>
 #include "base/basictypes.h"
-#include "base/linux_syscall_support.h"
+#include "base/logging.h"
+#include <google/stacktrace.h>
 
-MallocHook::NewHook    MallocHook::new_hook_ = NULL;
-MallocHook::DeleteHook MallocHook::delete_hook_ = NULL;
-MallocHook::MmapHook   MallocHook::mmap_hook_ = NULL;
-MallocHook::MunmapHook MallocHook::munmap_hook_ = NULL;
+// __THROW is defined in glibc systems.  It means, counter-intuitively,
+// "This function will never throw an exception."  It's an optional
+// optimization tool, but we may need to use it to match glibc prototypes.
+#ifndef __THROW    // I guess we're not on a glibc system
+# define __THROW   // __THROW is just an optimization, so ok to make it ""
+#endif
 
-// On Linux/x86, we override mmap/munmap and provide support for
-// calling the related hooks.  
+// Declarations of three default weak hook functions, that can be overridden by
+// linking-in a strong definition (as heap-checker.cc does)
 //
-// We define mmap() and mmap64(), which somewhat reimplements libc's mmap 
-// syscall stubs.  Unfortunately libc only exports the stubs via weak symbols 
-// (which we're overriding with our mmap64() and mmap() wrappers) so we can't 
+// These default hooks let some other library we link in
+// to define strong versions of InitialMallocHook_New, InitialMallocHook_MMap,
+// and InitialMallocHook_Sbrk to have a chance to hook into the very
+// first invocation of an allocation function call, mmap, or sbrk.
+//
+// These functions are declared here as weak, and defined later, rather than a
+// more straightforward simple weak definition, as a workround for an icc
+// compiler issue ((Intel reference 290819).  This issue causes icc to resolve
+// weak symbols too early, at compile rather than link time.  By declaring it
+// (weak) here, then defining it below after its use, we can avoid the problem.
+//
+ATTRIBUTE_WEAK
+extern void InitialMallocHook_New(void* ptr, size_t size);
+
+ATTRIBUTE_WEAK
+extern void InitialMallocHook_MMap(void* result,
+                                   void* start,
+                                   size_t size,
+                                   int protection,
+                                   int flags,
+                                   int fd,
+                                   off_t offset);
+
+ATTRIBUTE_WEAK
+extern void InitialMallocHook_Sbrk(void* result, ptrdiff_t increment);
+
+MallocHook::NewHook    MallocHook::new_hook_ = InitialMallocHook_New;
+MallocHook::DeleteHook MallocHook::delete_hook_ = NULL;
+MallocHook::MmapHook   MallocHook::mmap_hook_ = InitialMallocHook_MMap;
+MallocHook::MunmapHook MallocHook::munmap_hook_ = NULL;
+MallocHook::MremapHook MallocHook::mremap_hook_ = NULL;
+MallocHook::SbrkHook   MallocHook::sbrk_hook_ = InitialMallocHook_Sbrk;
+
+// The definitions of weak default malloc hooks (New, MMap, and Sbrk)
+// that self deinstall on their first call.  This is entirely for
+// efficiency: the default version of these functions will be called a
+// maximum of one time.  If these functions were a no-op instead, they'd
+// be called every time, costing an extra function call per malloc.
+//
+// However, this 'delete self' isn't safe in general -- it's possible
+// that this function will be called via a daisy chain.  That is,
+// someone else might do
+//    old_hook = MallocHook::SetNewHook(&myhook);
+//    void myhook(void* ptr, size_t size) {
+//       do_my_stuff();
+//       old_hook(ptr, size);   // daisy-chain the hooks
+//    }
+// If old_hook is InitialMallocHook_New(), then this is broken code! --
+// after the first run it'll deregister not only InitialMallocHook_New()
+// but also myhook.  To protect against that, InitialMallocHook_New()
+// makes sure it's the 'top-level' hook before doing the deregistration.
+// This means the daisy-chain case will be less efficient because the
+// hook will be called, and do an if check, for every new.  Alas.
+// TODO(csilvers): add support for removing a hook from the middle of a chain.
+
+void InitialMallocHook_New(void* ptr, size_t size) {
+   if (MallocHook::GetNewHook() == &InitialMallocHook_New)
+     MallocHook::SetNewHook(NULL);
+}
+
+void InitialMallocHook_MMap(void* result,
+                            void* start,
+                            size_t size,
+                            int protection,
+                            int flags,
+                            int fd,
+                            off_t offset) {
+  if (MallocHook::GetMmapHook() == &InitialMallocHook_MMap)
+    MallocHook::SetMmapHook(NULL);
+}
+
+void InitialMallocHook_Sbrk(void* result, ptrdiff_t increment) {
+  if (MallocHook::GetSbrkHook() == &InitialMallocHook_Sbrk)
+    MallocHook::SetSbrkHook(NULL);
+}
+
+DECLARE_ATTRIBUTE_SECTION(google_malloc_allocators);
+  // actual functions are in debugallocation.cc or tcmalloc.cc
+DECLARE_ATTRIBUTE_SECTION(malloc_hook_callers);
+  // actual functions are in this file, malloc_hook.cc, and low_level_alloc.cc
+
+#define ADDR_IN_ATTRIBUTE_SECTION(addr, name) \
+  (reinterpret_cast<uintptr_t>(ATTRIBUTE_SECTION_START(name)) <= \
+     reinterpret_cast<uintptr_t>(addr) && \
+   reinterpret_cast<uintptr_t>(addr) < \
+     reinterpret_cast<uintptr_t>(ATTRIBUTE_SECTION_STOP(name)))
+
+// Return true iff 'caller' is a return address within a function
+// that calls one of our hooks via MallocHook:Invoke*.
+// A helper for GetCallerStackTrace.
+static inline bool InHookCaller(void* caller) {
+  return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc_allocators) ||
+         ADDR_IN_ATTRIBUTE_SECTION(caller, malloc_hook_callers);
+  // We can use one section for everything except tcmalloc_or_debug
+  // due to its special linkage mode, which prevents merging of the sections.
+}
+
+#undef ADDR_IN_ATTRIBUTE_SECTION
+
+static bool checked_sections = false;
+
+static inline void CheckInHookCaller() {
+  if (!checked_sections) {
+    if (ATTRIBUTE_SECTION_START(google_malloc_allocators) ==
+        ATTRIBUTE_SECTION_STOP(google_malloc_allocators)) {
+      RAW_LOG(ERROR, "google_malloc_allocators section is missing, "
+                     "thus InHookCaller is broken!");
+    }
+    if (ATTRIBUTE_SECTION_START(malloc_hook_callers) == 
+        ATTRIBUTE_SECTION_STOP(malloc_hook_callers)) {
+      RAW_LOG(ERROR, "malloc_hook_callers section is missing, "
+                     "thus InHookCaller is broken!");
+    }
+    checked_sections = true;
+  }
+}
+
+// We can improve behavior/compactness of this function
+// if we pass a generic test function (with a generic arg)
+// into the implementations for GetStackTrace instead of the skip_count.
+int MallocHook::GetCallerStackTrace(void** result, int max_depth,
+                                    int skip_count) {
+#ifndef HAVE___ATTRIBUTE__
+    // Fall back to GetStackTrace and good old but fragile frame skip counts.
+    // Note: this path is inaccurate when a hook is not called directly by an
+    // allocation function but is daisy-chained through another hook,
+    // search for MallocHook::(Get|Set|Invoke)* to find such cases.
+    return GetStackTrace(result, max_depth, skip_count + int(DEBUG_MODE));
+             // due to -foptimize-sibling-calls in opt mode
+             // there's no need for extra frame skip here then
+  }
+#endif
+  CheckInHookCaller();
+  // MallocHook caller determination via InHookCaller works, use it:
+  static const int kMaxSkip = 32 + 6 + 3;
+    // Constant tuned to do just one GetStackTrace call below in practice
+    // and not get many frames that we don't actually need:
+    // currently max passsed max_depth is 32,
+    // max passed/needed skip_count is 6
+    // and 3 is to account for some hook daisy chaining.
+  static const int kStackSize = kMaxSkip + 1;
+  void* stack[kStackSize];
+  int depth = GetStackTrace(stack, kStackSize, 1);  // skip this function frame
+  if (depth == 0)   // silenty propagate cases when GetStackTrace does not work
+    return 0;
+  for (int i = 0; i < depth; ++i) {  // stack[0] is our immediate caller
+    if (InHookCaller(stack[i])) {
+      RAW_VLOG(4, "Found hooked allocator at %d: %p <- %p",
+                  i, stack[i], stack[i+1]);
+      i += 1;  // skip hook caller frame
+      depth -= i;  // correct depth
+      if (depth > max_depth) depth = max_depth;
+      memcpy(result, stack+i, depth * sizeof(stack[0]));
+      if (depth < max_depth  &&  depth + i == kStackSize) {
+        // get frames for the missing depth
+        depth +=
+          GetStackTrace(result + depth, max_depth - depth, 1 + kStackSize);
+      }
+      return depth;
+    }
+  }
+  RAW_LOG(WARNING, "Hooked allocator frame not found, returning empty trace");
+    // Try increasing kMaxSkip or else something must be wrong with InHookCaller
+  return 0;
+}
+
+// On Linux/x86, we override mmap/munmap/mremap/sbrk
+// and provide support for calling the related hooks.
+//
+// We define mmap() and mmap64(), which somewhat reimplements libc's mmap
+// syscall stubs.  Unfortunately libc only exports the stubs via weak symbols
+// (which we're overriding with our mmap64() and mmap() wrappers) so we can't
 // just call through to them.
 
 
@@ -53,16 +234,16 @@ MallocHook::MunmapHook MallocHook::munmap_hook_ = NULL;
 #include <syscall.h>
 #include <sys/mman.h>
 #include <errno.h>
+#include "base/linux_syscall_support.h"
 
 // The x86-32 case and the x86-64 case differ:
 // 32b has a mmap2() syscall, 64b does not.
 // 64b and 32b have different calling conventions for mmap().
-# if defined(__i386__) 
+#if defined(__i386__)
 
-extern "C" void* mmap64(void *start, size_t length,
-                        int prot, int flags, 
-                        int fd, __off64_t offset) __THROW {
-
+static inline void* do_mmap64(void *start, size_t length,
+                              int prot, int flags, 
+                              int fd, __off64_t offset) __THROW {
   void *result;
 
   // Try mmap2() unless it's not supported
@@ -101,37 +282,82 @@ extern "C" void* mmap64(void *start, size_t length,
     result = (void *)syscall(SYS_mmap, args);
   }
  out:
-  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
-
 }
-
-//--------------------------------------------------------------------------//
 
 # elif defined(__x86_64__)
 
-extern "C" void* mmap64(void *start, size_t length,
-                        int prot, int flags, 
-                        int fd, __off64_t offset) __THROW {
-
-  void *result;
-  result = (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
-  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
-  return result;
+static inline void* do_mmap64(void *start, size_t length,
+                              int prot, int flags,
+                              int fd, __off64_t offset) __THROW {
+  return (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
 }
 
 # endif
 
-extern "C" void* mmap(void *start, size_t length,
-                      int prot, int flags, 
+// We use do_mmap64 abstraction to put MallocHook::InvokeMmapHook
+// calls right into mmap and mmap64, so that the stack frames in the caller's
+// stack are at the same offsets for all the calls of memory allocating
+// functions.
+
+// Put all callers of MallocHook::Invoke* in this module into 
+// malloc_hook_callers section,
+// so that MallocHook::GetCallerStackTrace can function accurately:
+extern "C" {
+  void* mmap64(void *start, size_t length, int prot, int flags,
+               int fd, __off64_t offset  ) __THROW
+    ATTRIBUTE_SECTION(malloc_hook_callers);
+  void* mmap(void *start, size_t length,int prot, int flags,
+             int fd, off_t offset) __THROW
+    ATTRIBUTE_SECTION(malloc_hook_callers);
+  int munmap(void* start, size_t length) __THROW
+    ATTRIBUTE_SECTION(malloc_hook_callers);
+  void* mremap(void* old_addr, size_t old_size, size_t new_size,
+               int flags, ...) __THROW
+    ATTRIBUTE_SECTION(malloc_hook_callers);
+  void* sbrk(ptrdiff_t increment) __THROW
+    ATTRIBUTE_SECTION(malloc_hook_callers);
+}
+
+extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
+                        int fd, __off64_t offset) __THROW {
+  void *result = do_mmap64(start, length, prot, flags, fd, offset);
+  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
+  return result;
+}
+
+extern "C" void* mmap(void *start, size_t length, int prot, int flags,
                       int fd, off_t offset) __THROW {
-  return mmap64(start, length, prot, flags, fd, 
-                static_cast<size_t>(offset)); // avoid sign extension
+  void *result = do_mmap64(start, length, prot, flags, fd,
+                           static_cast<size_t>(offset)); // avoid sign extension
+  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
+  return result;
 }
 
 extern "C" int munmap(void* start, size_t length) __THROW {
   MallocHook::InvokeMunmapHook(start, length);
   return syscall(SYS_munmap, start, length);
+}
+
+extern "C" void* mremap(void* old_addr, size_t old_size, size_t new_size,
+                        int flags, ...) __THROW {
+  va_list ap;
+  va_start(ap, flags);
+  void *new_address = va_arg(ap, void *);
+  va_end(ap);
+  void* result = sys_mremap(old_addr, old_size, new_size, flags, new_address);
+  MallocHook::InvokeMremapHook(result, old_addr, old_size, new_size, flags,
+                               new_address);
+  return result;
+}
+
+// libc's version:
+extern "C" void* __sbrk(ptrdiff_t increment);
+
+extern "C" void* sbrk(ptrdiff_t increment) __THROW {
+  void *result = __sbrk(increment);
+  MallocHook::InvokeSbrkHook(result, increment);
+  return result;
 }
 
 #endif

@@ -40,11 +40,25 @@
 #endif
 #include <unistd.h>
 #include <fcntl.h>
+#include <errno.h>
 #include <sys/mman.h>
 #include "system-alloc.h"
-#include "internal_spinlock.h"
 #include "internal_logging.h"
 #include "base/commandlineflags.h"
+#include "base/spinlock.h"
+
+// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
+// form of the name instead.
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
+#endif
+
+// Solaris has a bug where it doesn't declare madvise() for C++.
+//    http://www.opensolaris.org/jive/thread.jspa?threadID=21035&tstart=0
+#if defined(__sun) && defined(__SVR4)
+# include <sys/types.h>    // for caddr_t
+  extern "C" { extern int madvise(caddr_t, size_t, int); }
+#endif
 
 // Structure for discovering alignment
 union MemoryAligner {
@@ -53,8 +67,8 @@ union MemoryAligner {
   size_t s;
 };
 
-static SpinLock spinlock = SPINLOCK_INITIALIZER;
-  
+static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
+
 // Page size is initialized on demand
 static size_t pagesize = 0;
 
@@ -175,7 +189,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
   static off_t physmem_base;  // next physical memory address to allocate
   static off_t physmem_limit; // maximum physical address allowed
   static int physmem_fd;      // file descriptor for /dev/mem
-  
+
   // Check if we should use /dev/mem allocation.  Note that it may take
   // a while to get this flag initialized, so meanwhile we fall back to
   // the next allocator.  (It looks like 7MB gets allocated before
@@ -185,7 +199,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
     // try us again next time.
     return NULL;
   }
-  
+
   if (!initialized) {
     physmem_fd = open("/dev/mem", O_RDWR);
     if (physmem_fd < 0) {
@@ -196,7 +210,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
     physmem_limit = FLAGS_malloc_devmem_limit*1024LL*1024LL;
     initialized = true;
   }
-  
+
   // Enforce page alignment
   if (pagesize == 0) pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
@@ -207,7 +221,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
   if (alignment > pagesize) {
     extra = alignment - pagesize;
   }
-  
+
   // check to see if we have any memory left
   if (physmem_limit != 0 &&
       ((size + extra) > (physmem_limit - physmem_base))) {
@@ -226,13 +240,13 @@ static void* TryDevMem(size_t size, size_t alignment) {
     return NULL;
   }
   uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
-  
+
   // Adjust the return memory so it is aligned
   size_t adjust = 0;
   if ((ptr & (alignment - 1)) != 0) {
     adjust = alignment - (ptr & (alignment - 1));
   }
-  
+
   // Return the unused virtual memory to the system
   if (adjust > 0) {
     munmap(reinterpret_cast<void*>(ptr), adjust);
@@ -240,10 +254,10 @@ static void* TryDevMem(size_t size, size_t alignment) {
   if (adjust < extra) {
     munmap(reinterpret_cast<void*>(ptr + adjust + size), extra - adjust);
   }
-  
+
   ptr += adjust;
   physmem_base += adjust + size;
-  
+
   return reinterpret_cast<void*>(ptr);
 }
 
@@ -251,10 +265,6 @@ void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
   // Discard requests that overflow
   if (size + alignment < size) return NULL;
 
-  if (TCMallocDebug::level >= TCMallocDebug::kVerbose) {
-    MESSAGE("TCMalloc_SystemAlloc(%" PRIuS ", %" PRIuS")\n", 
-            size, alignment);
-  }
   SpinLockHolder lock_holder(&spinlock);
 
   // Enforce minimum alignment
@@ -288,4 +298,40 @@ void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
     mmap_failure = false;
   }
   return NULL;
+}
+
+void TCMalloc_SystemRelease(void* start, size_t length) {
+#ifdef MADV_DONTNEED
+  if (FLAGS_malloc_devmem_start) {
+    // It's not safe to use MADV_DONTNEED if we've been mapping
+    // /dev/mem for heap memory
+    return;
+  }
+  if (pagesize == 0) pagesize = getpagesize();
+  const size_t pagemask = pagesize - 1;
+
+  size_t new_start = reinterpret_cast<size_t>(start);
+  size_t end = new_start + length;
+  size_t new_end = end;
+
+  // Round up the starting address and round down the ending address
+  // to be page aligned:
+  new_start = (new_start + pagesize - 1) & ~pagemask;
+  new_end = new_end & ~pagemask;
+
+  ASSERT((new_start & pagemask) == 0);
+  ASSERT((new_end & pagemask) == 0);
+  ASSERT(new_start >= reinterpret_cast<size_t>(start));
+  ASSERT(new_end <= end);
+
+  if (new_end > new_start) {
+    // Note -- ignoring most return codes, because if this fails it
+    // doesn't matter...
+    while (madvise(reinterpret_cast<void*>(new_start), new_end - new_start,
+                   MADV_DONTNEED) == -1 &&
+           errno == EAGAIN) {
+      // NOP
+    }
+  }
+#endif
 }

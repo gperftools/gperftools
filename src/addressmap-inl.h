@@ -97,7 +97,6 @@ class AddressMap {
   typedef void* (*Allocator)(size_t);
   typedef void  (*DeAllocator)(void*);
   typedef void* Key;
-  typedef void  (*IteratorCallback)(Key, Value);
 
   // Create an AddressMap that uses the specified allocator/deallocator.
   // The allocator/deallocator should behave like malloc/free.
@@ -119,8 +118,11 @@ class AddressMap {
   bool FindAndRemove(Key key, Value* removed_value);
 
   // Iterate over the address map calling 'callback'
-  // for all stored key-value pairs.
-  void Iterate(IteratorCallback callback) const;
+  // for all stored key-value pairs and passing 'arg' to it.
+  // We don't use full Closure/Callback machinery not to add
+  // unnecessary dependencies to this class with low-level uses.
+  template<class Type>
+  void Iterate(void (*callback)(Key, Value, Type), Type arg) const;
 
  private:
   typedef uintptr_t Number;
@@ -328,12 +330,14 @@ bool AddressMap<Value>::FindAndRemove(Key key, Value* removed_value) {
 }
 
 template <class Value>
-void AddressMap<Value>::Iterate(IteratorCallback callback) const {
+template <class Type>
+void AddressMap<Value>::Iterate(void (*callback)(Key, Value, Type),
+                                Type arg) const {
   for (int h = 0; h < kHashSize; ++h) {
     for (const Cluster* c = hashtable_[h]; c != NULL; c = c->next) {
       for (int b = 0; b < kClusterBlocks; ++b) {
         for (const Entry* e = c->blocks[b]; e != NULL; e = e->next) {
-          callback(e->key, e->value);
+          callback(e->key, e->value, arg);
         }
       }
     }

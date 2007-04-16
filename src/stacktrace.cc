@@ -30,38 +30,58 @@
 // ---
 // Author: Sanjay Ghemawat
 //
-// Produce stack trace
+// Produce stack trace.
+//
+// There are three different ways we can try to get the stack trace:
+//
+// 1) Our hand-coded stack-unwinder.  This depends on a certain stack
+//    layout, which is used by gcc (and those systems using a
+//    gcc-compatible ABI) on x86 systems, at least since gcc 2.95.
+//    It uses the frame pointer to do its work.
+//
+// 2) The libunwind library.  This is still in development, and as a
+//    separate library adds a new dependency, abut doesn't need a frame
+//    pointer.  It also doesn't call malloc.
+//
+// 3) The gdb unwinder -- also the one used by the c++ exception code.
+//    It's obviously well-tested, but has a fatal flaw: it can call
+//    malloc() from the unwinder.  This is a problem because we're
+//    trying to use the unwinder to instrument malloc().
+//
+// Note: if you add a new implementation here, make sure it works
+// correctly when GetStackTrace() is called with max_depth == 0.
+// Some code may do that.
 
 #include "config.h"
-#include <stdlib.h>
-#include "google/stacktrace.h"
 
-#undef IMPLEMENTED_STACK_TRACE
+// First, the i386 case.
+#if defined(__i386__) && __GNUC__ >= 2
+# if !defined(NO_FRAME_POINTER)
+#   include "stacktrace_x86-inl.h"
+# else
+#   include "stacktrace_generic-inl.h"
+# endif
 
-// Linux/x86 implementation (requires the binary to be compiled with
-// frame pointers)
-#if defined(__i386__) && defined(__linux) && !defined(NO_FRAME_POINTER)
-#define IMPLEMENTED_STACK_TRACE
-#include "stacktrace_x86-inl.h"
-#endif
+// Now, the x86_64 case.
+#elif defined(__x86_64__) && __GNUC__ >= 2
+# if !defined(NO_FRAME_POINTER)
+#   include "stacktrace_x86-inl.h"
+# elif defined(HAVE_LIBUNWIND_H)  // a proxy for having libunwind installed
+#   define UNW_LOCAL_ONLY
+#   include "stacktrace_libunwind-inl.h"
+# elif 0
+    // This is the unwinder used by gdb, which can call malloc (see above).
+    // We keep this code around, so we can test cases where libunwind
+    // doesn't work, but there's no way to enable it except for manually
+    // editing this file (by replacing this "elif 0" with "elif 1", e.g.).
+#   include "stacktrace_x86_64-inl.h"
+# elif defined(__linux)
+#   error Cannnot calculate stack trace: need either libunwind or frame-pointers (see INSTALL file)
+# else
+#   error Cannnot calculate stack trace: need libunwind (see INSTALL file)
+# endif
 
-#if !defined(IMPLEMENTED_STACK_TRACE) && defined(__x86_64__) && HAVE_LIBUNWIND_H
-#define IMPLEMENTED_STACK_TRACE
-#define UNW_LOCAL_ONLY
-#include "stacktrace_libunwind-inl.h"
-#endif
-
-#if !defined(IMPLEMENTED_STACK_TRACE) && defined(__x86_64__) && HAVE_UNWIND_H
-// This implementation suffers from deadlocks. Don't enable it.
-#define IMPLEMENTED_STACK_TRACE
-#include "stacktrace_x86_64-inl.h"
-#endif
-
-#if !defined(IMPLEMENTED_STACK_TRACE) && !defined(__x86_64__) && HAVE_EXECINFO_H
-#define IMPLEMENTED_STACK_TRACE
-#include "stacktrace_generic-inl.h"
-#endif
-
-#ifndef IMPLEMENTED_STACK_TRACE
-#error Cannot calculate stack trace: will need to write for your environment
+// OK, those are all the processors we know how to deal with.
+#else
+# error Cannot calculate stack trace: will need to write for your environment
 #endif

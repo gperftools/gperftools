@@ -37,13 +37,14 @@
 //    AC_HEADER_STDC              /* for stdint_h and inttypes_h */
 //    AC_CHECK_TYPES([__int64])   /* defined in some windows platforms */
 
-#if defined HAVE_STDINT_H
+#ifdef HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>           // another place uint16_t might be defined
-#else
-#include <sys/types.h>          // our last best hope
 #endif
+#ifdef HAVE_INTTYPES_H
+#define __STDC_FORMAT_MACROS    // gets us PRId64, etc.
+#include <inttypes.h>           // uint16_t might be here; PRId64 too.
+#endif
+#include <sys/types.h>          // our last best hope for uint16_t
 
 // Standard typedefs
 // All Google code is compiled with -funsigned-char to make "char"
@@ -88,10 +89,115 @@ const  int16 kint16min  = (   ( int16) 0x8000);
 const  int32 kint32min  = (   ( int32) 0x80000000);
 const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
 
+// Define the "portable" printf and scanf macros, if they're not already there
+// We just do something that works on many systems, and hope for the best
+#ifndef PRIx64
+#define PRIx64 "llx"
+#endif
+#ifndef SCNx64
+#define SCNx64 "llx"
+#endif
+#ifndef PRId64
+#define PRId64 "lld"
+#endif
+#ifndef SCNd64
+#define SCNd64 "lld"
+#endif
+
+
 // A macro to disallow the evil copy constructor and operator= functions
 // This should be used in the private: declarations for a class
 #define DISALLOW_EVIL_CONSTRUCTORS(TypeName)    \
   TypeName(const TypeName&);                    \
   void operator=(const TypeName&)
+
+// The COMPILE_ASSERT macro can be used to verify that a compile time
+// expression is true. For example, you could use it to verify the
+// size of a static array:
+//
+//   COMPILE_ASSERT(sizeof(num_content_type_names) == sizeof(int),
+//                  content_type_names_incorrect_size);
+//
+// or to make sure a struct is smaller than a certain size:
+//
+//   COMPILE_ASSERT(sizeof(foo) < 128, foo_too_large);
+//
+// The second argument to the macro is the name of the variable. If
+// the expression is false, most compilers will issue a warning/error
+// containing the name of the variable.
+//
+// Implementation details of COMPILE_ASSERT:
+//
+// - COMPILE_ASSERT works by defining an array type that has -1
+//   elements (and thus is invalid) when the expression is false.
+//
+// - The simpler definition
+//
+//     #define COMPILE_ASSERT(expr, msg) typedef char msg[(expr) ? 1 : -1]
+//
+//   does not work, as gcc supports variable-length arrays whose sizes
+//   are determined at run-time (this is gcc's extension and not part
+//   of the C++ standard).  As a result, gcc fails to reject the
+//   following code with the simple definition:
+//
+//     int foo;
+//     COMPILE_ASSERT(foo, msg); // not supposed to compile as foo is
+//                               // not a compile-time constant.
+//
+// - By using the type CompileAssert<(bool(expr))>, we ensures that
+//   expr is a compile-time constant.  (Template arguments must be
+//   determined at compile-time.)
+//
+// - The outter parentheses in CompileAssert<(bool(expr))> are necessary
+//   to work around a bug in gcc 3.4.4 and 4.0.1.  If we had written
+//
+//     CompileAssert<bool(expr)>
+//
+//   instead, these compilers will refuse to compile
+//
+//     COMPILE_ASSERT(5 > 0, some_message);
+//
+//   (They seem to think the ">" in "5 > 0" marks the end of the
+//   template argument list.)
+//
+// - The array size is (bool(expr) ? 1 : -1), instead of simply
+//
+//     ((expr) ? 1 : -1).
+//
+//   This is to avoid running into a bug in MS VC 7.1, which
+//   causes ((0.0) ? 1 : -1) to incorrectly evaluate to 1.
+
+template <bool>
+struct CompileAssert {
+};
+
+#define COMPILE_ASSERT(expr, msg)                               \
+  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1]
+
+#define ARRAYSIZE(a)  (sizeof(a) / sizeof(*(a)))
+
+#define OFFSETOF_MEMBER(strct, field)                                   \
+   (reinterpret_cast<char*>(&reinterpret_cast<strct*>(16)->field) -     \
+    reinterpret_cast<char*>(16))
+
+#ifdef HAVE___ATTRIBUTE__
+# define ATTRIBUTE_WEAK  __attribute__((weak))
+# define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name)))
+# define DECLARE_ATTRIBUTE_SECTION(name) \
+    extern char __start_##name[] ATTRIBUTE_WEAK; \
+    extern char __stop_##name[] ATTRIBUTE_WEAK;
+// Return void* pointers to start/end of a section of code with
+// functions having ATTRIBUTE_SECTION(name).
+// Returns 0 if no such functions exits.
+// One must DECLARE_ATTRIBUTE_SECTION(name) for this to compile and link.
+# define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
+# define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
+#else
+# define ATTRIBUTE_WEAK
+# define ATTRIBUTE_SECTION(name)
+# define DECLARE_ATTRIBUTE_SECTION(name)
+# define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(0))
+# define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(0))
+#endif
 
 #endif  // _BASICTYPES_H_

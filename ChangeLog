@@ -100,3 +100,29 @@ Wed Jun 14 15:11:14 2006  Google Inc. <opensource@google.com>
 	* Better compiler support for no-THREADS and for old compilers (csilvers)
 	* Make libunwind the default stack unwinder for x86-64 (aruns)
 	* Somehow the COPYING file got erased.  Regenerate it (csilvers)
+
+Fri Apr 13 14:50:51 2007  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.90 release
+	* (As the version-number jump hints, this is a major new release:
+	  almost every piece of functionality was rewritten.  I can't do
+	  justice to all the changes, but will concentrate on highlights.)
+	*** USER-VISIBLE CHANGES:
+	* Ability to "release" unused memory added to tcmalloc
+	* Exposed more tweaking knobs via environment variables (see docs)
+	* pprof tries harder to map addresses to functions
+	* tcmalloc_minimal compiles and runs on FreeBSD 6.0 and Solaris 10
+	*** INTERNAL CHANGES:
+	* Much better 64-bit support
+	* Better multiple-processor support (e.g. multicore contention tweaks)
+	* Support for recent kernel ABI changes (e.g. new arg to mremap)
+	* Addition of spinlocks to tcmalloc to reduce contention cost
+	* Speed up tcmalloc by using __thread on systems that support TLS
+	* Total redesign of heap-checker to improve liveness checking
+	* More portable stack-frame analysis -- no more hard-coded constants!
+	* Disentangled heap-profiler code and heap-checker code
+	* Several new unittests to test, e.g., thread-contention costs
+	* Lots of small (but important!) bug fixes: e.g., fixing GetPC on amd64
+	*** KNOWN PROBLEMS:
+	* CPU-profiling may crash on x86_64 (64-bit) systems.  See the README
+	* Profiling/heap-checking may deadlock on x86_64 systems.  See README

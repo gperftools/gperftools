@@ -28,15 +28,15 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "config.h"
+#ifdef HAVE_EXECINFO_H
+#include <execinfo.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include "base/commandlineflags.h"
 #include "base/logging.h"
-#include "google/stacktrace.h"
+#include <google/stacktrace.h>
 
-#ifdef HAVE_EXECINFO_H
-#include <execinfo.h>
-#endif
 
 // Obtain a backtrace, verify that the expected callers are present in the
 // backtrace, and maybe print the backtrace to stdout. 
@@ -94,35 +94,25 @@ void CheckStackTraceLeaf(void) {
   const int STACK_LEN = 10;
   void *stack[STACK_LEN];
   int size;
-    void *top, *bottom;
 
   size = GetStackTrace(stack, STACK_LEN, 0);
   printf("Obtained %d stack frames.\n", size);
   CHECK_LE(size, STACK_LEN);
 
-  // GetStackExtent() may not be implemented
-  if (GetStackExtent(NULL, &top, &bottom)) {
-    printf("%p %p\n", top, bottom);
-  }
-
-  for (int i = 0; i < BACKTRACE_STEPS; i++)
-  {
-    CheckRetAddrIsInFunction(stack[i], expected_stack[i]);
-  }
-
-
 #ifdef HAVE_EXECINFO_H
   {
     char **strings = backtrace_symbols(stack, size);
-    
     printf("Obtained %d stack frames.\n", size);
     for (int i = 0; i < size; i++)
-      printf("%s\n", strings[i]);
+      printf("%s %p\n", strings[i], stack[i]);
     printf("CheckStackTrace() addr: %p\n", &CheckStackTrace);
     free(strings);
   }
 #endif
 
+  for (int i = 0; i < BACKTRACE_STEPS; i++) {
+    CheckRetAddrIsInFunction(stack[i], expected_stack[i]);
+  }
 }
 
 //-----------------------------------------------------------------------//

@@ -32,55 +32,25 @@
 //
 // Module for heap-profiling.
 //
-// This module is safe to link into any program you may wish to
-// profile at some point.  It will not cause any noticeable slowdowns
-// unless you activate by setting the environment variable
-// HEAPPROFILE, e.g.:
-// $ export HEAPPROFILE=/tmp/my_program_profile ; ./my_program
-// $ ls /tmp/my_program_profile.*
-//    /tmp/my_program_profile.0000.heap
-//    /tmp/my_program_profile.0001.heap
-//    /tmp/my_program_profile.0002.heap
-//    ...
+// For full(er) information, see doc/heapprofile.html
 //
-// This allows you to easily profile your program at any time without
-// having to recompile, and doesn't slow things down if HEAPPROFILE is
-// unset.  We refuse to do profiling if uid != euid, to avoid
-// environment-based security issues if your program is accidentally
-// setuid.  Note that this library should generally not be linked into
-// setuid programs.  It has not been reviewed or tested for security
-// under setuid conditions.
+// This module can be linked into your program with
+// no slowdown caused by this unless you activate the profiler
+// using one of the following methods:
 //
-// If heap-profiling is turned on, a profile file is dumped every GB
-// of allocated data.  You can override this behavior by calling
-// HeapProfilerSetAllocationInterval() to a number of bytes N.  If
-// you do that, a profile file will be dumped after every N bytes of
-// allocations.
+//    1. Before starting the program, set the environment variable
+//       "HEAPPROFILE" to be the name of the file to which the profile
+//       data should be written.
 //
-// If heap profiling is on, we also dump a profile when the
-// in-use-bytes reach a new high-water-mark.  Only increases of at
-// least 100MB are considered significant changes in the
-// high-water-mark.  This number can be changed by calling
-// HeapProfilerSetInuseInterval() with a different byte-value.
+//    2. Programmatically, start and stop the profiler using the
+//       routines "HeapProfilerStart(filename)" and "HeapProfilerStop()".
 //
-// STL WARNING: The HeapProfiler does not accurately track allocations
-// in many STL implementations.  This is because it is common for the
-// default STL allocator to keep an internal pool of memory and nevery
-// return it to the system.  This means that large allocations may be
-// attributed to an object that you know was destroyed.  For a simple
-// example, see TestHeapLeakCheckerSTL in
-// src/tests/heap-checker_unittest.cc.
-//
-// This issue is resolved for GCC 3.3 and 3.4 by setting the
-// environment variable GLIBCXX_FORCE_NEW, which forces the STL
-// allocator to call `new' and `delete' explicitly for every
-// allocation and deallocation.  For GCC 3.2 and previous you will
-// need to compile your source with -D__USE_MALLOC.  For other
-// compilers / STL libraries, there may be a similar solution; See
-// your implementation's documentation for information.
+// Use pprof to view the resulting profile output.
+//    % google3/perftools/pprof <path_to_executable> <profile_file_name>
+//    % google3/perftools/pprof --gv  <path_to_executable> <profile_file_name>
 
-#ifndef _HEAP_PROFILER_H
-#define _HEAP_PROFILER_H
+#ifndef BASE_HEAP_PROFILER_H__
+#define BASE_HEAP_PROFILER_H__
 
 #include <stddef.h>
 
@@ -102,19 +72,4 @@ extern void HeapProfilerDump(const char *reason);
 // free()-ed as soon as the caller does not need it anymore.
 extern char* GetHeapProfile();
 
-// ---- Configuration accessors ----
-
-// Level of logging used by the heap profiler and heap checker (if applicable)
-// Default: 0
-extern void HeapProfilerSetLogLevel(int level);
-
-// Dump heap profiling information once every specified number of bytes
-// allocated by the program.  Default: 1GB
-extern void HeapProfilerSetAllocationInterval(size_t interval);
-
-// Dump heap profiling information whenever the high-water 
-// memory usage mark increases by the specified number of
-// bytes.  Default: 100MB
-extern void HeapProfilerSetInuseInterval(size_t interval);
-
-#endif /* _HEAP_PROFILER_H */
+#endif /* BASE_HEAP_PROFILER_H__ */

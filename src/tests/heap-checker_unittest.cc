@@ -42,7 +42,7 @@
 //
 // Note: Both of the above commands *should* abort with an error message.
 
-// CAVEAT: Do not use vector<>s and string-s in this test,
+// CAVEAT: Do not use vector<> and string on-heap objects in this test,
 // otherwise the test can sometimes fail for tricky leak checks
 // when we want some allocated object not to be found live by the heap checker.
 // This can happen with memory allocators like tcmalloc that can allocate
@@ -58,28 +58,20 @@
 // (see the comment in our .h file).
 
 #include "config.h"
-#include "base/logging.h"
-#include "base/googleinit.h"
-#include <google/malloc_extension.h>
-#include <google/heap-profiler.h>
-#include <google/heap-checker.h>
-
-#include <stdlib.h>
 #include <sys/poll.h>
 #if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
 #elif defined HAVE_INTTYPES_H
 #include <inttypes.h>           // another place uint16_t might be defined
-#else
-#include <sys/types.h>          // our last best hope
 #endif
-#include <unistd.h>             // for sleep()
-#include <iostream>             // for cout
-#include <vector>
-#include <set>
-#include <string>
-
+#include <sys/types.h>
+#include <stdlib.h>
 #include <errno.h>              // errno
+#include <unistd.h>             // for sleep(), geteuid()
+#include <fcntl.h>              // for open(), close()
+#include <malloc.h>
+#include <sys/mman.h>
+
 #include <netinet/in.h>         // inet_ntoa
 #include <arpa/inet.h>          // inet_ntoa
 #ifdef HAVE_EXECINFO_H
@@ -88,6 +80,75 @@
 #ifdef HAVE_GRP_H
 #include <grp.h>                // getgrent, getgrnam
 #endif
+#ifdef HAVE_PWD_H
+#include <pwd.h>
+#endif
+
+#include <iostream>             // for cout
+#include <iomanip>              // for hex
+#include <set>
+#include <map>
+#include <vector>
+#include <string>
+
+#include "base/googleinit.h"
+#include "base/logging.h"
+#include "base/commandlineflags.h"
+#include <google/heap-checker.h>
+#include "memory_region_map.h"
+#include <google/malloc_extension.h>
+
+using namespace std;
+
+
+// TODO(maxim): write a shell script to test that these indeed crash us
+//              (i.e. we do detect leaks)
+//              Maybe add more such crash tests.
+
+DEFINE_bool(test_leak,
+            EnvToBool("HEAP_CHECKER_TEST_TEST_LEAK", false),
+            "If should cause a leak crash");
+DEFINE_bool(test_loop_leak,
+            EnvToBool("HEAP_CHECKER_TEST_TEST_LOOP_LEAK", false),
+            "If should cause a looped leak crash");
+DEFINE_bool(test_register_leak,
+            EnvToBool("HEAP_CHECKER_TEST_TEST_REGISTER_LEAK", false),
+            "If should cause a leak crash by hiding a pointer "
+            "that is only in a register");
+DEFINE_bool(test_cancel_global_check,
+            EnvToBool("HEAP_CHECKER_TEST_TEST_CANCEL_GLOBAL_CHECK", false),
+            "If should test HeapLeakChecker::CancelGlobalCheck "
+            "when --test_leak or --test_loop_leak are given; "
+            "the test should not fail then");
+DEFINE_bool(maybe_stripped,
+            EnvToBool("HEAP_CHECKER_TEST_MAYBE_STRIPPED", true),
+            "If we think we can be a stripped binary");
+DEFINE_bool(interfering_threads,
+            EnvToBool("HEAP_CHECKER_TEST_INTERFERING_THREADS", true),
+            "If we should use threads trying "
+            "to interfere with leak checking");
+DEFINE_bool(hoarding_threads,
+            EnvToBool("HEAP_CHECKER_TEST_HOARDING_THREADS", true),
+            "If threads (usually the manager thread) are known "
+            "to retain some old state in their global buffers, "
+            "so that it's hard to force leaks when threads are around");
+            // TODO(maxim): Chage the default to false
+            // when the standard environment used NTPL threads:
+            // they do not seem to have this problem.
+DEFINE_bool(no_threads,
+            EnvToBool("HEAP_CHECKER_TEST_NO_THREADS", false),
+            "If we should not use any threads");
+            // This is used so we can make can_create_leaks_reliably true
+            // for any pthread implementation and test with that.
+
+#define WARN_IF(cond, msg)   LOG_IF(WARNING, cond, msg)
+
+// This is an evil macro!  Be very careful using it...
+#undef VLOG          // and we start by evilling overriding logging.h VLOG
+#define VLOG(lvl)    if (FLAGS_verbose >= (lvl))  cout << "\n"
+// This is, likewise, evil
+#define LOGF         VLOG(INFO)
+
 
 class Closure {
  public:
@@ -146,21 +207,13 @@ inline Callback2<P1,P2>* NewCallback(void (*function)(P1,P2), P1 p1, P2 p2) {
 }
 
 
-using namespace std;
-
-static bool FLAGS_maybe_stripped = false;   // TODO(csilvers): use this?
-static bool FLAGS_interfering_threads = true;
-static bool FLAGS_test_register_leak = false;  // TODO(csilvers): this as well?
-
 // Set to true at end of main, so threads know.  Not entirely thread-safe!,
 // but probably good enough.
 static bool g_have_exited_main = false;
 
-// If our allocator guarantees that heap object addresses are never reused.
-// We need this property so that stale uncleared pointer data
-// does not accidentaly lead to heap-checker wrongly believing that
-// some data is live.
-static bool unique_heap_addresses = false;
+// If we can reliably create leaks (i.e. make leaked object
+// really unreachable from any global data).
+static bool can_create_leaks_reliably = false;
 
 // We use a simple allocation wrapper
 // to make sure we wipe out the newly allocated objects
@@ -169,8 +222,8 @@ static bool unique_heap_addresses = false;
 struct Initialized { };
 static Initialized initialized;
 void* operator new(size_t size, const Initialized&) {
-  // Below we use "p = new (initialized) Foo[1];" and  "delete[] p;"
-  // instead of "p = new (initialized) Foo;"
+  // Below we use "p = new(initialized) Foo[1];" and  "delete[] p;"
+  // instead of "p = new(initialized) Foo;"
   // when we need to delete an allocated object.
   void* p = malloc(size);
   memset(p, 0, size);
@@ -182,60 +235,30 @@ void* operator new[](size_t size, const Initialized&) {
   return p;
 }
 
-static void CheckLeak(HeapLeakChecker* check, 
-                      size_t bytes_leaked, size_t objects_leaked) {
-  if (unique_heap_addresses) {
-    if (getenv("HEAPCHECK")) {
-      // these might still fail occasionally, but it should be very rare
-      CHECK_EQ(check->BriefNoLeaks(), false);
-      CHECK_EQ(check->BytesLeaked(), bytes_leaked);
-      CHECK_EQ(check->ObjectsLeaked(), objects_leaked);
-    }
-  } else if (check->BriefNoLeaks() != false) {
-    cout << "Some liveness flood must be too optimistic\n";
-  }
-}
-
 static void Pause() {
   poll(NULL, 0, 77);  // time for thread activity in HeapBusyThreadBody
 
-  // Indirectly test debugallocation.* and malloc_interface.*:
-
+  // Indirectly test malloc_extension.*:
   CHECK(MallocExtension::instance()->VerifyAllMemory());
-  // Comment the printing of malloc-stats out for now.  It seems a bit broken
-#if 0
   int blocks;
   size_t total;
   int histogram[kMallocHistogramSize];
   if (MallocExtension::instance()
        ->MallocMemoryStats(&blocks, &total, histogram)  &&  total != 0) {
-    cout << "Malloc stats: " << blocks << " blocks of "
-         << total << " bytes\n";
+    VLOG(3) << "Malloc stats: " << blocks << " blocks of "
+            << total << " bytes";
     for (int i = 0; i < kMallocHistogramSize; ++i) {
       if (histogram[i]) {
-        cout << "  Malloc histogram at " << i << " : " << histogram[i] << "\n";
+        VLOG(3) << "  Malloc histogram at " << i << " : " << histogram[i];
       }
     }
-  }
-#endif
-}
-
-static bool noleak() {   // compare to this if you expect no leak
-  return true;
-}
-
-static bool leak() {   // compare to this if you expect a leak
-  // When we're not doing heap-checking, we can't tell if there's a leak
-  if ( !getenv("HEAPCHECK") ) {
-    return true;
-  } else {
-    return false;
   }
 }
 
 // Make gcc think a pointer is "used"
 template <class T>
 static void Use(T** foo) {
+  VLOG(2) << "Dummy-using " << static_cast<void*>(*foo) << " at " << foo;
 }
 
 // Arbitrary value, but not such that xor'ing with it is likely
@@ -253,14 +276,27 @@ static const uintptr_t kHideMask = 0xF03A5F7B;
 //  can be allocated at the same heap address.)
 template <class T>
 static void Hide(T** ptr) {
-  reinterpret_cast<uintptr_t&>(*ptr) =
-    (reinterpret_cast<uintptr_t&>(*ptr) ^ kHideMask);
+  // We have to do memcpy rather than just casting here, because a cast
+  // is illegal (and can cause aliasing issues).
+  uintptr_t hidden = reinterpret_cast<uintptr_t>(*ptr) ^ kHideMask;
+  assert(sizeof(*ptr) == sizeof(hidden));
+  memcpy(ptr, &hidden, sizeof(*ptr));
+  VLOG(2) << "hid: " << static_cast<void*>(*ptr);
 }
 
 template <class T>
 static void UnHide(T** ptr) {
-  reinterpret_cast<uintptr_t&>(*ptr) =
-    (reinterpret_cast<uintptr_t&>(*ptr) ^ kHideMask);
+  VLOG(2) << "unhiding: " << static_cast<void*>(*ptr);
+  // We have to do memcpy rather than just casting here, because a cast
+  // is illegal (and can cause aliasing issues).
+  uintptr_t unhidden = reinterpret_cast<uintptr_t>(*ptr) ^ kHideMask;
+  assert(sizeof(*ptr) == sizeof(unhidden));
+  memcpy(ptr, &unhidden, sizeof(*ptr));
+}
+
+static void LogHidden(const char* message, const void* ptr) {
+  LOGF << message << " : "
+       << ptr << " ^ " << reinterpret_cast<void*>(kHideMask) << endl;
 }
 
 // non-static to fool the compiler against inlining
@@ -271,6 +307,7 @@ void (*wipe_stack_ptr)(int n);
 
 static void DoRunHidden(Closure* c, int n) {
   if (n) {
+    VLOG(10) << "Level " << n << " at " << &n;
     run_hidden_ptr(c, n-1);
     wipe_stack_ptr(n);
     sleep(0);  // undo -foptimize-sibling-calls
@@ -280,6 +317,7 @@ static void DoRunHidden(Closure* c, int n) {
 }
 
 static void DoWipeStack(int n) {
+  VLOG(10) << "Wipe level " << n << " at " << &n;
   if (n) {
     const int sz = 30;
     volatile int arr[sz];
@@ -301,9 +339,10 @@ static void RunHidden(Closure* c) {
 }
 
 static void DoAllocHidden(size_t size, void** ptr) {
-  void* p = new (initialized) char[size];
+  void* p = new(initialized) char[size];
   Hide(&p);
   Use(&p);  // use only hidden versions
+  VLOG(2) << "Allocated hidden " << p << " at " << &p;
   *ptr = p;  // assign the hidden versions
 }
 
@@ -316,6 +355,7 @@ static void* AllocHidden(size_t size) {
 static void DoDeAllocHidden(void** ptr) {
   Use(ptr);  // use only hidden versions
   void* p = *ptr;
+  VLOG(2) << "Deallocating hidden " << p;
   UnHide(&p);
   delete [] (char*)p;
 }
@@ -326,6 +366,41 @@ static void DeAllocHidden(void** ptr) {
   Use(ptr);
 }
 
+static bool RunSilent(HeapLeakChecker* check,
+                      bool (HeapLeakChecker::* func)()) {
+  // By default, don't print the 'we detected a leak' message in the
+  // cases we're expecting a leak (we still print when --v is >= 1).
+  // This way, the logging output is less confusing: we only print
+  // "we detected a leak", and how to diagnose it, for *unexpected* leaks.
+  int32 old_FLAGS_verbose = FLAGS_verbose;
+  if (!VLOG_IS_ON(1))             // not on a verbose setting
+    FLAGS_verbose = FATAL;        // only log fatal errors
+  const bool retval = (check->*func)();
+  FLAGS_verbose = old_FLAGS_verbose;
+  return retval;
+}
+
+#define RUN_SILENT(check, func)  RunSilent(&(check), &HeapLeakChecker::func)
+
+enum CheckType { SAME_HEAP, NO_LEAKS };
+
+static void VerifyLeaks(HeapLeakChecker* check, CheckType type,
+                        int leaked_bytes, int leaked_objects) {
+  const bool no_leaks =
+    type == NO_LEAKS ? RUN_SILENT(*check, BriefNoLeaks)
+                     : RUN_SILENT(*check, BriefSameHeap);
+  if (can_create_leaks_reliably) {
+    // these might still fail occasionally, but it should be very rare
+    CHECK_EQ(no_leaks, false);
+    CHECK_EQ(check->BytesLeaked(), leaked_bytes);
+    CHECK_EQ(check->ObjectsLeaked(), leaked_objects);
+  } else {
+    WARN_IF(no_leaks != false,
+            "Expected leaks not found: "
+            "Some liveness flood must be too optimistic");
+  }
+}
+
 // not deallocates
 static void TestHeapLeakCheckerDeathSimple() {
   HeapLeakChecker check("death_simple");
@@ -333,20 +408,24 @@ static void TestHeapLeakCheckerDeathSimple() {
   Use(&foo);
   void* bar = AllocHidden(300);
   Use(&bar);
-  CheckLeak(&check, 300 + 100 * sizeof(int), 2);
+  LogHidden("Leaking", foo);
+  LogHidden("Leaking", bar);
+  Pause();
+  VerifyLeaks(&check, NO_LEAKS, 300 + 100 * sizeof(int), 2);
   DeAllocHidden(&foo);
   DeAllocHidden(&bar);
 }
 
 static void MakeDeathLoop(void** arr1, void** arr2) {
-  void** a1 = new (initialized) void*[2];
-  void** a2 = new (initialized) void*[2];
+  void** a1 = new(initialized) void*[2];
+  void** a2 = new(initialized) void*[2];
   a1[1] = (void*)a2;
   a2[1] = (void*)a1;
   Hide(&a1);
   Hide(&a2);
   Use(&a1);
   Use(&a2);
+  VLOG(2) << "Made hidden loop at " << &a1 << " to " << arr1;
   *arr1 = a1;
   *arr2 = a2;
 }
@@ -359,7 +438,10 @@ static void TestHeapLeakCheckerDeathLoop() {
   RunHidden(NewCallback(MakeDeathLoop, &arr1, &arr2));
   Use(&arr1);
   Use(&arr2);
-  CheckLeak(&check, 4 * sizeof(void*), 2);
+  LogHidden("Leaking", arr1);
+  LogHidden("Leaking", arr2);
+  Pause();
+  VerifyLeaks(&check, NO_LEAKS, 4 * sizeof(void*), 2);
   DeAllocHidden(&arr1);
   DeAllocHidden(&arr2);
 }
@@ -368,11 +450,15 @@ static void TestHeapLeakCheckerDeathLoop() {
 static void TestHeapLeakCheckerDeathInverse() {
   void* bar = AllocHidden(250 * sizeof(int));
   Use(&bar);
+  LogHidden("Pre leaking", bar);
+  Pause();
   HeapLeakChecker check("death_inverse");
   void* foo = AllocHidden(100 * sizeof(int));
   Use(&foo);
+  LogHidden("Leaking", foo);
   DeAllocHidden(&bar);
-  CheckLeak(&check, (size_t)(-150 * size_t(sizeof(int))), 0);
+  Pause();
+  VerifyLeaks(&check, SAME_HEAP, -150 * int64(sizeof(int)), 0);
   DeAllocHidden(&foo);
 }
 
@@ -384,7 +470,7 @@ static void TestHeapLeakCheckerDeathNoLeaks() {
   Use(&bar);
   HeapLeakChecker check("death_noleaks");
   DeAllocHidden(&bar);
-  CHECK_EQ(check.BriefNoLeaks(), noleak());
+  CHECK_EQ(check.BriefNoLeaks(), true);
   DeAllocHidden(&foo);
 }
 
@@ -394,12 +480,17 @@ static void TestHeapLeakCheckerDeathCountLess() {
   Use(&bar1);
   void* bar2 = AllocHidden(50 * sizeof(int));
   Use(&bar2);
+  LogHidden("Pre leaking", bar1);
+  LogHidden("Pre leaking", bar2);
+  Pause();
   HeapLeakChecker check("death_count_less");
   void* foo = AllocHidden(100 * sizeof(int));
   Use(&foo);
+  LogHidden("Leaking", foo);
   DeAllocHidden(&bar1);
   DeAllocHidden(&bar2);
-  CheckLeak(&check, 0, (size_t)-1);
+  Pause();
+  VerifyLeaks(&check, SAME_HEAP, 0, -1);
   DeAllocHidden(&foo);
 }
 
@@ -407,13 +498,18 @@ static void TestHeapLeakCheckerDeathCountLess() {
 static void TestHeapLeakCheckerDeathCountMore() {
   void* foo = AllocHidden(100 * sizeof(int));
   Use(&foo);
+  LogHidden("Pre leaking", foo);
+  Pause();
   HeapLeakChecker check("death_count_more");
   void* bar1 = AllocHidden(50 * sizeof(int));
   Use(&bar1);
   void* bar2 = AllocHidden(50 * sizeof(int));
   Use(&bar2);
+  LogHidden("Leaking", bar1);
+  LogHidden("Leaking", bar2);
   DeAllocHidden(&foo);
-  CheckLeak(&check, 0, 1);
+  Pause();
+  VerifyLeaks(&check, SAME_HEAP, 0, 1);
   DeAllocHidden(&bar1);
   DeAllocHidden(&bar2);
 }
@@ -469,15 +565,28 @@ static void TestHeapLeakCheckerTrick() {
   Use(&bar1);
   void* bar2 = AllocHidden(160 * sizeof(int));
   Use(&bar2);
+  LogHidden("Pre leaking", bar1);
+  LogHidden("Pre leaking", bar2);
+  Pause();
   HeapLeakChecker check("trick");
   void* foo1 = AllocHidden(280 * sizeof(int));
   Use(&foo1);
   void* foo2 = AllocHidden(120 * sizeof(int));
   Use(&foo2);
+  LogHidden("Leaking", foo1);
+  LogHidden("Leaking", foo2);
   DeAllocHidden(&bar1);
   DeAllocHidden(&bar2);
   Pause();
-  CHECK(check.BriefSameHeap());
+  if (can_create_leaks_reliably) {
+    // this might still fail occasionally, but it should be very rare:
+    CHECK(check.BriefSameHeap());
+  } else {
+    // we expect it to usually misbehave, so we silence it:
+    WARN_IF(RUN_SILENT(check, BriefSameHeap) != true,
+            "Tricky leaks unexpectedly found: "
+            "Some liveness flood must be too optimistic");
+  }
   DeAllocHidden(&foo1);
   DeAllocHidden(&foo2);
 }
@@ -497,9 +606,12 @@ static void TestHeapLeakCheckerDeathTrick() {
   Use(&foo2);
   // TODO(maxim): use the above if we make pprof work in automated test runs
   if (!FLAGS_maybe_stripped) {
-    CHECK_EQ(check.SameHeap(), leak());  // pprof checking should catch it
-  } else if (check.SameHeap()) {
-    cout << "death_trick leak is not caught; we must be using stripped binary\n";
+    CHECK_EQ(RUN_SILENT(check, SameHeap), false);
+      // pprof checking should catch the leak
+  } else {
+    WARN_IF(RUN_SILENT(check, SameHeap) != false,
+            "death_trick leak is not caught; "
+            "we must be using a stripped binary");
   }
   DeAllocHidden(&foo1);
   DeAllocHidden(&foo2);
@@ -541,6 +653,7 @@ static void* RunDisabledLeaks(void* a) {
 
 // have different disabled leaks inside of a thread
 static void ThreadDisabledLeaks() {
+  if (FLAGS_no_threads)  return;
   pthread_t tid;
   pthread_attr_t attr;
   CHECK(pthread_attr_init(&attr) == 0);
@@ -560,9 +673,9 @@ static void TestHeapLeakCheckerDisabling() {
   ThreadDisabledLeaks();
   ThreadDisabledLeaks();
 
-  // if this fails, some code with DisableChecksUp() got inlined into here;
-  // need to add more tricks to prevent this inlining.
-  CHECK(!HeapLeakChecker::HaveDisabledChecksUp(1));
+  LOG_IF(FATAL, HeapLeakChecker::HaveDisabledChecksUp(1),
+        "Some code with DisableChecksUp() got inlined into here; "
+        "need to add more tricks to prevent this inlining.");
 
   Pause();
 
@@ -574,8 +687,8 @@ typedef set<int> IntSet;
 static int some_ints[] = { 1, 2, 3, 21, 22, 23, 24, 25 };
 
 static void DoTestSTLAlloc() {
-  IntSet* x = new (initialized) IntSet[1];
-  *x  = IntSet(some_ints, some_ints + 6);
+  IntSet* x = new(initialized) IntSet[1];
+  *x = IntSet(some_ints, some_ints + 6);
   for (int i = 0; i < 1000; i++) {
     x->insert(i*3);
   }
@@ -593,7 +706,7 @@ static void TestSTLAlloc() {
 }
 
 static void DoTestSTLAllocInverse(IntSet** setx) {
-  IntSet* x = new (initialized) IntSet[1];
+  IntSet* x = new(initialized) IntSet[1];
   *x = IntSet(some_ints, some_ints + 3);
   for (int i = 0; i < 100; i++) {
     x->insert(i*2);
@@ -613,20 +726,21 @@ static void FreeTestSTLAllocInverse(IntSet** setx) {
 // running on top of our allocator with hooks to heap profiler
 // that can result in false absence of leak report in this case.)
 static void TestSTLAllocInverse() {
-  HeapLeakChecker check("inverse_stl");
+  HeapLeakChecker check("death_inverse_stl");
   IntSet* x;
   RunHidden(NewCallback(DoTestSTLAllocInverse, &x));
-  if (unique_heap_addresses) {
-    if (getenv("HEAPCHECK")) {
-      // these might still fail occasionally, but it should be very rare
-      CHECK_EQ(check.BriefNoLeaks(), false);
-      CHECK_GE(check.BytesLeaked(), 100 * sizeof(int));
-      CHECK_GE(check.ObjectsLeaked(), 100);
+  LogHidden("Leaking", x);
+  if (can_create_leaks_reliably) {
+    // these might still fail occasionally, but it should be very rare
+    CHECK_EQ(RUN_SILENT(check, BriefNoLeaks), false);
+    CHECK_GE(check.BytesLeaked(), 100 * sizeof(int));
+    CHECK_GE(check.ObjectsLeaked(), 100);
       // assumes set<>s are represented by some kind of binary tree
       // or something else allocating >=1 heap object per set object
-    }
-  } else if (check.BriefNoLeaks() != false) {
-    cout << "Some liveness flood must be too optimistic";
+  } else {
+    WARN_IF(RUN_SILENT(check, BriefNoLeaks) != false,
+            "Expected leaks not found: "
+            "Some liveness flood must be too optimistic");
   }
   RunHidden(NewCallback(FreeTestSTLAllocInverse, &x));
 }
@@ -635,9 +749,9 @@ template<class Alloc>
 static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
   HeapLeakChecker check((string("direct_stl-") + name).c_str());
   const int size = 1000;
-  char* ptrs[size];
+  typename Alloc::pointer ptrs[size];
   for (int i = 0; i < size; ++i) {
-    char* p = allocator.allocate(i*3+1);
+    typename Alloc::pointer p = allocator.allocate(i*3+1);
     HeapLeakChecker::IgnoreObject(p);
     // This will crash if p is not known to heap profiler:
     // (i.e. STL's "allocator" does not have a direct hook to heap profiler)
@@ -663,6 +777,7 @@ static void KeyFree(void* ptr) {
 static void KeyInit() {
   for (int i = 0; i < kKeys; ++i) {
     CHECK_EQ(pthread_key_create(&key[i], KeyFree), 0);
+    VLOG(2) << "pthread key " << i << " : " << key[i];
   }
 }
 
@@ -672,7 +787,14 @@ static void TestLibCAllocate() {
   for (int i = 0; i < kKeys; ++i) {
     void* p = pthread_getspecific(key[i]);
     if (NULL == p) {
-      p = new (initialized) char[77 + i];
+      if (i == 0) {
+        // Test-logging inside threads which (potentially) creates and uses
+        // thread-local data inside standard C++ library:
+        VLOG(0) << "Adding pthread-specifics for thread " << pthread_self()
+                << " pid " << getpid();
+      }
+      p = new(initialized) char[77 + i];
+      VLOG(2) << "pthread specific " << i << " : " << p;
       pthread_setspecific(key[i], p);
     }
   }
@@ -683,13 +805,18 @@ static void TestLibCAllocate() {
   inet_ntoa(addr);
   const time_t now = time(NULL);
   ctime(&now);
-#ifdef HAVE_EXECINFO_H
   void *stack[1];
+#ifdef HAVE_EXECINFO_H
   backtrace(stack, 1);
 #endif
 #ifdef HAVE_GRP_H
+  gid_t gid = getgid();
+  getgrgid(gid);
   if (grp == NULL)  grp = getgrent();  // a race condition here is okay
   getgrnam(grp->gr_name);
+#endif
+#ifdef HAVE_PWD_H
+  getpwuid(geteuid());
 #endif
 }
 
@@ -702,10 +829,10 @@ static void* HeapBusyThreadBody(void* a) {
   // Here we are just making a best effort to put the only pointer
   // to a heap object into a thread register to test
   // the thread-register finding machinery in the heap checker.
-#if defined(__i386__) && \
-    (__GNUC__ == 2 || __GNUC__ == 3 || __GNUC__ == 4 || \
-     defined(__INTEL_COMPILER))
+#if defined(__i386__) && defined(__GNUC__)
   register int** ptr asm("esi");
+#elif defined(__x86_64__) && defined(__GNUC__)
+  register int** ptr asm("r15");
 #else
   register int** ptr;
 #endif
@@ -719,10 +846,10 @@ static void* HeapBusyThreadBody(void* a) {
       TestLibCAllocate();
 
     if (ptr == NULL) {
-      ptr = new (initialized) int*[1];
-      *ptr = new (initialized) int[1];
+      ptr = new(initialized) int*[1];
+      *ptr = new(initialized) int[1];
     }
-    set<int>* s2 = new (initialized) set<int>[1];
+    set<int>* s2 = new(initialized) set<int>[1];
     s1.insert(random());
     s2->insert(*s1.begin());
     user += *s2->begin();
@@ -731,16 +858,22 @@ static void* HeapBusyThreadBody(void* a) {
       s1.clear();
       if (random() % 2 == 0) {
         s1.~Set();
-        new (&s1) Set;
+        new(&s1) Set;
       }
     }
+    VLOG(3) << pthread_self() << " (" << getpid() << "): in wait: "
+            << ptr << ", " << *ptr << "; " << s1.size();
+    VLOG(2) << pthread_self() << " (" << getpid() << "): in wait, ptr = "
+            << reinterpret_cast<void*>(
+                 reinterpret_cast<uintptr_t>(ptr) ^ kHideMask)
+            << "^" << reinterpret_cast<void*>(kHideMask);
     if (FLAGS_test_register_leak) {
       // Hide the register "ptr" value with an xor mask.
       // If one provides --test_register_leak flag, the test should
       // (with very high probability) crash on some leak check
       // with a leak report (of some x * sizeof(int) + y * sizeof(int*) bytes)
       // pointing at the two lines above in this function
-      // with "new (initialized) int" in them as the allocators
+      // with "new(initialized) int" in them as the allocators
       // of the leaked objects.
       // CAVEAT: We can't really prevent a compiler to save some
       // temporary values of "ptr" on the stack and thus let us find
@@ -757,6 +890,7 @@ static void* HeapBusyThreadBody(void* a) {
     } else {
       poll(NULL, 0, random() % 100);
     }
+    VLOG(2) << pthread_self() << ": continuing";
     if (random() % 3 == 0) {
       delete [] *ptr;
       delete [] ptr;
@@ -768,6 +902,8 @@ static void* HeapBusyThreadBody(void* a) {
 }
 
 static void RunHeapBusyThreads() {
+  if (FLAGS_no_threads)  return;
+
   const int n = 17;  // make many threads
 
   pthread_t tid;
@@ -775,6 +911,7 @@ static void RunHeapBusyThreads() {
   CHECK(pthread_attr_init(&attr) == 0);
   // make them and let them run
   for (int i = 0; i < n; ++i) {
+    VLOG(0) << "Creating extra thread " << i + 1;
     CHECK(pthread_create(&tid, &attr, HeapBusyThreadBody, NULL) == 0);
   }
 
@@ -784,6 +921,8 @@ static void RunHeapBusyThreads() {
 
 // tests disabling via function name
 REGISTER_MODULE_INITIALIZER(heap_checker_unittest, {
+  // TODO(csilvers): figure out when this might be true
+  can_create_leaks_reliably = false;
   HeapLeakChecker::DisableChecksIn("NamedDisabledLeaks");
 });
 
@@ -799,6 +938,7 @@ REGISTER_MODULE_INITIALIZER(heap_checker_unittest, {
 // have leaks that we disable via our function name in MODULE_INITIALIZER
 static void NamedDisabledLeaks() {
   AllocHidden(5 * sizeof(float));
+  TransLeaks();
   sleep(0);  // undo -foptimize-sibling-calls
 }
 
@@ -813,6 +953,7 @@ static void NamedTwoDisabledLeaks() {
     first = false;
   }
   AllocHidden(5 * sizeof(double));
+  TransLeaks();
   sleep(0);  // undo -foptimize-sibling-calls
 }
 
@@ -822,6 +963,7 @@ static void (*named_two_disabled_leaks)() = &NamedTwoDisabledLeaks;
 // have leaks that we disable via our function name in our caller
 static void NamedThreeDisabledLeaks() {
   AllocHidden(5 * sizeof(float));
+  TransLeaks();
   sleep(0);  // undo -foptimize-sibling-calls
 }
 
@@ -851,6 +993,7 @@ static void* RunNamedDisabledLeaks(void* a) {
 
 // have leaks inside of threads that we disable via function names
 static void ThreadNamedDisabledLeaks() {
+  if (FLAGS_no_threads)  return;
   pthread_t tid;
   pthread_attr_t attr;
   CHECK(pthread_attr_init(&attr) == 0);
@@ -877,8 +1020,10 @@ static void TestHeapLeakCheckerNamedDisabling() {
   if (!FLAGS_maybe_stripped) {
     CHECK_EQ(check.SameHeap(), true);
       // pprof checking should allow it
-  } else if (!check.SameHeap()) {
-    cout << "named_disabling leaks are caught; we must be using stripped binary\n";
+  } else {
+    WARN_IF(check.SameHeap() != true,
+            "named_disabling leaks are caught; "
+            "we must be using a stripped binary");
   }
 }
 
@@ -892,12 +1037,12 @@ template<class T>
 struct Array {
   Array() {
     size = 3 + random() % 30;
-    ptr = new (initialized) T[size];
+    ptr = new(initialized) T[size];
   }
   ~Array() { delete [] ptr; }
   Array(const Array& x) {
     size = x.size;
-    ptr = new (initialized) T[size];
+    ptr = new(initialized) T[size];
     for (size_t i = 0; i < size; ++i) {
       ptr[i] = x.ptr[i];
     }
@@ -905,13 +1050,13 @@ struct Array {
   void operator=(const Array& x) {
     delete [] ptr;
     size = x.size;
-    ptr = new (initialized) T[size];
+    ptr = new(initialized) T[size];
     for (size_t i = 0; i < size; ++i) {
       ptr[i] = x.ptr[i];
     }
   }
   void append(const Array& x) {
-    T* p = new (initialized) T[size + x.size];
+    T* p = new(initialized) T[size + x.size];
     for (size_t i = 0; i < size; ++i) {
       p[i] = ptr[i];
     }
@@ -928,13 +1073,13 @@ struct Array {
 };
 
 static Array<char>* live_leak = NULL;
-static Array<char>* live_leak2 = new (initialized) Array<char>();
-static int* live_leak3 = new (initialized) int[10];
-static const char* live_leak4 = new (initialized) char[5];
+static Array<char>* live_leak2 = new(initialized) Array<char>();
+static int* live_leak3 = new(initialized) int[10];
+static const char* live_leak4 = new(initialized) char[5];
 static int data[] = { 1, 2, 3, 4, 5, 6, 7, 21, 22, 23, 24, 25, 26, 27 };
 static set<int> live_leak5(data, data+7);
 static const set<int> live_leak6(data, data+14);
-static const Array<char>* live_leak_arr1 = new (initialized) Array<char>[5];
+static const Array<char>* live_leak_arr1 = new(initialized) Array<char>[5];
 
 class ClassA {
  public:
@@ -1001,29 +1146,29 @@ static ClassD2* live_leak_d2_d;
 
 // have leaks but ignore the leaked objects
 static void IgnoredLeaks() {
-  int* p = new (initialized) int[1];
+  int* p = new(initialized) int[1];
   HeapLeakChecker::IgnoreObject(p);
-  int** leak = new (initialized) int*;
+  int** leak = new(initialized) int*;
   HeapLeakChecker::IgnoreObject(leak);
-  *leak = new (initialized) int;
+  *leak = new(initialized) int;
   HeapLeakChecker::UnIgnoreObject(p);
   delete [] p;
 }
 
 // allocate many objects reachable from global data
 static void TestHeapLeakCheckerLiveness() {
-  live_leak_b = new (initialized) ClassB;
-  live_leak_d1 = new (initialized) ClassD1;
-  live_leak_d2 = new (initialized) ClassD2;
-  live_leak_d = new (initialized) ClassD;
+  live_leak_b = new(initialized) ClassB;
+  live_leak_d1 = new(initialized) ClassD1;
+  live_leak_d2 = new(initialized) ClassD2;
+  live_leak_d = new(initialized) ClassD;
 
-  live_leak_b_d1 = new (initialized) ClassD1;
-  live_leak_b2_d2 = new (initialized) ClassD2;
-  live_leak_b_d = new (initialized) ClassD;
-  live_leak_b2_d = new (initialized) ClassD;
+  live_leak_b_d1 = new(initialized) ClassD1;
+  live_leak_b2_d2 = new(initialized) ClassD2;
+  live_leak_b_d = new(initialized) ClassD;
+  live_leak_b2_d = new(initialized) ClassD;
 
-  live_leak_d1_d = new (initialized) ClassD;
-  live_leak_d2_d = new (initialized) ClassD;
+  live_leak_d1_d = new(initialized) ClassD;
+  live_leak_d2_d = new(initialized) ClassD;
 
   HeapLeakChecker::IgnoreObject((ClassD*)live_leak_b2_d);
   HeapLeakChecker::IgnoreObject((ClassD*)live_leak_d2_d);
@@ -1032,12 +1177,12 @@ static void TestHeapLeakCheckerLiveness() {
     // in such cases of multiple inheritance.
     // Luckily google code does not use multiple inheritance almost at all.
 
-  live_leak = new (initialized) Array<char>();
+  live_leak = new(initialized) Array<char>();
   delete [] live_leak3;
-  live_leak3 = new (initialized) int[33];
+  live_leak3 = new(initialized) int[33];
   live_leak2->append(*live_leak);
-  live_leak7.ptr = new (initialized) char[77];
-  live_leak8.ptr = new (initialized) Array<char>();
+  live_leak7.ptr = new(initialized) char[77];
+  live_leak8.ptr = new(initialized) Array<char>();
   live_leak8.val = Array<char>();
 
   IgnoredLeaks();
@@ -1045,40 +1190,137 @@ static void TestHeapLeakCheckerLiveness() {
   IgnoredLeaks();
 }
 
-int main(int argc, char** argv) {
-  // This needs to be set before InternalInitStart(), which makes a local copy
-  if (getenv("PPROF_PATH"))
-    HeapLeakChecker::set_pprof_path(getenv("PPROF_PATH"));
+DECLARE_string(heap_check);
 
+static void* Mmapper() {
+  void* r = mmap(NULL, 100, PROT_READ|PROT_WRITE,
+                 MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  sleep(0);  // undo -foptimize-sibling-calls
+  return r;
+}
+
+// to trick complier into preventing inlining
+static void* (*mmapper_addr)() = &Mmapper;
+
+// TODO(maxim): copy/move this to memory_region_map_unittest
+// TODO(maxim): expand this test to include mmap64, mremap and sbrk calls.
+static void VerifyMemoryRegionMapStackGet() {
+  void* addr = (*mmapper_addr)();
+  uintptr_t caller = 0;
+  MemoryRegionMap::Lock();
+  for (MemoryRegionMap::RegionIterator
+         i = MemoryRegionMap::BeginRegionLocked();
+         i != MemoryRegionMap::EndRegionLocked(); ++i) {
+    if (i->start_addr == reinterpret_cast<uintptr_t>(addr)) {
+      CHECK(caller == 0);
+      caller = i->caller;
+    }
+  }
+  MemoryRegionMap::Unlock();
+  // caller must point into Mmapper function:
+  if (!(reinterpret_cast<uintptr_t>(mmapper_addr) <= caller  &&
+        caller <= reinterpret_cast<uintptr_t>(mmapper_addr) + 0x40)) {
+    LOGF << std::hex << "0x" << caller
+         << " does not seem to point into code of function Mmapper at "
+         << "0x" << reinterpret_cast<uintptr_t>(mmapper_addr)
+         << "! Stack frame collection must be off in MemoryRegionMap!";
+    LOG(FATAL, "\n");
+  }
+  munmap(addr, 100);
+}
+
+static void* Mallocer() {
+  void* r = malloc(100);
+  sleep(0);  // undo -foptimize-sibling-calls
+  return r;
+}
+
+// to trick complier into preventing inlining
+static void* (*mallocer_addr)() = &Mallocer;
+
+// non-static for friendship with HeapProfiler
+// TODO(maxim): expand this test to include
+// realloc, calloc, memalign, valloc, pvalloc, new, and new[].
+extern void VerifyHeapProfileTableStackGet() {
+  void* addr = (*mallocer_addr)();
+  uintptr_t caller =
+    reinterpret_cast<uintptr_t>(HeapLeakChecker::GetAllocCaller(addr));
+  // caller must point into Mallocer function:
+  if (!(reinterpret_cast<uintptr_t>(mallocer_addr) <= caller  &&
+        caller <= reinterpret_cast<uintptr_t>(mallocer_addr) + 0x40)) {
+    LOGF << std::hex << "0x" << caller
+         << " does not seem to point into code of function Mallocer at "
+         << "0x" << reinterpret_cast<uintptr_t>(mallocer_addr)
+         << "! Stack frame collection must be off in heap profiler!";
+    LOG(FATAL, "\n");
+  }
+  free(addr);
+}
+
+// Helper to do 'return 0;' inside main(): insted we do 'return Pass();'
+static int Pass() {
+  fprintf(stdout, "PASS\n");
+  g_have_exited_main = true;
+  return 0;
+}
+
+int main(int argc, char** argv) {
   run_hidden_ptr = DoRunHidden;
   wipe_stack_ptr = DoWipeStack;
+  
+  if (!HeapLeakChecker::IsActive()) {
+    CHECK_EQ(FLAGS_heap_check, "");
+    LOG(WARNING, "HeapLeakChecker got turned off; we won't test much...");
+  } else {
+    VerifyMemoryRegionMapStackGet();
+    VerifyHeapProfileTableStackGet();
+  }
+
+  // glibc 2.4, on x86_64 at least, has a lock-ordering bug, which
+  // means deadlock is possible when one thread calls dl_open at the
+  // same time another thread is calling dl_iterate_phdr.  libunwind
+  // calls dl_iterate_phdr, and TestLibCAllocate calls dl_open (or the
+  // various syscalls in it do), at least the first time it's run.
+  // To avoid the deadlock, we run TestLibCAllocate once before getting
+  // multi-threaded.
+  // TODO(csilvers): once libc is fixed, or libunwind can work around it,
+  //                 get rid of this early call.  We *want* our test to
+  //                 find potential problems like this one!
+  TestLibCAllocate();
 
   if (FLAGS_interfering_threads) {
     RunHeapBusyThreads();  // add interference early
   }
   TestLibCAllocate();
 
-  LogPrintf(INFO, "In main()");
+  LOGF << "In main(): heap_check=" << FLAGS_heap_check << endl;
 
-  // The following two modes test whether the whole-program leak checker
-  // appropriately detects leaks on exit.
-  if (getenv("HEAPCHECK_TEST_LEAK")) {
+  CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
+
+  if (FLAGS_test_leak) {
     void* arr = AllocHidden(10 * sizeof(int));
     Use(&arr);
-    LogPrintf(INFO, "Leaking %p", arr);
-    return 0;  // whole-program leak-check should (with very high probability)
-               // catch the leak of arr (10 * sizeof(int) bytes)
+    LogHidden("Leaking", arr);
+    if (FLAGS_test_cancel_global_check)  HeapLeakChecker::CancelGlobalCheck();
+    return Pass();
+      // whole-program leak-check should (with very high probability)
+      // catch the leak of arr (10 * sizeof(int) bytes)
+      // (when !FLAGS_test_cancel_global_check)
   }
 
-  if (getenv("HEAPCHECK_TEST_LOOP_LEAK")) {
+  if (FLAGS_test_loop_leak) {
     void* arr1;
     void* arr2;
     RunHidden(NewCallback(MakeDeathLoop, &arr1, &arr2));
     Use(&arr1);
     Use(&arr2);
-    LogPrintf(INFO, "Loop leaking %p and %p", arr1, arr2);
-    return 0;  // whole-program leak-check should (with very high probability)
-               // catch the leak of arr1 and arr2 (4 * sizeof(void*) bytes)
+    LogHidden("Loop leaking", arr1);
+    LogHidden("Loop leaking", arr2);
+    if (FLAGS_test_cancel_global_check)  HeapLeakChecker::CancelGlobalCheck();
+    return Pass();
+      // whole-program leak-check should (with very high probability)
+      // catch the leak of arr1 and arr2 (4 * sizeof(void*) bytes)
+      // (when !FLAGS_test_cancel_global_check)
   }
 
   TestHeapLeakCheckerLiveness();
@@ -1106,6 +1348,8 @@ int main(int argc, char** argv) {
   TestHeapLeakCheckerDeathTrick();
   Pause();
 
+  CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
+
   TestHeapLeakCheckerPProf();
   Pause();
 
@@ -1116,16 +1360,28 @@ int main(int argc, char** argv) {
   Pause();
   TestSTLAllocInverse();
   Pause();
-  DirectTestSTLAlloc(set<char>().get_allocator(), "alloc");
-    // default STL allocator
-  Pause();
-  // TODO: re-enable this test once we've change configure.ac to include
-  // the right header file that defines pthread_allocator.
-  //DirectTestSTLAlloc(pthread_allocator<char>(), "pthread_alloc");
-  Pause();
+
+  // Test that various STL allocators work.  Some of these are redundant, but
+  // we don't know how STL might change in the future.  For example,
+  // http://wiki/Main/StringNeStdString.
+#define DTSL(a) { DirectTestSTLAlloc(a, #a); Pause(); }
+  DTSL(std::allocator<char>());
+  DTSL(std::allocator<int>());
+  DTSL(std::string().get_allocator());
+  DTSL(string().get_allocator());
+  DTSL(vector<int>().get_allocator());
+  DTSL(vector<double>().get_allocator());
+  DTSL(vector<vector<int> >().get_allocator());
+  DTSL(vector<string>().get_allocator());
+  DTSL((map<string, string>().get_allocator()));
+  DTSL((map<string, int>().get_allocator()));
+  DTSL(set<char>().get_allocator());
+#undef DTSL
 
   TestLibCAllocate();
   Pause();
+
+  CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
 
   void* start_address = HeapLeakChecker::GetDisableChecksStart();
 
@@ -1134,21 +1390,23 @@ int main(int argc, char** argv) {
 
   if (!FLAGS_maybe_stripped) {
     CHECK(heap_check.SameHeap());
-  } else if (!heap_check.SameHeap()) {
-    cout << "overall leaks are caught; we must be using stripped binary\n";
+  } else {
+    WARN_IF(heap_check.SameHeap() != true,
+            "overall leaks are caught; we must be using a stripped binary");
   }
 
+  // TODO(maxim): do not need these if we make pprof work in automated test runs
+  HeapLeakChecker::DisableChecksToHereFrom(start_address);
   // This will also disable (w/o relying on pprof anymore)
   // all leaks that earlier occured inside of ThreadNamedDisabledLeaks:
   range_disable_named = true;
   ThreadNamedDisabledLeaks();
 
-  HeapLeakChecker::IgnoreObject(new (initialized) set<int>(data, data + 13));
+  HeapLeakChecker::IgnoreObject(new(initialized) set<int>(data, data + 13));
     // This checks both that IgnoreObject works, and
     // and the fact that we don't drop such leaks as live for some reason.
 
-  fprintf(stdout, "PASS\n");
+  CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
 
-  g_have_exited_main = true;
-  return 0;
+  return Pass();
 }

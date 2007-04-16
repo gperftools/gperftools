@@ -56,16 +56,32 @@ static void **NextStackFrame(void **old_sp) {
   return new_sp;
 }
 
-// Note: the code for GetStackExtent below is pretty similar to this one;
-//       change both if chaning one.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void **sp;
+#ifdef __i386__
   // Stack frame format:
   //    sp[0]   pointer to previous frame
   //    sp[1]   caller address
   //    sp[2]   first argument
   //    ...
   sp = (void **)&result - 2;
+#endif
+
+#ifdef __x86_64__
+  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8
+  unsigned long rbp;
+  // Move the value of the register %rbp into the local variable rbp.
+  // We need 'volatile' to prevent this instruction from getting moved
+  // around during optimization to before function prologue is done.
+  // An alternative way to achieve this
+  // would be (before this __asm__ instruction) to call Noop() defined as
+  //   static void Noop() __attribute__ ((noinline));  // prevent inlining
+  //   static void Noop() { asm(""); }  // prevent optimizing-away
+  __asm__ volatile ("mov %%rbp, %0" : "=r" (rbp));
+  // Arguments are passed in registers on x86-64, so we can't just
+  // offset from &result
+  sp = (void **) rbp;
+#endif
 
   int n = 0;
   while (sp && n < max_depth) {
@@ -84,36 +100,4 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
     sp = new_sp;
   }
   return n;
-}
-
-// Note: the code is pretty similar to GetStackTrace above;
-//       change both if changing one.
-bool GetStackExtent(void* sp,  void** stack_top, void** stack_bottom) {
-  void** cur_sp;
-
-  if (sp != NULL) {
-    cur_sp = (void**)sp;
-    *stack_top = sp;
-  } else {
-    // Stack frame format:
-    //    sp[0]   pointer to previous frame
-    //    sp[1]   caller address
-    //    sp[2]   first argument
-    //    ...
-    cur_sp = (void**)&sp - 2;
-
-    *stack_top = NULL;
-  }
-
-  while (cur_sp) {
-    void** new_sp = NextStackFrame(cur_sp);
-    if (!new_sp) {
-      *stack_bottom = (void*)cur_sp;
-      return true;
-    }
-    cur_sp = new_sp;
-    if (*stack_top == NULL)  *stack_top = (void*)cur_sp;
-    // get out of the stack frame for this call
-  }
-  return false;
 }

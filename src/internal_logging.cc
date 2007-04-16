@@ -35,8 +35,6 @@
 #include <string.h>
 #include "internal_logging.h"
 
-int TCMallocDebug::level;
-
 void TCMalloc_MESSAGE(const char* format, ...) {
   va_list ap;
   va_start(ap, format);

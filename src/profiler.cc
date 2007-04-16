@@ -38,10 +38,19 @@
 // do nothing in the per-thread registration code.
 
 #include "config.h"
+
+// On __x86_64__ systems, we may need _XOPEN_SOURCE defined to get access
+// to the struct ucontext, via signal.h.  We need _GNU_SOURCE to get access
+// to REG_RIP.  (We can use some trickery to get around that need, though.)
+// Note this #define must come first!
+#define _GNU_SOURCE 1
+// If #define _GNU_SOURCE causes problems, this might work instead:
+//#define _XOPEN_SOURCE 500
+#include <signal.h>
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>                 // for getuid() and geteuid()
 #if defined HAVE_STDINT_H
 #include <stdint.h>
 #elif defined HAVE_INTTYPES_H
@@ -50,84 +59,151 @@
 #include <sys/types.h>
 #endif
 #include <errno.h>
-#include <signal.h>
 #include <unistd.h>
 #include <sys/time.h>
 #include <string.h>
 #include <fcntl.h>
-#include "google/profiler.h"
-#include "google/stacktrace.h"
+#include <google/profiler.h>
+#include <google/stacktrace.h>
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"
+#include "base/mutex.h"
+#include "base/spinlock.h"
 #ifdef HAVE_CONFLICT_SIGNAL_H
 #include "conflict-signal.h"          /* used on msvc machines */
 #endif
 #include "base/logging.h"
 
-#ifndef	PATH_MAX
-#ifdef MAXPATHLEN
-#define	PATH_MAX	MAXPATHLEN
-#else
-#define	PATH_MAX	4096         // seems conservative for max filename len!
-#endif
-#endif
-
-#if HAVE_PTHREAD
-#  include <pthread.h>
-#  define LOCK(m) pthread_mutex_lock(m)
-#  define UNLOCK(m) pthread_mutex_unlock(m)
-// Macro for easily checking return values from pthread routines
-#  define PCALL(f) do { int __r = f;  if (__r != 0) { fprintf(stderr, "%s: %s\n", #f, strerror(__r)); abort(); } } while (0)
-#else
-#  define LOCK(m)
-#  define UNLOCK(m)
-#  define PCALL(f)
-#endif
-
-// For now, keep logging as a noop.  TODO: do something better?
-#undef LOG
-#define LOG(msg)
+using std::string;
 
 DEFINE_string(cpu_profile, "",
               "Profile file name (used if CPUPROFILE env var not specified)");
 
-// Figure out how to get the PC for our architecture
-#if defined HAVE_STRUCT_SIGINFO_SI_FADDR
-typedef struct siginfo SigStructure;
+
+// This might be used by GetPC, below.
+// If the profiler interrupt happened just when the current function was
+// entering the stack frame, or after leaving it but just before
+// returning, then the stack trace cannot see the caller function
+// anymore.
+// GetPC tries to unwind the current function call in this case to avoid
+// false edges in the profile graph skipping over a function.
+// A static array of this struct helps GetPC detect these situations.
+//
+// This is a best effort patch -- if we fail to detect such a situation, or
+// mess up the PC, nothing happens; the returned PC is not used for any
+// further processing.
+struct CallUnrollInfo {
+  // Offset from (e)ip register where this instruction sequence should be
+  // matched. Interpreted as bytes. Offset 0 is the next instruction to
+  // execute. Be extra careful with negative offsets in architectures of
+  // variable instruction length (like x86) - it is not that easy as taking
+  // an offset to step one instruction back!
+  int pc_offset;
+  // The actual instruction bytes. Feel free to make it larger if you need
+  // a longer sequence.
+  char ins[16];
+  // How many byutes to match from ins array?
+  size_t ins_size;
+  // The offset from the stack pointer (e)sp where to look for the call
+  // return address. Interpreted as bytes.
+  int return_sp_offset;
+};
+
+
+// TODO: gather the necessary instruction bytes for other architectures.
+#if defined __i386
+static CallUnrollInfo callunrollinfo[] = {
+  // Entry to a function:  push %ebp;  mov  %esp,%ebp
+  // Top-of-stack contains the caller IP.
+  { 0,
+    {0x55, 0x89, 0xe5}, 3,
+    0
+  },
+  // Entry to a function, second instruction:  push %ebp;  mov  %esp,%ebp
+  // Top-of-stack contains the old frame, caller IP is +4.
+  { -1,
+    {0x55, 0x89, 0xe5}, 3,
+    4
+  },
+  // Return from a function: RET.
+  // Top-of-stack contains the caller IP.
+  { 0,
+    {0xc3}, 1,
+    0
+  }
+};
+
+#endif
+
+// Figure out how to get the PC for our architecture.
+
+// __i386
+#if defined HAVE_STRUCT_SIGCONTEXT_EIP
+typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.si_faddr; // maybe not correct
+#if defined __i386
+  // See comment above struct CallUnrollInfo.
+  // Only try instruction flow matching if both eip and esp looks
+  // reasonable.
+  if ((sig_structure.eip & 0xffff0000) != 0 &&
+      (~sig_structure.eip & 0xffff0000) != 0 &&
+      (sig_structure.esp & 0xffff0000) != 0) {
+    char* eip = (char*)sig_structure.eip;
+    for (int i = 0; i < ARRAYSIZE(callunrollinfo); ++i) {
+      if (!memcmp(eip + callunrollinfo[i].pc_offset, callunrollinfo[i].ins,
+                  callunrollinfo[i].ins_size)) {
+        // We have a match.
+        void **retaddr = (void**)(sig_structure.esp +
+                                  callunrollinfo[i].return_sp_offset);
+        return *retaddr;
+      }
+    }
+  }
+#endif
+  return (void*)sig_structure.eip;
 }
 
+// freebsd (__x386, I assume)
 #elif defined HAVE_STRUCT_SIGCONTEXT_SC_EIP
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.sc_eip;
 }
 
-#elif defined HAVE_STRUCT_SIGCONTEXT_EIP
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.eip;
-}
-
-#elif defined HAVE_STRUCT_SIGCONTEXT_RIP
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.rip;
-}
-
+// __ia64
 #elif defined HAVE_STRUCT_SIGCONTEXT_SC_IP
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.sc_ip;
 }
 
+// __x86_64__
+// This may require _XOPEN_SOURCE to have access to ucontext
 #elif defined HAVE_STRUCT_UCONTEXT_UC_MCONTEXT
 typedef struct ucontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.uc_mcontext.gregs[REG_RIP];
+  // For this architecture, the regs are stored in a data structure that can
+  // be accessed either as a flat array or (via some trickery) as a struct.
+  // Alas, the index we need into the array, is only defined for _GNU_SOURCE.
+  // Lacking that, we can interpret the register array as a struct sigcontext.
+  // This works in practice, but is probably not guaranteed by anything.
+# ifdef REG_RIP    // only defined if _GNU_SOURCE is 1, probably
+  return (void*)(sig_structure.uc_mcontext.gregs[REG_RIP]);
+# else
+  const struct sigcontext* const sc =
+      reinterpret_cast<const struct sigcontext*>(&sig_structure.uc_mcontext.gregs);
+  return (void*)(sc->rip);
+# endif
 }
 
+// solaris (probably solaris-x86, but I'm not sure)
+#elif defined HAVE_STRUCT_SIGINFO_SI_FADDR
+typedef struct siginfo SigStructure;
+inline void* GetPC(const SigStructure& sig_structure ) {
+  return (void*)sig_structure.si_faddr; // maybe not correct
+}
+
+// ibook powerpc
 #elif defined HAVE_STRUCT_SIGCONTEXT_REGS__NIP
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
@@ -139,6 +215,46 @@ inline void* GetPC(const SigStructure& sig_structure ) {
 
 #endif
 
+// This takes as an argument an environment-variable name (like
+// CPUPROFILE) whose value is supposed to be a file-path, and sets
+// path to that path, and returns true.  If the env var doesn't exist,
+// or is the empty string, leave path unchanged and returns false.
+// The reason this is non-trivial is that this function handles munged
+// pathnames.  Here's why:
+//
+// If we're a child process of the 'main' process, we can't just use
+// getenv("CPUPROFILE") -- the parent process will be using that path.
+// Instead we append our pid to the pathname.  How do we tell if we're a
+// child process?  Ideally we'd set an environment variable that all
+// our children would inherit.  But -- and this is seemingly a bug in
+// gcc -- if you do a setenv() in a shared libarary in a global
+// constructor, the environment setting is lost by the time main() is
+// called.  The only safe thing we can do in such a situation is to
+// modify the existing envvar.  So we do a hack: in the parent, we set
+// the high bit of the 1st char of CPUPROFILE.  In the child, we
+// notice the high bit is set and append the pid().  This works
+// assuming cpuprofile filenames don't normally have the high bit set
+// in their first character!  If that assumption is violated, we'll
+// still get a profile, but one with an unexpected name.
+// TODO(csilvers): set an envvar instead when we can do it reliably.
+static bool GetUniquePathFromEnv(const char* env_name, string* path) {
+  char* envval = getenv(env_name);
+  if (envval == NULL || *envval == '\0')
+    return false;
+  if (envval[0] & 128) {                    // high bit is set
+    char pid[64];              // pids are smaller than this!
+    snprintf(pid, sizeof(pid), "%u", (unsigned int)(getpid()));
+    *path = envval;
+    *path += "_";
+    *path += pid;
+    (*path)[0] &= 127;
+  } else {
+    *path = string(envval);
+    envval[0] |= 128;                       // set high bit for kids to see
+  }
+  return true;
+}
+
 
 // Collects up all profile data
 class ProfileData {
@@ -148,7 +264,7 @@ class ProfileData {
 
   // Is profiling turned on at all
   inline bool enabled() { return out_ >= 0; }
-
+    
   // What is the frequency of interrupts (ticks per second)
   inline int frequency() { return frequency_; }
 
@@ -163,7 +279,7 @@ class ProfileData {
   void Stop();
 
   void GetCurrentState(ProfilerState* state);
-
+  
  private:
   static const int kMaxStackDepth = 64;         // Max stack depth profiled
   static const int kMaxFrequency = 4000;        // Largest allowed frequency
@@ -187,16 +303,14 @@ class ProfileData {
     Entry entry[kAssociativity];
   };
 
-#ifdef HAVE_PTHREAD
   // Invariant: table_lock_ is only grabbed by handler, or by other code
   // when the signal is being ignored (via SIG_IGN).
   //
   // Locking order is "state_lock_" first, and then "table_lock_"
-  pthread_mutex_t state_lock_;  // Protects filename, etc.(not used in handler)
-  pthread_mutex_t table_lock_;  // Cannot use "Mutex" in signal handlers
-#endif
+  Mutex         state_lock_;    // Protects filename, etc.(not used in handler)
+  SpinLock      table_lock_;    // SpinLock is safer in signal handlers
   Bucket*       hash_;          // hash table
-
+  
   Slot*         evict_;         // evicted entries
   int           num_evicted_;   // how many evicted entries?
   int           out_;           // fd for output file
@@ -248,12 +362,9 @@ ProfileData::ProfileData() :
   frequency_(0),
   start_time_(0) {
 
-  PCALL(pthread_mutex_init(&state_lock_, NULL));
-  PCALL(pthread_mutex_init(&table_lock_, NULL));
-
   // Get frequency of interrupts (if specified)
   char junk;
-  const char* fr = getenv("PROFILEFREQUENCY");
+  const char* fr = getenv("CPUPROFILE_FREQUENCY");
   if (fr != NULL && (sscanf(fr, "%d%c", &frequency_, &junk) == 1) &&
       (frequency_ > 0)) {
     // Limit to kMaxFrequency
@@ -268,52 +379,25 @@ ProfileData::ProfileData() :
   ProfilerRegisterThread();
 
   // Should profiling be enabled automatically at start?
-  char* cpuprofile = getenv("CPUPROFILE");
-  if (!cpuprofile || cpuprofile[0] == '\0') {
+  string fname;
+  if (!GetUniquePathFromEnv("CPUPROFILE", &fname)) {
     return;
   }
   // We don't enable profiling if setuid -- it's a security risk
   if (getuid() != geteuid())
     return;
 
-  // If we're a child process of the 'main' process, we can't just use
-  // the name CPUPROFILE -- the parent process will be using that.
-  // Instead we append our pid to the name.  How do we tell if we're a
-  // child process?  Ideally we'd set an environment variable that all
-  // our children would inherit.  But -- and perhaps this is a bug in
-  // gcc -- if you do a setenv() in a shared libarary in a global
-  // constructor, the environment setting is lost by the time main()
-  // is called.  The only safe thing we can do in such a situation is
-  // to modify the existing envvar.  So we do a hack: in the parent,
-  // we set the high bit of the 1st char of CPUPROFILE.  In the child,
-  // we notice the high bit is set and append the pid().  This works
-  // assuming cpuprofile filenames don't normally have the high bit
-  // set in their first character!  If that assumption is violated,
-  // we'll still get a profile, but one with an unexpected name.
-  // TODO(csilvers): set an envvar instead when we can do it reliably.
-  char fname[PATH_MAX];
-  if (cpuprofile[0] & 128) {                    // high bit is set
-    snprintf(fname, sizeof(fname), "%c%s_%u",   // add pid and clear high bit
-             cpuprofile[0] & 127, cpuprofile+1, (unsigned int)(getpid()));
-  } else {
-    snprintf(fname, sizeof(fname), "%s", cpuprofile);
-    cpuprofile[0] |= 128;                       // set high bit for kids to see
-  }
-
-  // process being profiled.  CPU profiles are messed up in that case.
-
-  if (!Start(fname)) {
+  if (!Start(fname.c_str())) {
     fprintf(stderr, "Can't turn on cpu profiling: ");
-    perror(fname);
+    perror(fname.c_str());
     exit(1);
   }
 }
 
 bool ProfileData::Start(const char* fname) {
-  LOCK(&state_lock_);
+  MutexLock l(&state_lock_);
   if (enabled()) {
     // profiling is already enabled
-    UNLOCK(&state_lock_);
     return false;
   }
 
@@ -321,42 +405,43 @@ bool ProfileData::Start(const char* fname) {
   int fd = open(fname, O_CREAT | O_WRONLY | O_TRUNC, 0666);
   if (fd < 0) {
     // Can't open outfile for write
-    UNLOCK(&state_lock_);
     return false;
   }
 
   start_time_ = time(NULL);
   fname_ = strdup(fname);
 
-  LOCK(&table_lock_);
+  {
+    SpinLockHolder l2(&table_lock_);
+  
+    // Reset counters 
+    num_evicted_ = 0;
+    count_       = 0;
+    evictions_   = 0;
+    total_bytes_ = 0;
+    // But leave frequency_ alone (i.e., ProfilerStart() doesn't affect
+    // their values originally set in the constructor)
 
-  // Reset counters
-  num_evicted_ = 0;
-  count_       = 0;
-  evictions_   = 0;
-  total_bytes_ = 0;
-  // But leave frequency_ alone (i.e., ProfilerStart() doesn't affect
-  // their values originally set in the constructor)
+    out_  = fd;
 
-  out_  = fd;
+    hash_ = new Bucket[kBuckets];
+    evict_ = new Slot[kBufferLength];
+    memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
 
-  hash_ = new Bucket[kBuckets];
-  evict_ = new Slot[kBufferLength];
-  memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
+    // Record special entries
+    evict_[num_evicted_++] = 0;                     // count for header
+    evict_[num_evicted_++] = 3;                     // depth for header
+    evict_[num_evicted_++] = 0;                     // Version number
+    evict_[num_evicted_++] = 1000000 / frequency_;  // Period (microseconds)
+    evict_[num_evicted_++] = 0;                     // Padding
 
-  // Record special entries
-  evict_[num_evicted_++] = 0;                     // count for header
-  evict_[num_evicted_++] = 3;                     // depth for header
-  evict_[num_evicted_++] = 0;                     // Version number
-  evict_[num_evicted_++] = 1000000 / frequency_;  // Period (microseconds)
-  evict_[num_evicted_++] = 0;                     // Padding
-
-  UNLOCK(&table_lock_);
+    // Must unlock before setting prof_handler to avoid deadlock
+    // with signal delivered to this thread.
+  }
 
   // Setup handler for SIGPROF interrupts
   SetHandler((void (*)(int)) prof_handler);
 
-  UNLOCK(&state_lock_);
   return true;
 }
 
@@ -367,18 +452,16 @@ ProfileData::~ProfileData() {
 
 // Stop profiling and write out any collected profile data
 void ProfileData::Stop() {
-  LOCK(&state_lock_);
+  MutexLock l(&state_lock_);
 
   // Prevent handler from running anymore
   SetHandler(SIG_IGN);
 
   // This lock prevents interference with signal handlers in other threads
-  LOCK(&table_lock_);
+  SpinLockHolder l2(&table_lock_);
 
   if (out_ < 0) {
     // Profiling is not enabled
-    UNLOCK(&table_lock_);
-    UNLOCK(&state_lock_);
     return;
   }
 
@@ -426,12 +509,10 @@ void ProfileData::Stop() {
   start_time_ = 0;
 
   out_ = -1;
-  UNLOCK(&table_lock_);
-  UNLOCK(&state_lock_);
 }
 
 void ProfileData::GetCurrentState(ProfilerState* state) {
-  LOCK(&state_lock_);
+  MutexLock l(&state_lock_);
   if (enabled()) {
     state->enabled = true;
     state->start_time = start_time_;
@@ -445,7 +526,6 @@ void ProfileData::GetCurrentState(ProfilerState* state) {
     state->samples_gathered = 0;
     state->profile_name[0] = '\0';
   }
-  UNLOCK(&state_lock_);
 }
 
 void ProfileData::SetHandler(void (*handler)(int)) {
@@ -460,39 +540,47 @@ void ProfileData::SetHandler(void (*handler)(int)) {
 }
 
 void ProfileData::FlushTable() {
-  LOCK(&state_lock_); {
-    if (out_ < 0) {
-      // Profiling is not enabled
-      UNLOCK(&state_lock_);
-      return;
-    }
-    SetHandler(SIG_IGN);       // Disable timer interrupts while we're flushing
-    LOCK(&table_lock_); {
-      // Move data from hash table to eviction buffer
-      for (int b = 0; b < kBuckets; b++) {
-        Bucket* bucket = &hash_[b];
-        for (int a = 0; a < kAssociativity; a++) {
-          if (bucket->entry[a].count > 0) {
-            Evict(bucket->entry[a]);
-            bucket->entry[a].depth = 0;
-            bucket->entry[a].count = 0;
-          }
+  MutexLock l(&state_lock_);
+  if (out_ < 0) {
+    // Profiling is not enabled
+    return;
+  }
+  SetHandler(SIG_IGN);       // Disable timer interrupts while we're flushing
+  {
+    // Move data from hash table to eviction buffer
+    SpinLockHolder l(&table_lock_);
+    for (int b = 0; b < kBuckets; b++) {
+      Bucket* bucket = &hash_[b];
+      for (int a = 0; a < kAssociativity; a++) {
+        if (bucket->entry[a].count > 0) {
+          Evict(bucket->entry[a]);
+          bucket->entry[a].depth = 0;
+          bucket->entry[a].count = 0;
         }
       }
+    }
 
-      // Write out all pending data
-      FlushEvicted();
-    } UNLOCK(&table_lock_);
-    SetHandler((void (*)(int)) prof_handler);
-  } UNLOCK(&state_lock_);
+    // Write out all pending data
+    FlushEvicted();
+  }
+  SetHandler((void (*)(int)) prof_handler);
 }
 
 // Record the specified "pc" in the profile data
 void ProfileData::Add(unsigned long pc) {
   void* stack[kMaxStackDepth];
+
+  // The top-most active routine doesn't show up as a normal
+  // frame, but as the "pc" value in the signal handler context.
   stack[0] = (void*)pc;
-  int depth = GetStackTrace(stack+1, kMaxStackDepth-1,
-                            4/*Removes Add,prof_handler,sighandlers*/);
+
+  // We remove the top three entries (typically Add, prof_handler, and
+  // a signal handler setup routine) since they are artifacts of
+  // profiling and should not be measured.  Other profiling related
+  // frames (signal handler setup) will be removed by "pprof" at
+  // analysis time.  Instead of skipping the top frames, we could skip
+  // nothing, but that would increase the profile size unnecessarily.
+  int depth = GetStackTrace(stack+1, kMaxStackDepth-1, 3);
   depth++;              // To account for pc value
 
   // Make hash-value
@@ -503,7 +591,7 @@ void ProfileData::Add(unsigned long pc) {
     h += (slot * 31) + (slot * 7) + (slot * 3);
   }
 
-  LOCK(&table_lock_);
+  SpinLockHolder l(&table_lock_);
   count_++;
 
   // See if table already has an entry for this stack trace
@@ -526,7 +614,7 @@ void ProfileData::Add(unsigned long pc) {
       }
     }
   }
-
+  
   if (!done) {
     // Evict entry with smallest count
     Entry* e = &bucket->entry[0];
@@ -539,7 +627,7 @@ void ProfileData::Add(unsigned long pc) {
       evictions_++;
       Evict(*e);
     }
-
+    
     // Use the newly evicted entry
     e->depth = depth;
     e->count = 1;
@@ -547,7 +635,6 @@ void ProfileData::Add(unsigned long pc) {
       e->stack[i] = reinterpret_cast<Slot>(stack[i]);
     }
   }
-  UNLOCK(&table_lock_);
 }
 
 // Write all evicted data to the profile file
@@ -601,7 +688,7 @@ void ProfilerFlush() {
   pdata.FlushTable();
 }
 
-bool ProfilingIsEnabledForAllThreads() {
+bool ProfilingIsEnabledForAllThreads() { 
   return pdata.enabled();
 }
 

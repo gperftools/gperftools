@@ -1,4 +1,4 @@
-/* Copyright (c) 2005, Google Inc.
+/* Copyright (c) 2005-2007, Google Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -34,9 +34,11 @@
 #include "base/linuxthreads.h"
 
 #ifdef THREADS
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #include <asm/stat.h>
-#include <fcntl.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -44,6 +46,7 @@
 #include <sys/socket.h>
 #include <sys/wait.h>
 
+#include <asm/fcntl.h>
 #include <asm/posix_types.h>
 #include <asm/types.h>
 #include <linux/dirent.h>
@@ -55,6 +58,11 @@
 #define CLONE_UNTRACED 0x00800000
 #endif
 
+
+/* Synchronous signals that should not be blocked while in the lister thread.
+ */
+static const int sync_signals[]  = { SIGABRT, SIGILL, SIGFPE, SIGSEGV, SIGBUS,
+                                     SIGXCPU, SIGXFSZ };
 
 /* itoa() is not a standard function, and we cannot safely call printf()
  * after suspending threads. So, we just implement our own copy. A
@@ -92,13 +100,7 @@ static int local_clone (int (*fn)(void *), void *arg, ...)
 #endif
 
 static int local_clone (int (*fn)(void *), void *arg, ...) {
-  /* Current versions of libc do not wrap any code around the clone()
-   * system call. So, it is safe to call the libc version of clone(). If
-   * that ever changes, we need to provide our own assembly version of this
-   * function. Unfortunately, calling conventions for clone() are somewhat
-   * unusual, and we cannot use the generic _syscallX() macros.
-   *
-   * Leave 4kB of gap between the callers stack and the new clone. This
+  /* Leave 4kB of gap between the callers stack and the new clone. This
    * should be more than sufficient for the caller to call waitpid() until
    * the cloned thread terminates.
    *
@@ -112,8 +114,8 @@ static int local_clone (int (*fn)(void *), void *arg, ...) {
    * is being debugged. This is OK and the error code will be reported
    * correctly.
    */
-  return clone(fn, (char *)&arg - 4096,
-               CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_UNTRACED, arg);
+  return sys_clone(fn, (char *)&arg - 4096,
+                   CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_UNTRACED, arg, 0, 0, 0);
 }
 
 
@@ -135,6 +137,31 @@ static int local_atoi(const char *s) {
 /* Re-runs fn until it doesn't cause EINTR
  */
 #define NO_INTR(fn)   do {} while ((fn) < 0 && errno == EINTR)
+
+
+/* Wrap a class around system calls, in order to give us access to
+ * a private copy of errno. This only works in C++, but it has the
+ * advantage of not needing nested functions, which are a non-standard
+ * language extension.
+ */
+#ifdef __cplusplus
+namespace {
+  class SysCalls {
+   public:
+    #define SYS_CPLUSPLUS
+    #define SYS_ERRNO     my_errno
+    #define SYS_INLINE    inline
+    #define SYS_PREFIX    -1
+    #undef  SYS_LINUX_SYSCALL_SUPPORT_H
+    #include "linux_syscall_support.h"
+    SysCalls() : my_errno(0) { }
+    int my_errno;
+  };
+}
+#define ERRNO sys.my_errno
+#else
+#define ERRNO my_errno
+#endif
 
 
 /* Wrapper for open() which is guaranteed to never return EINTR.
@@ -222,8 +249,6 @@ struct ListerParams {
 
 
 static void ListerThread(struct ListerParams *args) {
-  static const int  signals[]  = { SIGABRT, SIGILL, SIGFPE, SIGSEGV, SIGBUS,
-                                   SIGXCPU, SIGXFSZ };
   int               found_parent = 0;
   pid_t             clone_pid  = sys_gettid(), ppid = sys_getppid();
   char              proc_self_task[80], marker_name[48], *marker_path;
@@ -256,7 +281,8 @@ static void ListerThread(struct ListerParams *args) {
 
   /* Compute search paths for finding thread directories in /proc            */
   local_itoa(strrchr(strcpy(proc_self_task, "/proc/"), '\000'), ppid);
-  marker_path = strrchr(strcpy(marker_name, proc_self_task), '\000');
+  strcpy(marker_name, proc_self_task);
+  marker_path = marker_name + strlen(marker_name);
   strcat(proc_self_task, "/task/");
   proc_paths[0] = proc_self_task; /* /proc/$$/task/                          */
   proc_paths[1] = "/proc/";       /* /proc/                                  */
@@ -275,7 +301,7 @@ static void ListerThread(struct ListerParams *args) {
   altstack.ss_sp    = args->altstack_mem;
   altstack.ss_flags = 0;
   altstack.ss_size  = ALT_STACKSIZE;
-  sys_sigaltstack(&altstack, (void *)NULL);
+  sys_sigaltstack(&altstack, (const stack_t *)NULL);
 
   /* Some kernels forget to wake up traced processes, when the
    * tracer dies.  So, intercept synchronous signals and make sure
@@ -285,13 +311,13 @@ static void ListerThread(struct ListerParams *args) {
    */
   sig_marker = marker;
   sig_proc   = -1;
-  for (sig = 0; sig < sizeof(signals)/sizeof(*signals); sig++) {
+  for (sig = 0; sig < sizeof(sync_signals)/sizeof(*sync_signals); sig++) {
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_sigaction = SignalHandler;
     sigfillset(&sa.sa_mask);
     sa.sa_flags     = SA_ONSTACK|SA_SIGINFO|SA_RESETHAND;
-    sys_sigaction(signals[sig], &sa, (void *)NULL);
+    sys_sigaction(sync_signals[sig], &sa, (struct sigaction *)NULL);
   }
   
   /* Read process directories in /proc/...                                   */
@@ -413,7 +439,7 @@ static void ListerThread(struct ListerParams *args) {
                   sig_num_threads = num_threads;
                   goto next_entry;
                 }
-                while (sys_waitpid(pid, (void *)0, __WALL) < 0) {
+                while (sys_waitpid(pid, (int *)0, __WALL) < 0) {
                   if (errno != EINTR) {
                     sys_ptrace_detach(pid);
                     num_threads--;
@@ -513,7 +539,8 @@ int ListAllProcessThreads(void *parameter,
   char                altstack_mem[ALT_STACKSIZE];
   struct ListerParams args;
   pid_t               clone_pid;
-  int                 dumpable = 1;
+  int                 dumpable = 1, sig;
+  sigset_t            sig_blocked, sig_old;
 
   va_start(args.ap, callback);
 
@@ -544,35 +571,77 @@ int ListAllProcessThreads(void *parameter,
   args.parameter    = parameter;
   args.callback     = callback;
 
-  if ((clone_pid = local_clone((int (*)(void *))ListerThread, &args)) >= 0) {
-    int status;
-    while (sys_waitpid(clone_pid, &status, __WALL) < 0 &&
-           errno == EINTR) {
-      // Keep waiting
-    }
-    if (WIFEXITED(status)) {
-      switch (WEXITSTATUS(status)) {
-      case 0: break;             /* Normal process termination               */
-      case 2: args.err = EFAULT; /* Some fault (e.g. SIGSEGV) detected       */
-              args.result = -1;
-              break;
-      case 3: args.err = EPERM;  /* Process is already being traced          */
-              args.result = -1;
-              break;
-      default:args.err = ECHILD; /* Child died unexpectedly                  */
-              args.result = -1;
-              break;
-      }
-    } else if (!WIFEXITED(status)) {
-      args.err    = EFAULT;      /* Terminated due to an unhandled signal    */
-      args.result = -1;
-    }
-  } else {
+  /* Before cloning the thread lister, block all asynchronous signals, as we */
+  /* are not prepared to handle them.                                        */
+  sigfillset(&sig_blocked);
+  for (sig = 0; sig < sizeof(sync_signals)/sizeof(*sync_signals); sig++) {
+    sigdelset(&sig_blocked, sync_signals[sig]);
+  }
+  if (sys_sigprocmask(SIG_BLOCK, &sig_blocked, &sig_old)) {
+    args.err = errno;
     args.result = -1;
-    args.err    = errno;
+    goto failed;
+  }
+
+  /* scope */ {
+    /* After cloning, both the parent and the child share the same instance
+     * of errno. We must make sure that at least one of these processes
+     * (in our case, the parent) uses modified syscall macros that update
+     * a local copy of errno, instead.
+     */
+    #ifdef __cplusplus
+      #define sys0_sigprocmask sys.sigprocmask
+      #define sys0_waitpid     sys.waitpid
+      SysCalls sys;
+    #else
+      int my_errno;
+      #define SYS_ERRNO        my_errno
+      #define SYS_INLINE       inline
+      #define SYS_PREFIX       0
+      #undef  SYS_LINUX_SYSCALL_SUPPORT_H
+      #include "linux_syscall_support.h"
+    #endif
+  
+    int clone_errno;
+    clone_pid = local_clone((int (*)(void *))ListerThread, &args);
+    clone_errno = errno;
+
+    sys0_sigprocmask(SIG_SETMASK, &sig_old, &sig_old);
+
+    if (clone_pid >= 0) {
+      int status, rc;
+      while ((rc = sys0_waitpid(clone_pid, &status, __WALL)) < 0 &&
+             ERRNO == EINTR) {
+             /* Keep waiting                                                 */
+      }
+      if (rc < 0) {
+        args.err = ERRNO;
+        args.result = -1;
+      } else if (WIFEXITED(status)) {
+        switch (WEXITSTATUS(status)) {
+          case 0: break;             /* Normal process termination           */
+          case 2: args.err = EFAULT; /* Some fault (e.g. SIGSEGV) detected   */
+                  args.result = -1;
+                  break;
+          case 3: args.err = EPERM;  /* Process is already being traced      */
+                  args.result = -1;
+                  break;
+          default:args.err = ECHILD; /* Child died unexpectedly              */
+                  args.result = -1;
+                  break;
+        }
+      } else if (!WIFEXITED(status)) {
+        args.err    = EFAULT;        /* Terminated due to an unhandled signal*/
+        args.result = -1;
+      }
+    } else {
+      args.result = -1;
+      args.err    = clone_errno;
+    }
   }
 
   /* Restore the "dumpable" state of the process                             */
+failed:
   if (!dumpable)
     sys_prctl(PR_SET_DUMPABLE, dumpable);
 
@@ -595,5 +664,7 @@ int ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
   return detached_at_least_one;
 }
 
+#ifdef __cplusplus
+}
 #endif
-
+#endif

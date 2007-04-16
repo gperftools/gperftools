@@ -30,13 +30,13 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 //
-// Extra interfaces exported by some malloc implementations.  These
-// interfaces are accessed through a virtual base class so an
+// Extra extensions exported by some malloc implementations.  These
+// extensions are accessed through a virtual base class so an
 // application can link against a malloc that does not implement these
-// interfaces, and it will get default versions that do nothing.
+// extensions, and it will get default versions that do nothing.
 
-#ifndef _GOOGLE_MALLOC_EXTENSION_H__
-#define _GOOGLE_MALLOC_EXTENSION_H__
+#ifndef BASE_MALLOC_EXTENSION_H__
+#define BASE_MALLOC_EXTENSION_H__
 
 #include <stddef.h>
 #include <string>
@@ -137,6 +137,26 @@ class MallocExtension {
   // REQUIRES: property != NULL
   virtual bool SetNumericProperty(const char* property, size_t value);
 
+  // Mark the current thread as "idle".  This routine may optionally
+  // be called by threads as a hint to the malloc implementation that
+  // any thread-specific resources should be released.  Note: this may
+  // be an expensive routine, so it should not be called too often.
+  //
+  // Also, if the code that calls this routine will go to sleep for
+  // a while, it should take care to not allocate anything between
+  // the call to this routine and the beginning of the sleep.
+  //
+  // Most malloc implementations ignore this routine.
+  virtual void MarkThreadIdle();
+
+  // Try to free memory back to the operating system for reuse.  Only
+  // use this extension if the application has recently freed a lot of
+  // memory, and does not anticipate using it again for a long time --
+  // to get this memory back may require faulting pages back in by the
+  // OS, and that may be slow.  (Currently only implemented in
+  // tcmalloc.)
+  virtual void ReleaseFreeMemory();
+
   // The current malloc implementation.  Always non-NULL.
   static MallocExtension* instance();
 
@@ -170,4 +190,4 @@ class MallocExtension {
   virtual void** ReadHeapGrowthStackTraces();
 };
 
-#endif  // _GOOGLE_MALLOC_EXTENSION_H__
+#endif  // BASE_MALLOC_EXTENSION_H__

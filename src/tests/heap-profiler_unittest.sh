@@ -41,24 +41,26 @@
 # This is because libtool sometimes turns the 'executable' into a
 # shell script which runs an actual binary somewhere else.
 
-if [ -z "$2" ]
-then
-    echo "USAGE: $0 <unittest dir> <pprof dir>"
-    exit 1
+# We expect BINDIR and PPROF_PATH to be set in the environment.
+# If not, we set them to some reasonable values
+BINDIR="${BINDIR:-.}"
+PPROF_PATH="${PPROF_PATH:-$BINDIR/src/pprof}"
+
+if [ "x$1" = "x-h" -o "x$1" = "x--help" ]; then
+  echo "USAGE: $0 [unittest dir] [path to pprof]"
+  echo "       By default, unittest_dir=$BINDIR, pprof_path=$PPROF_PATH"
+  exit 1
 fi
 
-UNITTEST_DIR=$1
-PPROF=$2/pprof
-
-HEAP_PROFILER=$UNITTEST_DIR/heap-profiler_unittest
-
-TMPDIR=/tmp/heap_profile_info
+HEAP_PROFILER="${1:-$BINDIR}/heap-profiler_unittest"
+PPROF="${2:-$PPROF_PATH}"
+TEST_TMPDIR=/tmp/heap_profile_info
 
 # It's meaningful to the profiler, so make sure we know its state
 unset HEAPPROFILE
 
-rm -rf $TMPDIR
-mkdir $TMPDIR || exit 2
+rm -rf $TEST_TMPDIR
+mkdir $TEST_TMPDIR || exit 2
 
 num_failures=0
 
@@ -67,43 +69,56 @@ num_failures=0
 # name, verify that the function name takes up at least 90% of the
 # allocated memory.  The function name is actually specified first.
 VerifyMemFunction() {
-    function=$1
-    shift
+  function=$1
+  shift
 
-    # Getting the 'real' name is annoying, since running HEAP_PROFILER
-    # at all tends to destroy the old profiles if we're not careful
-    HEAPPROFILE_SAVED="$HEAPPROFILE"
-    unset HEAPPROFILE
-    exec=`$HEAP_PROFILER --help | awk '{print $2; exit;}'` # get program name
-    export HEAPPROFILE="$HEAPPROFILE_SAVED"
+  # get program name.  Note we have to unset HEAPPROFILE so running
+  # help doesn't overwrite existing profiles.
+  exec=`env -u HEAPPROFILE $HEAP_PROFILER --help | awk '{print $2; exit;}'`
 
-    if [ $# = 2 ]; then
-	[ -e "$1" -a -e "$2" ] || { echo "Profile not found: $1 or $2"; exit 1; }
-	$PPROF --base="$1" $exec "$2"
-    else
-	[ -e "$1" ] || { echo "Profile not found: $1"; exit 1; }
-	$PPROF $exec "$1"
-    fi | tr -d % | awk '$6 ~ /^'$function'$/ && $2 > 90 {exit 1;}'
+  if [ $# = 2 ]; then
+    [ -e "$1" ] || { echo "Profile not found: $1"; exit 1; }
+    [ -e "$2" ] || { echo "Profile not found: $2"; exit 1; }
+    $PPROF --base="$1" $exec "$2" >$TEST_TMPDIR/output.pprof 2>&1
+  else
+    [ -e "$1" ] || { echo "Profile not found: $1"; exit 1; }
+    $PPROF $exec "$1" >$TEST_TMPDIR/output.pprof 2>&1
+  fi
 
-    if [ $? != 1 ]; then
-	echo
-	echo ">>> Test failed for $function: didn't use 90% of cpu"
-	echo
-	num_failures=`expr $num_failures + 1`
-    fi
+  cat $TEST_TMPDIR/output.pprof \
+      | tr -d % | awk '$6 ~ /^'$function'$/ && $2 > 90 {exit 1;}'
+  if [ $? != 1 ]; then
+    echo
+    echo "--- Test failed for $function: didn't account for 90% of executable memory"
+    echo "--- Program output:"
+    cat $TEST_TMPDIR/output
+    echo "--- pprof output:"
+    cat $TEST_TMPDIR/output.pprof
+    echo "---"
+    num_failures=`expr $num_failures + 1`
+  fi
 }
 
-export HEAPPROFILE=$TMPDIR/test
-$HEAP_PROFILER 1              # actually run the program, with a child process
+export HEAPPROFILE="$TEST_TMPDIR/test"
+export HEAP_PROFILE_INUSE_INTERVAL="10240"   # need this to be 10Kb
+
+# We make the unittest run a child process, to test that the child
+# process doesn't try to write a heap profile as well and step on the
+# parent's toes.  If it does, we expect the parent-test to fail.
+$HEAP_PROFILER 1 >$TEST_TMPDIR/output 2>&1     # run program, with 1 child proc
 
 VerifyMemFunction Allocate2 $HEAPPROFILE.0723.heap
 VerifyMemFunction Allocate $HEAPPROFILE.0700.heap $HEAPPROFILE.0760.heap
 
-# Check the child process too
+# Check the child process got to emit its own profile as well.
 VerifyMemFunction Allocate2 ${HEAPPROFILE}_*.0723.heap
 VerifyMemFunction Allocate ${HEAPPROFILE}_*.0700.heap ${HEAPPROFILE}_*.0760.heap
 
 rm -rf $TMPDIR      # clean up
 
-echo "Tests finished with $num_failures failures"
+if [ $num_failures = 0 ]; then
+  echo "PASS"
+else
+  echo "Tests finished with $num_failures failures"
+fi
 exit $num_failures

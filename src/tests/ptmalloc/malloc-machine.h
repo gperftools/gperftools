@@ -31,7 +31,7 @@ PERFORMANCE OF THIS SOFTWARE.
 
 /* Use fast inline spinlocks with gcc.  */
 #if (defined __i386__ || defined __x86_64__) && defined __GNUC__ && \
-    !defined USE_NO_SPINLOCKS
+    !defined USE_NO_SPINLOCKS && 0 /*!!*/
 
 #include <time.h>
 #include <sched.h>

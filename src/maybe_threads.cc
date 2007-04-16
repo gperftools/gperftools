@@ -52,7 +52,7 @@ static pthread_key_t next_key;
 // This module will behave very strangely if some pthreads functions
 // exist and others don't
 
-int perftools_pthread_key_create(pthread_key_t *key,  
+int perftools_pthread_key_create(pthread_key_t *key,
                                  void (*destr_function) (void *)) {
   if (pthread_key_create) {
     return pthread_key_create(key, destr_function);
@@ -63,7 +63,7 @@ int perftools_pthread_key_create(pthread_key_t *key,
   }
 }
 
-void *perftools_pthread_getspecific(pthread_key_t key) { 
+void *perftools_pthread_getspecific(pthread_key_t key) {
   if (pthread_getspecific) {
     return pthread_getspecific(key);
   } else {
@@ -80,14 +80,15 @@ int perftools_pthread_setspecific(pthread_key_t key, void *val) {
   }
 }
 
-int perftools_pthread_once(pthread_once_t *ctl,  
+static pthread_once_t pthread_once_init = PTHREAD_ONCE_INIT;
+int perftools_pthread_once(pthread_once_t *ctl,
                           void  (*init_routine) (void)) {
   if (pthread_once) {
     return pthread_once(ctl, init_routine);
   } else {
-    if (*ctl == PTHREAD_ONCE_INIT) {
+    if (memcmp(ctl, &pthread_once_init, sizeof(*ctl)) == 0) {
       init_routine();
-      *ctl = 1;
+      ++*(char*)(ctl);        // make it so it's no longer equal to init
     }
     return 0;
   }

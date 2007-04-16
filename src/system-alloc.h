@@ -43,4 +43,15 @@
 // when out of memory.
 extern void* TCMalloc_SystemAlloc(size_t bytes, size_t alignment = 0);
 
+// This call is a hint to the operating system that the pages
+// contained in the specified range of memory will not be used for a
+// while, and can be released for use by other processes or the OS.
+// Pages which are released in this way may be destroyed (zeroed) by
+// the OS.  The benefit of this function is that it frees memory for
+// use by the system, the cost is that the pages are faulted back into
+// the address space next time they are touched, which can impact
+// performance.  (Only pages fully covered by the memory region will
+// be released, partial pages will not.)
+extern void TCMalloc_SystemRelease(void* start, size_t length);
+
 #endif /* TCMALLOC_SYSTEM_ALLOC_H__ */
