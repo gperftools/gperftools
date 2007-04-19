@@ -115,6 +115,18 @@ successfully built and tested the core tcmalloc library
 details.
 
 
+PERFORMANCE
+-----------
+
+If you're interested in some third-party comparisons of tcmalloc to
+other malloc libraries, here are a few web pages that have been
+brought to our attention.  The first discusses the effect of using
+various malloc libraries on OpenLDAP.  The second compares tcmalloc to
+win32's malloc.
+  http://www.highlandsun.com/hyc/malloc/
+  http://gaiacrtn.free.fr/articles/win32perftools.html
+
+
 64-BIT ISSUES
 -------------
 

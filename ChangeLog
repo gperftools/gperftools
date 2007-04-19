@@ -126,3 +126,8 @@ Fri Apr 13 14:50:51 2007  Google Inc. <opensource@google.com>
 	*** KNOWN PROBLEMS:
 	* CPU-profiling may crash on x86_64 (64-bit) systems.  See the README
 	* Profiling/heap-checking may deadlock on x86_64 systems.  See README
+
+Wed Apr 18 16:43:55 2007  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.91 release
+	* Brown-paper-bag bugfix: compilation error on some x86-64 machines

@@ -64,7 +64,13 @@ class ProcMapsIterator {
 
   // Create an iterator with specified storage (for use in signal
   // handler). "buffer" should point to an area of size kBufSize
+  // buffer can be NULL in which case a bufer will be allocated.
   ProcMapsIterator(pid_t pid, char *buffer);
+
+  // Iterate through maps_backing instead of maps if use_maps_backing
+  // is true.  Otherwise the same as above.  buffer can be NULL and
+  // it will allocate a buffer itself.
+  ProcMapsIterator(pid_t pid, char *buffer, bool use_maps_backing);
 
   // Returns true if the iterator successfully initialized;
   bool Valid() const { return fd_ != -1; }
@@ -91,11 +97,16 @@ class ProcMapsIterator {
   bool Next(uint64 *start, uint64 *end, char **flags,
             uint64 *offset, int64 *inode, char **filename);
 
+  bool NextExt(uint64 *start, uint64 *end, char **flags,
+               uint64 *offset, int64 *inode, char **filename,
+               uint64 *file_mapping, uint64 *file_pages,
+               uint64 *anon_mapping, uint64 *anon_pages);
+
   ~ProcMapsIterator();
 
  private:
 
-  void Init(pid_t pid, char *buffer);
+  void Init(pid_t pid, char *buffer, bool use_maps_backing);
 
   char *ibuf_;        // input buffer
   char *stext_;       // start of text
@@ -105,6 +116,7 @@ class ProcMapsIterator {
   int   fd_;          // filehandle on /proc/*/maps
   char flags_[10];
   char* dynamic_ibuf_; // dynamically-allocated ibuf_
+  bool using_maps_backing_; // true if we are looking at maps_backing instead of maps.
 
 };
 

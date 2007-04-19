@@ -65,7 +65,7 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   }
 
   unw_getcontext(&uc);
-  ret = unw_init_local(&cursor, &uc);
+  int ret = unw_init_local(&cursor, &uc);
   assert(ret >= 0);
   skip_count++;         // Do not include the "GetStackTrace" frame
 
