@@ -34,7 +34,11 @@
 #ifndef BASE_MEMORY_REGION_MAP_H__
 #define BASE_MEMORY_REGION_MAP_H__
 
+#include "config.h"
+
+#ifdef HAVE_PTHREAD
 #include <pthread.h>
+#endif
 #include <set>
 #include "base/stl_allocator.h"
 #include "base/spinlock.h"
@@ -107,7 +111,7 @@ class MemoryRegionMap {
   // We allocate STL objects in our own arena.
   struct MyAllocator {
     static void *Allocate(size_t n) {
-      return LowLevelAlloc::Alloc(n, arena_);
+      return LowLevelAlloc::AllocWithArena(n, arena_);
     }
     static void Free(void *p) { LowLevelAlloc::Free(p); }
   };
@@ -163,11 +167,12 @@ class MemoryRegionMap {
  private:  // helpers
 
   // Verifying wrapper around regions_->insert(region)
-  // To be called by InsertRegionLocked only!
-  // Passing "region" by value is important:
-  // for many calls the memory the argument is located-in in the caller
-  // will get written-to during this call.
-  inline static void DoInsertRegionLocked(const Region region);
+  // To be called for InsertRegionLocked only!
+  inline static void DoInsertRegionLocked(const Region& region);
+  // Handle regions saved by InsertRegionLocked into a tmp static array
+  // by calling insert_func on them.
+  inline static void HandleSavedRegionsLocked(
+                       void (*insert_func)(const Region& region));
   // Wrapper around DoInsertRegionLocked
   // that handles the case of recursive allocator calls.
   inline static void InsertRegionLocked(const Region& region);

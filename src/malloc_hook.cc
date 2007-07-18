@@ -34,10 +34,12 @@
 
 // Disable the glibc prototype of mremap(), as older versions of the
 // system headers define this function with only four arguments,
-// whereas newer versions allow an optional fifth argument: 
-#define mremap glibc_mremap
-#include <sys/mman.h>
-#undef mremap
+// whereas newer versions allow an optional fifth argument:
+#ifdef HAVE_MMAP
+# define mremap glibc_mremap
+# include <sys/mman.h>
+# undef mremap
+#endif
 
 #include <google/malloc_hook.h>
 #include "base/basictypes.h"
@@ -130,9 +132,9 @@ void InitialMallocHook_Sbrk(void* result, ptrdiff_t increment) {
     MallocHook::SetSbrkHook(NULL);
 }
 
-DECLARE_ATTRIBUTE_SECTION(google_malloc_allocators);
+DECLARE_ATTRIBUTE_SECTION(google_malloc);
   // actual functions are in debugallocation.cc or tcmalloc.cc
-DECLARE_ATTRIBUTE_SECTION(malloc_hook_callers);
+DECLARE_ATTRIBUTE_SECTION(malloc_hook);
   // actual functions are in this file, malloc_hook.cc, and low_level_alloc.cc
 
 #define ADDR_IN_ATTRIBUTE_SECTION(addr, name) \
@@ -145,8 +147,8 @@ DECLARE_ATTRIBUTE_SECTION(malloc_hook_callers);
 // that calls one of our hooks via MallocHook:Invoke*.
 // A helper for GetCallerStackTrace.
 static inline bool InHookCaller(void* caller) {
-  return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc_allocators) ||
-         ADDR_IN_ATTRIBUTE_SECTION(caller, malloc_hook_callers);
+  return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc) ||
+         ADDR_IN_ATTRIBUTE_SECTION(caller, malloc_hook);
   // We can use one section for everything except tcmalloc_or_debug
   // due to its special linkage mode, which prevents merging of the sections.
 }
@@ -157,14 +159,14 @@ static bool checked_sections = false;
 
 static inline void CheckInHookCaller() {
   if (!checked_sections) {
-    if (ATTRIBUTE_SECTION_START(google_malloc_allocators) ==
-        ATTRIBUTE_SECTION_STOP(google_malloc_allocators)) {
-      RAW_LOG(ERROR, "google_malloc_allocators section is missing, "
+    if (ATTRIBUTE_SECTION_START(google_malloc) ==
+        ATTRIBUTE_SECTION_STOP(google_malloc)) {
+      RAW_LOG(ERROR, "google_malloc section is missing, "
                      "thus InHookCaller is broken!");
     }
-    if (ATTRIBUTE_SECTION_START(malloc_hook_callers) == 
-        ATTRIBUTE_SECTION_STOP(malloc_hook_callers)) {
-      RAW_LOG(ERROR, "malloc_hook_callers section is missing, "
+    if (ATTRIBUTE_SECTION_START(malloc_hook) ==
+        ATTRIBUTE_SECTION_STOP(malloc_hook)) {
+      RAW_LOG(ERROR, "malloc_hook section is missing, "
                      "thus InHookCaller is broken!");
     }
     checked_sections = true;
@@ -177,14 +179,13 @@ static inline void CheckInHookCaller() {
 int MallocHook::GetCallerStackTrace(void** result, int max_depth,
                                     int skip_count) {
 #ifndef HAVE___ATTRIBUTE__
-    // Fall back to GetStackTrace and good old but fragile frame skip counts.
-    // Note: this path is inaccurate when a hook is not called directly by an
-    // allocation function but is daisy-chained through another hook,
-    // search for MallocHook::(Get|Set|Invoke)* to find such cases.
-    return GetStackTrace(result, max_depth, skip_count + int(DEBUG_MODE));
-             // due to -foptimize-sibling-calls in opt mode
-             // there's no need for extra frame skip here then
-  }
+  // Fall back to GetStackTrace and good old but fragile frame skip counts.
+  // Note: this path is inaccurate when a hook is not called directly by an
+  // allocation function but is daisy-chained through another hook,
+  // search for MallocHook::(Get|Set|Invoke)* to find such cases.
+  return GetStackTrace(result, max_depth, skip_count + int(DEBUG_MODE));
+  // due to -foptimize-sibling-calls in opt mode
+  // there's no need for extra frame skip here then
 #endif
   CheckInHookCaller();
   // MallocHook caller determination via InHookCaller works, use it:
@@ -300,23 +301,23 @@ static inline void* do_mmap64(void *start, size_t length,
 // stack are at the same offsets for all the calls of memory allocating
 // functions.
 
-// Put all callers of MallocHook::Invoke* in this module into 
-// malloc_hook_callers section,
+// Put all callers of MallocHook::Invoke* in this module into
+// malloc_hook section,
 // so that MallocHook::GetCallerStackTrace can function accurately:
 extern "C" {
   void* mmap64(void *start, size_t length, int prot, int flags,
                int fd, __off64_t offset  ) __THROW
-    ATTRIBUTE_SECTION(malloc_hook_callers);
+    ATTRIBUTE_SECTION(malloc_hook);
   void* mmap(void *start, size_t length,int prot, int flags,
              int fd, off_t offset) __THROW
-    ATTRIBUTE_SECTION(malloc_hook_callers);
+    ATTRIBUTE_SECTION(malloc_hook);
   int munmap(void* start, size_t length) __THROW
-    ATTRIBUTE_SECTION(malloc_hook_callers);
+    ATTRIBUTE_SECTION(malloc_hook);
   void* mremap(void* old_addr, size_t old_size, size_t new_size,
                int flags, ...) __THROW
-    ATTRIBUTE_SECTION(malloc_hook_callers);
+    ATTRIBUTE_SECTION(malloc_hook);
   void* sbrk(ptrdiff_t increment) __THROW
-    ATTRIBUTE_SECTION(malloc_hook_callers);
+    ATTRIBUTE_SECTION(malloc_hook);
 }
 
 extern "C" void* mmap64(void *start, size_t length, int prot, int flags,

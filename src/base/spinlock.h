@@ -43,6 +43,7 @@
 #ifndef BASE_SPINLOCK_H__
 #define BASE_SPINLOCK_H__
 
+#include "config.h"
 #include "base/basictypes.h"
 #include "base/atomicops.h"
 

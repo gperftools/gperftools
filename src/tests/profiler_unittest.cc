@@ -34,64 +34,50 @@
 // Define WITH_THREADS to add pthread functionality as well (otherwise, btw,
 // the num_threads argument to this program is ingored).
 
-#include "config.h"
+#include "config_for_unittests.h"
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>                 // for fork()
+#endif
 #include <sys/wait.h>               // for wait()
 #include "google/profiler.h"
+#include "base/mutex.h"
+#include "tests/testutil.h"
 
 static int result = 0;
+static int g_iters = 0;   // argv[1]
 
-#ifdef WITH_THREADS
-#include <pthread.h>
+Mutex mutex;
 
-pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
-
-#define LOCK   pthread_mutex_lock(&mutex)    /* ignore errors; oh well */
-#define UNLOCK pthread_mutex_unlock(&mutex)  /* ignore errors; oh well */
-
-void* test_other_thread(void* data) {
+static void test_other_thread() {
+#ifndef NO_THREADS
   ProfilerRegisterThread();
 
-  int iters = *(int*)data;
   int i, m;
   char b[128];
   for (m = 0; m < 1000000; ++m) {          // run millions of times
-    for (i = 0; i < iters; ++i ) {
-      LOCK;
+    for (i = 0; i < g_iters; ++i ) {
+      MutexLock ml(&mutex);
       result ^= i;
-      UNLOCK;
     }
-    LOCK;
+    MutexLock ml(&mutex);
     snprintf(b, sizeof(b), "%d", result);  // get some libc action
-    UNLOCK;
   }
-  
-  return NULL;                             // success
+#endif
 }
 
-#else   /* WITH_THREADS */
-
-#define LOCK
-#define UNLOCK
-
-#endif  /* WITH_THREADS */
-
-static int test_main_thread(int iters) {
+static void test_main_thread() {
   int i, m;
   char b[128];
   for (m = 0; m < 1000000; ++m) {          // run millions of times
-    for (i = 0; i < iters; ++i ) {
-      LOCK;
+    for (i = 0; i < g_iters; ++i ) {
+      MutexLock ml(&mutex);
       result ^= i;
-      UNLOCK;
     }
-    LOCK;
+    MutexLock ml(&mutex);
     snprintf(b, sizeof(b), "%d", result);  // get some libc action
-    UNLOCK;
   }
-  return result;
 }
 
 int main(int argc, char** argv) {
@@ -107,7 +93,7 @@ int main(int argc, char** argv) {
     return 1;
   }
 
-  int iters = atoi(argv[1]);
+  g_iters = atoi(argv[1]);
   int num_threads = 1;
   const char* filename = NULL;
   if (argc > 2) {
@@ -121,29 +107,24 @@ int main(int argc, char** argv) {
     ProfilerStart(filename);
   }
 
-  test_main_thread(iters);
+  test_main_thread();
 
   ProfilerFlush();                           // just because we can
 
   // The other threads, if any, will run only half as long as the main thread
-#ifdef WITH_THREADS
-  for (; num_threads > 1; --num_threads) {
-    int thread_id;
-    pthread_t thr;
-    thread_id = pthread_create(&thr, NULL, &test_other_thread, &iters);
-  }
-#endif
+  RunManyThreads(test_other_thread, num_threads);
 
   // Or maybe they asked to fork.  The fork test is only interesting
   // when we use CPUPROFILE to name, so check for that
+#ifdef HAVE_UNISTD_H
   for (; num_threads < 0; ++num_threads) {   // -<num_threads> to fork
     if (filename) {
       printf("FORK test only makes sense when no filename is specified.\n");
       return 2;
     }
     switch (fork()) {
-      case -1: 
-        printf("FORK failed!\n"); 
+      case -1:
+        printf("FORK failed!\n");
         return 1;
       case 0:             // child
         return execl(argv[0], argv[0], argv[1], NULL);
@@ -151,9 +132,9 @@ int main(int argc, char** argv) {
         wait(NULL);       // we'll let the kids run one at a time
     }
   }
+#endif
 
-  int r = test_main_thread(iters);
-  printf("The XOR test returns %d\n", r);
+  test_main_thread();
 
   if (filename) {
     ProfilerStop();

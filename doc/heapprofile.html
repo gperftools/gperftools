@@ -66,10 +66,11 @@ for a given run of an executable:</p>
        <pre>% env HEAPPROFILE=/tmp/mybin.hprof /usr/local/bin/my_binary_compiled_with_tcmalloc</pre>
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>HeapProfilerStart()</code> and <code>HeapProfilerStop()</code>.
+       (These functions are declared in <code>&lt;google/heap-profiler.h&gt;</code>.)
        <code>HeapProfilerStart()</code> will take
        the profile-filename-prefix as an argument.  You can then use
-       <code>HeapProfileDump()</code> or <code>HeapProfile()</code> to
-       examine the profile.</p>
+       <code>HeapProfilerDump()</code> or
+       <code>GetHeapProfile()</code> to examine the profile.</p>
 </ol>
 
 
@@ -222,7 +223,7 @@ displayed.</p>
   <li> The fourth column contains memory use by the procedure
        and all of its callees.
   <li> The second and fifth columns are just percentage
-       representations of the numbers in the first and fifth columns.
+       representations of the numbers in the first and fourth columns.
   <li> The third column is a cumulative sum of the second column
        (i.e., the <code>k</code>th entry in the third column is the
        sum of the first <code>k</code> entries in the second column.)

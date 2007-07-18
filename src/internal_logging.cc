@@ -30,8 +30,12 @@
 // ---
 // Sanjay Ghemawat <opensource@google.com>
 
+#include "config.h"
 #include <stdio.h>
 #include <stdarg.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>    // for write()
+#endif
 #include <string.h>
 #include "internal_logging.h"
 

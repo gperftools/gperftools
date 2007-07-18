@@ -29,28 +29,45 @@
 
 // ---
 // Author: Paul Menage <opensource@google.com>
-
-//-------------------------------------------------------------------
+//
 // Some wrappers for pthread functions so that we can be LD_PRELOADed
 // against non-pthreads apps.
-//-------------------------------------------------------------------
+//
+// This module will behave very strangely if some pthreads functions
+// exist and others don't.
 
 #include "config.h"
 #include <assert.h>
-#include <pthread.h>
 // We don't actually need strings. But including this header seems to
 // stop the compiler trying to short-circuit our pthreads existence
 // tests and claiming that the address of a function is always
 // non-zero. I have no idea why ...
 #include <string>
 #include "maybe_threads.h"
+#include "base/basictypes.h"
+
+// __THROW is defined in glibc systems.  It means, counter-intuitively,
+// "This function will never throw an exception."  It's an optional
+// optimization tool, but we may need to use it to match glibc prototypes.
+#ifndef __THROW    // I guess we're not on a glibc system
+# define __THROW   // __THROW is just an optimization, so ok to make it ""
+#endif
+
+// These are the methods we're going to conditionally include.
+extern "C" {
+  int pthread_key_create (pthread_key_t*, void (*)(void*))
+      __THROW ATTRIBUTE_WEAK;
+  void *pthread_getspecific(pthread_key_t)
+      __THROW ATTRIBUTE_WEAK;
+  int pthread_setspecific(pthread_key_t, const void*)
+      __THROW ATTRIBUTE_WEAK;
+  int pthread_once(pthread_once_t *, void (*)(void))
+      __THROW ATTRIBUTE_WEAK;
+}
 
 #define MAX_PERTHREAD_VALS 16
 static void *perftools_pthread_specific_vals[MAX_PERTHREAD_VALS];
 static pthread_key_t next_key;
-
-// This module will behave very strangely if some pthreads functions
-// exist and others don't
 
 int perftools_pthread_key_create(pthread_key_t *key,
                                  void (*destr_function) (void *)) {
@@ -82,7 +99,7 @@ int perftools_pthread_setspecific(pthread_key_t key, void *val) {
 
 static pthread_once_t pthread_once_init = PTHREAD_ONCE_INIT;
 int perftools_pthread_once(pthread_once_t *ctl,
-                          void  (*init_routine) (void)) {
+                           void  (*init_routine) (void)) {
   if (pthread_once) {
     return pthread_once(ctl, init_routine);
   } else {

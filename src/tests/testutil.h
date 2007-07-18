@@ -36,6 +36,20 @@
 // Run a function in a thread of its own and wait for it to finish.
 // The function you pass in must have the signature
 //    void MyFunction();
-extern void RunInThread(void (*fn)());
+extern "C" void RunThread(void (*fn)());
+
+// Run a function X times, in X threads, and wait for them all to finish.
+// The function you pass in must have the signature
+//    void MyFunction();
+extern "C" void RunManyThreads(void (*fn)(), int count);
+
+// The 'advanced' version: run a function X times, in X threads, and
+// wait for them all to finish.  Give them all the specified stack-size.
+// (If you're curious why this takes a stacksize and the others don't,
+// it's because the one client of this fn wanted to specify stacksize. :-) )
+// The function you pass in must have the signature
+//    void MyFunction(int idx);
+// where idx is the index of the thread (which of the X threads this is).
+extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize);
 
 #endif  // TCMALLOC_TOOLS_TESTUTIL_H__

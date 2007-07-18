@@ -57,7 +57,7 @@
 // is just one more chance for the liveness flood to be inexact
 // (see the comment in our .h file).
 
-#include "config.h"
+#include "config_for_unittests.h"
 #include <sys/poll.h>
 #if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
@@ -67,10 +67,17 @@
 #include <sys/types.h>
 #include <stdlib.h>
 #include <errno.h>              // errno
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>             // for sleep(), geteuid()
-#include <fcntl.h>              // for open(), close()
-#include <malloc.h>
+#endif
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif
+#include <fcntl.h>              // for open(), close()
+// FreeBSD has malloc.h, but complains if you use it
+#if defined(HAVE_MALLOC_H) && !defined(__FreeBSD__)
+#include <malloc.h>
+#endif
 
 #include <netinet/in.h>         // inet_ntoa
 #include <arpa/inet.h>          // inet_ntoa
@@ -97,6 +104,7 @@
 #include <google/heap-checker.h>
 #include "memory_region_map.h"
 #include <google/malloc_extension.h>
+#include <google/stacktrace.h>
 
 using namespace std;
 
@@ -276,22 +284,16 @@ static const uintptr_t kHideMask = 0xF03A5F7B;
 //  can be allocated at the same heap address.)
 template <class T>
 static void Hide(T** ptr) {
-  // We have to do memcpy rather than just casting here, because a cast
-  // is illegal (and can cause aliasing issues).
-  uintptr_t hidden = reinterpret_cast<uintptr_t>(*ptr) ^ kHideMask;
-  assert(sizeof(*ptr) == sizeof(hidden));
-  memcpy(ptr, &hidden, sizeof(*ptr));
+  // we cast values, not dereferenced pointers, so no aliasing issues:
+  *ptr = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(*ptr) ^ kHideMask);
   VLOG(2) << "hid: " << static_cast<void*>(*ptr);
 }
 
 template <class T>
 static void UnHide(T** ptr) {
   VLOG(2) << "unhiding: " << static_cast<void*>(*ptr);
-  // We have to do memcpy rather than just casting here, because a cast
-  // is illegal (and can cause aliasing issues).
-  uintptr_t unhidden = reinterpret_cast<uintptr_t>(*ptr) ^ kHideMask;
-  assert(sizeof(*ptr) == sizeof(unhidden));
-  memcpy(ptr, &unhidden, sizeof(*ptr));
+  // we cast values, not dereferenced pointers, so no aliasing issues:
+  *ptr = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(*ptr) ^ kHideMask);
 }
 
 static void LogHidden(const char* message, const void* ptr) {
@@ -766,7 +768,6 @@ static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
 }
 
 static struct group* grp = NULL;
-static pthread_once_t key_once = PTHREAD_ONCE_INIT;
 static const int kKeys = 50;
 static pthread_key_t key[kKeys];
 
@@ -774,16 +775,19 @@ static void KeyFree(void* ptr) {
   delete [] (char*)ptr;
 }
 
+static bool key_init_has_run = false;
+
 static void KeyInit() {
   for (int i = 0; i < kKeys; ++i) {
     CHECK_EQ(pthread_key_create(&key[i], KeyFree), 0);
     VLOG(2) << "pthread key " << i << " : " << key[i];
   }
+  key_init_has_run = true;   // needed for a sanity-check
 }
 
 // force various C library static and thread-specific allocations
 static void TestLibCAllocate() {
-  pthread_once(&key_once, KeyInit);
+  CHECK(key_init_has_run);
   for (int i = 0; i < kKeys; ++i) {
     void* p = pthread_getspecific(key[i]);
     if (NULL == p) {
@@ -930,7 +934,7 @@ REGISTER_MODULE_INITIALIZER(heap_checker_unittest, {
 // and NamedThreeDisabledLeaks for the name-based disabling to work in opt mode
 // we need to undo the tail-recursion optimization effect
 // of -foptimize-sibling-calls that is enabled by -O2 in gcc 3.* and 4.*
-// so that for the leaking calls we can find the stack frame 
+// so that for the leaking calls we can find the stack frame
 // that resolves to a Named*DisabledLeaks function.
 // We do this by adding a fake last statement to these functions
 // so that tail-recursion optimization is done with it.
@@ -1144,6 +1148,21 @@ static ClassB2* live_leak_b2_d;
 static ClassD1* live_leak_d1_d;
 static ClassD2* live_leak_d2_d;
 
+// A dummy string class mimics certain third party string
+// implementations, which store a refcount in the first
+// few bytes and keeps a pointer pointing behind the refcount.
+template <typename R>
+class RefcountStr {
+ public:
+  RefcountStr() {
+    ptr = new char[sizeof(R) * 10];
+    ptr = ptr + sizeof(R);
+  }
+  char* ptr;
+};
+// E.g., mimics UnicodeString defined in third_party/icu.
+static const RefcountStr<uint32> live_leak_refcountstr_4;
+
 // have leaks but ignore the leaked objects
 static void IgnoredLeaks() {
   int* p = new(initialized) int[1];
@@ -1192,20 +1211,26 @@ static void TestHeapLeakCheckerLiveness() {
 
 DECLARE_string(heap_check);
 
-static void* Mmapper() {
+// Get address (PC value) following the mmap call into addr_after_mmap_call
+static void* Mmapper(uintptr_t* addr_after_mmap_call) {
   void* r = mmap(NULL, 100, PROT_READ|PROT_WRITE,
                  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  // Get current PC value into addr_after_mmap_call
+  void* stack[1];
+  CHECK_EQ(GetStackTrace(stack, 1, 0), 1);
+  *addr_after_mmap_call = reinterpret_cast<uintptr_t>(stack[0]);
   sleep(0);  // undo -foptimize-sibling-calls
   return r;
 }
 
 // to trick complier into preventing inlining
-static void* (*mmapper_addr)() = &Mmapper;
+static void* (*mmapper_addr)(uintptr_t*) = &Mmapper;
 
 // TODO(maxim): copy/move this to memory_region_map_unittest
 // TODO(maxim): expand this test to include mmap64, mremap and sbrk calls.
 static void VerifyMemoryRegionMapStackGet() {
-  void* addr = (*mmapper_addr)();
+  uintptr_t caller_addr_limit;
+  void* addr = (*mmapper_addr)(&caller_addr_limit);
   uintptr_t caller = 0;
   MemoryRegionMap::Lock();
   for (MemoryRegionMap::RegionIterator
@@ -1219,7 +1244,7 @@ static void VerifyMemoryRegionMapStackGet() {
   MemoryRegionMap::Unlock();
   // caller must point into Mmapper function:
   if (!(reinterpret_cast<uintptr_t>(mmapper_addr) <= caller  &&
-        caller <= reinterpret_cast<uintptr_t>(mmapper_addr) + 0x40)) {
+        caller < caller_addr_limit)) {
     LOGF << std::hex << "0x" << caller
          << " does not seem to point into code of function Mmapper at "
          << "0x" << reinterpret_cast<uintptr_t>(mmapper_addr)
@@ -1229,25 +1254,30 @@ static void VerifyMemoryRegionMapStackGet() {
   munmap(addr, 100);
 }
 
-static void* Mallocer() {
+static void* Mallocer(uintptr_t* addr_after_malloc_call) {
   void* r = malloc(100);
   sleep(0);  // undo -foptimize-sibling-calls
+  // Get current PC value into addr_after_malloc_call
+  void* stack[1];
+  CHECK_EQ(GetStackTrace(stack, 1, 0), 1);
+  *addr_after_malloc_call = reinterpret_cast<uintptr_t>(stack[0]);
   return r;
 }
 
 // to trick complier into preventing inlining
-static void* (*mallocer_addr)() = &Mallocer;
+static void* (*mallocer_addr)(uintptr_t*) = &Mallocer;
 
 // non-static for friendship with HeapProfiler
 // TODO(maxim): expand this test to include
 // realloc, calloc, memalign, valloc, pvalloc, new, and new[].
 extern void VerifyHeapProfileTableStackGet() {
-  void* addr = (*mallocer_addr)();
+  uintptr_t caller_addr_limit;
+  void* addr = (*mallocer_addr)(&caller_addr_limit);
   uintptr_t caller =
     reinterpret_cast<uintptr_t>(HeapLeakChecker::GetAllocCaller(addr));
   // caller must point into Mallocer function:
   if (!(reinterpret_cast<uintptr_t>(mallocer_addr) <= caller  &&
-        caller <= reinterpret_cast<uintptr_t>(mallocer_addr) + 0x40)) {
+        caller < caller_addr_limit)) {
     LOGF << std::hex << "0x" << caller
          << " does not seem to point into code of function Mallocer at "
          << "0x" << reinterpret_cast<uintptr_t>(mallocer_addr)
@@ -1275,6 +1305,8 @@ int main(int argc, char** argv) {
     VerifyMemoryRegionMapStackGet();
     VerifyHeapProfileTableStackGet();
   }
+
+  KeyInit();
 
   // glibc 2.4, on x86_64 at least, has a lock-ordering bug, which
   // means deadlock is possible when one thread calls dl_open at the

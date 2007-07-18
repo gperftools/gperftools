@@ -54,11 +54,7 @@ typedef signed char         schar;
 typedef int8_t              int8;
 typedef int16_t             int16;
 typedef int32_t             int32;
-#ifdef HAVE___INT64
-typedef __int64             int64;
-#else
 typedef int64_t             int64;
-#endif
 
 // NOTE: unsigned types are DANGEROUS in loops and other arithmetical
 // places.  Use the signed types unless your variable represents a bit
@@ -69,11 +65,7 @@ typedef int64_t             int64;
 typedef uint8_t            uint8;
 typedef uint16_t           uint16;
 typedef uint32_t           uint32;
-#ifdef HAVE___INT64
-typedef unsigned __int64   uint64;
-#else
 typedef uint64_t           uint64;
-#endif
 
 const uint16 kuint16max = (   (uint16) 0xFFFF);
 const uint32 kuint32max = (   (uint32) 0xFFFFFFFF);
@@ -103,7 +95,12 @@ const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
 #ifndef SCNd64
 #define SCNd64 "lld"
 #endif
-
+#ifndef PRIu64
+#define PRIu64 "llu"
+#endif
+#ifndef PRIxPTR
+#define PRIxPTR  PRIx64
+#endif
 
 // A macro to disallow the evil copy constructor and operator= functions
 // This should be used in the private: declarations for a class
@@ -174,7 +171,7 @@ struct CompileAssert {
 #define COMPILE_ASSERT(expr, msg)                               \
   typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1]
 
-#define ARRAYSIZE(a)  (sizeof(a) / sizeof(*(a)))
+#define arraysize(a)  (sizeof(a) / sizeof(*(a)))
 
 #define OFFSETOF_MEMBER(strct, field)                                   \
    (reinterpret_cast<char*>(&reinterpret_cast<strct*>(16)->field) -     \
@@ -182,21 +179,38 @@ struct CompileAssert {
 
 #ifdef HAVE___ATTRIBUTE__
 # define ATTRIBUTE_WEAK  __attribute__((weak))
-# define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name)))
-# define DECLARE_ATTRIBUTE_SECTION(name) \
-    extern char __start_##name[] ATTRIBUTE_WEAK; \
-    extern char __stop_##name[] ATTRIBUTE_WEAK;
-// Return void* pointers to start/end of a section of code with
-// functions having ATTRIBUTE_SECTION(name).
-// Returns 0 if no such functions exits.
-// One must DECLARE_ATTRIBUTE_SECTION(name) for this to compile and link.
-# define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
-# define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
-#else
+# ifdef __MACH__   // Mach-O has a slightly different format from coff and elf
+#  define ATTRIBUTE_SECTION(name) __attribute__ ((section ("__DATA, " #name)))
+# else
+#  define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name)))
+# endif
+# ifdef __ELF__   // only gcc/elf seems to define the __start_foo/__stop_foo :(
+#   define DECLARE_ATTRIBUTE_SECTION(name) \
+      extern char __start_##name[] ATTRIBUTE_WEAK; \
+      extern char __stop_##name[] ATTRIBUTE_WEAK;
+    // Return void* pointers to start/end of a section of code with functions
+    // having ATTRIBUTE_SECTION(name), or 0 if no such function exists.
+    // One must DECLARE_ATTRIBUTE_SECTION(name) for this to compile and link.
+#   define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
+#   define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
+# endif
+#endif
+
+// Complicated logic above!  Now we simply go with the default for
+// everything that hasn't been set to something special.
+#ifndef ATTRIBUTE_WEAK
 # define ATTRIBUTE_WEAK
+#endif
+#ifndef ATTRIBUTE_SECTION
 # define ATTRIBUTE_SECTION(name)
+#endif
+#ifndef DECLARE_ATTRIBUTE_SECTION
 # define DECLARE_ATTRIBUTE_SECTION(name)
+#endif
+#ifndef ATTRIBUTE_SECTION_START
 # define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(0))
+#endif
+#ifndef ATTRIBUTE_SECTION_STOP
 # define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(0))
 #endif
 

@@ -38,18 +38,23 @@
 #ifndef THREAD_ATOMICOPS_H__
 #define THREAD_ATOMICOPS_H__
 
+#include "config.h"
 #include <stdint.h>
 
 // ------------------------------------------------------------------------
 // Include the platform specific implementations of the types
 // and operations listed below.
+// TODO(csilvers): figure out ARCH_PIII/ARCH_K8 (perhaps via ./configure?)
 // ------------------------------------------------------------------------
 
-#if defined(OS_MACOSX)
+// macosx.h should work correctly for Darwin/x86 as well, but the
+// x86.h version works fine as well, so we'll go with that.
+// TODO(csilvers): match piii, not just __i386.  Also, match k8
+#if defined(__MACH__) && defined(__APPLE__) && defined(__ppc__)
 #include "base/atomicops-internals-macosx.h"
-#elif defined(__GNUC__) && (defined(ARCH_PIII) || defined(ARCH_K8))
+#elif defined(__GNUC__) && (defined(__i386) || defined(ARCH_K8))
 #include "base/atomicops-internals-x86.h"
-#elif defined(ARCH_PIII) && defined(COMPILER_MSVC)
+#elif defined(__i386) && defined(MSVC)
 #include "base/atomicops-internals-x86-msvc.h"
 #else
 // Assume x86 for now.  If you need to support a new architecture and

@@ -111,8 +111,8 @@ COMPILING ON NON-LINUX SYSTEMS
 Perftools was developed and tested on x86 Linux systems, and it works
 in its full generality only on those systems.  However, we've
 successfully built and tested the core tcmalloc library
-(tcmalloc_minimal) on both FreeBSD and Solaris x86.  See INSTALL for
-details.
+(tcmalloc_minimal) on FreeBSD, Solaris x86, Darwin (Mac OS X) x86, and
+Windows.  See INSTALL for details.
 
 
 PERFORMANCE
@@ -150,7 +150,7 @@ cause a segfault.  I'll explain the problem first, and then some
 workarounds.
 
 Note that this only affects the cpu-profiler, which is a
-google-perftools featuure you must turn on manually by setting the
+google-perftools feature you must turn on manually by setting the
 CPUPROFILE environment variable.  If you do not turn on cpu-profiling,
 you shouldn't see any crashes due to perftools.
 

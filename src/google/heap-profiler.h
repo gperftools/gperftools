@@ -54,22 +54,31 @@
 
 #include <stddef.h>
 
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
 // Start profiling and arrange to write profile data to file names
 // of the form: "prefix.0000", "prefix.0001", ...
-extern void HeapProfilerStart(const char* prefix);
+extern "C" PERFTOOLS_DLL_DECL void HeapProfilerStart(const char* prefix);
 
 // Stop heap profiling.  Can be restarted again with HeapProfilerStart(),
 // but the currently accumulated profiling information will be cleared.
-extern void HeapProfilerStop();
+extern "C" PERFTOOLS_DLL_DECL void HeapProfilerStop();
 
 // Dump a profile now - can be used for dumping at a hopefully
 // quiescent state in your program, in order to more easily track down
 // memory leaks. Will include the reason in the logged message
-extern void HeapProfilerDump(const char *reason);
+extern "C" PERFTOOLS_DLL_DECL void HeapProfilerDump(const char *reason);
 
 // Generate current heap profiling information.  The returned pointer
 // is a null-terminated string allocated using malloc() and should be
 // free()-ed as soon as the caller does not need it anymore.
-extern char* GetHeapProfile();
+extern "C" PERFTOOLS_DLL_DECL char* GetHeapProfile();
 
 #endif /* BASE_HEAP_PROFILER_H__ */

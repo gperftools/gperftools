@@ -35,9 +35,19 @@
 #ifndef _GOOGLE_STACKTRACE_H
 #define _GOOGLE_STACKTRACE_H
 
-// Skip the most recent "skip_count" stack frames (also skips the
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
+
+// Skips the most recent "skip_count" stack frames (also skips the
 // frame generated for the "GetStackTrace" routine itself), and then
-// record the pc values for upto the next "max_depth" frames in
+// records the pc values for up to the next "max_depth" frames in
 // "result".  Returns the number of values recorded in "result".
 //
 // Example:
@@ -56,8 +66,9 @@
 // (Actually, there may be a few more entries after "main" to account for
 // startup procedures.)
 //
-// This routine currently produces non-empty stack traces only for
-// Linux/x86 machines.
-extern int GetStackTrace(void** result, int max_depth, int skip_count);
+// This routine may return fewer stack trace entries than are
+// available.
+extern PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
+                                            int skip_count);
 
 #endif /* _GOOGLE_STACKTRACE_H */

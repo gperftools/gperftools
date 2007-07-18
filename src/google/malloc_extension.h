@@ -41,10 +41,19 @@
 #include <stddef.h>
 #include <string>
 
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
 static const int kMallocHistogramSize = 64;
 
 // The default implementations of the following routines do nothing.
-class MallocExtension {
+class PERFTOOLS_DLL_DECL MallocExtension {
  public:
   virtual ~MallocExtension();
 

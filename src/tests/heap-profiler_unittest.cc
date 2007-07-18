@@ -37,9 +37,12 @@
 // another testing script to actually verify correctness.  See, eg,
 // heap-profiler_unittest.sh.
 
+#include "config_for_unittests.h"
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>                 // for fork()
+#endif
 #include <sys/wait.h>               // for wait()
 #include <google/heap-profiler.h>
 

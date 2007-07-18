@@ -30,11 +30,14 @@
 // ---
 // Author: Mike Burrows
 
+#include "config.h"
 #include <stdlib.h>   // for getenv()
 #include <stdio.h>    // for snprintf(), sscanf()
 #include <string.h>   // for memmove(), memchr(), etc.
 #include <fcntl.h>    // for open()
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>   // for read()
+#endif
 #include "base/sysinfo.h"
 #include "base/commandlineflags.h"
 #include "base/logging.h"
@@ -99,11 +102,11 @@ static void ConstructFilename(const char* spec, pid_t pid,
   if (FLAGS_procfs_prefix.empty()) {
     CHECK_LT(snprintf(buf, buf_size,
                       spec,
-                      pid?:getpid()), buf_size);
+                      pid ? pid : getpid()), buf_size);
   } else {
     CHECK_LT(snprintf(buf, buf_size,
                       (FLAGS_procfs_prefix + spec).c_str(),
-                      pid?:getpid()), buf_size);
+                      pid ? pid : getpid()), buf_size);
   }
 }
 
@@ -111,79 +114,56 @@ ProcMapsIterator::ProcMapsIterator(pid_t pid) {
   Init(pid, NULL, false);
 }
 
-ProcMapsIterator::ProcMapsIterator(pid_t pid, char *buffer) {
+ProcMapsIterator::ProcMapsIterator(pid_t pid, Buffer *buffer) {
   Init(pid, buffer, false);
 }
 
-ProcMapsIterator::ProcMapsIterator(pid_t pid, char *buffer,
+ProcMapsIterator::ProcMapsIterator(pid_t pid, Buffer *buffer,
                                    bool use_maps_backing) {
   Init(pid, buffer, use_maps_backing);
 }
 
-void ProcMapsIterator::Init(pid_t pid, char *buffer, bool use_maps_backing) {
+void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
+                            bool use_maps_backing) {
   using_maps_backing_ = use_maps_backing;
-  ibuf_ = buffer;
-  dynamic_ibuf_ = NULL;
-  if (!ibuf_) {
+  dynamic_buffer_ = NULL;
+  if (!buffer) {
     // If the user didn't pass in any buffer storage, allocate it
     // now. This is the normal case; the signal handler passes in a
     // static buffer.
-    dynamic_ibuf_ = new char[kBufSize];
-    ibuf_ = dynamic_ibuf_;
+    dynamic_buffer_ = new Buffer;
+    buffer = dynamic_buffer_;
   }
+
+  ibuf_ = buffer->buf_;
 
   stext_ = etext_ = nextline_ = ibuf_;
-  ebuf_ = ibuf_ + kBufSize - 1;
+  ebuf_ = ibuf_ + Buffer::kBufSize - 1;
   nextline_ = ibuf_;
-
-  // If we are in a stack fault handler, we can't
-  // allocate a big buffer here.  But for testing,
-  // we need a big buffer.  So we guess.
-  char* alloced_filename_buffer = NULL;
-
-  // 64 is the size this used to be.
-  // we can get away with less to make
-  // up for all the other stack space we are using.
-  // We need 21 + number of digits in a pid
-  // to handle /proc/<pid>/maps_backing.
-  char stack_filename_buffer[32];
-  char *filename = stack_filename_buffer;
-  int filename_size = sizeof(stack_filename_buffer);
-
-  // Best assumption, if we have set procfs_prefix, we
-  // are running a test case and can afford to allocate
-  // a bunch of memory.
-  if (!FLAGS_procfs_prefix.empty()) {
-    filename_size = PATH_MAX;
-    alloced_filename_buffer = new char[filename_size];
-    filename = alloced_filename_buffer;
-    CHECK(filename != NULL);
-  }
 
   if (use_maps_backing) {
     ConstructFilename("/proc/%d/maps_backing", pid,
-                      filename, filename_size);
+                      ibuf_, Buffer::kBufSize);
   } else {
     ConstructFilename("/proc/%d/maps", pid,
-                      filename, filename_size);
+                      ibuf_, Buffer::kBufSize);
   }
 
   // No error logging since this can be called from the crash dump
   // handler at awkward moments. Users should call Valid() before
   // using.
-  fd_ = open(filename, O_RDONLY);
-  delete[] alloced_filename_buffer;
+  fd_ = open(ibuf_, O_RDONLY);
 }
 
 ProcMapsIterator::~ProcMapsIterator() {
-  delete[] dynamic_ibuf_;
+  delete dynamic_buffer_;
   if (fd_ != -1) close(fd_);
 }
 
 bool ProcMapsIterator::Next(uint64 *start, uint64 *end, char **flags,
                             uint64 *offset, int64 *inode, char **filename) {
   return NextExt(start, end, flags, offset, inode, filename, NULL, NULL,
-                 NULL, NULL);
+                 NULL, NULL, NULL);
 }
 
 // This has too many arguments.  It should really be building
@@ -192,7 +172,8 @@ bool ProcMapsIterator::Next(uint64 *start, uint64 *end, char **flags,
 bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
                                uint64 *offset, int64 *inode, char **filename,
                                uint64 *file_mapping, uint64 *file_pages,
-                               uint64 *anon_mapping, uint64 *anon_pages) {
+                               uint64 *anon_mapping, uint64 *anon_pages,
+                               dev_t *dev) {
 
   do {
     // Advance to the start of the next line
@@ -227,18 +208,21 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     // stext_ now points at a nul-terminated line
     uint64 tmpstart, tmpend, tmpoffset;
     int64 tmpinode;
-    int filename_offset;
-    if (sscanf(stext_, "%llx-%llx %4s %llx %*x:%*x %lld %n",
-               start ?: &tmpstart,
-               end ?: &tmpend,
+    int major, minor;
+    unsigned filename_offset;
+    if (sscanf(stext_, "%llx-%llx %4s %llx %x:%x %lld %n",
+               start ? start : &tmpstart,
+               end ? end : &tmpend,
                flags_,
-               offset ?: &tmpoffset,
-               inode ?: &tmpinode, &filename_offset) != 5) continue;
+               offset ? offset : &tmpoffset,
+               &major, &minor,
+               inode ? inode : &tmpinode, &filename_offset) != 7) continue;
 
     // We found an entry
 
     if (flags) *flags = flags_;
     if (filename) *filename = stext_ + filename_offset;
+    if (dev) *dev = minor | (major << 8);
 
     if (using_maps_backing_) {
       // Extract and parse physical page backing info.
@@ -257,10 +241,10 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
             uint64 tmp_anon_pages;
 
             sscanf(backing_ptr+1, "F %llx %lld) (A %llx %lld)",
-                   file_mapping?:&tmp_file_mapping,
-                   file_pages?:&tmp_file_pages,
-                   anon_mapping?:&tmp_anon_mapping,
-                   anon_pages?:&tmp_anon_pages);
+                   file_mapping ? file_mapping : &tmp_file_mapping,
+                   file_pages ? file_pages : &tmp_file_pages,
+                   anon_mapping ? anon_mapping : &tmp_anon_mapping,
+                   anon_pages ? anon_pages : &tmp_anon_pages);
             // null terminate the file name (there is a space
             // before the first (.
             backing_ptr[-1] = 0;

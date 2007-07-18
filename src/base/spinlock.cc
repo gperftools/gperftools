@@ -31,9 +31,12 @@
  * Author: Sanjay Ghemawat
  */
 
+#include "config.h"
 #include <time.h>       /* For nanosleep() */
 #include <sched.h>      /* For sched_yield() */
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>     /* For nanosleep() on Windows, read() */
+#endif
 #include <fcntl.h>      /* for open(), O_RDONLY */
 #include <string.h>     /* for strncmp */
 #include <errno.h>

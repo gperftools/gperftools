@@ -35,11 +35,15 @@
 
 #include "config.h"
 
-#include <fcntl.h>
+#include <fcntl.h>    // for O_RDONLY (we use syscall to do actual reads)
 #include <string.h>
 #include <errno.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -142,6 +146,11 @@ DEFINE_bool(heap_check_test_pointer_alignment,
             "Set to true to check if the found leak can be due to "
             "use of unaligned pointers");
 
+DEFINE_bool(heap_check_run_under_gdb,
+            EnvToBool("HEAP_CHECK_RUN_UNDER_GDB", false),
+            "If false, turns off heap-checking library when running under gdb "
+            "(normally, set to 'true' only when debugging the heap-checker)");
+
 //----------------------------------------------------------------------
 
 DEFINE_string(heap_profile_pprof,
@@ -201,7 +210,7 @@ class HeapLeakChecker::Allocator {
  public:
   static void Init() {
     RAW_DCHECK(arena_ == NULL, "");
-    arena_ = LowLevelAlloc::NewArena(0, 0);
+    arena_ = LowLevelAlloc::NewArena(0, LowLevelAlloc::DefaultArena());
   }
   static void Shutdown() {
     if (!LowLevelAlloc::DeleteArena(arena_)  ||  alloc_count_ != 0) {
@@ -211,7 +220,7 @@ class HeapLeakChecker::Allocator {
   static int alloc_count() { return alloc_count_; }
   static void* Allocate(size_t n) {
     RAW_DCHECK(arena_  &&  heap_checker_lock.IsHeld(), "");
-    void* p = LowLevelAlloc::Alloc(n, arena_);
+    void* p = LowLevelAlloc::AllocWithArena(n, arena_);
     if (p) alloc_count_ += 1;
     return p;
   }
@@ -356,19 +365,10 @@ static GlobalRegionCallerRangeMap* global_region_caller_ranges = NULL;
 static bool libpthread_initialized = false;
 static bool initializer = (libpthread_initialized = true, true);
 
-// Safe version of pthread_self() for logging that works
-// even when libpthread is not yet properly initialized.
-static inline pthread_t safe_pthread_self() {
-  if (!libpthread_initialized) return static_cast<pthread_t>(-1);
-  // this starts working only sometime well into global constructor execution:
-  return pthread_self();
-}
-
 // Our hooks for MallocHook
 static void NewHook(void* ptr, size_t size) {
   if (ptr != NULL) {
-    RAW_VLOG(7, "Recording Alloc: %p of %"PRIuS" from %ld",
-                ptr, size, safe_pthread_self());
+    RAW_VLOG(7, "Recording Alloc: %p of %"PRIuS, ptr, size);
     heap_checker_lock.Lock();
     heap_profile->RecordAlloc(ptr, size, 0);
     heap_checker_lock.Unlock();
@@ -378,7 +378,7 @@ static void NewHook(void* ptr, size_t size) {
 
 static void DeleteHook(void* ptr) {
   if (ptr != NULL) {
-    RAW_VLOG(7, "Recording Free %p from %ld", ptr, safe_pthread_self());
+    RAW_VLOG(7, "Recording Free %p", ptr);
     heap_checker_lock.Lock();
     heap_profile->RecordFree(ptr);
     heap_checker_lock.Unlock();
@@ -659,14 +659,12 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
                                   ProcMapsTask proc_maps_task) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
   // Need to provide own scratch memory to ProcMapsIterator:
-  char* buffer =
-      reinterpret_cast<char*>(Allocator::Allocate(ProcMapsIterator::kBufSize));
-  ProcMapsIterator it(0, buffer);
+  ProcMapsIterator::Buffer buffer;
+  ProcMapsIterator it(0, &buffer);
   if (!it.Valid()) {
     int errsv = errno;
     RAW_LOG(ERROR, "Could not open /proc/self/maps: errno=%d. "
                    "Libraries will not be handled correctly.", errsv);
-    Allocator::Free(buffer);
     return CANT_OPEN_PROC_MAPS;
   }
   uint64 start_address, end_address, file_offset;
@@ -709,7 +707,6 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
         RAW_CHECK(0, "");
     }
   }
-  Allocator::Free(buffer);
   if (!saw_shared_lib) {
     RAW_LOG(ERROR, "No shared libs detected. Will likely report false leak "
                    "positives for statically linked executables.");
@@ -1056,7 +1053,7 @@ void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
     const size_t remainder =
       reinterpret_cast<uintptr_t>(object) % pointer_alignment;
     if (remainder) {
-      object = reinterpret_cast<char*>(object) + pointer_alignment-remainder;
+      object = reinterpret_cast<char*>(object) + pointer_alignment - remainder;
       if (size >= pointer_alignment - remainder) {
         size -= pointer_alignment - remainder;
       } else {
@@ -1064,9 +1061,8 @@ void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
       }
     }
     while (size >= sizeof(void*)) {
-// TODO(jandrews): Make this part of the configure script.
-#define UNALIGNED_LOAD32(_p) (*reinterpret_cast<const uint32 *>(_p))
-      void* ptr = reinterpret_cast<void*>(UNALIGNED_LOAD32(object));
+      void* ptr;
+      memcpy(&ptr, object, sizeof(void*));  // size-independent UNALIGNED_LOAD
       void* current_object = object;
       object = reinterpret_cast<char*>(object) + pointer_alignment;
       size -= pointer_alignment;
@@ -1685,8 +1681,7 @@ void HeapLeakChecker::InternalInitStart() {
   }
 
   // Changing this to false can be useful when debugging heap-checker itself:
-  const bool turn_off_under_gdb = true;
-  if (turn_off_under_gdb) {
+  if (!FLAGS_heap_check_run_under_gdb) {
     // See if heap checker should turn itself off because we are
     // running under gdb (to avoid conflicts over ptrace-ing rights):
     char name_buf[15+15];
@@ -1980,6 +1975,9 @@ void HeapLeakChecker::TurnItselfOff() {
 // Arguments in cmdline will be '\0'-terminated,
 // the first one will be the binary's name.
 static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
+  // This routine is only used to check if we're running under gdb, so
+  // it's ok if this #if fails and the routine is a no-op.
+#if defined(HAVE_SYSCALL_H)
   // This function is called before memory allocation hooks are set up
   // so we must not have any memory allocations in it.  We use syscall
   // versions of open/read/close here because we don't trust the non-syscall
@@ -2004,6 +2002,9 @@ static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
     syscall(SYS_close, fd);
   }
   return result;
+#else   // HAVE_SYSCALL_H
+  return 0;
+#endif
 }
 
 extern bool heap_leak_checker_bcad_variable;  // in heap-checker-bcad.cc
@@ -2038,13 +2039,16 @@ void HeapLeakChecker_BeforeConstructors() {
   // heap-checking.
   if (!GetenvBeforeMain("HEAPCHECK")) {
     need_heap_check = false;
-  } else if (getuid() != geteuid()) {
+  }
+#ifdef HAVE_GETEUID
+  if (need_heap_check && getuid() != geteuid()) {
     // heap-checker writes out files.  Thus, for security reasons, we don't
     // recognize the env. var. to turn on heap-checking if we're setuid.
     RAW_LOG(WARNING, ("HeapChecker: ignoring HEAPCHECK because "
                       "program seems to be setuid\n"));
     need_heap_check = false;
   }
+#endif
   if (need_heap_check) {
     HeapLeakChecker::BeforeConstructors();
   } else {  // cancel our initial hooks
@@ -2140,6 +2144,8 @@ bool HeapLeakChecker::HaveOnHeapLocked(void** ptr, size_t* object_size) {
   // (basically three integer counters;
   // library/compiler dependent; 12 on i386 and gcc)
   const int kStringOffset = sizeof(size_t) * 3;
+  // Size of refcount used by UnicodeString in third_party/icu.
+  const int kUnicodeStringOffset = sizeof(uint32);
   // NOTE: One can add more similar offset cases below
   //       even when they do not happen for the used compiler/library;
   //       all that's impacted is
@@ -2166,6 +2172,17 @@ bool HeapLeakChecker::HaveOnHeapLocked(void** ptr, size_t* object_size) {
     // the allocated region
     *ptr = reinterpret_cast<char*>(*ptr) - kStringOffset;
     RAW_VLOG(7, "Got poiter into %p at +%d", ptr, kStringOffset);
+  } else if (kUnicodeStringOffset != kArraySizeOffset &&
+             heap_profile->FindAlloc(
+                 reinterpret_cast<char*>(*ptr) - kUnicodeStringOffset,
+                 object_size)  &&
+             *object_size > kUnicodeStringOffset) {
+    // this case is to account for third party UnicodeString.
+    // UnicodeString stores a 32-bit refcount (in both 32-bit and
+    // 64-bit binaries) as the first uint32 in the allocated memory
+    // and a pointer points into the second uint32 behind the refcount.
+    *ptr = reinterpret_cast<char*>(*ptr) - kUnicodeStringOffset;
+    RAW_VLOG(7, "Got poiter into %p at +%d", ptr, kUnicodeStringOffset);
   } else {
     result = false;
   }

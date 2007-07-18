@@ -131,3 +131,18 @@ Wed Apr 18 16:43:55 2007  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.91 release
 	* Brown-paper-bag bugfix: compilation error on some x86-64 machines
+
+Tue Jul 17 22:26:27 2007  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.92 release
+	* PERFORMANCE: use a packed cache to speed up tcmalloc
+	* PORTING: preliminary windows support! (see README.windows)
+	* PORTING: better support for solaris, OS X, FreeBSD (see INSTALL)
+	* Envvar support for running the heap-checker under gdb
+	* Add weak declarations to maybe_threads to fix no-pthreads compile bugs
+	* Some 64bit fixes, especially with pprof
+	* Better heap-checker support for some low-level allocations
+	* Fix bug where heap-profiles would sometimes get truncated
+	* New documentation about how to handle common heap leak situations
+	* Use computed includes for hash_map/set: easier config
+	* Added all used .m4 templates to the distribution

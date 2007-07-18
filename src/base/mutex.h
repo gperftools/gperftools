@@ -31,6 +31,7 @@
  * Author: Craig Silverstein.
  *
  * A simple mutex wrapper, supporting locks and read-write locks.
+ * You should assume the locks are *not* re-entrant.
  *
  * To use: you should define the following macros in your configure.ac:
  *   ACX_PTHREAD
@@ -40,44 +41,65 @@
  * This class is meant to be internal-only, so it's defined in the
  * global namespace.  If you want to expose it, you'll want to move
  * it to the Google namespace.
+ *
+ * NOTE: TryLock() is broken for NO_THREADS mode, at least in NDEBUG
+ *       mode.
  */
 
-#include "config.h"    // to figure out pthreads support
+#ifndef GOOGLE_MUTEX_H__
+#define GOOGLE_MUTEX_H__
+
+#include "config.h"           // to figure out pthreads support
 
 #if defined(NO_THREADS)
-  typedef int MutexType;   // some dummy type; it won't be used
+  typedef int MutexType;      // to keep a lock-count
 #elif defined(HAVE_PTHREAD) && defined(HAVE_RWLOCK)
-  // Needed for pthread_rwlock_*.  If it causes problems, you could take
-  // it out, but then you'd have to unset HAVE_RWLOCK (at least on linux).
-# define _XOPEN_SOURCE 500   // needed to get the rwlock calls
+  // Needed for pthread_rwlock_*.  If it causes problems, you could take it
+  // out, but then you'd have to unset HAVE_RWLOCK (at least on linux -- it
+  // *does* cause problems for FreeBSD, but isn't needed for locking there.)
+# ifndef __FreeBSD__
+#   define _XOPEN_SOURCE 500  // may be needed to get the rwlock calls
+# endif
 # include <pthread.h>
   typedef pthread_rwlock_t MutexType;
 #elif defined(HAVE_PTHREAD)
 # include <pthread.h>
   typedef pthread_mutex_t MutexType;
+#elif defined(WIN32)
+# define WIN32_LEAN_AND_MEAN  // We only need minimal includes
+# ifdef GMUTEX_TRYLOCK
+  // We need Windows NT or later for TryEnterCriticalSection().  If you
+  // don't need that functionality, you can remove these _WIN32_WINNT
+  // lines, and change TryLock() to assert(0) or something.
+#   ifndef _WIN32_WINNT
+#     define _WIN32_WINNT 0x0400
+#   endif
+# endif
+# include <windows.h>
+  typedef CRITICAL_SECTION MutexType;
 #else
-# error Need to implement mutex.h/cc for your architecture, or #define NO_THREADS
+# error Need to implement mutex.h for your architecture, or #define NO_THREADS
 #endif
 
 class Mutex {
  public:
   // Create a Mutex that is not held by anybody.
-  Mutex();
+  inline Mutex();
 
   // Destructor
-  ~Mutex();
+  inline ~Mutex();
 
-  void Lock();     // Block if necessary until free, then acquire exclusively
-  void Unlock();   // Release.  Caller must hold it exclusively (via Lock())
-
+  inline void Lock();    // Block if needed until free then acquire exclusively
+  inline void Unlock();  // Release a lock acquired via Lock()
+  inline bool TryLock(); // If free, Lock() and return true, else return false
   // Note that on systems that don't support read-write locks, these may
   // be implemented as synonyms to Lock() and Unlock().  So you can use
   // these for efficiency, but don't use them anyplace where being able
   // to do shared reads is necessary to avoid deadlock.
-  void ReaderLock();    // Block until free or shared, then acquire a share
-  void ReaderUnlock();  // Release a read share of this Mutex
-  void WriterLock() { Lock(); }   // Block until free, then acquire exclusively
-  void WriterUnlock() { Unlock(); } // Release the exclusive lock of this Mutex
+  inline void ReaderLock();   // Block until free or shared then acquire a share
+  inline void ReaderUnlock(); // Release a read share of this Mutex
+  inline void WriterLock() { Lock(); }     // Acquire an exclusive lock
+  inline void WriterUnlock() { Unlock(); } // Release a lock from WriterLock()
 
  private:
   MutexType mutex_;
@@ -89,6 +111,66 @@ class Mutex {
   void operator=(const Mutex&);
 };
 
+// Now the implementation of Mutex for various systems
+#if defined(NO_THREADS)
+
+// In debug mode, we'll assert some invariants: we don't unlock if we
+// didn't lock first, the lock is not held when Lock() is called
+// (since we're not re-entrant), etc.  In non-debug mode, we do
+// nothing, for efficiency.  That's why we do everything in an assert.
+#include <assert.h>
+
+Mutex::Mutex() : mutex_(0) { }   // mutex_ counts number of current Lock()s
+Mutex::~Mutex()            { assert(mutex_ == 0); }
+void Mutex::Lock()         { assert(mutex_++ == 0); }
+void Mutex::Unlock()       { assert(mutex_-- == 1); }
+bool Mutex::TryLock()      { if (mutex_) return false; Lock(); return true; }
+void Mutex::ReaderLock()   { Lock(); }
+void Mutex::ReaderUnlock() { Unlock(); }
+
+#elif defined(HAVE_PTHREAD) && defined(HAVE_RWLOCK)
+
+#include <stdlib.h>      // for abort()
+#define SAFE_PTHREAD(fncall)  do { if ((fncall) != 0) abort(); } while (0)
+
+Mutex::Mutex()             { SAFE_PTHREAD(pthread_rwlock_init(&mutex_, NULL)); }
+Mutex::~Mutex()            { SAFE_PTHREAD(pthread_rwlock_destroy(&mutex_)); }
+void Mutex::Lock()         { SAFE_PTHREAD(pthread_rwlock_wrlock(&mutex_)); }
+void Mutex::Unlock()       { SAFE_PTHREAD(pthread_rwlock_unlock(&mutex_)); }
+bool Mutex::TryLock()      { return pthread_rwlock_trywrlock(&mutex_) == 0; }
+void Mutex::ReaderLock()   { SAFE_PTHREAD(pthread_rwlock_rdlock(&mutex_)); }
+void Mutex::ReaderUnlock() { SAFE_PTHREAD(pthread_rwlock_unlock(&mutex_)); }
+#undef SAFE_PTHREAD
+
+#elif defined(HAVE_PTHREAD)
+
+#include <stdlib.h>      // for abort()
+#define SAFE_PTHREAD(fncall)  do { if ((fncall) != 0) abort(); } while (0)
+
+Mutex::Mutex()             { SAFE_PTHREAD(pthread_mutex_init(&mutex_, NULL)); }
+Mutex::~Mutex()            { SAFE_PTHREAD(pthread_mutex_destroy(&mutex_)); }
+void Mutex::Lock()         { SAFE_PTHREAD(pthread_mutex_lock(&mutex_)); }
+void Mutex::Unlock()       { SAFE_PTHREAD(pthread_mutex_unlock(&mutex_)); }
+bool Mutex::TryLock()      { return pthread_mutex_trylock(&mutex_) == 0; }
+void Mutex::ReaderLock()   { Lock(); }      // we don't have read-write locks
+void Mutex::ReaderUnlock() { Unlock(); }
+#undef SAFE_PTHREAD
+
+#elif defined(WIN32)
+
+Mutex::Mutex()             { InitializeCriticalSection(&mutex_); }
+Mutex::~Mutex()            { DeleteCriticalSection(&mutex_); }
+void Mutex::Lock()         { EnterCriticalSection(&mutex_); }
+void Mutex::Unlock()       { LeaveCriticalSection(&mutex_); }
+bool Mutex::TryLock()      { return TryEnterCriticalSection(&mutex_) != 0; }
+void Mutex::ReaderLock()   { Lock(); }      // we don't have read-write locks
+void Mutex::ReaderUnlock() { Unlock(); }
+
+#endif
+
+
+// --------------------------------------------------------------------------
+// Some helper classes
 
 // MutexLock(mu) acquires mu when constructed and releases it when destroyed.
 class MutexLock {
@@ -129,3 +211,5 @@ class WriterMutexLock {
 #define MutexLock(x) COMPILE_ASSERT(0, mutex_lock_decl_missing_var_name)
 #define ReaderMutexLock(x) COMPILE_ASSERT(0, rmutex_lock_decl_missing_var_name)
 #define WriterMutexLock(x) COMPILE_ASSERT(0, wmutex_lock_decl_missing_var_name)
+
+#endif  /* #define GOOGLE_MUTEX_H__ */

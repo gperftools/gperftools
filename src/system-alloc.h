@@ -36,6 +36,8 @@
 #ifndef TCMALLOC_SYSTEM_ALLOC_H__
 #define TCMALLOC_SYSTEM_ALLOC_H__
 
+#include "config.h"
+
 // REQUIRES: "alignment" is a power of two or "0" to indicate default alignment
 //
 // Allocate and return "N" bytes of zeroed memory.  The returned
@@ -53,5 +55,41 @@ extern void* TCMalloc_SystemAlloc(size_t bytes, size_t alignment = 0);
 // performance.  (Only pages fully covered by the memory region will
 // be released, partial pages will not.)
 extern void TCMalloc_SystemRelease(void* start, size_t length);
+
+// Interface to a pluggable system allocator.
+class SysAllocator {
+ public:
+  SysAllocator() 
+    : usable_(true), 
+      failed_(false) {
+  };
+  virtual ~SysAllocator() {};
+
+  virtual void* Alloc(size_t size, size_t alignment) = 0;
+
+  // So the allocator can be turned off at compile time
+  bool usable_;
+
+  // Did this allocator fail? If so, we don't need to retry more than twice.
+  bool failed_;
+};
+
+// Register a new system allocator. The priority determines the order in
+// which the allocators will be invoked. Allocators with numerically lower
+// priority are tried first. To keep things simple, the priority of various
+// allocators is known at compile time.
+//
+// Valid range of priorities: [0, kMaxDynamicAllocators)
+//
+// Please note that we can't use complex data structures and cause
+// recursive calls to malloc within this function. So all data structures
+// are statically allocated.
+//
+// Returns true on success. Does nothing on failure.
+extern PERFTOOLS_DLL_DECL bool RegisterSystemAllocator(SysAllocator *allocator,
+                                                       int priority);
+
+// Number of SysAllocators known to call RegisterSystemAllocator
+static const int kMaxDynamicAllocators = 1;
 
 #endif /* TCMALLOC_SYSTEM_ALLOC_H__ */

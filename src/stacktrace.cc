@@ -81,6 +81,14 @@
 #   error Cannnot calculate stack trace: need libunwind (see INSTALL file)
 # endif
 
+// The PowerPC case
+#elif defined(__ppc__) && __GNUC__ >= 2
+# if !defined(NO_FRAME_POINTER)
+#   include "stacktrace_powerpc-inl.h"
+# else
+#   include "stacktrace_generic-inl.h"
+# endif
+
 // OK, those are all the processors we know how to deal with.
 #else
 # error Cannot calculate stack trace: will need to write for your environment

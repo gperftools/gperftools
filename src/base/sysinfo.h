@@ -33,8 +33,12 @@
 #ifndef _SYSINFO_H_
 #define _SYSINFO_H_
 
+#include "config.h"
+
 #include <time.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for pid_t
+#endif
 #include <stddef.h>    // for size_t
 #include <limits.h>    // for PATH_MAX
 #include "base/basictypes.h"
@@ -57,20 +61,25 @@ class ProcMapsIterator {
 
  public:
 
-  static const size_t kBufSize = PATH_MAX + 1024;
+  struct Buffer {
+    static const size_t kBufSize = PATH_MAX + 1024;
+    char buf_[kBufSize];
+  };
+
 
   // Create a new iterator for the specified pid
   explicit ProcMapsIterator(pid_t pid);
 
   // Create an iterator with specified storage (for use in signal
-  // handler). "buffer" should point to an area of size kBufSize
+  // handler). "buffer" should point to a ProcMapsIterator::Buffer
   // buffer can be NULL in which case a bufer will be allocated.
-  ProcMapsIterator(pid_t pid, char *buffer);
+  ProcMapsIterator(pid_t pid, Buffer *buffer);
 
   // Iterate through maps_backing instead of maps if use_maps_backing
   // is true.  Otherwise the same as above.  buffer can be NULL and
   // it will allocate a buffer itself.
-  ProcMapsIterator(pid_t pid, char *buffer, bool use_maps_backing);
+  ProcMapsIterator(pid_t pid, Buffer *buffer,
+                   bool use_maps_backing);
 
   // Returns true if the iterator successfully initialized;
   bool Valid() const { return fd_ != -1; }
@@ -100,13 +109,14 @@ class ProcMapsIterator {
   bool NextExt(uint64 *start, uint64 *end, char **flags,
                uint64 *offset, int64 *inode, char **filename,
                uint64 *file_mapping, uint64 *file_pages,
-               uint64 *anon_mapping, uint64 *anon_pages);
+               uint64 *anon_mapping, uint64 *anon_pages,
+               dev_t *dev);
 
   ~ProcMapsIterator();
 
  private:
 
-  void Init(pid_t pid, char *buffer, bool use_maps_backing);
+  void Init(pid_t pid, Buffer *buffer, bool use_maps_backing);
 
   char *ibuf_;        // input buffer
   char *stext_;       // start of text
@@ -115,7 +125,7 @@ class ProcMapsIterator {
   char *ebuf_;        // end of buffer (1 char for a nul)
   int   fd_;          // filehandle on /proc/*/maps
   char flags_[10];
-  char* dynamic_ibuf_; // dynamically-allocated ibuf_
+  Buffer* dynamic_buffer_; // dynamically-allocated Buffer
   bool using_maps_backing_; // true if we are looking at maps_backing instead of maps.
 
 };

@@ -32,11 +32,14 @@
 //
 // Check that we do not leak memory when cycling through lots of threads.
 
-#include "config.h"
-#include <unistd.h>
+#include "config_for_unittests.h"
+#include <stdio.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>    // for sleep()
+#endif
 #include "base/logging.h"
 #include <google/malloc_extension.h>
-#include "tests/testutil.h"   // for RunInThread()
+#include "tests/testutil.h"   // for RunThread()
 
 // Size/number of objects to allocate per thread (1 MB per thread)
 static const int kObjectSize = 1024;
@@ -62,7 +65,7 @@ int main(int argc, char** argv) {
   char* display = new char[kDisplaySize];
 
   for (int i = 0; i < kNumThreads; i++) {
-    RunInThread(&AllocStuff);
+    RunThread(&AllocStuff);
 
     if (((i+1) % 200) == 0) {
       fprintf(stderr, "Iteration: %d of %d\n", (i+1), kNumThreads);
@@ -73,6 +76,8 @@ int main(int argc, char** argv) {
   delete[] display;
 
   printf("PASS\n");
+#ifdef HAVE_UNISTD_H
   sleep(1);     // Prevent exit race problem with glibc
+#endif
   return 0;
 }

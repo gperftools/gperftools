@@ -89,15 +89,18 @@ static void Test(bool use_new_arena, bool call_malloc_hook, int n) {
   LowLevelAlloc::Arena *arena = 0;
   if (use_new_arena) {
     int32 flags = call_malloc_hook?  LowLevelAlloc::kCallMallocHook :  0;
-    arena = LowLevelAlloc::NewArena(flags, 0);
+    arena = LowLevelAlloc::NewArena(flags, LowLevelAlloc::DefaultArena());
   }
   for (int i = 0; i != n; i++) {
     switch(rand() & 1) {      // toss a coin
     case 0:     // coin came up heads: add a block
       using_low_level_alloc = true;
       block_desc.len = rand() & 0x3fff;
-      block_desc.ptr = reinterpret_cast<char *>(
-                        LowLevelAlloc::Alloc(block_desc.len, arena));
+      block_desc.ptr =
+        reinterpret_cast<char *>(
+                        arena == 0
+                        ? LowLevelAlloc::Alloc(block_desc.len)
+                        : LowLevelAlloc::AllocWithArena(block_desc.len, arena));
       using_low_level_alloc = false;
       RandomizeBlockDesc(&block_desc);
       rnd = rand();
@@ -169,8 +172,8 @@ int main(int argc, char *argv[]) {
   CHECK_EQ(allocates, 0);
   CHECK_EQ(frees, 0);
   Test(false, false, 50000);
-  CHECK_EQ(allocates, 0);   // default arena doesn't call hooks
-  CHECK_EQ(frees, 0);
+  CHECK_NE(allocates, 0);   // default arena calls hooks
+  CHECK_NE(frees, 0);
   for (int i = 0; i != 16; i++) {
     bool call_hooks = ((i & 1) == 1);
     allocates = 0;

@@ -40,10 +40,20 @@
 #include "base/spinlock.h"
 #include "base/logging.h"
 #include <google/malloc_hook.h>
-#include <unistd.h>
 #include <errno.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif
 #include <new>                   // for placement-new
+
+// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
+// form of the name instead.
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
+#endif
 
 // A first-fit allocator with amortized logarithmic free() time.
 
@@ -187,6 +197,11 @@ struct LowLevelAlloc::Arena {
 // pointer.
 static struct LowLevelAlloc::Arena default_arena;
 
+// A non-malloc-hooked arena: used only to allocate metadata for arenas that
+// do not want malloc hook reporting, so that for them there's no malloc hook
+// reporting even during arena creation.
+static struct LowLevelAlloc::Arena unhooked_arena;
+
 // magic numbers to identify allocated and unallocated blocks
 static const intptr_t kMagicAllocated = 0x4c833e95;
 static const intptr_t kMagicUnallocated = ~kMagicAllocated;
@@ -216,18 +231,28 @@ static void ArenaInit(LowLevelAlloc::Arena *arena) {
     arena->freelist.levels = 0;
     memset(arena->freelist.next, 0, sizeof (arena->freelist.next));
     arena->allocation_count = 0;
-    arena->flags = 0;
+    if (arena == &default_arena) {
+      // Default arena should be hooked, e.g. for heap-checker to trace
+      // pointer chains through objects in the default arena.
+      arena->flags = LowLevelAlloc::kCallMallocHook;
+    } else {
+      arena->flags = 0;   // other arenas' flags may be overridden by client,
+                          // but unhooked_arena will have 0 in 'flags'.
+    }
   }
 }
 
 // L < meta_data_arena->mu
 LowLevelAlloc::Arena *LowLevelAlloc::NewArena(int32 flags,
                                               Arena *meta_data_arena) {
-  if (meta_data_arena == 0) {
-    meta_data_arena = &default_arena;
+  RAW_CHECK(meta_data_arena != 0, "must pass a valid arena");
+  if (meta_data_arena == &default_arena  &&
+      (flags & LowLevelAlloc::kCallMallocHook) == 0) {
+    meta_data_arena = &unhooked_arena;
   }
   // Arena(0) uses the constructor for non-static contexts
-  Arena *result = new (Alloc(sizeof (*result), meta_data_arena)) Arena(0);
+  Arena *result =
+    new (AllocWithArena(sizeof (*result), meta_data_arena)) Arena(0);
   ArenaInit(result);
   result->flags = flags;
   return result;
@@ -235,7 +260,7 @@ LowLevelAlloc::Arena *LowLevelAlloc::NewArena(int32 flags,
 
 // L < arena->mu, L < arena->arena->mu
 bool LowLevelAlloc::DeleteArena(Arena *arena) {
-  RAW_CHECK(arena != 0 && arena != &default_arena,
+  RAW_CHECK(arena != 0 && arena != &default_arena && arena != &unhooked_arena,
             "may not delete default arena");
   arena->mu.Lock();
   bool empty = (arena->allocation_count == 0);
@@ -348,11 +373,8 @@ void LowLevelAlloc::Free(void *v) {
 
 // allocates and returns a block of size bytes, to be freed with Free()
 // L < arena->mu
-void *LowLevelAlloc::Alloc(size_t request, Arena *arena) {
+void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
   void *result = 0;
-  if (arena == 0) {
-    arena = &default_arena;
-  }
   if (request != 0) {
     AllocList *s;       // will point to region that satisfies request
     arena->mu.Lock();
@@ -404,8 +426,30 @@ void *LowLevelAlloc::Alloc(size_t request, Arena *arena) {
     arena->mu.Unlock();
     result = &s->levels;
   }
-  if ((arena->flags & kCallMallocHook) != 0) {
+  return result;
+}
+
+void *LowLevelAlloc::Alloc(size_t request) {
+  void *result = DoAllocWithArena(request, &default_arena);
+  if ((default_arena.flags & kCallMallocHook) != 0) {
+    // this call must be directly in the user-called allocator function
+    // for MallocHook::GetCallerStackTrace to work properly
     MallocHook::InvokeNewHook(result, request);
   }
   return result;
+}
+
+void *LowLevelAlloc::AllocWithArena(size_t request, Arena *arena) {
+  RAW_CHECK(arena != 0, "must pass a valid arena");
+  void *result = DoAllocWithArena(request, arena);
+  if ((arena->flags & kCallMallocHook) != 0) {
+    // this call must be directly in the user-called allocator function
+    // for MallocHook::GetCallerStackTrace to work properly
+    MallocHook::InvokeNewHook(result, request);
+  }
+  return result;
+}
+
+LowLevelAlloc::Arena *LowLevelAlloc::DefaultArena() {
+  return &default_arena;
 }

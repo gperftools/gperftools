@@ -35,9 +35,12 @@
 #include "config.h"
 
 #include <stdlib.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#include <fcntl.h>
+#endif
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif
 #include <errno.h>
 #include <assert.h>
 
@@ -107,7 +110,7 @@ static SpinLock heap_lock(SpinLock::LINKER_INITIALIZED);
 static LowLevelAlloc::Arena *heap_profiler_memory;
 
 static void* ProfilerMalloc(size_t bytes) {
-  return LowLevelAlloc::Alloc(bytes, heap_profiler_memory);
+  return LowLevelAlloc::AllocWithArena(bytes, heap_profiler_memory);
 }
 static void ProfilerFree(void* p) {
   LowLevelAlloc::Free(p);
@@ -131,7 +134,7 @@ static HeapProfileTable* heap_profile = NULL;  // the heap profile table
 // Profile generation
 //----------------------------------------------------------------------
 
-char* GetHeapProfile() {
+extern "C" char* GetHeapProfile() {
   // We used to be smarter about estimating the required memory and
   // then capping it to 1MB and generating the profile into that.
   // However it should not cost us much to allocate 1MB every time.
@@ -154,7 +157,7 @@ char* GetHeapProfile() {
 static void DumpProfileLocked(const char* reason) {
   RAW_DCHECK(is_on, "");
   RAW_DCHECK(!dumping, "");
-  
+
   if (filename_prefix == NULL) return;  // we do not yet need dumping
 
   dumping = true;
@@ -287,14 +290,15 @@ static void MunmapHook(void* ptr, size_t size) {
 // Starting/stopping/dumping
 //----------------------------------------------------------------------
 
-void HeapProfilerStart(const char* prefix) {
+extern "C" void HeapProfilerStart(const char* prefix) {
   heap_lock.Lock();
 
   if (filename_prefix != NULL) return;
 
   RAW_DCHECK(!is_on, "");
 
-  heap_profiler_memory = LowLevelAlloc::NewArena(0, 0);
+  heap_profiler_memory =
+    LowLevelAlloc::NewArena(0, LowLevelAlloc::DefaultArena());
 
   heap_profile = new (ProfilerMalloc(sizeof(HeapProfileTable)))
                    HeapProfileTable(ProfilerMalloc, ProfilerFree);
@@ -325,7 +329,7 @@ void HeapProfilerStart(const char* prefix) {
   MallocExtension::Initialize();
 }
 
-void HeapProfilerStop() {
+extern "C" void HeapProfilerStop() {
   heap_lock.Lock();
 
   if (!is_on) return;
@@ -339,7 +343,7 @@ void HeapProfilerStop() {
   heap_profile->~HeapProfileTable();
   ProfilerFree(heap_profile);
   heap_profile = NULL;
-  
+
   // free prefix
   ProfilerFree(filename_prefix);
   filename_prefix = NULL;
@@ -353,7 +357,7 @@ void HeapProfilerStop() {
   heap_lock.Unlock();
 }
 
-void HeapProfilerDump(const char *reason) {
+extern "C" void HeapProfilerDump(const char *reason) {
   heap_lock.Lock();
   if (is_on && !dumping) {
     DumpProfileLocked(reason);
@@ -379,11 +383,13 @@ static void HeapProfilerInit() {
     return;
   }
   // We do a uid check so we don't write out files in a setuid executable.
+#ifdef HAVE_GETEUID
   if (getuid() != geteuid()) {
     RAW_LOG(WARNING, ("HeapProfiler: ignoring HEAPPROFILE because "
                       "program seems to be setuid\n"));
     return;
   }
+#endif
 
   // If we're a child process of the 'main' process, we can't just use
   // the name HEAPPROFILE -- the parent process will be using that.

@@ -33,7 +33,6 @@
 #include "config.h"
 #include <assert.h>
 #include <string.h>
-#include <pthread.h>
 #include <stdio.h>
 #if defined HAVE_STDINT_H
 #include <stdint.h>
@@ -43,7 +42,7 @@
 #include <sys/types.h>
 #endif
 #include <string>
-#include "google/perftools/hash_set.h"
+#include HASH_SET_H          // defined in config.h
 #include "google/malloc_extension.h"
 #include "maybe_threads.h"
 
@@ -56,6 +55,7 @@ void MallocExtension::Initialize() {
   if (initialize_called) return;
   initialize_called = true;
 
+#ifdef __GLIBC__
   // GNU libc++ versions 3.3 and 3.4 obey the environment variables
   // GLIBCPP_FORCE_NEW and GLIBCXX_FORCE_NEW respectively.  Setting
   // one of these variables forces the STL default allocator to call
@@ -74,6 +74,7 @@ void MallocExtension::Initialize() {
   // caches what it finds.  So we just cause an stl alloc here.
   string dummy("I need to be allocated");
   dummy += "!";         // so the definition of dummy isn't optimized out
+#endif  /* __GLIBC__ */
 }
 
 // Default implementation -- does nothing
@@ -205,7 +206,11 @@ struct StackTraceEqual {
   }
 };
 
+#ifdef WIN32
+typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash> StackTraceTable;
+#else
 typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash, StackTraceEqual> StackTraceTable;
+#endif
 
 void PrintHeader(string* result, const char* label, void** entries) {
   // Compute the total count and total size

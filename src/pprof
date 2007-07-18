@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "0.8";
+my $PPROF_VERSION = "0.92";
 
 # These are the object tools we use, which come from various sources.
 # We want to invoke them directly, rather than via users' aliases and/or
@@ -534,15 +534,7 @@ sub Main() {
     } else {
       if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
         if ($main::opt_gv) {
-          if (!system("$GV --version >/dev/null 2>&1")) {
-            # Options using double dash are supported by this gv version.
-            system("$GV --scale=$main::opt_scale " .
-                   PsTempName($main::next_tmpfile));
-          } else {
-            # Old gv version - only supports options that use single dash.
-            system("$GV -scale $main::opt_scale " .
-                   PsTempName($main::next_tmpfile));
-          }
+	  RunGV(PsTempName($main::next_tmpfile), "");
         }
       } else {
         exit(1);
@@ -572,6 +564,24 @@ sub ReadlineMightFail {
     return 1;
   }
 }
+
+sub RunGV {
+  my $fname = shift;
+  my $bg = shift;	# "" or " &" if we should run in background
+  if (!system("$GV --version >/dev/null 2>&1")) {
+    # Options using double dash are supported by this gv version.
+    # Also, turn on noantialias to better handle bug in gv for
+    # postscript files with large dimensions.
+    # TODO: Maybe we should not pass the --noantialias flag
+    # if the gv version is known to work properly without the flag.
+    system("$GV --scale=$main::opt_scale --noantialias " . $fname . $bg);
+  } else {
+    # Old gv version - only supports options that use single dash.
+    print STDERR "$GV -scale $main::opt_scale\n";
+    system("$GV -scale $main::opt_scale " . $fname . $bg);
+  }
+}
+
 
 ##### Interactive helper routines #####
 
@@ -702,15 +712,7 @@ sub InteractiveCommand {
     my $cumulative = CumulativeProfile($reduced);
 
     if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
-      if (!system("$GV --version >/dev/null 2>&1")) {
-        # Options using double dash are supported by this gv version.
-        system("$GV --scale=$main::opt_scale --noresize " .
-               PsTempName($main::next_tmpfile) . " &");
-      } else {
-        # Old gv version - only supports options that use single dash.
-        system("$GV -scale $main::opt_scale -noresize " .
-               PsTempName($main::next_tmpfile) . " &");
-      }
+      RunGV(PsTempName($main::next_tmpfile), " &");
       $main::next_tmpfile++;
     }
     return 1;
@@ -912,7 +914,6 @@ sub PrintDisassembly {
                $address,
                $e->[3]);
       }
-      close(OBJDUMP);
     }
   }
 }
@@ -1301,13 +1302,19 @@ sub PrintDot {
       my $w = $fraction * 2;
       #if ($w < 1) { $w = 1; }
 
+      # Dot sometimes segfaults if given edge weights that are too large, so
+      # we cap the weights at a large value
+      my $edgeweight = abs($n) ** 0.7;
+      if ($edgeweight > 100000) { $edgeweight = 100000; }
+      $edgeweight = int($edgeweight);
+
       # Use a slightly squashed function of the edge count as the weight
       printf DOT ("N%s -> N%s [label=%s, weight=%d, " .
                   "style=\"setlinewidth(%f)\"];\n",
                   $node{$x[0]},
                   $node{$x[1]},
                   Unparse($n),
-                  int(abs($n) ** 0.7),
+                  $edgeweight,
                   $w);
     }
   }
@@ -2969,7 +2976,8 @@ sub GetProcedureBoundariesViaNm {
       my $start_val = $1;
       my $this_routine = $2;
       if (defined($routine) && $routine =~ m/$regexp/) {
-        $symbol_table->{$routine} = [$last_start, $start_val];
+        $symbol_table->{$routine} = [HexExtend($last_start),
+				     HexExtend($start_val)];
       }
       $last_start = $start_val;
       $routine = $this_routine;
@@ -2992,12 +3000,14 @@ sub GetProcedureBoundaries {
     $image = "/usr/lib/debug$image";
   }
   my $nm = $obj_tool_map{"nm"};
-  my $nm_command = "$nm -C -n $image";
+  # Not all nm's in the world can do demangling themselves, so rely on c++filt
+  my $cppfilt = $obj_tool_map{"c++filt"};
+  my $nm_command = "$nm -n $image | $cppfilt";
   my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
   if (!(%{$symbol_table})) {
     # Coulnd't get any symbols: probably $image isn't a debug library.
     # In that case, we can at least get the *exported* symbols via -D
-    $nm_command = "$nm -C -D -n $image";
+    $nm_command = "$nm -D -n $image | $cppfilt";
     $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
   }
   return $symbol_table;

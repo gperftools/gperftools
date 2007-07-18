@@ -36,9 +36,7 @@
 #define TCMALLOC_INTERNAL_LOGGING_H__
 
 #include "config.h"
-#include <stdarg.h>
-#include <stdlib.h>
-#include <unistd.h>
+#include <stdlib.h>   // for abort()
 
 //-------------------------------------------------------------------
 // Utility routines

@@ -9,7 +9,7 @@ Version: %ver
 Release: %rel
 Group: Development/Libraries
 URL: http://goog-perftools.sourceforge.net
-Copyright: BSD
+License: BSD
 Vendor: Google
 Packager: Google <opensource@google.com>
 Source: http://goog-perftools.sourceforge.net/%{NAME}-%{PACKAGE_VERSION}.tar.gz
@@ -68,7 +68,6 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root)
 
 %{prefix}/include/google
-%{prefix}/lib/debug
 %{prefix}/lib/libstacktrace.a
 %{prefix}/lib/libstacktrace.la
 %{prefix}/lib/libstacktrace.so

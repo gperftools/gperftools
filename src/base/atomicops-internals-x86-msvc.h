@@ -33,7 +33,7 @@
 
 // Implementation of atomic operations for x86.  This file should not
 // be included directly.  Clients should instead include
-// "thread/atomicops.h".
+// "base/atomicops.h".
 
 #ifndef BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__
 #define BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__
@@ -98,10 +98,13 @@ inline AtomicWord Release_CompareAndSwap(volatile AtomicWord* ptr,
   return CompareAndSwap(ptr, old_value, new_value);
 }
 
+// In msvc8/vs2005, winnt.h already contains a definition for MemoryBarrier.
+#if !(COMPILER_MSVC && _MSC_VER >= 1400)
 inline void MemoryBarrier() {
   AtomicWord value = 0;
   AtomicExchange(&value, 0); // acts as a barrier
 }
+#endif
 
 inline void Acquire_Store(volatile AtomicWord* ptr, AtomicWord value) {
   AtomicExchange(ptr, value);

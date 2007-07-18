@@ -8,33 +8,25 @@ unlimited permission to copy, distribute and modify it.
 Perftools-Specific Install Notes
 ================================
 
-Perftools right now has only been tested on linux systems, both 32-bit
-and 64-bit.  tcmalloc_minimal, the basic memory-allocation library,
-may also work on *BSD systems.  However, the advanced tools, including
-the cpu-profiler, heap-profiler, and heap-checker, have quite a bit of
-linux- and x86-specific code, and are unlikely to work on other
-architectures.
-
-
 *** NOTE FOR 64-BIT LINUX SYSTEMS
 
-   The glibc built-in stack-unwinder on 64-bit systems has some
-problems with the perftools libraries.  (In particular, the cpu/heap
-profiler may be in the middle of malloc, holding some malloc related
-locks when they invoke the stack unwinder.  The built-in
-stack-unwinder may call malloc recursively, which may require the
-thread to acquire a lock it already holds: deadlock.)
+The glibc built-in stack-unwinder on 64-bit systems has some problems
+with the perftools libraries.  (In particular, the cpu/heap profiler
+may be in the middle of malloc, holding some malloc-related locks when
+they invoke the stack unwinder.  The built-in stack unwinder may call
+malloc recursively, which may require the thread to acquire a lock it
+already holds: deadlock.)
 
-   For that reason, if you use a 64-bit system, we strongly recommend
-you install libunwind before trying to configure or install google
+For that reason, if you use a 64-bit system, we strongly recommend you
+install libunwind before trying to configure or install google
 perftools.  libunwind can be found at
 
    http://download.savannah.nongnu.org/releases/libunwind/libunwind-snap-070410.tar.gz
 
-   Even if you already have libunwind installed, you will probably
-still need to install from the snapshot to get the latest version.
+Even if you already have libunwind installed, you will probably still
+need to install from the snapshot to get the latest version.
 
-   CAUTION: if you install libunwind from the url above, be aware that
+CAUTION: if you install libunwind from the url above, be aware that
 you may have trouble if you try to statically link your binary with
 pertools: that is, if you link with 'gcc -static -lgcc_eh ...'.  This
 is because both libunwind and libgcc implement the same C++ exception
@@ -43,61 +35,123 @@ This is not likely to be a problem on ia64, but may be on x86-64.
 Using -static is rare, though, so unless you know this will affect you
 it probably won't.
 
-   If you cannot or do not wish to install libunwind, you can still
-try to use the built-in stack-unwinder.  The built-in stack-unwinder
+If you cannot or do not wish to install libunwind, you can still try
+to use the built-in stack unwinder.  The built-in stack unwinder
 requires that your application, the tcmalloc library, and system
 libraries like libc, all be compiled with a frame pointer.  This is
 *not* the default for x86-64.
 
-   If you are on x86-64 system, know that you have a set of system
+If you are on x86-64 system, know that you have a set of system
 libraries with frame-pointers enabled, and compile all your
 applications with -fno-omit-frame-pointer, then you can enable the
-built-in perftools stack-unwinder by passing the
+built-in perftools stack unwinder by passing the
 --enable-frame-pointers flag to configure.
 
-   Even with the use of libunwind, there are still known problems
-with stack-unwinding on 64-bit systems, particularly x86-64.  See
-the "64-BIT ISSUES" section in README.
+Even with the use of libunwind, there are still known problems with
+stack unwinding on 64-bit systems, particularly x86-64.  See the
+"64-BIT ISSUES" section in README.
 
 
-*** NOTE FOR *BSD SYSTEMS
+*** COMPILING ON NON-LINUX SYSTEMS
 
-   This code does not yet run fully on *BSD systems such as FreeBSD,
-but it may not be that far away.  We've gotten the basic tcmalloc
-library, tcmalloc_minimal, to compile and run on a FreeBSD 6.0 system.
-To compile only tcmalloc_minimal:
-   % make tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest
-   % ./tcmalloc_minimal_unittest    # should say PASS if all goes well!
-   % ./tcmalloc_minimal_large_unittest
+Perftools has been tested on the following systems:
+   FreeBSD 6.0 (x86)
+   Linux Fedora Core 3 (x86)
+   Linux Fedora Core 4 (x86)
+   Linux Fedora Core 5 (x86)
+   Linux Fedora Core 6 (x86)
+   Linux Ubuntu 6.06.1 (x86)
+   Linux Ubuntu 6.06.1 (ia64)
+   Linux RedHat 9 (x86)
+   Mac OS X 10.3.9 (Panther) (PowerPC)
+   Mac OS X 10.4.8 (Tiger) (x86)
+   Solaris 10 (x86)
+   Windows XP, Visual Studio 2003 (VC++ 7) (x86)
+   Windows XP, Visual Studio 2005 (VC++ 8) (x86)
 
-   The cpu-profiler, heap-profiler, and heap-checker all depend on
-Linux kernel-specific syscalls, and will be harder to port.  However,
-tcmalloc_minimal.so itself is perfectly usable as a malloc/new
-replacement.
+It works in its full generality on all the Linux systems tested, both
+x86 and ia64 (though see 64-bit notes above).  Portions of perftools
+work on the other systems.  The basic memory-allocation library,
+tcmalloc_minimal, works on all systems.  The advanced tools, such as
+the cpu-profiler, heap-profiler, and heap-checker, are not yet as
+widely supported.
 
+Note that tcmalloc_minimal is perfectly usable as a malloc/new
+replacement, so it is possible to use tcmalloc on all the systems
+above, by linking in libtcmalloc_minimal.
 
-*** NOTE FOR SOLARIS SYSTEMS
+** FreeBSD:
 
-   This code does not yet run fully on Solaris systems such as Solaris
-10, but we've gotten the basic tcmalloc library, tcmalloc_minimal,
-to compile and run on a Solaris 10 6/06 system.  Note that this uses
-g++ rather than the Sun C++ compiler; porting to Sun's cc may be a
-significantly more difficult task.  To compile only tcmalloc_minimal:
+   The following binaries build and run successfully (creating
+   libtcmalloc_minimal.so in the process):
+      % ./configure
+      % make tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest \
+             addressmap_unittest atomicops_unittest frag_unittest \
+             low_level_alloc_unittest markidle_unittest memalign_unittest \
+             packed_cache_test stacktrace_unittest system_alloc_unittest \
+             thread_dealloc_unittest
+      % ./tcmalloc_minimal_unittest    # to run this test
+      % [etc]                          # to run other tests
+
+   (The only possible exception is frag_unittest, which tries to
+   allocate 400M of memory; if you have less virtual memory on your
+   system, the test may fail with a bad_alloc exception.)
+
+   In addition, you can build and run these tests (creating libprofile.so
+   in the process), but they don't pass.  Feel free to look into why!
+   Maybe you can fix them up.  (Perhaps GetPC is wrong?)
+      % make profiler_unittest.sh
+      % ./profiler_unittest.sh         # to run the test
+
+   libtcmalloc.so does not successfully build, so neither do these
+   unittests that depend on it:
+      % make -k heap-profiler_unittest.sh heap-checker_unittest.sh \
+                heap-checker-death_unittest.sh maybe_threads_unittest.sh \
+                tcmalloc_unittest tcmalloc_both_unittest \
+                tcmalloc_large_unittest
+
+   I have not tested other *BSD systems, but they are probably similar.
+
+** Mac OS X:
+
+   I've only tested on Intel (x86) systems.  PowerPC may work as well
+   -- I've implemented a stacktrace_ppc-inl.h that *ought* to work --
+   but hasn't been tested.  (For PowerPC, it probably will only work
+   for OS X 10.4 [Tiger] and later, since the ppc code uses
+   OSAtomic.h, which is new in 10.4.)  If you try it, let us know what
+   you find!
+
+   On Mac OS X/x86 systems, the binaries and libraries that
+   successfully build are exactly the same as for FreeBSD.  See that
+   section for a list of binaries, and instructions on building them.
+
+** Solaris 10 x86:
+
+   I've only tested using the GNU C++ compiler, not the Sun C++
+   compiler.  Using g++ requires setting the PATH appropriately when
+   configuring.  As another issue, Solaris 10 has a bug (see
+   src/solaris/libstdc++.la for more info), which we work around by
+   adding a custom LDFLAGS argument:
+
    % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure LDFLAGS="-Lsrc/solaris -lrt"
-   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make -k tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest
-   % ./tcmalloc_minimal_unittest    # should say PASS if all goes well!
-   % ./tcmalloc_minimal_large_unittest
+   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make [...]
 
-   If you're curious in the details of these commands: the PATH allows
-use of gcc, and the LDFLAGS both works around a Solaris 10 bug (see
-src/solaris/libstdc++.la for more info) and does a cheap hack to
-introduce a needed solaris library.  (This *should* be done as inside
-configure.am.  Maybe one day.)
+   Again, the binaries and libraries that successfully build are
+   exactly the same as for FreeBSD.  (The profiler code is farther
+   from working, though -- c++filt doesn't seem to be installed by
+   default on Solaris.)  See that section for a list of binaries, and
+   instructions on building them.
 
-   The cpu-profiler, heap-profiler, and heap-checker all depend on
-Linux kernel-specific syscalls, and will be harder to port.  However,
-tcmalloc_minimal.so itself is perfectly usable as a malloc/new
-replacement.
+** Windows:
+
+   Work on Windows is rather preliminary: we have to #define a special
+   symbol that turns off the stacktrace functionality, since that is
+   not yet implemented (see TODOs in src/windows/port.cc if you're
+   interested in playing around with this).  But as in other ports,
+   the basic tcmalloc library functionality, overriding malloc and new
+   and such, is working fine, both with VC++ 7.1 (Visual Studio 2003)
+   and VC++ 8.0 (Visual Studio 2005).  See README.windows for
+   instructions on how to install on Windows.
 
 
 Basic Installation

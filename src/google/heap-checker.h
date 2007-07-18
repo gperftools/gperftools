@@ -56,8 +56,17 @@
 #include <stdint.h>     // for uintptr_t
 #include <vector>
 
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
 
-class HeapLeakChecker {
+
+class PERFTOOLS_DLL_DECL HeapLeakChecker {
  public:  // Static functions for working with (whole-program) leak checking.
 
   // If heap leak checking is currently active in some mode
@@ -402,7 +411,7 @@ class HeapLeakChecker {
 
 // A class that exists solely to run its destructor.  This class should not be
 // used directly, but instead by the REGISTER_HEAPCHECK_CLEANUP macro below.
-class HeapCleaner {
+class PERFTOOLS_DLL_DECL HeapCleaner {
  public:
   typedef void (*void_function)(void);
   HeapCleaner(void_function f);

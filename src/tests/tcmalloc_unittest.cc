@@ -46,18 +46,24 @@
 //   Also, at the end of every step, object(s) are freed to maintain
 //   the memory upper-bound.
 
+#include "config_for_unittests.h"
+#include "tcmalloc.h"      // must come first, to pick up posix_memalign
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdint.h>      // for intptr_t
-#include <unistd.h>      // for getpid()
+#if defined HAVE_STDINT_H
+#include <stdint.h>        // for intptr_t
+#endif
+#include <sys/types.h>     // for size_t
 #include <assert.h>
-#include <pthread.h>
 #include <vector>
 #include <string>
 #include <new>
 #include "base/logging.h"
+#include "base/mutex.h"
+#include "google/malloc_hook.h"
 #include "google/malloc_extension.h"
+#include "tests/testutil.h"
 
 #define LOGSTREAM   stdout
 
@@ -71,9 +77,14 @@ static const int FLAGS_log_every_n_tests = 50000; // log exactly once
 static const int FLAGS_lgmaxsize = 16;   // lg() of the max size object to alloc
 static const int FLAGS_numthreads = 10;  // Number of threads
 static const int FLAGS_threadmb = 4;     // Max memory size allocated by thread
+static const int FLAGS_lg_max_memalign = 18; // lg of max alignment for memalign
+
+static const double FLAGS_memalign_min_fraction = 0;    // min expected%
+static const double FLAGS_memalign_max_fraction = 0.4;  // max expected%
+static const double FLAGS_memalign_max_alignment_ratio = 6;  // alignment/size
 
 // Weights of different operations
-static const int FLAGS_mallocweight = 50;   // Weight for picking malloc
+static const int FLAGS_allocweight = 50;    // Weight for picking allocation
 static const int FLAGS_freeweight = 50;     // Weight for picking free
 static const int FLAGS_updateweight = 10;   // Weight for picking update
 static const int FLAGS_passweight = 1;      // Weight for passing object
@@ -83,7 +94,7 @@ static const size_t kMaxSize = ~static_cast<size_t>(0);
 static const size_t kMaxSignedSize = ((size_t(1) << (kSizeBits-1)) - 1);
 
 static const size_t kNotTooBig = 100000;
-static const size_t kTooBig = kMaxSignedSize;
+static const size_t kTooBig = kMaxSize;
 
 static int news_handled = 0;
 
@@ -178,6 +189,46 @@ int TestHarness::PickType() {
   return (*types_)[i].type;
 }
 
+class AllocatorState : public TestHarness {
+ public:
+  explicit AllocatorState(int seed) : TestHarness(seed) {
+    CHECK_GE(FLAGS_memalign_max_fraction, 0);
+    CHECK_LE(FLAGS_memalign_max_fraction, 1);
+    CHECK_GE(FLAGS_memalign_min_fraction, 0);
+    CHECK_LE(FLAGS_memalign_min_fraction, 1);
+    double delta = FLAGS_memalign_max_fraction - FLAGS_memalign_min_fraction;
+    CHECK_GE(delta, 0);
+    memalign_fraction_ = (Uniform(10000)/10000.0 * delta +
+                          FLAGS_memalign_min_fraction);
+    //fprintf(LOGSTREAM, "memalign fraction: %f\n", memalign_fraction_);
+  }
+  virtual ~AllocatorState() {}
+
+  // Allocate memory.  Randomly choose between malloc() or posix_memalign().
+  void* alloc(size_t size) {
+    if (Uniform(100) < memalign_fraction_ * 100) {
+      // Try a few times to find a reasonable alignment, or fall back on malloc.
+      for (int i = 0; i < 5; i++) {
+        size_t alignment = 1 << Uniform(FLAGS_lg_max_memalign);
+        if (alignment >= sizeof(intptr_t) &&
+            (size < sizeof(intptr_t) ||
+             alignment < FLAGS_memalign_max_alignment_ratio * size)) {
+          void *result = reinterpret_cast<void*>(static_cast<intptr_t>(0x1234));
+          int err = posix_memalign(&result, alignment, size);
+          if (err != 0) {
+            CHECK_EQ(err, ENOMEM);
+          }
+          return err == 0 ? result : NULL;
+        }
+      }
+    }
+    return malloc(size);
+  }
+
+ private:
+  double memalign_fraction_;
+};
+
 
 // Info kept per thread
 class TesterThread {
@@ -189,9 +240,9 @@ class TesterThread {
     int         generation;             // Generation counter of object contents
   };
 
-  pthread_mutex_t       lock_;          // For passing in another thread's obj
+  Mutex                 lock_;          // For passing in another thread's obj
   int                   id_;            // My thread id
-  TestHarness           rnd_;           // For generating random numbers
+  AllocatorState        rnd_;           // For generating random numbers
   vector<Object>        heap_;          // This thread's heap
   vector<Object>        passed_;        // Pending objects passed from others
   size_t                heap_size_;     // Current heap size
@@ -199,7 +250,32 @@ class TesterThread {
   int                   locks_failed_;  // Number of failed TryLock() ops
 
   // Type of operations
-  enum Type { MALLOC, FREE, UPDATE, PASS };
+  enum Type { ALLOC, FREE, UPDATE, PASS };
+
+  // ACM minimal standard random number generator.  (re-entrant.)
+  class ACMRandom {
+    int32 seed_;
+   public:
+    explicit ACMRandom(int32 seed) { seed_ = seed; }
+    int32 Next() {
+      const int32 M = 2147483647L;   // 2^31-1
+      const int32 A = 16807;
+      // In effect, we are computing seed_ = (seed_ * A) % M, where M = 2^31-1
+      uint32 lo = A * (int32)(seed_ & 0xFFFF);
+      uint32 hi = A * (int32)((uint32)seed_ >> 16);
+      lo += (hi & 0x7FFF) << 16;
+      if (lo > M) {
+        lo &= M;
+        ++lo;
+      }
+      lo += hi >> 15;
+      if (lo > M) {
+        lo &= M;
+        ++lo;
+      }
+      return (seed_ = (int32) lo);
+    }
+  };
 
  public:
   TesterThread(int id)
@@ -208,7 +284,6 @@ class TesterThread {
       heap_size_(0),
       locks_ok_(0),
       locks_failed_(0) {
-    CHECK_EQ(pthread_mutex_init(&lock_, NULL), 0);
   }
 
   virtual ~TesterThread() {
@@ -221,7 +296,7 @@ class TesterThread {
   }
 
   virtual void Run() {
-    rnd_.AddType(MALLOC, FLAGS_mallocweight,  "malloc");
+    rnd_.AddType(ALLOC,  FLAGS_allocweight,   "allocate");
     rnd_.AddType(FREE,   FLAGS_freeweight,    "free");
     rnd_.AddType(UPDATE, FLAGS_updateweight,  "update");
     rnd_.AddType(PASS,   FLAGS_passweight,    "pass");
@@ -230,7 +305,7 @@ class TesterThread {
       AcquirePassedObjects();
 
       switch (rnd_.PickType()) {
-        case MALLOC:  AllocateObject(); break;
+        case ALLOC:   AllocateObject(); break;
         case FREE:    FreeObject();     break;
         case UPDATE:  UpdateObject();   break;
         case PASS:    PassObject();     break;
@@ -249,7 +324,7 @@ class TesterThread {
   void AllocateObject() {
     Object object;
     object.size = rnd_.Skewed(FLAGS_lgmaxsize);
-    object.ptr = static_cast<char*>(malloc(object.size));
+    object.ptr = static_cast<char*>(rnd_.alloc(object.size));
     CHECK(object.ptr);
     object.generation = 0;
     FillContents(&object);
@@ -305,11 +380,11 @@ class TesterThread {
     const int tid = rnd_.Uniform(FLAGS_numthreads);
     TesterThread* thread = threads[tid];
 
-    if (pthread_mutex_trylock(&thread->lock_) == 0) {
+    if (thread->lock_.TryLock()) {
       // Pass the object
       locks_ok_++;
       thread->passed_.push_back(object);
-      CHECK_EQ(pthread_mutex_unlock(&thread->lock_), 0);
+      thread->lock_.Unlock();
       heap_size_ -= object.size;
       heap_[index] = heap_[heap_.size()-1];
       heap_.pop_back();
@@ -325,13 +400,13 @@ class TesterThread {
     // objects into a local vector.
     vector<Object> copy;
     { // Locking scope
-      if (pthread_mutex_trylock(&lock_) != 0) {
+      if (!lock_.TryLock()) {
         locks_failed_++;
         return;
       }
       locks_ok_++;
       swap(copy, passed_);
-      CHECK_EQ(pthread_mutex_unlock(&lock_), 0);
+      lock_.Unlock();
     }
 
     for (int i = 0; i < copy.size(); ++i) {
@@ -344,35 +419,23 @@ class TesterThread {
 
   // Fill object contents according to ptr/generation
   void FillContents(Object* object) {
-    // It doesn't need to be a great random number generator, but it does
-    // need to be a re-entrant one, since this is run in a thread
-    unsigned short xsubi[3];   // arguments for nrand48()
-    xsubi[0] = (reinterpret_cast<intptr_t>(object->ptr) & 0x7fff0000) >> 16;
-    xsubi[1] = (reinterpret_cast<intptr_t>(object->ptr) & 0x0000ffff);
-    xsubi[2] = 0x1234;
-
+    ACMRandom r(reinterpret_cast<intptr_t>(object->ptr) & 0x7fffffff);
     for (int i = 0; i < object->generation; ++i) {
-      nrand48(xsubi);
+      r.Next();
     }
-    const char c = static_cast<char>(nrand48(xsubi));
+    const char c = static_cast<char>(r.Next());
     memset(object->ptr, c, object->size);
   }
 
   // Check object contents
   void CheckContents(const Object& object) {
-    // It doesn't need to be a great random number generator, but it does
-    // need to be a re-entrant one, since this is run in a thread
-    unsigned short xsubi[3];   // arguments for nrand48()
-    xsubi[0] = (reinterpret_cast<intptr_t>(object.ptr) & 0x7fff0000) >> 16;
-    xsubi[1] = (reinterpret_cast<intptr_t>(object.ptr) & 0x0000ffff);
-    xsubi[2] = 0x1234;
-
+    ACMRandom r(reinterpret_cast<intptr_t>(object.ptr) & 0x7fffffff);
     for (int i = 0; i < object.generation; ++i) {
-      nrand48(xsubi);
+      r.Next();
     }
 
     // For large objects, we just check a prefix/suffix
-    const char expected = static_cast<char>(nrand48(xsubi));
+    const char expected = static_cast<char>(r.Next());
     const int limit1 = object.size < 32 ? object.size : 32;
     const int start2 = limit1 > object.size - 32 ? limit1 : object.size - 32;
     for (int i = 0; i < limit1; ++i) {
@@ -384,30 +447,28 @@ class TesterThread {
   }
 };
 
-static void* RunThread(void *vthread) {
-  TesterThread* t = reinterpret_cast<TesterThread*>(vthread);
-  t->Run();
-  return NULL;
+static void RunThread(int thread_id) {
+  threads[thread_id]->Run();
 }
 
-static void TryHugeAllocation(size_t s) {
-  void* p = malloc(s);
+static void TryHugeAllocation(size_t s, AllocatorState* rnd) {
+  void* p = rnd->alloc(s);
   CHECK(p == NULL);   // huge allocation s should fail!
 }
 
-static void TestHugeAllocations() {
+static void TestHugeAllocations(AllocatorState* rnd) {
   // Check that asking for stuff tiny bit smaller than largest possible
   // size returns NULL.
-  for (size_t i = 0; i < 10000; i++) {
-    TryHugeAllocation(kMaxSize - i);
+  for (size_t i = 0; i < 70000; i += rnd->Uniform(20)) {
+    TryHugeAllocation(kMaxSize - i, rnd);
   }
   // Asking for memory sizes near signed/unsigned boundary (kMaxSignedSize)
   // might work or not, depending on the amount of virtual memory.
   for (size_t i = 0; i < 100; i++) {
     void* p = NULL;
-    p = malloc(kMaxSignedSize + i);
+    p = rnd->alloc(kMaxSignedSize + i);
     if (p) free(p);    // if: free(NULL) is not necessarily defined
-    p = malloc(kMaxSignedSize - i);
+    p = rnd->alloc(kMaxSignedSize - i);
     if (p) free(p);
   }
 
@@ -525,10 +586,24 @@ static void TestNothrowNew(void* (*func)(size_t, const std::nothrow_t&)) {
   std::set_new_handler(saved_handler);
 }
 
+// These are used as callbacks by the sanity-check
+static int g_new_hook_calls = 0;
+static int g_delete_hook_calls = 0;
+static void IncrementNewHookCalls(void* ptr, size_t size) {
+  g_new_hook_calls++;
+}
+static void IncrementDeleteHookCalls(void* ptr) {
+  g_delete_hook_calls++;
+}
+
 
 int main(int argc, char** argv) {
+  // Optional argv[1] is the seed
+  AllocatorState rnd(argc > 1 ? atoi(argv[1]) : 100);
+
   // TODO(csilvers): port MemoryUsage() over so the test can use that
 #if 0
+# include <unistd.h>      // for getpid()
   // Allocate and deallocate blocks of increasing sizes to check if the alloc
   // metadata fragments the memory. (Do not put other allocations/deallocations
   // before this test, it may break).
@@ -537,7 +612,7 @@ int main(int argc, char** argv) {
     fprintf(LOGSTREAM, "Testing fragmentation\n");
     for ( int i = 200; i < 240; ++i ) {
       int size = i << 20;
-      void *test1 = malloc(size);
+      void *test1 = rnd.alloc(size);
       CHECK(test1);
       for ( int j = 0; j < size; j += (1 << 12) ) {
         static_cast<char*>(test1)[j] = 1;
@@ -554,20 +629,83 @@ int main(int argc, char** argv) {
   // Check that empty allocation works
   fprintf(LOGSTREAM, "Testing empty allocation\n");
   {
-    void* p1 = malloc(0);
+    void* p1 = rnd.alloc(0);
     CHECK(p1 != NULL);
-    void* p2 = malloc(0);
+    void* p2 = rnd.alloc(0);
     CHECK(p2 != NULL);
     CHECK(p1 != p2);
     free(p1);
     free(p2);
   }
 
+  // Test each of the memory-allocation functions once, just as a sanity-check
+  fprintf(LOGSTREAM, "Sanity-testing all the memory allocation functions\n");
+  {
+    // We use new-hook and delete-hook to verify we actually called the
+    // tcmalloc version of these routines, and not the libc version.
+    MallocHook::NewHook old_new_hook = MallocHook::GetNewHook();
+    MallocHook::DeleteHook old_delete_hook = MallocHook::GetDeleteHook();
+    MallocHook::SetNewHook(&IncrementNewHookCalls);
+    MallocHook::SetDeleteHook(&IncrementDeleteHookCalls);
+    int expected_new_hook_calls = 0;
+    int expected_delete_hook_calls = 0;
+
+    void* p1 = malloc(10);
+    expected_new_hook_calls++;
+    free(p1);
+    expected_delete_hook_calls++;
+
+    p1 = calloc(10, 2);
+    expected_new_hook_calls++;
+    p1 = realloc(p1, 30);
+    expected_new_hook_calls++;
+    expected_delete_hook_calls++;
+    cfree(p1);  // synonym for free
+    expected_delete_hook_calls++;
+
+    CHECK(posix_memalign(&p1, sizeof(p1), 40) == 0);
+    expected_new_hook_calls++;
+    free(p1);
+    expected_delete_hook_calls++;
+
+    p1 = memalign(sizeof(p1) * 2, 50);
+    expected_new_hook_calls++;
+    free(p1);
+    expected_delete_hook_calls++;
+
+    p1 = valloc(60);
+    expected_new_hook_calls++;
+    free(p1);
+    expected_delete_hook_calls++;
+
+    p1 = pvalloc(70);
+    expected_new_hook_calls++;
+    free(p1);
+    expected_delete_hook_calls++;
+
+    char* p2 = new char;
+    expected_new_hook_calls++;
+    delete p2;
+    expected_delete_hook_calls++;
+
+    p2 = new char[100];
+    expected_new_hook_calls++;
+    delete p2;
+    expected_delete_hook_calls++;
+
+    // We'll test the no-throw variants later
+    CHECK_EQ(expected_new_hook_calls, g_new_hook_calls);
+    CHECK_EQ(expected_delete_hook_calls, g_delete_hook_calls);
+    // Reset the hooks to what they used to be
+    MallocHook::SetNewHook(old_new_hook);
+    MallocHook::SetDeleteHook(old_delete_hook);
+  }
+
   // Check that "lots" of memory can be allocated
   fprintf(LOGSTREAM, "Testing large allocation\n");
   {
     const int mb_to_allocate = 100;
-    void* p = malloc(mb_to_allocate << 20);
+    void* p = rnd.alloc(mb_to_allocate << 20);
     CHECK(p != NULL);  // could not allocate
     free(p);
   }
@@ -606,27 +744,12 @@ int main(int argc, char** argv) {
   fprintf(LOGSTREAM, "Testing threaded allocation/deallocation (%d threads)\n",
           FLAGS_numthreads);
   threads = new TesterThread*[FLAGS_numthreads];
-  pthread_t* thread_ids = new pthread_t[FLAGS_numthreads];
   for (int i = 0; i < FLAGS_numthreads; ++i) {
     threads[i] = new TesterThread(i);
   }
 
-  // Start the threads.
-  // Set the stack size to a small value to avoid inheriting 120MB+
-  // limit when running under the google make system.
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  pthread_attr_setstacksize(&attr, 1 << 20);
-  for (int i = 0; i < FLAGS_numthreads; ++i) {
-    CHECK_EQ(pthread_create(&thread_ids[i], &attr, RunThread, threads[i]), 0);
-  }
-  pthread_attr_destroy(&attr);
-
-  // Wait
-  for (int i = 0; i < FLAGS_numthreads; ++i) {
-    void* junk;
-    CHECK_EQ(pthread_join(thread_ids[i], &junk), 0);
-  }
+  // This runs all the tests at the same time, with a 1M stack size each
+  RunManyThreadsWithId(RunThread, FLAGS_numthreads, 1<<20);
 
   for (int i = 0; i < FLAGS_numthreads; ++i) delete threads[i];    // Cleanup
 
@@ -635,12 +758,12 @@ int main(int argc, char** argv) {
 
   // Check that huge allocations fail with NULL instead of crashing
   fprintf(LOGSTREAM, "Testing huge allocations\n");
-  TestHugeAllocations();
+  TestHugeAllocations(&rnd);
 
   // Check that large allocations fail with NULL instead of crashing
   fprintf(LOGSTREAM, "Testing out of memory\n");
   for (int s = 0; ; s += (10<<20)) {
-    void* large_object = malloc(s);
+    void* large_object = rnd.alloc(s);
     if (large_object == NULL) break;
     free(large_object);
   }

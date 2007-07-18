@@ -74,7 +74,7 @@ VerifyMemFunction() {
 
   # get program name.  Note we have to unset HEAPPROFILE so running
   # help doesn't overwrite existing profiles.
-  exec=`env -u HEAPPROFILE $HEAP_PROFILER --help | awk '{print $2; exit;}'`
+  exec=`unset HEAPPROFILE; $HEAP_PROFILER --help | awk '{print $2; exit;}'`
 
   if [ $# = 2 ]; then
     [ -e "$1" ] || { echo "Profile not found: $1"; exit 1; }

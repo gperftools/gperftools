@@ -35,6 +35,8 @@
 #ifndef BASE_STL_ALLOCATOR_H__
 #define BASE_STL_ALLOCATOR_H__
 
+#include "config.h"
+
 #include <limits>
 
 #include "base/basictypes.h"
@@ -73,7 +75,7 @@ class STL_Allocator {
   const_pointer address(const_reference x) const { return &x; }
 
   pointer allocate(size_type n, const void* = 0) {
-    RAW_DCHECK(n < std::numeric_limits<size_t>::max() / sizeof(T), "");
+    RAW_DCHECK((n * sizeof(T)) / sizeof(T) == n, "n is too big to allocate");
     return static_cast<T*>(Alloc::Allocate(n * sizeof(T)));
   }
   void deallocate(pointer p, size_type n) { Alloc::Free(p); }

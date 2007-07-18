@@ -38,12 +38,17 @@
 #else
 #include <sys/types.h>
 #endif
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#include <fcntl.h>
-#include <errno.h>
+#endif
+#include <fcntl.h>    // for open()
+#ifdef HAVE_MMAP
 #include <sys/mman.h>
+#endif
+#include <errno.h>
 #include "system-alloc.h"
 #include "internal_logging.h"
+#include "base/logging.h"
 #include "base/commandlineflags.h"
 #include "base/spinlock.h"
 
@@ -78,14 +83,6 @@ static size_t pagesize = 0;
 // For 2.2 kernels, it looks like the sbrk address space (500MBish) and
 // the mmap address space (1300MBish) are disjoint, so we need both allocators
 // to get as much virtual memory as possible.
-static bool use_devmem = true;
-static bool use_sbrk = true;
-static bool use_mmap = true;
-
-// Flags to keep us from retrying allocators that failed.
-static bool devmem_failure = false;
-static bool sbrk_failure = false;
-static bool mmap_failure = false;
 
 DEFINE_int32(malloc_devmem_start, 0,
              "Physical memory starting location in MB for /dev/mem allocation."
@@ -94,9 +91,48 @@ DEFINE_int32(malloc_devmem_limit, 0,
              "Physical memory limit location in MB for /dev/mem allocation."
              "  Setting this to 0 means no limit.");
 
-#ifdef HAVE_SBRK
+// static allocators
+class SbrkSysAllocator : public SysAllocator {
+public:
+  SbrkSysAllocator() : SysAllocator() {
+  }
+  void* Alloc(size_t size, size_t alignment);
+};
+static char sbrk_space[sizeof(SbrkSysAllocator)];
 
-static void* TrySbrk(size_t size, size_t alignment) {
+class MmapSysAllocator : public SysAllocator {
+public:
+  MmapSysAllocator() : SysAllocator() {
+  }
+  void* Alloc(size_t size, size_t alignment);
+};
+static char mmap_space[sizeof(MmapSysAllocator)];
+
+class DevMemSysAllocator : public SysAllocator {
+public:
+  DevMemSysAllocator() : SysAllocator() {
+  }
+  void* Alloc(size_t size, size_t alignment);
+};
+static char devmem_space[sizeof(DevMemSysAllocator)];
+
+static const int kStaticAllocators = 3;
+// kMaxDynamicAllocators + kStaticAllocators;
+static const int kMaxAllocators = 4;
+SysAllocator *allocators[kMaxAllocators];
+
+bool RegisterSystemAllocator(SysAllocator *a, int priority) {
+  SpinLockHolder lock_holder(&spinlock);
+
+  // No two allocators should have a priority conflict, since the order
+  // is determined at compile time.
+  CHECK(allocators[priority] == NULL);
+  allocators[priority] = a;
+  return true;
+}
+
+
+void* SbrkSysAllocator::Alloc(size_t size, size_t alignment) {
   // sbrk will release memory if passed a negative number, so we do
   // a strict check here
   if (static_cast<ptrdiff_t>(size + alignment) < 0) return NULL;
@@ -104,7 +140,7 @@ static void* TrySbrk(size_t size, size_t alignment) {
   size = ((size + alignment - 1) / alignment) * alignment;
   void* result = sbrk(size);
   if (result == reinterpret_cast<void*>(-1)) {
-    sbrk_failure = true;
+    failed_ = true;
     return NULL;
   }
 
@@ -124,7 +160,7 @@ static void* TrySbrk(size_t size, size_t alignment) {
   // that we can find an aligned region within it.
   result = sbrk(size + alignment - 1);
   if (result == reinterpret_cast<void*>(-1)) {
-    sbrk_failure = true;
+    failed_ = true;
     return NULL;
   }
   ptr = reinterpret_cast<uintptr_t>(result);
@@ -134,11 +170,7 @@ static void* TrySbrk(size_t size, size_t alignment) {
   return reinterpret_cast<void*>(ptr);
 }
 
-#endif /* HAVE_SBRK */
-
-#ifdef HAVE_MMAP
-
-static void* TryMmap(size_t size, size_t alignment) {
+void* MmapSysAllocator::Alloc(size_t size, size_t alignment) {
   // Enforce page alignment
   if (pagesize == 0) pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
@@ -159,7 +191,7 @@ static void* TryMmap(size_t size, size_t alignment) {
                       MAP_PRIVATE|MAP_ANONYMOUS,
                       -1, 0);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
-    mmap_failure = true;
+    failed_ = true;
     return NULL;
   }
 
@@ -182,9 +214,7 @@ static void* TryMmap(size_t size, size_t alignment) {
   return reinterpret_cast<void*>(ptr);
 }
 
-#endif /* HAVE_MMAP */
-
-static void* TryDevMem(size_t size, size_t alignment) {
+void* DevMemSysAllocator::Alloc(size_t size, size_t alignment) {
   static bool initialized = false;
   static off_t physmem_base;  // next physical memory address to allocate
   static off_t physmem_limit; // maximum physical address allowed
@@ -203,7 +233,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
   if (!initialized) {
     physmem_fd = open("/dev/mem", O_RDWR);
     if (physmem_fd < 0) {
-      devmem_failure = true;
+      failed_ = true;
       return NULL;
     }
     physmem_base = FLAGS_malloc_devmem_start*1024LL*1024LL;
@@ -225,7 +255,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
   // check to see if we have any memory left
   if (physmem_limit != 0 &&
       ((size + extra) > (physmem_limit - physmem_base))) {
-    devmem_failure = true;
+    failed_ = true;
     return NULL;
   }
 
@@ -236,7 +266,7 @@ static void* TryDevMem(size_t size, size_t alignment) {
   void *result = mmap(0, size + extra, PROT_WRITE|PROT_READ,
                       MAP_SHARED, physmem_fd, physmem_base);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
-    devmem_failure = true;
+    failed_ = true;
     return NULL;
   }
   uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
@@ -261,11 +291,25 @@ static void* TryDevMem(size_t size, size_t alignment) {
   return reinterpret_cast<void*>(ptr);
 }
 
+static bool system_alloc_inited = false;
+void InitSystemAllocators(void) {
+  // This determines the order in which system allocators are called
+  int i = kMaxDynamicAllocators;
+  allocators[i++] = new (devmem_space) DevMemSysAllocator();
+  allocators[i++] = new (sbrk_space) SbrkSysAllocator();
+  allocators[i++] = new (mmap_space) MmapSysAllocator();
+}
+
 void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
   // Discard requests that overflow
   if (size + alignment < size) return NULL;
 
   SpinLockHolder lock_holder(&spinlock);
+
+  if (!system_alloc_inited) {
+    InitSystemAllocators();
+    system_alloc_inited = true;
+  }
 
   // Enforce minimum alignment
   if (alignment < sizeof(MemoryAligner)) alignment = sizeof(MemoryAligner);
@@ -273,29 +317,21 @@ void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
   // Try twice, once avoiding allocators that failed before, and once
   // more trying all allocators even if they failed before.
   for (int i = 0; i < 2; i++) {
-    if (use_devmem && !devmem_failure) {
-      void* result = TryDevMem(size, alignment);
-      if (result != NULL) return result;
+    for (int j = 0; j < kMaxAllocators; j++) {
+      SysAllocator *a = allocators[j];
+      if (a == NULL) continue;
+      if (a->usable_ && !a->failed_) {
+        void* result = a->Alloc(size, alignment);
+        if (result != NULL) return result;
+      }
     }
-    
-#ifdef HAVE_SBRK
-    if (use_sbrk && !sbrk_failure) {
-      void* result = TrySbrk(size, alignment);
-      if (result != NULL) return result;
-    }
-#endif
 
-#ifdef HAVE_MMAP    
-    if (use_mmap && !mmap_failure) {
-      void* result = TryMmap(size, alignment);
-      if (result != NULL) return result;
+    // nothing worked - reset failed_ flags and try again
+    for (int j = 0; j < kMaxAllocators; j++) {
+      SysAllocator *a = allocators[j];
+      if (a == NULL) continue;
+      a->failed_ = false;
     }
-#endif
-
-    // nothing worked - reset failure flags and try again
-    devmem_failure = false;
-    sbrk_failure = false;
-    mmap_failure = false;
   }
   return NULL;
 }
@@ -327,7 +363,7 @@ void TCMalloc_SystemRelease(void* start, size_t length) {
   if (new_end > new_start) {
     // Note -- ignoring most return codes, because if this fails it
     // doesn't matter...
-    while (madvise(reinterpret_cast<void*>(new_start), new_end - new_start,
+    while (madvise(reinterpret_cast<char*>(new_start), new_end - new_start,
                    MADV_DONTNEED) == -1 &&
            errno == EAGAIN) {
       // NOP

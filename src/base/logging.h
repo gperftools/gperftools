@@ -35,10 +35,13 @@
 #ifndef _LOGGING_H_
 #define _LOGGING_H_
 
+#include "config.h"
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for write()
+#endif
 #include <string.h>    // for strlen()
 #include <assert.h>
 #include <errno.h>     // for errno
@@ -120,17 +123,35 @@ enum { DEBUG_MODE = 1 };
 #define CHECK_GE(val1, val2) CHECK_OP(>=, val1, val2)
 #define CHECK_GT(val1, val2) CHECK_OP(> , val1, val2)
 
+// A few more checks that only happen in debug mode
+#ifdef NDEBUG
+#define DCHECK_EQ(val1, val2)
+#define DCHECK_NE(val1, val2)
+#define DCHECK_LE(val1, val2)
+#define DCHECK_LT(val1, val2)
+#define DCHECK_GE(val1, val2)
+#define DCHECK_GT(val1, val2)
+#else
+#define DCHECK_EQ(val1, val2)  CHECK_EQ(val1, val2)
+#define DCHECK_NE(val1, val2)  CHECK_NE(val1, val2)
+#define DCHECK_LE(val1, val2)  CHECK_LE(val1, val2)
+#define DCHECK_LT(val1, val2)  CHECK_LT(val1, val2)
+#define DCHECK_GE(val1, val2)  CHECK_GE(val1, val2)
+#define DCHECK_GT(val1, val2)  CHECK_GT(val1, val2)
+#endif
+
+
+#ifdef ERROR
+#undef ERROR      // may conflict with ERROR macro on windows
+#endif
 enum {INFO = -1, WARNING = -2, ERROR = -3, FATAL = -4};
 
 // NOTE: we add a newline to the end of the output if it's not there already
-inline void LogPrintf(int severity, const char* pat, ...) {
-  va_list ap;
-  va_start(ap, pat);
+inline void LogPrintf(int severity, const char* pat, va_list ap) {
   // We write directly to the stderr file descriptor and avoid FILE
   // buffering because that may invoke malloc()
   char buf[600];
   vsnprintf(buf, sizeof(buf)-1, pat, ap);
-  va_end(ap);
   if (buf[0] != '\0' && buf[strlen(buf)-1] != '\n') {
     assert(strlen(buf)+1 < sizeof(buf));
     strcat(buf, "\n");
@@ -143,16 +164,25 @@ inline void LogPrintf(int severity, const char* pat, ...) {
 // Note that since the order of global constructors is unspecified,
 // global code that calls RAW_LOG may execute before FLAGS_verbose is set.
 // Such code will run with verbosity == 0 no matter what.
-#define RAW_LOG(severity, pat...) do {          \
-  if (FLAGS_verbose >= severity) LogPrintf(INFO, pat);      \
+#define VLOG_IS_ON(severity) (FLAGS_verbose >= severity)
+
+// In a better world, we'd use __VA_ARGS__, but VC++ 7 doesn't support it.
+#define LOG_PRINTF(severity, pat) do {          \
+  if (VLOG_IS_ON(severity)) {                   \
+    va_list ap;                                 \
+    va_start(ap, pat);                          \
+    LogPrintf(severity, pat, ap);               \
+    va_end(ap);                                 \
+  }                                             \
 } while (0)
 
-// Some synonyms used in unittests
-#define RAW_VLOG(severity, pat...) RAW_LOG(severity, pat)
-#define LOG(severity, pat...)            RAW_LOG(severity, pat)
-#define VLOG(severity, pat...)           RAW_VLOG(severity, pat)
-#define LOG_IF(severity, cond, pat...)   if (cond)  LOG(severity, pat)
-
-#define VLOG_IS_ON(severity) (FLAGS_verbose >= severity)
+// RAW_LOG is the main function; some synonyms are used in unittests.
+inline void RAW_LOG(int lvl, const char* pat, ...)  { LOG_PRINTF(lvl, pat); }
+inline void RAW_VLOG(int lvl, const char* pat, ...) { LOG_PRINTF(lvl, pat); }
+inline void LOG(int lvl, const char* pat, ...)      { LOG_PRINTF(lvl, pat); }
+inline void VLOG(int lvl, const char* pat, ...)     { LOG_PRINTF(lvl, pat); }
+inline void LOG_IF(int lvl, bool cond, const char* pat, ...) {
+  if (cond)  LOG_PRINTF(lvl, pat);
+}
 
 #endif // _LOGGING_H_

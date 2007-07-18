@@ -39,7 +39,7 @@
 // CAVEAT: If you add new MallocHook::Invoke* calls (not for chaining hooks),
 // then those calls must be directly in the code of the (de)allocation
 // function that is provided to the user and that function must have
-// an ATTRIBUTE_SECTION(malloc_hook_callers) attribute.
+// an ATTRIBUTE_SECTION(malloc_hook) attribute.
 
 #ifndef _MALLOC_HOOK_H
 #define _MALLOC_HOOK_H
@@ -47,7 +47,17 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-class MallocHook {
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
+
+class PERFTOOLS_DLL_DECL MallocHook {
  public:
   // The NewHook is invoked whenever an object is allocated.
   // It may be passed NULL if the allocator returned NULL.

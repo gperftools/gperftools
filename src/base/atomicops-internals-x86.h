@@ -33,7 +33,7 @@
 
 // Implementation of atomic operations for x86.  This file should not
 // be included directly.  Clients should instead include
-// "thread/atomicops.h".
+// "base/atomicops.h".
 
 #ifndef BASE_ATOMICOPS_INTERNALS_X86_H__
 #define BASE_ATOMICOPS_INTERNALS_X86_H__
@@ -168,10 +168,10 @@ inline AtomicWord Release_Load(volatile const AtomicWord* ptr) {
   return *ptr;
 }
 
-// On a 64-bit machine, Atomic32 and AtomicWord are different types,
-// so we need to copy the preceding methods for Atomic32.
+// When Atomic32 and AtomicWord are different types, we need to copy
+// the preceding methods for Atomic32.
 
-#if defined(__x86_64__)
+#ifndef INT32_EQUALS_INTPTR
 
 inline Atomic32 CompareAndSwap(volatile Atomic32* ptr,
                                Atomic32 old_value,
@@ -246,7 +246,7 @@ inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
   return *ptr;
 }
 
-#endif /* defined(__x86_64__) */
+#endif /* INT32_EQUALS_INTPTR */
 
 #undef ATOMICOPS_COMPILER_BARRIER
 

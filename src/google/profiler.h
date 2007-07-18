@@ -58,29 +58,38 @@
 
 #include <time.h>       // For time_t
 
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
 // Start profiling and write profile info into fname.
-extern bool ProfilerStart(const char* fname);
+extern "C" PERFTOOLS_DLL_DECL bool ProfilerStart(const char* fname);
 
 // Stop profiling. Can be started again with ProfilerStart(), but
 // the currently accumulated profiling data will be cleared.
-extern void ProfilerStop();
+extern "C" PERFTOOLS_DLL_DECL void ProfilerStop();
 
 // Flush any currently buffered profiling state to the profile file.
 // Has no effect if the profiler has not been started.
-extern void ProfilerFlush();
+extern "C" PERFTOOLS_DLL_DECL void ProfilerFlush();
 
 
 // DEPRECATED: these functions were used to enable/disable profiling
 // in the current thread, but no longer do anything.
-extern void ProfilerEnable();
-extern void ProfilerDisable();
+extern "C" PERFTOOLS_DLL_DECL void ProfilerEnable();
+extern "C" PERFTOOLS_DLL_DECL void ProfilerDisable();
 
 // Returns true if profile is currently enabled
-extern bool ProfilingIsEnabledForAllThreads();
+extern "C" PERFTOOLS_DLL_DECL bool ProfilingIsEnabledForAllThreads();
 
 // Routine for registering new threads with the profiler.  This is
 // most usefully called when a new thread is first entered.
-extern void ProfilerRegisterThread();
+extern "C" PERFTOOLS_DLL_DECL void ProfilerRegisterThread();
 
 // Stores state about profiler's current status into "*state".
 struct ProfilerState {
@@ -89,7 +98,7 @@ struct ProfilerState {
   char   profile_name[1024];     // Name of profile file being written, or '\0'
   int    samples_gathered;       // Number of samples gatheered to far (or 0)
 };
-extern void ProfilerGetCurrentState(ProfilerState* state);
+extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(ProfilerState* state);
 
 // ------------------------- ProfilerThreadState -----------------------
 // DEPRECATED: this class is no longer needed.

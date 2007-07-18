@@ -32,10 +32,10 @@
 //
 // MallocExtension::MarkThreadIdle() testing
 
-#include "config.h"
+#include "config_for_unittests.h"
 #include "base/logging.h"
 #include <google/malloc_extension.h>
-#include "tests/testutil.h"   // for RunInThread()
+#include "tests/testutil.h"   // for RunThread()
 
 // Helper routine to do lots of allocations
 static void TestAllocation() {
@@ -95,10 +95,10 @@ static void TestIdleUsage() {
 }
 
 int main(int argc, char** argv) {
-  RunInThread(&TestIdleUsage);
-  RunInThread(&TestAllocation);
-  RunInThread(&MultipleIdleCalls);
-  RunInThread(&MultipleIdleNonIdlePhases);
+  RunThread(&TestIdleUsage);
+  RunThread(&TestAllocation);
+  RunThread(&MultipleIdleCalls);
+  RunThread(&MultipleIdleNonIdlePhases);
 
   printf("PASS\n");
   return 0;

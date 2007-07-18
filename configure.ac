@@ -1,15 +1,14 @@
 ## Process this file with autoconf to produce configure.
-## In general, the safest way to proceed is to run the following:
-##    % aclocal -I `pwd`/../autoconf && autoconf && autoheader && automake
+## In general, the safest way to proceed is to run ./autogen.sh
 
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.91, opensource@google.com)
+AC_INIT(google-perftools, 0.92, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
-AM_INIT_AUTOMAKE
+AM_INIT_AUTOMAKE([dist-zip])
 AM_CONFIG_HEADER(src/config.h)
 
 # Checks for programs.
@@ -29,8 +28,10 @@ AC_HEADER_STDC
 AC_CHECK_TYPES([__int64])       # defined in some windows platforms
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
-AC_CHECK_FUNCS(munmap)
+AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_FUNC_MMAP
+AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
+AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
@@ -44,10 +45,31 @@ AC_CHECK_MEMBERS([struct sigcontext.sc_eip,
                   struct sigcontext.eip,
                   struct sigcontext.rip,
                   struct sigcontext.sc_ip,
+                  struct sigcontext.sc_ir,
                   struct siginfo.si_faddr,
 		  struct sigcontext.regs->nip],,,
-                 [#define _XOPEN_SOURCE 500
+                 [#define _GNU_SOURCE 1
                   #include <signal.h>])
+# We override a lot of memory allocation routines, not all of which are
+# standard.  For those the system doesn't declare, we'll declare ourselves.
+AC_CHECK_DECLS([cfree,
+                posix_memalign,
+                memalign,
+                valloc,
+                pvalloc],,,
+               [#define _XOPEN_SOURCE 600
+                #include <stdlib.h>
+                #include <malloc.h>])
+
+# If AtomicWord != Atomic32, we need to define two versions of all the
+# atomicops functions.  If they're the same, we want to define only one.
+AC_MSG_CHECKING([if int32_t is the same type as intptr_t])
+AC_TRY_COMPILE([#include <stdint.h>],
+	       [int32_t v1 = 0; intptr_t v2 = 0; return (&v1 - &v2)],
+               [AC_DEFINE(INT32_EQUALS_INTPTR, 1,
+                          Define to 1 if int32_t is equivalent to intptr_t)
+                AC_MSG_RESULT([yes])],
+               [AC_MSG_RESULT([no])])
 
 # We want to link in libunwind if it exists
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)
@@ -99,13 +121,24 @@ ACX_PTHREAD
 # Find out what namespace 'normal' STL code lives in
 AC_CXX_STL_NAMESPACE
 
-AC_CXX_MAKE_HASH_SET_H(src/google/perftools/hash_set.h)
+# Figure out where hash_set lives, and what namespace hash code is in.
+AC_CXX_STL_HASH
 
 # Figure out where libc has program_invocation_name
 AC_PROGRAM_INVOCATION_NAME
 
 # Make the install prefix available, to figure out where to look for pprof
 AC_INSTALL_PREFIX
+
+# For windows, this has a non-trivial value (__declspec(export)), but any
+# system that uses configure wants this to be the empty string.
+AC_DEFINE(PERFTOOLS_DLL_DECL,,
+          [Always the empty-string on non-windows systems.
+           On windows, should be "__declspec(dllexport)".
+	   This way, when we compile the dll, we export our functions/classes.
+	   It's safe to define this here because config.h is only used
+	   internally, to compile the DLL, and every DLL source file
+	   #includes "config.h" before anything else.])
 
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile])

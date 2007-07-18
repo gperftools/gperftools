@@ -32,11 +32,13 @@
 //
 // Test speed of handling fragmented heap
 
-#include "config.h"
+#include "config_for_unittests.h"
 #include <stdlib.h>
 #include <stdio.h>
+#ifndef WIN32
 #include <sys/time.h>           // for struct timeval
 #include <sys/resource.h>       // for getrusage
+#endif
 #include <vector>
 #include "base/logging.h"
 #include <google/malloc_extension.h>
@@ -78,9 +80,13 @@ int main(int argc, char** argv) {
   // Now do timing tests
   for (int i = 0; i < 5; i++) {
     static const int kIterations = 100000;
+#ifdef WIN32
+    long long int tv_start = GetTickCount();
+#else
     struct rusage r;
     getrusage(RUSAGE_SELF, &r);    // figure out user-time spent on this
     struct timeval tv_start = r.ru_utime;
+#endif
 
     for (int i = 0; i < kIterations; i++) {
       size_t s;
@@ -88,10 +94,17 @@ int main(int argc, char** argv) {
                                                       &s);
     }
 
+#ifdef WIN32
+    long long int tv_end = GetTickCount();
+    int64 sumsec = (tv_end - tv_start) / 1000;
+    // Resolution in windows is only to the millisecond, alas
+    int64 sumusec = ((tv_end - tv_start) % 1000) * 1000;
+#else
     getrusage(RUSAGE_SELF, &r);
     struct timeval tv_end = r.ru_utime;
     int64 sumsec = static_cast<int64>(tv_end.tv_sec) - tv_start.tv_sec;
     int64 sumusec = static_cast<int64>(tv_end.tv_usec) - tv_start.tv_usec;
+#endif
     fprintf(stderr, "getproperty: %6.1f ns/call\n",
             (sumsec * 1e9 + sumusec * 1e3) / kIterations);
   }

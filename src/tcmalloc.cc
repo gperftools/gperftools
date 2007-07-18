@@ -45,12 +45,24 @@
 //  4. The pagemap (which maps from page-number to descriptor),
 //     can be read without holding any locks, and written while holding
 //     the "pageheap_lock".
+//  5. To improve performance, a subset of the information one can get
+//     from the pagemap is cached in a data structure, pagemap_cache_,
+//     that atomically reads and writes its entries.  This cache can be
+//     read and written without locking.
 //
 //     This multi-threaded access to the pagemap is safe for fairly
 //     subtle reasons.  We basically assume that when an object X is
 //     allocated by thread A and deallocated by thread B, there must
 //     have been appropriate synchronization in the handoff of object
-//     X from thread A to thread B.
+//     X from thread A to thread B.  The same logic applies to pagemap_cache_.
+//
+// THE PAGEID-TO-SIZECLASS CACHE
+// Hot PageID-to-sizeclass mappings are held by pagemap_cache_.  If this cache
+// returns 0 for a particular PageID then that means "no information," not that
+// the sizeclass is 0.  The cache may have stale information for pages that do
+// not hold the beginning of any free()'able object.  Staleness is eliminated
+// in Populate() for pages with sizeclass > 0 objects, and in do_malloc() and
+// do_memalign() for all other relevant pages.
 //
 // TODO: Bias reclamation to larger addresses
 // TODO: implement mallinfo/mallopt
@@ -72,25 +84,38 @@
 #else
 #include <sys/types.h>
 #endif
-#ifdef HAVE_STRUCT_MALLINFO
+#if defined(HAVE_MALLOC_H) && defined(HAVE_STRUCT_MALLINFO)
 #include <malloc.h>                        // for struct mallinfo
 #endif
 #include <string.h>
+#ifdef HAVE_PTHREAD
 #include <pthread.h>
+#endif
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <errno.h>
 #include <stdarg.h>
+#include "packed-cache-inl.h"
 #include "base/commandlineflags.h"
 #include "base/basictypes.h"               // gets us PRIu64
 #include "base/sysinfo.h"
 #include "base/spinlock.h"
 #include <google/malloc_hook.h>
 #include <google/malloc_extension.h>
-#include <google/stacktrace.h>
 #include "internal_logging.h"
 #include "pagemap.h"
 #include "system-alloc.h"
 #include "maybe_threads.h"
+
+// This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
+// you're porting to a system where you really can't get a stacktrace.
+#ifdef NO_TCMALLOC_SAMPLES
+  // We use #define so code compiles even if you #include stacktrace.h somehow.
+# define GetStackTrace(stack, depth, skip)  (0)
+#else
+# include <google/stacktrace.h>
+#endif
 
 // Even if we have support for thread-local storage in the compiler
 // and linker, the OS may not support it.  We need to check that at
@@ -101,9 +126,9 @@
     return kernel_supports_tls;
   }
 # if !HAVE_DECL_UNAME   // if too old for uname, probably too old for TLS
-  static void CheckIfKernelSupportsTLS() {
-    kernel_supports_tls = false;
-  }
+    static void CheckIfKernelSupportsTLS() {
+      kernel_supports_tls = false;
+    }
 # else
 #   include <sys/utsname.h>    // DECL_UNAME checked for <sys/utsname.h> too
     static void CheckIfKernelSupportsTLS() {
@@ -201,11 +226,17 @@ static unsigned int primes_list[] = {
 //      tcmalloc_sample_parameter/2
 // bytes of allocation, i.e., ~ once every 128KB.
 // Must be a prime number.
+#ifdef NO_TCMALLOC_SAMPLES
+DEFINE_int64(tcmalloc_sample_parameter, 0,
+             "Unused: code is compiled with NO_TCMALLOC_SAMPLES");
+static size_t sample_period = 0;
+#else
 DEFINE_int64(tcmalloc_sample_parameter, 262147,
 	     "Twice the approximate gap between sampling actions."
 	     " Must be a prime number. Otherwise will be rounded up to a "
 	     " larger prime number");
 static size_t sample_period = 262147;
+#endif
 // Protects sample_period above
 static SpinLock sample_period_lock(SpinLock::LINKER_INITIALIZED);
 
@@ -227,35 +258,28 @@ DEFINE_double(tcmalloc_release_rate, 1,
 // So for these larger sizes we have an array indexed by ceil(size/128).
 //
 // We flatten both logical arrays into one physical array and use
-// arithmetic to compute an appropriate index.  The "base_index[]"
-// array contains the bases of the two logical arrays.
-//
-// base_index[] contains non-obvious values.  We always add 127 to the
-// size before dividing it by either 8 or 128 to implement ceil()
-// efficiently.  Therefore base_index[0] is -15 to compensate for the
-// extra 127/8 we added to small sizes.  Similarly base_index[1] is
-// 120, so that the first index used by the second logical array is
-// just past the last index used by the first logical array.
+// arithmetic to compute an appropriate index.  The constants used by
+// ClassIndex() were selected to make the flattening work.
 //
 // Examples:
 //   Size       Expression                      Index
 //   -------------------------------------------------------
-//   0          -15 + ((0+127) / 8)             0
-//   1          -15 + ((1+127) / 8)             1
+//   0          (0 + 7) / 8                     0
+//   1          (1 + 7) / 8                     1
 //   ...
-//   1024       -15 + ((1024+127) / 8)          128
-//   1025       120 + ((1025+127) / 128)        129
+//   1024       (1024 + 7) / 8                  128
+//   1025       (1025 + 127 + (120<<7)) / 128   129
 //   ...
-//   32768      120 + ((32768+127) / 128)       376
+//   32768      (32768 + 127 + (120<<7)) / 128  376
 static const int kMaxSmallSize = 1024;
 static const int shift_amount[2] = { 3, 7 };  // For divides by 8 or 128
-static const int base_index[2] = { -15, 120 }; // For finding array bases
+static const int add_amount[2] = { 7, 127 + (120 << 7) };
 static unsigned char class_array[377];
 
 // Compute index of the class_array[] entry for a given size
 static inline int ClassIndex(size_t s) {
   const int i = (s > kMaxSmallSize);
-  return base_index[i] + ((s+127) >> shift_amount[i]);
+  return (s + add_amount[i]) >> shift_amount[i];
 }
 
 // Mapping from size class to max size storable in that class
@@ -392,7 +416,7 @@ static int NumMoveSize(size_t size) {
 
 // Initialize the mapping arrays
 static void InitSizeClasses() {
-  // Do some sanity checking on base_index[]/shift_amount[]/class_array[]
+  // Do some sanity checking on add_amount[]/shift_amount[]/class_array[]
   if (ClassIndex(0) < 0) {
     MESSAGE("Invalid class index %d for size 0\n", ClassIndex(0));
     abort();
@@ -600,9 +624,13 @@ typedef uintptr_t PageID;
 // Type that can hold the length of a run of pages
 typedef uintptr_t Length;
 
-// Convert byte size into pages
+static const Length kMaxValidPages = (~static_cast<Length>(0)) >> kPageShift;
+
+// Convert byte size into pages.  This won't overflow, but may return
+// an unreasonably large value if bytes is huge enough.
 static inline Length pages(size_t bytes) {
-  return ((bytes + kPageSize - 1) >> kPageShift);
+  return (bytes >> kPageShift) +
+      ((bytes & (kPageSize - 1)) > 0 ? 1 : 0);
 }
 
 // Convert a user size into the number of bytes that will actually be
@@ -610,6 +638,7 @@ static inline Length pages(size_t bytes) {
 static size_t AllocationSize(size_t bytes) {
   if (bytes > kMaxSize) {
     // Large object: we allocate an integral number of pages
+    ASSERT(bytes <= (kMaxValidPages << kPageShift));
     return pages(bytes) << kPageShift;
   } else {
     // Small object: find the size class to which it belongs
@@ -722,10 +751,12 @@ static void DLL_Prepend(Span* list, Span* span) {
 //   The following state is protected by pageheap_lock_.
 // -------------------------------------------------------------------------
 
+// size/depth are made the same size as a pointer so that some generic
+// code below can conveniently cast them back and forth to void*.
 static const int kMaxStackDepth = 31;
 struct StackTrace {
   uintptr_t size;          // Size of object
-  int       depth;         // Number of PC values stored in array below
+  uintptr_t depth;         // Number of PC values stored in array below
   void*     stack[kMaxStackDepth];
 };
 static PageHeapAllocator<StackTrace> stacktrace_allocator;
@@ -742,17 +773,21 @@ static StackTrace* growth_stacks = NULL;
 // -------------------------------------------------------------------------
 
 // We use PageMap2<> for 32-bit and PageMap3<> for 64-bit machines.
+// We also use a simple one-level cache for hot PageID-to-sizeclass mappings,
+// because sometimes the sizeclass is all the information we need.
 
 // Selector class -- general selector uses 3-level map
 template <int BITS> class MapSelector {
  public:
   typedef TCMalloc_PageMap3<BITS-kPageShift> Type;
+  typedef PackedCache<BITS, uint64> CacheType;
 };
 
 // A two-level map for 32-bit machines
 template <> class MapSelector<32> {
  public:
   typedef TCMalloc_PageMap2<32-kPageShift> Type;
+  typedef PackedCache<32-kPageShift, uint16> CacheType;
 };
 
 // -------------------------------------------------------------------------
@@ -815,10 +850,22 @@ class TCMalloc_PageHeap {
   // Release all pages on the free list for reuse by the OS:
   void ReleaseFreePages();
 
+  // Return 0 if we have no information, or else the correct sizeclass for p.
+  // Reads and writes to pagemap_cache_ do not require locking.
+  // The entries are 64 bits on 64-bit hardware and 16 bits on
+  // 32-bit hardware, and we don't mind raciness as long as each read of
+  // an entry yields a valid entry, not a partially updated entry.
+  size_t GetSizeClassIfCached(PageID p) const {
+    return pagemap_cache_.GetOrDefault(p, 0);
+  }
+  void CacheSizeClass(PageID p, size_t cl) const { pagemap_cache_.Put(p, cl); }
+
  private:
-  // Pick the appropriate map type based on pointer size
+  // Pick the appropriate map and cache types based on pointer size
   typedef MapSelector<8*sizeof(uintptr_t)>::Type PageMap;
+  typedef MapSelector<8*sizeof(uintptr_t)>::CacheType PageMapCache;
   PageMap pagemap_;
+  mutable PageMapCache pagemap_cache_;
 
   // We segregate spans of a given size into two circular linked
   // lists: one for normal spans, and one for spans whose memory
@@ -875,11 +922,13 @@ class TCMalloc_PageHeap {
 
 TCMalloc_PageHeap::TCMalloc_PageHeap()
     : pagemap_(MetaDataAlloc),
+      pagemap_cache_(0),
       free_pages_(0),
       system_bytes_(0),
       scavenge_counter_(0),
       // Start scavenging at kMaxPages list
       scavenge_index_(kMaxPages-1) {
+  COMPILE_ASSERT(kNumClasses <= (1 << PageMapCache::kValuebits), valuebits);
   DLL_Init(&large_.normal);
   DLL_Init(&large_.returned);
   for (int i = 0; i < kMaxPages; i++) {
@@ -890,9 +939,7 @@ TCMalloc_PageHeap::TCMalloc_PageHeap()
 
 Span* TCMalloc_PageHeap::New(Length n) {
   ASSERT(Check());
-
-  // n==0 occurs iff pages() overflowed when we added kPageSize-1 to n
-  if (n == 0) return NULL;
+  ASSERT(n > 0);
 
   // Find first size >= n that has a non-empty list
   for (Length s = n; s < kMaxPages; s++) {
@@ -1211,6 +1258,7 @@ static void RecordGrowth(size_t growth) {
 
 bool TCMalloc_PageHeap::GrowHeap(Length n) {
   ASSERT(kMaxPages >= kMinSystemAlloc);
+  if (n > kMaxValidPages) return false;
   Length ask = (n>kMinSystemAlloc) ? n : static_cast<Length>(kMinSystemAlloc);
   void* ptr = TCMalloc_SystemAlloc(ask << kPageShift, kPageSize);
   if (ptr == NULL) {
@@ -1812,6 +1860,13 @@ void TCMalloc_Central_FreeList::Populate() {
     lock_.Lock();
     return;
   }
+  ASSERT(span->length == npages);
+  // Cache sizeclass info eagerly.  Locking is not necessary.
+  // (Instead of being eager, we could just replace any stale info
+  // about this span, but that seems to be no better in practice.)
+  for (int i = 0; i < npages; i++) {
+    pageheap->CacheSizeClass(span->start + i, size_class_);
+  }
 
   // Split the block into pieces and add to the free-list
   // TODO: coloring of objects to avoid cache conflicts?
@@ -1980,7 +2035,7 @@ void TCMalloc_ThreadCache::PickNextSample(size_t k) {
   }
 
   bytes_until_sample_ += rnd_ % sample_period;
-  
+
   if (k > (static_cast<size_t>(-1) >> 2)) {
     // If the user has asked for a huge allocation then it is possible
     // for the code below to loop infinitely.  Just return (note that
@@ -2044,8 +2099,8 @@ inline TCMalloc_ThreadCache* TCMalloc_ThreadCache::GetThreadHeap() {
   if (KernelSupportsTLS())
     return threadlocal_heap;
 #endif
-  return
-      reinterpret_cast<TCMalloc_ThreadCache *>(perftools_pthread_getspecific(heap_key));
+  return reinterpret_cast<TCMalloc_ThreadCache *>(
+      perftools_pthread_getspecific(heap_key));
 }
 
 inline TCMalloc_ThreadCache* TCMalloc_ThreadCache::GetCache() {
@@ -2337,7 +2392,7 @@ static void** DumpStackTraces() {
       break;
     }
 
-    result[used_slots+0] = reinterpret_cast<void*>(1);
+    result[used_slots+0] = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
     result[used_slots+1] = reinterpret_cast<void*>(stack->size);
     result[used_slots+2] = reinterpret_cast<void*>(stack->depth);
     for (int d = 0; d < stack->depth; d++) {
@@ -2345,7 +2400,7 @@ static void** DumpStackTraces() {
     }
     used_slots += 3 + stack->depth;
   }
-  result[used_slots] = reinterpret_cast<void*>(0);
+  result[used_slots] = reinterpret_cast<void*>(static_cast<uintptr_t>(0));
   return result;
 }
 
@@ -2381,7 +2436,7 @@ static void** DumpHeapGrowthStackTraces() {
       break;
     }
 
-    result[used_slots+0] = reinterpret_cast<void*>(1);
+    result[used_slots+0] = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
     result[used_slots+1] = reinterpret_cast<void*>(t->size);
     result[used_slots+2] = reinterpret_cast<void*>(t->depth);
     for (int d = 0; d < t->depth; d++) {
@@ -2389,7 +2444,7 @@ static void** DumpHeapGrowthStackTraces() {
     }
     used_slots += 3 + t->depth;
   }
-  result[used_slots] = reinterpret_cast<void*>(0);
+  result[used_slots] = reinterpret_cast<void*>(static_cast<uintptr_t>(0));
   return result;
 }
 
@@ -2541,7 +2596,7 @@ static Span* DoSampledAllocation(size_t size) {
   if (span == NULL) {
     return NULL;
   }
-    
+
   // Allocate stack trace
   StackTrace *stack = stacktrace_allocator.New();
   if (stack == NULL) {
@@ -2557,6 +2612,25 @@ static Span* DoSampledAllocation(size_t size) {
   return span;
 }
 
+static inline bool CheckCachedSizeClass(void *ptr) {
+  PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
+  size_t cached_value = pageheap->GetSizeClassIfCached(p);
+  return cached_value == 0 ||
+      cached_value == pageheap->GetDescriptor(p)->sizeclass;
+}
+
+static inline void* CheckedMallocResult(void *result)
+{
+  ASSERT(result == 0 || CheckCachedSizeClass(result));
+  return result;
+}
+
+static inline void* SpanToMallocResult(Span *span) {
+  pageheap->CacheSizeClass(span->start, 0);
+  return
+      CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
+}
+
 static inline void* do_malloc(size_t size) {
   void* ret = NULL;
 
@@ -2565,17 +2639,19 @@ static inline void* do_malloc(size_t size) {
   if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
     Span* span = DoSampledAllocation(size);
     if (span != NULL) {
-      ret = reinterpret_cast<void*>(span->start << kPageShift);
+      ret = SpanToMallocResult(span);
     }
   } else if (size > kMaxSize) {
     // Use page-level allocator
     SpinLockHolder h(&pageheap_lock);
     Span* span = pageheap->New(pages(size));
     if (span != NULL) {
-      ret = reinterpret_cast<void*>(span->start << kPageShift);
+      ret = SpanToMallocResult(span);
     }
   } else {
-    ret = heap->Allocate(size);
+    // The common case, and also the simplest.  This just pops the
+    // size-appropriate freelist, afer replenishing it if it's empty.
+    ret = CheckedMallocResult(heap->Allocate(size));
   }
   if (ret == NULL) errno = ENOMEM;
   return ret;
@@ -2585,13 +2661,16 @@ static inline void do_free(void* ptr) {
   if (ptr == NULL) return;
   ASSERT(pageheap != NULL);  // Should not call free() before malloc()
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  Span* span = pageheap->GetDescriptor(p);
+  Span* span = NULL;
+  size_t cl = pageheap->GetSizeClassIfCached(p);
 
-  ASSERT(span != NULL);
-  ASSERT(!span->free);
-  const size_t cl = span->sizeclass;
+  if (cl == 0) {
+    span = pageheap->GetDescriptor(p);
+    cl = span->sizeclass;
+    pageheap->CacheSizeClass(p, cl);
+  }
   if (cl != 0) {
-    ASSERT(!span->sample);
+    ASSERT(!pageheap->GetDescriptor(p)->sample);
     TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCacheIfPresent();
     if (heap != NULL) {
       heap->Deallocate(ptr, cl);
@@ -2603,7 +2682,7 @@ static inline void do_free(void* ptr) {
   } else {
     SpinLockHolder h(&pageheap_lock);
     ASSERT(reinterpret_cast<uintptr_t>(ptr) % kPageSize == 0);
-    ASSERT(span->start == p);
+    ASSERT(span != NULL && span->start == p);
     if (span->sample) {
       DLL_Remove(span);
       stacktrace_allocator.Delete(reinterpret_cast<StackTrace*>(span->objects));
@@ -2643,7 +2722,7 @@ static void* do_memalign(size_t align, size_t size) {
     }
     if (cl < kNumClasses) {
       TCMalloc_ThreadCache* heap = TCMalloc_ThreadCache::GetCache();
-      return heap->Allocate(class_to_size[cl]);
+      return CheckedMallocResult(heap->Allocate(class_to_size[cl]));
     }
   }
 
@@ -2655,17 +2734,16 @@ static void* do_memalign(size_t align, size_t size) {
     // TODO: We could put the rest of this page in the appropriate
     // TODO: cache but it does not seem worth it.
     Span* span = pageheap->New(pages(size));
-    if (span == NULL) return NULL;
-    return reinterpret_cast<void*>(span->start << kPageShift);
+    return span == NULL ? NULL : SpanToMallocResult(span);
   }
 
   // Allocate extra pages and carve off an aligned portion
-  const int alloc = pages(size + align);
+  const Length alloc = pages(size + align);
   Span* span = pageheap->New(alloc);
   if (span == NULL) return NULL;
 
   // Skip starting portion so that we end up aligned
-  int skip = 0;
+  Length skip = 0;
   while ((((span->start+skip) << kPageShift) & (align - 1)) != 0) {
     skip++;
   }
@@ -2677,13 +2755,13 @@ static void* do_memalign(size_t align, size_t size) {
   }
 
   // Skip trailing portion that we do not need to return
-  const int needed = pages(size);
+  const Length needed = pages(size);
   ASSERT(span->length >= needed);
   if (span->length > needed) {
     Span* trailer = pageheap->Split(span, needed);
     pageheap->Delete(trailer);
   }
-  return reinterpret_cast<void*>(span->start << kPageShift);
+  return SpanToMallocResult(span);
 }
 
 // Helpers for use by exported routines below:
@@ -2732,53 +2810,53 @@ static inline struct mallinfo do_mallinfo() {
 //         the call to the (de)allocation function.
 
 // Put all callers of MallocHook::Invoke* in this module into
-// ATTRIBUTE_SECTION(google_malloc_allocators) section,
+// ATTRIBUTE_SECTION(google_malloc) section,
 // so that MallocHook::GetCallerStackTrace can function accurately:
 
 // NOTE: __THROW expands to 'throw()', which means 'never throws.'  Urgh.
 extern "C" {
   void* malloc(size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   void free(void* ptr)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   void* realloc(void* ptr, size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   void* calloc(size_t nmemb, size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   void cfree(void* ptr)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
 
   void* memalign(size_t __alignment, size_t __size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   int posix_memalign(void** ptr, size_t align, size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   void* valloc(size_t __size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
   void* pvalloc(size_t __size)
-      __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+      __THROW ATTRIBUTE_SECTION(google_malloc);
 }
 
 static void *MemalignOverride(size_t align, size_t size, const void *caller)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 
 void* operator new(size_t size)
-    ATTRIBUTE_SECTION(google_malloc_allocators);
+    ATTRIBUTE_SECTION(google_malloc);
 void operator delete(void* p)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 void* operator new[](size_t size)
-    ATTRIBUTE_SECTION(google_malloc_allocators);
+    ATTRIBUTE_SECTION(google_malloc);
 void operator delete[](void* p)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 
 // And the nothrow variants of these:
 void* operator new(size_t size, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 void operator delete(void* p, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 void* operator new[](size_t size, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 void operator delete[](void* p, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc_allocators);
+    __THROW ATTRIBUTE_SECTION(google_malloc);
 
 extern "C" void* malloc(size_t size) __THROW {
   void* result = do_malloc(size);
@@ -2823,11 +2901,18 @@ extern "C" void* realloc(void* old_ptr, size_t new_size) __THROW {
 
   // Get the size of the old entry
   const PageID p = reinterpret_cast<uintptr_t>(old_ptr) >> kPageShift;
-  Span* span = pageheap->GetDescriptor(p);
+  size_t cl = pageheap->GetSizeClassIfCached(p);
+  Span *span = NULL;
   size_t old_size;
-  if (span->sizeclass != 0) {
-    old_size = ByteSizeForClass(span->sizeclass);
+  if (cl == 0) {
+    span = pageheap->GetDescriptor(p);
+    cl = span->sizeclass;
+    pageheap->CacheSizeClass(p, cl);
+  }
+  if (cl != 0) {
+    old_size = ByteSizeForClass(cl);
   } else {
+    ASSERT(span != NULL);
     old_size = span->length << kPageShift;
   }
 
@@ -2842,6 +2927,9 @@ extern "C" void* realloc(void* old_ptr, size_t new_size) __THROW {
     MallocHook::InvokeNewHook(new_ptr, new_size);
     memcpy(new_ptr, old_ptr, ((old_size < new_size) ? old_size : new_size));
     MallocHook::InvokeDeleteHook(old_ptr);
+    // We could use a variant of do_free() that leverages the fact
+    // that we already know the sizeclass of old_ptr.  The benefit
+    // would be small, so don't bother.
     do_free(old_ptr);
     return new_ptr;
   } else {
@@ -3004,13 +3092,16 @@ extern "C" struct mallinfo mallinfo(void) {
 // Some library routines on RedHat 9 allocate memory using malloc()
 // and free it using __libc_free() (or vice-versa).  Since we provide
 // our own implementations of malloc/free, we need to make sure that
-// the __libc_XXX variants also point to the same implementations.
+// the __libc_XXX variants (defined as part of glibc) also point to
+// the same implementations.
 //-------------------------------------------------------------------
 
+#if defined(__GLIBC__)
 extern "C" {
-#if defined(__GNUC__) && defined(HAVE___ATTRIBUTE__)
-  // Potentially faster variants that use the gcc alias extension
-#define ALIAS(x) __attribute__ ((weak, alias (x)))
+# if defined(__GNUC__) && !defined(__MACH__) && defined(HAVE___ATTRIBUTE__)
+  // Potentially faster variants that use the gcc alias extension.
+  // Mach-O (Darwin) does not support weak aliases, hence the __MACH__ check.
+# define ALIAS(x) __attribute__ ((weak, alias (x)))
   void* __libc_malloc(size_t size)              ALIAS("malloc");
   void  __libc_free(void* ptr)                  ALIAS("free");
   void* __libc_realloc(void* ptr, size_t size)  ALIAS("realloc");
@@ -3020,8 +3111,8 @@ extern "C" {
   void* __libc_valloc(size_t size)              ALIAS("valloc");
   void* __libc_pvalloc(size_t size)             ALIAS("pvalloc");
   int __posix_memalign(void** r, size_t a, size_t s) ALIAS("posix_memalign");
-#undef ALIAS
-#else
+# undef ALIAS
+# else   /* not __GNUC__ */
   // Portable wrappers
   void* __libc_malloc(size_t size)              { return malloc(size);       }
   void  __libc_free(void* ptr)                  { free(ptr);                 }
@@ -3034,8 +3125,9 @@ extern "C" {
   int __posix_memalign(void** r, size_t a, size_t s) {
     return posix_memalign(r, a, s);
   }
-#endif
+# endif  /* __GNUC__ */
 }
+#endif   /* __GLIBC__ */
 
 // Override __libc_memalign in libc on linux boxes specially.
 // They have a bug in libc that causes them to (very rarely) allocate

@@ -36,15 +36,19 @@
 // least, the following code checks that return values are properly
 // aligned, and that writing into the objects works.
 
-#include "config.h"
-#define _XOPEN_SOURCE 600  // to get posix_memalign
+#include "config_for_unittests.h"
+#include "tcmalloc.h"      // must come first, to pick up posix_memalign
 #include <stdlib.h>        // defines posix_memalign
 #include <stdio.h>         // for the printf at the end
-#include <stdint.h>
-#include <unistd.h>        // for sysconf()
-#include <malloc.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>        // for uintptr_t
+#endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>        // for getpagesize()
+#endif
 #include "base/basictypes.h"
 #include "base/logging.h"
+
 
 // Return the next interesting size/delta to check.  Returns -1 if no more.
 static int NextSize(int size) {
@@ -158,7 +162,7 @@ int main(int argc, char** argv) {
     }
   }
 
-  const int pagesize = sysconf(_SC_PAGESIZE);
+  const int pagesize = getpagesize();
   {
     // valloc
     for (int s = 0; s != -1; s = NextSize(s)) {

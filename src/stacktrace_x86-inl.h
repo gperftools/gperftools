@@ -95,9 +95,7 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
     } else {
       result[n++] = *(sp+1);
     }
-    void** new_sp = NextStackFrame(sp);
-    if (!new_sp) break;
-    sp = new_sp;
+    sp = NextStackFrame(sp);
   }
   return n;
 }

@@ -32,9 +32,21 @@
 //         Maxim Lifantsev (refactoring)
 //
 
-#include <fcntl.h>
+#include "config.h"
+
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>   // for write()
+#endif
+#include <fcntl.h>    // for open()
+#ifdef HAVE_GLOB_H
 #include <glob.h>
+#endif
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>   // for PRIxPTR
+#endif
+#include <errno.h>
 #include <string>
+#include <algorithm>  // for sort()
 
 #include "heap-profile-table.h"
 
@@ -101,9 +113,8 @@ static bool ByAllocatedSpace(HeapProfileTable::Stats* a,
 // and return the actual size occupied in 'buf'.
 // We do not provision for 0-terminating 'buf'.
 static int FillProcSelfMaps(char buf[], int size) {
-  int buflen = snprintf(buf, size, kProcSelfMapsHeader);
-  if (buflen < 0 || buflen >= size) return 0;
-  int maps = open("/proc/self/maps", O_RDONLY);
+  const int maps = open("/proc/self/maps", O_RDONLY);
+  int buflen = 0;
   if (maps >= 0) {
     while (buflen < size) {
       ssize_t r;
@@ -120,8 +131,7 @@ static int FillProcSelfMaps(char buf[], int size) {
 // It seems easier to repeat parts of FillProcSelfMaps here than to
 // reuse it via a call.
 static void DumpProcSelfMaps(int fd) {
-  FDWrite(fd, kProcSelfMapsHeader, sizeof(kProcSelfMapsHeader)-1);  // chop \0
-  int maps = open("/proc/self/maps", O_RDONLY);
+  const int maps = open("/proc/self/maps", O_RDONLY);
   if (maps >= 0) {
     char buf[512];
     while (1) {
@@ -283,8 +293,8 @@ int HeapProfileTable::UnparseBucket(const Bucket& b,
   if (printed < 0 || printed >= bufsize - buflen) return buflen;
   buflen += printed;
   for (int d = 0; d < b.depth; d++) {
-    printed = snprintf(buf + buflen, bufsize - buflen, " 0x%08lx",
-                       (unsigned long)b.stack[d]);
+    printed = snprintf(buf + buflen, bufsize - buflen, " 0x%08" PRIxPTR,
+                       reinterpret_cast<uintptr_t>(b.stack[d]));
     if (printed < 0 || printed >= bufsize - buflen) return buflen;
     buflen += printed;
   }
@@ -310,21 +320,37 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
 
   sort(list, list + num_buckets_, ByAllocatedSpace);
 
+  // Our file format is "bucket, bucket, ..., bucket, proc_self_maps_info".
+  // In the cases buf is too small, we'd rather leave out the last
+  // buckets than leave out the /proc/self/maps info.  To ensure that,
+  // we actually print the /proc/self/maps info first, then move it to
+  // the end of the buffer, then write the bucket info into whatever
+  // is remaining, and then move the maps info one last time to close
+  // any gaps.  Whew!
+  int map_length = snprintf(buf, size, "%s", kProcSelfMapsHeader);
+  if (map_length < 0 || map_length >= size) return 0;
+  map_length += FillProcSelfMaps(buf + map_length, size - map_length);
+  RAW_DCHECK(map_length <= size, "");
+  char* const map_start = buf + size - map_length;      // move to end
+  memmove(map_start, buf, map_length);
+  size -= map_length;
+
   Stats stats;
   memset(&stats, 0, sizeof(stats));
-  int buflen = snprintf(buf, size, kProfileHeader);
-  if (buflen < 0 || buflen >= size) return 0;
-  buflen = UnparseBucket(total_, buf, buflen, size, &stats);
+  int bucket_length = snprintf(buf, size, "%s", kProfileHeader);
+  if (bucket_length < 0 || bucket_length >= size) return 0;
+  bucket_length = UnparseBucket(total_, buf, bucket_length, size, &stats);
   for (int i = 0; i < n; i++) {
-    buflen = UnparseBucket(*list[i], buf, buflen, size, &stats);
+    bucket_length = UnparseBucket(*list[i], buf, bucket_length, size, &stats);
   }
-  RAW_DCHECK(buflen < size, "");
+  RAW_DCHECK(bucket_length < size, "");
 
   dealloc_(list);
 
-  buflen += FillProcSelfMaps(buf + buflen, size - buflen);
+  RAW_DCHECK(buf + bucket_length <= map_start, "");
+  memmove(buf + bucket_length, map_start, map_length);  // close the gap
 
-  return buflen;
+  return bucket_length + map_length;
 }
 
 void HeapProfileTable::FilteredDumpIterator(void* ptr, AllocValue v,
@@ -359,6 +385,7 @@ bool HeapProfileTable::DumpFilteredProfile(const char* file_name,
     memset(profile_stats, 0, sizeof(*profile_stats));
     const DumpArgs args(fd, dump_alloc_addresses, filter, profile_stats);
     allocation_->Iterate<const DumpArgs&>(FilteredDumpIterator, args);
+    FDWrite(fd, kProcSelfMapsHeader, strlen(kProcSelfMapsHeader));
     DumpProcSelfMaps(fd);
     NO_INTR(close(fd));
     return true;
@@ -372,6 +399,7 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
   if (!FLAGS_cleanup_old_heap_profiles)
     return;
   string pattern = string(prefix) + ".*" + kFileExt;
+#if defined(HAVE_GLOB_H)
   glob_t g;
   const int r = glob(pattern.c_str(), GLOB_ERR, NULL, &g);
   if (r == 0 || r == GLOB_NOMATCH) {
@@ -386,4 +414,7 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
     }
   }
   globfree(&g);
+#else   /* HAVE_GLOB_H */
+  RAW_LOG(WARNING, "Unable to remove old heap profiles (can't run glob())");
+#endif
 }

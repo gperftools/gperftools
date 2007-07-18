@@ -44,7 +44,9 @@
 // to REG_RIP.  (We can use some trickery to get around that need, though.)
 // Note this #define must come first!
 #define _GNU_SOURCE 1
-// If #define _GNU_SOURCE causes problems, this might work instead:
+// If #define _GNU_SOURCE causes problems, this might work instead
+// for __x86_64__.  It will cause problems for FreeBSD though!, because
+// it turns off the needed __BSD_VISIBLE.
 //#define _XOPEN_SOURCE 500
 #include <signal.h>
 
@@ -59,7 +61,9 @@
 #include <sys/types.h>
 #endif
 #include <errno.h>
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
 #include <sys/time.h>
 #include <string.h>
 #include <fcntl.h>
@@ -137,7 +141,7 @@ static CallUnrollInfo callunrollinfo[] = {
 
 // Figure out how to get the PC for our architecture.
 
-// __i386
+// __i386, including (at least) Linux
 #if defined HAVE_STRUCT_SIGCONTEXT_EIP
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
@@ -149,7 +153,7 @@ inline void* GetPC(const SigStructure& sig_structure ) {
       (~sig_structure.eip & 0xffff0000) != 0 &&
       (sig_structure.esp & 0xffff0000) != 0) {
     char* eip = (char*)sig_structure.eip;
-    for (int i = 0; i < ARRAYSIZE(callunrollinfo); ++i) {
+    for (int i = 0; i < arraysize(callunrollinfo); ++i) {
       if (!memcmp(eip + callunrollinfo[i].pc_offset, callunrollinfo[i].ins,
                   callunrollinfo[i].ins_size)) {
         // We have a match.
@@ -163,7 +167,7 @@ inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.eip;
 }
 
-// freebsd (__x386, I assume)
+// freebsd (__i386, I assume) and Mac OS X (i386)
 #elif defined HAVE_STRUCT_SIGCONTEXT_SC_EIP
 typedef struct sigcontext SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
@@ -201,6 +205,13 @@ inline void* GetPC(const SigStructure& sig_structure ) {
 typedef struct siginfo SigStructure;
 inline void* GetPC(const SigStructure& sig_structure ) {
   return (void*)sig_structure.si_faddr; // maybe not correct
+}
+
+// mac (OS X) powerpc, 32 bit (64-bit would use sigcontext64, on OS X 10.4+)
+#elif defined HAVE_STRUCT_SIGCONTEXT_SC_IR
+typedef struct sigcontext SigStructure;
+inline void* GetPC(const SigStructure& sig_structure ) {
+  return (void*)sig_structure.sc_ir;  // a guess, based on the comment /* pc */
 }
 
 // ibook powerpc
@@ -264,7 +275,7 @@ class ProfileData {
 
   // Is profiling turned on at all
   inline bool enabled() { return out_ >= 0; }
-    
+
   // What is the frequency of interrupts (ticks per second)
   inline int frequency() { return frequency_; }
 
@@ -279,7 +290,7 @@ class ProfileData {
   void Stop();
 
   void GetCurrentState(ProfilerState* state);
-  
+
  private:
   static const int kMaxStackDepth = 64;         // Max stack depth profiled
   static const int kMaxFrequency = 4000;        // Largest allowed frequency
@@ -310,7 +321,7 @@ class ProfileData {
   Mutex         state_lock_;    // Protects filename, etc.(not used in handler)
   SpinLock      table_lock_;    // SpinLock is safer in signal handlers
   Bucket*       hash_;          // hash table
-  
+
   Slot*         evict_;         // evicted entries
   int           num_evicted_;   // how many evicted entries?
   int           out_;           // fd for output file
@@ -384,8 +395,10 @@ ProfileData::ProfileData() :
     return;
   }
   // We don't enable profiling if setuid -- it's a security risk
+#ifdef HAVE_GETEUID
   if (getuid() != geteuid())
     return;
+#endif
 
   if (!Start(fname.c_str())) {
     fprintf(stderr, "Can't turn on cpu profiling: ");
@@ -413,8 +426,8 @@ bool ProfileData::Start(const char* fname) {
 
   {
     SpinLockHolder l2(&table_lock_);
-  
-    // Reset counters 
+
+    // Reset counters
     num_evicted_ = 0;
     count_       = 0;
     evictions_   = 0;
@@ -614,7 +627,7 @@ void ProfileData::Add(unsigned long pc) {
       }
     }
   }
-  
+
   if (!done) {
     // Evict entry with smallest count
     Entry* e = &bucket->entry[0];
@@ -627,7 +640,7 @@ void ProfileData::Add(unsigned long pc) {
       evictions_++;
       Evict(*e);
     }
-    
+
     // Use the newly evicted entry
     e->depth = depth;
     e->count = 1;
@@ -670,7 +683,7 @@ void ProfileData::prof_handler(int sig, SigStructure sig_structure) {
 // Start interval timer for the current thread.  We do this for
 // every known thread.  If profiling is off, the generated signals
 // are ignored, otherwise they are captured by prof_handler().
-void ProfilerRegisterThread() {
+extern "C" void ProfilerRegisterThread() {
   // TODO: Randomize the initial interrupt value?
   // TODO: Randomize the inter-interrupt period on every interrupt?
   struct itimerval timer;
@@ -681,26 +694,26 @@ void ProfilerRegisterThread() {
 }
 
 // DEPRECATED routines
-void ProfilerEnable() { }
-void ProfilerDisable() { }
+extern "C" void ProfilerEnable() { }
+extern "C" void ProfilerDisable() { }
 
-void ProfilerFlush() {
+extern "C" void ProfilerFlush() {
   pdata.FlushTable();
 }
 
-bool ProfilingIsEnabledForAllThreads() { 
+extern "C" bool ProfilingIsEnabledForAllThreads() {
   return pdata.enabled();
 }
 
-bool ProfilerStart(const char* fname) {
+extern "C" bool ProfilerStart(const char* fname) {
   return pdata.Start(fname);
 }
 
-void ProfilerStop() {
+extern "C" void ProfilerStop() {
   pdata.Stop();
 }
 
-void ProfilerGetCurrentState(ProfilerState* state) {
+extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
   pdata.GetCurrentState(state);
 }
 

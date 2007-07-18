@@ -170,7 +170,10 @@ way.</p>
 <p>To use this kind of checking code, bracket the code you want
 checked by creating a <code>HeapLeakChecker</code> object at the
 beginning of the code segment, and calling <code>*SameHeap()</code> or
-<code>*NoLeaks()</code> at the end.</p>
+<code>*NoLeaks()</code> at the end.  These functions, and all others
+referred to in this file, are declared in
+<code>&lt;google/heap-checker.h&gt;</code>.
+</p>
 
 <p>Here's an example:</p>
 <pre>
@@ -369,6 +372,50 @@ augment the cleanup routines, but still want to run in "strict" or
 "draconian" mode, consider using <A
 HREF="#tweaking"><code>REGISTER_HEAPCHECK_CLEANUP</code></A>.</p>
 
+<h2>Hints for Debugging Detected Leaks</h2>
+
+<p>Sometimes it can be useful to not only know the exact code that
+allocates the leaked objects, but also the addresses of the leaked objects.
+Combining this e.g. with additional logging in the program
+one can then track which subset of the allocations
+made at a certain spot in the code are leaked.
+<br/>
+To get the addresses of all leaked objects
+  define the environment variable <code>HEAP_CHECK_IDENTIFY_LEAKS</code>
+  to be <code>1</code>.
+The object addresses will be reported in the form of addresses
+of fake immediate callers of the memory allocation routines.
+Note that the performance of doing leak-checking in this mode
+can be noticeably worse than the default mode.
+</p>
+
+<p>One relatively common class of leaks that don't look real
+is the case of multiple initialization.
+In such cases the reported leaks are typically things that are
+linked from some global objects,
+which are initialized and say never modified again.
+The non-obvious cause of the leak is frequently the fact that
+the initialization code for these objects executes more than once.
+<br/>
+E.g. if the code of some <code>.cc</code> file is made to be included twice
+into the binary, then the constructors for global objects defined in that file
+will execute twice thus leaking the things allocated on the first run.
+<br/>
+Similar problems can occur if object initialization is done more explicitly
+e.g. on demand by a slightly buggy code
+that does not always ensure only-once initialization.
+</p>
+
+<p>
+A more rare but even more puzzling problem can be use of not properly
+aligned pointers (maybe inside of not properly aligned objects).
+Normally such pointers are not followed by the leak checker,
+hence the objects reachable only via such pointers are reported as leaks.
+If you suspect this case
+  define the environment variable <code>HEAP_CHECK_TEST_POINTER_ALIGNMENT</code>
+  to be <code>1</code>
+and then look closely at the generated leak report messages.
+</p>
 
 <h1>How It Works</h1>
 
@@ -569,7 +616,7 @@ depending on how the compiled code works with the stack:</p>
 <address>Maxim Lifantsev<br>
 <!-- Created: Tue Dec 19 10:43:14 PST 2000 -->
 <!-- hhmts start -->
-Last modified: Wed Mar 21 15:00:42 PDT 2007  (csilvers)
+Last modified: Fri Jul 13 13:14:33 PDT 2007
 <!-- hhmts end -->
 </address>
 </body>
