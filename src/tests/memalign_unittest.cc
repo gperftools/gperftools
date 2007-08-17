@@ -37,14 +37,22 @@
 // aligned, and that writing into the objects works.
 
 #include "config_for_unittests.h"
-#include "tcmalloc.h"      // must come first, to pick up posix_memalign
+
+// Complicated ordering requirements.  tcmalloc.h defines (indirectly)
+// _POSIX_C_SOURCE, which it needs so stdlib.h defines posix_memalign.
+// unistd.h, on the other hand, requires _POSIX_C_SOURCE to be unset,
+// at least on Mac OS X, in order to define getpagesize.  The solution
+// is to #include unistd.h first.  This is safe because unistd.h
+// doesn't sub-include stdlib.h, so we'll still get posix_memalign
+// when we #include stdlib.h.  Blah.
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>        // for getpagesize()
+#endif
+#include "tcmalloc.h"      // must come early, to pick up posix_memalign
 #include <stdlib.h>        // defines posix_memalign
 #include <stdio.h>         // for the printf at the end
 #ifdef HAVE_STDINT_H
 #include <stdint.h>        // for uintptr_t
-#endif
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>        // for getpagesize()
 #endif
 #include "base/basictypes.h"
 #include "base/logging.h"

@@ -31,8 +31,11 @@
  * Author: Markus Gutschke
  */
 
+#include "config.h"
 #include <stdio.h>         /* needed for NULL on some powerpc platforms (?!) */
-#include <sys/prctl.h>
+#ifdef HAVE_SYS_PRCTL
+# include <sys/prctl.h>
+#endif
 #include "base/thread_lister.h"
 #include "base/linuxthreads.h"
 /* Include other thread listers here that define THREADS macro
@@ -50,15 +53,19 @@ int ListAllProcessThreads(void *parameter,
   int rc;
   va_list ap;
 
+#ifdef HAVE_SYS_PRCTL
   int dumpable = prctl(PR_GET_DUMPABLE, 0);
   if (!dumpable)
     prctl(PR_SET_DUMPABLE, 1);
+#endif
   va_start(ap, callback);
   pid_t pid = getpid();
   rc = callback(parameter, 1, &pid, ap);
   va_end(ap);
+#ifdef HAVE_SYS_PRCTL
   if (!dumpable)
     prctl(PR_SET_DUMPABLE, 0);
+#endif
   return rc;
 }
 
@@ -66,4 +73,4 @@ int ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
   return 1;
 }
 
-#endif
+#endif   /* ifndef THREADS */

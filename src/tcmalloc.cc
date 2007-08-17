@@ -546,7 +546,7 @@ static void InitSizeClasses() {
 // Metadata allocator -- keeps stats about how many bytes allocated
 static uint64_t metadata_system_bytes = 0;
 static void* MetaDataAlloc(size_t bytes) {
-  void* result = TCMalloc_SystemAlloc(bytes);
+  void* result = TCMalloc_SystemAlloc(bytes, NULL);
   if (result != NULL) {
     metadata_system_bytes += bytes;
   }
@@ -1260,15 +1260,17 @@ bool TCMalloc_PageHeap::GrowHeap(Length n) {
   ASSERT(kMaxPages >= kMinSystemAlloc);
   if (n > kMaxValidPages) return false;
   Length ask = (n>kMinSystemAlloc) ? n : static_cast<Length>(kMinSystemAlloc);
-  void* ptr = TCMalloc_SystemAlloc(ask << kPageShift, kPageSize);
+  size_t actual_size;
+  void* ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
   if (ptr == NULL) {
     if (n < ask) {
       // Try growing just "n" pages
       ask = n;
-      ptr = TCMalloc_SystemAlloc(ask << kPageShift, kPageSize);
+      ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
     }
     if (ptr == NULL) return false;
   }
+  ask = actual_size >> kPageShift;
   RecordGrowth(ask << kPageShift);
 
   uint64_t old_system_bytes = system_bytes_;
@@ -2562,6 +2564,9 @@ class TCMallocGuard {
     // Check whether the kernel also supports TLS (needs to happen at runtime)
     CheckIfKernelSupportsTLS();
 #endif
+#ifdef WIN32                    // patch the windows VirtualAlloc, etc.
+    PatchWindowsFunctions();    // defined in windows/patch_functions.cc
+#endif
     free(malloc(1));
     TCMalloc_ThreadCache::InitTSD();
     free(malloc(1));
@@ -2575,6 +2580,9 @@ class TCMallocGuard {
       if (level < 1) level = 1;
       PrintStats(level);
     }
+#ifdef WIN32
+    UnpatchWindowsFunctions();
+#endif
   }
 };
 static TCMallocGuard module_enter_exit_hook;
@@ -2803,6 +2811,17 @@ static inline struct mallinfo do_mallinfo() {
 //-------------------------------------------------------------------
 // Exported routines
 //-------------------------------------------------------------------
+
+// For Windows, it's not possible to override the system
+// malloc/calloc/realloc/free.  Instead, we define our own version and
+// then patch the windows assembly code to have the windows code call
+// ours.  This requires our functions have distinct names.
+#ifdef WIN32
+# define malloc   Perftools_malloc
+# define calloc   Perftools_calloc
+# define realloc  Perftools_realloc
+# define free     Perftools_free
+#endif
 
 // CAVEAT: The code structure below ensures that MallocHook methods are always
 //         called from the stack frame of the invoked allocation function.

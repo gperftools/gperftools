@@ -40,11 +40,13 @@
 #include <assert.h>
 #include <stdarg.h>    // for va_list, va_start, va_end
 #include <windows.h>
-#include <TlHelp32.h>  // for CreateToolhelp32Snapshot
 #include <dbghelp.h>   // Provided with Microsoft Debugging Tools for Windows
 #include "port.h"
 #include "base/logging.h"
 #include "system-alloc.h"
+
+// -----------------------------------------------------------------------
+// Basic libraries
 
 // These call the windows _vsnprintf, but always NUL-terminate.
 int safe_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
@@ -77,47 +79,8 @@ extern "C" PERFTOOLS_DLL_DECL void* __sbrk(ptrdiff_t increment) {
   return NULL;
 }
 
-// These two functions replace system-alloc.cc
-
-static SpinLock alloc_lock(SpinLock::LINKER_INITIALIZED);
-
-// This is mostly like MmapSysAllocator::Alloc, except it does these weird
-// munmap's in the middle of the page, which is forbidden in windows.
-extern void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
-  SpinLockHolder sh(&alloc_lock);
-  // Align on the pagesize boundary
-  const int pagesize = getpagesize();
-  if (alignment < pagesize) alignment = pagesize;
-  size = ((size + alignment - 1) / alignment) * alignment;
-
-  // Ask for extra memory if alignment > pagesize
-  size_t extra = 0;
-  if (alignment > pagesize) {
-    extra = alignment - pagesize;
-  }
-
-  void* result = VirtualAlloc(0, size, MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-  if (result == NULL)
-    return NULL;
-
-  // Adjust the return memory so it is aligned
-  uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
-  size_t adjust = 0;
-  if ((ptr & (alignment - 1)) != 0) {
-    adjust = alignment - (ptr & (alignment - 1));
-  }
-
-  ptr += adjust;
-  return reinterpret_cast<void*>(ptr);
-}
-
-void TCMalloc_SystemRelease(void* start, size_t length) {
-  // TODO(csilvers): should I be calling VirtualFree here?
-}
-
-bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
-  return false;   // we don't allow registration on windows, right now
-}
+// -----------------------------------------------------------------------
+// Threads code
 
 bool CheckIfKernelSupportsTLS() {
   // TODO(csilvers): return true (all win's since win95, at least, support this)
@@ -247,6 +210,61 @@ void RunManyInThreadWithId(void (*fn)(int), int count, int stacksize) {
 }
 
 
+// -----------------------------------------------------------------------
+// These functions replace system-alloc.cc
+
+static SpinLock alloc_lock(SpinLock::LINKER_INITIALIZED);
+
+// This is mostly like MmapSysAllocator::Alloc, except it does these weird
+// munmap's in the middle of the page, which is forbidden in windows.
+extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
+                                  size_t alignment) {
+  // Safest is to make actual_size same as input-size.
+  if (actual_size) {
+    *actual_size = size;
+  }
+
+  SpinLockHolder sh(&alloc_lock);
+  // Align on the pagesize boundary
+  const int pagesize = getpagesize();
+  if (alignment < pagesize) alignment = pagesize;
+  size = ((size + alignment - 1) / alignment) * alignment;
+
+  // Ask for extra memory if alignment > pagesize
+  size_t extra = 0;
+  if (alignment > pagesize) {
+    extra = alignment - pagesize;
+  }
+
+  void* result = VirtualAlloc(0, size + extra,
+                              MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
+  if (result == NULL)
+    return NULL;
+
+  // Adjust the return memory so it is aligned
+  uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
+  size_t adjust = 0;
+  if ((ptr & (alignment - 1)) != 0) {
+    adjust = alignment - (ptr & (alignment - 1));
+  }
+
+  ptr += adjust;
+  return reinterpret_cast<void*>(ptr);
+}
+
+void TCMalloc_SystemRelease(void* start, size_t length) {
+  // TODO(csilvers): should I be calling VirtualFree here?
+}
+
+bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
+  return false;   // we don't allow registration on windows, right now
+}
+
+
+// -----------------------------------------------------------------------
+// These functions rework existing functions of the same name in the
+// Google codebase.
+
 // A replacement for HeapProfiler::CleanupOldProfiles.
 void DeleteMatchingFiles(const char* prefix, const char* full_glob) {
   WIN32_FIND_DATAA found;  // that final A is for Ansi (as opposed to Unicode)
@@ -266,67 +284,8 @@ void DeleteMatchingFiles(const char* prefix, const char* full_glob) {
   }
 }
 
-// Returns the number of bytes actually written, or <0 or >= size on error.
-static int PrintOneProcLine(char buf[], int size, const MODULEENTRY32& module) {
-  // Format is start-end flags offset devmajor:devminor inode  name
-  // Notes:
-  // 1) Normally it would be unsafe to use %p, since printf might
-  //    malloc() if the pointer is NULL, but that can't happen here.
-  // 2) These pages can mix text sections and data sections, each
-  //    of which should get a different permission.  We choose "r-xp"
-  //    (text) because that's most conservative for heap-checker, but
-  //    we maybe should actually figure it out and do it right.
-  return snprintf(buf, size,
-                  "%p-%p r-xp 00000000 00:00 0   %s\n",
-                  module.modBaseAddr,
-                  module.modBaseAddr + module.modBaseSize,
-                  module.szExePath);
-}
-
-int FillProcSelfMaps(char buf[], int size) {
-  HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
-                                             TH32CS_SNAPMODULE32,
-                                             GetCurrentProcessId());
-
-  MODULEENTRY32 module;
-  memset(&module, 0, sizeof(module));
-  module.dwSize = sizeof(module);
-
-  char* bufend = buf;
-  if (Module32First(snapshot, &module)) {
-    do {
-      const int len = PrintOneProcLine(bufend, size, module);
-      if (len <= 0 || len >= sizeof(buf))
-        break;       // last fully-successful write
-      bufend += len;
-      size -= len;
-    } while (Module32Next(snapshot, &module));
-  }
-
-  CloseHandle(snapshot);
-  return bufend - buf;
-}
-
-void DumpProcSelfMaps(int fd) {
-  HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
-                                             TH32CS_SNAPMODULE32,
-                                             GetCurrentProcessId());
-
-  MODULEENTRY32 module;
-  memset(&module, 0, sizeof(module));
-  module.dwSize = sizeof(module);
-
-  if (Module32First(snapshot, &module)) {
-    do {
-      char buf[PATH_MAX + 80];
-      const int len = PrintOneProcLine(buf, sizeof(buf), module);
-      if (len > 0 && len < sizeof(buf))
-        write(fd, buf, len);
-    } while (Module32Next(snapshot, &module));
-  }
-
-  CloseHandle(snapshot);
-}
+// -----------------------------------------------------------------------
+// Stacktrace functionality
 
 static SpinLock get_stack_trace_lock(SpinLock::LINKER_INITIALIZED);
 

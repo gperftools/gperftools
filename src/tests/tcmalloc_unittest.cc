@@ -47,7 +47,17 @@
 //   the memory upper-bound.
 
 #include "config_for_unittests.h"
-#include "tcmalloc.h"      // must come first, to pick up posix_memalign
+// Complicated ordering requirements.  tcmalloc.h defines (indirectly)
+// _POSIX_C_SOURCE, which it needs so stdlib.h defines posix_memalign.
+// unistd.h, on the other hand, requires _POSIX_C_SOURCE to be unset,
+// at least on FreeBSD, in order to define sbrk.  The solution
+// is to #include unistd.h first.  This is safe because unistd.h
+// doesn't sub-include stdlib.h, so we'll still get posix_memalign
+// when we #include stdlib.h.  Blah.
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>        // for testing sbrk hooks
+#endif
+#include "tcmalloc.h"      // must come early, to pick up posix_memalign
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -55,6 +65,12 @@
 #include <stdint.h>        // for intptr_t
 #endif
 #include <sys/types.h>     // for size_t
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>         // for open; used with mmap-hook test
+#endif
+#ifdef HAVE_MMAP
+#include <sys/mman.h>      // for testing mmap hooks
+#endif
 #include <assert.h>
 #include <vector>
 #include <string>
@@ -64,6 +80,12 @@
 #include "google/malloc_hook.h"
 #include "google/malloc_extension.h"
 #include "tests/testutil.h"
+
+// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
+// form of the name instead.
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
+#endif
 
 #define LOGSTREAM   stdout
 
@@ -482,7 +504,7 @@ static void TestHugeAllocations(AllocatorState* rnd) {
 static void TestCalloc(size_t n, size_t s, bool ok) {
   char* p = reinterpret_cast<char*>(calloc(n, s));
   if (FLAGS_verbose)
-    fprintf(LOGSTREAM, "calloc(%x, %x): %p\n", n, s, p);
+    fprintf(LOGSTREAM, "calloc(%"PRIxS", %"PRIxS"): %p\n", n, s, p);
   if (!ok) {
     CHECK(p == NULL);  // calloc(n, s) should not succeed
   } else {
@@ -586,15 +608,39 @@ static void TestNothrowNew(void* (*func)(size_t, const std::nothrow_t&)) {
   std::set_new_handler(saved_handler);
 }
 
-// These are used as callbacks by the sanity-check
-static int g_new_hook_calls = 0;
-static int g_delete_hook_calls = 0;
-static void IncrementNewHookCalls(void* ptr, size_t size) {
-  g_new_hook_calls++;
-}
-static void IncrementDeleteHookCalls(void* ptr) {
-  g_delete_hook_calls++;
-}
+
+// These are used as callbacks by the sanity-check.  Set* and Reset*
+// register the hook that counts how many times the associated memory
+// function is called.  After each such call, call Verify* to verify
+// that we used the tcmalloc version of the call, and not the libc.
+// Note the ... in the hook signature: we don't care what arguments
+// the hook takes.
+#define MAKE_HOOK_CALLBACK(hook_type)                                   \
+  static int g_##hook_type##_calls = 0;                                 \
+  static void IncrementCallsTo##hook_type(...) {                        \
+    g_##hook_type##_calls++;                                            \
+  }                                                                     \
+  static void Verify##hook_type##WasCalled() {                          \
+    CHECK_GT(g_##hook_type##_calls, 0);                                 \
+    g_##hook_type##_calls = 0;  /* reset for next call */               \
+  }                                                                     \
+  static MallocHook::hook_type g_old_##hook_type;                       \
+  static void Set##hook_type() {                                        \
+    g_old_##hook_type = MallocHook::Set##hook_type(                     \
+     (MallocHook::hook_type)&IncrementCallsTo##hook_type);              \
+  }                                                                     \
+  static void Reset##hook_type() {                                      \
+    CHECK_EQ(MallocHook::Set##hook_type(g_old_##hook_type),             \
+             (MallocHook::hook_type)&IncrementCallsTo##hook_type);      \
+  }
+
+// We do one for each hook typedef in malloc_hook.h
+MAKE_HOOK_CALLBACK(NewHook);
+MAKE_HOOK_CALLBACK(DeleteHook);
+MAKE_HOOK_CALLBACK(MmapHook);
+MAKE_HOOK_CALLBACK(MremapHook);
+MAKE_HOOK_CALLBACK(MunmapHook);
+MAKE_HOOK_CALLBACK(SbrkHook);
 
 
 int main(int argc, char** argv) {
@@ -643,62 +689,110 @@ int main(int argc, char** argv) {
   {
     // We use new-hook and delete-hook to verify we actually called the
     // tcmalloc version of these routines, and not the libc version.
-    MallocHook::NewHook old_new_hook = MallocHook::GetNewHook();
-    MallocHook::DeleteHook old_delete_hook = MallocHook::GetDeleteHook();
-    MallocHook::SetNewHook(&IncrementNewHookCalls);
-    MallocHook::SetDeleteHook(&IncrementDeleteHookCalls);
-    int expected_new_hook_calls = 0;
-    int expected_delete_hook_calls = 0;
+    SetNewHook();      // defined as part of MAKE_HOOK_CALLBACK, above
+    SetDeleteHook();   // ditto
 
     void* p1 = malloc(10);
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     free(p1);
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
     p1 = calloc(10, 2);
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     p1 = realloc(p1, 30);
-    expected_new_hook_calls++;
-    expected_delete_hook_calls++;
+    VerifyNewHookWasCalled();
+    VerifyDeleteHookWasCalled();
     cfree(p1);  // synonym for free
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
-    CHECK(posix_memalign(&p1, sizeof(p1), 40) == 0);
-    expected_new_hook_calls++;
+    CHECK_EQ(posix_memalign(&p1, sizeof(p1), 40), 0);
+    VerifyNewHookWasCalled();
     free(p1);
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
     p1 = memalign(sizeof(p1) * 2, 50);
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     free(p1);
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
     p1 = valloc(60);
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     free(p1);
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
     p1 = pvalloc(70);
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     free(p1);
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
     char* p2 = new char;
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     delete p2;
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
     p2 = new char[100];
-    expected_new_hook_calls++;
+    VerifyNewHookWasCalled();
     delete p2;
-    expected_delete_hook_calls++;
+    VerifyDeleteHookWasCalled();
 
-    // We'll test the no-throw variants later
-    CHECK_EQ(expected_new_hook_calls, g_new_hook_calls);
-    CHECK_EQ(expected_delete_hook_calls, g_delete_hook_calls);
-    // Reset the hooks to what they used to be
-    MallocHook::SetNewHook(old_new_hook);
-    MallocHook::SetDeleteHook(old_delete_hook);
+    // Test mmap too: both anonymous mmap and mmap of a file
+    // Note that for right now we only override mmap on linux
+    // systems, so those are the only ones for which we check.
+    SetMmapHook();
+    SetMremapHook();
+    SetMunmapHook();
+#if defined(HAVE_MMAP) && defined(__linux) && \
+       (defined(__i386__) || defined(__x86_64__))
+    int size = 8192*2;
+    p1 = mmap(NULL, size, PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE,
+              -1, 0);
+    VerifyMmapHookWasCalled();
+    p1 = mremap(p1, size, size/2, 0);
+    VerifyMremapHookWasCalled();
+    size /= 2;
+    munmap(p1, size);
+    VerifyMunmapHookWasCalled();
+
+    int fd = open("/dev/zero", O_RDONLY);
+    CHECK_GE(fd, 0);   // make sure the open succeeded
+    p1 = mmap(NULL, 8192, PROT_READ, MAP_SHARED, fd, 0);
+    VerifyMmapHookWasCalled();
+    munmap(p1, 8192);
+    VerifyMunmapHookWasCalled();
+    close(fd);
+#else   // this is just to quiet the compiler: make sure all fns are called
+    IncrementCallsToMmapHook();
+    IncrementCallsToMunmapHook();
+    IncrementCallsToMremapHook();
+    VerifyMmapHookWasCalled();
+    VerifyMremapHookWasCalled();
+    VerifyMunmapHookWasCalled();
+#endif
+
+    // Test sbrk
+    SetSbrkHook();
+#if defined(HAVE_SBRK) && defined(__linux) && \
+       (defined(__i386__) || defined(__x86_64__))
+    p1 = sbrk(8192);
+    VerifySbrkHookWasCalled();
+    p1 = sbrk(-8192);
+    VerifySbrkHookWasCalled();
+    // However, sbrk hook should *not* be called with sbrk(0)
+    p1 = sbrk(0);
+    CHECK_EQ(g_SbrkHook_calls, 0);
+#else   // this is just to quiet the compiler: make sure all fns are called
+    IncrementCallsToSbrkHook();
+    VerifySbrkHookWasCalled();
+#endif
+
+    // Reset the hooks to what they used to be.  These are all
+    // defined as part of MAKE_HOOK_CALLBACK, above.
+    ResetNewHook();
+    ResetDeleteHook();
+    ResetMmapHook();
+    ResetMremapHook();
+    ResetMunmapHook();
+    ResetSbrkHook();
   }
 
   // Check that "lots" of memory can be allocated

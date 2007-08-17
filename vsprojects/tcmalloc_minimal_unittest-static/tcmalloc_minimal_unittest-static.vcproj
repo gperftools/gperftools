@@ -2,8 +2,8 @@
 <VisualStudioProject
 	ProjectType="Visual C++"
 	Version="7.10"
-	Name="libtcmalloc_minimal"
-	ProjectGUID="{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}"
+	Name="tcmalloc_minimal_unittest-static"
+	ProjectGUID="{8F708DCB-7EE4-4BA0-81AA-A52A0BA73B74}"
 	Keyword="Win32Proj">
 	<Platforms>
 		<Platform
@@ -14,15 +14,15 @@
 			Name="Debug|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="2"
+			ConfigurationType="1"
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				PreprocessorDefinitions="WIN32;_DEBUG;_WINDOWS;_USRDLL;LIBTCMALLOC_MINIMAL_EXPORTS"
+				PreprocessorDefinitions="WIN32;_DEBUG;_CONSOLE"
 				MinimalRebuild="TRUE"
 				BasicRuntimeChecks="3"
-				RuntimeLibrary="1"
+				RuntimeLibrary="5"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="TRUE"
@@ -31,13 +31,11 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)/libtcmalloc_minimal-debug.dll"
+				OutputFile="$(OutDir)/tcmalloc_minimal_unittest-static.exe"
 				LinkIncremental="2"
-				ModuleDefinitionFile="..\..\src\windows\vc7and8.def"
 				GenerateDebugInformation="TRUE"
-				ProgramDatabaseFile="$(OutDir)/libtcmalloc_minimal.pdb"
-				SubSystem="2"
-				ImportLibrary="$(OutDir)/libtcmalloc_minimal.lib"
+				ProgramDatabaseFile="$(OutDir)/tcmalloc_minimal_unittest-static.pdb"
+				SubSystem="1"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>
@@ -64,12 +62,12 @@
 			Name="Release|Win32"
 			OutputDirectory="$(SolutionDir)$(ConfigurationName)"
 			IntermediateDirectory="$(ConfigurationName)"
-			ConfigurationType="2"
+			ConfigurationType="1"
 			CharacterSet="2">
 			<Tool
 				Name="VCCLCompilerTool"
-				PreprocessorDefinitions="WIN32;NDEBUG;_WINDOWS;_USRDLL;LIBTCMALLOC_MINIMAL_EXPORTS"
-				RuntimeLibrary="0"
+				PreprocessorDefinitions="WIN32;NDEBUG;_CONSOLE"
+				RuntimeLibrary="4"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
 				Detect64BitPortabilityProblems="TRUE"
@@ -78,14 +76,12 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				OutputFile="$(OutDir)/libtcmalloc_minimal.dll"
+				OutputFile="$(OutDir)/tcmalloc_minimal_unittest-static.exe"
 				LinkIncremental="1"
-				ModuleDefinitionFile="..\..\src\windows\vc7and8.def"
 				GenerateDebugInformation="TRUE"
-				SubSystem="2"
+				SubSystem="1"
 				OptimizeReferences="2"
 				EnableCOMDATFolding="2"
-				ImportLibrary="$(OutDir)/libtcmalloc_minimal.lib"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>
@@ -122,6 +118,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -129,6 +126,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -173,6 +171,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -180,6 +179,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -190,6 +190,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -197,6 +198,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -207,6 +209,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -214,6 +217,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -224,6 +228,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -231,6 +236,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -241,6 +247,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -248,6 +255,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -258,6 +266,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -265,6 +274,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -292,6 +302,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -299,6 +310,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -309,6 +321,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -316,6 +329,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -377,6 +391,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -384,6 +399,45 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\tests\tcmalloc_unittest.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\tests\testutil.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -404,6 +458,9 @@
 			</File>
 			<File
 				RelativePath="..\..\src\windows\config.h">
+			</File>
+			<File
+				RelativePath="..\..\src\config_for_unittests.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\googleinit.h">
@@ -474,6 +531,14 @@
 			<File
 				RelativePath="..\..\src\tcmalloc.h">
 			</File>
+			<File
+				RelativePath="..\..\src\tests\testutil.h">
+			</File>
+		</Filter>
+		<Filter
+			Name="Resource Files"
+			Filter="rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx"
+			UniqueIdentifier="{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}">
 		</Filter>
 	</Files>
 	<Globals>

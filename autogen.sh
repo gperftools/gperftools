@@ -1,7 +1,7 @@
 #!/bin/sh
 
 # Before using, you should figure out all the .m4 macros that your
-# configure.m4 script needs and make sure they exist in the autoconf/
+# configure.m4 script needs and make sure they exist in the m4/
 # directory.
 #
 # These are the files that this script might edit:

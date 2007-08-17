@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # Copyright (c) 2005, Google Inc.
 # All rights reserved.
 # 
@@ -47,7 +47,7 @@ fi
 EXE="${1:-$BINDIR}/heap-checker_unittest"
 TMPDIR="/tmp/heap_check_death_info"
 
-function ALARM() {
+ALARM() {
   # You need perl to run pprof, so I assume it's installed
   perl -e '
     $timeout=$ARGV[0]; shift;
@@ -69,25 +69,26 @@ function ALARM() {
 # $3: regexp to match a line in the output;
 # $4: regexp to not match a line in the output;
 # $5+ args to pass to $EXE
-function Test() {
-  local timeout="$1"
+Test() {
+  # Note: make sure these varnames don't conflict with any vars outside Test()!
+  timeout="$1"
   shift
-  local expected_ec="$1"
+  expected_ec="$1"
   shift
-  local expected_regexp="$1"
+  expected_regexp="$1"
   shift
-  local unexpected_regexp="$1"
+  unexpected_regexp="$1"
   shift
 
   echo -n "Testing $EXE with $@ ... "
-  local output="$TMPDIR/output"
+  output="$TMPDIR/output"
   ALARM $timeout env "$@" $EXE > "$output" 2>&1
-  local actual_ec=$?
-  local ec_ok=$(expr "$actual_ec" : "$expected_ec$" >/dev/null || echo false)
-  local matches_ok=$(test -z "$expected_regexp" || \
-                     grep -q "$expected_regexp" "$output" || echo false)
-  local negmatches_ok=$(test -z "$unexpected_regexp" || \
-                        ! grep -q "$unexpected_regexp" "$output" || echo false)
+  actual_ec=$?
+  ec_ok=$(expr "$actual_ec" : "$expected_ec$" >/dev/null || echo false)
+  matches_ok=$(test -z "$expected_regexp" || \
+               grep -q "$expected_regexp" "$output" || echo false)
+  negmatches_ok=$(test -z "$unexpected_regexp" || \
+                  ! grep -q "$unexpected_regexp" "$output" || echo false)
   if $ec_ok && $matches_ok && $negmatches_ok; then
     echo "PASS"
     return 0  # 0: success

@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.92, opensource@google.com)
+AC_INIT(google-perftools, 0.93, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -15,6 +15,7 @@ AM_CONFIG_HEADER(src/config.h)
 AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_CXX
+AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
 
 AC_PROG_LIBTOOL
 AC_SUBST(LIBTOOL_DEPS)
@@ -35,21 +36,14 @@ AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
+AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms
-AC_CHECK_HEADERS(linux/ptrace.h)
-AC_CHECK_HEADERS(syscall.h)
+AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
+AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
+AC_CHECK_HEADERS(sys/syscall.h)
+AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
-AC_CHECK_MEMBERS([struct sigcontext.sc_eip,
-                  struct ucontext.uc_mcontext,
-                  struct sigcontext.eip,
-                  struct sigcontext.rip,
-                  struct sigcontext.sc_ip,
-                  struct sigcontext.sc_ir,
-                  struct siginfo.si_faddr,
-		  struct sigcontext.regs->nip],,,
-                 [#define _GNU_SOURCE 1
-                  #include <signal.h>])
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 AC_CHECK_DECLS([cfree,
@@ -71,6 +65,36 @@ AC_TRY_COMPILE([#include <stdint.h>],
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
 
+# We want to access the "PC" (Program Counter) register from a struct
+# ucontext.  Every system has its own way of doing that.  We try all the
+# possibilities we know about.  Note REG_PC should come first (REG_RIP
+# is also defined on solaris, but does the wrong thing).
+AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
+pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32 + 64 bit)
+pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
+pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
+pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
+pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
+pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
+pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386)
+pc_fields="$pc_fields uc_mcontext->ss.rip"          # OS X (x86_64)
+pc_fields="$pc_fields uc_mcontext->ss.srr0"         # OS X (ppc, ppc64 [untested])
+pc_field_found=false
+for pc_field in $pc_fields; do
+  if ! $pc_field_found; then
+    AC_TRY_COMPILE([#define _GNU_SOURCE 1
+                    #include <ucontext.h>],
+                   [ucontext_t u; return u.$pc_field == 0;],
+                   AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                      How to access the PC from a struct ucontext)
+                   AC_MSG_RESULT([$pc_field])
+  		 pc_field_found=true)
+  fi
+done
+if ! $pc_field_found; then
+  AC_MSG_WARN(Could not find the PC.  libprofiler will probably not compile!)
+fi
+
 # We want to link in libunwind if it exists
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)
 AC_SUBST(UNWIND_LIBS)
@@ -83,18 +107,19 @@ AC_ARG_ENABLE(frame_pointer,
 	      , enable_frame_pointer=no)
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __x86_64__ == 1 ? 0 : 1])],
                   [is_x86_64=yes], [is_x86_64=no])
-EXTRA_CXXFLAGS=
-if test "$is_x86_64" = yes -a "$enable_frame_pointer" = "yes"; then
-  EXTRA_CXXFLAGS=-fno-omit-frame-pointer
-elif test "$is_x86_64" = yes -a "$enable_frame_pointer" != "yes"; then
-  # TODO(csilvers): set -DNO_FRAME_POINTER in the Makefile instead, based
-  #                 on the presence of -f[no-]omit-frame-pointer in cxxflags.
-  EXTRA_CXXFLAGS=-DNO_FRAME_POINTER
-fi
-AC_SUBST(EXTRA_CXXFLAGS)
+AM_CONDITIONAL(ENABLE_FRAME_POINTER, test "$enable_frame_pointer" = yes)
+AM_CONDITIONAL(X86_64, test "$is_x86_64" = yes)
 
 # Defines PRIuS
 AC_COMPILER_CHARACTERISTICS
+
+# Also make sure we get standard PRI... definitions, even with glibc.
+# We have to use AH_VERBATIM because we need the #ifdef guard (gcc buglet)
+AH_VERBATIM([__STDC_FORMAT_MACROS],
+            [/* C99 says: define this to get the PRI... macros from stdint.h */
+#ifndef __STDC_FORMAT_MACROS
+# define __STDC_FORMAT_MACROS 1
+#endif])
 
 # Check if __builtin_stack_pointer() is available (for elfcore.h)
 AC_MSG_CHECKING([for __builtin_stack_pointer()])

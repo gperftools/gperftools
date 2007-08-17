@@ -147,7 +147,7 @@ static MallocHook::NewHook old_alloc_hook;
 static MallocHook::DeleteHook old_free_hook;
 
 // called on each alloc if kCallMallocHook specified
-static void AllocHook(void *p, size_t size) {
+static void AllocHook(const void *p, size_t size) {
   if (using_low_level_alloc) {
     allocates++;
   }
@@ -157,7 +157,7 @@ static void AllocHook(void *p, size_t size) {
 }
 
 // called on each free if kCallMallocHook specified
-static void FreeHook(void *p) {
+static void FreeHook(const void *p) {
   if (using_low_level_alloc) {
     frees++;
   }

@@ -96,7 +96,7 @@ class AddressMap {
  public:
   typedef void* (*Allocator)(size_t);
   typedef void  (*DeAllocator)(void*);
-  typedef void* Key;
+  typedef const void* Key;
 
   // Create an AddressMap that uses the specified allocator/deallocator.
   // The allocator/deallocator should behave like malloc/free.

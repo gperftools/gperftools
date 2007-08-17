@@ -51,10 +51,14 @@ public:
     invoked_ = false;
   }
 
-  void* Alloc(size_t size, size_t alignment) {
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) {
     invoked_ = true;
     void *result = &array_[ptr_];
     uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
+
+    if (actual_size) {
+      *actual_size = size;
+    }
 
     // Try to get more memory for alignment
     size_t extra = alignment - (ptr & (alignment-1));

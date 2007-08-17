@@ -1,105 +1,33 @@
-Tue Feb 8 09:57:17 2005  Google Inc. <opensource@google.com>
+Fri Aug 17 12:32:56 2007  Google Inc. <opensource@google.com>
 
-	* google-perftools: initial release:
-	  The google-perftools package contains some utilities to improve
-	  and analyze the performance of C++ programs.  This includes an
-	  optimized thread-caching malloc() and cpu and heap profiling
-	  utilities.
+	* google-perftools: version 0.93 release
+	* PORTING: everything compiles on Solaris, OS X, FreeBSD (see INSTALL)
+	* PORTING: cpu-profiler works on most platforms (much better GetPC())
+	* PORTING: heap-profiler works on most platforms
+	* PORTING: improved windows support, including release builds
+	* No longer build or run ptmalloc tests by default
+	* Add support for using memfs filesystem to allocate memory in linux
+	* WINDOWS: give debug library and release library different names
+	
+Tue Jul 17 22:26:27 2007  Google Inc. <opensource@google.com>
 
-Tue May 31 08:14:38 2005  Google Inc. <opensource@google.com>
+	* google-perftools: version 0.92 release
+	* PERFORMANCE: use a packed cache to speed up tcmalloc
+	* PORTING: preliminary windows support! (see README.windows)
+	* PORTING: better support for solaris, OS X, FreeBSD (see INSTALL)
+	* Envvar support for running the heap-checker under gdb
+	* Add weak declarations to maybe_threads to fix no-pthreads compile bugs
+	* Some 64bit fixes, especially with pprof
+	* Better heap-checker support for some low-level allocations
+	* Fix bug where heap-profiles would sometimes get truncated
+	* New documentation about how to handle common heap leak situations
+	* Use computed includes for hash_map/set: easier config
+	* Added all used .m4 templates to the distribution
 
-	* google-perftools: version 0.2 release
-	* Use mmap2() instead of mmap(), to map more memory (menage)
-	* Do correct pthread-local checking in heap-checker! (maxim)
-	* Avoid overflow on 64-bit machines in pprof (sanjay)
-	* Add a few more GetPC() functions, including for AMD (csilvers)
-	* Better method for overriding pthread functions (menage)
-	* (Hacky) fix to avoid overwriting profile files after fork() (csilvers)
-	* Crashing bugfix involving dumping heaps on small-stack threads (tudor)
-	* Allow library versions with letters at the end (csilvers)
-	* Config fixes for systems that don't define PATH_MAX (csilvers)
-	* Confix fixes so we no longer need config.h after install (csilvers)
-	* Fix to pprof to correctly read very big cpu profiles (csilvers)
-	* Fix to pprof to deal with new commandline flags in modern gv's
-	* Better error reporting when we can't access /proc/maps (etune)
-	* Get rid of the libc-preallocate code (which could crash on some
-	  systems); no longer needed with local-threads fix (csilvers)
+Wed Apr 18 16:43:55 2007  Google Inc. <opensource@google.com>
 
-Fri Jun 24 18:02:26 2005  Google Inc. <opensource@google.com>
-
-	* google-perftools: version 0.3 release
-	* Add missing errno include for one of the unittests (csilvers)
-	* Reduce tcmalloc startup memory from 5M to 256K (sanjay)
-	* Add support for mallopt() and mallinfo (sanjay)
-	* Improve stacktrace's performance on some 64-bit systems (etune)
-	* Improve the stacktrace unittest (etune)
-
-Wed Oct 26 15:19:16 2005  Google Inc. <opensource@google.com>
-
-	* google-perftools: version 0.4 release
-	* Decrease fragmentation in tcmalloc (lefevere)
-	* Support for ARM in some of the thread-specific code (markus)
-	* Turn off heap-checker for statically-linked binaries, which
-	  cause error leak reports now (etune)
-	* Many pprof improvements, including a command-line interface (jeff)
-	* CPU profiling now automatically affects all threads in linux 2.6.
-	  (Kernel bugs break CPU profiling and threads in linux 2.4 a bit.)
-	  ProfilerEnable() and ProfilerDisable() are deprecated.  (sanjay)
-	* tcmalloc now correctly intercepts memalign (m3b, maxim)
-	* Syntax fix: added missing va_end()s.  Helps non-gcc compiling (etune)
-	* Fixed a few coredumper bugs: race condition after PTRACE_DETACH,
-	  ignore non-aligned stackframe pointers (markus, menage)
-	* 64-bit cleanup, especially for spinlock code (etune) and mmap (sanjay)
-	* Better support for finding threads in linux (markus)
-	* tcmalloc now tracks those stack traces that allocate memory (sanjay)
-	* Work around a weird setspecific problem (sanjay)
-	* Fix tcmalloc overflow problems when an alloc is close to 2G/4G (sanjay)
-
-Mon Nov 14 17:28:59 2005  Google Inc. <opensource@google.com>
-
-	* google-perftools: version 0.5 release
-	* Add va_start/va_end calls around vsnprintf() (csilvers)
-	* Write our own __syscall_return(), since it's not defined
-	  consistently on all 64-bit linux distros (markus)
-
-Fri Jan 27 14:04:27 2006  Google Inc. <opensource@google.com>
-
-	* google-perftools: version 0.6 release
-	* More sophisticated stacktrace usage, possibly using libunwind (aruns)
-	* Update pprof to handle 64-bit profiles (dehnert)
-	* Fix GetStackTrace to correctly return top stackframe (sanjay)
-	* Add ANSI compliance for new and new[], including new_handler (jkearney)
-	* More accuracy by reading ELF files directly rather than objdump (mec)
-	* Add readline support for pprof (addi)
-	* Add #includes for PPC (csilvers)
-	* New PC-detection routine for ibook powerpc (asbestoshead)
-	* Vastly improved tcmalloc unittest (csilvers)
-	* Move documentation from /usr/doc to /usr/share/doc
-
-Thu Apr 13 20:59:09 2006  Google Inc. <opensource@google.com>
-
-	* google-perftools: version 0.7 release
-	* Major rewrite of thread introspection for new kernels (markus)
-	* Major rewrite of heap-checker to use new thread tools (maxim)
-	* Add proper support for following data in thread registers (maxim)
-	* Syscall support for older kernels, including _syscall6 (markus)
-	* Support PIC mode (markus, mbland, iant)
-	* Better support for running in non-threaded contexts (csilvers)
-
-Wed Jun 14 15:11:14 2006  Google Inc. <opensource@google.com>
-
-	* google-perftools: version 0.8 release
-	* Experimental support for remote profiling added to pprof (many)
-	* Fixed race condition in ProfileData::FlushTable (etune)
-	* Better support for weird /proc maps (maxim, mec)
-	* Fix heap-checker interaction with gdb (markus)
-	* Better 64-bit support in pprof (aruns)
-	* Reduce scavenging cost in tcmalloc by capping NumMoveSize (sanjay)
-	* Cast syscall(SYS_mmap); works on more 64-bit systems now (menage)
-	* Document the text output of pprof! (csilvers)
-	* Better compiler support for no-THREADS and for old compilers (csilvers)
-	* Make libunwind the default stack unwinder for x86-64 (aruns)
-	* Somehow the COPYING file got erased.  Regenerate it (csilvers)
+	* google-perftools: version 0.91 release
+	* Brown-paper-bag bugfix: compilation error on some x86-64 machines
 
 Fri Apr 13 14:50:51 2007  Google Inc. <opensource@google.com>
 
@@ -127,22 +55,105 @@ Fri Apr 13 14:50:51 2007  Google Inc. <opensource@google.com>
 	* CPU-profiling may crash on x86_64 (64-bit) systems.  See the README
 	* Profiling/heap-checking may deadlock on x86_64 systems.  See README
 
-Wed Apr 18 16:43:55 2007  Google Inc. <opensource@google.com>
+Wed Jun 14 15:11:14 2006  Google Inc. <opensource@google.com>
 
-	* google-perftools: version 0.91 release
-	* Brown-paper-bag bugfix: compilation error on some x86-64 machines
+	* google-perftools: version 0.8 release
+	* Experimental support for remote profiling added to pprof (many)
+	* Fixed race condition in ProfileData::FlushTable (etune)
+	* Better support for weird /proc maps (maxim, mec)
+	* Fix heap-checker interaction with gdb (markus)
+	* Better 64-bit support in pprof (aruns)
+	* Reduce scavenging cost in tcmalloc by capping NumMoveSize (sanjay)
+	* Cast syscall(SYS_mmap); works on more 64-bit systems now (menage)
+	* Document the text output of pprof! (csilvers)
+	* Better compiler support for no-THREADS and for old compilers (csilvers)
+	* Make libunwind the default stack unwinder for x86-64 (aruns)
+	* Somehow the COPYING file got erased.  Regenerate it (csilvers)
 
-Tue Jul 17 22:26:27 2007  Google Inc. <opensource@google.com>
+Thu Apr 13 20:59:09 2006  Google Inc. <opensource@google.com>
 
-	* google-perftools: version 0.92 release
-	* PERFORMANCE: use a packed cache to speed up tcmalloc
-	* PORTING: preliminary windows support! (see README.windows)
-	* PORTING: better support for solaris, OS X, FreeBSD (see INSTALL)
-	* Envvar support for running the heap-checker under gdb
-	* Add weak declarations to maybe_threads to fix no-pthreads compile bugs
-	* Some 64bit fixes, especially with pprof
-	* Better heap-checker support for some low-level allocations
-	* Fix bug where heap-profiles would sometimes get truncated
-	* New documentation about how to handle common heap leak situations
-	* Use computed includes for hash_map/set: easier config
-	* Added all used .m4 templates to the distribution
+	* google-perftools: version 0.7 release
+	* Major rewrite of thread introspection for new kernels (markus)
+	* Major rewrite of heap-checker to use new thread tools (maxim)
+	* Add proper support for following data in thread registers (maxim)
+	* Syscall support for older kernels, including _syscall6 (markus)
+	* Support PIC mode (markus, mbland, iant)
+	* Better support for running in non-threaded contexts (csilvers)
+
+Fri Jan 27 14:04:27 2006  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.6 release
+	* More sophisticated stacktrace usage, possibly using libunwind (aruns)
+	* Update pprof to handle 64-bit profiles (dehnert)
+	* Fix GetStackTrace to correctly return top stackframe (sanjay)
+	* Add ANSI compliance for new and new[], including new_handler (jkearney)
+	* More accuracy by reading ELF files directly rather than objdump (mec)
+	* Add readline support for pprof (addi)
+	* Add #includes for PPC (csilvers)
+	* New PC-detection routine for ibook powerpc (asbestoshead)
+	* Vastly improved tcmalloc unittest (csilvers)
+	* Move documentation from /usr/doc to /usr/share/doc
+
+Mon Nov 14 17:28:59 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.5 release
+	* Add va_start/va_end calls around vsnprintf() (csilvers)
+	* Write our own __syscall_return(), since it's not defined
+	  consistently on all 64-bit linux distros (markus)
+
+Wed Oct 26 15:19:16 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.4 release
+	* Decrease fragmentation in tcmalloc (lefevere)
+	* Support for ARM in some of the thread-specific code (markus)
+	* Turn off heap-checker for statically-linked binaries, which
+	  cause error leak reports now (etune)
+	* Many pprof improvements, including a command-line interface (jeff)
+	* CPU profiling now automatically affects all threads in linux 2.6.
+	  (Kernel bugs break CPU profiling and threads in linux 2.4 a bit.)
+	  ProfilerEnable() and ProfilerDisable() are deprecated.  (sanjay)
+	* tcmalloc now correctly intercepts memalign (m3b, maxim)
+	* Syntax fix: added missing va_end()s.  Helps non-gcc compiling (etune)
+	* Fixed a few coredumper bugs: race condition after PTRACE_DETACH,
+	  ignore non-aligned stackframe pointers (markus, menage)
+	* 64-bit cleanup, especially for spinlock code (etune) and mmap (sanjay)
+	* Better support for finding threads in linux (markus)
+	* tcmalloc now tracks those stack traces that allocate memory (sanjay)
+	* Work around a weird setspecific problem (sanjay)
+	* Fix tcmalloc overflow problems when an alloc is close to 2G/4G (sanjay)
+
+Fri Jun 24 18:02:26 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.3 release
+	* Add missing errno include for one of the unittests (csilvers)
+	* Reduce tcmalloc startup memory from 5M to 256K (sanjay)
+	* Add support for mallopt() and mallinfo (sanjay)
+	* Improve stacktrace's performance on some 64-bit systems (etune)
+	* Improve the stacktrace unittest (etune)
+
+Tue May 31 08:14:38 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.2 release
+	* Use mmap2() instead of mmap(), to map more memory (menage)
+	* Do correct pthread-local checking in heap-checker! (maxim)
+	* Avoid overflow on 64-bit machines in pprof (sanjay)
+	* Add a few more GetPC() functions, including for AMD (csilvers)
+	* Better method for overriding pthread functions (menage)
+	* (Hacky) fix to avoid overwriting profile files after fork() (csilvers)
+	* Crashing bugfix involving dumping heaps on small-stack threads (tudor)
+	* Allow library versions with letters at the end (csilvers)
+	* Config fixes for systems that don't define PATH_MAX (csilvers)
+	* Confix fixes so we no longer need config.h after install (csilvers)
+	* Fix to pprof to correctly read very big cpu profiles (csilvers)
+	* Fix to pprof to deal with new commandline flags in modern gv's
+	* Better error reporting when we can't access /proc/maps (etune)
+	* Get rid of the libc-preallocate code (which could crash on some
+	  systems); no longer needed with local-threads fix (csilvers)
+
+Tue Feb 8 09:57:17 2005  Google Inc. <opensource@google.com>
+
+	* google-perftools: initial release:
+	  The google-perftools package contains some utilities to improve
+	  and analyze the performance of C++ programs.  This includes an
+	  optimized thread-caching malloc() and cpu and heap profiling
+	  utilities.

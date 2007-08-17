@@ -62,5 +62,7 @@ UNITTEST_DIR=`$UNITTEST_DIR/profiler1_unittest 2>&1 \
               | xargs dirname`
 
 # We need to set the library-path too: libtcmalloc depends on libstacktrace
-LD_LIBRARY_PATH="$UNITTEST_DIR" LD_PRELOAD="$UNITTEST_DIR/libtcmalloc.so" \
+# (Note we try several different names: OS X uses its own libpath varname).
+LD_LIBRARY_PATH="$UNITTEST_DIR" DYLD_LIBRARY_PATH="$UNITTEST_DIR" \
+LD_PRELOAD="$UNITTEST_DIR/libtcmalloc.so" \
     $UNITTEST_DIR/low_level_alloc_unittest

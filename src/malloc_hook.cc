@@ -68,11 +68,11 @@
 // (weak) here, then defining it below after its use, we can avoid the problem.
 //
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_New(void* ptr, size_t size);
+extern void InitialMallocHook_New(const void* ptr, size_t size);
 
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_MMap(void* result,
-                                   void* start,
+extern void InitialMallocHook_MMap(const void* result,
+                                   const void* start,
                                    size_t size,
                                    int protection,
                                    int flags,
@@ -80,7 +80,7 @@ extern void InitialMallocHook_MMap(void* result,
                                    off_t offset);
 
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_Sbrk(void* result, ptrdiff_t increment);
+extern void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment);
 
 MallocHook::NewHook    MallocHook::new_hook_ = InitialMallocHook_New;
 MallocHook::DeleteHook MallocHook::delete_hook_ = NULL;
@@ -111,13 +111,13 @@ MallocHook::SbrkHook   MallocHook::sbrk_hook_ = InitialMallocHook_Sbrk;
 // hook will be called, and do an if check, for every new.  Alas.
 // TODO(csilvers): add support for removing a hook from the middle of a chain.
 
-void InitialMallocHook_New(void* ptr, size_t size) {
+void InitialMallocHook_New(const void* ptr, size_t size) {
    if (MallocHook::GetNewHook() == &InitialMallocHook_New)
      MallocHook::SetNewHook(NULL);
 }
 
-void InitialMallocHook_MMap(void* result,
-                            void* start,
+void InitialMallocHook_MMap(const void* result,
+                            const void* start,
                             size_t size,
                             int protection,
                             int flags,
@@ -127,14 +127,16 @@ void InitialMallocHook_MMap(void* result,
     MallocHook::SetMmapHook(NULL);
 }
 
-void InitialMallocHook_Sbrk(void* result, ptrdiff_t increment) {
+void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment) {
   if (MallocHook::GetSbrkHook() == &InitialMallocHook_Sbrk)
     MallocHook::SetSbrkHook(NULL);
 }
 
-DECLARE_ATTRIBUTE_SECTION(google_malloc);
+DEFINE_ATTRIBUTE_SECTION_VARS(google_malloc);
+DECLARE_ATTRIBUTE_SECTION_VARS(google_malloc);
   // actual functions are in debugallocation.cc or tcmalloc.cc
-DECLARE_ATTRIBUTE_SECTION(malloc_hook);
+DEFINE_ATTRIBUTE_SECTION_VARS(malloc_hook);
+DECLARE_ATTRIBUTE_SECTION_VARS(malloc_hook);
   // actual functions are in this file, malloc_hook.cc, and low_level_alloc.cc
 
 #define ADDR_IN_ATTRIBUTE_SECTION(addr, name) \
@@ -146,7 +148,7 @@ DECLARE_ATTRIBUTE_SECTION(malloc_hook);
 // Return true iff 'caller' is a return address within a function
 // that calls one of our hooks via MallocHook:Invoke*.
 // A helper for GetCallerStackTrace.
-static inline bool InHookCaller(void* caller) {
+static inline bool InHookCaller(const void* caller) {
   return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc) ||
          ADDR_IN_ATTRIBUTE_SECTION(caller, malloc_hook);
   // We can use one section for everything except tcmalloc_or_debug
@@ -159,11 +161,13 @@ static bool checked_sections = false;
 
 static inline void CheckInHookCaller() {
   if (!checked_sections) {
+    INIT_ATTRIBUTE_SECTION_VARS(google_malloc);
     if (ATTRIBUTE_SECTION_START(google_malloc) ==
         ATTRIBUTE_SECTION_STOP(google_malloc)) {
       RAW_LOG(ERROR, "google_malloc section is missing, "
                      "thus InHookCaller is broken!");
     }
+    INIT_ATTRIBUTE_SECTION_VARS(malloc_hook);
     if (ATTRIBUTE_SECTION_START(malloc_hook) ==
         ATTRIBUTE_SECTION_STOP(malloc_hook)) {
       RAW_LOG(ERROR, "malloc_hook section is missing, "
@@ -178,7 +182,7 @@ static inline void CheckInHookCaller() {
 // into the implementations for GetStackTrace instead of the skip_count.
 int MallocHook::GetCallerStackTrace(void** result, int max_depth,
                                     int skip_count) {
-#ifndef HAVE___ATTRIBUTE__
+#ifndef HAVE_ATTRIBUTE_SECTION_START
   // Fall back to GetStackTrace and good old but fragile frame skip counts.
   // Note: this path is inaccurate when a hook is not called directly by an
   // allocation function but is daisy-chained through another hook,

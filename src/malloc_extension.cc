@@ -101,7 +101,7 @@ bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total,
                                        int histogram[kMallocHistogramSize]) {
   *blocks = 0;
   *total = 0;
-  memset(histogram, sizeof(histogram), 0);
+  memset(histogram, 0, sizeof(histogram));
   return true;
 }
 

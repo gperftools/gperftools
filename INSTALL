@@ -1,7 +1,10 @@
-Copyright 1994, 1995, 1996, 1999, 2000, 2001, 2002 Free Software
-Foundation, Inc.
+Installation Instructions
+*************************
 
-   This file is free documentation; the Free Software Foundation gives
+Copyright (C) 1994, 1995, 1996, 1999, 2000, 2001, 2002, 2004, 2005 Free
+Software Foundation, Inc.
+
+This file is free documentation; the Free Software Foundation gives
 unlimited permission to copy, distribute and modify it.
 
 
@@ -12,7 +15,7 @@ Perftools-Specific Install Notes
 
 The glibc built-in stack-unwinder on 64-bit systems has some problems
 with the perftools libraries.  (In particular, the cpu/heap profiler
-may be in the middle of malloc, holding some malloc-related locks when
+may be in the middle of malloc, holding some malloc-related locks, when
 they invoke the stack unwinder.  The built-in stack unwinder may call
 malloc recursively, which may require the thread to acquire a lock it
 already holds: deadlock.)
@@ -28,7 +31,7 @@ need to install from the snapshot to get the latest version.
 
 CAUTION: if you install libunwind from the url above, be aware that
 you may have trouble if you try to statically link your binary with
-pertools: that is, if you link with 'gcc -static -lgcc_eh ...'.  This
+perftools: that is, if you link with 'gcc -static -lgcc_eh ...'.  This
 is because both libunwind and libgcc implement the same C++ exception
 handling APIs, but they implement them differently on some platforms.
 This is not likely to be a problem on ia64, but may be on x86-64.
@@ -61,69 +64,104 @@ Perftools has been tested on the following systems:
    Linux Fedora Core 5 (x86)
    Linux Fedora Core 6 (x86)
    Linux Ubuntu 6.06.1 (x86)
-   Linux Ubuntu 6.06.1 (ia64)
+   Linux Ubuntu 6.06.1 (x86_64)
    Linux RedHat 9 (x86)
    Mac OS X 10.3.9 (Panther) (PowerPC)
+   Mac OS X 10.4.8 (Tiger) (PowerPC)
    Mac OS X 10.4.8 (Tiger) (x86)
    Solaris 10 (x86)
    Windows XP, Visual Studio 2003 (VC++ 7) (x86)
    Windows XP, Visual Studio 2005 (VC++ 8) (x86)
 
 It works in its full generality on all the Linux systems tested, both
-x86 and ia64 (though see 64-bit notes above).  Portions of perftools
-work on the other systems.  The basic memory-allocation library,
-tcmalloc_minimal, works on all systems.  The advanced tools, such as
-the cpu-profiler, heap-profiler, and heap-checker, are not yet as
-widely supported.
+x86 and x86_64 (though see 64-bit notes above).  There's also
+preliminary support for ia64 architectures, though more remains to be
+done there.
 
-Note that tcmalloc_minimal is perfectly usable as a malloc/new
-replacement, so it is possible to use tcmalloc on all the systems
-above, by linking in libtcmalloc_minimal.
+On other unix-based systems, most of perftools works.  The basic
+memory-allocation library, tcmalloc_minimal, works on all systems.
+The cpu-profiler also works widely.  The heap-profiler works on many
+systems, but ONLY FOR SINGLE-THREADED PROGRAMS.  It also does not
+profile mmap calls, which the linux version of the code does.  In both
+cases, this is because the necessary system munging -- to find all
+threads, to override the relevant syscalls -- has only been written
+for Linux.
+
+The last provided tool, the heap-checker, works only on Linux.  This
+is again because the necessary system munging -- in this case, to find
+all the memory-mapped regions owned by a process -- has only been
+written for Linux.  You can still safely try to use the heap-checker,
+it will just turn itself off and not do any leak-detection.
+
+In all cases -- including for Windows -- the basic code that replaces
+new/malloc works and is usable, by linking in either libtcmalloc or
+libtcmalloc_minimal.
 
 ** FreeBSD:
 
-   The following binaries build and run successfully (creating
-   libtcmalloc_minimal.so in the process):
+   Everything should build successfully (creating
+   libtcmalloc_minimal.so, libtcmalloc.so, and libprofile.so in the
+   process):
       % ./configure
-      % make tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest \
-             addressmap_unittest atomicops_unittest frag_unittest \
-             low_level_alloc_unittest markidle_unittest memalign_unittest \
-             packed_cache_test stacktrace_unittest system_alloc_unittest \
-             thread_dealloc_unittest
-      % ./tcmalloc_minimal_unittest    # to run this test
-      % [etc]                          # to run other tests
+      % make
+      % make check    # to run the tests
+      % make install  # to install the libraries
 
-   (The only possible exception is frag_unittest, which tries to
-   allocate 400M of memory; if you have less virtual memory on your
-   system, the test may fail with a bad_alloc exception.)
+   Most of the unittests should pass.  A few may fail:
 
-   In addition, you can build and run these tests (creating libprofile.so
-   in the process), but they don't pass.  Feel free to look into why!
-   Maybe you can fix them up.  (Perhaps GetPC is wrong?)
-      % make profiler_unittest.sh
-      % ./profiler_unittest.sh         # to run the test
+   1) frag_unittest tries to allocate 400M of memory, and if you have
+      less virtual memory on your system, the test may fail with a
+      bad_alloc exception.
 
-   libtcmalloc.so does not successfully build, so neither do these
-   unittests that depend on it:
-      % make -k heap-profiler_unittest.sh heap-checker_unittest.sh \
-                heap-checker-death_unittest.sh maybe_threads_unittest.sh \
-                tcmalloc_unittest tcmalloc_both_unittest \
-                tcmalloc_large_unittest
+   2) profiler_unittest.sh sometimes fails in the "fork" test.  This
+      is because stray SIGPROF signals from the parent process are
+      making their way into the child process.  (This may be a kernel
+      bug that only exists in older kernels.)  The profiling code
+      itself is working fine.  This only affects programs that call
+      fork(); for most programs, as long as the unittest makes it to
+      the "fork" test, it indicates the cpu profiler is safe to use.
+
+   3) heap-checker-death_unittest.sh will fail because the
+      heap-checker does not successfully run on FreeBSD.  The
+      leak-checker notices it cannot run and turns itself off; as a
+      result, it does not die in the way the unittest is expecting,
+      leading to test failure.  (Likewise, while
+      heap-checker_unittest.sh succeeds, it doesn't actually test
+      anything, since heap-checking is never actually enabled during
+      those tests.)
+
+   As a result, you can safely link any or all of libtcmalloc_minimal,
+   libtcmalloc, or libprofiler into your application.  The following
+   functionality is available:
+
+   1) malloc/new replacement: by linking in libtcmalloc or
+      libtcmalloc_minimal.
+   2) heap-profiler: by linking in libtcmalloc and setting HEAPPROFILE.
+   3) cpu-profiler: by linking in libprofile and setting CPUPROFILE.
+
+   The following functionality is not available; if you try to enable
+   it, it will turn itself off:
+
+   1) heap-checker (automatic leak-detection): by linking in
+      libtcmalloc and setting HEAPCHECK.
+
+   See the README and documentation in the doc/ directory for more
+   information on how to use these features.
 
    I have not tested other *BSD systems, but they are probably similar.
 
 ** Mac OS X:
 
-   I've only tested on Intel (x86) systems.  PowerPC may work as well
-   -- I've implemented a stacktrace_ppc-inl.h that *ought* to work --
-   but hasn't been tested.  (For PowerPC, it probably will only work
-   for OS X 10.4 [Tiger] and later, since the ppc code uses
-   OSAtomic.h, which is new in 10.4.)  If you try it, let us know what
-   you find!
+   I've tested OS X 10.4 [Tiger] and OS X 10.3 [Panther] on both intel
+   (x86) and PowerPC systems.  For Panther/ppc systems, perftools does
+   not work at all: it depends on a header file, OSAtomic.h, which is
+   new in 10.4.
 
-   On Mac OS X/x86 systems, the binaries and libraries that
-   successfully build are exactly the same as for FreeBSD.  See that
-   section for a list of binaries, and instructions on building them.
+   For the other three systems, all binaries and libraries build, and
+   the set of unittests that pass are exactly the same as for FreeBSD.
+   In particular, you can use the basic malloc/new replacements (by
+   linking in libtcmalloc or libtcmalloc_minimal), the heap-profiler
+   (by linking in libtcmalloc and setting HEAPPROFILE), 
 
 ** Solaris 10 x86:
 
@@ -133,14 +171,24 @@ above, by linking in libtcmalloc_minimal.
    src/solaris/libstdc++.la for more info), which we work around by
    adding a custom LDFLAGS argument:
 
-   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure LDFLAGS="-Lsrc/solaris -lrt"
-   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make [...]
+   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure LDFLAGS="-Lsrc/solaris -lrt -lnsl"
+   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make
 
-   Again, the binaries and libraries that successfully build are
-   exactly the same as for FreeBSD.  (The profiler code is farther
-   from working, though -- c++filt doesn't seem to be installed by
-   default on Solaris.)  See that section for a list of binaries, and
-   instructions on building them.
+   Again, all binaries and libraries successfully build.  However,
+   while libprofiler.so can be used to generate CPU profiles, pprof is
+   not very successful at reading them -- necessary helper programs
+   like nm don't seem to be installed by default on Solaris, or
+   perhaps are only installed as part of the Sun C++ compiler package.
+   Even more trouble exists trying to generate heap-profiles, because
+   the Sun linker does not support __attribute__((section)).  I've
+   been unable to test this, but it might work correctly if you can
+   get gcc to use the gnu linker (/usr/sfw/bin/gld) instead of sun's
+   ld.
+
+   The perftools code uses a lot of gcc-specific functionality,
+   including attributes like section-naming and weak-linking, so it
+   may be difficult to fully port this code to the Sun C++ compiler.
+   The basic tcmalloc_minimal library may port well, however.
 
 ** Windows:
 
@@ -154,10 +202,23 @@ above, by linking in libtcmalloc_minimal.
    instructions on how to install on Windows.
 
 
+*** FURTHER OPTIONAL TESTING
+
+  In addition to all the tests that tcmalloc performs with "make
+  check", for your convenience we've included part a test suite that
+  comes with ptmalloc, another malloc implementation.  It is not
+  enabled by default, because the tests do not compile on all systems.
+  If you want to run these tests, you can try the following:
+
+      % make ptmalloc_unittest1 ptmalloc_unittest2
+      % ./ptmalloc_unittest1    # to run the test
+      % ./ptmalloc_unittest2    # to run the test
+
+
 Basic Installation
 ==================
 
-   These are generic installation instructions.
+These are generic installation instructions.
 
    The `configure' shell script attempts to guess correct values for
 various system-dependent variables used during compilation.  It uses
@@ -217,9 +278,9 @@ The simplest way to compile this package is:
 Compilers and Options
 =====================
 
-   Some systems require unusual options for compilation or linking that
-the `configure' script does not know about.  Run `./configure --help'
-for details on some of the pertinent environment variables.
+Some systems require unusual options for compilation or linking that the
+`configure' script does not know about.  Run `./configure --help' for
+details on some of the pertinent environment variables.
 
    You can give `configure' initial values for configuration parameters
 by setting variables in the command line or in the environment.  Here
@@ -232,7 +293,7 @@ is an example:
 Compiling For Multiple Architectures
 ====================================
 
-   You can compile the package for more than one kind of computer at the
+You can compile the package for more than one kind of computer at the
 same time, by placing the object files for each architecture in their
 own directory.  To do this, you must use a version of `make' that
 supports the `VPATH' variable, such as GNU `make'.  `cd' to the
@@ -249,19 +310,19 @@ for another architecture.
 Installation Names
 ==================
 
-   By default, `make install' will install the package's files in
-`/usr/local/bin', `/usr/local/man', etc.  You can specify an
-installation prefix other than `/usr/local' by giving `configure' the
-option `--prefix=PATH'.
+By default, `make install' installs the package's commands under
+`/usr/local/bin', include files under `/usr/local/include', etc.  You
+can specify an installation prefix other than `/usr/local' by giving
+`configure' the option `--prefix=PREFIX'.
 
    You can specify separate installation prefixes for
 architecture-specific files and architecture-independent files.  If you
-give `configure' the option `--exec-prefix=PATH', the package will use
-PATH as the prefix for installing programs and libraries.
-Documentation and other data files will still use the regular prefix.
+pass the option `--exec-prefix=PREFIX' to `configure', the package uses
+PREFIX as the prefix for installing programs and libraries.
+Documentation and other data files still use the regular prefix.
 
    In addition, if you use an unusual directory layout you can give
-options like `--bindir=PATH' to specify different values for particular
+options like `--bindir=DIR' to specify different values for particular
 kinds of files.  Run `configure --help' for a list of the directories
 you can set and what kinds of files go in them.
 
@@ -272,7 +333,7 @@ option `--program-prefix=PREFIX' or `--program-suffix=SUFFIX'.
 Optional Features
 =================
 
-   Some packages pay attention to `--enable-FEATURE' options to
+Some packages pay attention to `--enable-FEATURE' options to
 `configure', where FEATURE indicates an optional part of the package.
 They may also pay attention to `--with-PACKAGE' options, where PACKAGE
 is something like `gnu-as' or `x' (for the X Window System).  The
@@ -287,11 +348,11 @@ you can use the `configure' options `--x-includes=DIR' and
 Specifying the System Type
 ==========================
 
-   There may be some features `configure' cannot figure out
-automatically, but needs to determine by the type of machine the package
-will run on.  Usually, assuming the package is built to be run on the
-_same_ architectures, `configure' can figure that out, but if it prints
-a message saying it cannot guess the machine type, give it the
+There may be some features `configure' cannot figure out automatically,
+but needs to determine by the type of machine the package will run on.
+Usually, assuming the package is built to be run on the _same_
+architectures, `configure' can figure that out, but if it prints a
+message saying it cannot guess the machine type, give it the
 `--build=TYPE' option.  TYPE can either be a short name for the system
 type, such as `sun4', or a canonical name which has the form:
 
@@ -306,7 +367,7 @@ where SYSTEM can have one of these forms:
 need to know the machine type.
 
    If you are _building_ compiler tools for cross-compiling, you should
-use the `--target=TYPE' option to select the type of system they will
+use the option `--target=TYPE' to select the type of system they will
 produce code for.
 
    If you want to _use_ a cross compiler, that generates code for a
@@ -317,9 +378,9 @@ eventually be run) with `--host=TYPE'.
 Sharing Defaults
 ================
 
-   If you want to set default values for `configure' scripts to share,
-you can create a site shell script called `config.site' that gives
-default values for variables like `CC', `cache_file', and `prefix'.
+If you want to set default values for `configure' scripts to share, you
+can create a site shell script called `config.site' that gives default
+values for variables like `CC', `cache_file', and `prefix'.
 `configure' looks for `PREFIX/share/config.site' if it exists, then
 `PREFIX/etc/config.site' if it exists.  Or, you can set the
 `CONFIG_SITE' environment variable to the location of the site script.
@@ -328,7 +389,7 @@ A warning: not all `configure' scripts look for a site script.
 Defining Variables
 ==================
 
-   Variables not defined in a site shell script can be set in the
+Variables not defined in a site shell script can be set in the
 environment passed to `configure'.  However, some packages may run
 configure again during the build, and the customized values of these
 variables may be lost.  In order to avoid this problem, you should set
@@ -336,14 +397,18 @@ them in the `configure' command line, using `VAR=value'.  For example:
 
      ./configure CC=/usr/local2/bin/gcc
 
-will cause the specified gcc to be used as the C compiler (unless it is
-overridden in the site shell script).
+causes the specified `gcc' to be used as the C compiler (unless it is
+overridden in the site shell script).  Here is a another example:
+
+     /bin/bash ./configure CONFIG_SHELL=/bin/bash
+
+Here the `CONFIG_SHELL=/bin/bash' operand causes subsequent
+configuration-related scripts to be executed by `/bin/bash'.
 
 `configure' Invocation
 ======================
 
-   `configure' recognizes the following options to control how it
-operates.
+`configure' recognizes the following options to control how it operates.
 
 `--help'
 `-h'

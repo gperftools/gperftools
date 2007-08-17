@@ -96,7 +96,7 @@ class SbrkSysAllocator : public SysAllocator {
 public:
   SbrkSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
 static char sbrk_space[sizeof(SbrkSysAllocator)];
 
@@ -104,7 +104,7 @@ class MmapSysAllocator : public SysAllocator {
 public:
   MmapSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
 static char mmap_space[sizeof(MmapSysAllocator)];
 
@@ -112,13 +112,13 @@ class DevMemSysAllocator : public SysAllocator {
 public:
   DevMemSysAllocator() : SysAllocator() {
   }
-  void* Alloc(size_t size, size_t alignment);
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
 static char devmem_space[sizeof(DevMemSysAllocator)];
 
 static const int kStaticAllocators = 3;
 // kMaxDynamicAllocators + kStaticAllocators;
-static const int kMaxAllocators = 4;
+static const int kMaxAllocators = 5;
 SysAllocator *allocators[kMaxAllocators];
 
 bool RegisterSystemAllocator(SysAllocator *a, int priority) {
@@ -132,11 +132,20 @@ bool RegisterSystemAllocator(SysAllocator *a, int priority) {
 }
 
 
-void* SbrkSysAllocator::Alloc(size_t size, size_t alignment) {
+void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
+                              size_t alignment) {
   // sbrk will release memory if passed a negative number, so we do
   // a strict check here
   if (static_cast<ptrdiff_t>(size + alignment) < 0) return NULL;
 
+  // could theoretically return the "extra" bytes here, but this
+  // is simple and correct.
+  if (actual_size) {
+    *actual_size = size;
+  }
+
+  // This doesn't overflow because TCMalloc_SystemAlloc has already
+  // tested for overflow at the alignment boundary.
   size = ((size + alignment - 1) / alignment) * alignment;
   void* result = sbrk(size);
   if (result == reinterpret_cast<void*>(-1)) {
@@ -170,11 +179,22 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t alignment) {
   return reinterpret_cast<void*>(ptr);
 }
 
-void* MmapSysAllocator::Alloc(size_t size, size_t alignment) {
+void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
+                              size_t alignment) {
+  // could theoretically return the "extra" bytes here, but this
+  // is simple and correct.
+  if (actual_size) {
+    *actual_size = size;
+  }
+
   // Enforce page alignment
   if (pagesize == 0) pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
-  size = ((size + alignment - 1) / alignment) * alignment;
+  size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
+  if (aligned_size < size) {
+    return NULL;
+  }
+  size = aligned_size;
 
   // Ask for extra memory if alignment > pagesize
   size_t extra = 0;
@@ -214,7 +234,8 @@ void* MmapSysAllocator::Alloc(size_t size, size_t alignment) {
   return reinterpret_cast<void*>(ptr);
 }
 
-void* DevMemSysAllocator::Alloc(size_t size, size_t alignment) {
+void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
+                                size_t alignment) {
   static bool initialized = false;
   static off_t physmem_base;  // next physical memory address to allocate
   static off_t physmem_limit; // maximum physical address allowed
@@ -241,10 +262,20 @@ void* DevMemSysAllocator::Alloc(size_t size, size_t alignment) {
     initialized = true;
   }
 
+  // could theoretically return the "extra" bytes here, but this
+  // is simple and correct.
+  if (actual_size) {
+    *actual_size = size;
+  }
+
   // Enforce page alignment
   if (pagesize == 0) pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
-  size = ((size + alignment - 1) / alignment) * alignment;
+  size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
+  if (aligned_size < size) {
+    return NULL;
+  }
+  size = aligned_size;
 
   // Ask for extra memory if alignment > pagesize
   size_t extra = 0;
@@ -300,7 +331,8 @@ void InitSystemAllocators(void) {
   allocators[i++] = new (mmap_space) MmapSysAllocator();
 }
 
-void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
+void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
+                           size_t alignment) {
   // Discard requests that overflow
   if (size + alignment < size) return NULL;
 
@@ -321,7 +353,7 @@ void* TCMalloc_SystemAlloc(size_t size, size_t alignment) {
       SysAllocator *a = allocators[j];
       if (a == NULL) continue;
       if (a->usable_ && !a->failed_) {
-        void* result = a->Alloc(size, alignment);
+        void* result = a->Alloc(size, actual_size, alignment);
         if (result != NULL) return result;
       }
     }

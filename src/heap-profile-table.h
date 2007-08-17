@@ -64,7 +64,7 @@ class HeapProfileTable {
   // Info we can return about an allocation.
   struct AllocInfo {
     size_t object_size;  // size of the allocation
-    void* const* call_stack;  // call stack that made the allocation call
+    const void* const* call_stack;  // call stack that made the allocation call
     int stack_depth;  // depth of call_stack
   };
 
@@ -80,23 +80,23 @@ class HeapProfileTable {
   // Record an allocation at 'ptr' of 'bytes' bytes.
   // skip_count gives the number of stack frames between this call
   // and the memory allocation function that was asked to do the allocation.
-  void RecordAlloc(void* ptr, size_t bytes, int skip_count);
+  void RecordAlloc(const void* ptr, size_t bytes, int skip_count);
 
   // Record the deallocation of memory at 'ptr'.
-  void RecordFree(void* ptr);
+  void RecordFree(const void* ptr);
 
   // Return true iff we have recorded an allocation at 'ptr'.
   // If yes, fill *object_size with the allocation byte size.
-  bool FindAlloc(void* ptr, size_t* object_size) const;
+  bool FindAlloc(const void* ptr, size_t* object_size) const;
   // Same as FindAlloc, but fills all of *info.
-  bool FindAllocDetails(void* ptr, AllocInfo* info) const;
+  bool FindAllocDetails(const void* ptr, AllocInfo* info) const;
 
   // Return current total (de)allocation statistics.
   const Stats& total() const { return total_; }
 
   // Allocation data iteration callback: gets passed object pointer and
   // fully-filled AllocInfo.
-  typedef void (*AllocIterator)(void* ptr, const AllocInfo& info);
+  typedef void (*AllocIterator)(const void* ptr, const AllocInfo& info);
 
   // Iterate over the allocation profile data calling "callback"
   // for every allocation.
@@ -112,7 +112,7 @@ class HeapProfileTable {
   // Allocation data dump filtering callback:
   // gets passed object pointer and size
   // needs to return true iff the object is to be filtered out of the dump.
-  typedef bool (*DumpFilter)(void* ptr, size_t size);
+  typedef bool (*DumpFilter)(const void* ptr, size_t size);
 
   // Dump current heap profile for leak checking purposes to file_name
   // while filtering the objects by "filter".
@@ -134,10 +134,10 @@ class HeapProfileTable {
   // Hash table bucket to hold (de)allocation stats
   // for a given allocation call stack trace.
   struct Bucket : public Stats {
-    uintptr_t hash;   // Hash value of the stack trace
-    int       depth;  // Depth of stack trace
-    void**    stack;  // Stack trace
-    Bucket*   next;   // Next entry in hash-table
+    uintptr_t    hash;   // Hash value of the stack trace
+    int          depth;  // Depth of stack trace
+    const void** stack;  // Stack trace
+    Bucket*      next;   // Next entry in hash-table
   };
 
   // Info stored in the address map
@@ -176,12 +176,12 @@ class HeapProfileTable {
 
   // Helper for IterateAllocs to do callback signature conversion
   // from AllocationMap::Iterate to AllocIterator.
-  static void MapArgsAllocIterator(void* ptr, AllocValue v,
+  static void MapArgsAllocIterator(const void* ptr, AllocValue v,
                                    AllocIterator callback);
 
   // Helper for DumpFilteredProfile to do object-granularity
   // heap profile dumping. It gets passed to AllocationMap::Iterate.
-  static void FilteredDumpIterator(void* ptr, AllocValue v,
+  static void FilteredDumpIterator(const void* ptr, AllocValue v,
                                    const DumpArgs& args);
 
   // data ----------------------------

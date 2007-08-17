@@ -4,6 +4,7 @@
 // Produce stack trace.  I'm guessing (hoping!) the code is much like
 // for x86.  For apple machines, at least, it seems to be; see
 //    http://developer.apple.com/documentation/mac/runtimehtml/RTArch-59.html
+//    http://www.linux-foundation.org/spec/ELF/ppc64/PPC-elf64abi-1.9.html#STACK
 // Linux has similar code: http://patchwork.ozlabs.org/linuxppc/patch?id=8882
 
 #include <stdint.h>   // for uintptr_t
@@ -42,11 +43,18 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
     if (skip_count > 0) {
       skip_count--;
     } else {
-#ifdef __LP64__   // Indicates 64-bit pointers under OS
-      result[n++] = *(sp+2);   // ?? untested
-#else
-      result[n++] = *(sp+1);
-#endif
+      // sp[2] holds the "Link Record", according to RTArch-59.html.
+      // On PPC, the Link Record is the return address of the
+      // subroutine call (what instruction we run after our function
+      // finishes).  This is the same as the stack-pointer of our
+      // parent routine, which is what we want here.  We believe that
+      // the compiler will always set up the LR for subroutine calls.
+      //
+      // It may be possible to get the stack-pointer of the parent
+      // routine directly.  In my experiments, this code works:
+      //    result[n++] = NextStackFrame(sp)[-18]
+      // But I'm not sure what this is doing, exactly, or how reliable it is.
+      result[n++] = *(sp+2);  // sp[2] holds the Link Record (return address)
     }
     sp = NextStackFrame(sp);
   }

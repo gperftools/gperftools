@@ -1,21 +1,27 @@
 ;; Most symbols in the google-perftools dll are exported via
-;; __declspec(dllexport).  However, we can't do that for the memory
-;; allocation routines we override (malloc, free, new), because those
-;; already have an export spec in msvcrt.dll.  In particular, they're
-;; already declared internally in a header that exists in the
-;; compiler's own static data, and there's no way to override
-;; inclusion of that header.  Since that header doesn't declare these
-;; functoin dllexport, we can't redeclare them dllexport.  Therefore,
-;; we have to put any export decorations either here, or nowhere.
+;; __declspec(dllexport).  This works fine for functions we're
+;; defining ourselves, but not for functions we're overriding, like
+;; malloc, free, and new.  Those already have an export spec in
+;; msvcrt.dll.  (In particular, they're already declared internally in
+;; a header that exists in the compiler's own static data, and there's
+;; no way to override inclusion of that header.)  Since that header
+;; doesn't declare these functions dllexport, we can't redeclare them
+;; dllexport.
 ;;
-;; Apparently, for malloc, free, and realloc, the right thing to do is
-;; to put the export decorations nowhere: I guess msvcrt already does
-;; something (I don't know what) that lets us override these functions
-;; just by declaring our own version, without any need to export.
+;; For malloc, calloc, realloc, and free, not only can we not override
+;; the declaration, we can't override the definition: windows does not
+;; provide "weak" linkage for these functions (in general).
+;; The way we deal with these functions in code is to patch the
+;; assembly code for the Windows malloc/etc to point to our
+;; functions.  Using this technique, there's no need to declare our
+;; own version of malloc/etc anywhere: we do our own "exporting" when
+;; we patch up the assembly code.
 ;;
-;; However, for new and delete, the right thing to do is to export the
-;; symbol here, in a .def file.  We export the 4 versions of new and
-;; delete that  we override:
+;; For new and delete, we *can* override the definition.  That means
+;; we need to export our declaration.  As mentioned, we can't
+;; redeclare them dllexport in our .h file.  The only other way to
+;; export a declaration is to declare it here, in a .def file.
+;; We export the 4 versions of new and delete that  we override:
 ;;     ??2@YAPAXI@Z    (void * __cdecl operator new(unsigned int))
 ;;     ??3@YAXPAX@Z    (void __cdecl operator delete(void *))
 ;;     ??_U@YAPAXI@Z   (void * __cdecl operator new[](unsigned int))

@@ -179,20 +179,21 @@ class MemoryRegionMap {
 
   // Record addition of a memory region at address "start" of size "size"
   // (called from our mmap/mremap/sbrk hooks).
-  static void RecordRegionAddition(void* start, size_t size);
+  static void RecordRegionAddition(const void* start, size_t size);
   // Record deletion of a memory region at address "start" of size "size"
   // (called from our munmap/mremap/sbrk hooks).
-  static void RecordRegionRemoval(void* start, size_t size);
+  static void RecordRegionRemoval(const void* start, size_t size);
 
   // Hooks for MallocHook
-  static void MmapHook(void* result,
-                       void* start, size_t size,
+  static void MmapHook(const void* result,
+                       const void* start, size_t size,
                        int prot, int flags,
                        int fd, off_t offset);
-  static void MunmapHook(void* ptr, size_t size);
-  static void MremapHook(void* result, void* old_addr, size_t old_size,
-                         size_t new_size, int flags, void* new_addr);
-  static void SbrkHook(void* result, ptrdiff_t increment);
+  static void MunmapHook(const void* ptr, size_t size);
+  static void MremapHook(const void* result, const void* old_addr,
+                         size_t old_size, size_t new_size, int flags,
+                         const void* new_addr);
+  static void SbrkHook(const void* result, ptrdiff_t increment);
 
   // Log all memory regions; Useful for debugging only.
   // Assumes Lock() is held

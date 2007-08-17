@@ -223,6 +223,21 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 // But maybe play around with ExperimentalGetStackTrace in port.cc
 #define NO_TCMALLOC_SAMPLES
 
+// tcmalloc.cc calls this so we can patch VirtualAlloc() et al.
+// TODO(csilvers): instead of patching the functions, consider just replacing
+// them.  To do this, add the following post-build step the the .vcproj:
+// <Tool Name="VCPostBuildEventTool"
+//       CommandLine="lib /out:$(OutDir)\tmp.lib /remove:build\intel\xst_obj\dbgheap.obj libcd.lib
+//       lib /out:$(OutDir)\foo.lib $(OutDir)\libem.lib $(OutDir)\tmp.lib
+// "/>
+// libem.lib is a library you write that defines calloc, free, malloc,
+// realloc, _calloc_dbg, _free_dbg, _msize_dbg, _malloc_dbg,
+// _realloc_dbg, _CrtDumpMemoryLeaks, and _CrtSetDbgFlag (at least for
+// VC++ 7.1).  The list of functions to override, and the name/location of
+// the files to remove, may differ between VC++ versions.
+
+extern PERFTOOLS_DLL_DECL void PatchWindowsFunctions();
+extern PERFTOOLS_DLL_DECL void UnpatchWindowsFunctions();
 
 #endif  /* WIN32 */
 

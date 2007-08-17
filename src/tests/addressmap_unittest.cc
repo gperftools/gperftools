@@ -46,8 +46,8 @@ using std::vector;
 using std::set;
 using std::random_shuffle;
 
-static void SetCheckCallback(void* ptr, int val,
-                             set<pair<void*, int> >* check_set) {
+static void SetCheckCallback(const void* ptr, int val,
+                             set<pair<const void*, int> >* check_set) {
   check_set->insert(make_pair(ptr, val));
 }
 
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
     }
 
     // Check all entries
-    set<pair<void*, int> > check_set;
+    set<pair<const void*, int> > check_set;
     map.Iterate(SetCheckCallback, &check_set);
     CHECK_EQ(check_set.size(), N);
     for (int i = 0; i < N; ++i) {

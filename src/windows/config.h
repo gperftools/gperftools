@@ -47,6 +47,9 @@
 /* Define to 1 if you have the <execinfo.h> header file. */
 #undef HAVE_EXECINFO_H
 
+/* Define to 1 if you have the <fcntl.h> header file. */
+#undef HAVE_FCNTL_H
+
 /* Define to 1 if you have the `geteuid' function. */
 #undef HAVE_GETEUID
 
@@ -113,41 +116,23 @@
 /* Define to 1 if the system has the type `struct mallinfo'. */
 #undef HAVE_STRUCT_MALLINFO
 
-/* Define to 1 if `eip' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_EIP
-
-/* Define to 1 if `regs->nip' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_REGS__NIP
-
-/* Define to 1 if `rip' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_RIP
-
-/* Define to 1 if `sc_eip' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_SC_EIP
-
-/* Define to 1 if `sc_ip' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_SC_IP
-
-/* Define to 1 if `sc_ir' is member of `struct sigcontext'. */
-#undef HAVE_STRUCT_SIGCONTEXT_SC_IR
-
-/* Define to 1 if `si_faddr' is member of `struct siginfo'. */
-#undef HAVE_STRUCT_SIGINFO_SI_FADDR
-
-/* Define to 1 if `uc_mcontext' is member of `struct ucontext'. */
-#undef HAVE_STRUCT_UCONTEXT_UC_MCONTEXT
-
-/* Define to 1 if you have the <syscall.h> header file. */
-#undef HAVE_SYSCALL_H
+/* Define to 1 if you have the <sys/prctl.h> header file. */
+#undef HAVE_SYS_PRCTL_H
 
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
+
+/* Define to 1 if you have the <sys/syscall.h> header file. */
+#undef HAVE_SYS_SYSCALL_H
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
 
 /* Define to 1 if compiler supports __thread */
 #define HAVE_TLS 1
+
+/* Define to 1 if you have the <ucontext.h> header file. */
+#undef HAVE_UCONTEXT_H
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #undef HAVE_UNISTD_H
@@ -185,12 +170,19 @@
 /* Define to the version of this package. */
 #undef PACKAGE_VERSION
 
+/* How to access the PC from a struct ucontext */
+#undef PC_FROM_UCONTEXT
+
 /* Always the empty-string on non-windows systems. On windows, should be
    "__declspec(dllexport)". This way, when we compile the dll, we export our
    functions/classes. It's safe to define this here because config.h is only
    used internally, to compile the DLL, and every DLL source file #includes
    "config.h" before anything else. */
-#define PERFTOOLS_DLL_DECL  __declspec(dllexport)
+#ifndef PERFTOOLS_DLL_DECL
+# define PERFTOOLS_IS_A_DLL  1   /* not set if you're statically linking */
+# define PERFTOOLS_DLL_DECL  __declspec(dllexport)
+# define PERFTOOLS_DLL_DECL_FOR_UNITTESTS  __declspec(dllimport)
+#endif
 
 /* printf format code for printing a size_t and ssize_t */
 #define PRIdS  "Id"
@@ -213,6 +205,11 @@
 
 /* Version number of package */
 #undef VERSION
+
+/* C99 says: define this to get the PRI... macros from stdint.h */
+#ifndef __STDC_FORMAT_MACROS
+# define __STDC_FORMAT_MACROS 1
+#endif
 
 /* Define to `__inline__' or `__inline' if that's what the C compiler
    calls it, or to nothing if 'inline' is not supported under any name.  */

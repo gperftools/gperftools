@@ -17,8 +17,20 @@ You may want to change them to Release mode.
 
 To use tcmalloc_minimal in your own projects, you should only need to
 build the dll and install it someplace, so you can link it into
-further binaries.  No .h files are needed for the basic use case.
-However, this code should still be considered EXPERIMENTAL.
+further binaries.  Note that the tcmalloc DLL is compiled with
+the "Multithreaded DLL" CRT library -- this is required so we can
+override malloc in user applications.  This means, to use the tcmalloc
+DLL, your applcation must link in the "Multithreaded DLL" CRT library
+as well.  (It is a TODO to try to remove this restriction in the
+future.)
+
+You can also link tcmalloc code in statically -- see the example
+project tcmalloc_minimal_unittest-static, which does this.  For this
+to work, you'll need to add "/D PERFTOOLS_DLL_DECL=" to the compile
+line of every perftools .cc file.  For reasons I don't fully
+understand yet, you still need to use the "DLL" CRT library even when
+statically linking.  Again, you can look at the
+tcmalloc_minimal_unittest-static project, which does this.
 
 I have little experience with Windows programming, so there may be
 better ways to set this up than I've done!  If you run across any

@@ -129,7 +129,7 @@ bool MemoryRegionMap::Shutdown() {
   MallocHook::SetMremapHook(NULL);
   MallocHook::SetSbrkHook(NULL);
   MallocHook::SetMunmapHook(NULL);
-  regions_->~RegionSet();
+  if (regions_) regions_->~RegionSet();
   regions_ = NULL;
   bool deleted_arena = LowLevelAlloc::DeleteArena(arena_);
   if (deleted_arena) {
@@ -293,7 +293,7 @@ static const int kStripFrames = 1;
 static const int kStripFrames = 3;
 #endif
 
-void MemoryRegionMap::RecordRegionAddition(void* start, size_t size) {
+void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
   Region region;
   // Record data about this memory acquisition call:
   region.start_addr = reinterpret_cast<uintptr_t>(start);
@@ -318,7 +318,7 @@ void MemoryRegionMap::RecordRegionAddition(void* start, size_t size) {
   Unlock();
 }
 
-void MemoryRegionMap::RecordRegionRemoval(void* start, size_t size) {
+void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
   Lock();
   HandleSavedRegionsLocked(&InsertRegionLocked);
     // first handle saved regions if any
@@ -389,8 +389,8 @@ void MemoryRegionMap::RecordRegionRemoval(void* start, size_t size) {
   Unlock();
 }
 
-void MemoryRegionMap::MmapHook(void* result,
-                               void* start, size_t size,
+void MemoryRegionMap::MmapHook(const void* result,
+                               const void* start, size_t size,
                                int prot, int flags,
                                int fd, off_t offset) {
   // TODO(maxim): replace all 0x%"PRIxS" by %p when RAW_VLOG uses a safe
@@ -405,16 +405,17 @@ void MemoryRegionMap::MmapHook(void* result,
   }
 }
 
-void MemoryRegionMap::MunmapHook(void* ptr, size_t size) {
+void MemoryRegionMap::MunmapHook(const void* ptr, size_t size) {
   RAW_VLOG(2, "MUnmap of %p %"PRIuS"", ptr, size);
   if (size != 0) {
     RecordRegionRemoval(ptr, size);
   }
 }
 
-void MemoryRegionMap::MremapHook(void* result,
-                                 void* old_addr, size_t old_size,
-                                 size_t new_size, int flags, void* new_addr) {
+void MemoryRegionMap::MremapHook(const void* result,
+                                 const void* old_addr, size_t old_size,
+                                 size_t new_size, int flags,
+                                 const void* new_addr) {
   RAW_VLOG(2, "MRemap = 0x%"PRIxS" of 0x%"PRIxS" %"PRIuS" "
               "to %"PRIuS" flags %d new_addr=0x%"PRIxS,
               (uintptr_t)result, (uintptr_t)old_addr,
@@ -428,15 +429,15 @@ void MemoryRegionMap::MremapHook(void* result,
 
 extern "C" void* __sbrk(ptrdiff_t increment);  // defined in libc
 
-void MemoryRegionMap::SbrkHook(void* result, ptrdiff_t increment) {
+void MemoryRegionMap::SbrkHook(const void* result, ptrdiff_t increment) {
   RAW_VLOG(2, "Sbrk = 0x%"PRIxS" of %"PRIdS"", (uintptr_t)result, increment);
   if (result != reinterpret_cast<void*>(-1)) {
     if (increment > 0) {
-      void* new_end = __sbrk(0);
+      void* new_end = sbrk(0);
       RecordRegionAddition(result, reinterpret_cast<uintptr_t>(new_end) -
                                    reinterpret_cast<uintptr_t>(result));
     } else if (increment < 0) {
-      void* new_end = __sbrk(0);
+      void* new_end = sbrk(0);
       RecordRegionRemoval(new_end, reinterpret_cast<uintptr_t>(result) -
                                    reinterpret_cast<uintptr_t>(new_end));
     }

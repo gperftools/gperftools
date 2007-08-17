@@ -40,10 +40,18 @@
 
 // REQUIRES: "alignment" is a power of two or "0" to indicate default alignment
 //
-// Allocate and return "N" bytes of zeroed memory.  The returned
-// pointer is a multiple of "alignment" if non-zero.  Returns NULL
-// when out of memory.
-extern void* TCMalloc_SystemAlloc(size_t bytes, size_t alignment = 0);
+// Allocate and return "N" bytes of zeroed memory.
+//
+// If actual_bytes is NULL then the returned memory is exactly the
+// requested size.  If actual bytes is non-NULL then the allocator
+// may optionally return more bytes than asked for (i.e. return an
+// entire "huge" page if a huge page allocator is in use).
+//
+// The returned pointer is a multiple of "alignment" if non-zero.
+//
+// Returns NULL when out of memory.
+extern void* TCMalloc_SystemAlloc(size_t bytes, size_t *actual_bytes,
+                                  size_t alignment = 0);
 
 // This call is a hint to the operating system that the pages
 // contained in the specified range of memory will not be used for a
@@ -65,7 +73,7 @@ class SysAllocator {
   };
   virtual ~SysAllocator() {};
 
-  virtual void* Alloc(size_t size, size_t alignment) = 0;
+  virtual void* Alloc(size_t size, size_t *actual_size, size_t alignment) = 0;
 
   // So the allocator can be turned off at compile time
   bool usable_;
@@ -90,6 +98,6 @@ extern PERFTOOLS_DLL_DECL bool RegisterSystemAllocator(SysAllocator *allocator,
                                                        int priority);
 
 // Number of SysAllocators known to call RegisterSystemAllocator
-static const int kMaxDynamicAllocators = 1;
+static const int kMaxDynamicAllocators = 2;
 
 #endif /* TCMALLOC_SYSTEM_ALLOC_H__ */

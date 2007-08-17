@@ -77,11 +77,11 @@ VerifyMemFunction() {
   exec=`unset HEAPPROFILE; $HEAP_PROFILER --help | awk '{print $2; exit;}'`
 
   if [ $# = 2 ]; then
-    [ -e "$1" ] || { echo "Profile not found: $1"; exit 1; }
-    [ -e "$2" ] || { echo "Profile not found: $2"; exit 1; }
+    [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
+    [ -f "$2" ] || { echo "Profile not found: $2"; exit 1; }
     $PPROF --base="$1" $exec "$2" >$TEST_TMPDIR/output.pprof 2>&1
   else
-    [ -e "$1" ] || { echo "Profile not found: $1"; exit 1; }
+    [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
     $PPROF $exec "$1" >$TEST_TMPDIR/output.pprof 2>&1
   fi
 
@@ -99,8 +99,10 @@ VerifyMemFunction() {
   fi
 }
 
-export HEAPPROFILE="$TEST_TMPDIR/test"
-export HEAP_PROFILE_INUSE_INTERVAL="10240"   # need this to be 10Kb
+HEAPPROFILE="$TEST_TMPDIR/test"
+HEAP_PROFILE_INUSE_INTERVAL="10240"   # need this to be 10Kb
+export HEAPPROFILE
+export HEAP_PROFILE_INUSE_INTERVAL
 
 # We make the unittest run a child process, to test that the child
 # process doesn't try to write a heap profile as well and step on the

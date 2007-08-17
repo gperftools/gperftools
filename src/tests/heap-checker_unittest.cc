@@ -106,6 +106,12 @@
 #include <google/malloc_extension.h>
 #include <google/stacktrace.h>
 
+// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
+// form of the name instead.
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
+#endif
+
 using namespace std;
 
 
@@ -809,8 +815,8 @@ static void TestLibCAllocate() {
   inet_ntoa(addr);
   const time_t now = time(NULL);
   ctime(&now);
-  void *stack[1];
 #ifdef HAVE_EXECINFO_H
+  void *stack[1];
   backtrace(stack, 1);
 #endif
 #ifdef HAVE_GRP_H

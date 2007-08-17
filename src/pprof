@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "0.92";
+my $PPROF_VERSION = "0.93";
 
 # These are the object tools we use, which come from various sources.
 # We want to invoke them directly, rather than via users' aliases and/or
@@ -2873,18 +2873,16 @@ sub ConfigureObjTools {
   # type:
   my $default_prefix = "/usr/bin/";
   # Follow symlinks (at least for systems where "file" supports that)
-  my $file_type = `/usr/bin/file -L $prog_file || /usr/bin/file $prog_file`;
-  if ($file_type =~ /ELF 32-bit/) {
-    $default_prefix = "/usr/bin/";
-  } elsif ($file_type =~ /ELF 64-bit/) {
+  my $file_type = `/usr/bin/file -L $prog_file 2>/dev/null || /usr/bin/file $prog_file`;
+  if ($file_type !~ /executable/) {
+    warn "WARNING: program $prog_file is apparently not an executable\n";
+    # Don't change the default prefix.
+  } elsif ($file_type =~ /64-bit/) {
     # Change $address_length to 16 if the program file is ELF 64-bit.
     # We can't detect this from many (most?) heap or lock contention
     # profiles, since the actual addresses referenced are generally in low
     # memory even for 64-bit programs.
     $address_length = 16;
-  } else {
-    print STDERR "WARNING: program $prog_file is apparently not an ELF file\n";
-    # Don't change the default prefix.
   }
 
   # Go fill in %obj_tool_map with the pathnames to use:
@@ -2915,7 +2913,7 @@ sub ConfigureTool {
   if (-x $path) { return $path; }
 
   # Try the normal system default (/usr/bin/):
-  if ($prefix ne "/usr/bin") {
+  if ($prefix ne "/usr/bin/") {
     $path = "/usr/bin/$tool";
     if ($main::opt_debug) { print STDERR "  (c) Trying '$path'\n"; }
     if (-x $path) { return $path; }
@@ -3000,17 +2998,21 @@ sub GetProcedureBoundaries {
     $image = "/usr/lib/debug$image";
   }
   my $nm = $obj_tool_map{"nm"};
-  # Not all nm's in the world can do demangling themselves, so rely on c++filt
   my $cppfilt = $obj_tool_map{"c++filt"};
-  my $nm_command = "$nm -n $image | $cppfilt";
-  my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
-  if (!(%{$symbol_table})) {
-    # Coulnd't get any symbols: probably $image isn't a debug library.
-    # In that case, we can at least get the *exported* symbols via -D
-    $nm_command = "$nm -D -n $image | $cppfilt";
-    $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
+
+  # nm can fail for two reasons: 1) $image isn't a debug library; 2) nm
+  # binary doesn't support --demangle.  For the first, we try with -D
+  # to at least get *exported* symbols.  For the second, we use c++filt
+  # instead of --demangle.  (c++filt is less reliable though, because it
+  # might interpret nm meta-data as c++ symbols and try to demangle it :-/)
+  foreach my $nm_command ("$nm -n --demangle $image 2>/dev/null",
+			  "$nm -n $image 2>&1 | $cppfilt",
+			  "$nm -D -n --demangle $image 2>/dev/null",
+			  "$nm -D -n $image 2>&1 | $cppfilt") {
+    my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
+    return $symbol_table if (%{$symbol_table});
   }
-  return $symbol_table;
+  return GetProcedureBoundariesViaNm("$nm -n $image", $regexp);   # last hope
 }
 
 

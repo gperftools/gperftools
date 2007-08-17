@@ -209,7 +209,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // because this disabling works by remembering the range of
   // return program counter addresses for the two calls.
   static void* GetDisableChecksStart();
-  static void DisableChecksToHereFrom(void* start_address);
+  static void DisableChecksToHereFrom(const void* start_address);
 
   // ADVICE: Use GetDisableChecksStart, DisableChecksToHereFrom
   //         instead of DisableChecksUp|At whenever possible
@@ -238,7 +238,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
 
   // Same as DisableChecksUp,
   // but the function return program counter address is given explicitly.
-  static void DisableChecksAt(void* address);
+  static void DisableChecksAt(const void* address);
 
   // Tests for checking that DisableChecksUp and DisableChecksAt
   // behaved as expected, for example
@@ -256,7 +256,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   //    }
   // These return false when heap leak checking is turned off.
   static bool HaveDisabledChecksUp(int stack_frames);
-  static bool HaveDisabledChecksAt(void* address);
+  static bool HaveDisabledChecksAt(const void* address);
 
   // Ignore an object located at 'ptr'
   // (as well as all heap objects (transitively) referenced from it)
@@ -265,12 +265,12 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // at the time of this call, it is ignored;
   // but if it does, the object must not get deleted from the heap later on;
   // it must also be not already ignored at the time of this call.
-  static void IgnoreObject(void* ptr);
+  static void IgnoreObject(const void* ptr);
 
   // Undo what an earlier IgnoreObject() call promised and asked to do.
   // At the time of this call 'ptr' must point to an active allocated object
   // which was previously registered with IgnoreObject().
-  static void UnIgnoreObject(void* ptr);
+  static void UnIgnoreObject(const void* ptr);
 
  public:  // Initializations; to be called from main() only.
 
@@ -288,7 +288,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   enum ProfileType { START_PROFILE, END_PROFILE };
   // Helper for dumping start/end heap leak checking profiles
   // and getting the byte/object counts.
-  void DumpProfileLocked(ProfileType profile_type, void* self_stack_top,
+  void DumpProfileLocked(ProfileType profile_type, const void* self_stack_top,
                          size_t* alloc_bytes, size_t* alloc_objects);
   // Helper for constructors
   void Create(const char *name);
@@ -304,17 +304,17 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
                      CheckFullness fullness,
                      ReportMode report_mode);
   // Helper for IgnoreObject
-  static void IgnoreObjectLocked(void* ptr);
+  static void IgnoreObjectLocked(const void* ptr);
   // Helper for DisableChecksAt
-  static void DisableChecksAtLocked(void* address);
+  static void DisableChecksAtLocked(const void* address);
   // Helper for DisableChecksIn
   static void DisableChecksInLocked(const char* pattern);
   // Helper for DisableChecksToHereFrom
-  static void DisableChecksFromToLocked(void* start_address,
-                                        void* end_address,
+  static void DisableChecksFromToLocked(const void* start_address,
+                                        const void* end_address,
                                         int max_depth);
   // Helper for DoNoLeaks to ignore all objects reachable from all live data
-  static void IgnoreAllLiveObjectsLocked(void* self_stack_top);
+  static void IgnoreAllLiveObjectsLocked(const void* self_stack_top);
   // Callback we pass to ListAllProcessThreads (see thread_lister.h)
   // that is invoked when all threads of our process are found and stopped.
   // The call back does the things needed to ignore live data reachable from
@@ -346,7 +346,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // are being used.
   static void IgnoreLiveObjectsLocked(const char* name, const char* name2);
   // Heap profile object filtering callback to filter out live objects.
-  static bool HeapProfileFilter(void* ptr, size_t size);
+  static bool HeapProfileFilter(const void* ptr, size_t size);
   // Runs REGISTER_HEAPCHECK_CLEANUP cleanups and potentially
   // calls DoMainHeapCheck
   static void RunHeapCleanups();
@@ -378,14 +378,14 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // If yes, we might move "*ptr" to point to the very start of the object
   // (this needs to happen for C++ class array allocations
   // and for basic_string-s of C++ library that comes with gcc 3.4).
-  static bool HaveOnHeapLocked(void** ptr, size_t* object_size);
+  static bool HaveOnHeapLocked(const void** ptr, size_t* object_size);
 
  private:
 
   // Helper for VerifyHeapProfileTableStackGet in the unittest
   // to get the recorded allocation caller for ptr,
   // which must be a heap object.
-  static void* GetAllocCaller(void* ptr);
+  static const void* GetAllocCaller(void* ptr);
   friend void VerifyHeapProfileTableStackGet();
 
   // This gets to execute before constructors for all global objects

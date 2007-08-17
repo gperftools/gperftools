@@ -54,6 +54,7 @@
 #include <google/stacktrace.h>
 #include <google/malloc_hook.h>
 #include "base/commandlineflags.h"
+#include "base/sysinfo.h"
 
 using std::sort;
 using std::string;
@@ -92,7 +93,7 @@ static const int kStripFrames = 3;
 
 // Wrapper around ::write to undo it's potential partiality.
 static void FDWrite(int fd, const char* buf, size_t len) {
-  while (1) {
+  while (len > 0) {
     ssize_t r;
     NO_INTR(r = write(fd, buf, len));
     if (r <= 0) break;
@@ -113,34 +114,37 @@ static bool ByAllocatedSpace(HeapProfileTable::Stats* a,
 // and return the actual size occupied in 'buf'.
 // We do not provision for 0-terminating 'buf'.
 static int FillProcSelfMaps(char buf[], int size) {
-  const int maps = open("/proc/self/maps", O_RDONLY);
-  int buflen = 0;
-  if (maps >= 0) {
-    while (buflen < size) {
-      ssize_t r;
-      NO_INTR(r = read(maps, buf + buflen, size - buflen));
-      if (r <= 0) break;
-      buflen += r;
-    }
-    NO_INTR(close(maps));
+  ProcMapsIterator::Buffer iterbuf;
+  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
+
+  uint64 start, end, offset;
+  int64 inode;
+  char *flags, *filename;
+  int bytes_written = 0;
+  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
+    bytes_written += it.FormatLine(buf + bytes_written, size - bytes_written,
+                                   start, end, flags, offset, inode, filename,
+                                   0);
   }
-  return buflen;
+  return bytes_written;
 }
 
 // Dump the same data as FillProcSelfMaps reads to fd.
 // It seems easier to repeat parts of FillProcSelfMaps here than to
 // reuse it via a call.
 static void DumpProcSelfMaps(int fd) {
-  const int maps = open("/proc/self/maps", O_RDONLY);
-  if (maps >= 0) {
-    char buf[512];
-    while (1) {
-      ssize_t r;
-      NO_INTR(r = read(maps, buf, sizeof(buf)));
-      if (r <= 0) break;
-      FDWrite(fd, buf, r);
-    }
-    NO_INTR(close(maps));
+  ProcMapsIterator::Buffer iterbuf;
+  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
+
+  uint64 start, end, offset;
+  int64 inode;
+  char *flags, *filename;
+  ProcMapsIterator::Buffer linebuf;
+  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
+    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
+                                start, end, flags, offset, inode, filename,
+                                0);
+    FDWrite(fd, linebuf.buf_, written);
   }
 }
 
@@ -205,7 +209,7 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int skip_count) {
   }
 
   // Create new bucket
-  void** kcopy = reinterpret_cast<void**>(alloc_(key_size));
+  const void** kcopy = reinterpret_cast<const void**>(alloc_(key_size));
   memcpy(kcopy, key, key_size);
   Bucket* b = reinterpret_cast<Bucket*>(alloc_(sizeof(Bucket)));
   memset(b, 0, sizeof(*b));
@@ -218,7 +222,8 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int skip_count) {
   return b;
 }
 
-void HeapProfileTable::RecordAlloc(void* ptr, size_t bytes, int skip_count) {
+void HeapProfileTable::RecordAlloc(const void* ptr, size_t bytes,
+                                   int skip_count) {
   Bucket* b = GetBucket(kStripFrames + skip_count + 1);
   b->allocs++;
   b->alloc_size += bytes;
@@ -231,7 +236,7 @@ void HeapProfileTable::RecordAlloc(void* ptr, size_t bytes, int skip_count) {
   allocation_->Insert(ptr, v);
 }
 
-void HeapProfileTable::RecordFree(void* ptr) {
+void HeapProfileTable::RecordFree(const void* ptr) {
   AllocValue v;
   if (allocation_->FindAndRemove(ptr, &v)) {
     Bucket* b = v.bucket;
@@ -242,7 +247,7 @@ void HeapProfileTable::RecordFree(void* ptr) {
   }
 }
 
-bool HeapProfileTable::FindAlloc(void* ptr, size_t* object_size) const {
+bool HeapProfileTable::FindAlloc(const void* ptr, size_t* object_size) const {
   AllocValue alloc_value;
   if (allocation_->Find(ptr, &alloc_value)) {
     *object_size = alloc_value.bytes;
@@ -251,7 +256,7 @@ bool HeapProfileTable::FindAlloc(void* ptr, size_t* object_size) const {
   return false;
 }
 
-bool HeapProfileTable::FindAllocDetails(void* ptr, AllocInfo* info) const {
+bool HeapProfileTable::FindAllocDetails(const void* ptr, AllocInfo* info) const {
   AllocValue alloc_value;
   if (allocation_->Find(ptr, &alloc_value)) {
     info->object_size = alloc_value.bytes;
@@ -263,7 +268,7 @@ bool HeapProfileTable::FindAllocDetails(void* ptr, AllocInfo* info) const {
 }
 
 void HeapProfileTable::MapArgsAllocIterator(
-    void* ptr, AllocValue v, AllocIterator callback) {
+    const void* ptr, AllocValue v, AllocIterator callback) {
   AllocInfo info;
   info.object_size = v.bytes;
   info.call_stack = v.bucket->stack;
@@ -284,7 +289,7 @@ int HeapProfileTable::UnparseBucket(const Bucket& b,
   profile_stats->frees += b.frees;
   profile_stats->free_size += b.free_size;
   int printed =
-    snprintf(buf + buflen, bufsize - buflen, "%6d: %8lld [%6d: %8lld] @",
+    snprintf(buf + buflen, bufsize - buflen, "%6d: %8"PRId64" [%6d: %8"PRId64"] @",
              b.allocs - b.frees,
              b.alloc_size - b.free_size,
              b.allocs,
@@ -353,14 +358,14 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   return bucket_length + map_length;
 }
 
-void HeapProfileTable::FilteredDumpIterator(void* ptr, AllocValue v,
+void HeapProfileTable::FilteredDumpIterator(const void* ptr, AllocValue v,
                                             const DumpArgs& args) {
   if (args.filter(ptr, v.bytes)) return;
   Bucket b;
   memset(&b, 0, sizeof(b));
   b.allocs = 1;
   b.alloc_size = v.bytes;
-  void* stack[kMaxStackTrace + 1];
+  const void* stack[kMaxStackTrace + 1];
   b.depth = v.bucket->depth + int(args.dump_alloc_addresses);
   b.stack = stack;
   if (args.dump_alloc_addresses) stack[0] = ptr;

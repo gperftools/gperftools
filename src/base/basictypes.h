@@ -37,12 +37,11 @@
 //    AC_HEADER_STDC              /* for stdint_h and inttypes_h */
 //    AC_CHECK_TYPES([__int64])   /* defined in some windows platforms */
 
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>           // uint16_t might be here; PRId64 too.
+#endif
 #ifdef HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
-#endif
-#ifdef HAVE_INTTYPES_H
-#define __STDC_FORMAT_MACROS    // gets us PRId64, etc.
-#include <inttypes.h>           // uint16_t might be here; PRId64 too.
 #endif
 #include <sys/types.h>          // our last best hope for uint16_t
 
@@ -179,39 +178,101 @@ struct CompileAssert {
 
 #ifdef HAVE___ATTRIBUTE__
 # define ATTRIBUTE_WEAK  __attribute__((weak))
-# ifdef __MACH__   // Mach-O has a slightly different format from coff and elf
-#  define ATTRIBUTE_SECTION(name) __attribute__ ((section ("__DATA, " #name)))
-# else
-#  define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name)))
-# endif
-# ifdef __ELF__   // only gcc/elf seems to define the __start_foo/__stop_foo :(
-#   define DECLARE_ATTRIBUTE_SECTION(name) \
-      extern char __start_##name[] ATTRIBUTE_WEAK; \
-      extern char __stop_##name[] ATTRIBUTE_WEAK;
-    // Return void* pointers to start/end of a section of code with functions
-    // having ATTRIBUTE_SECTION(name), or 0 if no such function exists.
-    // One must DECLARE_ATTRIBUTE_SECTION(name) for this to compile and link.
-#   define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
-#   define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
-# endif
-#endif
-
-// Complicated logic above!  Now we simply go with the default for
-// everything that hasn't been set to something special.
-#ifndef ATTRIBUTE_WEAK
+#else
 # define ATTRIBUTE_WEAK
 #endif
-#ifndef ATTRIBUTE_SECTION
+
+// Section attributes are supported for both ELF and Mach-O, but in
+// very different ways.  Here's the API we provide:
+// 1) ATTRIBUTE_SECTION: put this with the declaration of all functions
+//    you want to be in the same linker section
+// 2) DEFINE_ATTRIBUTE_SECTION_VARS: must be called once per unique
+//    name.  You want to make sure this is executed before any
+//    DECLARE_ATTRIBUTE_SECTION_VARS; the easiest way is to put them
+//    in the same .cc file.  Put this call at the global level.
+// 3) INIT_ATTRIBUTE_SECTION_VARS: you can scatter calls to this in
+//    multiple places to help ensure execution before any
+//    DECLARE_ATTRIBUTE_SECTION_VARS.  You must have at least one
+//    DEFINE, but you can have many INITs.  Put each in its own scope.
+// 4) DECLARE_ATTRIBUTE_SECTION_VARS: must be called before using
+//    ATTRIBUTE_SECTION_START or ATTRIBUTE_SECTION_STOP on a name.
+//    Put this call at the global level.
+// 5) ATTRIBUTE_SECTION_START/ATTRIBUTE_SECTION_STOP: call this to say
+//    where in memory a given section is.  All functions declared with
+//    ATTRIBUTE_SECTION are guaranteed to be between START and STOP.
+
+#if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
+# define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name)))
+
+  // Weak section declaration to be used as a global declaration
+  // for ATTRIBUTE_SECTION_START|STOP(name) to compile and link
+  // even without functions with ATTRIBUTE_SECTION(name).
+# define DECLARE_ATTRIBUTE_SECTION_VARS(name) \
+    extern char __start_##name[] ATTRIBUTE_WEAK; \
+    extern char __stop_##name[] ATTRIBUTE_WEAK
+# define INIT_ATTRIBUTE_SECTION_VARS(name)     // no-op for ELF
+# define DEFINE_ATTRIBUTE_SECTION_VARS(name)   // no-op for ELF
+
+  // Return void* pointers to start/end of a section of code with functions
+  // having ATTRIBUTE_SECTION(name), or 0 if no such function exists.
+  // One must DECLARE_ATTRIBUTE_SECTION(name) for this to compile and link.
+# define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
+# define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
+# define HAVE_ATTRIBUTE_SECTION_START 1
+
+#elif defined(HAVE___ATTRIBUTE__) && defined(__MACH__)
+# define ATTRIBUTE_SECTION(name) __attribute__ ((section ("__DATA, " #name)))
+
+#include <mach-o/getsect.h>
+#include <mach-o/dyld.h>
+class AssignAttributeStartEnd {
+ public:
+  AssignAttributeStartEnd(const char* name, char** pstart, char** pend) {
+    // Find out what dynamic library name is defined in
+    if (_dyld_present()) {
+      for (int i = _dyld_image_count() - 1; i >= 0; --i) {
+        const mach_header* hdr = _dyld_get_image_header(i);
+        uint32_t len;
+        *pstart = getsectdatafromheader(hdr, "__DATA", name, &len);
+        if (*pstart) {   // NULL if not defined in this dynamic library
+          *pstart += _dyld_get_image_vmaddr_slide(i);   // correct for reloc
+          *pend = *pstart + len;
+          return;
+        }
+      }
+    }
+    // If we get here, not defined in a dll at all.  See if defined statically.
+    unsigned long len;    // don't ask me why this type isn't uint32_t too...
+    *pstart = getsectdata("__DATA", name, &len);
+    *pend = *pstart + len;
+  }
+};
+
+#define DECLARE_ATTRIBUTE_SECTION_VARS(name)    \
+  extern char* __start_##name;                  \
+  extern char* __stop_##name
+
+#define INIT_ATTRIBUTE_SECTION_VARS(name)               \
+  DECLARE_ATTRIBUTE_SECTION_VARS(name);                 \
+  static const AssignAttributeStartEnd __assign_##name( \
+    #name, &__start_##name, &__stop_##name)
+
+#define DEFINE_ATTRIBUTE_SECTION_VARS(name)     \
+  char* __start_##name, *__stop_##name;         \
+  INIT_ATTRIBUTE_SECTION_VARS(name)
+
+# define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
+# define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
+# define HAVE_ATTRIBUTE_SECTION_START 1
+
+#else  // not HAVE___ATTRIBUTE__ && __ELF__, nor HAVE___ATTRIBUTE__ && __MACH__
 # define ATTRIBUTE_SECTION(name)
-#endif
-#ifndef DECLARE_ATTRIBUTE_SECTION
-# define DECLARE_ATTRIBUTE_SECTION(name)
-#endif
-#ifndef ATTRIBUTE_SECTION_START
+# define DECLARE_ATTRIBUTE_SECTION_VARS(name)
+# define INIT_ATTRIBUTE_SECTION_VARS(name)
+# define DEFINE_ATTRIBUTE_SECTION_VARS(name)
 # define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(0))
-#endif
-#ifndef ATTRIBUTE_SECTION_STOP
 # define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(0))
-#endif
+
+#endif  // HAVE___ATTRIBUTE__ and __ELF__ or __MACH__
 
 #endif  // _BASICTYPES_H_

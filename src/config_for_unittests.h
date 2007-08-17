@@ -41,13 +41,24 @@
 // (since it's not the dll).
 //
 // The solution is to have this file, which is just like config.h but
-// undefines PERFTOOLS_DLL_DECL so it doesn't try to export symbols.
+// sets PERFTOOLS_DLL_DECL to do a dllimport instead of a dllexport.
 //
-// This file is equivalent to config.h on non-windows systems.
+// The reason we need this extra PERFTOOLS_DLL_DECL_FOR_UNITTESTS
+// variable is in case people want to set PERFTOOLS_DLL_DECL explicitly
+// to something other than __declspec(dllexport).  In that case, they
+// may want to use something other than __declspec(dllimport) for the
+// unittest case.  For that, we allow folks to define both
+// PERFTOOLS_DLL_DECL and PERFTOOLS_DLL_DECL_FOR_UNITTESTS explicitly.
+//
+// NOTE: This file is equivalent to config.h on non-windows systems,
+// which never defined PERFTOOLS_DLL_DECL_FOR_UNITTESTS and always
+// define PERFTOOLS_DLL_DECL to the empty string.
 
 #include "config.h"
 
-#ifdef WIN32
-# undef PERFTOOLS_DLL_DECL
-# define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+#undef PERFTOOLS_DLL_DECL
+#ifdef PERFTOOLS_DLL_DECL_FOR_UNITTESTS
+# define PERFTOOLS_DLL_DECL  PERFTOOLS_DLL_DECL_FOR_UNITTESTS
+#else
+# define PERFTOOLS_DLL_DECL  // if DLL_DECL_FOR_UNITTESTS isn't defined, use ""
 #endif

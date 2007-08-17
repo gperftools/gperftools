@@ -21,11 +21,19 @@ As a quick-start, do the following after installing this package:
 There are other environment variables, besides CPUPROFILE, you can set
 to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
 
+The CPU profiler is available on all unix-based systems we've tested;
+see INSTALL for more details.  It is not currently available on Windows.
+
 
 TCMALLOC
 --------
-Just link in -ltcmalloc to get the advantages of tcmalloc.  See below
-for some environment variables you can use with tcmalloc, as well.
+Just link in -ltcmalloc or -ltcmalloc_minimal to get the advantages of
+tcmalloc -- a replacement for malloc and new.  See below for some
+environment variables you can use with tcmalloc, as well.
+
+tcmalloc functionality is available on all systems we've tested; see
+INSTALL for more details.  See README.windows for instructions on
+using tcmalloc on Windows.
 
 
 HEAP PROFILER
@@ -46,8 +54,11 @@ You can also use LD_PRELOAD to heap-profile an executable that you
 didn't compile.
 
 There are other environment variables, besides HEAPPROFILE, you can
-set to adjust the heap-profiler behavior; cf "ENVIRONMENT VARIABLES"
+set to adjust the heap-profiler behavior; c.f. "ENVIRONMENT VARIABLES"
 below.
+
+The heap profiler is available on all unix-based systems we've tested;
+see INSTALL for more details.  It is not currently available on Windows.
 
 
 HEAP CHECKER
@@ -73,6 +84,9 @@ Other values for HEAPCHECK: normal (equivalent to "1"), strict, draconian
 
 You can also use LD_PRELOAD to heap-check an executable that you
 didn't compile.
+
+The heap checker is only available on Linux at this time; see INSTALL
+for more details.
 
 
 ENVIRONMENT VARIABLES
@@ -110,9 +124,10 @@ COMPILING ON NON-LINUX SYSTEMS
 
 Perftools was developed and tested on x86 Linux systems, and it works
 in its full generality only on those systems.  However, we've
-successfully built and tested the core tcmalloc library
-(tcmalloc_minimal) on FreeBSD, Solaris x86, Darwin (Mac OS X) x86, and
-Windows.  See INSTALL for details.
+successfully ported much of the tcmalloc library to FreeBSD, Solaris
+x86, and Darwin (Mac OS X) x86 and ppc; and we've ported the basic
+functionality in tcmalloc_minimal to Windows.  See INSTALL for details.
+See README.windows for details on the Windows port.
 
 
 PERFORMANCE
@@ -142,7 +157,7 @@ order.  This bug should not affect tcmalloc, but may cause occasional
 deadlock with the cpu-profiler, heap-profiler, and heap-checker.
 Its likeliness increases the more dlopen() commands an executable has.
 Most executables don't have any, though several library routines like
-getgrgid() call dlopen() behind the scnees.
+getgrgid() call dlopen() behind the scenes.
 
 2) On x86-64 64-bit systems, while tcmalloc itself works fine, the
 cpu-profiler tool is unreliable: it will sometimes work, but sometimes
@@ -187,4 +202,4 @@ new threads, or is otherwise likely to cause a call to
 pthread_mutex_lock!
 
 ---
-12 April 2007
+8 August 2007

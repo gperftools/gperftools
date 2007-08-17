@@ -194,7 +194,7 @@ static void DumpProfileLocked(const char* reason) {
 //----------------------------------------------------------------------
 
 // Record an allocation in the profile.
-static void RecordAlloc(void* ptr, size_t bytes, int skip_count) {
+static void RecordAlloc(const void* ptr, size_t bytes, int skip_count) {
   heap_lock.Lock();
   if (is_on) {
     heap_profile->RecordAlloc(ptr, bytes, skip_count + 1);
@@ -226,7 +226,7 @@ static void RecordAlloc(void* ptr, size_t bytes, int skip_count) {
 }
 
 // Record a deallocation in the profile.
-static void RecordFree(void* ptr) {
+static void RecordFree(const void* ptr) {
   heap_lock.Lock();
   if (is_on) {
     heap_profile->RecordFree(ptr);
@@ -239,15 +239,15 @@ static void RecordFree(void* ptr) {
 // Allocation/deallocation hooks for MallocHook
 //----------------------------------------------------------------------
 
-static void NewHook(void* ptr, size_t size) {
+static void NewHook(const void* ptr, size_t size) {
   if (ptr != NULL) RecordAlloc(ptr, size, 0);
 }
 
-static void DeleteHook(void* ptr) {
+static void DeleteHook(const void* ptr) {
   if (ptr != NULL) RecordFree(ptr);
 }
 
-static void MmapHook(void* result, void* start, size_t size,
+static void MmapHook(const void* result, const void* start, size_t size,
                      int prot, int flags, int fd, off_t offset) {
   // Log the mmap if necessary
   if (FLAGS_mmap_log) {
@@ -271,7 +271,7 @@ static void MmapHook(void* result, void* start, size_t size,
   }
 }
 
-static void MunmapHook(void* ptr, size_t size) {
+static void MunmapHook(const void* ptr, size_t size) {
   if (FLAGS_mmap_profile) {
     RecordFree(ptr);
   }

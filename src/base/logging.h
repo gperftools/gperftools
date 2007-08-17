@@ -47,6 +47,19 @@
 #include <errno.h>     // for errno
 #include "base/commandlineflags.h"
 
+// On some systems (like freebsd), we can't call write() at all in a
+// global constructor, perhaps because errno hasn't been set up.
+// Calling the write syscall is safer (it doesn't set errno), so we
+// prefer that.  Note we don't care about errno for logging: we just
+// do logging on a best-effort basis.
+#ifdef HAVE_SYS_SYSCALL_H
+#include <sys/syscall.h>
+#define WRITE_TO_STDERR(buf, len) syscall(SYS_write, STDERR_FILENO, buf, len)
+#else
+#define WRITE_TO_STDERR(buf, len) write(STDERR_FILENO, buf, len)
+#endif
+
+
 // We log all messages at this log-level and below.
 // INFO == -1, WARNING == -2, ERROR == -3, FATAL == -4
 DECLARE_int32(verbose);
@@ -57,23 +70,23 @@ DECLARE_int32(verbose);
 //    CHECK(fp->Write(x) == 4)
 // Note we use write instead of printf/puts to avoid the risk we'll
 // call malloc().
-#define CHECK(condition)                                        \
-  do {                                                          \
-    if (!(condition)) {                                         \
-      write(STDERR_FILENO, "Check failed: " #condition "\n",    \
-            sizeof("Check failed: " #condition "\n")-1);        \
-      exit(1);                                                  \
-    }                                                           \
+#define CHECK(condition)                                                \
+  do {                                                                  \
+    if (!(condition)) {                                                 \
+      WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
+                      sizeof("Check failed: " #condition "\n")-1);      \
+      exit(1);                                                          \
+    }                                                                   \
   } while (0)
 
 // This takes a message to print.  The name is historical.
-#define RAW_CHECK(condition, message)                                      \
-  do {                                                                     \
-    if (!(condition)) {                                                    \
-      write(STDERR_FILENO, "Check failed: " #condition ": " message "\n",  \
-            sizeof("Check failed: " #condition ": " message "\n")-1);      \
-      exit(1);                                                             \
-    }                                                                      \
+#define RAW_CHECK(condition, message)                                          \
+  do {                                                                         \
+    if (!(condition)) {                                                        \
+      WRITE_TO_STDERR("Check failed: " #condition ": " message "\n",           \
+                      sizeof("Check failed: " #condition ": " message "\n")-1);\
+      exit(1);                                                                 \
+    }                                                                          \
   } while (0)
 
 // This is like RAW_CHECK, but only in debug-mode
@@ -91,10 +104,10 @@ enum { DEBUG_MODE = 1 };
   do {                                                                  \
     if (!(condition)) {                                                 \
       const int err_no = errno;                                         \
-      write(STDERR_FILENO, "Check failed: " #condition ": ",            \
-            sizeof("Check failed: " #condition ": ")-1);                \
-      write(STDERR_FILENO, strerror(err_no), strlen(strerror(err_no))); \
-      write(STDERR_FILENO, "\n", sizeof("\n")-1);                       \
+      WRITE_TO_STDERR("Check failed: " #condition ": ",                 \
+                      sizeof("Check failed: " #condition ": ")-1);      \
+      WRITE_TO_STDERR(strerror(err_no), strlen(strerror(err_no)));      \
+      WRITE_TO_STDERR("\n", sizeof("\n")-1);                            \
       exit(1);                                                          \
     }                                                                   \
   } while (0)
@@ -122,6 +135,9 @@ enum { DEBUG_MODE = 1 };
 #define CHECK_LT(val1, val2) CHECK_OP(< , val1, val2)
 #define CHECK_GE(val1, val2) CHECK_OP(>=, val1, val2)
 #define CHECK_GT(val1, val2) CHECK_OP(> , val1, val2)
+
+// Used for (libc) functions that return -1 and set errno
+#define CHECK_ERR(invocation)  PCHECK((invocation) != -1)
 
 // A few more checks that only happen in debug mode
 #ifdef NDEBUG
@@ -156,7 +172,7 @@ inline void LogPrintf(int severity, const char* pat, va_list ap) {
     assert(strlen(buf)+1 < sizeof(buf));
     strcat(buf, "\n");
   }
-  write(STDERR_FILENO, buf, strlen(buf));
+  WRITE_TO_STDERR(buf, strlen(buf));
   if ((severity) == FATAL)
     abort(); // LOG(FATAL) indicates a big problem, so don't run atexit() calls
 }

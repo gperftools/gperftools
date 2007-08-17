@@ -38,18 +38,8 @@
 // do nothing in the per-thread registration code.
 
 #include "config.h"
-
-// On __x86_64__ systems, we may need _XOPEN_SOURCE defined to get access
-// to the struct ucontext, via signal.h.  We need _GNU_SOURCE to get access
-// to REG_RIP.  (We can use some trickery to get around that need, though.)
-// Note this #define must come first!
-#define _GNU_SOURCE 1
-// If #define _GNU_SOURCE causes problems, this might work instead
-// for __x86_64__.  It will cause problems for FreeBSD though!, because
-// it turns off the needed __BSD_VISIBLE.
-//#define _XOPEN_SOURCE 500
+#include "getpc.h"      // should be first to get the _GNU_SOURCE dfn
 #include <signal.h>
-
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -61,6 +51,9 @@
 #include <sys/types.h>
 #endif
 #include <errno.h>
+#ifdef HAVE_UCONTEXT_H
+#include <ucontext.h>           // for ucontext_t (and also mcontext_t)
+#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -70,161 +63,19 @@
 #include <google/profiler.h>
 #include <google/stacktrace.h>
 #include "base/commandlineflags.h"
+#include "base/logging.h"
 #include "base/googleinit.h"
 #include "base/mutex.h"
 #include "base/spinlock.h"
+#include "base/sysinfo.h"
 #ifdef HAVE_CONFLICT_SIGNAL_H
 #include "conflict-signal.h"          /* used on msvc machines */
 #endif
-#include "base/logging.h"
 
 using std::string;
 
 DEFINE_string(cpu_profile, "",
               "Profile file name (used if CPUPROFILE env var not specified)");
-
-
-// This might be used by GetPC, below.
-// If the profiler interrupt happened just when the current function was
-// entering the stack frame, or after leaving it but just before
-// returning, then the stack trace cannot see the caller function
-// anymore.
-// GetPC tries to unwind the current function call in this case to avoid
-// false edges in the profile graph skipping over a function.
-// A static array of this struct helps GetPC detect these situations.
-//
-// This is a best effort patch -- if we fail to detect such a situation, or
-// mess up the PC, nothing happens; the returned PC is not used for any
-// further processing.
-struct CallUnrollInfo {
-  // Offset from (e)ip register where this instruction sequence should be
-  // matched. Interpreted as bytes. Offset 0 is the next instruction to
-  // execute. Be extra careful with negative offsets in architectures of
-  // variable instruction length (like x86) - it is not that easy as taking
-  // an offset to step one instruction back!
-  int pc_offset;
-  // The actual instruction bytes. Feel free to make it larger if you need
-  // a longer sequence.
-  char ins[16];
-  // How many byutes to match from ins array?
-  size_t ins_size;
-  // The offset from the stack pointer (e)sp where to look for the call
-  // return address. Interpreted as bytes.
-  int return_sp_offset;
-};
-
-
-// TODO: gather the necessary instruction bytes for other architectures.
-#if defined __i386
-static CallUnrollInfo callunrollinfo[] = {
-  // Entry to a function:  push %ebp;  mov  %esp,%ebp
-  // Top-of-stack contains the caller IP.
-  { 0,
-    {0x55, 0x89, 0xe5}, 3,
-    0
-  },
-  // Entry to a function, second instruction:  push %ebp;  mov  %esp,%ebp
-  // Top-of-stack contains the old frame, caller IP is +4.
-  { -1,
-    {0x55, 0x89, 0xe5}, 3,
-    4
-  },
-  // Return from a function: RET.
-  // Top-of-stack contains the caller IP.
-  { 0,
-    {0xc3}, 1,
-    0
-  }
-};
-
-#endif
-
-// Figure out how to get the PC for our architecture.
-
-// __i386, including (at least) Linux
-#if defined HAVE_STRUCT_SIGCONTEXT_EIP
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-#if defined __i386
-  // See comment above struct CallUnrollInfo.
-  // Only try instruction flow matching if both eip and esp looks
-  // reasonable.
-  if ((sig_structure.eip & 0xffff0000) != 0 &&
-      (~sig_structure.eip & 0xffff0000) != 0 &&
-      (sig_structure.esp & 0xffff0000) != 0) {
-    char* eip = (char*)sig_structure.eip;
-    for (int i = 0; i < arraysize(callunrollinfo); ++i) {
-      if (!memcmp(eip + callunrollinfo[i].pc_offset, callunrollinfo[i].ins,
-                  callunrollinfo[i].ins_size)) {
-        // We have a match.
-        void **retaddr = (void**)(sig_structure.esp +
-                                  callunrollinfo[i].return_sp_offset);
-        return *retaddr;
-      }
-    }
-  }
-#endif
-  return (void*)sig_structure.eip;
-}
-
-// freebsd (__i386, I assume) and Mac OS X (i386)
-#elif defined HAVE_STRUCT_SIGCONTEXT_SC_EIP
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.sc_eip;
-}
-
-// __ia64
-#elif defined HAVE_STRUCT_SIGCONTEXT_SC_IP
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.sc_ip;
-}
-
-// __x86_64__
-// This may require _XOPEN_SOURCE to have access to ucontext
-#elif defined HAVE_STRUCT_UCONTEXT_UC_MCONTEXT
-typedef struct ucontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  // For this architecture, the regs are stored in a data structure that can
-  // be accessed either as a flat array or (via some trickery) as a struct.
-  // Alas, the index we need into the array, is only defined for _GNU_SOURCE.
-  // Lacking that, we can interpret the register array as a struct sigcontext.
-  // This works in practice, but is probably not guaranteed by anything.
-# ifdef REG_RIP    // only defined if _GNU_SOURCE is 1, probably
-  return (void*)(sig_structure.uc_mcontext.gregs[REG_RIP]);
-# else
-  const struct sigcontext* const sc =
-      reinterpret_cast<const struct sigcontext*>(&sig_structure.uc_mcontext.gregs);
-  return (void*)(sc->rip);
-# endif
-}
-
-// solaris (probably solaris-x86, but I'm not sure)
-#elif defined HAVE_STRUCT_SIGINFO_SI_FADDR
-typedef struct siginfo SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.si_faddr; // maybe not correct
-}
-
-// mac (OS X) powerpc, 32 bit (64-bit would use sigcontext64, on OS X 10.4+)
-#elif defined HAVE_STRUCT_SIGCONTEXT_SC_IR
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.sc_ir;  // a guess, based on the comment /* pc */
-}
-
-// ibook powerpc
-#elif defined HAVE_STRUCT_SIGCONTEXT_REGS__NIP
-typedef struct sigcontext SigStructure;
-inline void* GetPC(const SigStructure& sig_structure ) {
-  return (void*)sig_structure.regs->nip;
-}
-
-#else
-#error I dont know what your PC is
-
-#endif
 
 // This takes as an argument an environment-variable name (like
 // CPUPROFILE) whose value is supposed to be a file-path, and sets
@@ -274,13 +125,13 @@ class ProfileData {
   ~ProfileData();
 
   // Is profiling turned on at all
-  inline bool enabled() { return out_ >= 0; }
+  inline bool enabled() const { return out_ >= 0; }
 
   // What is the frequency of interrupts (ticks per second)
-  inline int frequency() { return frequency_; }
+  inline int frequency() const { return frequency_; }
 
   // Record an interrupt at "pc"
-  void Add(unsigned long pc);
+  void Add(void* pc);
 
   void FlushTable();
 
@@ -304,9 +155,9 @@ class ProfileData {
 
   // Hash-table/eviction-buffer entry
   struct Entry {
-    Slot count;                 // Number of hits
-    Slot depth;                 // Stack depth
-    Slot stack[kMaxStackDepth]; // Stack contents
+    Slot count;                  // Number of hits
+    Slot depth;                  // Stack depth
+    Slot stack[kMaxStackDepth];  // Stack contents
   };
 
   // Hash table bucket
@@ -339,10 +190,12 @@ class ProfileData {
   void FlushEvicted();
 
   // Handler that records the interrupted pc in the profile data
-  static void prof_handler(int sig, SigStructure sig_structure );
+  static void prof_handler(int sig, siginfo_t*, void* signal_ucontext);
 
-  // Sets the timer interrupt signal handler to the specified routine
-  static void SetHandler(void (*handler)(int));
+  // Sets the timer interrupt signal handler to one that stores the pc
+  static void EnableHandler();
+  // "Turn off" the timer interrupt signal handler
+  static void DisableHandler();
 };
 
 // Evict the specified entry to the evicted-entry buffer
@@ -361,18 +214,17 @@ inline void ProfileData::Evict(const Entry& entry) {
 }
 
 // Initialize profiling: activated if getenv("CPUPROFILE") exists.
-ProfileData::ProfileData() :
-  hash_(0),
-  evict_(0),
-  num_evicted_(0),
-  out_(-1),
-  count_(0),
-  evictions_(0),
-  total_bytes_(0),
-  fname_(0),
-  frequency_(0),
-  start_time_(0) {
-
+ProfileData::ProfileData()
+    : hash_(0),
+      evict_(0),
+      num_evicted_(0),
+      out_(-1),
+      count_(0),
+      evictions_(0),
+      total_bytes_(0),
+      fname_(0),
+      frequency_(0),
+      start_time_(0) {
   // Get frequency of interrupts (if specified)
   char junk;
   const char* fr = getenv("CPUPROFILE_FREQUENCY");
@@ -385,7 +237,7 @@ ProfileData::ProfileData() :
   }
 
   // Ignore signals until we decide to turn profiling on
-  SetHandler(SIG_IGN);
+  DisableHandler();
 
   ProfilerRegisterThread();
 
@@ -401,9 +253,8 @@ ProfileData::ProfileData() :
 #endif
 
   if (!Start(fname.c_str())) {
-    fprintf(stderr, "Can't turn on cpu profiling: ");
-    perror(fname.c_str());
-    exit(1);
+    RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
+            fname.c_str(), strerror(errno));
   }
 }
 
@@ -453,7 +304,7 @@ bool ProfileData::Start(const char* fname) {
   }
 
   // Setup handler for SIGPROF interrupts
-  SetHandler((void (*)(int)) prof_handler);
+  EnableHandler();
 
   return true;
 }
@@ -463,12 +314,41 @@ ProfileData::~ProfileData() {
   Stop();
 }
 
+// Dump /proc/maps data to fd.  Copied from heap-profile-table.cc.
+#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
+
+static void FDWrite(int fd, const char* buf, size_t len) {
+  while (len > 0) {
+    ssize_t r;
+    NO_INTR(r = write(fd, buf, len));
+    RAW_CHECK(r >= 0, "write failed");
+    buf += r;
+    len -= r;
+  }
+}
+
+static void DumpProcSelfMaps(int fd) {
+  ProcMapsIterator::Buffer iterbuf;
+  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
+
+  uint64 start, end, offset;
+  int64 inode;
+  char *flags, *filename;
+  ProcMapsIterator::Buffer linebuf;
+  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
+    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
+                                start, end, flags, offset, inode, filename,
+                                0);
+    FDWrite(fd, linebuf.buf_, written);
+  }
+}
+
 // Stop profiling and write out any collected profile data
 void ProfileData::Stop() {
   MutexLock l(&state_lock_);
 
   // Prevent handler from running anymore
-  SetHandler(SIG_IGN);
+  DisableHandler();
 
   // This lock prevents interference with signal handlers in other threads
   SpinLockHolder l2(&table_lock_);
@@ -500,15 +380,7 @@ void ProfileData::Stop() {
   FlushEvicted();
 
   // Dump "/proc/self/maps" so we get list of mapped shared libraries
-  int maps = open("/proc/self/maps", O_RDONLY);
-  if (maps >= 0) {
-    char buf[100];
-    ssize_t r;
-    while ((r = read(maps, buf, sizeof(buf))) > 0) {
-      write(out_, buf, r);
-    }
-    close(maps);
-  }
+  DumpProcSelfMaps(out_);
 
   close(out_);
   fprintf(stderr, "PROFILE: interrupts/evictions/bytes = %d/%d/%" PRIuS "\n",
@@ -541,16 +413,22 @@ void ProfileData::GetCurrentState(ProfilerState* state) {
   }
 }
 
-void ProfileData::SetHandler(void (*handler)(int)) {
+void ProfileData::EnableHandler() {
   struct sigaction sa;
-  sa.sa_handler = handler;
-  sa.sa_flags   = SA_RESTART;
+  sa.sa_sigaction = prof_handler;
+  sa.sa_flags = SA_RESTART | SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
-  if (sigaction(SIGPROF, &sa, NULL) != 0) {
-    perror("sigaction(SIGPROF)");
-    exit(1);
-  }
+  RAW_CHECK(sigaction(SIGPROF, &sa, NULL) == 0, "sigaction failed");
 }
+
+void ProfileData::DisableHandler() {
+  struct sigaction sa;
+  sa.sa_handler = SIG_IGN;
+  sa.sa_flags = SA_RESTART;
+  sigemptyset(&sa.sa_mask);
+  RAW_CHECK(sigaction(SIGPROF, &sa, NULL) == 0, "sigaction failed");
+}
+
 
 void ProfileData::FlushTable() {
   MutexLock l(&state_lock_);
@@ -558,7 +436,7 @@ void ProfileData::FlushTable() {
     // Profiling is not enabled
     return;
   }
-  SetHandler(SIG_IGN);       // Disable timer interrupts while we're flushing
+  DisableHandler();       // Disable timer interrupts while we're flushing
   {
     // Move data from hash table to eviction buffer
     SpinLockHolder l(&table_lock_);
@@ -576,16 +454,16 @@ void ProfileData::FlushTable() {
     // Write out all pending data
     FlushEvicted();
   }
-  SetHandler((void (*)(int)) prof_handler);
+  EnableHandler();
 }
 
 // Record the specified "pc" in the profile data
-void ProfileData::Add(unsigned long pc) {
+void ProfileData::Add(void* pc) {
   void* stack[kMaxStackDepth];
 
   // The top-most active routine doesn't show up as a normal
   // frame, but as the "pc" value in the signal handler context.
-  stack[0] = (void*)pc;
+  stack[0] = pc;
 
   // We remove the top three entries (typically Add, prof_handler, and
   // a signal handler setup routine) since they are artifacts of
@@ -605,6 +483,18 @@ void ProfileData::Add(unsigned long pc) {
   }
 
   SpinLockHolder l(&table_lock_);
+
+  // If the signal handler starts executing (and calls this function)
+  // just as a thread calls Stop, it is possible for Stop to acquire
+  // state_lock_, disable the signal, and acquire table_lock_ before
+  // this function can grab table_lock_.  If that happens, Stop will
+  // delete hash_ and the rest of the allocated structures before this
+  // function grabs table_lock_ and continues.  In that case, hash_
+  // will be NULL here.
+  if (hash_ == NULL) {
+    return;
+  }
+
   count_++;
 
   // See if table already has an entry for this stack trace
@@ -656,15 +546,7 @@ void ProfileData::FlushEvicted() {
     const char* buf = reinterpret_cast<char*>(evict_);
     size_t bytes = sizeof(evict_[0]) * num_evicted_;
     total_bytes_ += bytes;
-    while (bytes > 0) {
-      ssize_t r = write(out_, buf, bytes);
-      if (r < 0) {
-        perror("write");
-        exit(1);
-      }
-      buf += r;
-      bytes -= r;
-    }
+    FDWrite(out_, buf, bytes);
   }
   num_evicted_ = 0;
 }
@@ -674,9 +556,9 @@ void ProfileData::FlushEvicted() {
 static ProfileData pdata;
 
 // Signal handler that records the pc in the profile-data structure
-void ProfileData::prof_handler(int sig, SigStructure sig_structure) {
+void ProfileData::prof_handler(int sig, siginfo_t*, void* signal_ucontext) {
   int saved_errno = errno;
-  pdata.Add( (unsigned long int)GetPC( sig_structure ) );
+  pdata.Add(GetPC(*reinterpret_cast<ucontext_t*>(signal_ucontext)));
   errno = saved_errno;
 }
 

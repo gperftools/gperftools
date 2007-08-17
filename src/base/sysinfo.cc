@@ -35,20 +35,39 @@
 #include <stdio.h>    // for snprintf(), sscanf()
 #include <string.h>   // for memmove(), memchr(), etc.
 #include <fcntl.h>    // for open()
+#include <errno.h>    // for errno
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>   // for read()
+#endif
+#if defined __MACH__          // Mac OS X, almost certainly
+#include <mach-o/dyld.h>      // for iterating over dll's in ProcMapsIter
+#include <mach-o/loader.h>    // for iterating over dll's in ProcMapsIter
+#elif defined __sun__         // Solaris
+#include <procfs.h>           // for, e.g., prmap_t
 #endif
 #include "base/sysinfo.h"
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 
-DEFINE_string(procfs_prefix, "", "string to prepend to filenames opened "
-              "via OpenProcFile");
+#if defined(WIN32) && defined(MODULEENTRY32)
+// In a change from the usual W-A pattern, there is no A variant of
+// MODULEENTRY32.  Tlhelp32.h #defines the W variant, but not the A.
+// We want the original A variants, and this #undef is the only
+// way I see to get them.
+#undef MODULEENTRY32
+#undef Module32First
+#undef Module32Next
+#undef PMODULEENTRY32
+#undef LPMODULEENTRY32
+#endif
+
+// Re-run fn until it doesn't cause EINTR.
+#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
 
 // open/read/close can set errno, which may be illegal at this
 // time, so prefer making the syscalls directly if we can.
-#ifdef HAVE_SYSCALL_H
-# include <syscall.h>
+#ifdef HAVE_SYS_SYSCALL_H
+# include <sys/syscall.h>
 # define safeopen(filename, mode)  syscall(SYS_open, filename, mode)
 # define saferead(fd, buffer, size)  syscall(SYS_read, fd, buffer, size)
 # define safeclose(fd)  syscall(SYS_close, fd)
@@ -64,16 +83,12 @@ const char* GetenvBeforeMain(const char* name) {
   static char envbuf[16<<10];
   if (*envbuf == '\0') {    // haven't read the environ yet
     int fd = safeopen("/proc/self/environ", O_RDONLY);
-    if (fd == -1) {         // unable to open the file, fall back onto libc
-      RAW_LOG(WARNING, "Unable to open /proc/self/environ, falling back "
-                       "on getenv(\"%s\"), which may not work", name);
-      return getenv(name);
-    }
-    // The -2 here guarantees the last two bytes of the buffer will be \0\0
-    if (saferead(fd, envbuf, sizeof(envbuf) - 2) < 0) {   // error reading file
-      safeclose(fd);
-      RAW_LOG(WARNING, "Unable to read from /proc/self/environ, falling back "
-                       "on getenv(\"%s\"), which may not work", name);
+    // The -2 below guarantees the last two bytes of the buffer will be \0\0
+    if (fd == -1 ||           // unable to open the file, fall back onto libc
+        saferead(fd, envbuf, sizeof(envbuf) - 2) < 0) { // error reading file
+      RAW_VLOG(1, "Unable to open /proc/self/environ, falling back "
+               "on getenv(\"%s\"), which may not work", name);
+      if (fd != -1) safeclose(fd);
       return getenv(name);
     }
     safeclose(fd);
@@ -92,23 +107,15 @@ const char* GetenvBeforeMain(const char* name) {
   return NULL;                   // env var never found
 }
 
+
+#if defined __linux__ || defined __FreeBSD__ || defined __sun__
 static void ConstructFilename(const char* spec, pid_t pid,
                               char* buf, int buf_size) {
-  // We are duplicating the code here for performance.
-  // The second call requires constructing a new string object
-  // and then destructing it again, which is a waste if
-  // the string ends up being the same as the passed in cstring
-  // anyway.
-  if (FLAGS_procfs_prefix.empty()) {
-    CHECK_LT(snprintf(buf, buf_size,
-                      spec,
-                      pid ? pid : getpid()), buf_size);
-  } else {
-    CHECK_LT(snprintf(buf, buf_size,
-                      (FLAGS_procfs_prefix + spec).c_str(),
-                      pid ? pid : getpid()), buf_size);
-  }
+  CHECK_LT(snprintf(buf, buf_size,
+                    spec,
+                    pid ? pid : getpid()), buf_size);
 }
+#endif
 
 ProcMapsIterator::ProcMapsIterator(pid_t pid) {
   Init(pid, NULL, false);
@@ -131,8 +138,9 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
     // If the user didn't pass in any buffer storage, allocate it
     // now. This is the normal case; the signal handler passes in a
     // static buffer.
-    dynamic_buffer_ = new Buffer;
-    buffer = dynamic_buffer_;
+    buffer = dynamic_buffer_ = new Buffer;
+  } else {
+    dynamic_buffer_ = NULL;
   }
 
   ibuf_ = buffer->buf_;
@@ -141,23 +149,72 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
   ebuf_ = ibuf_ + Buffer::kBufSize - 1;
   nextline_ = ibuf_;
 
-  if (use_maps_backing) {
-    ConstructFilename("/proc/%d/maps_backing", pid,
-                      ibuf_, Buffer::kBufSize);
+#if defined(__linux__)
+  if (use_maps_backing) {  // don't bother with clever "self" stuff in this case
+    ConstructFilename("/proc/%d/maps_backing", pid, ibuf_, Buffer::kBufSize);
+  } else if (pid == 0) {
+    // We have to kludge a bit to deal with the args ConstructFilename
+    // expects.  The 1 is never used -- it's only impt. that it's not 0.
+    ConstructFilename("/proc/self/maps", 1, ibuf_, Buffer::kBufSize);
   } else {
-    ConstructFilename("/proc/%d/maps", pid,
-                      ibuf_, Buffer::kBufSize);
+    ConstructFilename("/proc/%d/maps", pid, ibuf_, Buffer::kBufSize);
   }
-
   // No error logging since this can be called from the crash dump
   // handler at awkward moments. Users should call Valid() before
   // using.
-  fd_ = open(ibuf_, O_RDONLY);
+  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+#elif defined(__FreeBSD__)
+  // We don't support maps_backing on freebsd
+  if (pid == 0) {
+    ConstructFilename("/proc/curproc/map", 1, ibuf_, Buffer::kBufSize);
+  } else {
+    ConstructFilename("/proc/%d/map", pid, ibuf_, Buffer::kBufSize);
+  }
+  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+#elif defined(__sun__)
+  if (pid == 0) {
+    ConstructFilename("/proc/self/map", 1, ibuf_, Buffer::kBufSize);
+  } else {
+    ConstructFilename("/proc/%d/map", pid, ibuf_, Buffer::kBufSize);
+  }
+  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+#elif defined(__MACH__)
+  if (_dyld_present())
+    current_image_ = _dyld_image_count();   // count down from the top
+  else
+    current_image_ = -1;
+  current_load_cmd_ = -1;
+#elif defined(WIN32)
+  snapshot_ = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
+                                       TH32CS_SNAPMODULE32,
+                                       GetCurrentProcessId());
+  memset(&module_, 0, sizeof(module_));
+#else
+  fd_ = -1;   // so Valid() is always false
+#endif
+
 }
 
 ProcMapsIterator::~ProcMapsIterator() {
   delete dynamic_buffer_;
-  if (fd_ != -1) close(fd_);
+#if defined(WIN32)
+  if (snapshot_ != INVALID_HANDLE_VALUE) CloseHandle(snapshot_);
+#elif defined(__MACH__)
+  // no cleanup necessary!
+#else
+  if (fd_ >= 0) NO_INTR(close(fd_));
+#endif
+  delete dynamic_buffer_;
+}
+
+bool ProcMapsIterator::Valid() const {
+#if defined(WIN32)
+  return snapshot_ != INVALID_HANDLE_VALUE;
+#elif defined(__MACH__)
+  return _dyld_present();
+#else
+  return fd_ != -1;
+#endif
 }
 
 bool ProcMapsIterator::Next(uint64 *start, uint64 *end, char **flags,
@@ -175,6 +232,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
                                uint64 *anon_mapping, uint64 *anon_pages,
                                dev_t *dev) {
 
+#if defined(__linux__) || defined(__FreeBSD__)
   do {
     // Advance to the start of the next line
     stext_ = nextline_;
@@ -191,8 +249,12 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
       etext_ = ibuf_ + count;
 
       int nread = 0;            // fill up buffer with text
-      while (etext_ < ebuf_ && (nread = read(fd_, etext_, ebuf_ - etext_)) > 0) {
-        etext_ += nread;
+      while (etext_ < ebuf_) {
+        NO_INTR(nread = read(fd_, etext_, ebuf_ - etext_));
+        if (nread > 0)
+          etext_ += nread;
+        else
+          break;
       }
 
       // Zero out remaining characters in buffer at EOF to avoid returning
@@ -210,16 +272,34 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     int64 tmpinode;
     int major, minor;
     unsigned filename_offset;
-    if (sscanf(stext_, "%llx-%llx %4s %llx %x:%x %lld %n",
+#if defined(__linux__)  // for now, assume all linuxes have the same format
+    if (sscanf(stext_, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
                start ? start : &tmpstart,
                end ? end : &tmpend,
                flags_,
                offset ? offset : &tmpoffset,
                &major, &minor,
                inode ? inode : &tmpinode, &filename_offset) != 7) continue;
+#elif defined(__FreeBSD__)
+    // For the format, see http://www.freebsd.org/cgi/cvsweb.cgi/src/sys/fs/procfs/procfs_map.c?rev=1.31&content-type=text/x-cvsweb-markup
+    tmpstart = tmpend = tmpoffset = 0;
+    tmpinode = 0;
+    major = minor = 0;   // can't get this info in freebsd
+    if (inode)
+      *inode = 0;        // nor this
+    if (offset)
+      *offset = 0;       // seems like this should be in there, but maybe not
+    // start end resident privateresident obj(?) prot refcnt shadowcnt
+    // flags copy_on_write needs_copy type filename:
+    // 0x8048000 0x804a000 2 0 0xc104ce70 r-x 1 0 0x0 COW NC vnode /bin/cat
+    if (sscanf(stext_, "0x%"SCNx64" 0x%"SCNx64" %*d %*d %*p %3s %*d %*d 0x%*x %*s %*s %*s %n",
+               start ? start : &tmpstart,
+               end ? end : &tmpend,
+               flags_,
+               &filename_offset) != 3) continue;
+#endif
 
     // We found an entry
-
     if (flags) *flags = flags_;
     if (filename) *filename = stext_ + filename_offset;
     if (dev) *dev = minor | (major << 8);
@@ -240,7 +320,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
             uint64 tmp_anon_mapping;
             uint64 tmp_anon_pages;
 
-            sscanf(backing_ptr+1, "F %llx %lld) (A %llx %lld)",
+            sscanf(backing_ptr+1, "F %"SCNx64" %"SCNd64") (A %"SCNx64" %"SCNd64")",
                    file_mapping ? file_mapping : &tmp_file_mapping,
                    file_pages ? file_pages : &tmp_file_pages,
                    anon_mapping ? anon_mapping : &tmp_anon_mapping,
@@ -256,7 +336,121 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
 
     return true;
   } while (etext_ > ibuf_);
+#elif defined(__sun__)
+  // This is based on MA_READ == 4, MA_WRITE == 2, MA_EXEC == 1
+  static char kPerms[8][4] = { "---", "--x", "-w-", "-wx",
+                               "r--", "r-x", "rw-", "rwx" };
+  COMPILE_ASSERT(MA_READ == 4, solaris_ma_read_must_equal_4);
+  COMPILE_ASSERT(MA_WRITE == 2, solaris_ma_write_must_equal_2);
+  COMPILE_ASSERT(MA_EXEC == 1, solaris_ma_exec_must_equal_1);
+  int nread = 0;            // fill up buffer with text
+  NO_INTR(nread = read(fd_, ibuf_, sizeof(prmap_t)));
+  if (nread == sizeof(prmap_t)) {
+    long inode_from_mapname = 0;
+    prmap_t* mapinfo = reinterpret_cast<prmap_t*>(ibuf_);
+    // Best-effort attempt to get the inode from the filename.  I think the
+    // two middle ints are major and minor device numbers, but I'm not sure.
+    sscanf(mapinfo->pr_mapname, "ufs.%*d.%*d.%ld", &inode_from_mapname);
+
+    if (start) *start = mapinfo->pr_vaddr;
+    if (end) *end = mapinfo->pr_vaddr + mapinfo->pr_size;
+    if (flags) *flags = kPerms[mapinfo->pr_mflags & 7];
+    if (offset) *offset = mapinfo->pr_offset;
+    if (inode) *inode = inode_from_mapname;
+    // TODO(csilvers): How to map from /proc/map/object to filename?
+    if (filename) *filename = mapinfo->pr_mapname;  // format is ufs.?.?.inode
+    if (file_mapping) *file_mapping = 0;
+    if (file_pages) *file_pages = 0;
+    if (anon_mapping) *anon_mapping = 0;
+    if (anon_pages) *anon_pages = 0;
+    if (dev) *dev = 0;
+    return true;
+  }
+#elif defined(__MACH__)
+  static char kDefaultPerms[5] = "r-xp";
+  // We return a separate entry for each segment in the DLL. (TODO(csilvers):
+  // can we do better?)  A DLL ("image") has load-commands, some of which
+  // talk about segment boundaries.
+  // cf image_for_address from http://svn.digium.com/view/asterisk/team/oej/minivoicemail/dlfcn.c?revision=53912
+  for (; current_image_ >= 0; current_image_--) {
+    const mach_header* hdr = _dyld_get_image_header(current_image_);
+    if (!hdr) continue;
+    if (current_load_cmd_ < 0)   // set up for this image
+      current_load_cmd_ = hdr->ncmds;  // again, go from the top down
+
+    // We start with the next load command (we've already looked at this one).
+    for (current_load_cmd_--; current_load_cmd_ >= 0; current_load_cmd_--) {
+      const char* lc = ((const char *)hdr + sizeof(struct mach_header));
+      // TODO(csilvers): make this not-quadradic (increment and hold state)
+      for (int j = 0; j < current_load_cmd_; j++)  // advance to *our* load_cmd
+        lc += ((const load_command *)lc)->cmdsize;
+      if (((const load_command *)lc)->cmd == LC_SEGMENT) {
+        const intptr_t dlloff = _dyld_get_image_vmaddr_slide(current_image_);
+        const segment_command* sc = (const segment_command *)lc;
+        if (start) *start = sc->vmaddr + dlloff;
+        if (end) *end = sc->vmaddr + sc->vmsize + dlloff;
+        if (flags) *flags = kDefaultPerms;  // can we do better?
+        if (offset) *offset = sc->fileoff;
+        if (inode) *inode = 0;
+        if (filename)
+          *filename = const_cast<char*>(_dyld_get_image_name(current_image_));
+        if (file_mapping) *file_mapping = 0;
+        if (file_pages) *file_pages = 0;   // could we use sc->filesize?
+        if (anon_mapping) *anon_mapping = 0;
+        if (anon_pages) *anon_pages = 0;
+        if (dev) *dev = 0;
+        return true;
+      }
+    }
+    // If we get here, no more load_cmd's in this image talk about
+    // segments.  Go on to the next image.
+  }
+#elif defined(WIN32)
+  static char kDefaultPerms[5] = "r-xp";
+  BOOL ok;
+  if (module_.dwSize == 0) {  // only possible before first call
+    module_.dwSize = sizeof(module_);
+    ok = Module32First(snapshot_, &module_);
+  } else {
+    ok = Module32Next(snapshot_, &module_);
+  }
+  if (ok) {
+    uint64 base_addr = reinterpret_cast<DWORD_PTR>(module_.modBaseAddr);
+    if (start) *start = base_addr;
+    if (end) *end = base_addr + module_.modBaseSize;
+    if (flags) *flags = kDefaultPerms;
+    if (offset) *offset = 0;
+    if (inode) *inode = 0;
+    if (filename) *filename = module_.szExePath;
+    if (file_mapping) *file_mapping = 0;
+    if (file_pages) *file_pages = 0;
+    if (anon_mapping) *anon_mapping = 0;
+    if (anon_pages) *anon_pages = 0;
+    if (dev) *dev = 0;
+    return true;
+  }
+#endif
 
   // We didn't find anything
   return false;
+}
+
+int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
+                                 uint64 start, uint64 end, const char *flags,
+                                 uint64 offset, int64 inode,
+                                 const char *filename, dev_t dev) {
+  // We assume 'flags' looks like 'rwxp' or 'rwx'.
+  char r = (flags && flags[0] == 'r') ? 'r' : '-';
+  char w = (flags && flags[0] && flags[1] == 'w') ? 'w' : '-';
+  char x = (flags && flags[0] && flags[1] && flags[2] == 'x') ? 'x' : '-';
+  // p always seems set on linux, so we set the default to 'p', not '-'
+  char p = (flags && flags[0] && flags[1] && flags[2] && flags[3] != 'p')
+      ? '-' : 'p';
+
+  const int rc = snprintf(buffer, bufsize,
+                          "%08"PRIx64"-%08"PRIx64" %c%c%c%c %08"PRIx64" %02x:%02x %-11"PRId64" %s\n",
+                          start, end, r,w,x,p, offset,
+                          static_cast<int>(dev/256), static_cast<int>(dev%256),
+                          inode, filename);
+  return (rc < 0 || rc >= bufsize) ? 0 : rc;
 }
