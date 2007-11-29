@@ -4,10 +4,11 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.93, opensource@google.com)
+AC_INIT(google-perftools, 0.94, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
+AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([dist-zip])
 AM_CONFIG_HEADER(src/config.h)
 
@@ -76,9 +77,12 @@ pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
 pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
 pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
 pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
-pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386)
+pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386, <=10.4)
+pc_fields="$pc_fields uc_mcontext->__ss.__eip"      # OS X (i386, >=10.5)
 pc_fields="$pc_fields uc_mcontext->ss.rip"          # OS X (x86_64)
+pc_fields="$pc_fields uc_mcontext->__ss.__rip"      # OS X (>=10.5 [untested])
 pc_fields="$pc_fields uc_mcontext->ss.srr0"         # OS X (ppc, ppc64 [untested])
+pc_fields="$pc_fields uc_mcontext->__ss.__srr0"     # OS X (>=10.5 [untested])
 pc_field_found=false
 for pc_field in $pc_fields; do
   if ! $pc_field_found; then
@@ -164,6 +168,17 @@ AC_DEFINE(PERFTOOLS_DLL_DECL,,
 	   It's safe to define this here because config.h is only used
 	   internally, to compile the DLL, and every DLL source file
 	   #includes "config.h" before anything else.])
+
+# MinGW uses autoconf, but also needs the windows shim routines
+# (since it doesn't have its own support for, say, pthreads).
+# This requires us to #include a special header file, and also to
+# link in some windows versions of .o's instead of the unix versions.
+AH_BOTTOM([
+#ifdef __MINGW32__
+#include "windows/mingw.h"
+#endif
+])
+AM_CONDITIONAL(MINGW, expr $target : '.*-mingw' >/dev/null 2>&1)
 
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile])

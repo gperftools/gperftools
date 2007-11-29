@@ -29,6 +29,7 @@
 
 // ---
 // Author: Sanjay Ghemawat
+//         Chris Demetriou (refactoring)
 //
 // Profile current program by sampling stack-trace every so often
 //
@@ -42,24 +43,11 @@
 #include <signal.h>
 #include <assert.h>
 #include <stdio.h>
-#include <stdlib.h>
-#if defined HAVE_STDINT_H
-#include <stdint.h>
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-#include <sys/types.h>
-#endif
 #include <errno.h>
-#ifdef HAVE_UCONTEXT_H
-#include <ucontext.h>           // for ucontext_t (and also mcontext_t)
-#endif
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#include <sys/time.h>
+#include <ucontext.h>
 #include <string.h>
-#include <fcntl.h>
+#include <sys/time.h>
+#include <string>
 #include <google/profiler.h>
 #include <google/stacktrace.h>
 #include "base/commandlineflags.h"
@@ -68,6 +56,7 @@
 #include "base/mutex.h"
 #include "base/spinlock.h"
 #include "base/sysinfo.h"
+#include "profiledata.h"
 #ifdef HAVE_CONFLICT_SIGNAL_H
 #include "conflict-signal.h"          /* used on msvc machines */
 #endif
@@ -118,113 +107,83 @@ static bool GetUniquePathFromEnv(const char* env_name, string* path) {
 }
 
 
-// Collects up all profile data
-class ProfileData {
+// Collects up all profile data.  This is a singleton, which is
+// initialized by a constructor at startup.
+class CpuProfiler {
  public:
-  ProfileData();
-  ~ProfileData();
-
-  // Is profiling turned on at all
-  inline bool enabled() const { return out_ >= 0; }
-
-  // What is the frequency of interrupts (ticks per second)
-  inline int frequency() const { return frequency_; }
-
-  // Record an interrupt at "pc"
-  void Add(void* pc);
-
-  void FlushTable();
+  CpuProfiler();
+  ~CpuProfiler();
 
   // Start profiler to write profile info into fname
-  bool Start(const char* fname);
-  // Stop profiling and flush the data
+  bool Start(const char* fname, bool (*filter)(void*), void* filter_arg);
+
+  // Stop profiling and write the data to disk.
   void Stop();
+
+  // Write the data to disk (and continue profiling).
+  void FlushTable();
+
+  bool Enabled();
 
   void GetCurrentState(ProfilerState* state);
 
+  // Start interval timer for the current thread.  We do this for
+  // every known thread.  If profiling is off, the generated signals
+  // are ignored, otherwise they are captured by prof_handler().
+  void RegisterThread();
+
+  static CpuProfiler instance_;
+
  private:
-  static const int kMaxStackDepth = 64;         // Max stack depth profiled
   static const int kMaxFrequency = 4000;        // Largest allowed frequency
   static const int kDefaultFrequency = 100;     // Default frequency
-  static const int kAssociativity = 4;          // For hashtable
-  static const int kBuckets = 1 << 10;          // For hashtable
-  static const int kBufferLength = 1 << 18;     // For eviction buffer
 
-  // Type of slots: each slot can be either a count, or a PC value
-  typedef uintptr_t Slot;
+  // Sample frequency, read-only after construction.
+  int           frequency_;
 
-  // Hash-table/eviction-buffer entry
-  struct Entry {
-    Slot count;                  // Number of hits
-    Slot depth;                  // Stack depth
-    Slot stack[kMaxStackDepth];  // Stack contents
-  };
-
-  // Hash table bucket
-  struct Bucket {
-    Entry entry[kAssociativity];
-  };
-
-  // Invariant: table_lock_ is only grabbed by handler, or by other code
-  // when the signal is being ignored (via SIG_IGN).
+  // These locks implement the locking requirements described in the
+  // ProfileData documentation, specifically:
   //
-  // Locking order is "state_lock_" first, and then "table_lock_"
-  Mutex         state_lock_;    // Protects filename, etc.(not used in handler)
-  SpinLock      table_lock_;    // SpinLock is safer in signal handlers
-  Bucket*       hash_;          // hash table
+  // control_lock_ is held all over all collector_ method calls except for
+  // the 'Add' call made from the signal handler, to protect against
+  // concurrent use of collector_'s control routines.
+  //
+  // signal_lock_ is held over calls to 'Start', 'Stop', 'Flush', and
+  // 'Add', to protect against concurrent use of data collection and
+  // writing routines.  Code other than the signal handler must disable
+  // the timer signal while holding signal_lock, to prevent deadlock.
+  //
+  // Locking order is control_lock_ first, and then signal_lock_.
+  // signal_lock_ is acquired by the prof_handler without first
+  // acquiring control_lock_.
+  Mutex         control_lock_;
+  SpinLock      signal_lock_;
+  ProfileData   collector_;
 
-  Slot*         evict_;         // evicted entries
-  int           num_evicted_;   // how many evicted entries?
-  int           out_;           // fd for output file
-  int           count_;         // How many interrupts recorded
-  int           evictions_;     // How many evictions
-  size_t        total_bytes_;   // How much output
-  char*         fname_;         // Profile file name
-  int           frequency_;     // Interrupts per second
-  time_t        start_time_;    // Start time, or 0
+  // Filter function and its argument, if any.  (NULL means include
+  // all samples).  Set at start, read-only while running.  Written
+  // while holding both control_lock_ and signal_lock_, read and
+  // executed under signal_lock_.
+  bool          (*filter_)(void*);
+  void*         filter_arg_;
 
-  // Add "pc -> count" to eviction buffer
-  void Evict(const Entry& entry);
-
-  // Write contents of eviction buffer to disk
-  void FlushEvicted();
-
-  // Handler that records the interrupted pc in the profile data
-  static void prof_handler(int sig, siginfo_t*, void* signal_ucontext);
-
-  // Sets the timer interrupt signal handler to one that stores the pc
+  // Sets the timer interrupt signal handler to one that stores the pc.
   static void EnableHandler();
-  // "Turn off" the timer interrupt signal handler
+
+  // Disables (ignores) the timer interrupt signal.
   static void DisableHandler();
+
+  // Signale handler that records the interrupted pc in the profile data
+  static void prof_handler(int sig, siginfo_t*, void* signal_ucontext);
 };
 
-// Evict the specified entry to the evicted-entry buffer
-inline void ProfileData::Evict(const Entry& entry) {
-  const int d = entry.depth;
-  const int nslots = d + 2;     // Number of slots needed in eviction buffer
-  if (num_evicted_ + nslots > kBufferLength) {
-    FlushEvicted();
-    assert(num_evicted_ == 0);
-    assert(nslots <= kBufferLength);
-  }
-  evict_[num_evicted_++] = entry.count;
-  evict_[num_evicted_++] = d;
-  memcpy(&evict_[num_evicted_], entry.stack, d * sizeof(Slot));
-  num_evicted_ += d;
-}
+// Profile data structure singleton: Constructor will check to see if
+// profiling should be enabled.  Destructor will write profile data
+// out to disk.
+CpuProfiler CpuProfiler::instance_;
 
 // Initialize profiling: activated if getenv("CPUPROFILE") exists.
-ProfileData::ProfileData()
-    : hash_(0),
-      evict_(0),
-      num_evicted_(0),
-      out_(-1),
-      count_(0),
-      evictions_(0),
-      total_bytes_(0),
-      fname_(0),
-      frequency_(0),
-      start_time_(0) {
+CpuProfiler::CpuProfiler() {
   // Get frequency of interrupts (if specified)
   char junk;
   const char* fr = getenv("CPUPROFILE_FREQUENCY");
@@ -236,10 +195,11 @@ ProfileData::ProfileData()
     frequency_ = kDefaultFrequency;
   }
 
-  // Ignore signals until we decide to turn profiling on
+  // Ignore signals until we decide to turn profiling on.  (Paranoia;
+  // should already be ignored.)
   DisableHandler();
 
-  ProfilerRegisterThread();
+  RegisterThread();
 
   // Should profiling be enabled automatically at start?
   string fname;
@@ -252,52 +212,35 @@ ProfileData::ProfileData()
     return;
 #endif
 
-  if (!Start(fname.c_str())) {
+  if (!Start(fname.c_str(), NULL, NULL)) {
     RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
             fname.c_str(), strerror(errno));
   }
 }
 
-bool ProfileData::Start(const char* fname) {
-  MutexLock l(&state_lock_);
-  if (enabled()) {
-    // profiling is already enabled
+bool CpuProfiler::Start(const char* fname,
+                        bool (*filter)(void*), void* filter_arg) {
+  MutexLock cl(&control_lock_);
+
+  if (collector_.enabled()) {
     return false;
   }
-
-  // Open output file and initialize various data structures
-  int fd = open(fname, O_CREAT | O_WRONLY | O_TRUNC, 0666);
-  if (fd < 0) {
-    // Can't open outfile for write
-    return false;
-  }
-
-  start_time_ = time(NULL);
-  fname_ = strdup(fname);
 
   {
-    SpinLockHolder l2(&table_lock_);
+    // spin lock really is needed to protect init here, since it's
+    // conceivable that prof_handler may still be running from a
+    // previous profiler run.  (For instance, if prof_handler just
+    // started, had not grabbed the spinlock, then was switched out,
+    // it might start again right now.)  Any such late sample will be
+    // recorded against the new profile, but there's no harm in that.
+    SpinLockHolder sl(&signal_lock_);
 
-    // Reset counters
-    num_evicted_ = 0;
-    count_       = 0;
-    evictions_   = 0;
-    total_bytes_ = 0;
-    // But leave frequency_ alone (i.e., ProfilerStart() doesn't affect
-    // their values originally set in the constructor)
+    if (!collector_.Start(fname, frequency_)) {
+      return false;
+    }
 
-    out_  = fd;
-
-    hash_ = new Bucket[kBuckets];
-    evict_ = new Slot[kBufferLength];
-    memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
-
-    // Record special entries
-    evict_[num_evicted_++] = 0;                     // count for header
-    evict_[num_evicted_++] = 3;                     // depth for header
-    evict_[num_evicted_++] = 0;                     // Version number
-    evict_[num_evicted_++] = 1000000 / frequency_;  // Period (microseconds)
-    evict_[num_evicted_++] = 0;                     // Padding
+    filter_ = filter;
+    filter_arg_ = filter_arg;
 
     // Must unlock before setting prof_handler to avoid deadlock
     // with signal delivered to this thread.
@@ -309,111 +252,79 @@ bool ProfileData::Start(const char* fname) {
   return true;
 }
 
-// Write out any collected profile data
-ProfileData::~ProfileData() {
+CpuProfiler::~CpuProfiler() {
   Stop();
 }
 
-// Dump /proc/maps data to fd.  Copied from heap-profile-table.cc.
-#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
-
-static void FDWrite(int fd, const char* buf, size_t len) {
-  while (len > 0) {
-    ssize_t r;
-    NO_INTR(r = write(fd, buf, len));
-    RAW_CHECK(r >= 0, "write failed");
-    buf += r;
-    len -= r;
-  }
-}
-
-static void DumpProcSelfMaps(int fd) {
-  ProcMapsIterator::Buffer iterbuf;
-  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-  uint64 start, end, offset;
-  int64 inode;
-  char *flags, *filename;
-  ProcMapsIterator::Buffer linebuf;
-  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-                                start, end, flags, offset, inode, filename,
-                                0);
-    FDWrite(fd, linebuf.buf_, written);
-  }
-}
-
 // Stop profiling and write out any collected profile data
-void ProfileData::Stop() {
-  MutexLock l(&state_lock_);
+void CpuProfiler::Stop() {
+  MutexLock cl(&control_lock_);
 
-  // Prevent handler from running anymore
-  DisableHandler();
-
-  // This lock prevents interference with signal handlers in other threads
-  SpinLockHolder l2(&table_lock_);
-
-  if (out_ < 0) {
-    // Profiling is not enabled
+  if (!collector_.enabled()) {
     return;
   }
 
-  // Move data from hash table to eviction buffer
-  for (int b = 0; b < kBuckets; b++) {
-    Bucket* bucket = &hash_[b];
-    for (int a = 0; a < kAssociativity; a++) {
-      if (bucket->entry[a].count > 0) {
-        Evict(bucket->entry[a]);
-      }
-    }
-  }
+  // Ignore timer signals.  Note that the handler may have just
+  // started and might not have taken signal_lock_ yet.  Holding
+  // signal_lock_ here along with the semantics of collector_.Add()
+  // (which does nothing if collection is not enabled) prevents that
+  // late sample from causing a problem.
+  DisableHandler();
 
-  if (num_evicted_ + 3 > kBufferLength) {
-    // Ensure there is enough room for end of data marker
-    FlushEvicted();
-  }
-
-  // Write end of data marker
-  evict_[num_evicted_++] = 0;         // count
-  evict_[num_evicted_++] = 1;         // depth
-  evict_[num_evicted_++] = 0;         // end of data marker
-  FlushEvicted();
-
-  // Dump "/proc/self/maps" so we get list of mapped shared libraries
-  DumpProcSelfMaps(out_);
-
-  close(out_);
-  fprintf(stderr, "PROFILE: interrupts/evictions/bytes = %d/%d/%" PRIuS "\n",
-          count_, evictions_, total_bytes_);
-  delete[] hash_;
-  hash_ = 0;
-  delete[] evict_;
-  evict_ = 0;
-  free(fname_);
-  fname_ = 0;
-  start_time_ = 0;
-
-  out_ = -1;
-}
-
-void ProfileData::GetCurrentState(ProfilerState* state) {
-  MutexLock l(&state_lock_);
-  if (enabled()) {
-    state->enabled = true;
-    state->start_time = start_time_;
-    state->samples_gathered = count_;
-    int buf_size = sizeof(state->profile_name);
-    strncpy(state->profile_name, fname_, buf_size);
-    state->profile_name[buf_size-1] = '\0';
-  } else {
-    state->enabled = false;
-    state->start_time = 0;
-    state->samples_gathered = 0;
-    state->profile_name[0] = '\0';
+  {
+    SpinLockHolder sl(&signal_lock_);
+    collector_.Stop();
   }
 }
 
-void ProfileData::EnableHandler() {
+void CpuProfiler::FlushTable() {
+  MutexLock cl(&control_lock_);
+
+  if (!collector_.enabled()) {
+    return;
+  }
+
+  // Disable timer signal while hoding signal_lock_, to prevent deadlock
+  // if we take a timer signal while flushing.
+  DisableHandler();
+  {
+    SpinLockHolder sl(&signal_lock_);
+    collector_.FlushTable();
+  }
+  EnableHandler();
+}
+
+bool CpuProfiler::Enabled() {
+  MutexLock cl(&control_lock_);
+  return collector_.enabled();
+}
+
+void CpuProfiler::GetCurrentState(ProfilerState* state) {
+  ProfileData::State collector_state;
+  {
+    MutexLock cl(&control_lock_);
+    collector_.GetCurrentState(&collector_state);
+  }
+
+  state->enabled = collector_state.enabled;
+  state->start_time = static_cast<time_t>(collector_state.start_time);
+  state->samples_gathered = collector_state.samples_gathered;
+  int buf_size = sizeof(state->profile_name);
+  strncpy(state->profile_name, collector_state.profile_name, buf_size);
+  state->profile_name[buf_size-1] = '\0';
+}
+
+void CpuProfiler::RegisterThread() {
+  // TODO: Randomize the initial interrupt value?
+  // TODO: Randomize the inter-interrupt period on every interrupt?
+  struct itimerval timer;
+  timer.it_interval.tv_sec = 0;
+  timer.it_interval.tv_usec = 1000000 / frequency_;
+  timer.it_value = timer.it_interval;
+  setitimer(ITIMER_PROF, &timer, 0);
+}
+
+void CpuProfiler::EnableHandler() {
   struct sigaction sa;
   sa.sa_sigaction = prof_handler;
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
@@ -421,7 +332,7 @@ void ProfileData::EnableHandler() {
   RAW_CHECK(sigaction(SIGPROF, &sa, NULL) == 0, "sigaction failed");
 }
 
-void ProfileData::DisableHandler() {
+void CpuProfiler::DisableHandler() {
   struct sigaction sa;
   sa.sa_handler = SIG_IGN;
   sa.sa_flags = SA_RESTART;
@@ -429,150 +340,48 @@ void ProfileData::DisableHandler() {
   RAW_CHECK(sigaction(SIGPROF, &sa, NULL) == 0, "sigaction failed");
 }
 
-
-void ProfileData::FlushTable() {
-  MutexLock l(&state_lock_);
-  if (out_ < 0) {
-    // Profiling is not enabled
-    return;
-  }
-  DisableHandler();       // Disable timer interrupts while we're flushing
-  {
-    // Move data from hash table to eviction buffer
-    SpinLockHolder l(&table_lock_);
-    for (int b = 0; b < kBuckets; b++) {
-      Bucket* bucket = &hash_[b];
-      for (int a = 0; a < kAssociativity; a++) {
-        if (bucket->entry[a].count > 0) {
-          Evict(bucket->entry[a]);
-          bucket->entry[a].depth = 0;
-          bucket->entry[a].count = 0;
-        }
-      }
-    }
-
-    // Write out all pending data
-    FlushEvicted();
-  }
-  EnableHandler();
-}
-
-// Record the specified "pc" in the profile data
-void ProfileData::Add(void* pc) {
-  void* stack[kMaxStackDepth];
-
-  // The top-most active routine doesn't show up as a normal
-  // frame, but as the "pc" value in the signal handler context.
-  stack[0] = pc;
-
-  // We remove the top three entries (typically Add, prof_handler, and
-  // a signal handler setup routine) since they are artifacts of
-  // profiling and should not be measured.  Other profiling related
-  // frames (signal handler setup) will be removed by "pprof" at
-  // analysis time.  Instead of skipping the top frames, we could skip
-  // nothing, but that would increase the profile size unnecessarily.
-  int depth = GetStackTrace(stack+1, kMaxStackDepth-1, 3);
-  depth++;              // To account for pc value
-
-  // Make hash-value
-  Slot h = 0;
-  for (int i = 0; i < depth; i++) {
-    Slot slot = reinterpret_cast<Slot>(stack[i]);
-    h = (h << 8) | (h >> (8*(sizeof(h)-1)));
-    h += (slot * 31) + (slot * 7) + (slot * 3);
-  }
-
-  SpinLockHolder l(&table_lock_);
-
-  // If the signal handler starts executing (and calls this function)
-  // just as a thread calls Stop, it is possible for Stop to acquire
-  // state_lock_, disable the signal, and acquire table_lock_ before
-  // this function can grab table_lock_.  If that happens, Stop will
-  // delete hash_ and the rest of the allocated structures before this
-  // function grabs table_lock_ and continues.  In that case, hash_
-  // will be NULL here.
-  if (hash_ == NULL) {
-    return;
-  }
-
-  count_++;
-
-  // See if table already has an entry for this stack trace
-  bool done = false;
-  Bucket* bucket = &hash_[h % kBuckets];
-  for (int a = 0; a < kAssociativity; a++) {
-    Entry* e = &bucket->entry[a];
-    if (e->depth == depth) {
-      bool match = true;
-      for (int i = 0; i < depth; i++) {
-        if (e->stack[i] != reinterpret_cast<Slot>(stack[i])) {
-          match = false;
-          break;
-        }
-      }
-      if (match) {
-        e->count++;
-        done = true;
-        break;
-      }
-    }
-  }
-
-  if (!done) {
-    // Evict entry with smallest count
-    Entry* e = &bucket->entry[0];
-    for (int a = 1; a < kAssociativity; a++) {
-      if (bucket->entry[a].count < e->count) {
-        e = &bucket->entry[a];
-      }
-    }
-    if (e->count > 0) {
-      evictions_++;
-      Evict(*e);
-    }
-
-    // Use the newly evicted entry
-    e->depth = depth;
-    e->count = 1;
-    for (int i = 0; i < depth; i++) {
-      e->stack[i] = reinterpret_cast<Slot>(stack[i]);
-    }
-  }
-}
-
-// Write all evicted data to the profile file
-void ProfileData::FlushEvicted() {
-  if (num_evicted_ > 0) {
-    const char* buf = reinterpret_cast<char*>(evict_);
-    size_t bytes = sizeof(evict_[0]) * num_evicted_;
-    total_bytes_ += bytes;
-    FDWrite(out_, buf, bytes);
-  }
-  num_evicted_ = 0;
-}
-
-// Profile data structure: Constructor will check to see if profiling
-// should be enabled.  Destructor will write profile data out to disk.
-static ProfileData pdata;
-
 // Signal handler that records the pc in the profile-data structure
-void ProfileData::prof_handler(int sig, siginfo_t*, void* signal_ucontext) {
+//
+// NOTE: it is possible for profiling to be disabled just as this
+// signal handler starts, before signal_lock_ is acquired.  Therefore,
+// collector_.Add must check whether profiling is enabled before
+// trying to record any data.  (See also comments in Start and Stop.)
+void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext) {
   int saved_errno = errno;
-  pdata.Add(GetPC(*reinterpret_cast<ucontext_t*>(signal_ucontext)));
+
+  // Hold the spin lock while we're gathering the trace because there's
+  // no real harm in holding it and there's little point in releasing
+  // and re-acquiring it.  (We'll only be blocking Start, Stop, and
+  // Flush.)  We make sure to release it before restoring errno.
+  {
+    SpinLockHolder sl(&instance_.signal_lock_);
+
+    if (instance_.filter_ == NULL ||
+        (*instance_.filter_)(instance_.filter_arg_)) {
+      void* stack[ProfileData::kMaxStackDepth];
+
+      // The top-most active routine doesn't show up as a normal
+      // frame, but as the "pc" value in the signal handler context.
+      stack[0] = GetPC(*reinterpret_cast<ucontext_t*>(signal_ucontext));
+
+      // We skip the top two stack trace entries (this function and one
+      // signal handler frame) since they are artifacts of profiling and
+      // should not be measured.  Other profiling related frames may be
+      // removed by "pprof" at analysis time.  Instead of skipping the top
+      // frames, we could skip nothing, but that would increase the
+      // profile size unnecessarily.
+      int depth = GetStackTrace(stack + 1, arraysize(stack) - 1, 2);
+      depth++;              // To account for pc value in stack[0];
+
+      instance_.collector_.Add(depth, stack);
+    }
+  }
+
   errno = saved_errno;
 }
 
-// Start interval timer for the current thread.  We do this for
-// every known thread.  If profiling is off, the generated signals
-// are ignored, otherwise they are captured by prof_handler().
 extern "C" void ProfilerRegisterThread() {
-  // TODO: Randomize the initial interrupt value?
-  // TODO: Randomize the inter-interrupt period on every interrupt?
-  struct itimerval timer;
-  timer.it_interval.tv_sec = 0;
-  timer.it_interval.tv_usec = 1000000 / pdata.frequency();
-  timer.it_value = timer.it_interval;
-  setitimer(ITIMER_PROF, &timer, 0);
+  CpuProfiler::instance_.RegisterThread();
 }
 
 // DEPRECATED routines
@@ -580,23 +389,30 @@ extern "C" void ProfilerEnable() { }
 extern "C" void ProfilerDisable() { }
 
 extern "C" void ProfilerFlush() {
-  pdata.FlushTable();
+  CpuProfiler::instance_.FlushTable();
 }
 
 extern "C" bool ProfilingIsEnabledForAllThreads() {
-  return pdata.enabled();
+  return CpuProfiler::instance_.Enabled();
 }
 
 extern "C" bool ProfilerStart(const char* fname) {
-  return pdata.Start(fname);
+  return CpuProfiler::instance_.Start(fname, NULL, NULL);
+}
+
+extern "C" bool ProfilerStartFiltered(const char* fname,
+                                      bool (*filter_in_thread)(void* arg),
+                                      void *filter_in_thread_arg) {
+  return CpuProfiler::instance_.Start(fname, filter_in_thread,
+                                      filter_in_thread_arg);
 }
 
 extern "C" void ProfilerStop() {
-  pdata.Stop();
+  CpuProfiler::instance_.Stop();
 }
 
 extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
-  pdata.GetCurrentState(state);
+  CpuProfiler::instance_.GetCurrentState(state);
 }
 
 

@@ -61,6 +61,7 @@
 #include <map>
 #include <set>
 #include <algorithm>
+#include <functional>
 
 #include <google/heap-checker.h>
 
@@ -1863,7 +1864,7 @@ void HeapLeakChecker::CancelGlobalCheck() {
 
 static bool in_initial_malloc_hook = false;
 
-#ifdef HAVE___ATTRIBUTE___   // we need __attribute__((weak)) for this to work
+#ifdef HAVE___ATTRIBUTE__   // we need __attribute__((weak)) for this to work
 #define INSTALLED_INITIAL_MALLOC_HOOKS
 
 void HeapLeakChecker_BeforeConstructors();  // below

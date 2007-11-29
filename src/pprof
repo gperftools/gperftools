@@ -1516,8 +1516,9 @@ sub RemoveUninterestingFrames {
     # Drop signal handlers used for CPU profile collection
     # TODO(dpeng): this should not be necessary; it's taken
     # care of by the general 2nd-pc mechanism below.
-    foreach my $name ('ProfileData::Add',
-		      'ProfileData::prof_handler',
+    foreach my $name ('ProfileData::Add',           # historical
+		      'ProfileData::prof_handler',  # historical
+		      'CpuProfiler::prof_handler',
 		      '__pthread_sighandler',
 		      '__restore') {
       $skip{$name} = 1;
@@ -1784,7 +1785,8 @@ sub IsProfileURL {
 
 sub ParseProfileURL {
   my $profile_name = shift;
-  if ($profile_name =~ m,^(http://|)([^/:]+):(\d+)(|/|$PROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE)$,o) {
+  if (defined($profile_name) &&
+      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|/|$PROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE)$,o) {
     return ($2, $3, $4);
   }
   return ();
@@ -2754,12 +2756,13 @@ sub MapToSymbols {
   # Ignore empty binaries
   if ($#{$pclist} < 0) { return; }
 
-  MapSymbolsWithNM($image, $offset, $pclist, $symbols);
+  my $got_symbols = MapSymbolsWithNM($image, $offset, $pclist, $symbols);
   if ($main::opt_interactive ||
       $main::opt_addresses   ||
       $main::opt_lines       ||
       $main::opt_files       ||
-      $main::opt_list) {
+      $main::opt_list        ||
+      !$got_symbols) {
     GetLineNumbers($image, $offset, $pclist, $symbols);
   }
 }
@@ -2808,7 +2811,8 @@ sub GetLineNumbers {
   close(SYMBOLS);
 }
 
-# Use nm to map the list of referenced PCs to symbols
+# Use nm to map the list of referenced PCs to symbols.  Return true iff we
+# are able to read procedure information via nm.
 sub MapSymbolsWithNM {
   my $image = shift;
   my $offset = shift;
@@ -2817,6 +2821,9 @@ sub MapSymbolsWithNM {
 
   # Get nm output sorted by increasing address
   my $symbol_table = GetProcedureBoundaries($image, ".");
+  if (!%{$symbol_table}) {
+    return 0;
+  }
   # Start addresses are already the right length (8 or 16 hex digits).
   my @names = sort { $symbol_table->{$a}->[0] cmp $symbol_table->{$b}->[0] }
     keys(%{$symbol_table});
@@ -2827,7 +2834,7 @@ sub MapSymbolsWithNM {
       my $pcstr = "0x" . $pc;
       $symbols->{$pc} = [$pcstr, "?", $pcstr];
     }
-    return;
+    return 0;
   }
 
   # Sort addresses so we can do a join against nm output
@@ -2849,6 +2856,7 @@ sub MapSymbolsWithNM {
       $symbols->{$pc} = [$pcstr, "?", $pcstr];
     }
   }
+  return 1;
 }
 
 sub ShortFunctionName {
@@ -2887,7 +2895,8 @@ sub ConfigureObjTools {
 
   # Go fill in %obj_tool_map with the pathnames to use:
   foreach my $tool (keys %obj_tool_map) {
-    $obj_tool_map{$tool} = ConfigureTool($tool, $default_prefix);
+    $obj_tool_map{$tool} = ConfigureTool($obj_tool_map{$tool},
+					 $default_prefix);
   }
 }
 
@@ -2988,7 +2997,8 @@ sub GetProcedureBoundariesViaNm {
 
 # Gets the procedure boundaries for all routines in "$image" whose names
 # match "$regexp" and returns them in a hashtable mapping from procedure
-# name to a two-element vector of [start address, end address]
+# name to a two-element vector of [start address, end address].
+# Will return an empty map if nm is not installed or not working properly.
 sub GetProcedureBoundaries {
   my $image = shift;
   my $regexp = shift;
@@ -3008,11 +3018,14 @@ sub GetProcedureBoundaries {
   foreach my $nm_command ("$nm -n --demangle $image 2>/dev/null",
 			  "$nm -n $image 2>&1 | $cppfilt",
 			  "$nm -D -n --demangle $image 2>/dev/null",
-			  "$nm -D -n $image 2>&1 | $cppfilt") {
+			  "$nm -D -n $image 2>&1 | $cppfilt",
+			  "$nm -n $image 2>/dev/null",
+			  "$nm -D -n $image 2>/dev/null") {
     my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
     return $symbol_table if (%{$symbol_table});
   }
-  return GetProcedureBoundariesViaNm("$nm -n $image", $regexp);   # last hope
+  my $symbol_table = {};
+  return $symbol_table;
 }
 
 

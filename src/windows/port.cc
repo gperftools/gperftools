@@ -40,7 +40,6 @@
 #include <assert.h>
 #include <stdarg.h>    // for va_list, va_start, va_end
 #include <windows.h>
-#include <dbghelp.h>   // Provided with Microsoft Debugging Tools for Windows
 #include "port.h"
 #include "base/logging.h"
 #include "system-alloc.h"
@@ -99,7 +98,9 @@ bool CheckIfKernelSupportsTLS() {
 
 // This makes the linker create the TLS directory if it's not already
 // there (that is, even if __declspec(thead) is not used).
+#ifdef _MSC_VER
 #pragma comment(linker, "/INCLUDE:__tls_used")
+#endif
 
 // When destr_fn eventually runs, it's supposed to take as its
 // argument the tls-value associated with key that pthread_key_create
@@ -119,6 +120,10 @@ static DestrFnClosure destr_fn_info;   // initted to all NULL/0.
 static int on_process_term(void) {
   if (destr_fn_info.destr_fn) {
     void *ptr = TlsGetValue(destr_fn_info.key_for_destr_fn_arg);
+    // This shouldn't be necessary, but in Release mode, Windows
+    // sometimes trashes the pointer in the TLS slot, so we need to
+    // remove the pointer from the TLS slot before the thread dies.
+    TlsSetValue(destr_fn_info.key_for_destr_fn_arg, NULL);
     if (ptr)  // pthread semantics say not to call if ptr is NULL
       (*destr_fn_info.destr_fn)(ptr);
   }
@@ -131,7 +136,9 @@ static void NTAPI on_tls_callback(HINSTANCE h, DWORD dwReason, PVOID pv) {
   }
 }
 
-// This tells the linker to run these functions
+#ifdef _MSC_VER
+
+// This tells the linker to run these functions.
 #pragma data_seg(push, old_seg)
 #pragma data_seg(".CRT$XLB")
 static void (NTAPI *p_thread_callback)(HINSTANCE h, DWORD dwReason, PVOID pv)
@@ -139,6 +146,20 @@ static void (NTAPI *p_thread_callback)(HINSTANCE h, DWORD dwReason, PVOID pv)
 #pragma data_seg(".CRT$XTU")
 static int (*p_process_term)(void) = on_process_term;
 #pragma data_seg(pop, old_seg)
+
+#else  // #ifdef _MSC_VER  [probably msys/mingw]
+
+// We have to try the DllMain solution here, because we can't use the
+// msvc-specific pragmas.
+BOOL WINAPI DllMain(HINSTANCE h, DWORD dwReason, PVOID pv) {
+  if (dwReason == DLL_THREAD_DETACH)
+    on_tls_callback(h, dwReason, pv);
+  else if (dwReason == DLL_PROCESS_DETACH)
+    on_process_term();
+  return TRUE;
+}
+
+#endif  // #ifdef _MSC_VER
 
 pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
   // Semantics are: we create a new key, and then promise to call
@@ -152,61 +173,6 @@ pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
     destr_fn_info.key_for_destr_fn_arg = key;
   }
   return key;
-}
-
-// This replaces testutil.cc
-struct FunctionAndId {
-  void (*ptr_to_function)(int);
-  int id;
-};
-
-// This helper function has the signature that pthread_create wants.
-DWORD WINAPI RunFunctionInThread(LPVOID ptr_to_ptr_to_fn) {
-  (**static_cast<void (**)()>(ptr_to_ptr_to_fn))();    // runs fn
-  return NULL;
-}
-
-DWORD WINAPI RunFunctionInThreadWithId(LPVOID ptr_to_fnid) {
-  FunctionAndId* fn_and_id = static_cast<FunctionAndId*>(ptr_to_fnid);
-  (*fn_and_id->ptr_to_function)(fn_and_id->id);   // runs fn
-  return NULL;
-}
-
-void RunManyInThread(void (*fn)(), int count) {
-  DWORD dummy;
-  HANDLE* hThread = new HANDLE[count];
-  for (int i = 0; i < count; i++) {
-    hThread[i] = CreateThread(NULL, 0, RunFunctionInThread, &fn, 0, &dummy);
-    if (hThread[i] == NULL)  ExitProcess(i);
-  }
-  WaitForMultipleObjects(count, hThread, TRUE, INFINITE);
-  for (int i = 0; i < count; i++) {
-    CloseHandle(hThread[i]);
-  }
-  delete[] hThread;
-}
-
-void RunInThread(void (*fn)()) {
-  RunManyInThread(fn, 1);
-}
-
-void RunManyInThreadWithId(void (*fn)(int), int count, int stacksize) {
-  DWORD dummy;
-  HANDLE* hThread = new HANDLE[count];
-  FunctionAndId* fn_and_ids = new FunctionAndId[count];
-  for (int i = 0; i < count; i++) {
-    fn_and_ids[i].ptr_to_function = fn;
-    fn_and_ids[i].id = i;
-    hThread[i] = CreateThread(NULL, stacksize, RunFunctionInThreadWithId,
-                              &fn_and_ids[i], 0, &dummy);
-    if (hThread[i] == NULL)  ExitProcess(i);
-  }
-  WaitForMultipleObjects(count, hThread, TRUE, INFINITE);
-  for (int i = 0; i < count; i++) {
-    CloseHandle(hThread[i]);
-  }
-  delete[] fn_and_ids;
-  delete[] hThread;
 }
 
 
@@ -258,6 +224,10 @@ void TCMalloc_SystemRelease(void* start, size_t length) {
 
 bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
   return false;   // we don't allow registration on windows, right now
+}
+
+void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {
+  // We don't dump stats on windows, right now
 }
 
 
@@ -319,6 +289,9 @@ static SpinLock get_stack_trace_lock(SpinLock::LINKER_INITIALIZED);
 // value of context.Esp (on x86).  The initial stack pointer can be
 // crucial to a stackwalk in the FPO cases I mentioned.
 
+#if 0
+#include <dbghelp.h>   // Provided with Microsoft Debugging Tools for Windows
+#endif
 
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   int n = 0;

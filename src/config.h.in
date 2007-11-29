@@ -210,3 +210,9 @@
 #ifndef __cplusplus
 #undef inline
 #endif
+
+
+#ifdef __MINGW32__
+#include "windows/mingw.h"
+#endif
+

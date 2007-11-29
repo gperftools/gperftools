@@ -37,6 +37,7 @@
 #define TCMALLOC_SYSTEM_ALLOC_H__
 
 #include "config.h"
+#include "internal_logging.h"
 
 // REQUIRES: "alignment" is a power of two or "0" to indicate default alignment
 //
@@ -75,6 +76,12 @@ class SysAllocator {
 
   virtual void* Alloc(size_t size, size_t *actual_size, size_t alignment) = 0;
 
+  // Populate the map with whatever properties the specified allocator finds
+  // useful for debugging (such as number of bytes allocated and whether the
+  // allocator has failed).  The callee is responsible for any necessary
+  // locking (and avoiding deadlock).
+  virtual void DumpStats(TCMalloc_Printer* printer) = 0;
+
   // So the allocator can be turned off at compile time
   bool usable_;
 
@@ -99,5 +106,8 @@ extern PERFTOOLS_DLL_DECL bool RegisterSystemAllocator(SysAllocator *allocator,
 
 // Number of SysAllocators known to call RegisterSystemAllocator
 static const int kMaxDynamicAllocators = 2;
+
+// Retrieve the current state of various system allocators.
+extern PERFTOOLS_DLL_DECL void DumpSystemAllocatorStats(TCMalloc_Printer* printer);
 
 #endif /* TCMALLOC_SYSTEM_ALLOC_H__ */

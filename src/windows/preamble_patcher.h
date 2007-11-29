@@ -72,7 +72,7 @@ enum SideStepError {
 //
 // NOTE:  This patching mechanism should currently only be used for
 // non-production code, e.g. unit tests, because it is not threadsafe.
-// See the TODO in preamble_patcher_with_stub.cpp for instructions on what
+// See the TODO in preamble_patcher_with_stub.cc for instructions on what
 // we need to do before using it in production code; it's fairly simple
 // but unnecessary for now since we only intend to use it in unit tests.
 // 
@@ -122,7 +122,7 @@ enum SideStepError {
 // the compiler can reason do not have side effects, the compiler may
 // reuse the result of calling the function with a given parameter, which
 // may mean if you patch the function in between your patch will never get
-// invoked.  See preamble_patcher_unittest.cpp for an example.
+// invoked.  See preamble_patcher_test.cc for an example.
 class PreamblePatcher {
  public:
 
@@ -142,9 +142,12 @@ class PreamblePatcher {
   static SideStepError Patch(T target_function,
                                T replacement_function,
                                T* original_function_stub) {
-    return RawPatch(reinterpret_cast<void*>(target_function),
-                    reinterpret_cast<void*>(replacement_function),
-                    reinterpret_cast<void**>(original_function_stub));
+    // NOTE: casting from a function to a pointer is contra the C++
+    //       spec.  It's not safe on IA64, but is on i386.  We use
+    //       a C-style cast here to emphasize this is not legal C++.
+    return RawPatch((void*)(target_function),
+                    (void*)(replacement_function),
+                    (void**)(original_function_stub));
   }
 
   // Patches a named function imported from the named module using
@@ -191,8 +194,11 @@ class PreamblePatcher {
     if (!existing_function) {
       return SIDESTEP_NO_SUCH_FUNCTION;
     }
-    return RawPatch(existing_function, replacement_function,
-                    reinterpret_cast<void**>(original_function_stub));
+    // NOTE: casting from a function to a pointer is contra the C++
+    //       spec.  It's not safe on IA64, but is on i386.  We use
+    //       a C-style cast here to emphasize this is not legal C++.
+    return RawPatch((void*)existing_function, (void*)replacement_function,
+                    (void**)(original_function_stub));
   }
 
   // Patches a function by overwriting its first few bytes with

@@ -97,6 +97,7 @@ public:
   SbrkSysAllocator() : SysAllocator() {
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void DumpStats(TCMalloc_Printer* printer);
 };
 static char sbrk_space[sizeof(SbrkSysAllocator)];
 
@@ -105,6 +106,7 @@ public:
   MmapSysAllocator() : SysAllocator() {
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void DumpStats(TCMalloc_Printer* printer);
 };
 static char mmap_space[sizeof(MmapSysAllocator)];
 
@@ -113,6 +115,7 @@ public:
   DevMemSysAllocator() : SysAllocator() {
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+  void DumpStats(TCMalloc_Printer* printer);
 };
 static char devmem_space[sizeof(DevMemSysAllocator)];
 
@@ -126,7 +129,7 @@ bool RegisterSystemAllocator(SysAllocator *a, int priority) {
 
   // No two allocators should have a priority conflict, since the order
   // is determined at compile time.
-  CHECK(allocators[priority] == NULL);
+  CHECK_CONDITION(allocators[priority] == NULL);
   allocators[priority] = a;
   return true;
 }
@@ -177,6 +180,10 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
     ptr += alignment - (ptr & (alignment-1));
   }
   return reinterpret_cast<void*>(ptr);
+}
+
+void SbrkSysAllocator::DumpStats(TCMalloc_Printer* printer) {
+  printer->printf("SbrkSysAllocator: failed_=%d\n", failed_);
 }
 
 void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
@@ -232,6 +239,10 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
 
   ptr += adjust;
   return reinterpret_cast<void*>(ptr);
+}
+
+void MmapSysAllocator::DumpStats(TCMalloc_Printer* printer) {
+  printer->printf("MmapSysAllocator: failed_=%d\n", failed_);
 }
 
 void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
@@ -322,6 +333,10 @@ void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
   return reinterpret_cast<void*>(ptr);
 }
 
+void DevMemSysAllocator::DumpStats(TCMalloc_Printer* printer) {
+  printer->printf("DevMemSysAllocator: failed_=%d\n", failed_);
+}
+
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
   // This determines the order in which system allocators are called
@@ -402,4 +417,14 @@ void TCMalloc_SystemRelease(void* start, size_t length) {
     }
   }
 #endif
+}
+
+void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {
+  for (int j = 0; j < kMaxAllocators; j++) {
+    SysAllocator *a = allocators[j];
+    if (a == NULL) continue;
+    if (a->usable_) {
+      a->DumpStats(printer);
+    }
+  }
 }

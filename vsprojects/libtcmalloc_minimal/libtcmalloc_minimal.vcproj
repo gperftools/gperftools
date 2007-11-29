@@ -37,7 +37,7 @@
 				GenerateDebugInformation="TRUE"
 				ProgramDatabaseFile="$(OutDir)/libtcmalloc_minimal.pdb"
 				SubSystem="2"
-				ImportLibrary="$(OutDir)/libtcmalloc_minimal.lib"
+				ImportLibrary="$(OutDir)/libtcmalloc_minimal-debug.lib"
 				TargetMachine="1"/>
 			<Tool
 				Name="VCMIDLTool"/>

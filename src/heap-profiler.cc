@@ -247,22 +247,29 @@ static void DeleteHook(const void* ptr) {
   if (ptr != NULL) RecordFree(ptr);
 }
 
+// TODO(jandrews): Re-enable stack tracing
+#ifdef TODO_REENABLE_STACK_TRACING
+static void RawInfoStackDumper(const char* message, void*) {
+  RAW_LOG(INFO, "%.*s", static_cast<int>(strlen(message) - 1), message);
+  // -1 is to chop the \n which will be added by RAW_LOG
+}
+#endif
+
 static void MmapHook(const void* result, const void* start, size_t size,
                      int prot, int flags, int fd, off_t offset) {
   // Log the mmap if necessary
   if (FLAGS_mmap_log) {
-    char buf[200];
     // We use PRIxS not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
-    snprintf(buf, sizeof(buf),
-             "mmap(start=0x%"PRIxS", len=%"PRIuS", prot=0x%x, flags=0x%x, "
-             "fd=%d, offset=0x%x) = 0x%"PRIxS"",
-             (uintptr_t) start, size, prot, flags, fd, (unsigned int) offset,
-             (uintptr_t) result);
-    LOG(INFO, "%s", buf);
-    // TODO(jandrews): Re-enable stack tracing
-    //DumpStackTrace(1, DebugWriteToStream, &LOG(INFO));
+    RAW_LOG(INFO,
+            "mmap(start=0x%"PRIxS", len=%"PRIuS", prot=0x%x, flags=0x%x, "
+            "fd=%d, offset=0x%x) = 0x%"PRIxS"",
+            (uintptr_t) start, size, prot, flags, fd, (unsigned int) offset,
+            (uintptr_t) result);
+#ifdef TODO_REENABLE_STACK_TRACING
+    DumpStackTrace(1, RawInfoStackDumper, NULL);
+#endif
   }
 
   // Record mmap in profile if appropriate
@@ -276,13 +283,11 @@ static void MunmapHook(const void* ptr, size_t size) {
     RecordFree(ptr);
   }
   if (FLAGS_mmap_log) {
-    char buf[200];
     // We use PRIxS not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
-    snprintf(buf, sizeof(buf),
-             "munmap(start=0x%"PRIxS", len=%"PRIuS")", (uintptr_t) ptr, size);
-    LOG(INFO, "%s", buf);
+    RAW_LOG(INFO, "munmap(start=0x%"PRIxS", len=%"PRIuS")",
+                  (uintptr_t) ptr, size);
   }
 }
 

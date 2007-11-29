@@ -98,14 +98,17 @@ extern "C" {
 #include <syscall.h>
 #include <unistd.h>
 #include <linux/unistd.h>
+#include <endian.h>
 
-/* libc defines versions of stat, dirent, and dirent64 that are incompatible
- * with the structures that the kernel API expects. If you wish to use
- * sys_fstat(), sys_stat(), sys_getdents(), or sys_getdents64(), you will
- * need to include the kernel headers in your code.
+/* libc defines versions of stat, dirent, dirent64, and statfs64 that are
+ * incompatible with the structures that the kernel API expects. If you wish
+ * to use sys_fstat(), sys_stat(), sys_getdents(), sys_getdents64(),
+ * sys_statfs64(), or sys_statfs() you will need to include the kernel
+ * headers in your code.
  *
  *   asm/posix_types.h
  *   asm/stat.h
+ *   asm/statfs.h
  *   asm/types.h
  *   linux/dirent.h
  */
@@ -118,6 +121,8 @@ struct rlimit;
 struct sockaddr;
 struct stat;
 struct stat64;
+struct statfs;
+struct statfs64;
 
 #endif
 
@@ -177,6 +182,21 @@ struct stat64;
 #ifndef __NR_gettid
 #define __NR_gettid             224
 #endif
+#ifndef __NR_readahead
+#define __NR_readahead          225
+#endif
+#ifndef __NR_setxattr
+#define __NR_setxattr           226
+#endif
+#ifndef __NR_lsetxattr
+#define __NR_lsetxattr          227
+#endif
+#ifndef __NR_getxattr
+#define __NR_getxattr           229
+#endif
+#ifndef __NR_lgetxattr
+#define __NR_lgetxattr          230
+#endif
 #ifndef __NR_futex
 #define __NR_futex              240
 #endif
@@ -186,6 +206,15 @@ struct stat64;
 #endif
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    258
+#endif
+#ifndef __NR_statfs64
+#define __NR_statfs64           268
+#endif
+#ifndef __NR_fstatfs64
+#define __NR_fstatfs64          269
+#endif
+#ifndef __NR_fadvise64_64
+#define __NR_fadvise64_64       272
 #endif
 #ifndef __NR_openat
 #define __NR_openat             295
@@ -222,6 +251,21 @@ struct stat64;
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_SYSCALL_BASE + 224)
 #endif
+#ifndef __NR_readahead
+#define __NR_readahead          (__NR_SYSCALL_BASE + 225)
+#endif
+#ifndef __NR_setxattr
+#define __NR_setxattr           (__NR_SYSCALL_BASE + 226)
+#endif
+#ifndef __NR_lsetxattr
+#define __NR_lsetxattr          (__NR_SYSCALL_BASE + 227)
+#endif
+#ifndef __NR_getxattr
+#define __NR_getxattr           (__NR_SYSCALL_BASE + 229)
+#endif
+#ifndef __NR_lgetxattr
+#define __NR_lgetxattr          (__NR_SYSCALL_BASE + 230)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_SYSCALL_BASE + 240)
 #endif
@@ -231,6 +275,12 @@ struct stat64;
 #endif
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    (__NR_SYSCALL_BASE + 256)
+#endif
+#ifndef __NR_statfs64
+#define __NR_statfs64           (__NR_SYSCALL_BASE + 266)
+#endif
+#ifndef __NR_fstatfs64
+#define __NR_fstatfs64          (__NR_SYSCALL_BASE + 267)
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_SYSCALL_BASE + 344)
@@ -244,6 +294,21 @@ struct stat64;
 #ifndef __NR_gettid
 #define __NR_gettid             186
 #endif
+#ifndef __NR_readahead
+#define __NR_readahead          187
+#endif
+#ifndef __NR_setxattr
+#define __NR_setxattr           188
+#endif
+#ifndef __NR_lsetxattr
+#define __NR_lsetxattr          189
+#endif
+#ifndef __NR_getxattr
+#define __NR_getxattr           191
+#endif
+#ifndef __NR_lgetxattr
+#define __NR_lgetxattr          192
+#endif
 #ifndef __NR_futex
 #define __NR_futex              202
 #endif
@@ -256,6 +321,9 @@ struct stat64;
 #endif
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    218
+#endif
+#ifndef __NR_fadvise64
+#define __NR_fadvise64          221
 #endif
 #ifndef __NR_openat
 #define __NR_openat             257
@@ -282,6 +350,21 @@ struct stat64;
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 222)
 #endif
+#ifndef __NR_readahead
+#define __NR_readahead          (__NR_Linux + 223)
+#endif
+#ifndef __NR_setxattr
+#define __NR_setxattr           (__NR_Linux + 224)
+#endif
+#ifndef __NR_lsetxattr
+#define __NR_lsetxattr          (__NR_Linux + 225)
+#endif
+#ifndef __NR_getxattr
+#define __NR_getxattr           (__NR_Linux + 227)
+#endif
+#ifndef __NR_lgetxattr
+#define __NR_lgetxattr          (__NR_Linux + 228)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 238)
 #endif
@@ -291,6 +374,12 @@ struct stat64;
 #endif
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    (__NR_Linux + 252)
+#endif
+#ifndef __NR_statfs64
+#define __NR_statfs64           (__NR_Linux + 255)
+#endif
+#ifndef __NR_fstatfs64
+#define __NR_fstatfs64          (__NR_Linux + 256)
 #endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 288)
@@ -312,6 +401,21 @@ struct stat64;
 #endif
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 178)
+#endif
+#ifndef __NR_readahead
+#define __NR_readahead          (__NR_Linux + 179)
+#endif
+#ifndef __NR_setxattr
+#define __NR_setxattr           (__NR_Linux + 180)
+#endif
+#ifndef __NR_lsetxattr
+#define __NR_lsetxattr          (__NR_Linux + 181)
+#endif
+#ifndef __NR_getxattr
+#define __NR_getxattr           (__NR_Linux + 183)
+#endif
+#ifndef __NR_lgetxattr
+#define __NR_lgetxattr          (__NR_Linux + 184)
 #endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 194)
@@ -344,6 +448,21 @@ struct stat64;
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 178)
 #endif
+#ifndef __NR_readahead
+#define __NR_readahead          (__NR_Linux + 179)
+#endif
+#ifndef __NR_setxattr
+#define __NR_setxattr           (__NR_Linux + 180)
+#endif
+#ifndef __NR_lsetxattr
+#define __NR_lsetxattr          (__NR_Linux + 181)
+#endif
+#ifndef __NR_getxattr
+#define __NR_getxattr           (__NR_Linux + 183)
+#endif
+#ifndef __NR_lgetxattr
+#define __NR_lgetxattr          (__NR_Linux + 184)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 194)
 #endif
@@ -353,6 +472,12 @@ struct stat64;
 #endif
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    (__NR_Linux + 213)
+#endif
+#ifndef __NR_statfs64
+#define __NR_statfs64           (__NR_Linux + 217)
+#endif
+#ifndef __NR_fstatfs64
+#define __NR_fstatfs64          (__NR_Linux + 218)
 #endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 251)
@@ -641,6 +766,30 @@ struct stat64;
                            : "memory", "ecx", "edx", "esi", "edi");
       LSS_RETURN(int, __res);
     }
+
+    #define __NR__fadvise64_64 __NR_fadvise64_64
+    LSS_INLINE _syscall6(int, _fadvise64_64, int, fd,
+                         unsigned, offset_lo, unsigned, offset_hi,
+                         unsigned, len_lo, unsigned, len_hi,
+                         int, advice)
+
+    LSS_INLINE int LSS_NAME(fadvise64)(int fd, loff_t offset,
+                                       loff_t len, int advice) {
+      return LSS_NAME(_fadvise64_64)(fd,
+                                     (unsigned)offset, (unsigned)(offset >> 32),
+                                     (unsigned)len, (unsigned)(len >> 32),
+                                     advice);
+    }
+
+    #define __NR__readahead32 __NR_readahead
+    LSS_INLINE _syscall4(int, _readahead32, int, fd, unsigned, offset_lo,
+                         unsigned, offset_hi, unsigned, len);
+    LSS_INLINE int LSS_NAME(readahead)(int fd, loff_t offset, int len) {
+      return LSS_NAME(_readahead32)(fd,
+                                 (unsigned)offset, (unsigned)(offset >> 32),
+                                 (unsigned)len);
+    }
+
   #elif defined(__x86_64__)
     /* There are no known problems with any of the _syscallX() macros
      * currently shipping for x86_64, but we still need to be able to define
@@ -784,6 +933,10 @@ struct stat64;
       }
       LSS_RETURN(int, __res);
     }
+    LSS_INLINE _syscall4(int, fadvise64, int, fd, loff_t, offset, loff_t, len,
+                         int,  advice)
+    LSS_INLINE _syscall2(int, statfs, const char *, path, struct statfs *, buf)
+    LSS_INLINE _syscall2(int, fstatfs, int, fd, struct statfs *, buf)
   #elif defined(__ARM_ARCH_3__)
     /* Most definitions of _syscallX() neglect to mark "memory" as being
      * clobbered. This causes problems with compilers, that do a better job
@@ -1159,6 +1312,16 @@ struct stat64;
                        struct rlimit*, l)
   LSS_INLINE _syscall1(pid_t,   getsid,          pid_t,       p)
   LSS_INLINE _syscall0(pid_t,   _gettid)
+  LSS_INLINE _syscall5(int,     setxattr,        const char *,p,
+                       const char *,   n,        const void *,v,
+                       size_t,         s,        int,         f)
+  LSS_INLINE _syscall5(int,     lsetxattr,       const char *,p,
+                       const char *,   n,        const void *,v,
+                       size_t,         s,        int,         f)
+  LSS_INLINE _syscall4(ssize_t, getxattr,        const char *,p,
+                       const char *,   n,        void *,      v, size_t, s)
+  LSS_INLINE _syscall4(ssize_t, lgetxattr,       const char *,p,
+                       const char *,   n,        void *,      v, size_t, s)
   LSS_INLINE _syscall2(int,     kill,            pid_t,       p,
                        int,            s)
   LSS_INLINE _syscall3(off_t,   lseek,           int,         f,
@@ -1201,6 +1364,7 @@ struct stat64;
                        uid_t,          e, uid_t,  s)
   LSS_INLINE _syscall2(int,     setrlimit,       int,         r,
                        const struct rlimit*, l)
+  LSS_INLINE _syscall0(pid_t,    setsid)
   LSS_INLINE _syscall2(int,     sigaltstack,     const stack_t*, s,
                        const stack_t*, o)
   LSS_INLINE _syscall2(int,     stat,            const char*, f,
@@ -1444,7 +1608,14 @@ struct stat64;
       }
     }
   #else
-    LSS_INLINE _syscall1(int,     pipe,            int*,        p)
+    LSS_INLINE _syscall1(int,     pipe,           int *, p)
+  #endif
+  #if defined(__i386__) || defined(__ARM_ARCH_3__) ||                         \
+     (defined(mips) && _MIPS_SIM != _MIPS_SIM_ABI64)
+    LSS_INLINE _syscall2(int, statfs64,     const char*, p,
+                         struct statfs64 *, b)
+    LSS_INLINE _syscall2(int, fstatfs64,          int,   f,
+                         struct statfs64 *, b)
   #endif
 
   LSS_INLINE int LSS_NAME(execv)(const char *path, const char * const argv[]) {
@@ -1511,6 +1682,29 @@ struct stat64;
         return -1;
     }
   }
+
+  #if defined(__x86_64__) ||                                                  \
+     (defined(mips) && _MIPS_SIM == _MIPS_SIM_ABI64)
+    LSS_INLINE _syscall3(int, readahead, int, fd, loff_t, offset,
+                         unsigned, len)
+  #elif defined(mips) || defined(__ARM_ARCH_3__)
+    LSS_INLINE _syscall4(int, _readahead32, int, fd, unsigned, offset_lo,
+                         unsigned, offset_hi, unsigned, len);
+    LSS_INLINE int LSS_NAME(readahead)(int fd, loff_t offset, int len) {
+      return LSS_NAME(_readahead32)(fd,
+        #if (defined(__BYTE_ORDER) && (__BYTE_ORDER == __LITTLE_ENDIAN)) ||   \
+            (defined(__LITTLE_ENDIAN__))
+          (unsigned)offset, (unsigned)(offset >> 32),
+        #elif (defined(__BYTE_ORDER) && (__BYTE_ORDER == __BIG_ENDIAN)) ||    \
+              (defined(__BIG_ENDIAN__))
+          (unsigned)(offset >> 32), (unsigned)offset,
+        #else
+        #error "unknown endinness, don't know how to pass syscall arguments"
+        #endif
+        (unsigned)len);
+    }
+  #endif
+
 #endif
 
 #if defined(__cplusplus) && !defined(SYS_CPLUSPLUS)

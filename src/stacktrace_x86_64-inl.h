@@ -82,6 +82,7 @@ static _Unwind_Reason_Code GetOneFrame(struct _Unwind_Context *uc, void *opq) {
   return _URC_NO_REASON;
 }
 
+// If you change this function, also change GetStackFrames below.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   if (!ready_to_run)
     return 0;
@@ -96,6 +97,54 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   targ.count = 0;
 
   _Unwind_Backtrace(GetOneFrame, &targ);
+
+  return targ.count;
+}
+
+// If you change this function, also change GetStackTrace above:
+//
+// This GetStackFrames routine shares a lot of code with GetStackTrace
+// above. This code could have been refactored into a common routine,
+// and then both GetStackTrace/GetStackFrames could call that routine.
+// There are two problems with that:
+//
+// (1) The performance of the refactored-code suffers substantially - the
+//     refactored needs to be able to record the stack trace when called
+//     from GetStackTrace, and both the stack trace and stack frame sizes,
+//     when called from GetStackFrames - this introduces enough new
+//     conditionals that GetStackTrace performance can degrade by as much
+//     as 50%.
+//
+// (2) Whether the refactored routine gets inlined into GetStackTrace and
+//     GetStackFrames depends on the compiler, and we can't guarantee the
+//     behavior either-way, even with "__attribute__ ((always_inline))"
+//     or "__attribute__ ((noinline))". But we need this guarantee or the
+//     frame counts may be off by one.
+//
+// Both (1) and (2) can be addressed without this code duplication, by
+// clever use of template functions, and by defining GetStackTrace and
+// GetStackFrames as macros that expand to these template functions.
+// However, this approach comes with its own set of problems - namely,
+// macros and  preprocessor trouble - for example,  if GetStackTrace
+// and/or GetStackFrames is ever defined as a member functions in some
+// class, we are in trouble.
+int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
+  if (!ready_to_run)
+    return 0;
+
+  trace_arg_t targ;
+
+  skip_count += 1;         // Do not include the "GetStackFrames" frame
+
+  targ.result = pcs;
+  targ.max_depth = max_depth;
+  targ.skip_count = skip_count;
+  targ.count = 0;
+
+  _Unwind_Backtrace(GetOneFrame, &targ);
+
+  // No implementation for finding out the stack frame sizes yet.
+  memset(sizes, 0, sizeof(*sizes) * targ.count);
 
   return targ.count;
 }

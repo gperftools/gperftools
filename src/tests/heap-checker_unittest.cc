@@ -95,6 +95,7 @@
 #include <iomanip>              // for hex
 #include <set>
 #include <map>
+#include <memory>
 #include <vector>
 #include <string>
 

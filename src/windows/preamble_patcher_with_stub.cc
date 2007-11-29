@@ -43,14 +43,14 @@
 
 namespace sidestep {
 
-SideStepError PreamblePatcher::RawPatchWithStub( 
-    void* target_function, 
-    void *replacement_function, 
-    unsigned char* preamble_stub, 
-    unsigned long stub_size, 
+SideStepError PreamblePatcher::RawPatchWithStub(
+    void* target_function,
+    void *replacement_function,
+    unsigned char* preamble_stub,
+    unsigned long stub_size,
     unsigned long* bytes_needed) {
-  if ((NULL == target_function) || 
-      (NULL == replacement_function) || 
+  if ((NULL == target_function) ||
+      (NULL == replacement_function) ||
       (NULL == preamble_stub)) {
     ASSERT(false, "Invalid parameters - either pTargetFunction or "
                   "pReplacementFunction or pPreambleStub were NULL.");
@@ -104,7 +104,7 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   MiniDisassembler disassembler;
   unsigned int preamble_bytes = 0;
   while (preamble_bytes < 5) {
-    InstructionType instruction_type = 
+    InstructionType instruction_type =
       disassembler.Disassemble(target + preamble_bytes, preamble_bytes);
     if (IT_JUMP == instruction_type) {
       ASSERT(false, "Unable to patch because there is a jump instruction "
@@ -139,12 +139,16 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // Now, make a jmp instruction to the rest of the target function (minus the
   // preamble bytes we moved into the stub) and copy it into our preamble-stub.
   // find address to jump to, relative to next address after jmp instruction
+#ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4244)
+#endif
   int relative_offset_to_target_rest
-    = ((reinterpret_cast<unsigned char*>(target) + preamble_bytes) - 
+    = ((reinterpret_cast<unsigned char*>(target) + preamble_bytes) -
         (preamble_stub + preamble_bytes + 5));
+#ifdef _MSC_VER
 #pragma warning(pop)
+#endif
   // jmp (Jump near, relative, displacement relative to next instruction)
   preamble_stub[preamble_bytes] = ASM_JMP32REL;
   // copy the address
@@ -161,12 +165,16 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   target[0] = ASM_JMP32REL;
 
   // Find offset from instruction after jmp, to the replacement function.
+#ifdef _MSC_VER
 #pragma warning(push)
 #pragma warning(disable:4244)
+#endif
   int offset_to_replacement_function =
     reinterpret_cast<unsigned char*>(replacement_function) -
     reinterpret_cast<unsigned char*>(target) - 5;
+#ifdef _MSC_VER
 #pragma warning(pop)
+#endif
   // complete the jmp instruction
   memcpy(reinterpret_cast<void*>(target + 1),
          reinterpret_cast<void*>(&offset_to_replacement_function), 4);

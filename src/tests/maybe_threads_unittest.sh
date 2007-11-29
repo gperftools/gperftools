@@ -57,12 +57,12 @@ fi
 UNITTEST_DIR=${1:-$BINDIR}
 
 # Figure out the "real" unittest directory.  Also holds the .so files.
-UNITTEST_DIR=`$UNITTEST_DIR/profiler1_unittest 2>&1 \
+UNITTEST_DIR=`$UNITTEST_DIR/low_level_alloc_unittest --help 2>&1 \
               | awk '{print $2; exit;}' \
               | xargs dirname`
 
 # We need to set the library-path too: libtcmalloc depends on libstacktrace
 # (Note we try several different names: OS X uses its own libpath varname).
 LD_LIBRARY_PATH="$UNITTEST_DIR" DYLD_LIBRARY_PATH="$UNITTEST_DIR" \
-LD_PRELOAD="$UNITTEST_DIR/libtcmalloc.so" \
+LD_PRELOAD="$UNITTEST_DIR/libtcmalloc_minimal.so" \
     $UNITTEST_DIR/low_level_alloc_unittest

@@ -70,6 +70,27 @@
 // Start profiling and write profile info into fname.
 extern "C" PERFTOOLS_DLL_DECL bool ProfilerStart(const char* fname);
 
+// Start profiling and write profile info into fname, filtering out
+// threads using a filter function.
+//
+// When a profiling tick is delivered, the profiler will call:
+//
+//   (*filter_in_thread)(filter_in_thread_arg)
+//
+// If it returns true, the sample will be included in the profile.
+// Note that filter_in_thread runs in a signal handler, so must be
+// async-signal-safe.
+//
+// A typical use would be to set up filter results for each thread in
+// the system before starting the profiler, then to make
+// filter_in_thread be a very simple function which retrieves those
+// results in an async-signal-safe way.  Retrieval could be done using
+// thread-specific data, or using a shared data structure that
+// supports async-signal-safe lookups.
+extern "C" bool ProfilerStartFiltered(const char* fname,
+                                      bool (*filter_in_thread)(void* arg),
+                                      void *filter_in_thread_arg);
+
 // Stop profiling. Can be started again with ProfilerStart(), but
 // the currently accumulated profiling data will be cleared.
 extern "C" PERFTOOLS_DLL_DECL void ProfilerStop();

@@ -41,6 +41,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <inttypes.h>
 #include <sys/mman.h>
 #include <sys/param.h>
 #include <sys/types.h>
@@ -59,6 +60,8 @@ DEFINE_string(memfs_malloc_path, EnvToString("TCMALLOC_MEMFS_MALLOC_PATH", ""),
               "Path where hugetlbfs or tmpfs is mounted. The caller is "
               "responsible for ensuring that the path is unique and does "
               "not conflict with another process");
+DEFINE_int64(memfs_malloc_limit_mb, 0, "Limit total allocation size to the "
+             "specified number of MiB.  0 == no limit.");
 
 // Hugetlbfs based allocator for tcmalloc
 class HugetlbSysAllocator: public SysAllocator {
@@ -71,11 +74,18 @@ public:
 
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 
+  void DumpStats(TCMalloc_Printer* printer);
+
 private:
   int64 big_page_size_;
   int hugetlb_fd_;      // file descriptor for hugetlb
   off_t hugetlb_base_;
 };
+
+void HugetlbSysAllocator::DumpStats(TCMalloc_Printer* printer) {
+  printer->printf("HugetlbSysAllocator: failed_=%d allocated=%"PRId64"\n",
+                  failed_, static_cast<int64_t>(hugetlb_base_));
+}
 
 // No locking needed here since we assume that tcmalloc calls
 // us with an internal lock held (see tcmalloc/system-alloc.cc).
@@ -100,6 +110,16 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
   size_t extra = 0;
   if (alignment > big_page_size_) {
     extra = alignment - big_page_size_;
+  }
+
+  // Test if this allocation would put us over the limit.
+  off_t limit = FLAGS_memfs_malloc_limit_mb*1024*1024;
+  if (limit > 0 && hugetlb_base_ + size + extra > limit) {
+    // Disable the allocator when there's less than one page left.
+    if (limit - hugetlb_base_ < big_page_size_) {
+      failed_ = true;
+    }
+    return NULL;
   }
 
   // This is not needed for hugetlbfs, but needed for tmpfs.  Annoyingly

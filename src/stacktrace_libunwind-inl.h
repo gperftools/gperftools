@@ -49,6 +49,7 @@ extern "C" {
 static SpinLock libunwind_lock(SpinLock::LINKER_INITIALIZED);
 static bool in_get_stack_trace = false;
 
+// If you change this function, also change GetStackFrames below.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void *ip;
   int n = 0;
@@ -82,6 +83,75 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
     if (ret <= 0)
       break;
   }
+
+  SpinLockHolder sh(&libunwind_lock);
+  in_get_stack_trace = false;
+
+  return n;
+}
+
+// If you change this function, also change GetStackTrace above:
+//
+// This GetStackFrames routine shares a lot of code with GetStackTrace
+// above. This code could have been refactored into a common routine,
+// and then both GetStackTrace/GetStackFrames could call that routine.
+// There are two problems with that:
+//
+// (1) The performance of the refactored-code suffers substantially - the
+//     refactored needs to be able to record the stack trace when called
+//     from GetStackTrace, and both the stack trace and stack frame sizes,
+//     when called from GetStackFrames - this introduces enough new
+//     conditionals that GetStackTrace performance can degrade by as much
+//     as 50%.
+//
+// (2) Whether the refactored routine gets inlined into GetStackTrace and
+//     GetStackFrames depends on the compiler, and we can't guarantee the
+//     behavior either-way, even with "__attribute__ ((always_inline))"
+//     or "__attribute__ ((noinline))". But we need this guarantee or the
+//     frame counts may be off by one.
+//
+// Both (1) and (2) can be addressed without this code duplication, by
+// clever use of template functions, and by defining GetStackTrace and
+// GetStackFrames as macros that expand to these template functions.
+// However, this approach comes with its own set of problems - namely,
+// macros and  preprocessor trouble - for example,  if GetStackTrace
+// and/or GetStackFrames is ever defined as a member functions in some
+// class, we are in trouble.
+int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
+  void *ip;
+  int n = 0;
+  unw_cursor_t cursor;
+  unw_context_t uc;
+
+  {
+    SpinLockHolder sh(&libunwind_lock);
+    if (in_get_stack_trace) {
+      return 0;
+    } else {
+      in_get_stack_trace = true;
+    }
+  }
+
+  unw_getcontext(&uc);
+  RAW_CHECK(unw_init_local(&cursor, &uc) >= 0, "unw_init_local failed");
+  skip_count++;         // Do not include the "GetStackFrames" frame
+
+  while (n < max_depth) {
+    int ret = unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip);
+    if (ret < 0)
+      break;
+    if (skip_count > 0) {
+      skip_count--;
+    } else {
+      pcs[n++] = ip;
+    }
+    ret = unw_step(&cursor);
+    if (ret <= 0)
+      break;
+  }
+
+  // No implementation for finding out the stack frame sizes yet.
+  memset(sizes, 0, sizeof(*sizes) * n);
 
   SpinLockHolder sh(&libunwind_lock);
   in_get_stack_trace = false;

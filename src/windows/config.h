@@ -1,4 +1,14 @@
 /* A manual version of config.h fit for windows machines. */
+
+/* Sometimes we accidentally #include this config.h instead of the one
+   in .. -- this is particularly true for msys/mingw, which uses the
+   unix config.h but also runs code in the windows directory.
+   */
+#ifdef __MINGW32__
+#include "../config.h"
+#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__
+#endif
+
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__
 
@@ -228,11 +238,5 @@
 
 // TODO(csilvers): include windows/port.h in every relevant source file instead?
 #include "windows/port.h"
-
-// windows/port.h defines compatibility APIs for several .h files, which
-// we therefore shouldn't be #including directly.  This hack keeps us from
-// doing so.  TODO(csilvers): do something more principled.
-#define BASE_SPINLOCK_H__ 1
-#define GOOGLE_MAYBE_THREADS_H__ 1
 
 #endif  /* GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__ */

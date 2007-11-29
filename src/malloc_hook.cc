@@ -41,6 +41,7 @@
 # undef mremap
 #endif
 
+#include <algorithm>
 #include <google/malloc_hook.h>
 #include "base/basictypes.h"
 #include "base/logging.h"
@@ -52,6 +53,9 @@
 #ifndef __THROW    // I guess we're not on a glibc system
 # define __THROW   // __THROW is just an optimization, so ok to make it ""
 #endif
+
+using std::copy;
+
 
 // Declarations of three default weak hook functions, that can be overridden by
 // linking-in a strong definition (as heap-checker.cc does)
@@ -211,7 +215,7 @@ int MallocHook::GetCallerStackTrace(void** result, int max_depth,
       i += 1;  // skip hook caller frame
       depth -= i;  // correct depth
       if (depth > max_depth) depth = max_depth;
-      memcpy(result, stack+i, depth * sizeof(stack[0]));
+      copy(stack + i, stack + i + depth, result);
       if (depth < max_depth  &&  depth + i == kStackSize) {
         // get frames for the missing depth
         depth +=

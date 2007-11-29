@@ -59,6 +59,10 @@
 #undef Module32Next
 #undef PMODULEENTRY32
 #undef LPMODULEENTRY32
+// MinGW doesn't seem to define this, perhaps some windowsen don't either.
+#ifndef TH32CS_SNAPMODULE32
+#define TH32CS_SNAPMODULE32  0
+#endif
 #endif
 
 // Re-run fn until it doesn't cause EINTR.
@@ -179,10 +183,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
   }
   NO_INTR(fd_ = open(ibuf_, O_RDONLY));
 #elif defined(__MACH__)
-  if (_dyld_present())
-    current_image_ = _dyld_image_count();   // count down from the top
-  else
-    current_image_ = -1;
+  current_image_ = _dyld_image_count();   // count down from the top
   current_load_cmd_ = -1;
 #elif defined(WIN32)
   snapshot_ = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
@@ -211,7 +212,7 @@ bool ProcMapsIterator::Valid() const {
 #if defined(WIN32)
   return snapshot_ != INVALID_HANDLE_VALUE;
 #elif defined(__MACH__)
-  return _dyld_present();
+  return 1;
 #else
   return fd_ != -1;
 #endif
@@ -271,7 +272,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     uint64 tmpstart, tmpend, tmpoffset;
     int64 tmpinode;
     int major, minor;
-    unsigned filename_offset;
+    unsigned filename_offset = 0;
 #if defined(__linux__)  // for now, assume all linuxes have the same format
     if (sscanf(stext_, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
                start ? start : &tmpstart,
@@ -298,6 +299,15 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
                flags_,
                &filename_offset) != 3) continue;
 #endif
+
+    // Depending on the Linux kernel being used, there may or may not be a space
+    // after the inode if there is no filename.  sscanf will in such situations
+    // nondeterministically either fill in filename_offset or not (the results
+    // differ on multiple calls in the same run even with identical arguments).
+    // We don't want to wander off somewhere beyond the end of the string.
+    size_t stext_length = strlen(stext_);
+    if (filename_offset == 0 || filename_offset > stext_length)
+      filename_offset = stext_length;
 
     // We found an entry
     if (flags) *flags = flags_;

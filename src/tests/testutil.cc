@@ -36,7 +36,12 @@
 #include <stdlib.h>           // for NULL, abort()
 #include "tests/testutil.h"
 
-#if defined(NO_THREADS) || !defined(HAVE_PTHREADS)
+struct FunctionAndId {
+  void (*ptr_to_function)(int);
+  int id;
+};
+
+#if defined(NO_THREADS) || !(defined(HAVE_PTHREADS) || defined(WIN32))
 
 extern "C" void RunThread(void (*fn)()) {
   (*fn)();
@@ -53,19 +58,70 @@ extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int) {
     (*fn)(i);    // stacksize doesn't make sense in a non-threaded context
 }
 
-#else  // NO_THREADS || !HAVE_PTHREAD
+#elif defined(WIN32)
+
+#define WIN32_LEAN_AND_MEAN  /* We always want minimal includes */
+#include <windows.h>
+
+extern "C" {
+  // This helper function has the signature that pthread_create wants.
+  DWORD WINAPI RunFunctionInThread(LPVOID ptr_to_ptr_to_fn) {
+    (**static_cast<void (**)()>(ptr_to_ptr_to_fn))();    // runs fn
+    return 0;
+  }
+
+  DWORD WINAPI RunFunctionInThreadWithId(LPVOID ptr_to_fnid) {
+    FunctionAndId* fn_and_id = static_cast<FunctionAndId*>(ptr_to_fnid);
+    (*fn_and_id->ptr_to_function)(fn_and_id->id);   // runs fn
+    return 0;
+  }
+
+  void RunManyThreads(void (*fn)(), int count) {
+    DWORD dummy;
+    HANDLE* hThread = new HANDLE[count];
+    for (int i = 0; i < count; i++) {
+      hThread[i] = CreateThread(NULL, 0, RunFunctionInThread, &fn, 0, &dummy);
+      if (hThread[i] == NULL)  ExitProcess(i);
+    }
+    WaitForMultipleObjects(count, hThread, TRUE, INFINITE);
+    for (int i = 0; i < count; i++) {
+      CloseHandle(hThread[i]);
+    }
+    delete[] hThread;
+  }
+
+  void RunThread(void (*fn)()) {
+    RunManyThreads(fn, 1);
+  }
+
+  void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize) {
+    DWORD dummy;
+    HANDLE* hThread = new HANDLE[count];
+    FunctionAndId* fn_and_ids = new FunctionAndId[count];
+    for (int i = 0; i < count; i++) {
+      fn_and_ids[i].ptr_to_function = fn;
+      fn_and_ids[i].id = i;
+      hThread[i] = CreateThread(NULL, stacksize, RunFunctionInThreadWithId,
+                                &fn_and_ids[i], 0, &dummy);
+      if (hThread[i] == NULL)  ExitProcess(i);
+    }
+    WaitForMultipleObjects(count, hThread, TRUE, INFINITE);
+    for (int i = 0; i < count; i++) {
+      CloseHandle(hThread[i]);
+    }
+    delete[] fn_and_ids;
+    delete[] hThread;
+  }
+}
+
+#else  // not NO_THREADS, not !HAVE_PTHREAD, not WIN32
 
 #include <pthread.h>
 
 #define SAFE_PTHREAD(fncall)  do { if ((fncall) != 0) abort(); } while (0)
 
 extern "C" {
-  struct FunctionAndId {
-    void (*ptr_to_function)(int);
-    int id;
-  };
-
-// This helper function has the signature that pthread_create wants.
+  // This helper function has the signature that pthread_create wants.
   static void* RunFunctionInThread(void *ptr_to_ptr_to_fn) {
     (**static_cast<void (**)()>(ptr_to_ptr_to_fn))();    // runs fn
     return NULL;

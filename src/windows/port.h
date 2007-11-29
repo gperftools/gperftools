@@ -40,7 +40,12 @@
 #ifndef GOOGLE_BASE_WINDOWS_H__
 #define GOOGLE_BASE_WINDOWS_H__
 
-#include "config.h"
+// You should never include this file directly, but always include it
+// from either config.h (MSVC) or mingw.h (MinGW/msys).
+#if !defined(GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__) && \
+    !defined(GOOGLE_PERFTOOLS_WINDOWS_MINGW_H__)
+# error "port.h should only be included from config.h or mingw.h"
+#endif
 
 #ifdef WIN32
 
@@ -56,7 +61,9 @@
 // 4267: too many false positives for "conversion gives possible data loss"
 // 4290: it's ok windows ignores the "throw" directive
 // 4996: Yes, we're ok using "unsafe" functions like vsnprintf and getenv()
+#ifdef _MSC_VER
 #pragma warning(disable:4018 4244 4288 4267 4290 4996)
+#endif
 
 // ----------------------------------- BASIC TYPES
 
@@ -64,6 +71,7 @@
 #ifndef HAVE___INT64    /* we need to have all the __intX names */
 # error  Do not know how to set up type aliases.  Edit port.h for your system.
 #endif
+
 typedef __int8 int8_t;
 typedef __int16 int16_t;
 typedef __int32 int32_t;
@@ -72,15 +80,17 @@ typedef unsigned __int8 uint8_t;
 typedef unsigned __int16 uint16_t;
 typedef unsigned __int32 uint32_t;
 typedef unsigned __int64 uint64_t;
-#endif
+#endif  // #ifndef HAVE_STDINT_H
 
-// I guess windows <types.h> doesn't include ssize_t by default?
+// I guess MSVC's <types.h> doesn't include ssize_t by default?
+#ifdef _MSC_VER
 typedef intptr_t ssize_t;
+#endif
 
 // ----------------------------------- THREADS
 typedef DWORD pthread_t;
 typedef DWORD pthread_key_t;
-typedef volatile LONG pthread_once_t;
+typedef LONG pthread_once_t;
 enum { PTHREAD_ONCE_INIT = 0 };   // important that this be 0! for SpinLock
 #define pthread_self  GetCurrentThreadId
 #define pthread_equal(pthread_t_1, pthread_t_2)  ((pthread_t_1)==(pthread_t_2))
@@ -109,6 +119,7 @@ extern pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  // in port.cc
 // linker initialize a bool to 0, and check that before accessing the mutex.
 // TODO(csilvers): figure out a faster way.
 // This replaces spinlock.{h,cc}, and all the stuff it depends on (atomicops)
+#ifdef __cplusplus
 class SpinLock {
  public:
   SpinLock() : initialize_token_(PTHREAD_ONCE_INIT) {}
@@ -149,6 +160,7 @@ class SpinLockHolder {  // Acquires a spinlock for as long as the scope lasts
   inline explicit SpinLockHolder(SpinLock* l) : lock_(l) { l->Lock(); }
   inline ~SpinLockHolder() { lock_->Unlock(); }
 };
+#endif
 
 // This replaces testutil.{h,cc}
 extern PERFTOOLS_DLL_DECL void RunInThread(void (*fn)());
@@ -192,8 +204,12 @@ extern PERFTOOLS_DLL_DECL int safe_vsnprintf(char *str, size_t size,
 #define vsnprintf(str, size, format, ap)  safe_vsnprintf(str, size, format, ap)
 
 // ----------------------------------- FILE IO
+#ifndef PATH_MAX
 #define PATH_MAX 1024
+#endif
+#ifndef __MINGW32__
 enum { STDIN_FILENO = 0, STDOUT_FILENO = 1, STDERR_FILENO = 2 };
+#endif
 #define getcwd  _getcwd
 #define access  _access
 #define open    _open
@@ -203,6 +219,7 @@ enum { STDIN_FILENO = 0, STDOUT_FILENO = 1, STDERR_FILENO = 2 };
 #define close   _close
 #define popen   _popen
 #define pclose  _pclose
+#define mkdir(dirname, mode)  _mkdir(dirname)
 
 // ----------------------------------- SYSTEM/PROCESS
 typedef int pid_t;
@@ -214,6 +231,7 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 
 #define srandom  srand
 #define random   rand
+#define sleep(t) Sleep(t * 1000)
 
 #define __THROW throw()
 
@@ -238,6 +256,15 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 
 extern PERFTOOLS_DLL_DECL void PatchWindowsFunctions();
 extern PERFTOOLS_DLL_DECL void UnpatchWindowsFunctions();
+
+// ----------------------------------- BUILD-SPECIFIC
+
+// windows/port.h defines compatibility APIs for several .h files, which
+// we therefore shouldn't be #including directly.  This hack keeps us from
+// doing so.  TODO(csilvers): do something more principled.
+#define BASE_SPINLOCK_H__ 1
+#define GOOGLE_MAYBE_THREADS_H__ 1
+
 
 #endif  /* WIN32 */
 

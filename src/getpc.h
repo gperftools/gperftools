@@ -157,7 +157,9 @@ inline void* GetPC(const ucontext_t& signal_ucontext) {
 // how we'd get the PC (using StackWalk64?)
 //    http://msdn2.microsoft.com/en-us/library/ms680650.aspx
 
-inline void* GetPC(const ucontext_t& signal_ucontext) {
+#include "base/logging.h"   // for RAW_LOG
+
+inline void* GetPC(const struct ucontext_t& signal_ucontext) {
   RAW_LOG(ERROR, "GetPC is not yet implemented on Windows\n");
   return NULL;
 }

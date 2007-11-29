@@ -329,8 +329,12 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
               reinterpret_cast<void*>(start_addr),
               reinterpret_cast<void*>(end_addr),
               regions_->size());
-  for (RegionSet::iterator region = regions_->begin();
-       region != regions_->end(); /*noop*/) {
+  Region start_point;
+  memset(&start_point, 0, sizeof(start_point));  // zero out don't-care fields
+  start_point.start_addr = start_point.end_addr = start_addr;
+  for (RegionSet::iterator region = regions_->lower_bound(start_point);
+       region != regions_->end() && region->start_addr < end_addr;
+       /*noop*/) {
     RAW_VLOG(5, "Looking at region %p..%p",
                 reinterpret_cast<void*>(region->start_addr),
                 reinterpret_cast<void*>(region->end_addr));

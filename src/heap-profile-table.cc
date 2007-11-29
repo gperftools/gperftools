@@ -42,11 +42,11 @@
 #include <glob.h>
 #endif
 #ifdef HAVE_INTTYPES_H
-#include <inttypes.h>   // for PRIxPTR
+#include <inttypes.h> // for PRIxPTR
 #endif
 #include <errno.h>
 #include <string>
-#include <algorithm>  // for sort()
+#include <algorithm>  // for sort(), equal(), and copy()
 
 #include "heap-profile-table.h"
 
@@ -57,6 +57,8 @@
 #include "base/sysinfo.h"
 
 using std::sort;
+using std::equal;
+using std::copy;
 using std::string;
 
 //----------------------------------------------------------------------
@@ -198,19 +200,19 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int skip_count) {
   h ^= h >> 11;
 
   // Lookup stack trace in table
-  const size_t key_size = sizeof(key[0]) * depth;
   unsigned int buck = ((unsigned int) h) % kHashTableSize;
   for (Bucket* b = table_[buck]; b != 0; b = b->next) {
     if ((b->hash == h) &&
         (b->depth == depth) &&
-        (memcmp(b->stack, key, key_size) == 0)) {
+        equal(key, key + depth, b->stack)) {
       return b;
     }
   }
 
   // Create new bucket
+  const size_t key_size = sizeof(key[0]) * depth;
   const void** kcopy = reinterpret_cast<const void**>(alloc_(key_size));
-  memcpy(kcopy, key, key_size);
+  copy(key, key + depth, kcopy);
   Bucket* b = reinterpret_cast<Bucket*>(alloc_(sizeof(Bucket)));
   memset(b, 0, sizeof(*b));
   b->hash  = h;

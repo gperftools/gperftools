@@ -220,7 +220,9 @@ class PackedCache {
   // For masking a V or a T.
   static const V kValueMask = N_ONES_(V, kValuebits);
 
-  T array_[1 << kHashbits];
+  // array_ is the cache.  Its elements are volatile because any
+  // thread can write any array element at any time.
+  volatile T array_[1 << kHashbits];
 };
 
 #undef N_ONES_

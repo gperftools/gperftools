@@ -72,6 +72,10 @@ public:
     ptr_ += size;
     return reinterpret_cast<void *>(ptr);
   }
+
+  void DumpStats(TCMalloc_Printer* printer) {
+  }
+
 private:
   static const int kArraySize = 8 * 1024 * 1024;
   char array_[kArraySize];

@@ -1,3 +1,20 @@
+Thu Nov 29 07:59:43 2007  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.94 release
+	* PORTING: MinGW/Msys support -- runs same code as MSVC does (csilvers)
+	* PORTING: Add NumCPUs support for Mac OS X (csilvers)
+	* Work around a sscanf bug in glibc(?) (waldemar)
+	* Fix Windows MSVC bug triggered by thread deletion (csilvers)
+	* Fix bug that triggers in MSVC /O2: missing volatile (gpike)
+	* March-of-time support: quiet warnings/errors for gcc 4.2, OS X 10.5
+	* Modify pprof so it works without nm: useful for windows (csilvers)
+	* pprof: Support filtering for CPU profiles (cgd)
+	* Bugfix: have realloc report to hooks in all situations (maxim)
+	* Speed improvement: replace slow memcpy with std::copy (soren)
+	* Speed: better iterator efficiency in RecordRegionRemoval (soren)
+	* Speed: minor speed improvements via better bitfield alignment (gpike)
+	* Documentation: add documentation of binary profile output (cgd)
+	
 Fri Aug 17 12:32:56 2007  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.93 release

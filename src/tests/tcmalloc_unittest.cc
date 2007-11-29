@@ -332,7 +332,7 @@ class TesterThread {
         case UPDATE:  UpdateObject();   break;
         case PASS:    PassObject();     break;
         case -1:      goto done;
-        default:      assert("" == "Unknown type");
+        default:      assert(NULL == "Unknown type");
       }
 
       ShrinkHeap();

@@ -653,10 +653,10 @@ struct Span {
   Span*         next;           // Used when in link list
   Span*         prev;           // Used when in link list
   void*         objects;        // Linked list of free objects
+  unsigned int  refcount : 16;  // Number of non-free objects
+  unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
   unsigned int  free : 1;       // Is the span free
   unsigned int  sample : 1;     // Sampled object?
-  unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
-  unsigned int  refcount : 11;  // Number of non-free objects
 
 #undef SPAN_HISTORY
 #ifdef SPAN_HISTORY
@@ -2325,6 +2325,9 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
 
     SpinLockHolder h(&pageheap_lock);
     pageheap->Dump(out);
+
+    out->printf("------------------------------------------------\n");
+    DumpSystemAllocatorStats(out);
   }
 
   const uint64_t bytes_in_use = stats.system_bytes
@@ -2952,6 +2955,9 @@ extern "C" void* realloc(void* old_ptr, size_t new_size) __THROW {
     do_free(old_ptr);
     return new_ptr;
   } else {
+    // We still need to call hooks to report the updated size:
+    MallocHook::InvokeDeleteHook(old_ptr);
+    MallocHook::InvokeNewHook(old_ptr, new_size);
     return old_ptr;
   }
 }

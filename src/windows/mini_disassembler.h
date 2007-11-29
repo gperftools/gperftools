@@ -166,17 +166,17 @@ class MiniDisassembler {
   bool address_default_is_32_bits_;
 
   // Huge big opcode table based on the IA-32 manual, defined
-  // in Ia32OpcodeMap.cpp
+  // in Ia32OpcodeMap.cc
   static const OpcodeTable s_ia32_opcode_map_[];
 
   // Somewhat smaller table to help with decoding ModR/M bytes
   // when 16-bit addressing mode is being used.  Defined in
-  // Ia32ModrmMap.cpp
+  // Ia32ModrmMap.cc
   static const ModrmEntry s_ia16_modrm_map_[];
 
   // Somewhat smaller table to help with decoding ModR/M bytes
   // when 32-bit addressing mode is being used.  Defined in
-  // Ia32ModrmMap.cpp
+  // Ia32ModrmMap.cc
   static const ModrmEntry s_ia32_modrm_map_[];
 
   // Indicators of whether we got certain prefixes that certain

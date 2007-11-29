@@ -39,6 +39,11 @@
 #include "google/malloc_hook.h"
 #include "preamble_patcher.h"
 
+// MinGW doesn't seem to define this, perhaps some windowsen don't either.
+#ifndef TH32CS_SNAPMODULE32
+#define TH32CS_SNAPMODULE32  0
+#endif
+
 // These functions are how we override the memory allocation functions,
 // just like tcmalloc.cc and malloc_hook.cc do.
 
@@ -49,10 +54,23 @@ extern "C" void Perftools_free(void* ptr) __THROW;
 extern "C" void* Perftools_realloc(void* ptr, size_t size) __THROW;
 extern "C" void* Perftools_calloc(size_t nmemb, size_t size) __THROW;
 
+// According to the c++ standard, __THROW cannot be part of a typedef
+// specification.  However, it is part of a function specification, so
+// it's impossible to have typdefs for malloc/etc that exactly match
+// the function specification.  Luckily, gcc doesn't care if the match
+// is exact or not.  MSVC *does* care, but (contra the spec) allows
+// __THROW as part of a typedef specification.  So we fork the code.
+#ifdef _MSC_VER
 typedef void* (*Type_malloc)(size_t size) __THROW;
 typedef void (*Type_free)(void* ptr) __THROW;
 typedef void* (*Type_realloc)(void* ptr, size_t size) __THROW;
-typedef  void* (*Type_calloc)(size_t nmemb, size_t size) __THROW;
+typedef void* (*Type_calloc)(size_t nmemb, size_t size) __THROW;
+#else
+typedef void* (*Type_malloc)(size_t size);
+typedef void (*Type_free)(void* ptr);
+typedef void* (*Type_realloc)(void* ptr, size_t size);
+typedef void* (*Type_calloc)(size_t nmemb, size_t size);
+#endif
 
 // A Windows-API equivalent of malloc and free
 typedef LPVOID (WINAPI *Type_HeapAlloc)(HANDLE hHeap, DWORD dwFlags,
@@ -74,7 +92,7 @@ typedef LPVOID (WINAPI *Type_MapViewOfFileEx)(HANDLE hFileMappingObject,
                                               LPVOID lpBaseAddress);
 typedef BOOL (WINAPI *Type_UnmapViewOfFile)(LPCVOID lpBaseAddress);
 
-// all libc memory-alloaction routines go through one of these.
+// All libc memory-alloaction routines go through one of these.
 static Type_malloc Windows_malloc;
 static Type_calloc Windows_calloc;
 static Type_realloc Windows_realloc;
@@ -88,9 +106,23 @@ static Type_VirtualFreeEx Windows_VirtualFreeEx;
 static Type_MapViewOfFileEx Windows_MapViewOfFileEx;
 static Type_UnmapViewOfFile Windows_UnmapViewOfFile;
 
+// To unpatch, we also need to keep around a "stub" that points to the
+// pre-patched Windows function.
+static Type_malloc origstub_malloc;
+static Type_calloc origstub_calloc;
+static Type_realloc origstub_realloc;
+static Type_free origstub_free;
+static Type_HeapAlloc origstub_HeapAlloc;
+static Type_HeapFree origstub_HeapFree;
+static Type_VirtualAllocEx origstub_VirtualAllocEx;
+static Type_VirtualFreeEx origstub_VirtualFreeEx;
+static Type_MapViewOfFileEx origstub_MapViewOfFileEx;
+static Type_UnmapViewOfFile origstub_UnmapViewOfFile;
+
+
 static LPVOID WINAPI Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,
                                          DWORD_PTR dwBytes) {
-  LPVOID result = Windows_HeapAlloc(hHeap, dwFlags, dwBytes);
+  LPVOID result = origstub_HeapAlloc(hHeap, dwFlags, dwBytes);
   MallocHook::InvokeNewHook(result, dwBytes);
   return result;
 }
@@ -98,13 +130,13 @@ static LPVOID WINAPI Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,
 static BOOL WINAPI Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags,
                                       LPVOID lpMem) {
   MallocHook::InvokeDeleteHook(lpMem);
-  return Windows_HeapFree(hHeap, dwFlags, lpMem);
+  return origstub_HeapFree(hHeap, dwFlags, lpMem);
 }
 
 static LPVOID WINAPI Perftools_VirtualAllocEx(HANDLE process, LPVOID address,
                                               SIZE_T size, DWORD type,
                                               DWORD protect) {
-  LPVOID result = Windows_VirtualAllocEx(process, address, size, type, protect);
+  LPVOID result = origstub_VirtualAllocEx(process, address, size, type, protect);
   // VirtualAllocEx() seems to be the Windows equivalent of mmap()
   MallocHook::InvokeMmapHook(result, address, size, protect, type, -1, 0);
   return result;
@@ -113,7 +145,7 @@ static LPVOID WINAPI Perftools_VirtualAllocEx(HANDLE process, LPVOID address,
 static BOOL WINAPI Perftools_VirtualFreeEx(HANDLE process, LPVOID address,
                                            SIZE_T size, DWORD type) {
   MallocHook::InvokeMunmapHook(address, size);
-  return Windows_VirtualFreeEx(process, address, size, type);
+  return origstub_VirtualFreeEx(process, address, size, type);
 }
 
 static LPVOID WINAPI Perftools_MapViewOfFileEx(HANDLE hFileMappingObject,
@@ -124,31 +156,39 @@ static LPVOID WINAPI Perftools_MapViewOfFileEx(HANDLE hFileMappingObject,
                                                LPVOID lpBaseAddress) {
   // For this function pair, you always deallocate the full block of
   // data that you allocate, so NewHook/DeleteHook is the right API.
-  LPVOID result = Windows_MapViewOfFileEx(hFileMappingObject, dwDesiredAccess,
-                                          dwFileOffsetHigh, dwFileOffsetLow,
-                                          dwNumberOfBytesToMap, lpBaseAddress);
+  LPVOID result = origstub_MapViewOfFileEx(hFileMappingObject, dwDesiredAccess,
+                                           dwFileOffsetHigh, dwFileOffsetLow,
+                                           dwNumberOfBytesToMap, lpBaseAddress);
   MallocHook::InvokeNewHook(result, dwNumberOfBytesToMap);
   return result;
 }
 
 static BOOL WINAPI Perftools_UnmapViewOfFile(LPCVOID lpBaseAddress) {
   MallocHook::InvokeDeleteHook(lpBaseAddress);
-  return Windows_UnmapViewOfFile(lpBaseAddress);
+  return origstub_UnmapViewOfFile(lpBaseAddress);
 }
 
 // ---------------------------------------------------------------------
 
-#define PATCH_KERNEL32(name)  do {                      \
-  CHECK_EQ(sidestep::SIDESTEP_SUCCESS,                  \
-           sidestep::PreamblePatcher::Patch(            \
-               "kernel32", #name,                       \
-               &Perftools_##name, &Windows_##name));    \
+// Calls GetProcAddress, but casts to the correct type.
+#define GET_PROC_ADDRESS(hmodule, name) \
+  ( (Type_##name)(::GetProcAddress(hmodule, #name)) )
+
+#define PATCH(name)  do {                                               \
+  CHECK_NE(Windows_##name, NULL);                                       \
+  CHECK_EQ(sidestep::SIDESTEP_SUCCESS,                                  \
+           sidestep::PreamblePatcher::Patch(                            \
+               Windows_##name, &Perftools_##name, &origstub_##name));   \
 } while (0)
 
-#define UNPATCH(name)  do {                                             \
-  CHECK_EQ(sidestep::SIDESTEP_SUCCESS,                                  \
-           sidestep::PreamblePatcher::Unpatch(                          \
-               (Type_##name)&name, &Perftools_##name, Windows_##name)); \
+// NOTE: casting from a function to a pointer is contra the C++
+//       spec.  It's not safe on IA64, but is on i386.  We use
+//       a C-style cast here to emphasize this is not legal C++.
+#define UNPATCH(name)  do {                                     \
+  CHECK_EQ(sidestep::SIDESTEP_SUCCESS,                          \
+           sidestep::PreamblePatcher::Unpatch(                  \
+             (void*)Windows_##name, (void*)&Perftools_##name,   \
+             (void*)origstub_##name));                          \
 } while (0)
 
 void PatchWindowsFunctions() {
@@ -158,14 +198,16 @@ void PatchWindowsFunctions() {
 
   // TODO(csilvers): should we be patching GlobalAlloc/LocalAlloc instead,
   //                 for pre-XP systems?
-  PATCH_KERNEL32(HeapAlloc);
-  PATCH_KERNEL32(HeapFree);
-  PATCH_KERNEL32(VirtualAllocEx);
-  PATCH_KERNEL32(VirtualFreeEx);
-  PATCH_KERNEL32(MapViewOfFileEx);
-  PATCH_KERNEL32(UnmapViewOfFile);
+  HMODULE hkernel32 = ::GetModuleHandle("kernel32");
+  CHECK_NE(hkernel32, NULL);
+  Windows_HeapAlloc = GET_PROC_ADDRESS(hkernel32, HeapAlloc);
+  Windows_HeapFree = GET_PROC_ADDRESS(hkernel32, HeapFree);
+  Windows_VirtualAllocEx = GET_PROC_ADDRESS(hkernel32, VirtualAllocEx);
+  Windows_VirtualFreeEx = GET_PROC_ADDRESS(hkernel32, VirtualFreeEx);
+  Windows_MapViewOfFileEx = GET_PROC_ADDRESS(hkernel32, MapViewOfFileEx);
+  Windows_UnmapViewOfFile = GET_PROC_ADDRESS(hkernel32, UnmapViewOfFile);
 
-  // Now we need to override malloc, calloc, realloc, and free.  Note
+  // Now we need to handle malloc, calloc, realloc, and free.  Note
   // that other memory-allocation routines (including new/delete) are
   // overridden in tcmalloc.cc.  These are overridden here because
   // they're special for windows: they're the only libc memory
@@ -180,56 +222,44 @@ void PatchWindowsFunctions() {
                                                 GetCurrentProcessId());
   if (hModuleSnap != INVALID_HANDLE_VALUE) {
     MODULEENTRY32 me32;
-    me32.dwSize = sizeof(me32);   // needed by windows, apparently
+    me32.dwSize = sizeof(me32);
     if (Module32First(hModuleSnap, &me32)) {
       do {
-        LPCSTR lib = me32.szModule;
-        if (sidestep::SIDESTEP_SUCCESS ==
-            sidestep::PreamblePatcher::Patch(
-                lib, "malloc", &Perftools_malloc, &Windows_malloc)
-            &&
-            sidestep::SIDESTEP_SUCCESS ==
-            sidestep::PreamblePatcher::Patch(
-                lib, "calloc", &Perftools_calloc, &Windows_calloc)
-            &&
-            sidestep::SIDESTEP_SUCCESS ==
-            sidestep::PreamblePatcher::Patch(
-                lib, "realloc", &Perftools_realloc, &Windows_realloc)
-            &&
-            sidestep::SIDESTEP_SUCCESS ==
-            sidestep::PreamblePatcher::Patch(
-                lib, "free", &Perftools_free, &Windows_free)
-            ) {
+        Windows_malloc = GET_PROC_ADDRESS(me32.hModule, malloc);
+        Windows_calloc = GET_PROC_ADDRESS(me32.hModule, calloc);
+        Windows_realloc = GET_PROC_ADDRESS(me32.hModule, realloc);
+        Windows_free = GET_PROC_ADDRESS(me32.hModule, free);
+        if (Windows_malloc != NULL && Windows_calloc != NULL &&
+            Windows_realloc != NULL && Windows_free != NULL)
           break;
-        } else {
-          Windows_malloc = NULL;   // reset to indicate failure
-          Windows_calloc = NULL;
-          Windows_realloc = NULL;
-          Windows_free = NULL;
-        }
       } while (Module32Next(hModuleSnap, &me32));
     }
     CloseHandle(hModuleSnap);
   }
-  if (Windows_malloc == NULL && Windows_calloc == NULL &&
-      Windows_realloc == NULL && Windows_free == NULL) {
-    // probably means we're statically linked
+  if (Windows_malloc == NULL || Windows_calloc == NULL ||
+      Windows_realloc == NULL || Windows_free == NULL) {
+    // Probably means we're statically linked.
     // NOTE: we need to cast the windows calls, because we're not quite
     // sure of their type (in particular, some versions have __THROW, some
     // don't).  We don't care to that level of detail, hence the cast.
-    CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-             sidestep::PreamblePatcher::Patch(
-                 (Type_malloc)&malloc, &Perftools_malloc, &Windows_malloc));
-    CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-             sidestep::PreamblePatcher::Patch(
-                 (Type_calloc)&calloc, &Perftools_calloc, &Windows_calloc));
-    CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-             sidestep::PreamblePatcher::Patch(
-                 (Type_realloc)&realloc, &Perftools_realloc, &Windows_realloc));
-    CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-             sidestep::PreamblePatcher::Patch(
-                 (Type_free)&free, &Perftools_free, &Windows_free));
+    Windows_malloc = (Type_malloc)&malloc;
+    Windows_calloc = (Type_calloc)&calloc;
+    Windows_realloc = (Type_realloc)&realloc;
+    Windows_free = (Type_free)&free;
   }
+
+  // Now that we've found all the functions, patch them
+  PATCH(HeapAlloc);
+  PATCH(HeapFree);
+  PATCH(VirtualAllocEx);
+  PATCH(VirtualFreeEx);
+  PATCH(MapViewOfFileEx);
+  PATCH(UnmapViewOfFile);
+
+  PATCH(malloc);
+  PATCH(calloc);
+  PATCH(realloc);
+  PATCH(free);
 }
 
 void UnpatchWindowsFunctions() {
