@@ -1,3 +1,8 @@
+Mon Dec  3 23:51:54 2007  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.94.1 release  (bugfix release)
+	* Fix missing #includes for x86_64 compile using libunwind (csilvers)
+
 Thu Nov 29 07:59:43 2007  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.94 release

@@ -34,9 +34,11 @@
 
 extern "C" {
 #include <assert.h>
+#include <string.h>   // for memset()
 #include <libunwind.h>
 }
 #include "google/stacktrace.h"
+#include "base/logging.h"
 #include "base/spinlock.h"
 
 // Sometimes, we can try to get a stack trace from within a stack
