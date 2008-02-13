@@ -1,3 +1,14 @@
+Tue Feb 12 12:28:32 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.95 release
+	* Better -- not perfect -- support for linux-ppc (csilvers)
+	* Fix race condition in libunwind stacktrace (aruns)
+	* Speed up x86 spinlock locking (m3b)
+	* Improve heap-checker performance (maxim)
+	* Heap checker traverses more ptrs inside heap-alloced objects (maxim)
+	* Remove deprecated ProfilerThreadState function (cgd)
+	* Update libunwind documentation for statically linked binaries (aruns)
+
 Mon Dec  3 23:51:54 2007  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.94.1 release  (bugfix release)

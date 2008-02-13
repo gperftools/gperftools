@@ -41,7 +41,7 @@
  * related platforms should not be difficult.
  */
 #if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__) || \
-     defined(mips)) && defined(__linux)
+     defined(__mips__) || defined(__PPC__)) && defined(__linux)
 
 /* Define the THREADS symbol to make sure that there is exactly one core dumper
  * built into the library.

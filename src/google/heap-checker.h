@@ -258,18 +258,18 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   static bool HaveDisabledChecksUp(int stack_frames);
   static bool HaveDisabledChecksAt(const void* address);
 
-  // Ignore an object located at 'ptr'
-  // (as well as all heap objects (transitively) referenced from it)
+  // Ignore an object located at 'ptr' (can go at the start or into the object)
+  // as well as all heap objects (transitively) referenced from it
   // for the purposes of heap leak checking.
   // If 'ptr' does not point to an active allocated object
   // at the time of this call, it is ignored;
   // but if it does, the object must not get deleted from the heap later on;
-  // it must also be not already ignored at the time of this call.
+  // it must also be not already ignored at the time of this call.  
   static void IgnoreObject(const void* ptr);
 
   // Undo what an earlier IgnoreObject() call promised and asked to do.
-  // At the time of this call 'ptr' must point to an active allocated object
-  // which was previously registered with IgnoreObject().
+  // At the time of this call 'ptr' must point at or inside of an active
+  // allocated object which was previously registered with IgnoreObject().
   static void UnIgnoreObject(const void* ptr);
 
  public:  // Initializations; to be called from main() only.
@@ -303,8 +303,6 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   bool DoNoLeaksOnce(CheckType check_type,
                      CheckFullness fullness,
                      ReportMode report_mode);
-  // Helper for IgnoreObject
-  static void IgnoreObjectLocked(const void* ptr);
   // Helper for DisableChecksAt
   static void DisableChecksAtLocked(const void* address);
   // Helper for DisableChecksIn
@@ -345,8 +343,6 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // in a debug message to describe what kind of live object sources
   // are being used.
   static void IgnoreLiveObjectsLocked(const char* name, const char* name2);
-  // Heap profile object filtering callback to filter out live objects.
-  static bool HeapProfileFilter(const void* ptr, size_t size);
   // Runs REGISTER_HEAPCHECK_CLEANUP cleanups and potentially
   // calls DoMainHeapCheck
   static void RunHeapCleanups();
@@ -373,12 +369,13 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
                                          uintptr_t start_address,
                                          uintptr_t end_address);
 
-  // Return true iff "*ptr" points to a heap object;
-  // we also fill *object_size for this object then.
-  // If yes, we might move "*ptr" to point to the very start of the object
-  // (this needs to happen for C++ class array allocations
-  // and for basic_string-s of C++ library that comes with gcc 3.4).
-  static bool HaveOnHeapLocked(const void** ptr, size_t* object_size);
+  // Return true iff "*ptr" points to a heap object
+  // ("*ptr" can point at the start or inside of a heap object
+  //  so that this works e.g. for pointers to C++ arrays, C++ strings,
+  //  multiple-inherited objects, or pointers to members).
+  // We also fill *object_size for this object then
+  // and we move "*ptr" to point to the very start of the heap object.
+  static inline bool HaveOnHeapLocked(const void** ptr, size_t* object_size);
 
  private:
 

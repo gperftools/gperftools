@@ -42,7 +42,7 @@
 #endif
 #include <sys/wait.h>               // for wait()
 #include "google/profiler.h"
-#include "base/mutex.h"
+#include "base/simple_mutex.h"
 #include "tests/testutil.h"
 
 static int result = 0;

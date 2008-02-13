@@ -95,6 +95,7 @@
 #include <iomanip>              // for hex
 #include <set>
 #include <map>
+#include <list>
 #include <memory>
 #include <vector>
 #include <string>
@@ -115,6 +116,7 @@
 
 using namespace std;
 
+// ========================================================================= //
 
 // TODO(maxim): write a shell script to test that these indeed crash us
 //              (i.e. we do detect leaks)
@@ -156,6 +158,9 @@ DEFINE_bool(no_threads,
             // This is used so we can make can_create_leaks_reliably true
             // for any pthread implementation and test with that.
 
+DECLARE_int64(heap_check_max_pointer_offset);   // heap-checker.cc
+DECLARE_string(heap_check);  // in heap-checker.cc
+
 #define WARN_IF(cond, msg)   LOG_IF(WARNING, cond, msg)
 
 // This is an evil macro!  Be very careful using it...
@@ -163,6 +168,8 @@ DEFINE_bool(no_threads,
 #define VLOG(lvl)    if (FLAGS_verbose >= (lvl))  cout << "\n"
 // This is, likewise, evil
 #define LOGF         VLOG(INFO)
+
+static void RunHeapBusyThreads();  // below
 
 
 class Closure {
@@ -233,7 +240,7 @@ static bool can_create_leaks_reliably = false;
 // We use a simple allocation wrapper
 // to make sure we wipe out the newly allocated objects
 // in case they still happened to contain some pointer data
-// accidently left by the memory allocator.
+// accidentally left by the memory allocator.
 struct Initialized { };
 static Initialized initialized;
 void* operator new(size_t size, const Initialized&) {
@@ -833,6 +840,8 @@ static void TestLibCAllocate() {
 
 // Continuous random heap memory activity to try to disrupt heap checking.
 static void* HeapBusyThreadBody(void* a) {
+  const int thread_num = reinterpret_cast<intptr_t>(a);
+  VLOG(0) << "A new HeapBusyThread " << thread_num;
   TestLibCAllocate();
 
   int user = 0;
@@ -878,7 +887,7 @@ static void* HeapBusyThreadBody(void* a) {
             << reinterpret_cast<void*>(
                  reinterpret_cast<uintptr_t>(ptr) ^ kHideMask)
             << "^" << reinterpret_cast<void*>(kHideMask);
-    if (FLAGS_test_register_leak) {
+    if (FLAGS_test_register_leak  &&  thread_num % 5 == 0) {
       // Hide the register "ptr" value with an xor mask.
       // If one provides --test_register_leak flag, the test should
       // (with very high probability) crash on some leak check
@@ -913,7 +922,8 @@ static void* HeapBusyThreadBody(void* a) {
 }
 
 static void RunHeapBusyThreads() {
-  if (FLAGS_no_threads)  return;
+  KeyInit();
+  if (!FLAGS_interfering_threads || FLAGS_no_threads)  return;
 
   const int n = 17;  // make many threads
 
@@ -923,7 +933,8 @@ static void RunHeapBusyThreads() {
   // make them and let them run
   for (int i = 0; i < n; ++i) {
     VLOG(0) << "Creating extra thread " << i + 1;
-    CHECK(pthread_create(&tid, &attr, HeapBusyThreadBody, NULL) == 0);
+    CHECK(pthread_create(&tid, &attr, HeapBusyThreadBody,
+                         reinterpret_cast<void*>(i)) == 0);
   }
 
   Pause();
@@ -1038,10 +1049,62 @@ static void TestHeapLeakCheckerNamedDisabling() {
   }
 }
 
-// The code from here to main()
-// is to test that objects that are reachable from global
-// variables are not reported as leaks,
-// with the few exceptions like multiple-inherited objects.
+// ========================================================================= //
+
+// This code section is to test that objects that are reachable from global
+// variables are not reported as leaks
+// as well as that (Un)IgnoreObject work for such objects fine.
+
+// An object making functions:
+// returns a "weird" pointer to a new object for which
+// it's worth checking that the object is reachable via that pointer.
+typedef void* (*ObjMakerFunc)();
+static list<ObjMakerFunc> obj_makers;  // list of registered object makers
+
+// Helper macro to register an object making function
+// 'name' is an identifier of this object maker,
+// 'body' is its function body that must declare
+//        pointer 'p' to the nex object to return.
+// Usage example:
+//   REGISTER_OBJ_MAKER(trivial, int* p = new(initialized) int;)
+#define REGISTER_OBJ_MAKER(name, body) \
+  void* ObjMaker_##name##_() { \
+    VLOG(1) << "Obj making " << #name; \
+    body; \
+    return p; \
+  } \
+  static ObjMakerRegistrar maker_reg_##name##__(&ObjMaker_##name##_);
+// helper class for REGISTER_OBJ_MAKER
+struct ObjMakerRegistrar {
+  ObjMakerRegistrar(ObjMakerFunc obj_maker) { obj_makers.push_back(obj_maker); }
+};
+
+// List of the objects/pointers made with all the obj_makers
+// to test reachability via global data pointers during leak checks.
+static list<void*>* live_objects = new list<void*>;
+  // pointer so that it does not get destructed on exit
+
+// Exerciser for one ObjMakerFunc.
+static void TestPointerReach(ObjMakerFunc obj_maker) {
+  HeapLeakChecker::IgnoreObject(obj_maker());  // test IgnoreObject
+
+  void* obj = obj_maker();
+  HeapLeakChecker::IgnoreObject(obj);
+  HeapLeakChecker::UnIgnoreObject(obj);  // test UnIgnoreObject
+  HeapLeakChecker::IgnoreObject(obj);  // not to need deletion for obj
+  
+  live_objects->push_back(obj_maker());  // test reachability at leak check
+}
+
+// Test all ObjMakerFunc registred via REGISTER_OBJ_MAKER.
+static void TestObjMakers() {
+  for (list<ObjMakerFunc>::const_iterator i = obj_makers.begin();
+       i != obj_makers.end(); ++i) {
+    TestPointerReach(*i);
+    TestPointerReach(*i);  // a couple more times would not hurt
+    TestPointerReach(*i);
+  }
+}
 
 // A dummy class to mimic allocation behavior of string-s.
 template<class T>
@@ -1083,22 +1146,45 @@ struct Array {
   T* ptr;
 };
 
-static Array<char>* live_leak = NULL;
-static Array<char>* live_leak2 = new(initialized) Array<char>();
-static int* live_leak3 = new(initialized) int[10];
-static const char* live_leak4 = new(initialized) char[5];
-static int data[] = { 1, 2, 3, 4, 5, 6, 7, 21, 22, 23, 24, 25, 26, 27 };
-static set<int> live_leak5(data, data+7);
-static const set<int> live_leak6(data, data+14);
-static const Array<char>* live_leak_arr1 = new(initialized) Array<char>[5];
+// to test pointers to objects, built-in arrays, string, etc:
+REGISTER_OBJ_MAKER(plain, int* p = new(initialized) int;)
+REGISTER_OBJ_MAKER(int_array_1, int* p = new(initialized) int[1];)
+REGISTER_OBJ_MAKER(int_array, int* p = new(initialized) int[10];)
+REGISTER_OBJ_MAKER(string, Array<char>* p = new(initialized) Array<char>();)
+REGISTER_OBJ_MAKER(string_array,
+                   Array<char>* p = new(initialized) Array<char>[5];)
+REGISTER_OBJ_MAKER(char_array, char* p = new(initialized) char[5];)
+REGISTER_OBJ_MAKER(appended_string,
+  Array<char>* p = new Array<char>();
+  p->append(Array<char>());
+)
+REGISTER_OBJ_MAKER(plain_ptr, int** p = new(initialized) int*;)
+REGISTER_OBJ_MAKER(linking_ptr,
+  int** p = new(initialized) int*;
+  *p = new(initialized) int;
+)
+
+// small objects:
+REGISTER_OBJ_MAKER(0_sized, void* p = malloc(0);)  // 0-sized object (important)
+REGISTER_OBJ_MAKER(1_sized, void* p = malloc(1);)
+REGISTER_OBJ_MAKER(2_sized, void* p = malloc(2);)
+REGISTER_OBJ_MAKER(3_sized, void* p = malloc(3);)
+REGISTER_OBJ_MAKER(4_sized, void* p = malloc(4);)
+
+static int set_data[] = { 1, 2, 3, 4, 5, 6, 7, 21, 22, 23, 24, 25, 26, 27 };
+static set<int> live_leak_set(set_data, set_data+7);
+static const set<int> live_leak_const_set(set_data, set_data+14);
+
+REGISTER_OBJ_MAKER(set,
+  set<int>* p = new(initialized) set<int>(set_data, set_data + 13);
+)
 
 class ClassA {
  public:
   ClassA(int a) : ptr(NULL) { }
   mutable char* ptr;
 };
-
-static const ClassA live_leak7(1);
+static const ClassA live_leak_mutable(1);
 
 template<class C>
 class TClass {
@@ -1107,13 +1193,12 @@ class TClass {
   mutable C val;
   mutable C* ptr;
 };
-
-static const TClass<Array<char> > live_leak8(1);
+static const TClass<Array<char> > live_leak_templ_mutable(1);
 
 class ClassB {
  public:
   ClassB() { }
-  int b[10];
+  char b[7];
   virtual void f() { }
   virtual ~ClassB() { }
 };
@@ -1121,102 +1206,140 @@ class ClassB {
 class ClassB2 {
  public:
   ClassB2() { }
-  int b2[10];
+  char b2[11];
   virtual void f2() { }
   virtual ~ClassB2() { }
 };
 
 class ClassD1 : public ClassB {
-  int d1[10];
+  char d1[15];
   virtual void f() { }
 };
 
 class ClassD2 : public ClassB2 {
-  int d2[10];
+  char d2[19];
   virtual void f2() { }
 };
 
 class ClassD : public ClassD1, public ClassD2 {
-  int d[10];
+  char d[3];
   virtual void f() { }
   virtual void f2() { }
 };
 
-static ClassB* live_leak_b;
-static ClassD1* live_leak_d1;
-static ClassD2* live_leak_d2;
-static ClassD* live_leak_d;
+// to test pointers to objects of base subclasses:
 
-static ClassB* live_leak_b_d1;
-static ClassB2* live_leak_b2_d2;
-static ClassB* live_leak_b_d;
-static ClassB2* live_leak_b2_d;
+REGISTER_OBJ_MAKER(B,  ClassB*  p = new(initialized) ClassB;)
+REGISTER_OBJ_MAKER(D1, ClassD1* p = new(initialized) ClassD1;)
+REGISTER_OBJ_MAKER(D2, ClassD2* p = new(initialized) ClassD2;)
+REGISTER_OBJ_MAKER(D,  ClassD*  p = new(initialized) ClassD;)
 
-static ClassD1* live_leak_d1_d;
-static ClassD2* live_leak_d2_d;
+REGISTER_OBJ_MAKER(D1_as_B,  ClassB*  p = new(initialized) ClassD1;)
+REGISTER_OBJ_MAKER(D2_as_B2, ClassB2* p = new(initialized) ClassD2;)
+REGISTER_OBJ_MAKER(D_as_B,   ClassB*  p = new(initialized)  ClassD;)
+REGISTER_OBJ_MAKER(D_as_D1,  ClassD1* p = new(initialized) ClassD;)
+// inside-object pointers:
+REGISTER_OBJ_MAKER(D_as_B2,  ClassB2* p = new(initialized) ClassD;)
+REGISTER_OBJ_MAKER(D_as_D2,  ClassD2* p = new(initialized) ClassD;)
 
-// A dummy string class mimics certain third party string
-// implementations, which store a refcount in the first
-// few bytes and keeps a pointer pointing behind the refcount.
-template <typename R>
-class RefcountStr {
+class InterfaceA {
  public:
-  RefcountStr() {
-    ptr = new char[sizeof(R) * 10];
-    ptr = ptr + sizeof(R);
-  }
-  char* ptr;
+  virtual void A() = 0;
+  virtual ~InterfaceA() { }
+ protected:
+  InterfaceA() { }
 };
-// E.g., mimics UnicodeString defined in third_party/icu.
-static const RefcountStr<uint32> live_leak_refcountstr_4;
 
-// have leaks but ignore the leaked objects
-static void IgnoredLeaks() {
-  int* p = new(initialized) int[1];
-  HeapLeakChecker::IgnoreObject(p);
-  int** leak = new(initialized) int*;
-  HeapLeakChecker::IgnoreObject(leak);
-  *leak = new(initialized) int;
-  HeapLeakChecker::UnIgnoreObject(p);
-  delete [] p;
-}
+class InterfaceB {
+ public:
+  virtual void B() = 0;
+  virtual ~InterfaceB() { }
+ protected:
+  InterfaceB() { }
+};
+
+class InterfaceC : public InterfaceA {
+ public:
+  virtual void C() = 0;
+  virtual ~InterfaceC() { }
+ protected:
+  InterfaceC() { }
+};
+
+class ClassMltD1 : public ClassB, public InterfaceB, public InterfaceC {
+ public:
+  char d1[11];
+  virtual void f() { }
+  virtual void A() { }
+  virtual void B() { }
+  virtual void C() { }
+};
+
+class ClassMltD2 : public InterfaceA, public InterfaceB, public ClassB {
+ public:
+  char d2[15];
+  virtual void f() { }
+  virtual void A() { }
+  virtual void B() { }
+};
+
+// to specifically test heap reachability under
+// inerface-only multiple inheritance (some use inside-object pointers):
+REGISTER_OBJ_MAKER(MltD1,       ClassMltD1* p = new (initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_B,  ClassB*     p = new (initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_IA, InterfaceA* p = new (initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_IB, InterfaceB* p = new (initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_IC, InterfaceC* p = new (initialized) ClassMltD1;)
+
+REGISTER_OBJ_MAKER(MltD2,       ClassMltD2* p = new (initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2_as_B,  ClassB*     p = new (initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2_as_IA, InterfaceA* p = new (initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2_as_IB, InterfaceB* p = new (initialized) ClassMltD2;)
+
+// to mimic UnicodeString defined in third_party/icu,
+// which store a platform-independent-sized refcount in the first
+// few bytes and keeps a pointer pointing behind the refcount.
+REGISTER_OBJ_MAKER(unicode_string,
+  char* p = new char[sizeof(uint32) * 10];
+  p += sizeof(uint32);
+)
+// similar, but for platform-dependent-sized refcount
+REGISTER_OBJ_MAKER(ref_counted,
+  char* p = new char[sizeof(int) * 20];
+  p += sizeof(int);
+)
+
+struct Nesting {
+  struct Inner {
+    Nesting* parent;
+    Inner(Nesting* p) : parent(p) {}
+  };
+  Inner i0;
+  char n1[5];
+  Inner i1;
+  char n2[11];
+  Inner i2;
+  char n3[27];
+  Inner i3;
+  Nesting() : i0(this), i1(this), i2(this), i3(this) {}
+};
+
+// to test inside-object pointers pointing at objects nested into heap objects:
+REGISTER_OBJ_MAKER(nesting_i0, Nesting::Inner* p = &((new Nesting())->i0);)
+REGISTER_OBJ_MAKER(nesting_i1, Nesting::Inner* p = &((new Nesting())->i1);)
+REGISTER_OBJ_MAKER(nesting_i2, Nesting::Inner* p = &((new Nesting())->i2);)
+REGISTER_OBJ_MAKER(nesting_i3, Nesting::Inner* p = &((new Nesting())->i3);)
 
 // allocate many objects reachable from global data
 static void TestHeapLeakCheckerLiveness() {
-  live_leak_b = new(initialized) ClassB;
-  live_leak_d1 = new(initialized) ClassD1;
-  live_leak_d2 = new(initialized) ClassD2;
-  live_leak_d = new(initialized) ClassD;
+  live_leak_mutable.ptr = new(initialized) char[77];
+  live_leak_templ_mutable.ptr = new(initialized) Array<char>();
+  live_leak_templ_mutable.val = Array<char>();
 
-  live_leak_b_d1 = new(initialized) ClassD1;
-  live_leak_b2_d2 = new(initialized) ClassD2;
-  live_leak_b_d = new(initialized) ClassD;
-  live_leak_b2_d = new(initialized) ClassD;
-
-  live_leak_d1_d = new(initialized) ClassD;
-  live_leak_d2_d = new(initialized) ClassD;
-
-  HeapLeakChecker::IgnoreObject((ClassD*)live_leak_b2_d);
-  HeapLeakChecker::IgnoreObject((ClassD*)live_leak_d2_d);
-    // These two do not get deleted with liveness flood
-    // because the base class pointer points inside of the objects
-    // in such cases of multiple inheritance.
-    // Luckily google code does not use multiple inheritance almost at all.
-
-  live_leak = new(initialized) Array<char>();
-  delete [] live_leak3;
-  live_leak3 = new(initialized) int[33];
-  live_leak2->append(*live_leak);
-  live_leak7.ptr = new(initialized) char[77];
-  live_leak8.ptr = new(initialized) Array<char>();
-  live_leak8.val = Array<char>();
-
-  IgnoredLeaks();
-  IgnoredLeaks();
-  IgnoredLeaks();
+  TestObjMakers();
 }
 
-DECLARE_string(heap_check);
+// ========================================================================= //
 
 // Get address (PC value) following the mmap call into addr_after_mmap_call
 static void* Mmapper(uintptr_t* addr_after_mmap_call) {
@@ -1294,6 +1417,8 @@ extern void VerifyHeapProfileTableStackGet() {
   free(addr);
 }
 
+// ========================================================================= //
+
 // Helper to do 'return 0;' inside main(): insted we do 'return Pass();'
 static int Pass() {
   fprintf(stdout, "PASS\n");
@@ -1360,6 +1485,13 @@ int main(int argc, char** argv) {
       // whole-program leak-check should (with very high probability)
       // catch the leak of arr1 and arr2 (4 * sizeof(void*) bytes)
       // (when !FLAGS_test_cancel_global_check)
+  }
+
+  if (FLAGS_test_register_leak) {
+    // make us fail only where the .sh test expects:
+    Pause();
+    for (int i = 0; i < 20; ++i) CHECK(HeapLeakChecker::NoGlobalLeaks());
+    return Pass();
   }
 
   TestHeapLeakCheckerLiveness();
@@ -1440,10 +1572,6 @@ int main(int argc, char** argv) {
   // all leaks that earlier occured inside of ThreadNamedDisabledLeaks:
   range_disable_named = true;
   ThreadNamedDisabledLeaks();
-
-  HeapLeakChecker::IgnoreObject(new(initialized) set<int>(data, data + 13));
-    // This checks both that IgnoreObject works, and
-    // and the fact that we don't drop such leaks as live for some reason.
 
   CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
 

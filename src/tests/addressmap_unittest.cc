@@ -30,6 +30,7 @@
 // ---
 // Author: Sanjay Ghemawat
 
+#include <stdlib.h>   // for rand()
 #include <vector>
 #include <set>
 #include <algorithm>
@@ -47,62 +48,102 @@ using std::vector;
 using std::set;
 using std::random_shuffle;
 
-static void SetCheckCallback(const void* ptr, int val,
+struct UniformRandomNumberGenerator {
+  size_t Uniform(size_t max_size) {
+    if (max_size == 0)
+      return 0;
+    return rand() % max_size;   // not a great random-number fn, but portable
+  }
+};
+static UniformRandomNumberGenerator rnd;
+
+
+// pair of associated value and object size
+typedef pair<int, size_t> ValueT;
+
+struct PtrAndSize {
+  char* ptr;
+  size_t size;
+  PtrAndSize(char* p, size_t s) : ptr(p), size(s) {}
+};
+
+size_t SizeFunc(const ValueT& v) { return v.second; }
+
+static void SetCheckCallback(const void* ptr, ValueT* val,
                              set<pair<const void*, int> >* check_set) {
-  check_set->insert(make_pair(ptr, val));
+  check_set->insert(make_pair(ptr, val->first));
 }
 
 int main(int argc, char** argv) {
   // Get a bunch of pointers
   const int N = FLAGS_N;
-  static const int kObjectLength = 19;
-  vector<char*> ptrs;
+  static const int kMaxRealSize = 49;
+  // 100Mb to stress not finding previous object (AddressMap's cluster is 1Mb):
+  static const size_t kMaxSize = 100*1000*1000;
+  vector<PtrAndSize> ptrs_and_sizes;
   for (int i = 0; i < N; ++i) {
-    ptrs.push_back(new char[kObjectLength]);
+    size_t s = rnd.Uniform(kMaxRealSize);
+    ptrs_and_sizes.push_back(PtrAndSize(new char[s], s));
   }
 
   for (int x = 0; x < FLAGS_iters; ++x) {
     // Permute pointers to get rid of allocation order issues
-    random_shuffle(ptrs.begin(), ptrs.end());
+    random_shuffle(ptrs_and_sizes.begin(), ptrs_and_sizes.end());
 
-    AddressMap<int> map(malloc, free);
-    int result;
+    AddressMap<ValueT> map(malloc, free);
+    const ValueT* result;
+    const void* res_p;
 
     // Insert a bunch of entries
     for (int i = 0; i < N; ++i) {
-      void* p = ptrs[i];
-      CHECK(!map.Find(p, &result));
-      map.Insert(p, i);
-      CHECK(map.Find(p, &result));
-      CHECK_EQ(result, i);
-      map.Insert(p, i + N);
-      CHECK(map.Find(p, &result));
-      CHECK_EQ(result, i + N);
+      char* p = ptrs_and_sizes[i].ptr;
+      CHECK(!map.Find(p));
+      int offs = rnd.Uniform(ptrs_and_sizes[i].size);
+      CHECK(!map.FindInside(&SizeFunc, kMaxSize, p + offs, &res_p));
+      map.Insert(p, make_pair(i, ptrs_and_sizes[i].size));
+      CHECK(result = map.Find(p));
+      CHECK_EQ(result->first, i);
+      CHECK(result = map.FindInside(&SizeFunc, kMaxRealSize, p + offs, &res_p));
+      CHECK_EQ(res_p, p);
+      CHECK_EQ(result->first, i);
+      map.Insert(p, make_pair(i + N, ptrs_and_sizes[i].size));
+      CHECK(result = map.Find(p));
+      CHECK_EQ(result->first, i + N);
     }
 
     // Delete the even entries
     for (int i = 0; i < N; i += 2) {
-      void* p = ptrs[i];
-      CHECK(map.FindAndRemove(p, &result));
-      CHECK_EQ(result, i + N);
+      void* p = ptrs_and_sizes[i].ptr;
+      ValueT removed;
+      CHECK(map.FindAndRemove(p, &removed));
+      CHECK_EQ(removed.first, i + N);
     }
 
     // Lookup the odd entries and adjust them
     for (int i = 1; i < N; i += 2) {
-      void* p = ptrs[i];
-      CHECK(map.Find(p, &result));
-      CHECK_EQ(result, i + N);
-      map.Insert(p, i + 2*N);
-      CHECK(map.Find(p, &result));
-      CHECK_EQ(result, i + 2*N);
+      char* p = ptrs_and_sizes[i].ptr;
+      CHECK(result = map.Find(p));
+      CHECK_EQ(result->first, i + N);
+      int offs = rnd.Uniform(ptrs_and_sizes[i].size);
+      CHECK(result = map.FindInside(&SizeFunc, kMaxRealSize, p + offs, &res_p));
+      CHECK_EQ(res_p, p);
+      CHECK_EQ(result->first, i + N);
+      map.Insert(p, make_pair(i + 2*N, ptrs_and_sizes[i].size));
+      CHECK(result = map.Find(p));
+      CHECK_EQ(result->first, i + 2*N);
     }
 
     // Insert even entries back
     for (int i = 0; i < N; i += 2) {
-      void* p = ptrs[i];
-      map.Insert(p, i + 2*N);
-      CHECK(map.Find(p, &result));
-      CHECK_EQ(result, i + 2*N);
+      char* p = ptrs_and_sizes[i].ptr;
+      int offs = rnd.Uniform(ptrs_and_sizes[i].size);
+      CHECK(!map.FindInside(&SizeFunc, kMaxSize, p + offs, &res_p));
+      map.Insert(p, make_pair(i + 2*N, ptrs_and_sizes[i].size));
+      CHECK(result = map.Find(p));
+      CHECK_EQ(result->first, i + 2*N);
+      CHECK(result = map.FindInside(&SizeFunc, kMaxRealSize, p + offs, &res_p));
+      CHECK_EQ(res_p, p);
+      CHECK_EQ(result->first, i + 2*N);
     }
 
     // Check all entries
@@ -110,17 +151,16 @@ int main(int argc, char** argv) {
     map.Iterate(SetCheckCallback, &check_set);
     CHECK_EQ(check_set.size(), N);
     for (int i = 0; i < N; ++i) {
-      void* p = ptrs[i];
+      void* p = ptrs_and_sizes[i].ptr;
       check_set.erase(make_pair(p, i + 2*N));
-      CHECK(map.Find(p, &result));
-      CHECK_EQ(result, i + 2*N);
+      CHECK(result = map.Find(p));
+      CHECK_EQ(result->first, i + 2*N);
     }
     CHECK_EQ(check_set.size(), 0);
-
   }
 
   for (int i = 0; i < N; ++i) {
-    delete[] ptrs[i];
+    delete[] ptrs_and_sizes[i].ptr;
   }
 
   printf("PASS\n");

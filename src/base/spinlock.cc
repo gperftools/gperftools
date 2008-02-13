@@ -37,61 +37,19 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>     /* For nanosleep() on Windows, read() */
 #endif
-#if defined(__MACH__) && defined(__APPLE__)
-#include <sys/types.h>
-#include <sys/sysctl.h> /* how we figure out numcpu's on OS X */
-#endif
 #include <fcntl.h>      /* for open(), O_RDONLY */
 #include <string.h>     /* for strncmp */
 #include <errno.h>
 #include "base/spinlock.h"
+#include "base/sysinfo.h"   /* for NumCPUs() */
+
+// We can do contention-profiling of SpinLocks, but the code is in
+// mutex.cc, which is not always linked in with spinlock.  Hence we
+// provide this weak definition, which is used if mutex.cc isn't linked in.
+ATTRIBUTE_WEAK extern void SubmitSpinLockProfileData(const void *, int64);
+void SubmitSpinLockProfileData(const void *, int64) {}
 
 static int adaptive_spin_count = 0;
-static int num_cpus = -1;
-
-// It's important this not call malloc! -- it is called at global-construct
-// time, before we've set up all our proper malloc hooks and such.
-static int NumCPUs() {
-  if (num_cpus > 0)
-    return num_cpus;         // value is cached
-
-#if defined(__MACH__) && defined(__APPLE__)
-  int cpus;
-  size_t size = sizeof(cpus);
-  int numcpus_name[] = { CTL_HW, HW_NCPU };
-  if (::sysctl(numcpus_name, arraysize(numcpus_name), &cpus, &size, 0, 0) == 0
-      && (size == sizeof(cpus)))
-    num_cpus = cpus;
-  else
-    num_cpus = 1;           // conservative assumption
-  return num_cpus;
-#else   /* hope the information is in /proc */
-  const char* pname = "/proc/cpuinfo";
-  int fd = open(pname, O_RDONLY);
-  if (fd == -1) {
-    num_cpus = 1;            // conservative assumption; TODO: do better
-    return num_cpus;
-  }
-  char line[1024];
-  int chars_read;
-  num_cpus = 0;
-  do {   // a line at a time
-    chars_read = 0;
-    char* linepos = line;
-    while (linepos - line < sizeof(line)-1 &&
-           (chars_read=read(fd, linepos, 1)) == 1 &&
-           *linepos != '\n')   // read one line
-      linepos++;
-    *linepos = '\0';           // terminate the line at the \n
-    if (strncmp(line, "processor  ", sizeof("processor  ")-1) == 0)
-      num_cpus++;
-  } while (chars_read > 0);    // stop when we get to EOF
-  close(fd);
-  if (num_cpus == 0)
-    num_cpus = 1;              // conservative assumption
-  return num_cpus;
-#endif
-}
 
 struct SpinLock_InitHelper {
   SpinLock_InitHelper() {

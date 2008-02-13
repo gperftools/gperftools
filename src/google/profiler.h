@@ -121,27 +121,4 @@ struct ProfilerState {
 };
 extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(ProfilerState* state);
 
-// ------------------------- ProfilerThreadState -----------------------
-// DEPRECATED: this class is no longer needed.
-//
-// A small helper class that allows a thread to periodically check if
-// profiling has been enabled or disabled, and to react appropriately
-// to ensure that activity in the current thread is included in the
-// profile.  Usage:
-//
-//  ProfileThreadState profile_state;
-//  while (true) {
-//    ... do some thread work ...
-//    profile_state.ThreadCheck();
-//  }
-class ProfilerThreadState {
- public:
-  ProfilerThreadState() { }
-
-  // Called in a thread to enable or disable profiling on the thread
-  // based on whether profiling is currently on or off.
-  // DEPRECATED: No longer needed
-  void ThreadCheck() { }
-};
-
 #endif /* BASE_PROFILER_H__ */

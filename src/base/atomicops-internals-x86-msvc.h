@@ -99,7 +99,7 @@ inline AtomicWord Release_CompareAndSwap(volatile AtomicWord* ptr,
 }
 
 // In msvc8/vs2005, winnt.h already contains a definition for MemoryBarrier.
-#if !(COMPILER_MSVC && _MSC_VER >= 1400)
+#if !(defined(_MSC_VER) && _MSC_VER >= 1400)
 inline void MemoryBarrier() {
   AtomicWord value = 0;
   AtomicExchange(&value, 0); // acts as a barrier

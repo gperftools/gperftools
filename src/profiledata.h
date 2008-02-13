@@ -68,12 +68,12 @@
 // A profiler which uses asyncronous signals to add samples will
 // typically use two locks to protect this data structure:
 //
-//  - A MutexLock, which is held over all calls except for the 'Add'
+//  - A SpinLock which is held over all calls except for the 'Add'
 //    call made from the signal handler.
 //
-//  - A SpinLock, which is held over calls to 'Start', 'Stop',
+//  - A SpinLock which is held over calls to 'Start', 'Stop',
 //    'Flush', and 'Add'.  (This SpinLock should be acquired after
-//    the MutexLock in all cases where both are needed.)
+//    the first SpinLock in all cases where both are needed.)
 class ProfileData {
  public:
   struct State {

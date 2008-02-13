@@ -182,7 +182,7 @@ referred to in this file, are declared in
     code that exercises some foo functionality;
     this code should preserve memory allocation state;
   }
-  if (!heap_checker.SameHeap()) assert("" == "heap memory leak");
+  if (!heap_checker.SameHeap()) assert(NULL == "heap memory leak");
 </pre>
 
 <p>The various flavors of these functions -- <code>SameHeap()</code>,

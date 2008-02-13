@@ -55,7 +55,18 @@
 // Note that /proc only has the environment at the time the application was
 // started, so this routine ignores setenv() calls/etc.  Also note it only
 // reads the first 16K of the environment.
-const char* GetenvBeforeMain(const char* name);
+extern const char* GetenvBeforeMain(const char* name);
+
+// This takes as an argument an environment-variable name (like
+// CPUPROFILE) whose value is supposed to be a file-path, and sets
+// path to that path, and returns true.  Non-trivial for surprising
+// reasons, as documented in sysinfo.cc.  path must have space PATH_MAX.
+extern bool GetUniquePathFromEnv(const char* env_name, char* path);
+
+extern int NumCPUs();
+
+// processor cycles per second of each processor
+extern double CyclesPerSecond(void);
 
 
 // A ProcMapsIterator abstracts access to /proc/maps for a given

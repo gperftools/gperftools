@@ -39,7 +39,7 @@
 
 
 // Obtain a backtrace, verify that the expected callers are present in the
-// backtrace, and maybe print the backtrace to stdout. 
+// backtrace, and maybe print the backtrace to stdout.
 
 //-----------------------------------------------------------------------//
 void CheckStackTraceLeaf();
@@ -53,7 +53,7 @@ void CheckStackTrace(int i);
 // The sequence of functions whose return addresses we expect to see in the
 // backtrace.
 const int BACKTRACE_STEPS = 6;
-void * expected_stack[BACKTRACE_STEPS] = { 
+void * expected_stack[BACKTRACE_STEPS] = {
   (void *) &CheckStackTraceLeaf,
   (void *) &CheckStackTrace4,
   (void *) &CheckStackTrace3,
@@ -81,11 +81,12 @@ void * expected_stack[BACKTRACE_STEPS] = {
 
 //-----------------------------------------------------------------------//
 
+const int kMaxFnLen = 0x40; // assume relevant functions are only this long
+
 void CheckRetAddrIsInFunction( void * ret_addr, void * function_start_addr)
 {
-  const int typ_fn_len = 0x40; // assume relevant functions are only 0x40 bytes long
   CHECK_GE(ret_addr, function_start_addr);
-  CHECK_LE(ret_addr, (void *) ((char *) function_start_addr + typ_fn_len));
+  CHECK_LE(ret_addr, (void *) ((char *) function_start_addr + kMaxFnLen));
 }
 
 //-----------------------------------------------------------------------//
@@ -111,7 +112,11 @@ void CheckStackTraceLeaf(void) {
 #endif
 
   for (int i = 0; i < BACKTRACE_STEPS; i++) {
+    printf("Backtrace %d: expected: %p..%p  actual: %p ... ",
+           i, expected_stack[i],
+           reinterpret_cast<char*>(expected_stack[i]) + kMaxFnLen, stack[i]);
     CheckRetAddrIsInFunction(stack[i], expected_stack[i]);
+    printf("OK\n");
   }
 }
 

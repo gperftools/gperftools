@@ -78,11 +78,6 @@ static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
 static size_t pagesize = 0;
 
 // Configuration parameters.
-//
-// if use_devmem is true, either use_sbrk or use_mmap must also be true.
-// For 2.2 kernels, it looks like the sbrk address space (500MBish) and
-// the mmap address space (1300MBish) are disjoint, so we need both allocators
-// to get as much virtual memory as possible.
 
 DEFINE_int32(malloc_devmem_start, 0,
              "Physical memory starting location in MB for /dev/mem allocation."
@@ -90,6 +85,8 @@ DEFINE_int32(malloc_devmem_start, 0,
 DEFINE_int32(malloc_devmem_limit, 0,
              "Physical memory limit location in MB for /dev/mem allocation."
              "  Setting this to 0 means no limit.");
+DEFINE_bool(malloc_skip_mmap, false,
+            "Whether mmap can be used to obtain memory.");
 
 // static allocators
 class SbrkSysAllocator : public SysAllocator {
@@ -188,6 +185,16 @@ void SbrkSysAllocator::DumpStats(TCMalloc_Printer* printer) {
 
 void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
+  // Check if we should use mmap allocation.
+  // FLAGS_malloc_skip_mmap starts out as false (its uninitialized
+  // state) and eventually gets initialized to the specified value.  Note
+  // that this code runs for a while before the flags are initialized.
+  // Chances are we never get here before the flags are initialized since
+  // sbrk is used until the heap is exhausted (before mmap is used).
+  if (FLAGS_malloc_skip_mmap) {
+    return NULL;
+  }
+
   // could theoretically return the "extra" bytes here, but this
   // is simple and correct.
   if (actual_size) {

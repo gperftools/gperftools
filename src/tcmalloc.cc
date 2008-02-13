@@ -277,7 +277,9 @@ static const int add_amount[2] = { 7, 127 + (120 << 7) };
 static unsigned char class_array[377];
 
 // Compute index of the class_array[] entry for a given size
-static inline int ClassIndex(size_t s) {
+static inline int ClassIndex(int s) {
+  ASSERT(0 <= s);
+  ASSERT(s <= kMaxSize);
   const int i = (s > kMaxSmallSize);
   return (s + add_amount[i]) >> shift_amount[i];
 }
@@ -381,7 +383,7 @@ static inline size_t SLL_Size(void *head) {
 
 // Setup helper functions.
 
-static inline int SizeClass(size_t size) {
+static inline int SizeClass(int size) {
   return class_array[ClassIndex(size)];
 }
 
@@ -780,14 +782,14 @@ static StackTrace* growth_stacks = NULL;
 template <int BITS> class MapSelector {
  public:
   typedef TCMalloc_PageMap3<BITS-kPageShift> Type;
-  typedef PackedCache<BITS, uint64> CacheType;
+  typedef PackedCache<BITS-kPageShift, uint64_t> CacheType;
 };
 
 // A two-level map for 32-bit machines
 template <> class MapSelector<32> {
  public:
   typedef TCMalloc_PageMap2<32-kPageShift> Type;
-  typedef PackedCache<32-kPageShift, uint16> CacheType;
+  typedef PackedCache<32-kPageShift, uint16_t> CacheType;
 };
 
 // -------------------------------------------------------------------------
@@ -893,10 +895,11 @@ class TCMalloc_PageHeap {
   // Remove span from its free list, and move any leftover part of
   // span into appropriate free lists.  Also update "span" to have
   // length exactly "n" and mark it as non-free so it can be returned
-  // to the client.
+  // to the client.  After all that, decrease free_pages_ by n and
+  // return span.
   //
   // "released" is true iff "span" was found on a "returned" list.
-  void Carve(Span* span, Length n, bool released);
+  Span* Carve(Span* span, Length n, bool released);
 
   void RecordSpan(Span* span) {
     pagemap_.set(span->start, span);
@@ -943,25 +946,19 @@ Span* TCMalloc_PageHeap::New(Length n) {
 
   // Find first size >= n that has a non-empty list
   for (Length s = n; s < kMaxPages; s++) {
-    Span* ll = NULL;
+    Span* ll = &free_[s].normal;
     bool released = false;
-    if (!DLL_IsEmpty(&free_[s].normal)) {
-      // Found normal span
-      ll = &free_[s].normal;
-    } else if (!DLL_IsEmpty(&free_[s].returned)) {
-      // Found returned span; reallocate it
+    // If we're lucky, ll is non-empty, meaning it has a suitable span.
+    if (DLL_IsEmpty(ll)) {
+      // Alternatively, maybe there's a usable returned span.
       ll = &free_[s].returned;
       released = true;
-    } else {
-      // Keep looking in larger classes
-      continue;
+      if (DLL_IsEmpty(ll)) {
+        // Still no luck, so keep looking in larger classes.
+        continue;
+      }
     }
-
-    Span* result = ll->next;
-    Carve(result, n, released);
-    ASSERT(Check());
-    free_pages_ -= n;
-    return result;
+    return Carve(ll->next, n, released);
   }
 
   Span* result = AllocLarge(n);
@@ -1010,13 +1007,7 @@ Span* TCMalloc_PageHeap::AllocLarge(Length n) {
     }
   }
 
-  if (best != NULL) {
-    Carve(best, n, from_released);
-    ASSERT(Check());
-    free_pages_ -= n;
-    return best;
-  }
-  return NULL;
+  return best == NULL ? NULL : Carve(best, n, from_released);
 }
 
 Span* TCMalloc_PageHeap::Split(Span* span, Length n) {
@@ -1036,7 +1027,7 @@ Span* TCMalloc_PageHeap::Split(Span* span, Length n) {
   return leftover;
 }
 
-void TCMalloc_PageHeap::Carve(Span* span, Length n, bool released) {
+Span* TCMalloc_PageHeap::Carve(Span* span, Length n, bool released) {
   ASSERT(n > 0);
   DLL_Remove(span);
   span->free = 0;
@@ -1058,6 +1049,9 @@ void TCMalloc_PageHeap::Carve(Span* span, Length n, bool released) {
     span->length = n;
     pagemap_.set(span->start + n - 1, span);
   }
+  ASSERT(Check());
+  free_pages_ -= n;
+  return span;
 }
 
 void TCMalloc_PageHeap::Delete(Span* span) {
@@ -1357,8 +1351,17 @@ void TCMalloc_PageHeap::ReleaseFreePages() {
 class TCMalloc_ThreadCache_FreeList {
  private:
   void*    list_;       // Linked list of nodes
-  uint16_t length_;     // Current length
-  uint16_t lowater_;    // Low water mark for list length
+
+#ifdef _LP64
+  // On 64-bit hardware, manipulating 16-bit values may be slightly slow.
+  // Since it won't cost any space, let's make these fields 32 bits each.
+  uint32_t length_;     // Current length
+  uint32_t lowater_;    // Low water mark for list length
+#else
+  // If we aren't using 64-bit pointers then pack these into less space.
+  uint16_t length_;
+  uint16_t lowater_;
+#endif
 
  public:
   void Init() {
@@ -1368,7 +1371,7 @@ class TCMalloc_ThreadCache_FreeList {
   }
 
   // Return current length of list
-  int length() const {
+  size_t length() const {
     return length_;
   }
 
@@ -1414,14 +1417,19 @@ class TCMalloc_ThreadCache {
  private:
   typedef TCMalloc_ThreadCache_FreeList FreeList;
 
-  size_t        size_;                  // Combined size of data
-  pthread_t     tid_;                   // Which thread owns it
-  bool          in_setspecific_;        // In call to pthread_setspecific?
-  FreeList      list_[kNumClasses];     // Array indexed by size-class
+  // Warning: the offset of list_ affects performance.  On general
+  // principles, we don't like list_[x] to span multiple L1 cache
+  // lines.  However, merely placing list_ at offset 0 here seems to
+  // cause cache conflicts.
 
   // We sample allocations, biased by the size of the allocation
-  uint32_t      rnd_;                   // Cheap random number generator
   size_t        bytes_until_sample_;    // Bytes until we sample next
+  uint32_t      rnd_;                   // Cheap random number generator
+
+  size_t        size_;                  // Combined size of data
+  pthread_t     tid_;                   // Which thread owns it
+  FreeList      list_[kNumClasses];     // Array indexed by size-class
+  bool          in_setspecific_;        // In call to pthread_setspecific?
 
   // Allocate a new heap. REQUIRES: pageheap_lock is held.
   static inline TCMalloc_ThreadCache* NewHeap(pthread_t tid);
@@ -1445,8 +1453,13 @@ class TCMalloc_ThreadCache {
   void* Allocate(size_t size);
   void Deallocate(void* ptr, size_t size_class);
 
-  void FetchFromCentralCache(size_t cl);
-  void ReleaseToCentralCache(size_t cl, int N);
+  // Gets and returns an object from the central cache, and, if possible,
+  // also adds some objects of that size class to this thread cache.
+  void* FetchFromCentralCache(size_t cl, size_t byte_size);
+
+  // Releases N items from this thread cache.  Returns size_.
+  size_t ReleaseToCentralCache(FreeList* src, size_t cl, int N);
+
   void Scavenge();
   void Print() const;
 
@@ -1479,11 +1492,11 @@ class TCMalloc_Central_FreeList {
   // These methods all do internal locking.
 
   // Insert the specified range into the central freelist.  N is the number of
-  // elements in the range.
+  // elements in the range.  RemoveRange() is the opposite operation.
   void InsertRange(void *start, void *end, int N);
 
-  // Returns the actual number of fetched elements into N.
-  void RemoveRange(void **start, void **end, int *N);
+  // Returns the actual number of fetched elements and sets *start and *end.
+  int RemoveRange(void **start, void **end, int N);
 
   // Returns the number of free objects in cache.
   int length() {
@@ -1542,7 +1555,7 @@ class TCMalloc_Central_FreeList {
   // spans if it allows it to shrink the cache.  Return false if it failed to
   // shrink the cache.  Decrements cache_size_ on succeess.
   // May temporarily take lock_.  If it takes lock_, the locked_size_class
-  // lock is released to the thread from holding two size class locks
+  // lock is released to keep the thread from holding two size class locks
   // concurrently which could lead to a deadlock.
   bool ShrinkCache(int locked_size_class, bool force);
 
@@ -1780,41 +1793,39 @@ void TCMalloc_Central_FreeList::InsertRange(void *start, void *end, int N) {
   ReleaseListToSpans(start);
 }
 
-void TCMalloc_Central_FreeList::RemoveRange(void **start, void **end, int *N) {
-  int num = *N;
-  ASSERT(num > 0);
-
-  SpinLockHolder h(&lock_);
-  if (num == num_objects_to_move[size_class_] && used_slots_ > 0) {
+int TCMalloc_Central_FreeList::RemoveRange(void **start, void **end, int N) {
+  ASSERT(N > 0);
+  lock_.Lock();
+  if (N == num_objects_to_move[size_class_] && used_slots_ > 0) {
     int slot = --used_slots_;
     ASSERT(slot >= 0);
     TCEntry *entry = &tc_slots_[slot];
     *start = entry->head;
     *end = entry->tail;
-    return;
+    lock_.Unlock();
+    return N;
   }
 
+  int result = 0;
+  void* head = NULL;
+  void* tail = NULL;
   // TODO: Prefetch multiple TCEntries?
-  void *tail = FetchFromSpansSafe();
-  if (!tail) {
-    // We are completely out of memory.
-    *start = *end = NULL;
-    *N = 0;
-    return;
+  tail = FetchFromSpansSafe();
+  if (tail != NULL) {
+    SLL_SetNext(tail, NULL);
+    head = tail;
+    result = 1;
+    while (result < N) {
+      void *t = FetchFromSpans();
+      if (!t) break;
+      SLL_Push(&head, t);
+      result++;
+    }
   }
-
-  SLL_SetNext(tail, NULL);
-  void *head = tail;
-  int count = 1;
-  while (count < num) {
-    void *t = FetchFromSpans();
-    if (!t) break;
-    SLL_Push(&head, t);
-    count++;
-  }
+  lock_.Unlock();
   *start = head;
   *end = tail;
-  *N = count;
+  return result;
 }
 
 
@@ -1929,7 +1940,7 @@ void TCMalloc_ThreadCache::Cleanup() {
   // Put unused memory back into central cache
   for (int cl = 0; cl < kNumClasses; ++cl) {
     if (list_[cl].length() > 0) {
-      ReleaseToCentralCache(cl, list_[cl].length());
+      ReleaseToCentralCache(&list_[cl], cl, list_[cl].length());
     }
   }
 }
@@ -1937,41 +1948,55 @@ void TCMalloc_ThreadCache::Cleanup() {
 inline void* TCMalloc_ThreadCache::Allocate(size_t size) {
   ASSERT(size <= kMaxSize);
   const size_t cl = SizeClass(size);
+  const size_t alloc_size = ByteSizeForClass(cl);
   FreeList* list = &list_[cl];
   if (list->empty()) {
-    FetchFromCentralCache(cl);
-    if (list->empty()) return NULL;
+    return FetchFromCentralCache(cl, alloc_size);
   }
-  size_ -= ByteSizeForClass(cl);
+  size_ -= alloc_size;
   return list->Pop();
 }
 
 inline void TCMalloc_ThreadCache::Deallocate(void* ptr, size_t cl) {
-  size_ += ByteSizeForClass(cl);
   FreeList* list = &list_[cl];
+  ssize_t list_headroom =
+      static_cast<ssize_t>(kMaxFreeListLength - 1) - list->length();
+  size_ += ByteSizeForClass(cl);
+  size_t cache_size = size_;
+  ssize_t size_headroom = per_thread_cache_size - cache_size - 1;
   list->Push(ptr);
-  // If enough data is free, put back into central cache
-  if (list->length() > kMaxFreeListLength) {
-    ReleaseToCentralCache(cl, num_objects_to_move[cl]);
+
+  // There are two relatively uncommon things that require further work.
+  // In the common case we're done, and in that case we need a single branch
+  // because of the bitwise-or trick that follows.
+  if ((list_headroom | size_headroom) < 0) {
+    if (list_headroom < 0) {
+      cache_size = ReleaseToCentralCache(list, cl, num_objects_to_move[cl]);
+    }
+    if (cache_size >= per_thread_cache_size) Scavenge();
   }
-  if (size_ >= per_thread_cache_size) Scavenge();
 }
 
-// Remove some objects of class "cl" from central cache and add to thread heap
-void TCMalloc_ThreadCache::FetchFromCentralCache(size_t cl) {
-  int fetch_count = num_objects_to_move[cl];
+// Remove some objects of class "cl" from central cache and add to thread heap.
+// On success, return the first object for immediate use; otherwise return NULL.
+void* TCMalloc_ThreadCache::FetchFromCentralCache(size_t cl, size_t byte_size) {
   void *start, *end;
-  central_cache[cl].RemoveRange(&start, &end, &fetch_count);
-  list_[cl].PushRange(fetch_count, start, end);
-  size_ += ByteSizeForClass(cl) * fetch_count;
+  int fetch_count = central_cache[cl].RemoveRange(&start, &end,
+                                                  num_objects_to_move[cl]);
+  ASSERT((start == NULL) == (fetch_count == 0));
+  if (--fetch_count >= 0) {
+    size_ += byte_size * fetch_count;
+    list_[cl].PushRange(fetch_count, SLL_Next(start), end);
+  }
+  return start;
 }
 
 // Remove some objects of class "cl" from thread heap and add to central cache
-void TCMalloc_ThreadCache::ReleaseToCentralCache(size_t cl, int N) {
-  ASSERT(N > 0);
-  FreeList* src = &list_[cl];
+size_t TCMalloc_ThreadCache::ReleaseToCentralCache(FreeList* src,
+                                                   size_t cl, int N) {
+  ASSERT(src == &list_[cl]);
   if (N > src->length()) N = src->length();
-  size_ -= N*ByteSizeForClass(cl);
+  size_t delta_bytes = N * ByteSizeForClass(cl);
 
   // We return prepackaged chains of the correct size to the central cache.
   // TODO: Use the same format internally in the thread caches?
@@ -1985,6 +2010,7 @@ void TCMalloc_ThreadCache::ReleaseToCentralCache(size_t cl, int N) {
   void *tail, *head;
   src->PopRange(N, &head, &tail);
   central_cache[cl].InsertRange(head, tail, N);
+  return size_ -= delta_bytes;
 }
 
 // Release idle memory to the central cache
@@ -2002,7 +2028,7 @@ void TCMalloc_ThreadCache::Scavenge() {
     const int lowmark = list->lowwatermark();
     if (lowmark > 0) {
       const int drop = (lowmark > 1) ? lowmark/2 : 1;
-      ReleaseToCentralCache(cl, drop);
+      ReleaseToCentralCache(list, cl, drop);
     }
     list->clear_lowwatermark();
   }
@@ -2249,7 +2275,7 @@ void TCMalloc_ThreadCache::RecomputeThreadCacheSize() {
 
 void TCMalloc_ThreadCache::Print() const {
   for (int cl = 0; cl < kNumClasses; ++cl) {
-    MESSAGE("      %5" PRIuS " : %4d len; %4d lo\n",
+    MESSAGE("      %5" PRIuS " : %4" PRIuS " len; %4d lo\n",
             ByteSizeForClass(cl),
             list_[cl].length(),
             list_[cl].lowwatermark());
@@ -2642,6 +2668,16 @@ static inline void* SpanToMallocResult(Span *span) {
       CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
 }
 
+// Helper for do_malloc().
+static inline void* do_malloc_pages(Length num_pages) {
+  Span *span;
+  {
+    SpinLockHolder h(&pageheap_lock);
+    span = pageheap->New(num_pages);
+  }
+  return span == NULL ? NULL : SpanToMallocResult(span);
+}
+
 static inline void* do_malloc(size_t size) {
   void* ret = NULL;
 
@@ -2652,17 +2688,12 @@ static inline void* do_malloc(size_t size) {
     if (span != NULL) {
       ret = SpanToMallocResult(span);
     }
-  } else if (size > kMaxSize) {
-    // Use page-level allocator
-    SpinLockHolder h(&pageheap_lock);
-    Span* span = pageheap->New(pages(size));
-    if (span != NULL) {
-      ret = SpanToMallocResult(span);
-    }
-  } else {
+  } else if (size <= kMaxSize) {
     // The common case, and also the simplest.  This just pops the
-    // size-appropriate freelist, afer replenishing it if it's empty.
+    // size-appropriate freelist, after replenishing it if it's empty.
     ret = CheckedMallocResult(heap->Allocate(size));
+  } else {
+    ret = do_malloc_pages(pages(size));
   }
   if (ret == NULL) errno = ENOMEM;
   return ret;

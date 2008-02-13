@@ -42,12 +42,20 @@
 #if defined __MACH__          // Mac OS X, almost certainly
 #include <mach-o/dyld.h>      // for iterating over dll's in ProcMapsIter
 #include <mach-o/loader.h>    // for iterating over dll's in ProcMapsIter
+#include <sys/types.h>
+#include <sys/sysctl.h>       // how we figure out numcpu's on OS X
+#elif defined __FreeBSD__
+#include <sys/sysctl.h>
 #elif defined __sun__         // Solaris
 #include <procfs.h>           // for, e.g., prmap_t
+#elif defined _MSC_VER        // Windows
+#include <process.h>          // for getpid() (actually, _getpid())
+#include <shlwapi.h>          // for SHGetValueA()
 #endif
 #include "base/sysinfo.h"
 #include "base/commandlineflags.h"
 #include "base/logging.h"
+#include "base/cycleclock.h"
 
 #if defined(WIN32) && defined(MODULEENTRY32)
 // In a change from the usual W-A pattern, there is no A variant of
@@ -81,6 +89,12 @@
 # define safeclose(fd)  close(fd)
 #endif
 
+// ----------------------------------------------------------------------
+// GetenvBeforeMain()
+// GetUniquePathFromEnv()
+//    Some non-trivial getenv-related functions.
+// ----------------------------------------------------------------------
+
 const char* GetenvBeforeMain(const char* name) {
   // static is ok because this function should only be called before
   // main(), when we're single-threaded.
@@ -111,6 +125,244 @@ const char* GetenvBeforeMain(const char* name) {
   return NULL;                   // env var never found
 }
 
+// This takes as an argument an environment-variable name (like
+// CPUPROFILE) whose value is supposed to be a file-path, and sets
+// path to that path, and returns true.  If the env var doesn't exist,
+// or is the empty string, leave path unchanged and returns false.
+// The reason this is non-trivial is that this function handles munged
+// pathnames.  Here's why:
+//
+// If we're a child process of the 'main' process, we can't just use
+// getenv("CPUPROFILE") -- the parent process will be using that path.
+// Instead we append our pid to the pathname.  How do we tell if we're a
+// child process?  Ideally we'd set an environment variable that all
+// our children would inherit.  But -- and this is seemingly a bug in
+// gcc -- if you do a setenv() in a shared libarary in a global
+// constructor, the environment setting is lost by the time main() is
+// called.  The only safe thing we can do in such a situation is to
+// modify the existing envvar.  So we do a hack: in the parent, we set
+// the high bit of the 1st char of CPUPROFILE.  In the child, we
+// notice the high bit is set and append the pid().  This works
+// assuming cpuprofile filenames don't normally have the high bit set
+// in their first character!  If that assumption is violated, we'll
+// still get a profile, but one with an unexpected name.
+// TODO(csilvers): set an envvar instead when we can do it reliably.
+bool GetUniquePathFromEnv(const char* env_name, char* path) {
+  char* envval = getenv(env_name);
+  if (envval == NULL || *envval == '\0')
+    return false;
+  if (envval[0] & 128) {                  // high bit is set
+    snprintf(path, PATH_MAX, "%c%s_%u",   // add pid and clear high bit
+             envval[0] & 127, envval+1, (unsigned int)(getpid()));
+  } else {
+    snprintf(path, PATH_MAX, "%s", envval);
+    envval[0] |= 128;                     // set high bit for kids to see
+  }
+  return true;
+}
+
+// ----------------------------------------------------------------------
+// CyclesPerSecond()
+// NumCPUs()
+//    It's important this not call malloc! -- they may be called at
+//    global-construct time, before we've set up all our proper malloc
+//    hooks and such.
+// ----------------------------------------------------------------------
+
+static double cpuinfo_cycles_per_second = 1.0;  // 0.0 might be dangerous
+static int cpuinfo_num_cpus = 1;  // Conservative guess
+
+static void SleepForMilliseconds(int milliseconds) {
+#ifdef WIN32
+  _sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
+#else
+  // Sleep for a few milliseconds
+  struct timespec sleep_time;
+  sleep_time.tv_sec = milliseconds / 1000;
+  sleep_time.tv_nsec = (milliseconds % 1000) * 1000000;
+  while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR)
+    ;  // Ignore signals and wait for the full interval to elapse.
+#endif
+}
+
+// Helper function estimates cycles/sec by observing cycles elapsed during
+// sleep(). Using small sleep time decreases accuracy significantly.
+static int64 EstimateCyclesPerSecond(const int estimate_time_ms) {
+  assert(estimate_time_ms > 0);
+  if (estimate_time_ms <= 0)
+    return 1;
+  double multiplier = 1000.0 / (double)estimate_time_ms;  // scale by this much
+
+  const int64 start_ticks = CycleClock::Now();
+  SleepForMilliseconds(estimate_time_ms);
+  const int64 guess = int64(multiplier * (CycleClock::Now() - start_ticks));
+  return guess;
+}
+
+// WARNING: logging calls back to InitializeSystemInfo() so it must
+// not invoke any logging code.  Also, InitializeSystemInfo() can be
+// called before main() -- in fact it *must* be since already_called
+// isn't protected -- before malloc hooks are properly set up, so
+// we make an effort not to call any routines which might allocate
+// memory.
+
+static void InitializeSystemInfo() {
+  static bool already_called = false;   // safe if we run before threads
+  if (already_called)  return;
+  already_called = true;
+
+  // I put in a never-called reference to EstimateCyclesPerSecond() here
+  // to silence the compiler for OS's that don't need it
+  if (0) EstimateCyclesPerSecond(0);
+
+#if defined __linux__
+  char line[1024];
+  char* err;
+
+  // If CPU scaling is in effect, we want to use the *maximum* frequency,
+  // not whatever CPU speed some random processor happens to be using now.
+  bool saw_mhz = false;
+  const char* pname0 = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
+  int fd0 = open(pname0, O_RDONLY);
+  if (fd0 != -1) {
+    memset(line, '\0', sizeof(line));
+    read(fd0, line, sizeof(line));
+    const int max_freq = strtol(line, &err, 10);
+    if (line[0] != '\0' && (*err == '\n' || *err == '\0')) {
+      // The value is in kHz.  For example, on a 2GHz machine, the file
+      // contains the value "2000000".  Historically this file contained no
+      // newline, but at some point the kernel started appending a newline.
+      cpuinfo_cycles_per_second = max_freq * 1000.0;
+      saw_mhz = true;
+    }
+    close(fd0);
+  }
+
+  // Read /proc/cpuinfo for other values, and if there is no cpuinfo_max_freq.
+  const char* pname = "/proc/cpuinfo";
+  int fd = open(pname, O_RDONLY);
+  if (fd == -1) {
+    perror(pname);
+    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+    return;          // TODO: use generic tester instead?
+  }
+
+  double bogo_clock = 1.0;
+  int num_cpus = 0;
+  line[0] = line[1] = '\0';
+  int chars_read = 0;
+  do {   // we'll exit when the last read didn't read anything
+    // Move the next line to the beginning of the buffer
+    const int oldlinelen = strlen(line);
+    if (sizeof(line) == oldlinelen + 1)    // oldlinelen took up entire line
+      line[0] = '\0';
+    else                                   // still other lines left to save
+      memmove(line, line + oldlinelen+1, sizeof(line) - (oldlinelen+1));
+    // Terminate the new line, reading more if we can't find the newline
+    char* newline = strchr(line, '\n');
+    if (newline == NULL) {
+      const int linelen = strlen(line);
+      const int bytes_to_read = sizeof(line)-1 - linelen;
+      assert(bytes_to_read > 0);  // because the memmove recovered >=1 bytes
+      chars_read = read(fd, line + linelen, bytes_to_read);
+      line[linelen + chars_read] = '\0';
+      newline = strchr(line, '\n');
+    }
+    if (newline != NULL)
+      *newline = '\0';
+
+    if (!saw_mhz && strncmp(line, "cpu MHz", sizeof("cpu MHz")-1) == 0) {
+      const char* freqstr = strchr(line, ':');
+      if (freqstr) {
+        cpuinfo_cycles_per_second = strtod(freqstr+1, &err) * 1000000.0;
+        if (freqstr[1] != '\0' && *err == '\0')
+          saw_mhz = true;
+      }
+    } else if (strncmp(line, "bogomips", sizeof("bogomips")-1) == 0) {
+      const char* freqstr = strchr(line, ':');
+      if (freqstr)
+        bogo_clock = strtod(freqstr+1, &err) * 1000000.0;
+      if (freqstr == NULL || freqstr[1] == '\0' || *err != '\0')
+        bogo_clock = 1.0;
+    } else if (strncmp(line, "processor", sizeof("processor")-1) == 0) {
+      num_cpus++;  // count up every time we see an "processor :" entry
+    }
+  } while (chars_read > 0);
+  close(fd);
+
+  if (!saw_mhz) {
+    // If we didn't find anything better, we'll use bogomips, but
+    // we're not happy about it.
+    cpuinfo_cycles_per_second = bogo_clock;
+  }
+  if (cpuinfo_cycles_per_second == 0.0) {
+    cpuinfo_cycles_per_second = 1.0;   // maybe unnecessary, but safe
+  }
+  if (num_cpus > 0) {
+    cpuinfo_num_cpus = num_cpus;
+  }
+
+#elif defined __FreeBSD__
+  // For this sysctl to work, the machine must be configured without
+  // SMP, APIC, or APM support.
+  unsigned int hz = 0;
+  size_t sz = sizeof(hz);
+  const char *sysctl_path = "machdep.tsc_freq";
+  if ( sysctlbyname(sysctl_path, &hz, &sz, NULL, 0) != 0 ) {
+    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+    fprintf(stderr, "Unable to determine clock rate from sysctl: %s\n",
+            sysctl_path);
+  } else {
+    cpuinfo_cycles_per_second = hz;
+  }
+  // TODO(csilvers): also figure out cpuinfo_num_cpus
+
+#elif defined WIN32
+# pragma comment(lib, "shlwapi.lib")  // for SHGetValue()
+  // In NT, read MHz from the registry. If we fail to do so or we're in win9x
+  // then make a crude estimate.
+  OSVERSIONINFO os;
+  os.dwOSVersionInfoSize = sizeof(os);
+  DWORD data, data_size = sizeof(data);
+  if (GetVersionEx(&os) &&
+      os.dwPlatformId == VER_PLATFORM_WIN32_NT &&
+      SUCCEEDED(SHGetValueA(HKEY_LOCAL_MACHINE,
+                         "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
+                           "~MHz", NULL, &data, &data_size)))
+    cpuinfo_cycles_per_second = (int64)data * (int64)(1000 * 1000); // was mhz
+  else
+    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(500); // TODO <500?
+  // TODO(csilvers): also figure out cpuinfo_num_cpus
+
+#elif defined(__MACH__) && defined(__APPLE__)
+  // TODO(csilvers): can we do better than this?
+  cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+
+  int num_cpus = 0;
+  size_t size = sizeof(num_cpus);
+  int numcpus_name[] = { CTL_HW, HW_NCPU };
+  if (::sysctl(numcpus_name, arraysize(numcpus_name), &num_cpus, &size, 0, 0)
+      == 0
+      && (size == sizeof(num_cpus)))
+    cpuinfo_num_cpus = num_cpus;
+
+#else
+  // Generic cycles per second counter
+  cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+#endif
+}
+
+double CyclesPerSecond(void) {
+  InitializeSystemInfo();
+  return cpuinfo_cycles_per_second;
+}
+
+int NumCPUs(void) {
+  InitializeSystemInfo();
+  return cpuinfo_num_cpus;
+}
+
+// ----------------------------------------------------------------------
 
 #if defined __linux__ || defined __FreeBSD__ || defined __sun__
 static void ConstructFilename(const char* spec, pid_t pid,

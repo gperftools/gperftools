@@ -20,7 +20,7 @@ endif
 
 # These are x86-specific, having to do with frame-pointers
 if X86_64
-if ENABLE_FRAME_POINTER
+if ENABLE_FRAME_POINTERS
 AM_CXXFLAGS += -fno-omit-frame-pointer
 else
   # TODO(csilvers): check if -fomit-frame-pointer might be in $(CXXFLAGS),
@@ -86,6 +86,15 @@ noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
                         $(LOGGING_INCLUDES)
 
+SYSINFO_INCLUDES = src/base/sysinfo.h \
+                   src/base/logging.h \
+                   src/base/commandlineflags.h \
+                   src/base/cycleclock.h \
+                   src/base/basictypes.h
+noinst_LTLIBRARIES += libsysinfo.la
+libsysinfo_la_SOURCES = src/base/sysinfo.cc \
+                        $(SYSINFO_INCLUDES)
+
 # For MinGW, we use libwindows and not libspinlock.  For every other
 # unix system, we use libspinlock and don't need libwindows.  Luckily,
 # we need the windows.a library in exactly the same place we need
@@ -108,7 +117,7 @@ libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
                         src/windows/patch_functions.cc \
                         src/windows/preamble_patcher.cc \
                         src/windows/preamble_patcher_with_stub.cc
-LIBSPINLOCK = libwindows.la
+LIBSPINLOCK = libwindows.la libsysinfo.la liblogging.la
 
 MAYBE_THREADS_CC =
 SYSTEM_ALLOC_CC =
@@ -117,6 +126,7 @@ else
 SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/atomicops.h \
                     src/base/atomicops-internals-macosx.h \
+                    src/base/atomicops-internals-linuxppc.h \
                     src/base/atomicops-internals-x86-msvc.h \
                     src/base/atomicops-internals-x86.h
 
@@ -124,7 +134,8 @@ noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
                          src/base/atomicops-internals-x86.cc \
                          $(SPINLOCK_INCLUDES)
-LIBSPINLOCK = libspinlock.la
+# spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
+LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
 
 MAYBE_THREADS_CC = src/maybe_threads.cc
 SYSTEM_ALLOC_CC = src/system-alloc.cc
@@ -142,7 +153,7 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
                                    src/tests/low_level_alloc_unittest.cc \
                                    $(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES)
-low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) liblogging.la libstacktrace.la
+low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) libstacktrace.la
 
 if !MINGW
 TESTS += atomicops_unittest
@@ -153,7 +164,7 @@ ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
                               $(LOGGING_INCLUDES)
 atomicops_unittest_SOURCES = src/tests/atomicops_unittest.cc \
                              $(ATOMICOPS_UNITTEST_INCLUDES)
-atomicops_unittest_LDADD = $(LIBSPINLOCK) liblogging.la
+atomicops_unittest_LDADD = $(LIBSPINLOCK)
 endif !MINGW
 
 
@@ -246,7 +257,7 @@ libtcmalloc_minimal_la_SOURCES = src/internal_logging.cc \
 libtcmalloc_minimal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) \
-                                libstacktrace.la $(LIBSPINLOCK) liblogging.la
+                                libstacktrace.la $(LIBSPINLOCK)
 
 # Whenever we link in tcmalloc_minimal, we also need to link in
 # libstacktrace.so (we also need libspinlock and liblogging, but those
@@ -478,14 +489,13 @@ libtcmalloc_la_SOURCES = src/internal_logging.cc \
                          src/heap-checker.cc \
                          src/base/linuxthreads.c \
                          src/base/thread_lister.c \
-                         src/base/sysinfo.cc \
                          src/base/low_level_alloc.cc \
                          $(TCMALLOC_INCLUDES) \
                          src/heap-checker-bcad.cc
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) \
-                        libstacktrace.la $(LIBSPINLOCK) liblogging.la
+                        libstacktrace.la $(LIBSPINLOCK)
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
 # Basically it's to work around systems where --rpath doesn't work right.
@@ -595,7 +605,7 @@ S_CPU_PROFILER_INCLUDES = src/profiledata.h \
                           src/base/commandlineflags.h \
                           src/base/googleinit.h \
                           src/base/logging.h \
-                          src/base/mutex.h \
+                          src/base/simple_mutex.h \
                           src/base/sysinfo.h \
                           $(SPINLOCK_INCLUDES) \
                           $(LOGGING_INCLUDES)
@@ -608,11 +618,10 @@ googleinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
 lib_LTLIBRARIES += libprofiler.la
 libprofiler_la_SOURCES = src/profiler.cc \
                          src/profiledata.cc \
-                         src/base/sysinfo.cc \
                          $(CPU_PROFILER_INCLUDES)
-libprofiler_la_LIBADD = $(LIBSPINLOCK) liblogging.la libstacktrace.la
+libprofiler_la_LIBADD = $(LIBSPINLOCK) libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
-CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfilerThreadState|ProfileData)'
+CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
@@ -631,7 +640,7 @@ profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc \
                                src/base/commandlineflags.h \
                                src/base/logging.h \
                                src/base/basictypes.h
-profiledata_unittest_LDADD = -lprofiler
+profiledata_unittest_LDADD = $(LIBPROFILER)
 
 TESTS += profiler_unittest.sh
 profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
@@ -672,6 +681,7 @@ profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
 
 ### Documentation
 dist_doc_DATA += doc/cpuprofile.html \
+                 doc/cpuprofile-fileformat.html \
                  doc/pprof-test-big.gif \
                  doc/pprof-test.gif \
                  doc/pprof-vsnprintf-big.gif \

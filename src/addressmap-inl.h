@@ -97,16 +97,16 @@ class AddressMap {
   typedef void* (*Allocator)(size_t);
   typedef void  (*DeAllocator)(void*);
   typedef const void* Key;
-
+  
   // Create an AddressMap that uses the specified allocator/deallocator.
   // The allocator/deallocator should behave like malloc/free.
   // For instance, the allocator does not need to return initialized memory.
   AddressMap(Allocator alloc, DeAllocator dealloc);
   ~AddressMap();
 
-  // If the map contains an entry for "key", store the associated
-  // value in "*result" and return true.  Else return false.
-  bool Find(Key key, Value* result);
+  // If the map contains an entry for "key", return it. Else return NULL.
+  inline const Value* Find(Key key) const;
+  inline Value* FindMutable(Key key);
 
   // Insert <key,value> into the map.  Any old value associated
   // with key is forgotten.
@@ -117,12 +117,24 @@ class AddressMap {
   // and returns true.  Else returns false.
   bool FindAndRemove(Key key, Value* removed_value);
 
+  // Similar to Find but we assume that keys are addresses of non-overlapping
+  // memory ranges whose sizes are given by size_func.
+  // If the map contains a range into which "key" points
+  // (at its start or inside of it, but not at the end),
+  // return the address of the associated value
+  // and store its key in "*res_key".
+  // Else return NULL.
+  // max_size specifies largest range size possibly in existence now.
+  typedef size_t (*ValueSizeFunc)(const Value& v);
+  const Value* FindInside(ValueSizeFunc size_func, size_t max_size,
+                          Key key, Key* res_key);
+
   // Iterate over the address map calling 'callback'
   // for all stored key-value pairs and passing 'arg' to it.
   // We don't use full Closure/Callback machinery not to add
   // unnecessary dependencies to this class with low-level uses.
   template<class Type>
-  void Iterate(void (*callback)(Key, Value, Type), Type arg) const;
+  inline void Iterate(void (*callback)(Key, Value*, Type), Type arg) const;
 
  private:
   typedef uintptr_t Number;
@@ -154,7 +166,7 @@ class AddressMap {
 
   // We use a simple chaining hash-table to represent the clusters.
   struct Cluster {
-    Cluster* next;                      // Next cluster in chain
+    Cluster* next;                      // Next cluster in hash table chain
     Number   id;                        // Cluster ID
     Entry*   blocks[kClusterBlocks];    // Per-block linked-lists
   };
@@ -169,8 +181,8 @@ class AddressMap {
   // Number of entry objects allocated at a time
   static const int ALLOC_COUNT = 64;
 
-  Cluster**     hashtable_;             // The hash-table
-  Entry*        free_;                  // Free list of unused Entry objects
+  Cluster**     hashtable_;              // The hash-table
+  Entry*        free_;                   // Free list of unused Entry objects
 
   // Multiplicative hash function:
   // The value "kHashMultiplier" is the bottom 32 bits of
@@ -208,7 +220,7 @@ class AddressMap {
     }
     return NULL;
   }
-
+  
   // Return the block ID for an address within its cluster
   static int BlockID(Number address) {
     return (address >> kBlockBits) & (kClusterBlocks - 1);
@@ -264,18 +276,22 @@ AddressMap<Value>::~AddressMap() {
 }
 
 template <class Value>
-bool AddressMap<Value>::Find(Key key, Value* result) {
+inline const Value* AddressMap<Value>::Find(Key key) const {
+  return const_cast<AddressMap*>(this)->FindMutable(key);
+}
+
+template <class Value>
+inline Value* AddressMap<Value>::FindMutable(Key key) {
   const Number num = reinterpret_cast<Number>(key);
   const Cluster* const c = FindCluster(num, false/*do not create*/);
   if (c != NULL) {
-    for (const Entry* e = c->blocks[BlockID(num)]; e != NULL; e = e->next) {
+    for (Entry* e = c->blocks[BlockID(num)]; e != NULL; e = e->next) {
       if (e->key == key) {
-        *result = e->value;
-        return true;
+        return &e->value;
       }
     }
   }
-  return false;
+  return NULL;
 }
 
 template <class Value>
@@ -330,14 +346,62 @@ bool AddressMap<Value>::FindAndRemove(Key key, Value* removed_value) {
 }
 
 template <class Value>
+const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
+                                           size_t max_size,
+                                           Key key,
+                                           Key* res_key) {
+  const Number key_num = reinterpret_cast<Number>(key);
+  Number num = key_num;  // we'll move this to move back through the clusters
+  while (1) {
+    const Cluster* c = FindCluster(num, false/*do not create*/);
+    if (c != NULL) {
+      while (1) {
+        const int block = BlockID(num);
+        bool had_smaller_key = false;
+        for (const Entry* e = c->blocks[block]; e != NULL; e = e->next) {
+          const Number e_num = reinterpret_cast<Number>(e->key);
+          if (e_num <= key_num) {
+            if (e_num == key_num  ||  // to handle 0-sized ranges
+                key_num < e_num + (*size_func)(e->value)) {
+              *res_key = e->key;
+              return &e->value;
+            }
+            had_smaller_key = true;
+          }
+        }
+        if (had_smaller_key) return NULL;  // got a range before 'key'
+                                           // and it did not contain 'key'
+        if (block == 0) break;
+        // try address-wise previous block
+        num |= kBlockSize - 1;  // start at the last addr of prev block
+        num -= kBlockSize;
+        if (key_num - num > max_size) return NULL;
+      }
+    }
+    if (num < kClusterSize) return NULL;  // first cluster
+    // go to address-wise previous cluster to try
+    num |= kClusterSize - 1;  // start at the last block of previous cluster
+    num -= kClusterSize;
+    if (key_num - num > max_size) return NULL;
+      // Having max_size to limit the search is crucial: else
+      // we have to traverse a lot of empty clusters (or blocks).
+      // We can avoid needing max_size if we put clusters into
+      // a search tree, but performance suffers considerably
+      // if we use this approach by using stl::set.
+  }
+}
+
+template <class Value>
 template <class Type>
-void AddressMap<Value>::Iterate(void (*callback)(Key, Value, Type),
-                                Type arg) const {
+inline void AddressMap<Value>::Iterate(void (*callback)(Key, Value*, Type),
+                                       Type arg) const {
+  // We could optimize this by traversing only non-empty clusters and/or blocks
+  // but it does not speed up heap-checker noticeably.
   for (int h = 0; h < kHashSize; ++h) {
     for (const Cluster* c = hashtable_[h]; c != NULL; c = c->next) {
       for (int b = 0; b < kClusterBlocks; ++b) {
-        for (const Entry* e = c->blocks[b]; e != NULL; e = e->next) {
-          callback(e->key, e->value, arg);
+        for (Entry* e = c->blocks[b]; e != NULL; e = e->next) {
+          callback(e->key, &e->value, arg);
         }
       }
     }

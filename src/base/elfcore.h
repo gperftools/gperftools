@@ -1,4 +1,4 @@
-/* Copyright (c) 2005-2007, Google Inc.
+/* Copyright (c) 2005-2008, Google Inc.
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -41,7 +41,7 @@ extern "C" {
  * Porting to other related platforms should not be difficult.
  */
 #if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__) || \
-     defined(mips)) && defined(__linux)
+     defined(__mips__)) && defined(__linux)
 
 #include <stdarg.h>
 #include <stdint.h>
@@ -96,16 +96,16 @@ extern "C" {
     #define LR uregs[14]        /* Link register                             */
     long uregs[18];
   } arm_regs;
-#elif defined(mips)
+#elif defined(__mips__)
   typedef struct mips_regs {
     unsigned long pad[6];       /* Unused padding to match kernel structures */
     unsigned long uregs[32];    /* General purpose registers.                */
-    unsigned long cp0_status;
-    unsigned long lo;           /* Used for multiplication and division.     */
-    unsigned long hi;
-    unsigned long cp0_badvaddr;
-    unsigned long cp0_cause;
+    unsigned long hi;           /* Used for multiplication and division.     */
+    unsigned long lo;
     unsigned long cp0_epc;      /* Program counter.                          */
+    unsigned long cp0_badvaddr;
+    unsigned long cp0_status;
+    unsigned long cp0_cause;
     unsigned long unused;
   } mips_regs;
 #endif
@@ -263,7 +263,7 @@ extern "C" {
                        (r)           = (f).arm;                       \
                        (r).uregs[16] = fps;                           \
                      } while (0)
-#elif defined(mips) && defined(__GNUC__)
+#elif defined(__mips__) && defined(__GNUC__)
   typedef struct Frame {
     struct mips_regs mips_regs;
     int              errno_;

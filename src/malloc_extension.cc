@@ -212,6 +212,17 @@ typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash> StackTraceTable;
 typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash, StackTraceEqual> StackTraceTable;
 #endif
 
+void PrintCountAndSize(string* result, uintptr_t count, uintptr_t size) {
+  char buf[100];
+  snprintf(buf, sizeof(buf),
+           "%6lld: %8lld [%6lld: %8lld] @",
+           static_cast<long long>(count),
+           static_cast<long long>(size),
+           static_cast<long long>(count),
+           static_cast<long long>(size));
+  *result += buf;
+}
+
 void PrintHeader(string* result, const char* label, void** entries) {
   // Compute the total count and total size
   uintptr_t total_count = 0;
@@ -221,24 +232,16 @@ void PrintHeader(string* result, const char* label, void** entries) {
     total_size += Size(entry);
   }
 
-  char buf[200];
-  snprintf(buf, sizeof(buf),
-           "heap profile: %6lld: %8lld [%6lld: %8lld] @ %s\n",
-           static_cast<long long>(total_count),
-           static_cast<long long>(total_size),
-           static_cast<long long>(total_count),
-           static_cast<long long>(total_size),
-           label);
-  *result += buf;
+  *result += string("heap profile: ");
+  PrintCountAndSize(result, total_count, total_size);
+  *result += string(" ") + label + "\n";
 }
 
 void PrintStackEntry(string* result, void** entry) {
-  char buf[100];
-  snprintf(buf, sizeof(buf), "%6d: %8d [%6d: %8d] @",
-           int(Count(entry)), int(Size(entry)),
-           int(Count(entry)), int(Size(entry)));
-  *result += buf;
+  PrintCountAndSize(result, Count(entry), Size(entry));
+
   for (int i = 0; i < Depth(entry); i++) {
+    char buf[32];
     snprintf(buf, sizeof(buf), " %p", PC(entry, i));
     *result += buf;
   }

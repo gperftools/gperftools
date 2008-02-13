@@ -82,7 +82,7 @@
 # endif
 
 // The PowerPC case
-#elif defined(__ppc__) && __GNUC__ >= 2
+#elif (defined(__ppc__) || defined(__PPC__)) && __GNUC__ >= 2
 # if !defined(NO_FRAME_POINTER)
 #   include "stacktrace_powerpc-inl.h"
 # else

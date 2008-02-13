@@ -91,6 +91,19 @@ class HeapProfileTable {
   // Same as FindAlloc, but fills all of *info.
   bool FindAllocDetails(const void* ptr, AllocInfo* info) const;
 
+  // Return true iff "ptr" points into a recorded allocation
+  // If yes, fill *object_ptr with the actual allocation address
+  // and *object_size with the allocation byte size.
+  // max_size specifies largest currently possible allocation size.
+  bool FindInsideAlloc(const void* ptr, size_t max_size,
+                       const void** object_ptr, size_t* object_size) const;
+
+  // If "ptr" points to a recorded allocation and it's not marked as live
+  // mark it as live and return true. Else return false.
+  // All allocations start as non-live, DumpNonLiveProfile below
+  // also makes all allocations non-live.
+  bool MarkAsLive(const void* ptr);
+
   // Return current total (de)allocation statistics.
   const Stats& total() const { return total_; }
 
@@ -100,7 +113,9 @@ class HeapProfileTable {
 
   // Iterate over the allocation profile data calling "callback"
   // for every allocation.
-  void IterateAllocs(AllocIterator callback) const;
+  void IterateAllocs(AllocIterator callback) const {
+    allocation_->Iterate(MapArgsAllocIterator, callback);
+  }
 
   // Fill profile data into buffer 'buf' of size 'size'
   // and return the actual size occupied by the dump in 'buf'.
@@ -114,15 +129,15 @@ class HeapProfileTable {
   // needs to return true iff the object is to be filtered out of the dump.
   typedef bool (*DumpFilter)(const void* ptr, size_t size);
 
-  // Dump current heap profile for leak checking purposes to file_name
-  // while filtering the objects by "filter".
-  // Also write the sums of allocated byte and object counts in the dump
+  // Dump non-live portion of the current heap profile
+  // for leak checking purposes to file_name.
+  // Also reset all objects to non-live state
+  // and write the sums of allocated byte and object counts in the dump
   // to *alloc_bytes and *alloc_objects.
   // dump_alloc_addresses controls if object addresses are dumped.
-  bool DumpFilteredProfile(const char* file_name,
-                           DumpFilter filter,
-                           bool dump_alloc_addresses,
-                           Stats* profile_stats) const;
+  bool DumpNonLiveProfile(const char* file_name,
+                          bool dump_alloc_addresses,
+                          Stats* profile_stats) const;
 
   // Cleanup any old profile files matching prefix + ".*" + kFileExt.
   static void CleanupOldProfiles(const char* prefix);
@@ -142,21 +157,34 @@ class HeapProfileTable {
 
   // Info stored in the address map
   struct AllocValue {
-    Bucket* bucket;  // The stack-trace bucket
+    // Access to the stack-trace bucket
+    Bucket* bucket() const {
+      return reinterpret_cast<Bucket*>(bucket_rep & ~uintptr_t(1));
+    }
+    // This also does set_live(false).
+    void set_bucket(Bucket* b) { bucket_rep = reinterpret_cast<uintptr_t>(b); }
     size_t  bytes;   // Number of bytes in this allocation
+    // Access to the allocation liveness flag (for leak checking)
+    bool live() const { return bucket_rep & 1; }
+    void set_live(bool l) { bucket_rep = (bucket_rep & ~uintptr_t(1)) | l; }
+   private:
+    uintptr_t bucket_rep;  // Bucket* with the lower bit being the "live" flag:
+                           // pointers point to at least 4-byte aligned storage.
   };
+
+  // helper for FindInsideAlloc
+  static size_t AllocValueSize(const AllocValue& v) { return v.bytes; }
 
   typedef AddressMap<AllocValue> AllocationMap;
 
-  // Arguments that need to be passed FilteredDumpIterator callback below.
+  // Arguments that need to be passed DumpNonLiveIterator callback below.
   struct DumpArgs {
     int fd;  // file to write to
     bool dump_alloc_addresses;  // if we are dumping allocation's addresses
-    DumpFilter filter;  // dumping filter
     Stats* profile_stats;  // stats to update
 
-    DumpArgs(int a, bool b, DumpFilter c, Stats* d)
-      : fd(a), dump_alloc_addresses(b), filter(c), profile_stats(d) { }
+    DumpArgs(int a, bool b, Stats* d)
+      : fd(a), dump_alloc_addresses(b), profile_stats(d) { }
   };
 
   // helpers ----------------------------
@@ -176,13 +204,19 @@ class HeapProfileTable {
 
   // Helper for IterateAllocs to do callback signature conversion
   // from AllocationMap::Iterate to AllocIterator.
-  static void MapArgsAllocIterator(const void* ptr, AllocValue v,
-                                   AllocIterator callback);
+  static void MapArgsAllocIterator(const void* ptr, AllocValue* v,
+                                   AllocIterator callback) {
+    AllocInfo info;
+    info.object_size = v->bytes;
+    info.call_stack = v->bucket()->stack;
+    info.stack_depth = v->bucket()->depth;
+    callback(ptr, info);
+  }
 
-  // Helper for DumpFilteredProfile to do object-granularity
+  // Helper for DumpNonLiveProfile to do object-granularity
   // heap profile dumping. It gets passed to AllocationMap::Iterate.
-  static void FilteredDumpIterator(const void* ptr, AllocValue v,
-                                   const DumpArgs& args);
+  inline static void DumpNonLiveIterator(const void* ptr, AllocValue* v,
+                                         const DumpArgs& args);
 
   // data ----------------------------
 

@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.94.1, opensource@google.com)
+AC_INIT(google-perftools, 0.95, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -75,6 +75,7 @@ pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32 + 64 bit)
 pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
 pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
 pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
+pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
 pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
 pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
 pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386, <=10.4)
@@ -105,13 +106,13 @@ AC_SUBST(UNWIND_LIBS)
 
 # On x86_64, instead of libunwind, we can choose to compile with frame-pointers
 # (This isn't needed on i386, where -fno-omit-frame-pointer is the default).
-AC_ARG_ENABLE(frame_pointer,
-              AS_HELP_STRING([--enable-frame-pointer],
+AC_ARG_ENABLE(frame_pointers,
+              AS_HELP_STRING([--enable-frame-pointers],
                              [On x86_64 systems, compile with -fno-omit-frame-pointer (see INSTALL)]),
-	      , enable_frame_pointer=no)
+	      , enable_frame_pointers=no)
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __x86_64__ == 1 ? 0 : 1])],
                   [is_x86_64=yes], [is_x86_64=no])
-AM_CONDITIONAL(ENABLE_FRAME_POINTER, test "$enable_frame_pointer" = yes)
+AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 AM_CONDITIONAL(X86_64, test "$is_x86_64" = yes)
 
 # Defines PRIuS

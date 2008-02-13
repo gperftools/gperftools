@@ -76,7 +76,7 @@
 #include <string>
 #include <new>
 #include "base/logging.h"
-#include "base/mutex.h"
+#include "base/simple_mutex.h"
 #include "google/malloc_hook.h"
 #include "google/malloc_extension.h"
 #include "tests/testutil.h"

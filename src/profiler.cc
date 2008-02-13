@@ -53,9 +53,8 @@
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/googleinit.h"
-#include "base/mutex.h"
 #include "base/spinlock.h"
-#include "base/sysinfo.h"
+#include "base/sysinfo.h"             /* for GetUniquePathFromEnv, etc */
 #include "profiledata.h"
 #ifdef HAVE_CONFLICT_SIGNAL_H
 #include "conflict-signal.h"          /* used on msvc machines */
@@ -65,47 +64,6 @@ using std::string;
 
 DEFINE_string(cpu_profile, "",
               "Profile file name (used if CPUPROFILE env var not specified)");
-
-// This takes as an argument an environment-variable name (like
-// CPUPROFILE) whose value is supposed to be a file-path, and sets
-// path to that path, and returns true.  If the env var doesn't exist,
-// or is the empty string, leave path unchanged and returns false.
-// The reason this is non-trivial is that this function handles munged
-// pathnames.  Here's why:
-//
-// If we're a child process of the 'main' process, we can't just use
-// getenv("CPUPROFILE") -- the parent process will be using that path.
-// Instead we append our pid to the pathname.  How do we tell if we're a
-// child process?  Ideally we'd set an environment variable that all
-// our children would inherit.  But -- and this is seemingly a bug in
-// gcc -- if you do a setenv() in a shared libarary in a global
-// constructor, the environment setting is lost by the time main() is
-// called.  The only safe thing we can do in such a situation is to
-// modify the existing envvar.  So we do a hack: in the parent, we set
-// the high bit of the 1st char of CPUPROFILE.  In the child, we
-// notice the high bit is set and append the pid().  This works
-// assuming cpuprofile filenames don't normally have the high bit set
-// in their first character!  If that assumption is violated, we'll
-// still get a profile, but one with an unexpected name.
-// TODO(csilvers): set an envvar instead when we can do it reliably.
-static bool GetUniquePathFromEnv(const char* env_name, string* path) {
-  char* envval = getenv(env_name);
-  if (envval == NULL || *envval == '\0')
-    return false;
-  if (envval[0] & 128) {                    // high bit is set
-    char pid[64];              // pids are smaller than this!
-    snprintf(pid, sizeof(pid), "%u", (unsigned int)(getpid()));
-    *path = envval;
-    *path += "_";
-    *path += pid;
-    (*path)[0] &= 127;
-  } else {
-    *path = string(envval);
-    envval[0] |= 128;                       // set high bit for kids to see
-  }
-  return true;
-}
-
 
 // Collects up all profile data.  This is a singleton, which is
 // initialized by a constructor at startup.
@@ -156,7 +114,7 @@ class CpuProfiler {
   // Locking order is control_lock_ first, and then signal_lock_.
   // signal_lock_ is acquired by the prof_handler without first
   // acquiring control_lock_.
-  Mutex         control_lock_;
+  SpinLock      control_lock_;
   SpinLock      signal_lock_;
   ProfileData   collector_;
 
@@ -202,8 +160,8 @@ CpuProfiler::CpuProfiler() {
   RegisterThread();
 
   // Should profiling be enabled automatically at start?
-  string fname;
-  if (!GetUniquePathFromEnv("CPUPROFILE", &fname)) {
+  char fname[PATH_MAX];
+  if (!GetUniquePathFromEnv("CPUPROFILE", fname)) {
     return;
   }
   // We don't enable profiling if setuid -- it's a security risk
@@ -212,15 +170,15 @@ CpuProfiler::CpuProfiler() {
     return;
 #endif
 
-  if (!Start(fname.c_str(), NULL, NULL)) {
+  if (!Start(fname, NULL, NULL)) {
     RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
-            fname.c_str(), strerror(errno));
+            fname, strerror(errno));
   }
 }
 
 bool CpuProfiler::Start(const char* fname,
                         bool (*filter)(void*), void* filter_arg) {
-  MutexLock cl(&control_lock_);
+  SpinLockHolder cl(&control_lock_);
 
   if (collector_.enabled()) {
     return false;
@@ -258,7 +216,7 @@ CpuProfiler::~CpuProfiler() {
 
 // Stop profiling and write out any collected profile data
 void CpuProfiler::Stop() {
-  MutexLock cl(&control_lock_);
+  SpinLockHolder cl(&control_lock_);
 
   if (!collector_.enabled()) {
     return;
@@ -278,7 +236,7 @@ void CpuProfiler::Stop() {
 }
 
 void CpuProfiler::FlushTable() {
-  MutexLock cl(&control_lock_);
+  SpinLockHolder cl(&control_lock_);
 
   if (!collector_.enabled()) {
     return;
@@ -295,14 +253,14 @@ void CpuProfiler::FlushTable() {
 }
 
 bool CpuProfiler::Enabled() {
-  MutexLock cl(&control_lock_);
+  SpinLockHolder cl(&control_lock_);
   return collector_.enabled();
 }
 
 void CpuProfiler::GetCurrentState(ProfilerState* state) {
   ProfileData::State collector_state;
   {
-    MutexLock cl(&control_lock_);
+    SpinLockHolder cl(&control_lock_);
     collector_.GetCurrentState(&collector_state);
   }
 

@@ -94,6 +94,12 @@ using std::max;
 using std::less;
 using std::char_traits;
 
+// This is the default if you don't link in -lprofiler
+extern "C" {
+ATTRIBUTE_WEAK PERFTOOLS_DLL_DECL bool ProfilingIsEnabledForAllThreads();
+bool ProfilingIsEnabledForAllThreads() { return false; }
+}
+
 //----------------------------------------------------------------------
 // Flags that control heap-checking
 //----------------------------------------------------------------------
@@ -147,10 +153,36 @@ DEFINE_bool(heap_check_test_pointer_alignment,
             "Set to true to check if the found leak can be due to "
             "use of unaligned pointers");
 
+// A reasonable default to handle pointers inside of typical class objects:
+// Too low and we won't be able to traverse pointers to normally-used
+// nested objects and base parts of multiple-inherited objects.
+// Too high and it will both slow down leak checking (FindInsideAlloc
+// in HaveOnHeapLocked will get slower when there are large on-heap objects)
+// and make it probabilistically more likely to miss leaks
+// of large-sized objects.
+static const int64 kHeapCheckMaxPointerOffset = 1024;
+DEFINE_int64(heap_check_max_pointer_offset,
+	     EnvToInt("HEAP_CHECK_MAX_POINTER_OFFSET",
+                      kHeapCheckMaxPointerOffset),
+             "Largest pointer offset for which we traverse "
+             "pointers going inside of heap allocated objects. "
+             "Set to -1 to use the actual largest heap object size.");
+
 DEFINE_bool(heap_check_run_under_gdb,
             EnvToBool("HEAP_CHECK_RUN_UNDER_GDB", false),
             "If false, turns off heap-checking library when running under gdb "
             "(normally, set to 'true' only when debugging the heap-checker)");
+
+DEFINE_int32(heap_check_delay_seconds, 0,
+             "Number of seconds to delay on-exit heap checking."
+             " If you set this flag,"
+             " you may also want to set exit_timeout_seconds in order to"
+             " avoid exit timeouts.\n"
+             "NOTE: This flag is to be used only to help diagnose issues"
+             " where it is suspected that the heap checker is reporting"
+             " false leaks that will disappear if the heap checker delays"
+             " its checks. Report any such issues to the heap-checker"
+             " maintainer(s).");
 
 //----------------------------------------------------------------------
 
@@ -195,6 +227,24 @@ static pid_t heap_checker_pid = 0;
 
 // If we did heap profiling during global constructors execution
 static bool constructor_heap_profiling = false;
+
+//----------------------------------------------------------------------
+
+// Alignment at which all pointers in memory are supposed to be located;
+// use 1 if any alignment is ok.
+// heap_check_test_pointer_alignment flag guides if we try the value of 1.
+// The larger it can be, the lesser is the chance of missing real leaks.
+static const size_t kPointerSourceAlignment = sizeof(void*);
+
+// Alignment at which all pointers (in)to heap memory objects
+// are supposed to point; use 1 if any alignment is ok.
+// sizeof(void*) is good enough for all the cases we want to support
+// -- see PointsIntoHeapObject
+// The larger it can be, the lesser is the chance of missing real leaks.
+static const size_t kPointerDestAlignment = sizeof(uint32);
+  // need sizeof(uint32) even for 64 bit binaries to support
+  // e.g. the internal structure of UnicodeString in ICU.
+static const size_t kPointerDestAlignmentMask = kPointerDestAlignment - 1;
 
 //----------------------------------------------------------------------
 // HeapLeakChecker's own memory allocator that is
@@ -309,12 +359,6 @@ typedef map<HCL_string, LiveObjectsStack, less<HCL_string>,
            > LibraryLiveObjectsStacks;
 static LibraryLiveObjectsStacks* library_live_objects = NULL;
 
-// Objects to be removed from the heap profile when we dump it.
-typedef set<const void*, less<const void*>,
-            STL_Allocator<const void*, HeapLeakChecker::Allocator>
-           > ProfileAdjustObjectSet;
-static ProfileAdjustObjectSet* profile_adjust_objects = NULL;
-
 // The disabled program counter addresses for profile dumping
 // that are registered with HeapLeakChecker::DisableChecksUp
 typedef set<uintptr_t, less<uintptr_t>,
@@ -361,16 +405,25 @@ static GlobalRegionCallerRangeMap* global_region_caller_ranges = NULL;
 
 //----------------------------------------------------------------------
 
-// Simple hook into execution of global object constructors,
-// so that we do not call pthread_self() when it does not yet work.
-static bool libpthread_initialized = false;
-static bool initializer = (libpthread_initialized = true, true);
+// The size of the largest heap object allocated so far.
+static size_t max_heap_object_size = 0;
+// The possible range of addresses that can point
+// into one of the elements of heap_objects.
+static uintptr_t min_heap_address = uintptr_t(-1LL);
+static uintptr_t max_heap_address = 0;
+
+//----------------------------------------------------------------------
 
 // Our hooks for MallocHook
 static void NewHook(const void* ptr, size_t size) {
   if (ptr != NULL) {
     RAW_VLOG(7, "Recording Alloc: %p of %"PRIuS, ptr, size);
     heap_checker_lock.Lock();
+    if (size > max_heap_object_size) max_heap_object_size = size;
+    uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+    if (addr < min_heap_address) min_heap_address = addr;
+    addr += size;
+    if (addr > max_heap_address) max_heap_address = addr;
     heap_profile->RecordAlloc(ptr, size, 0);
     heap_checker_lock.Unlock();
     RAW_VLOG(8, "Alloc Recorded: %p of %"PRIuS"", ptr, size);
@@ -570,7 +623,6 @@ static void MakeDisabledLiveCallback(const void* ptr,
 // If the region is not writeable, then it cannot have any heap
 // pointers in it, otherwise we record it as a candidate live region
 // to get filtered later.
-
 static void RecordGlobalDataLocked(uintptr_t start_address,
                                    uintptr_t end_address,
                                    const char* permissions,
@@ -716,9 +768,10 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
   return PROC_MAPS_USED;
 }
 
-// Total number and size of live objects dropped from the profile.
-static int64 live_objects_total = 0;
-static int64 live_bytes_total = 0;
+// Total number and size of live objects dropped from the profile;
+// (re)initialized in IgnoreAllLiveObjectsLocked.
+static int64 live_objects_total;
+static int64 live_bytes_total;
 
 // pid of the thread that is doing the current leak check
 // (protected by our lock; IgnoreAllLiveObjectsLocked sets it)
@@ -755,7 +808,7 @@ static enum {
 int HeapLeakChecker::IgnoreLiveThreads(void* parameter,
                                        int num_threads,
                                        pid_t* thread_pids,
-                                       va_list ap) {
+                                       va_list /*ap*/) {
   thread_listing_status = CALLBACK_STARTED;
   RAW_VLOG(2, "Found %d threads (from pid %d)", num_threads, getpid());
 
@@ -841,7 +894,7 @@ void HeapLeakChecker::IgnoreNonThreadLiveObjectsLocked() {
       // we do this liveness check for ignored_objects before doing any
       // live heap walking to make sure it does not fail needlessly:
       size_t object_size;
-      if (!(HaveOnHeapLocked(&ptr, &object_size)  &&
+      if (!(heap_profile->FindAlloc(ptr, &object_size)  &&
             object->second == object_size)) {
         RAW_LOG(FATAL, "Object at %p of %"PRIuS" bytes from an"
                        " IgnoreObject() has disappeared", ptr, object->second);
@@ -957,11 +1010,44 @@ void HeapLeakChecker::IgnoreNonThreadLiveObjectsLocked() {
   }
 }
 
+// Callback for ListAllProcessThreads in IgnoreAllLiveObjectsLocked below
+// to test/verify that we have just the one main thread, in which case
+// we can do everything in that main thread,
+// so that CPU profiler can collect all its samples.
+// Returns the number of threads in the process.
+static int IsOneThread(void* parameter, int num_threads,
+                       pid_t* thread_pids, va_list ap) {
+  if (num_threads != 1) {
+    RAW_LOG(WARNING, "Have threads: Won't CPU-profile the bulk of "
+                     "leak checking work happening in IgnoreLiveThreads!");
+  }
+  ResumeAllProcessThreads(num_threads, thread_pids);
+  return num_threads;
+}
+
+// Dummy for IgnoreAllLiveObjectsLocked below.
+// Making it global helps with compiler warnings.
+static va_list dummy_ap;
+
 void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
   RAW_CHECK(live_objects == NULL, "");
   live_objects = new (Allocator::Allocate(sizeof(LiveObjectsStack)))
                    LiveObjectsStack;
   stack_tops = new (Allocator::Allocate(sizeof(StackTopSet))) StackTopSet;
+  // reset the counts
+  live_objects_total = 0;
+  live_bytes_total = 0;
+  // Reduce max_heap_object_size to FLAGS_heap_check_max_pointer_offset
+  // for the time of leak check.
+  // FLAGS_heap_check_max_pointer_offset caps max_heap_object_size
+  // to manage reasonably low chances of random bytes
+  // appearing to be pointing into large actually leaked heap objects.
+  const size_t old_max_heap_object_size = max_heap_object_size;
+  max_heap_object_size = (
+    FLAGS_heap_check_max_pointer_offset != -1
+    ? min(size_t(FLAGS_heap_check_max_pointer_offset), max_heap_object_size)
+    : max_heap_object_size
+  );
   // Record global data as live:
   if (FLAGS_heap_check_ignore_global_live) {
     library_live_objects =
@@ -974,13 +1060,27 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
   self_thread_pid = getpid();
   self_thread_stack_top = self_stack_top;
   if (FLAGS_heap_check_ignore_thread_live) {
-    // We fully suspend the threads right here before any liveness checking
+    // In case we are doing CPU profiling we'd like to do all the work 
+    // in the main thread, not in the special thread created by
+    // ListAllProcessThreads, so that CPU profiler can collect all its samples.
+    // The machinery of ListAllProcessThreads conflicts with the CPU profiler
+    // by also relying on signals and ::sigaction.
+    // We can do this (run everything in the main thread) safely
+    // only if there's just the main thread itself in our process.
+    // This variable reflects these two conditions:
+    bool want_and_can_run_in_main_thread =
+      ProfilingIsEnabledForAllThreads()  &&
+      ListAllProcessThreads(NULL, IsOneThread) == 1;
+    // When the normal path of ListAllProcessThreads below is taken,
+    // we fully suspend the threads right here before any liveness checking
     // and keep them suspended for the whole time of liveness checking
     // inside of the IgnoreLiveThreads callback.
     // (The threads can't (de)allocate due to lock on the delete hook but
     //  if not suspended they could still mess with the pointer
     //  graph while we walk it).
-    int r = ListAllProcessThreads(NULL, IgnoreLiveThreads);
+    int r = want_and_can_run_in_main_thread
+            ? IgnoreLiveThreads(NULL, 1, &self_thread_pid, dummy_ap)
+            : ListAllProcessThreads(NULL, IgnoreLiveThreads);
     need_to_ignore_non_thread_objects = r < 0;
     if (r < 0) {
       RAW_LOG(WARNING, "Thread finding failed with %d errno=%d", r, errno);
@@ -1021,69 +1121,116 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
   // Free these: we made them here and heap_profile never saw them
   Allocator::DeleteAndNull(&live_objects);
   Allocator::DeleteAndNull(&stack_tops);
+  max_heap_object_size = old_max_heap_object_size;  // reset this var
 }
 
 // Alignment at which we should consider pointer positions
 // in IgnoreLiveObjectsLocked. Use 1 if any alignment is ok.
-static size_t pointer_alignment = sizeof(void*);
-// Global lock for HeapLeakChecker::DoNoLeaks to protect pointer_alignment.
+static size_t pointer_source_alignment = kPointerSourceAlignment;
+// Global lock for HeapLeakChecker::DoNoLeaks
+// to protect pointer_source_alignment.
 static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
 
-// This function does not change heap_profile's state:
-// we only record live objects to be skipped into profile_adjust_objects
-// instead of modifying the heap_profile itself.
+static const size_t kUnicodeStringOffset = sizeof(uint32);
+static const size_t kUnicodeStringAlignmentMask = kUnicodeStringOffset - 1;
+
+// This function changes the live bits in the heap_profile-table's state:
+// we only record the live objects to be skipped.
+//
+// When checking if a byte sequence points to a heap object we use
+// HeapProfileTable::FindInsideAlloc to handle both pointers to
+// the start and inside of heap-allocated objects.
+// The "inside" case needs to be checked to support 
+// at least the following relatively common cases:
+// - C++ arrays allocated with new FooClass[size] for classes
+//   with destructors have their size recorded in a sizeof(int) field
+//   before the place normal pointers point to.
+// - basic_string<>-s for e.g. the C++ library of gcc 3.4
+//   have the meta-info in basic_string<...>::_Rep recorded
+//   before the place normal pointers point to.
+// - Multiple-inherited objects have their pointers when cast to
+//   different base classes pointing inside of the actually
+//   allocated object.
+// - Sometimes reachability pointers point to member objects of heap objects,
+//   and then those member objects point to the full heap object.
+// - Third party UnicodeString: it stores a 32-bit refcount
+//   (in both 32-bit and 64-bit binaries) as the first uint32
+//   in the allocated memory and a normal pointer points at
+//   the second uint32 behind the refcount.
+// By finding these additional objects here
+// we slightly increase the chance to mistake random memory bytes
+// for a pointer and miss a leak in a particular run of a binary.
 void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
                                               const char* name2) {
   int64 live_object_count = 0;
   int64 live_byte_count = 0;
   while (!live_objects->empty()) {
-    const void* object = live_objects->back().ptr;
+    const char* object =
+      reinterpret_cast<const char*>(live_objects->back().ptr);
     size_t size = live_objects->back().size;
     const ObjectPlacement place = live_objects->back().place;
     live_objects->pop_back();
-    size_t object_size;
-    if (place == MUST_BE_ON_HEAP  &&
-        HaveOnHeapLocked(&object, &object_size)  &&
-        profile_adjust_objects->insert(object).second) {
+    if (place == MUST_BE_ON_HEAP  &&  heap_profile->MarkAsLive(object)) {
       live_object_count += 1;
       live_byte_count += size;
     }
     RAW_VLOG(4, "Looking for heap pointers in %p of %"PRIuS" bytes",
                 object, size);
+    const char* const whole_object = object;
+    size_t const whole_size = size;
     // Try interpretting any byte sequence in object,size as a heap pointer:
     const size_t remainder =
-      reinterpret_cast<uintptr_t>(object) % pointer_alignment;
+      reinterpret_cast<uintptr_t>(object) % pointer_source_alignment;
     if (remainder) {
-      object = (reinterpret_cast<const char*>(object) +
-                pointer_alignment - remainder);
-      if (size >= pointer_alignment - remainder) {
-        size -= pointer_alignment - remainder;
+      object += pointer_source_alignment - remainder;
+      if (size >= pointer_source_alignment - remainder) {
+        size -= pointer_source_alignment - remainder;
       } else {
         size = 0;
       }
     }
-    while (size >= sizeof(void*)) {
-      const void* ptr;
-      memcpy(&ptr, object, sizeof(ptr));  // size-independent UNALIGNED_LOAD
-      const void* current_object = object;
-      object = reinterpret_cast<const char*>(object) + pointer_alignment;
-      size -= pointer_alignment;
-      if (ptr == NULL)  continue;
-      RAW_VLOG(8, "Trying pointer to %p at %p", ptr, current_object);
-      size_t object_size;
-      if (HaveOnHeapLocked(&ptr, &object_size)  &&
-          profile_adjust_objects->insert(ptr).second) {
-        // We take the (hopefully low) risk here of encountering by accident
-        // a byte sequence in memory that matches an address of
-        // a heap object which is in fact leaked.
-        // I.e. in very rare and probably not repeatable/lasting cases
-        // we might miss some real heap memory leaks.
-        RAW_VLOG(5, "Found pointer to %p of %"PRIuS" bytes at %p",
-                    ptr, object_size, current_object);
-        live_object_count += 1;
-        live_byte_count += object_size;
-        live_objects->push_back(AllocObject(ptr, object_size, IGNORED_ON_HEAP));
+    if (size < sizeof(void*)) continue;
+    const char* const max_object = object + size - sizeof(void*);
+    while (object <= max_object) {
+      // potentially unaligned load:
+      const uintptr_t addr = *reinterpret_cast<const uintptr_t*>(object);
+      // Do fast check before the more expensive HaveOnHeapLocked lookup:
+      // this code runs for all memory words that are potentially pointers:
+      const bool can_be_on_heap =
+        // Order tests by the likelyhood of the test failing in 64/32 bit modes.
+        // Yes, this matters: we either lose 5..6% speed in 32 bit mode
+        // (which is already slower) or by a factor of 1.5..1.91 in 64 bit mode.
+#if defined(__x86_64__)
+        addr < max_heap_address  &&
+        (addr & kUnicodeStringAlignmentMask) == 0  &&  // must be aligned
+        min_heap_address <= addr;
+#else
+        (addr & kUnicodeStringAlignmentMask) == 0  &&  // must be aligned
+        min_heap_address <= addr  &&
+        addr < max_heap_address;
+#endif
+      if (can_be_on_heap) {
+        const void* ptr = reinterpret_cast<const void*>(addr);
+        // Too expensive (inner loop): manually uncomment when debugging:
+        // RAW_VLOG(8, "Trying pointer to %p at %p", ptr, object);
+        size_t object_size;
+        if (HaveOnHeapLocked(&ptr, &object_size)  &&
+            heap_profile->MarkAsLive(ptr)) {
+          // We take the (hopefully low) risk here of encountering by accident
+          // a byte sequence in memory that matches an address of
+          // a heap object which is in fact leaked.
+          // I.e. in very rare and probably not repeatable/lasting cases
+          // we might miss some real heap memory leaks.
+          RAW_VLOG(5, "Found pointer to %p of %"PRIuS" bytes at %p "
+                      "inside %p of size %"PRIuS"",
+                      ptr, object_size, object, whole_object, whole_size);
+          live_object_count += 1;
+          live_byte_count += object_size;
+          live_objects->push_back(AllocObject(ptr, object_size,
+                                              IGNORED_ON_HEAP));
+        }
       }
+      object += pointer_source_alignment;
     }
   }
   live_objects_total += live_object_count;
@@ -1092,16 +1239,6 @@ void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
     RAW_VLOG(1, "Removed %"PRId64" live heap objects of %"PRId64" bytes: %s%s",
                 live_object_count, live_byte_count, name, name2);
   }
-}
-
-bool HeapLeakChecker::HeapProfileFilter(const void* ptr, size_t size) {
-  if (profile_adjust_objects->find(ptr) != profile_adjust_objects->end()) {
-    RAW_VLOG(4, "Ignoring object at %p of %"PRIuS" bytes", ptr, size);
-    // erase so we can later test that all adjust-objects got utilized
-    profile_adjust_objects->erase(ptr);
-    return true;
-  }
-  return false;
 }
 
 //----------------------------------------------------------------------
@@ -1180,13 +1317,10 @@ void HeapLeakChecker::DisableChecksToHereFrom(const void* start_address) {
 void HeapLeakChecker::IgnoreObject(const void* ptr) {
   if (!heap_checker_on) return;
   heap_checker_lock.Lock();
-  IgnoreObjectLocked(ptr);
-  heap_checker_lock.Unlock();
-}
-
-void HeapLeakChecker::IgnoreObjectLocked(const void* ptr) {
   size_t object_size;
-  if (HaveOnHeapLocked(&ptr, &object_size)) {
+  if (!HaveOnHeapLocked(&ptr, &object_size)) {
+    RAW_LOG(ERROR, "No live heap object at %p to ignore", ptr);
+  } else {
     RAW_VLOG(1, "Going to ignore live object at %p of %"PRIuS" bytes",
                 ptr, object_size);
     if (ignored_objects == NULL)  {
@@ -1194,32 +1328,34 @@ void HeapLeakChecker::IgnoreObjectLocked(const void* ptr) {
                           IgnoredObjectsMap;
     }
     if (!ignored_objects->insert(make_pair(reinterpret_cast<uintptr_t>(ptr),
-                                           object_size)).second) {
+                                 object_size)).second) {
       RAW_LOG(FATAL, "Object at %p is already being ignored", ptr);
     }
   }
+  heap_checker_lock.Unlock();
 }
 
 void HeapLeakChecker::UnIgnoreObject(const void* ptr) {
   if (!heap_checker_on) return;
   heap_checker_lock.Lock();
   size_t object_size;
-  bool ok = HaveOnHeapLocked(&ptr, &object_size);
-  if (ok) {
-    ok = false;
+  if (!HaveOnHeapLocked(&ptr, &object_size)) {
+    RAW_LOG(FATAL, "No live heap object at %p to un-ignore", ptr);
+  } else {
+    bool found = false;
     if (ignored_objects) {
       IgnoredObjectsMap::iterator object =
         ignored_objects->find(reinterpret_cast<uintptr_t>(ptr));
       if (object != ignored_objects->end()  &&  object_size == object->second) {
         ignored_objects->erase(object);
-        ok = true;
+        found = true;
         RAW_VLOG(1, "Now not going to ignore live object "
                     "at %p of %"PRIuS" bytes", ptr, object_size);
       }
     }
+    if (!found)  RAW_LOG(FATAL, "Object at %p has not been ignored", ptr);
   }
   heap_checker_lock.Unlock();
-  if (!ok)  RAW_LOG(FATAL, "Object at %p has not been ignored", ptr);
 }
 
 //----------------------------------------------------------------------
@@ -1234,7 +1370,7 @@ void HeapLeakChecker::DumpProfileLocked(ProfileType profile_type,
               (profile_type == START_PROFILE ? "Starting"
                                              : "At an end point for"),
               name_,
-              (pointer_alignment == 1 ? " w/o pointer alignment" : ""));
+              (pointer_source_alignment == 1 ? " w/o pointer alignment" : ""));
   // Sanity check that nobody is messing with the hooks we need:
   // Important to have it here: else we can misteriously SIGSEGV
   // in IgnoreLiveObjectsLocked inside ListAllProcessThreads's callback
@@ -1245,11 +1381,7 @@ void HeapLeakChecker::DumpProfileLocked(ProfileType profile_type,
     RAW_LOG(FATAL, "new/delete malloc hooks got changed");
   }
   // Make the heap profile, other threads are locked out.
-  RAW_CHECK(profile_adjust_objects == NULL, "");
   const int alloc_count = Allocator::alloc_count();
-  profile_adjust_objects =
-    new (Allocator::Allocate(sizeof(ProfileAdjustObjectSet)))
-      ProfileAdjustObjectSet;
   IgnoreAllLiveObjectsLocked(self_stack_top);
   const int len = profile_prefix->size() + strlen(name_) + 10 + 2;
   char* file_name = reinterpret_cast<char*>(Allocator::Allocate(len));
@@ -1258,15 +1390,12 @@ void HeapLeakChecker::DumpProfileLocked(ProfileType profile_type,
            profile_type == START_PROFILE ? "-beg" : "-end",
            HeapProfileTable::kFileExt);
   HeapProfileTable::Stats stats;
-  bool ok = heap_profile->DumpFilteredProfile(
-    file_name, HeapProfileFilter, FLAGS_heap_check_identify_leaks, &stats);
+  bool ok = heap_profile->DumpNonLiveProfile(
+    file_name, FLAGS_heap_check_identify_leaks, &stats);
   RAW_CHECK(ok, "No sense to continue");
   *alloc_bytes = stats.alloc_size - stats.free_size;
   *alloc_objects = stats.allocs - stats.frees;
   Allocator::Free(file_name);
-  RAW_CHECK(profile_adjust_objects->empty(),
-            "Some objects to ignore are not on the heap");
-  Allocator::DeleteAndNull(&profile_adjust_objects);
   // Check that we made no leaks ourselves:
   if (Allocator::alloc_count() != alloc_count) {
     RAW_LOG(FATAL, "Internal HeapChecker leak of %d objects",
@@ -1416,18 +1545,18 @@ static int GetStatusOutput(const char*  command, string* output) {
 }
 
 // RAW_LOG 'str' line by line to prevent its truncation in RAW_LOG:
-static void RawLogLines(const string& str) {
+static void RawLogLines(LogSeverity severity, const string& str) {
   int p = 0;
   while (1) {
     int l = str.find('\n', p);
     if (l == string::npos) {
       if (str[p]) {  // print last line if non empty
-        RAW_LOG(INFO, "%s", str.c_str() + p);
+        RAW_LOG(severity, "%s", str.c_str() + p);
       }
       break;
     }
     const_cast<string&>(str)[l] = '\0';  // safe for our use case
-    RAW_LOG(INFO, "%s", str.c_str() + p);
+    RAW_LOG(severity, "%s", str.c_str() + p);
     const_cast<string&>(str)[l] = '\n';
     p = l + 1;
   }
@@ -1441,9 +1570,9 @@ bool HeapLeakChecker::DoNoLeaks(CheckType check_type,
   alignment_checker_lock.Lock();
   bool result;
   if (FLAGS_heap_check_test_pointer_alignment) {
-    pointer_alignment = 1;
+    pointer_source_alignment = 1;
     bool result_wo_align = DoNoLeaksOnce(check_type, fullness, NO_REPORT);
-    pointer_alignment = sizeof(void*);
+    pointer_source_alignment = kPointerSourceAlignment;
     result = DoNoLeaksOnce(check_type, fullness, report_mode);
     if (!result) {
       if (result_wo_align) {
@@ -1467,8 +1596,16 @@ bool HeapLeakChecker::DoNoLeaks(CheckType check_type,
       }
       RAW_LOG(INFO, "If you are totally puzzled about why the leaks are there, "
                     "try rerunning it with "
-                    "setenv HEAP_CHECK_TEST_POINTER_ALIGNMENT=1");
+                    "setenv HEAP_CHECK_TEST_POINTER_ALIGNMENT=1 and/or with "
+                    "setenv HEAP_CHECK_MAX_POINTER_OFFSET=-1");
     }
+  }
+  if (result  &&  FLAGS_heap_check_max_pointer_offset == -1) {
+    RAW_LOG(WARNING, "Found no leaks without max_pointer_offset restriction: "
+                     "it's possible that the default value of "
+                     "heap_check_max_pointer_offset flag is too low. "
+                     "Do you use pointers with larger than that offsets "
+                     "pointing in the middle of heap-allocated objects?");
   }
   alignment_checker_lock.Unlock();
   return result;
@@ -1590,9 +1727,9 @@ bool HeapLeakChecker::DoNoLeaksOnce(CheckType check_type,
       }
       if (see_leaks  &&  report_mode == PPROF_REPORT) {
         if (checked_leaks) {
-          RAW_LOG(INFO, "Below is (less informative) textual version "
-                        "of this pprof command's output:");
-          RawLogLines(output);
+          RAW_LOG(ERROR, "Below is (less informative) textual version "
+                         "of this pprof command's output:");
+          RawLogLines(ERROR, output);
         } else {
           RAW_LOG(ERROR, "The pprof command has failed");
         }
@@ -1818,6 +1955,9 @@ REGISTER_MODULE_INITIALIZER(init_start, HeapLeakChecker::InternalInitStart());
 
 void HeapLeakChecker::DoMainHeapCheck() {
   RAW_DCHECK(heap_checker_pid == getpid()  &&  do_main_heap_check, "");
+  if (FLAGS_heap_check_delay_seconds > 0) {
+    sleep(FLAGS_heap_check_delay_seconds);
+  }
   if (!NoGlobalLeaks()) {
     if (FLAGS_heap_check_identify_leaks) {
       RAW_LOG(FATAL, "Whole-program memory leaks found.");
@@ -2142,66 +2282,32 @@ void HeapLeakChecker::DisableChecksAtLocked(const void* address) {
   }
 }
 
-bool HeapLeakChecker::HaveOnHeapLocked(const void** ptr, size_t* object_size) {
-  RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-  // Size of the C++ object array size integer
-  // (potentially compiler dependent; 4 on i386 and gcc; 8 on x86_64 and gcc)
-  const int kArraySizeOffset = sizeof(size_t);
-  // sizeof(basic_string<...>::_Rep) for C++ library of gcc 3.4
-  // (basically three integer counters;
-  // library/compiler dependent; 12 on i386 and gcc)
-  const int kStringOffset = sizeof(size_t) * 3;
-  // Size of refcount used by UnicodeString in third_party/icu.
-  const int kUnicodeStringOffset = sizeof(uint32);
-  // NOTE: One can add more similar offset cases below
-  //       even when they do not happen for the used compiler/library;
-  //       all that's impacted is
-  //       - HeapLeakChecker's performace during live heap walking
-  //       - and a slightly greater chance to mistake random memory bytes
-  //         for a pointer and miss a leak in a particular run of a binary.
-  bool result = true;
-  if (heap_profile->FindAlloc(*ptr, object_size)) {
-    // done
-  } else if (heap_profile->FindAlloc(reinterpret_cast<const char*>(*ptr)
-                                     - kArraySizeOffset,
-                                     object_size)  &&
-             *object_size > kArraySizeOffset) {
-    // this case is to account for the array size stored inside of
-    // the memory allocated by new FooClass[size] for classes with destructors
-    *ptr = reinterpret_cast<const char*>(*ptr) - kArraySizeOffset;
-    RAW_VLOG(7, "Got poiter into %p at +%d", ptr, kArraySizeOffset);
-  } else if (heap_profile->FindAlloc(reinterpret_cast<const char*>(*ptr)
-                                     - kStringOffset,
-                                     object_size)  &&
-             *object_size > kStringOffset) {
-    // this case is to account for basic_string<> representation in
-    // newer C++ library versions when the kept pointer points to inside of
-    // the allocated region
-    *ptr = reinterpret_cast<const char*>(*ptr) - kStringOffset;
-    RAW_VLOG(7, "Got poiter into %p at +%d", ptr, kStringOffset);
-  } else if (kUnicodeStringOffset != kArraySizeOffset &&
-             heap_profile->FindAlloc(
-                 reinterpret_cast<const char*>(*ptr) - kUnicodeStringOffset,
-                 object_size)  &&
-             *object_size > kUnicodeStringOffset) {
-    // this case is to account for third party UnicodeString.
-    // UnicodeString stores a 32-bit refcount (in both 32-bit and
-    // 64-bit binaries) as the first uint32 in the allocated memory
-    // and a pointer points into the second uint32 behind the refcount.
-    *ptr = reinterpret_cast<const char*>(*ptr) - kUnicodeStringOffset;
-    RAW_VLOG(7, "Got poiter into %p at +%d", ptr, kUnicodeStringOffset);
-  } else {
-    result = false;
+inline bool HeapLeakChecker::HaveOnHeapLocked(const void** ptr,
+                                              size_t* object_size) {
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(*ptr);
+  if (heap_profile->FindInsideAlloc(
+        *ptr, max_heap_object_size, ptr, object_size)) {
+    const size_t offset = addr - reinterpret_cast<uintptr_t>(*ptr);
+    // must be aligned to kPointerDestAlignmentMask,
+    // kUnicodeStringOffset is a special case.
+    if ((offset & kPointerDestAlignmentMask) == 0  ||
+        offset == kUnicodeStringOffset) {
+      RAW_VLOG(7, "Got pointer into %p at +%"PRIuS" offset", *ptr, offset);
+      RAW_DCHECK((addr & kUnicodeStringAlignmentMask) == 0, "");
+        // alignment of at least kUnicodeStringAlignment
+        // must have been already ensured
+      return true;
+    }
   }
-  return result;
+  return false;
 }
 
 const void* HeapLeakChecker::GetAllocCaller(void* ptr) {
-  // this is used only in unittest, so the heavy checks are fine
+  // this is used only in the unittest, so the heavy checks are fine
   HeapProfileTable::AllocInfo info;
   heap_checker_lock.Lock();
-  CHECK(heap_profile->FindAllocDetails(ptr, &info));
+  RAW_CHECK(heap_profile->FindAllocDetails(ptr, &info), "");
   heap_checker_lock.Unlock();
-  CHECK(info.stack_depth >= 1);
+  RAW_CHECK(info.stack_depth >= 1, "");
   return info.call_stack[0];
 }

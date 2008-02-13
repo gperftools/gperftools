@@ -225,7 +225,10 @@ int MallocHook::GetCallerStackTrace(void** result, int max_depth,
     }
   }
   RAW_LOG(WARNING, "Hooked allocator frame not found, returning empty trace");
-    // Try increasing kMaxSkip or else something must be wrong with InHookCaller
+    // If this happens try increasing kMaxSkip
+    // or else something must be wrong with InHookCaller,
+    // e.g. for every section used in InHookCaller
+    // all functions in that section must be inside the same library.
   return 0;
 }
 
@@ -238,7 +241,8 @@ int MallocHook::GetCallerStackTrace(void** result, int max_depth,
 // just call through to them.
 
 
-#if defined(__linux) && (defined(__i386__) || defined(__x86_64__))
+#if defined(__linux) && \
+    (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))
 #include <unistd.h>
 #include <syscall.h>
 #include <sys/mman.h>
@@ -248,10 +252,10 @@ int MallocHook::GetCallerStackTrace(void** result, int max_depth,
 // The x86-32 case and the x86-64 case differ:
 // 32b has a mmap2() syscall, 64b does not.
 // 64b and 32b have different calling conventions for mmap().
-#if defined(__i386__)
+#if defined(__i386__) || defined(__PPC__)
 
 static inline void* do_mmap64(void *start, size_t length,
-                              int prot, int flags, 
+                              int prot, int flags,
                               int fd, __off64_t offset) __THROW {
   void *result;
 

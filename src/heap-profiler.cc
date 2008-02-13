@@ -57,6 +57,7 @@
 #include <google/malloc_extension.h>
 #include "base/spinlock.h"
 #include "base/low_level_alloc.h"
+#include "base/sysinfo.h"      // for GetUniquePathFromEnv()
 #include "heap-profile-table.h"
 
 
@@ -382,9 +383,8 @@ static void HeapProfilerInit() {
   }
 
   // Everything after this point is for setting up the profiler based on envvar
-
-  char* heapprofile = getenv("HEAPPROFILE");
-  if (!heapprofile || heapprofile[0] == '\0') {
+  char fname[PATH_MAX];
+  if (!GetUniquePathFromEnv("HEAPPROFILE", fname)) {
     return;
   }
   // We do a uid check so we don't write out files in a setuid executable.
@@ -395,30 +395,6 @@ static void HeapProfilerInit() {
     return;
   }
 #endif
-
-  // If we're a child process of the 'main' process, we can't just use
-  // the name HEAPPROFILE -- the parent process will be using that.
-  // Instead we append our pid to the name.  How do we tell if we're a
-  // child process?  Ideally we'd set an environment variable that all
-  // our children would inherit.  But -- and perhaps this is a bug in
-  // gcc -- if you do a setenv() in a shared libarary in a global
-  // constructor, the environment setting is lost by the time main()
-  // is called.  The only safe thing we can do in such a situation is
-  // to modify the existing envvar.  So we do a hack: in the parent,
-  // we set the high bit of the 1st char of HEAPPROFILE.  In the child,
-  // we notice the high bit is set and append the pid().  This works
-  // assuming cpuprofile filenames don't normally have the high bit
-  // set in their first character!  If that assumption is violated,
-  // we'll still get a profile, but one with an unexpected name.
-  // TODO(csilvers): set an envvar instead when we can do it reliably.
-  char fname[PATH_MAX];
-  if (heapprofile[0] & 128) {                   // high bit is set
-    snprintf(fname, sizeof(fname), "%c%s_%u",   // add pid and clear high bit
-             heapprofile[0] & 127, heapprofile+1, (unsigned int)(getpid()));
-  } else {
-    snprintf(fname, sizeof(fname), "%s", heapprofile);
-    heapprofile[0] |= 128;                      // set high bit for kids to see
-  }
 
   HeapProfileTable::CleanupOldProfiles(fname);
 

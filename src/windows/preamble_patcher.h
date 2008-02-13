@@ -65,6 +65,9 @@ enum SideStepError {
   SIDESTEP_UNEXPECTED,
 };
 
+#define SIDESTEP_TO_HRESULT(error) \
+  MAKE_HRESULT(SEVERITY_ERROR, FACILITY_NULL, error)
+
 // Implements a patching mechanism that overwrites the first few bytes of
 // a function preamble with a jump to our hook function, which is then
 // able to call the original function via a specially-made preamble-stub

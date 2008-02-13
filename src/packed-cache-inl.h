@@ -99,12 +99,12 @@
 //
 // Implementation details:
 //
-// This is a direct-mapped cache with 2^kHashbits entries;
-// the hash function simply takes the low bits of the key.
-// So, we don't have to store the low bits of the key in the entries.
-// Instead, an entry is the high bits of a key and a value, packed
-// together.  E.g., a 20 bit key and a 7 bit value only require
-// a uint16 for each entry if kHashbits >= 11.
+// This is a direct-mapped cache with 2^kHashbits entries; the hash
+// function simply takes the low bits of the key.  We store whole keys
+// if a whole key plus a whole value fits in an entry.  Otherwise, an
+// entry is the high bits of a key and a value, packed together.
+// E.g., a 20 bit key and a 7 bit value only require a uint16 for each
+// entry if kHashbits >= 11.
 //
 // Alternatives to this scheme will be added as needed.
 
@@ -131,7 +131,8 @@ class PackedCache {
   typedef uintptr_t K;
   typedef size_t V;
   static const int kHashbits = 12;
-  static const int kValuebits = 8;
+  static const int kValuebits = 7;
+  static const bool kUseWholeKeys = kKeybits + kValuebits <= 8 * sizeof(T);
 
   explicit PackedCache(V initial_value) {
     COMPILE_ASSERT(kKeybits <= sizeof(K) * 8, key_size);
@@ -166,50 +167,47 @@ class PackedCache {
   void Clear(V value) {
     DCHECK_EQ(value, value & kValueMask);
     for (int i = 0; i < 1 << kHashbits; i++) {
-      array_[i] = value;
+      RAW_DCHECK(kUseWholeKeys || KeyToUpper(i) == 0, "KeyToUpper failure");
+      array_[i] = kUseWholeKeys ? (value | KeyToUpper(i)) : value;
     }
   }
 
  private:
-  // We are going to pack a value and the upper part of a key into
-  // an entry of type T.  The UPPER type is for the upper part of a key,
-  // after the key has been masked and shifted for inclusion in an entry.
+  // We are going to pack a value and the upper part of a key (or a
+  // whole key) into an entry of type T.  The UPPER type is for the
+  // upper part of a key, after the key has been masked and shifted
+  // for inclusion in an entry.
   typedef T UPPER;
 
   static V EntryToValue(T t) { return t & kValueMask; }
 
-  static UPPER EntryToUpper(T t) { return t & kUpperMask; }
-
-  // If v is a V and u is an UPPER then you can create an entry by
-  // doing u | v.  kHashbits determines where in a K to find the upper
-  // part of the key, and kValuebits determines where in the entry to put
-  // it.
+  // If we have space for a whole key, we just shift it left.
+  // Otherwise kHashbits determines where in a K to find the upper
+  // part of the key, and kValuebits determines where in the entry to
+  // put it.
   static UPPER KeyToUpper(K k) {
-    const int shift = kHashbits - kValuebits;
-    // Assume kHashbits >= kValuebits. It would be easy to lift this assumption.
-    return static_cast<T>(k >> shift) & kUpperMask;
-  }
-
-  // This is roughly the inverse of KeyToUpper().  Some of the key has been
-  // thrown away, since KeyToUpper() masks off the low bits of the key.
-  static K UpperToPartialKey(UPPER u) {
-    DCHECK_EQ(u, u & kUpperMask);
-    const int shift = kHashbits - kValuebits;
-    // Assume kHashbits >= kValuebits. It would be easy to lift this assumption.
-    return static_cast<K>(u) << shift;
+    if (kUseWholeKeys) {
+      return static_cast<T>(k) << kValuebits;
+    } else {
+      const int shift = kHashbits - kValuebits;
+      // Assume kHashbits >= kValuebits.  It'd be easy to lift this assumption.
+      return static_cast<T>(k >> shift) & kUpperMask;
+    }
   }
 
   static size_t Hash(K key) {
     return static_cast<size_t>(key) & N_ONES_(size_t, kHashbits);
   }
 
-  // Does the entry's partial key match the relevant part of the given key?
+  // Does the entry match the relevant part of the given key?
   static bool KeyMatch(T entry, K key) {
-    return ((KeyToUpper(key) ^ entry) & kUpperMask) == 0;
+    return kUseWholeKeys ?
+        (entry >> kValuebits == key) :
+        ((KeyToUpper(key) ^ entry) & kUpperMask) == 0;
   }
 
   static const int kTbits = 8 * sizeof(T);
-  static const int kUpperbits = kKeybits - kHashbits;
+  static const int kUpperbits = kUseWholeKeys ? kKeybits : kKeybits - kHashbits;
 
   // For masking a K.
   static const K kKeyMask = N_ONES_(K, kKeybits);

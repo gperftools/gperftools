@@ -51,6 +51,7 @@
 #include "config.h"
 #include <string>
 #include <string.h>               // for memchr
+#include <stdlib.h>               // for getenv
 #include "base/basictypes.h"
 
 #define DECLARE_VARIABLE(type, name)                                          \

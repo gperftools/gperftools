@@ -38,6 +38,7 @@
 
 #include "config.h"
 #include <assert.h>
+#include <string.h>    // for memcmp
 // We don't actually need strings. But including this header seems to
 // stop the compiler trying to short-circuit our pthreads existence
 // tests and claiming that the address of a function is always

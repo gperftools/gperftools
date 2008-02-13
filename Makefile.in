@@ -50,8 +50,8 @@ target_triplet = @target@
 @GCC_TRUE@am__append_1 = -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare
 
 # These are x86-specific, having to do with frame-pointers
-@ENABLE_FRAME_POINTER_TRUE@@X86_64_TRUE@am__append_2 = -fno-omit-frame-pointer
-@ENABLE_FRAME_POINTER_FALSE@@X86_64_TRUE@am__append_3 = -DNO_FRAME_POINTER
+@ENABLE_FRAME_POINTERS_TRUE@@X86_64_TRUE@am__append_2 = -fno-omit-frame-pointer
+@ENABLE_FRAME_POINTERS_FALSE@@X86_64_TRUE@am__append_3 = -DNO_FRAME_POINTER
 noinst_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_5)
 @MINGW_TRUE@am__append_4 = libwindows.la
 @MINGW_FALSE@am__append_5 = libspinlock.la
@@ -105,8 +105,10 @@ EXTRA_PROGRAMS = ptmalloc_unittest1$(EXEEXT) \
 ### Documentation
 @MINGW_FALSE@am__append_15 = doc/heapprofile.html \
 @MINGW_FALSE@	doc/heap-example1.png doc/heap_checker.html \
-@MINGW_FALSE@	doc/cpuprofile.html doc/pprof-test-big.gif \
-@MINGW_FALSE@	doc/pprof-test.gif doc/pprof-vsnprintf-big.gif \
+@MINGW_FALSE@	doc/cpuprofile.html \
+@MINGW_FALSE@	doc/cpuprofile-fileformat.html \
+@MINGW_FALSE@	doc/pprof-test-big.gif doc/pprof-test.gif \
+@MINGW_FALSE@	doc/pprof-vsnprintf-big.gif \
 @MINGW_FALSE@	doc/pprof-vsnprintf.gif
 @MINGW_TRUE@profiler2_unittest_DEPENDENCIES =
 DIST_COMMON = README $(am__configure_deps) $(am__dist_doc_DATA_DIST) \
@@ -147,29 +149,33 @@ liblogging_la_LIBADD =
 am__objects_1 =
 am_liblogging_la_OBJECTS = logging.lo $(am__objects_1)
 liblogging_la_OBJECTS = $(am_liblogging_la_OBJECTS)
-@MINGW_FALSE@am__DEPENDENCIES_1 = libspinlock.la
-@MINGW_TRUE@am__DEPENDENCIES_1 = libwindows.la
+@MINGW_FALSE@am__DEPENDENCIES_1 = libspinlock.la libsysinfo.la \
+@MINGW_FALSE@	liblogging.la
+@MINGW_TRUE@am__DEPENDENCIES_1 = libwindows.la libsysinfo.la \
+@MINGW_TRUE@	liblogging.la
 @MINGW_FALSE@libprofiler_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
-@MINGW_FALSE@	liblogging.la libstacktrace.la
+@MINGW_FALSE@	libstacktrace.la
 am__libprofiler_la_SOURCES_DIST = src/profiler.cc src/profiledata.cc \
-	src/base/sysinfo.cc src/profiledata.h src/getpc.h \
-	src/base/basictypes.h src/base/commandlineflags.h \
-	src/base/googleinit.h src/base/logging.h src/base/mutex.h \
-	src/base/sysinfo.h src/base/spinlock.h src/base/atomicops.h \
+	src/profiledata.h src/getpc.h src/base/basictypes.h \
+	src/base/commandlineflags.h src/base/googleinit.h \
+	src/base/logging.h src/base/simple_mutex.h src/base/sysinfo.h \
+	src/base/spinlock.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
+	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h src/google/profiler.h \
 	src/google/stacktrace.h
 @MINGW_FALSE@am__objects_2 = $(am__objects_1) $(am__objects_1)
 @MINGW_FALSE@am__objects_3 = $(am__objects_2) $(am__objects_1)
 @MINGW_FALSE@am_libprofiler_la_OBJECTS = profiler.lo profiledata.lo \
-@MINGW_FALSE@	sysinfo.lo $(am__objects_3)
+@MINGW_FALSE@	$(am__objects_3)
 libprofiler_la_OBJECTS = $(am_libprofiler_la_OBJECTS)
 @MINGW_FALSE@am_libprofiler_la_rpath = -rpath $(libdir)
 libspinlock_la_LIBADD =
 am__libspinlock_la_SOURCES_DIST = src/base/spinlock.cc \
 	src/base/atomicops-internals-x86.cc src/base/spinlock.h \
 	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h
 @MINGW_FALSE@am_libspinlock_la_OBJECTS = spinlock.lo \
@@ -182,26 +188,28 @@ libstacktrace_la_DEPENDENCIES = $(am__DEPENDENCIES_2) \
 am__objects_4 = $(am__objects_1) $(am__objects_1)
 am_libstacktrace_la_OBJECTS = stacktrace.lo $(am__objects_4)
 libstacktrace_la_OBJECTS = $(am_libstacktrace_la_OBJECTS)
+libsysinfo_la_LIBADD =
+am_libsysinfo_la_OBJECTS = sysinfo.lo $(am__objects_1)
+libsysinfo_la_OBJECTS = $(am_libsysinfo_la_OBJECTS)
 @MINGW_FALSE@libtcmalloc_la_DEPENDENCIES = $(am__DEPENDENCIES_2) \
-@MINGW_FALSE@	libstacktrace.la $(am__DEPENDENCIES_1) \
-@MINGW_FALSE@	liblogging.la
+@MINGW_FALSE@	libstacktrace.la $(am__DEPENDENCIES_1)
 am__libtcmalloc_la_SOURCES_DIST = src/internal_logging.cc \
 	src/system-alloc.cc src/memfs_malloc.cc src/tcmalloc.cc \
 	src/malloc_hook.cc src/malloc_extension.cc \
 	src/maybe_threads.cc src/memory_region_map.cc \
 	src/heap-profiler.cc src/heap-profile-table.cc \
 	src/heap-checker.cc src/base/linuxthreads.c \
-	src/base/thread_lister.c src/base/sysinfo.cc \
-	src/base/low_level_alloc.cc src/internal_logging.h \
-	src/system-alloc.h src/pagemap.h src/addressmap-inl.h \
-	src/packed-cache-inl.h src/heap-profile-table.h \
-	src/base/basictypes.h src/base/commandlineflags.h \
-	src/base/googleinit.h src/base/elfcore.h \
-	src/base/linux_syscall_support.h src/base/linuxthreads.h \
-	src/base/thread_lister.h src/base/sysinfo.h \
-	src/base/stl_allocator.h src/maybe_threads.h \
-	src/base/spinlock.h src/base/atomicops.h \
+	src/base/thread_lister.c src/base/low_level_alloc.cc \
+	src/internal_logging.h src/system-alloc.h src/pagemap.h \
+	src/addressmap-inl.h src/packed-cache-inl.h \
+	src/heap-profile-table.h src/base/basictypes.h \
+	src/base/commandlineflags.h src/base/googleinit.h \
+	src/base/elfcore.h src/base/linux_syscall_support.h \
+	src/base/linuxthreads.h src/base/thread_lister.h \
+	src/base/sysinfo.h src/base/stl_allocator.h \
+	src/maybe_threads.h src/base/spinlock.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
+	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h src/base/logging.h \
 	src/google/malloc_hook.h src/google/malloc_extension.h \
@@ -220,20 +228,21 @@ am__libtcmalloc_la_SOURCES_DIST = src/internal_logging.cc \
 @MINGW_FALSE@	libtcmalloc_la-heap-profiler.lo \
 @MINGW_FALSE@	libtcmalloc_la-heap-profile-table.lo \
 @MINGW_FALSE@	libtcmalloc_la-heap-checker.lo linuxthreads.lo \
-@MINGW_FALSE@	thread_lister.lo libtcmalloc_la-sysinfo.lo \
+@MINGW_FALSE@	thread_lister.lo \
 @MINGW_FALSE@	libtcmalloc_la-low_level_alloc.lo \
 @MINGW_FALSE@	$(am__objects_3) \
 @MINGW_FALSE@	libtcmalloc_la-heap-checker-bcad.lo
 libtcmalloc_la_OBJECTS = $(am_libtcmalloc_la_OBJECTS)
 @MINGW_FALSE@am_libtcmalloc_la_rpath = -rpath $(libdir)
 libtcmalloc_minimal_la_DEPENDENCIES = $(am__DEPENDENCIES_2) \
-	libstacktrace.la $(am__DEPENDENCIES_1) liblogging.la
+	libstacktrace.la $(am__DEPENDENCIES_1)
 am__libtcmalloc_minimal_la_SOURCES_DIST = src/internal_logging.cc \
 	src/system-alloc.cc src/memfs_malloc.cc src/tcmalloc.cc \
 	src/malloc_hook.cc src/malloc_extension.cc \
 	src/maybe_threads.cc src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
 	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h src/base/commandlineflags.h \
 	src/base/basictypes.h src/pagemap.h src/maybe_threads.h \
@@ -306,8 +315,7 @@ am__atomicops_unittest_SOURCES_DIST = src/tests/atomicops_unittest.cc \
 @MINGW_FALSE@am_atomicops_unittest_OBJECTS =  \
 @MINGW_FALSE@	atomicops_unittest.$(OBJEXT) $(am__objects_11)
 atomicops_unittest_OBJECTS = $(am_atomicops_unittest_OBJECTS)
-@MINGW_FALSE@atomicops_unittest_DEPENDENCIES = $(am__DEPENDENCIES_1) \
-@MINGW_FALSE@	liblogging.la
+@MINGW_FALSE@atomicops_unittest_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_frag_unittest_OBJECTS = frag_unittest-frag_unittest.$(OBJEXT)
 frag_unittest_OBJECTS = $(am_frag_unittest_OBJECTS)
 am__DEPENDENCIES_3 = libstacktrace.la libtcmalloc_minimal.la
@@ -361,6 +369,7 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/low_level_alloc.h src/base/basictypes.h \
 	src/google/malloc_hook.h src/base/spinlock.h \
 	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h src/base/logging.h \
 	src/base/commandlineflags.h
@@ -370,7 +379,7 @@ am_low_level_alloc_unittest_OBJECTS = low_level_alloc.$(OBJEXT) \
 low_level_alloc_unittest_OBJECTS =  \
 	$(am_low_level_alloc_unittest_OBJECTS)
 low_level_alloc_unittest_DEPENDENCIES = $(am__DEPENDENCIES_1) \
-	liblogging.la libstacktrace.la
+	libstacktrace.la
 am_markidle_unittest_OBJECTS =  \
 	markidle_unittest-markidle_unittest.$(OBJEXT) \
 	markidle_unittest-testutil.$(OBJEXT)
@@ -396,7 +405,9 @@ am__profiledata_unittest_SOURCES_DIST =  \
 @MINGW_FALSE@am_profiledata_unittest_OBJECTS =  \
 @MINGW_FALSE@	profiledata_unittest.$(OBJEXT)
 profiledata_unittest_OBJECTS = $(am_profiledata_unittest_OBJECTS)
-profiledata_unittest_DEPENDENCIES =
+@MINGW_FALSE@am__DEPENDENCIES_5 = libstacktrace.la libprofiler.la
+@MINGW_FALSE@profiledata_unittest_DEPENDENCIES =  \
+@MINGW_FALSE@	$(am__DEPENDENCIES_5)
 am__profiler1_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/google/profiler.h
@@ -406,7 +417,6 @@ am__profiler1_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 @MINGW_FALSE@	$(am__objects_1)
 @MINGW_FALSE@am_profiler1_unittest_OBJECTS = $(am__objects_12)
 profiler1_unittest_OBJECTS = $(am_profiler1_unittest_OBJECTS)
-@MINGW_FALSE@am__DEPENDENCIES_5 = libstacktrace.la libprofiler.la
 @MINGW_FALSE@profiler1_unittest_DEPENDENCIES = $(am__DEPENDENCIES_5)
 am__profiler2_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
@@ -535,10 +545,10 @@ CXXLINK = $(LIBTOOL) --tag=CXX --mode=link $(CXXLD) $(AM_CXXFLAGS) \
 	$(CXXFLAGS) $(AM_LDFLAGS) $(LDFLAGS) -o $@
 SOURCES = $(liblogging_la_SOURCES) $(libprofiler_la_SOURCES) \
 	$(libspinlock_la_SOURCES) $(libstacktrace_la_SOURCES) \
-	$(libtcmalloc_la_SOURCES) $(libtcmalloc_minimal_la_SOURCES) \
-	$(libwindows_la_SOURCES) $(addressmap_unittest_SOURCES) \
-	$(atomicops_unittest_SOURCES) $(frag_unittest_SOURCES) \
-	$(getpc_test_SOURCES) \
+	$(libsysinfo_la_SOURCES) $(libtcmalloc_la_SOURCES) \
+	$(libtcmalloc_minimal_la_SOURCES) $(libwindows_la_SOURCES) \
+	$(addressmap_unittest_SOURCES) $(atomicops_unittest_SOURCES) \
+	$(frag_unittest_SOURCES) $(getpc_test_SOURCES) \
 	$(heap_checker_death_unittest_sh_SOURCES) \
 	$(heap_checker_unittest_SOURCES) \
 	$(heap_checker_unittest_sh_SOURCES) \
@@ -563,7 +573,7 @@ SOURCES = $(liblogging_la_SOURCES) $(libprofiler_la_SOURCES) \
 DIST_SOURCES = $(liblogging_la_SOURCES) \
 	$(am__libprofiler_la_SOURCES_DIST) \
 	$(am__libspinlock_la_SOURCES_DIST) $(libstacktrace_la_SOURCES) \
-	$(am__libtcmalloc_la_SOURCES_DIST) \
+	$(libsysinfo_la_SOURCES) $(am__libtcmalloc_la_SOURCES_DIST) \
 	$(am__libtcmalloc_minimal_la_SOURCES_DIST) \
 	$(am__libwindows_la_SOURCES_DIST) \
 	$(addressmap_unittest_SOURCES) \
@@ -625,8 +635,9 @@ am__dist_doc_DATA_DIST = AUTHORS COPYING ChangeLog INSTALL NEWS README \
 	doc/pageheap.dot doc/spanmap.dot doc/threadheap.dot \
 	doc/heapprofile.html doc/heap-example1.png \
 	doc/heap_checker.html doc/cpuprofile.html \
-	doc/pprof-test-big.gif doc/pprof-test.gif \
-	doc/pprof-vsnprintf-big.gif doc/pprof-vsnprintf.gif
+	doc/cpuprofile-fileformat.html doc/pprof-test-big.gif \
+	doc/pprof-test.gif doc/pprof-vsnprintf-big.gif \
+	doc/pprof-vsnprintf.gif
 dist_docDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(dist_doc_DATA)
 am__googleinclude_HEADERS_DIST = src/google/stacktrace.h \
@@ -674,8 +685,8 @@ ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
 EGREP = @EGREP@
-ENABLE_FRAME_POINTER_FALSE = @ENABLE_FRAME_POINTER_FALSE@
-ENABLE_FRAME_POINTER_TRUE = @ENABLE_FRAME_POINTER_TRUE@
+ENABLE_FRAME_POINTERS_FALSE = @ENABLE_FRAME_POINTERS_FALSE@
+ENABLE_FRAME_POINTERS_TRUE = @ENABLE_FRAME_POINTERS_TRUE@
 EXEEXT = @EXEEXT@
 F77 = @F77@
 FFLAGS = @FFLAGS@
@@ -830,7 +841,8 @@ dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README \
 lib_LTLIBRARIES = libstacktrace.la libtcmalloc_minimal.la \
 	$(am__append_11)
 # This is for 'convenience libraries' -- basically just a container for sources
-noinst_LTLIBRARIES = liblogging.la $(am__append_4) $(am__append_5)
+noinst_LTLIBRARIES = liblogging.la libsysinfo.la $(am__append_4) \
+	$(am__append_5)
 WINDOWS_PROJECTS = google-perftools.sln \
 	vsprojects/low_level_alloc_unittest/low_level_alloc_unittest.vcproj \
 	vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcproj \
@@ -889,6 +901,15 @@ LOGGING_INCLUDES = src/base/logging.h \
 liblogging_la_SOURCES = src/base/logging.cc \
                         $(LOGGING_INCLUDES)
 
+SYSINFO_INCLUDES = src/base/sysinfo.h \
+                   src/base/logging.h \
+                   src/base/commandlineflags.h \
+                   src/base/cycleclock.h \
+                   src/base/basictypes.h
+
+libsysinfo_la_SOURCES = src/base/sysinfo.cc \
+                        $(SYSINFO_INCLUDES)
+
 
 # For MinGW, we use libwindows and not libspinlock.  For every other
 # unix system, we use libspinlock and don't need libwindows.  Luckily,
@@ -912,8 +933,9 @@ liblogging_la_SOURCES = src/base/logging.cc \
 @MINGW_TRUE@                        src/windows/preamble_patcher.cc \
 @MINGW_TRUE@                        src/windows/preamble_patcher_with_stub.cc
 
-@MINGW_FALSE@LIBSPINLOCK = libspinlock.la
-@MINGW_TRUE@LIBSPINLOCK = libwindows.la
+# spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
+@MINGW_FALSE@LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
+@MINGW_TRUE@LIBSPINLOCK = libwindows.la libsysinfo.la liblogging.la
 @MINGW_FALSE@MAYBE_THREADS_CC = src/maybe_threads.cc
 @MINGW_TRUE@MAYBE_THREADS_CC = 
 @MINGW_FALSE@SYSTEM_ALLOC_CC = src/system-alloc.cc
@@ -922,6 +944,7 @@ liblogging_la_SOURCES = src/base/logging.cc \
 @MINGW_FALSE@SPINLOCK_INCLUDES = src/base/spinlock.h \
 @MINGW_FALSE@                    src/base/atomicops.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-macosx.h \
+@MINGW_FALSE@                    src/base/atomicops-internals-linuxppc.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-x86-msvc.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-x86.h
 
@@ -940,7 +963,7 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/tests/low_level_alloc_unittest.cc \
                                    $(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES)
 
-low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) liblogging.la libstacktrace.la
+low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) libstacktrace.la
 @MINGW_FALSE@ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
 @MINGW_FALSE@                              src/base/atomicops-internals-macosx.h \
 @MINGW_FALSE@                              src/base/atomicops-internals-x86-msvc.h \
@@ -950,7 +973,7 @@ low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) liblogging.la libstacktrace.la
 @MINGW_FALSE@atomicops_unittest_SOURCES = src/tests/atomicops_unittest.cc \
 @MINGW_FALSE@                             $(ATOMICOPS_UNITTEST_INCLUDES)
 
-@MINGW_FALSE@atomicops_unittest_LDADD = $(LIBSPINLOCK) liblogging.la
+@MINGW_FALSE@atomicops_unittest_LDADD = $(LIBSPINLOCK)
 
 ### ------- stack trace
 
@@ -1019,7 +1042,7 @@ libtcmalloc_minimal_la_SOURCES = src/internal_logging.cc \
 libtcmalloc_minimal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) \
-                                libstacktrace.la $(LIBSPINLOCK) liblogging.la
+                                libstacktrace.la $(LIBSPINLOCK)
 
 
 # Whenever we link in tcmalloc_minimal, we also need to link in
@@ -1155,7 +1178,6 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@                         src/heap-checker.cc \
 @MINGW_FALSE@                         src/base/linuxthreads.c \
 @MINGW_FALSE@                         src/base/thread_lister.c \
-@MINGW_FALSE@                         src/base/sysinfo.cc \
 @MINGW_FALSE@                         src/base/low_level_alloc.cc \
 @MINGW_FALSE@                         $(TCMALLOC_INCLUDES) \
 @MINGW_FALSE@                         src/heap-checker-bcad.cc
@@ -1163,7 +1185,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 @MINGW_FALSE@libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
 @MINGW_FALSE@libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) \
-@MINGW_FALSE@                        libstacktrace.la $(LIBSPINLOCK) liblogging.la
+@MINGW_FALSE@                        libstacktrace.la $(LIBSPINLOCK)
 
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
@@ -1232,7 +1254,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@                          src/base/commandlineflags.h \
 @MINGW_FALSE@                          src/base/googleinit.h \
 @MINGW_FALSE@                          src/base/logging.h \
-@MINGW_FALSE@                          src/base/mutex.h \
+@MINGW_FALSE@                          src/base/simple_mutex.h \
 @MINGW_FALSE@                          src/base/sysinfo.h \
 @MINGW_FALSE@                          $(SPINLOCK_INCLUDES) \
 @MINGW_FALSE@                          $(LOGGING_INCLUDES)
@@ -1243,12 +1265,11 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES)
 @MINGW_FALSE@libprofiler_la_SOURCES = src/profiler.cc \
 @MINGW_FALSE@                         src/profiledata.cc \
-@MINGW_FALSE@                         src/base/sysinfo.cc \
 @MINGW_FALSE@                         $(CPU_PROFILER_INCLUDES)
 
-@MINGW_FALSE@libprofiler_la_LIBADD = $(LIBSPINLOCK) liblogging.la libstacktrace.la
+@MINGW_FALSE@libprofiler_la_LIBADD = $(LIBSPINLOCK) libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
-@MINGW_FALSE@CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfilerThreadState|ProfileData)'
+@MINGW_FALSE@CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData)'
 @MINGW_FALSE@libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
@@ -1263,7 +1284,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@                               src/base/logging.h \
 @MINGW_FALSE@                               src/base/basictypes.h
 
-@MINGW_FALSE@profiledata_unittest_LDADD = -lprofiler
+@MINGW_FALSE@profiledata_unittest_LDADD = $(LIBPROFILER)
 @MINGW_FALSE@profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
 @MINGW_FALSE@PROFILER_UNITTEST_INCLUDES = src/config_for_unittests.h \
 @MINGW_FALSE@                             src/google/profiler.h
@@ -1393,6 +1414,8 @@ libspinlock.la: $(libspinlock_la_OBJECTS) $(libspinlock_la_DEPENDENCIES)
 	$(CXXLINK) $(am_libspinlock_la_rpath) $(libspinlock_la_LDFLAGS) $(libspinlock_la_OBJECTS) $(libspinlock_la_LIBADD) $(LIBS)
 libstacktrace.la: $(libstacktrace_la_OBJECTS) $(libstacktrace_la_DEPENDENCIES) 
 	$(CXXLINK) -rpath $(libdir) $(libstacktrace_la_LDFLAGS) $(libstacktrace_la_OBJECTS) $(libstacktrace_la_LIBADD) $(LIBS)
+libsysinfo.la: $(libsysinfo_la_OBJECTS) $(libsysinfo_la_DEPENDENCIES) 
+	$(CXXLINK)  $(libsysinfo_la_LDFLAGS) $(libsysinfo_la_OBJECTS) $(libsysinfo_la_LIBADD) $(LIBS)
 libtcmalloc.la: $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_DEPENDENCIES) 
 	$(CXXLINK) $(am_libtcmalloc_la_rpath) $(libtcmalloc_la_LDFLAGS) $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_LIBADD) $(LIBS)
 libtcmalloc_minimal.la: $(libtcmalloc_minimal_la_OBJECTS) $(libtcmalloc_minimal_la_DEPENDENCIES) 
@@ -1539,7 +1562,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-maybe_threads.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-memfs_malloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-memory_region_map.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-sysinfo.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-system-alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-tcmalloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_minimal_la-internal_logging.Plo@am__quote@
@@ -1698,13 +1720,6 @@ profiledata.lo: src/profiledata.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o profiledata.lo `test -f 'src/profiledata.cc' || echo '$(srcdir)/'`src/profiledata.cc
 
-sysinfo.lo: src/base/sysinfo.cc
-@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT sysinfo.lo -MD -MP -MF "$(DEPDIR)/sysinfo.Tpo" -c -o sysinfo.lo `test -f 'src/base/sysinfo.cc' || echo '$(srcdir)/'`src/base/sysinfo.cc; \
-@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/sysinfo.Tpo" "$(DEPDIR)/sysinfo.Plo"; else rm -f "$(DEPDIR)/sysinfo.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/sysinfo.cc' object='sysinfo.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o sysinfo.lo `test -f 'src/base/sysinfo.cc' || echo '$(srcdir)/'`src/base/sysinfo.cc
-
 spinlock.lo: src/base/spinlock.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT spinlock.lo -MD -MP -MF "$(DEPDIR)/spinlock.Tpo" -c -o spinlock.lo `test -f 'src/base/spinlock.cc' || echo '$(srcdir)/'`src/base/spinlock.cc; \
 @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/spinlock.Tpo" "$(DEPDIR)/spinlock.Plo"; else rm -f "$(DEPDIR)/spinlock.Tpo"; exit 1; fi
@@ -1725,6 +1740,13 @@ stacktrace.lo: src/stacktrace.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/stacktrace.cc' object='stacktrace.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o stacktrace.lo `test -f 'src/stacktrace.cc' || echo '$(srcdir)/'`src/stacktrace.cc
+
+sysinfo.lo: src/base/sysinfo.cc
+@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT sysinfo.lo -MD -MP -MF "$(DEPDIR)/sysinfo.Tpo" -c -o sysinfo.lo `test -f 'src/base/sysinfo.cc' || echo '$(srcdir)/'`src/base/sysinfo.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/sysinfo.Tpo" "$(DEPDIR)/sysinfo.Plo"; else rm -f "$(DEPDIR)/sysinfo.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/sysinfo.cc' object='sysinfo.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o sysinfo.lo `test -f 'src/base/sysinfo.cc' || echo '$(srcdir)/'`src/base/sysinfo.cc
 
 libtcmalloc_la-internal_logging.lo: src/internal_logging.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -MT libtcmalloc_la-internal_logging.lo -MD -MP -MF "$(DEPDIR)/libtcmalloc_la-internal_logging.Tpo" -c -o libtcmalloc_la-internal_logging.lo `test -f 'src/internal_logging.cc' || echo '$(srcdir)/'`src/internal_logging.cc; \
@@ -1802,13 +1824,6 @@ libtcmalloc_la-heap-checker.lo: src/heap-checker.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/heap-checker.cc' object='libtcmalloc_la-heap-checker.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -c -o libtcmalloc_la-heap-checker.lo `test -f 'src/heap-checker.cc' || echo '$(srcdir)/'`src/heap-checker.cc
-
-libtcmalloc_la-sysinfo.lo: src/base/sysinfo.cc
-@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -MT libtcmalloc_la-sysinfo.lo -MD -MP -MF "$(DEPDIR)/libtcmalloc_la-sysinfo.Tpo" -c -o libtcmalloc_la-sysinfo.lo `test -f 'src/base/sysinfo.cc' || echo '$(srcdir)/'`src/base/sysinfo.cc; \
-@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libtcmalloc_la-sysinfo.Tpo" "$(DEPDIR)/libtcmalloc_la-sysinfo.Plo"; else rm -f "$(DEPDIR)/libtcmalloc_la-sysinfo.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/sysinfo.cc' object='libtcmalloc_la-sysinfo.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -c -o libtcmalloc_la-sysinfo.lo `test -f 'src/base/sysinfo.cc' || echo '$(srcdir)/'`src/base/sysinfo.cc
 
 libtcmalloc_la-low_level_alloc.lo: src/base/low_level_alloc.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -MT libtcmalloc_la-low_level_alloc.lo -MD -MP -MF "$(DEPDIR)/libtcmalloc_la-low_level_alloc.Tpo" -c -o libtcmalloc_la-low_level_alloc.lo `test -f 'src/base/low_level_alloc.cc' || echo '$(srcdir)/'`src/base/low_level_alloc.cc; \
@@ -2852,8 +2867,8 @@ uninstall-man: uninstall-man1
 	uninstall-info-am uninstall-libLTLIBRARIES uninstall-man \
 	uninstall-man1
 
-@ENABLE_FRAME_POINTER_FALSE@@X86_64_TRUE@  # TODO(csilvers): check if -fomit-frame-pointer might be in $(CXXFLAGS),
-@ENABLE_FRAME_POINTER_FALSE@@X86_64_TRUE@  #                 before setting this.
+@ENABLE_FRAME_POINTERS_FALSE@@X86_64_TRUE@  # TODO(csilvers): check if -fomit-frame-pointer might be in $(CXXFLAGS),
+@ENABLE_FRAME_POINTERS_FALSE@@X86_64_TRUE@  #                 before setting this.
 @MINGW_FALSE@pprof_unittest: $(top_srcdir)/src/pprof
 @MINGW_FALSE@	$(top_srcdir)/src/pprof -test
 # This script preloads libtcmalloc, and calls two other binaries as well

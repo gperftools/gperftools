@@ -68,6 +68,10 @@ static void **NextStackFrame(void **old_sp) {
   return new_sp;
 }
 
+// This ensures that GetStackTrace stes up the Link Register properly.
+void StacktracePowerPCDummyFunction() __attribute__((noinline));
+void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
+
 // If you change this function, also change GetStackFrames below.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void **sp;
@@ -82,23 +86,40 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   __asm__ volatile ("mr %0,1" : "=r" (sp));
 #endif
 
+  // On PowerPC, the "Link Register" or "Link Record" (LR), is a stack
+  // entry that holds the return address of the subroutine call (what
+  // instruction we run after our function finishes).  This is the
+  // same as the stack-pointer of our parent routine, which is what we
+  // want here.  While the compiler will always(?) set up LR for
+  // subroutine calls, it may not for leaf functions (such as this one).
+  // This routine forces the compiler (at least gcc) to push it anyway.
+  StacktracePowerPCDummyFunction();
+
+  // The LR save area is used by the callee, so the top entry is bogus.
+  skip_count++;
+
   int n = 0;
   while (sp && n < max_depth) {
     if (skip_count > 0) {
       skip_count--;
     } else {
-      // sp[2] holds the "Link Record", according to RTArch-59.html.
-      // On PPC, the Link Record is the return address of the
-      // subroutine call (what instruction we run after our function
-      // finishes).  This is the same as the stack-pointer of our
-      // parent routine, which is what we want here.  We believe that
-      // the compiler will always set up the LR for subroutine calls.
-      //
-      // It may be possible to get the stack-pointer of the parent
-      // routine directly.  In my experiments, this code works:
-      //    result[n++] = NextStackFrame(sp)[-18]
-      // But I'm not sure what this is doing, exactly, or how reliable it is.
-      result[n++] = *(sp+2);  // sp[2] holds the Link Record (return address)
+      // PowerPC has 3 main ABIs, which say where in the stack the
+      // Link Register is.  For DARWIN and AIX (used by apple and
+      // linux ppc64), it's in sp[2].  For SYSV (used by linux ppc),
+      // it's in sp[1].
+#if defined(_CALL_AIX) || defined(_CALL_DARWIN)
+      result[n++] = *(sp+2);
+#elif defined(_CALL_SYSV)
+      result[n++] = *(sp+1);
+#elif defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
+      // This check is in case the compiler doesn't define _CALL_AIX/etc.
+      result[n++] = *(sp+2);
+#elif defined(__linux)
+      // This check is in case the compiler doesn't define _CALL_SYSV.
+      result[n++] = *(sp+1);
+#else
+#error Need to specify the PPC ABI for your archiecture.
+#endif
     }
     // Use strict unwinding rules.
     sp = NextStackFrame<true>(sp);
@@ -135,15 +156,17 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 // class, we are in trouble.
 int GetStackFrames(void** pcs, int *sizes, int max_depth, int skip_count) {
   void **sp;
-  // Apple OS X uses an old version of gnu as -- both Darwin 7.9.0 (Panther)
-  // and Darwin 8.8.1 (Tiger) use as 1.38.  This means we have to use a
-  // different asm syntax.  I don't know quite the best way to discriminate
-  // systems using the old as from the new one; I've gone with __APPLE__.
 #ifdef __APPLE__
   __asm__ volatile ("mr %0,r1" : "=r" (sp));
 #else
   __asm__ volatile ("mr %0,1" : "=r" (sp));
 #endif
+
+  StacktracePowerPCDummyFunction();
+  // Note we do *not* increment skip_count here for the SYSV ABI.  If
+  // we did, the list of stack frames wouldn't properly match up with
+  // the list of return addresses.  Note this means the top pc entry
+  // is probably bogus for linux/ppc (and other SYSV-ABI systems).
 
   int n = 0;
   while (sp && n < max_depth) {
@@ -156,18 +179,19 @@ int GetStackFrames(void** pcs, int *sizes, int max_depth, int skip_count) {
     if (skip_count > 0) {
       skip_count--;
     } else {
-      // sp[2] holds the "Link Record", according to RTArch-59.html.
-      // On PPC, the Link Record is the return address of the
-      // subroutine call (what instruction we run after our function
-      // finishes).  This is the same as the stack-pointer of our
-      // parent routine, which is what we want here.  We believe that
-      // the compiler will always set up the LR for subroutine calls.
-      //
-      // It may be possible to get the stack-pointer of the parent
-      // routine directly.  In my experiments, this code works:
-      //    pcs[n] = NextStackFrame(sp)[-18]
-      // But I'm not sure what this is doing, exactly, or how reliable it is.
-      pcs[n] = *(sp+2);  // sp[2] holds the Link Record (return address)
+#if defined(_CALL_AIX) || defined(_CALL_DARWIN)
+      pcs[n++] = *(sp+2);
+#elif defined(_CALL_SYSV)
+      pcs[n++] = *(sp+1);
+#elif defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
+      // This check is in case the compiler doesn't define _CALL_AIX/etc.
+      pcs[n++] = *(sp+2);
+#elif defined(__linux)
+      // This check is in case the compiler doesn't define _CALL_SYSV.
+      pcs[n++] = *(sp+1);
+#else
+#error Need to specify the PPC ABI for your archiecture.
+#endif
       if (next_sp > sp) {
         sizes[n] = (uintptr_t)next_sp - (uintptr_t)sp;
       } else {

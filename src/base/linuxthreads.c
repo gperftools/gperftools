@@ -249,15 +249,15 @@ struct ListerParams {
 
 
 static void ListerThread(struct ListerParams *args) {
-  int               found_parent = 0;
-  pid_t             clone_pid  = sys_gettid(), ppid = sys_getppid();
-  char              proc_self_task[80], marker_name[48], *marker_path;
-  const char        *proc_paths[3];
-  const char *const *proc_path = proc_paths;
-  int               proc = -1, marker = -1, num_threads = 0;
-  int               max_threads = 0, sig;
-  struct stat       marker_sb, proc_sb;
-  stack_t           altstack;
+  int                found_parent = 0;
+  pid_t              clone_pid  = sys_gettid(), ppid = sys_getppid();
+  char               proc_self_task[80], marker_name[48], *marker_path;
+  const char         *proc_paths[3];
+  const char *const  *proc_path = proc_paths;
+  int                proc = -1, marker = -1, num_threads = 0;
+  int                max_threads = 0, sig;
+  struct kernel_stat marker_sb, proc_sb;
+  stack_t            altstack;
 
   /* Create "marker" that we can use to detect threads sharing the same
    * address space and the same file handles. By setting the FD_CLOEXEC flag
@@ -312,12 +312,12 @@ static void ListerThread(struct ListerParams *args) {
   sig_marker = marker;
   sig_proc   = -1;
   for (sig = 0; sig < sizeof(sync_signals)/sizeof(*sync_signals); sig++) {
-    struct sigaction sa;
+    struct kernel_sigaction sa;
     memset(&sa, 0, sizeof(sa));
-    sa.sa_sigaction = SignalHandler;
-    sigfillset(&sa.sa_mask);
-    sa.sa_flags     = SA_ONSTACK|SA_SIGINFO|SA_RESETHAND;
-    sys_sigaction(sync_signals[sig], &sa, (struct sigaction *)NULL);
+    sa.sa_sigaction_ = SignalHandler;
+    sys_sigfillset(&sa.sa_mask);
+    sa.sa_flags      = SA_ONSTACK|SA_SIGINFO|SA_RESETHAND;
+    sys_sigaction(sync_signals[sig], &sa, (struct kernel_sigaction *)NULL);
   }
   
   /* Read process directories in /proc/...                                   */
@@ -356,9 +356,9 @@ static void ListerThread(struct ListerParams *args) {
       sig_num_threads     = num_threads;
       sig_pids            = pids;
       for (;;) {
-        struct dirent *entry;
+        struct kernel_dirent *entry;
         char buf[4096];
-        ssize_t nbytes = sys_getdents(proc, (struct dirent *)buf,
+        ssize_t nbytes = sys_getdents(proc, (struct kernel_dirent *)buf,
                                       sizeof(buf));
         if (nbytes < 0)
           goto failure;
@@ -375,9 +375,9 @@ static void ListerThread(struct ListerParams *args) {
           }
           break;
         }
-        for (entry = (struct dirent *)buf;
-             entry < (struct dirent *)&buf[nbytes];
-             entry = (struct dirent *)((char *)entry + entry->d_reclen)) {
+        for (entry = (struct kernel_dirent *)buf;
+             entry < (struct kernel_dirent *)&buf[nbytes];
+             entry = (struct kernel_dirent *)((char *)entry+entry->d_reclen)) {
           if (entry->d_ino != 0) {
             const char *ptr = entry->d_name;
             pid_t pid;
@@ -395,7 +395,7 @@ static void ListerThread(struct ListerParams *args) {
 
             /* Attach (and suspend) all threads                              */
             if (pid && pid != clone_pid) {
-              struct stat tmp_sb;
+              struct kernel_stat tmp_sb;
               char fname[entry->d_reclen + 48];
               strcat(strcat(strcpy(fname, "/proc/"),
                             entry->d_name), marker_path);
@@ -536,11 +536,11 @@ static void ListerThread(struct ListerParams *args) {
  */
 int ListAllProcessThreads(void *parameter,
                           ListAllProcessThreadsCallBack callback, ...) {
-  char                altstack_mem[ALT_STACKSIZE];
-  struct ListerParams args;
-  pid_t               clone_pid;
-  int                 dumpable = 1, sig;
-  sigset_t            sig_blocked, sig_old;
+  char                   altstack_mem[ALT_STACKSIZE];
+  struct ListerParams    args;
+  pid_t                  clone_pid;
+  int                    dumpable = 1, sig;
+  struct kernel_sigset_t sig_blocked, sig_old;
 
   va_start(args.ap, callback);
 
@@ -573,9 +573,9 @@ int ListAllProcessThreads(void *parameter,
 
   /* Before cloning the thread lister, block all asynchronous signals, as we */
   /* are not prepared to handle them.                                        */
-  sigfillset(&sig_blocked);
+  sys_sigfillset(&sig_blocked);
   for (sig = 0; sig < sizeof(sync_signals)/sizeof(*sync_signals); sig++) {
-    sigdelset(&sig_blocked, sync_signals[sig]);
+    sys_sigdelset(&sig_blocked, sync_signals[sig]);
   }
   if (sys_sigprocmask(SIG_BLOCK, &sig_blocked, &sig_old)) {
     args.err = errno;
@@ -606,7 +606,7 @@ int ListAllProcessThreads(void *parameter,
     clone_pid = local_clone((int (*)(void *))ListerThread, &args);
     clone_errno = errno;
 
-    sys0_sigprocmask(SIG_SETMASK, &sig_old, &sig_old);
+    sys_sigprocmask(SIG_SETMASK, &sig_old, &sig_old);
 
     if (clone_pid >= 0) {
       int status, rc;

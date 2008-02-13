@@ -6,6 +6,7 @@ NEWS
 README
 TODO
 doc/cpuprofile.html
+doc/cpuprofile-fileformat.html
 doc/designstyle.css
 doc/heap-example1.png
 doc/heap_checker.html

@@ -71,8 +71,24 @@ class SpinLock {
     }
   }
 
+  inline bool TryLock() {
+    return (Acquire_CompareAndSwap(&lockword_, 0, 1) == 0);
+  }
+
   inline void Unlock() {
+    // This is defined in mutex.cc.
+    extern void SubmitSpinLockProfileData(const void *, int64);
+
+    int64 wait_timestamp = static_cast<uint32>(lockword_);
+
     Release_Store(&lockword_, 0);
+    // Collect contention profile info if this lock was contended.
+    // The lockword_ value indicates when the waiter started waiting
+    if (wait_timestamp != 1) {
+      // Subtract one from wait_timestamp as antidote to "now |= 1;"
+      // in SlowLock().
+      SubmitSpinLockProfileData(this, wait_timestamp - 1);
+    }
   }
 
   // Report if we think the lock can be held by this thread.
@@ -82,6 +98,17 @@ class SpinLock {
   inline bool IsHeld() const {
     return lockword_ != 0;
   }
+
+  // The timestamp for contention lock profiling must fit into 31 bits.
+  // as lockword_ is 32 bits and we loose an additional low-order bit due
+  // to the statement "now |= 1" in SlowLock().
+  // To select 31 bits from the 64-bit cycle counter, we shift right by
+  // PROFILE_TIMESTAMP_SHIFT = 7.
+  // Using these 31 bits, we reduce granularity of time measurement to
+  // 256 cycles, and will loose track of wait time for waits greater than
+  // 109 seconds on a 5 GHz machine, longer for faster clock cycles.
+  // Waits this long should be very rare.
+  enum { PROFILE_TIMESTAMP_SHIFT = 7 };
 
  private:
   // Lock-state: 0 means unlocked, 1 means locked

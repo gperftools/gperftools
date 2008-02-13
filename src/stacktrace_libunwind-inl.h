@@ -49,7 +49,6 @@ extern "C" {
 // ignore those subsequent traces.  In such cases, we return 0 to
 // indicate the situation.
 static SpinLock libunwind_lock(SpinLock::LINKER_INITIALIZED);
-static bool in_get_stack_trace = false;
 
 // If you change this function, also change GetStackFrames below.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
@@ -58,13 +57,8 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   unw_cursor_t cursor;
   unw_context_t uc;
 
-  {
-    SpinLockHolder sh(&libunwind_lock);
-    if (in_get_stack_trace) {
-      return 0;
-    } else {
-      in_get_stack_trace = true;
-    }
+  if (!libunwind_lock.TryLock()) {
+    return 0;
   }
 
   unw_getcontext(&uc);
@@ -86,9 +80,7 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
       break;
   }
 
-  SpinLockHolder sh(&libunwind_lock);
-  in_get_stack_trace = false;
-
+  libunwind_lock.Unlock();
   return n;
 }
 
@@ -125,13 +117,8 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
   unw_cursor_t cursor;
   unw_context_t uc;
 
-  {
-    SpinLockHolder sh(&libunwind_lock);
-    if (in_get_stack_trace) {
-      return 0;
-    } else {
-      in_get_stack_trace = true;
-    }
+  if (!libunwind_lock.TryLock()) {
+    return 0;
   }
 
   unw_getcontext(&uc);
@@ -155,8 +142,6 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
   // No implementation for finding out the stack frame sizes yet.
   memset(sizes, 0, sizeof(*sizes) * n);
 
-  SpinLockHolder sh(&libunwind_lock);
-  in_get_stack_trace = false;
-
+  libunwind_lock.Unlock();
   return n;
 }

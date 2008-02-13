@@ -57,10 +57,10 @@ and ends up using <code>16N</code> bytes.</p>
 
 <h2>Usage</h2>
 
-<p>To use TCmalloc, just link tcmalloc into your application via the
+<p>To use TCMalloc, just link TCMalloc into your application via the
 "-ltcmalloc" linker flag.</p>
 
-<p>You can use tcmalloc in applications you didn't compile yourself,
+<p>You can use TCMalloc in applications you didn't compile yourself,
 by using LD_PRELOAD:</p>
 <pre>
    $ LD_PRELOAD="/usr/lib/libtcmalloc.so" <binary>
@@ -86,7 +86,7 @@ needed, and periodic garbage collections are used to migrate memory
 back from a thread-local cache into the central data structures.</p>
 <center><img src="overview.gif"></center>
 
-<p>TCMalloc treates objects with size &lt;= 32K ("small" objects)
+<p>TCMalloc treats objects with size &lt;= 32K ("small" objects)
 differently from larger objects.  Large objects are allocated directly
 from the central heap using a page-level allocator (a page is a 4K
 aligned region of memory).  I.e., a large object is always
@@ -104,7 +104,7 @@ size-classes.  For example, all allocations in the range 961 to 1024
 bytes are rounded up to 1024.  The size-classes are spaced so that
 small sizes are separated by 8 bytes, larger sizes by 16 bytes, even
 larger sizes by 32 bytes, and so forth.  The maximal spacing (for
-sizes >= ~2K) is 256 bytes.</p>
+sizes &gt;= ~2K) is 256 bytes.</p>
 
 <p>A thread cache contains a singly linked list of free objects per
 size-class.</p>
@@ -290,13 +290,13 @@ threads. The raw data used to generate these graphs (the output of the
 
 <ul> 
   <li> TCMalloc is much more consistently scalable than PTMalloc2 - for
-       all thread counts >1 it achieves ~7-9 million ops/sec for small
+       all thread counts &gt;1 it achieves ~7-9 million ops/sec for small
        allocations, falling to ~2 million ops/sec for larger
        allocations. The single-thread case is an obvious outlier,
        since it is only able to keep a single processor busy and hence
        can achieve fewer ops/sec. PTMalloc2 has a much higher variance
        on operations/sec - peaking somewhere around 4 million ops/sec
-       for small allocations and falling to <1 million ops/sec for
+       for small allocations and falling to &lt;1 million ops/sec for
        larger allocations.
 
   <li> TCMalloc is faster than PTMalloc2 in the vast majority of
@@ -309,10 +309,10 @@ threads. The raw data used to generate these graphs (the output of the
        2MB). With larger allocation sizes, fewer objects can be stored
        in the cache before it is garbage-collected.
 
-  <li> There is a noticeably drop in the TCMalloc performance at ~32K
+  <li> There is a noticeable drop in TCMalloc's performance at ~32K
        maximum allocation size; at larger sizes performance drops less
        quickly. This is due to the 32K maximum size of objects in the
-       per-thread caches; for objects larger than this tcmalloc
+       per-thread caches; for objects larger than this TCMalloc
        allocates from the central page heap.
 </ul>
 

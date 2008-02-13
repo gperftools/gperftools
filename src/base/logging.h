@@ -160,7 +160,7 @@ enum { DEBUG_MODE = 1 };
 #ifdef ERROR
 #undef ERROR      // may conflict with ERROR macro on windows
 #endif
-enum {INFO = -1, WARNING = -2, ERROR = -3, FATAL = -4};
+enum LogSeverity {INFO = -1, WARNING = -2, ERROR = -3, FATAL = -4};
 
 // NOTE: we add a newline to the end of the output if it's not there already
 inline void LogPrintf(int severity, const char* pat, va_list ap) {
