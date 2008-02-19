@@ -495,7 +495,8 @@ static void RegisterStack(const void* top_ptr) {
                                           top - region.start_addr,
                                           THREAD_DATA));
     }
-  } else {  // not in MemoryRegionMap, look in library_live_objects
+  // not in MemoryRegionMap, look in library_live_objects:
+  } else if (FLAGS_heap_check_ignore_global_live) {
     for (LibraryLiveObjectsStacks::iterator lib = library_live_objects->begin();
          lib != library_live_objects->end(); ++lib) {
       for (LiveObjectsStack::iterator span = lib->second.begin();
@@ -1224,6 +1225,16 @@ void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
           RAW_VLOG(5, "Found pointer to %p of %"PRIuS" bytes at %p "
                       "inside %p of size %"PRIuS"",
                       ptr, object_size, object, whole_object, whole_size);
+          if (VLOG_IS_ON(6)) {
+            // log call stacks to help debug how come something is not a leak
+            HeapProfileTable::AllocInfo alloc;
+            bool r = heap_profile->FindAllocDetails(ptr, &alloc);
+            RAW_DCHECK(r, "");  // sanity
+            RAW_LOG(INFO, "New live %p object's alloc stack:", ptr);
+            for (int i = 0; i < alloc.stack_depth; ++i) {
+              RAW_LOG(INFO, "  @ %p", alloc.call_stack[i]);
+            }
+          }
           live_object_count += 1;
           live_byte_count += object_size;
           live_objects->push_back(AllocObject(ptr, object_size,

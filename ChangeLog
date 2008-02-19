@@ -1,3 +1,10 @@
+Tue Feb 19 12:01:31 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.95.1 release  (bugfix release)
+	* x86_64 compile-fix: nix pread64 and pwrite64 (csilvers)
+	* more heap-checker debug logging (maxim)
+	* minor improvement to x86_64 CycleClock (gpike)
+
 Tue Feb 12 12:28:32 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.95 release

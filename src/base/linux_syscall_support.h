@@ -2730,10 +2730,7 @@ struct kernel_statfs {
   }
   #if defined(__x86_64__) ||                                                  \
      (defined(__mips__) && _MIPS_SIM == _MIPS_SIM_ABI64)
-    LSS_INLINE _syscall4(ssize_t, pread64,        int,         f,
-                         void *,         b, size_t, c, loff_t, o)
-    LSS_INLINE _syscall4(ssize_t, pwrite64,       int,         f,
-                         const void *,   b, size_t, c, loff_t, o)
+    /* pread64() and pwrite64() do not exist on 64-bit systems...            */
     LSS_INLINE _syscall3(int,     readahead,      int,         f,
                          loff_t,         o, unsigned, c)
   #else
