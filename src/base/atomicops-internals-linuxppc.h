@@ -37,6 +37,10 @@
 #ifndef BASE_ATOMICOPS_INTERNALS_LINUXPPC_H__
 #define BASE_ATOMICOPS_INTERNALS_LINUXPPC_H__
 
+// int32_t and intptr_t seems to be equal on ppc-linux
+// There are no Atomic64 implementations in this file.
+typedef int32_t Atomic32;
+
 #define LWSYNC_ON_SMP
 #define PPC405_ERR77(a, b)
 #define ISYNC_ON_SMP
@@ -44,7 +48,7 @@
 
 /* Adapted from atomic_add in asm-powerpc/atomic.h */
 inline int32_t OSAtomicAdd32(int32_t amount, int32_t *value) {
-  int t;
+  int32_t t;
   __asm__ __volatile__(
 "1:		lwarx   %0,0,%3         # atomic_add\n\
 		add     %0,%2,%0\n"
@@ -53,14 +57,29 @@ inline int32_t OSAtomicAdd32(int32_t amount, int32_t *value) {
 		bne-    1b"
 		: "=&r" (t), "+m" (*value)
 		: "r" (amount), "r" (value)
-		: "cc");
-  return *value;
+                : "cc", "memory");
+  return t;
+}
+
+inline int32_t OSAtomicAdd32Barrier(int32_t amount, int32_t *value) {
+  int32_t t;
+  __asm__ __volatile__(
+"1:		lwarx   %0,0,%3         # atomic_add\n\
+		add     %0,%2,%0\n"
+		PPC405_ERR77(0,%3)
+"		stwcx.  %0,0,%3 \n\
+		bne-    1b"
+		ISYNC_ON_SMP
+		: "=&r" (t), "+m" (*value)
+		: "r" (amount), "r" (value)
+                : "cc", "memory");
+  return t;
 }
 
 /* Adapted from __cmpxchg_u32 in asm-powerpc/atomic.h */
 inline bool OSAtomicCompareAndSwap32(int32_t old_value, int32_t new_value,
                                      int32_t *value) {
-  unsigned int prev;
+  int32_t prev;
   __asm__ __volatile__ (
 		LWSYNC_ON_SMP
 "1:		lwarx   %0,0,%2         # __cmpxchg_u32\n\
@@ -69,20 +88,19 @@ inline bool OSAtomicCompareAndSwap32(int32_t old_value, int32_t new_value,
 		PPC405_ERR77(0,%2)
 "		stwcx.  %4,0,%2\n\
 		bne-    1b"
-		ISYNC_ON_SMP
 		"\n\
 2:"
                 : "=&r" (prev), "+m" (*value)
                 : "r" (value), "r" (old_value), "r" (new_value)
                 : "cc", "memory");
-  return true;
+  return prev == old_value;
 }
 
 /* Adapted from __cmpxchg_u32 in asm-powerpc/atomic.h */
 inline int32_t OSAtomicCompareAndSwap32Barrier(int32_t old_value,
                                                int32_t new_value,
                                                int32_t *value) {
-  unsigned int prev;
+  int32_t prev;
   __asm__ __volatile__ (
 		LWSYNC_ON_SMP
 "1:		lwarx   %0,0,%2         # __cmpxchg_u32\n\
@@ -97,32 +115,27 @@ inline int32_t OSAtomicCompareAndSwap32Barrier(int32_t old_value,
                 : "=&r" (prev), "+m" (*value)
                 : "r" (value), "r" (old_value), "r" (new_value)
                 : "cc", "memory");
-  return true;
+  return prev == old_value;
 }
+
+namespace base {
+namespace subtle {
+
+typedef int64_t Atomic64;  // Defined but unused
 
 inline void MemoryBarrier() {
   // TODO
 }
 
-// int32_t and intptr_t seems to be equal on ppc-linux
-// therefore we have no extra Atomic32 function versions.
-typedef int32_t Atomic32;
-typedef intptr_t AtomicWord;
+// 32-bit Versions.
 
-#define OSAtomicCastIntPtr(p) \
-               reinterpret_cast<int32_t *>(const_cast<AtomicWord *>(p))
-#define OSAtomicCompareAndSwapIntPtr OSAtomicCompareAndSwap32
-#define OSAtomicAddIntPtr OSAtomicAdd32
-#define OSAtomicCompareAndSwapIntPtrBarrier OSAtomicCompareAndSwap32Barrier
-
-
-inline AtomicWord CompareAndSwap(volatile AtomicWord *ptr,
-                                 AtomicWord old_value,
-                                 AtomicWord new_value) {
-  AtomicWord prev_value;
+inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32 *ptr,
+                                         Atomic32 old_value,
+                                         Atomic32 new_value) {
+  Atomic32 prev_value;
   do {
-    if (OSAtomicCompareAndSwapIntPtr(old_value, new_value,
-                                     OSAtomicCastIntPtr(ptr))) {
+    if (OSAtomicCompareAndSwap32(old_value, new_value,
+                                 const_cast<Atomic32*>(ptr))) {
       return old_value;
     }
     prev_value = *ptr;
@@ -130,28 +143,33 @@ inline AtomicWord CompareAndSwap(volatile AtomicWord *ptr,
   return prev_value;
 }
 
-inline AtomicWord AtomicExchange(volatile AtomicWord *ptr,
-                                 AtomicWord new_value) {
-  AtomicWord old_value;
+inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32 *ptr,
+                                         Atomic32 new_value) {
+  Atomic32 old_value;
   do {
     old_value = *ptr;
-  } while (!OSAtomicCompareAndSwapIntPtr(old_value, new_value,
-                                         OSAtomicCastIntPtr(ptr)));
+  } while (!OSAtomicCompareAndSwap32(old_value, new_value,
+                                     const_cast<Atomic32*>(ptr)));
   return old_value;
 }
 
-
-inline AtomicWord AtomicIncrement(volatile AtomicWord *ptr, AtomicWord increment) {
-  return OSAtomicAddIntPtr(increment, OSAtomicCastIntPtr(ptr));
+inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32 *ptr,
+                                          Atomic32 increment) {
+  return OSAtomicAdd32(increment, const_cast<Atomic32*>(ptr));
 }
 
-inline AtomicWord Acquire_CompareAndSwap(volatile AtomicWord *ptr,
-                                         AtomicWord old_value,
-                                         AtomicWord new_value) {
-  AtomicWord prev_value;
+inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32 *ptr,
+                                        Atomic32 increment) {
+  return OSAtomicAdd32Barrier(increment, const_cast<Atomic32*>(ptr));
+}
+
+inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32 *ptr,
+                                       Atomic32 old_value,
+                                       Atomic32 new_value) {
+  Atomic32 prev_value;
   do {
-    if (OSAtomicCompareAndSwapIntPtrBarrier(old_value, new_value,
-                                        OSAtomicCastIntPtr(ptr))) {
+    if (OSAtomicCompareAndSwap32Barrier(old_value, new_value,
+                                        const_cast<Atomic32*>(ptr))) {
       return old_value;
     }
     prev_value = *ptr;
@@ -159,35 +177,49 @@ inline AtomicWord Acquire_CompareAndSwap(volatile AtomicWord *ptr,
   return prev_value;
 }
 
-inline AtomicWord Release_CompareAndSwap(volatile AtomicWord *ptr,
-                                         AtomicWord old_value,
-                                         AtomicWord new_value) {
+inline Atomic32 Release_CompareAndSwap(volatile Atomic32 *ptr,
+                                       Atomic32 old_value,
+                                       Atomic32 new_value) {
   // The ppc interface does not distinguish between Acquire and
   // Release memory barriers; they are equivalent.
   return Acquire_CompareAndSwap(ptr, old_value, new_value);
 }
 
+inline void NoBarrier_Store(volatile Atomic32* ptr, Atomic32 value) {
+  *ptr = value;
+}
 
-inline void Acquire_Store(volatile AtomicWord *ptr, AtomicWord value) {
+inline void Acquire_Store(volatile Atomic32 *ptr, Atomic32 value) {
   *ptr = value;
   MemoryBarrier();
 }
 
-inline void Release_Store(volatile AtomicWord *ptr, AtomicWord value) {
+inline void Release_Store(volatile Atomic32 *ptr, Atomic32 value) {
   MemoryBarrier();
   *ptr = value;
 }
 
-inline AtomicWord Acquire_Load(volatile const AtomicWord *ptr) {
-  AtomicWord value = *ptr;
+inline Atomic32 NoBarrier_Load(volatile const Atomic32* ptr) {
+  return *ptr;
+}
+
+inline Atomic32 Acquire_Load(volatile const Atomic32 *ptr) {
+  Atomic32 value = *ptr;
   MemoryBarrier();
   return value;
 }
 
-inline AtomicWord Release_Load(volatile const AtomicWord *ptr) {
+inline Atomic32 Release_Load(volatile const Atomic32 *ptr) {
   MemoryBarrier();
   return *ptr;
 }
 
+}   // namespace base::subtle
+}   // namespace base
 
+// NOTE(vchen): The following is also deprecated.  New callers should use
+// the base::subtle namespace.
+inline void MemoryBarrier() {
+  base::subtle::MemoryBarrier();
+}
 #endif  // BASE_ATOMICOPS_INTERNALS_LINUXPPC_H__

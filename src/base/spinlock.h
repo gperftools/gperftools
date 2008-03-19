@@ -36,7 +36,7 @@
 // half the cost of a Mutex because the unlock just does a store instead
 // of a compare-and-swap which is expensive).
 
-// Spinlock is async signal safe.
+// SpinLock is async signal safe.
 // If used within a signal handler, all lock holders 
 // should block the signal even outside the signal handler.
 
@@ -46,6 +46,7 @@
 #include "config.h"
 #include "base/basictypes.h"
 #include "base/atomicops.h"
+#include "base/dynamic_annotations.h"
 
 class SpinLock {
  public:
@@ -53,15 +54,14 @@ class SpinLock {
 
   // Special constructor for use with static SpinLock objects.  E.g.,
   //
-  //    static SpinLock lock(SpinLock::LINKER_INITIALIZED);
+  //    static SpinLock lock(base::LINKER_INITIALIZED);
   //
   // When intialized using this constructor, we depend on the fact
   // that the linker has already initialized the memory appropriately.
   // A SpinLock constructed like this can be freely used from global
   // initializers without worrying about the order in which global
   // initializers run.
-  enum StaticInitializer { LINKER_INITIALIZED };
-  explicit SpinLock(StaticInitializer x) {
+  explicit SpinLock(base::LinkerInitialized x) {
     // Does nothing; lockword_ is already initialized
   }
 
@@ -69,10 +69,15 @@ class SpinLock {
     if (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
       SlowLock();
     }
+    ANNOTATE_RWLOCK_ACQUIRED(this, 1);
   }
 
   inline bool TryLock() {
-    return (Acquire_CompareAndSwap(&lockword_, 0, 1) == 0);
+    bool res = (Acquire_CompareAndSwap(&lockword_, 0, 1) == 0);
+    if (res) {
+      ANNOTATE_RWLOCK_ACQUIRED(this, 1);
+    }
+    return res;
   }
 
   inline void Unlock() {
@@ -80,7 +85,7 @@ class SpinLock {
     extern void SubmitSpinLockProfileData(const void *, int64);
 
     int64 wait_timestamp = static_cast<uint32>(lockword_);
-
+    ANNOTATE_RWLOCK_RELEASED(this, 1);
     Release_Store(&lockword_, 0);
     // Collect contention profile info if this lock was contended.
     // The lockword_ value indicates when the waiter started waiting
@@ -110,8 +115,11 @@ class SpinLock {
   // Waits this long should be very rare.
   enum { PROFILE_TIMESTAMP_SHIFT = 7 };
 
+  static const base::LinkerInitialized LINKER_INITIALIZED;  // backwards compat
  private:
-  // Lock-state: 0 means unlocked, 1 means locked
+  // Lock-state:  0 means unlocked; 1 means locked with no waiters; values
+  // greater than 1 indicate locked with waiters, where the value is the time
+  // the first waiter started waiting and is used for contention profiling.
   volatile AtomicWord lockword_;
 
   void SlowLock();

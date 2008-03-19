@@ -275,4 +275,20 @@ class AssignAttributeStartEnd {
 
 #endif  // HAVE___ATTRIBUTE__ and __ELF__ or __MACH__
 
+// The following enum should be used only as a constructor argument to indicate
+// that the variable has static storage class, and that the constructor should
+// do nothing to its state.  It indicates to the reader that it is legal to
+// declare a static nistance of the class, provided the constructor is given
+// the base::LINKER_INITIALIZED argument.  Normally, it is unsafe to declare a
+// static variable that has a constructor or a destructor because invocation
+// order is undefined.  However, IF the type can be initialized by filling with
+// zeroes (which the loader does for static variables), AND the destructor also
+// does nothing to the storage, then a constructor declared as
+//       explicit MyClass(base::LinkerInitialized x) {}
+// and invoked as
+//       static MyClass my_variable_name(base::LINKER_INITIALIZED);
+namespace base {
+enum LinkerInitialized { LINKER_INITIALIZED };
+}
+
 #endif  // _BASICTYPES_H_

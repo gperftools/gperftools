@@ -41,8 +41,7 @@ CPU PROFILER
 
 STACKTRACE
 
-1) Document and advertise libstacktrace
-2) Remove dependency on linux/x86
+1) Remove dependency on linux/x86
 
 ---
-4 April 2007
+11 March 2008

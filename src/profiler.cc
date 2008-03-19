@@ -32,11 +32,6 @@
 //         Chris Demetriou (refactoring)
 //
 // Profile current program by sampling stack-trace every so often
-//
-// TODO: Detect whether or not setitimer() applies to all threads in
-// the process.  If so, instead of starting and stopping by changing
-// the signal handler, start and stop by calling setitimer() and
-// do nothing in the per-thread registration code.
 
 #include "config.h"
 #include "getpc.h"      // should be first to get the _GNU_SOURCE dfn
@@ -85,9 +80,23 @@ class CpuProfiler {
 
   void GetCurrentState(ProfilerState* state);
 
-  // Start interval timer for the current thread.  We do this for
-  // every known thread.  If profiling is off, the generated signals
-  // are ignored, otherwise they are captured by prof_handler().
+  // Register the current thread with the profiler.  This should be
+  // called only once per thread.
+  //
+  // The profiler attempts to determine whether or not timers are
+  // shared by all threads in the process.  (With LinuxThreads, and
+  // with NPTL on some Linux kernel versions, each thread has separate
+  // timers.)
+  //
+  // On systems which have a separate interval timer for each thread,
+  // this function starts the timer for the current thread.  Profiling
+  // is disabled by ignoring the resulting signals, and enabled by
+  // setting their handler to be prof_handler.
+  //
+  // Prior to determining whether timers are shared, this function
+  // will unconditionally start the timer.  However, if this function
+  // determines that timers are shared, then it will stop the timer if
+  // profiling is not currently enabled.
   void RegisterThread();
 
   static CpuProfiler instance_;
@@ -125,6 +134,32 @@ class CpuProfiler {
   bool          (*filter_)(void*);
   void*         filter_arg_;
 
+  // Whether or not the threading system provides interval timers
+  // that are shared by all threads in a process.
+  enum {
+    TIMERS_UNTOUCHED,  // No timer initialization attempted yet.
+    TIMERS_ONE_SET,    // First thread has registered and set timer.
+    TIMERS_SHARED,     // Timers are shared by all threads.
+    TIMERS_SEPARATE    // Timers are separate in each thread.
+  }             timer_sharing_;
+
+  // Start the interval timer used for profiling.  If the thread
+  // library shares timers between threads, this is used to enable and
+  // disable the timer when starting and stopping profiling.  If
+  // timers are not shared, this is used to enable the timer in each
+  // thread.
+  void StartTimer();
+
+  // Stop the interval timer used for profiling.  Used only if the
+  // thread library shares timers between threads.
+  void StopTimer();
+
+  // Returns true if the profiling interval timer enabled in the
+  // current thread.  This actually checks the kernel's interval timer
+  // setting.  (It is used to detect whether timers are shared or
+  // separate.)
+  bool IsTimerRunning();
+
   // Sets the timer interrupt signal handler to one that stores the pc.
   static void EnableHandler();
 
@@ -141,7 +176,8 @@ class CpuProfiler {
 CpuProfiler CpuProfiler::instance_;
 
 // Initialize profiling: activated if getenv("CPUPROFILE") exists.
-CpuProfiler::CpuProfiler() {
+CpuProfiler::CpuProfiler()
+    : timer_sharing_(TIMERS_UNTOUCHED) {
   // Get frequency of interrupts (if specified)
   char junk;
   const char* fr = getenv("CPUPROFILE_FREQUENCY");
@@ -204,6 +240,10 @@ bool CpuProfiler::Start(const char* fname,
     // with signal delivered to this thread.
   }
 
+  if (timer_sharing_ == TIMERS_SHARED) {
+    StartTimer();
+  }
+
   // Setup handler for SIGPROF interrupts
   EnableHandler();
 
@@ -224,10 +264,14 @@ void CpuProfiler::Stop() {
 
   // Ignore timer signals.  Note that the handler may have just
   // started and might not have taken signal_lock_ yet.  Holding
-  // signal_lock_ here along with the semantics of collector_.Add()
+  // signal_lock_ below along with the semantics of collector_.Add()
   // (which does nothing if collection is not enabled) prevents that
   // late sample from causing a problem.
   DisableHandler();
+
+  if (timer_sharing_ == TIMERS_SHARED) {
+    StopTimer();
+  }
 
   {
     SpinLockHolder sl(&signal_lock_);
@@ -273,6 +317,53 @@ void CpuProfiler::GetCurrentState(ProfilerState* state) {
 }
 
 void CpuProfiler::RegisterThread() {
+  SpinLockHolder cl(&control_lock_);
+
+  // We try to detect whether timers are being shared by setting a
+  // timer in the first call to this function, then checking whether
+  // it's set in the second call.
+  //
+  // Note that this detection method requires that the first two calls
+  // to RegisterThread must be made from different threads.  (Subsequent
+  // calls will see timer_sharing_ set to either TIMERS_SEPARATE or
+  // TIMERS_SHARED, and won't try to detect the timer sharing type.)
+  //
+  // Also note that if timer settings were inherited across new thread
+  // creation but *not* shared, this approach wouldn't work.  That's
+  // not an issue for any Linux threading implementation, and should
+  // not be a problem for a POSIX-compliant threads implementation.
+  switch (timer_sharing_) {
+    case TIMERS_UNTOUCHED:
+      StartTimer();
+      timer_sharing_ = TIMERS_ONE_SET;
+      break;
+    case TIMERS_ONE_SET:
+      // If the timer is running, that means that the main thread's
+      // timer setup is seen in this (second) thread -- and therefore
+      // that timers are shared.
+      if (IsTimerRunning()) {
+        timer_sharing_ = TIMERS_SHARED;
+        // If profiling has already been enabled, we have to keep the
+        // timer running.  If not, we disable the timer here and
+        // re-enable it in start.
+        if (!collector_.enabled()) {
+          StopTimer();
+        }
+      } else {
+        timer_sharing_ = TIMERS_SEPARATE;
+        StartTimer();
+      }
+      break;
+    case TIMERS_SHARED:
+      // Nothing needed.
+      break;
+    case TIMERS_SEPARATE:
+      StartTimer();
+      break;
+  }
+}
+
+void CpuProfiler::StartTimer() {
   // TODO: Randomize the initial interrupt value?
   // TODO: Randomize the inter-interrupt period on every interrupt?
   struct itimerval timer;
@@ -280,6 +371,19 @@ void CpuProfiler::RegisterThread() {
   timer.it_interval.tv_usec = 1000000 / frequency_;
   timer.it_value = timer.it_interval;
   setitimer(ITIMER_PROF, &timer, 0);
+}
+
+void CpuProfiler::StopTimer() {
+  struct itimerval timer;
+  memset(&timer, 0, sizeof timer);
+  setitimer(ITIMER_PROF, &timer, 0);
+}
+
+bool CpuProfiler::IsTimerRunning() {
+  itimerval current_timer;
+  RAW_CHECK(getitimer(ITIMER_PROF, &current_timer) == 0, "getitimer failed");
+  return (current_timer.it_value.tv_sec != 0 ||
+          current_timer.it_value.tv_usec != 0);
 }
 
 void CpuProfiler::EnableHandler() {

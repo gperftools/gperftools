@@ -81,9 +81,11 @@ dist_doc_DATA += doc/index.html doc/designstyle.css
 # This is a 'convenience library' -- it's not actually installed or anything
 LOGGING_INCLUDES = src/base/logging.h \
                    src/base/commandlineflags.h \
-                   src/base/basictypes.h
+                   src/base/basictypes.h \
+                   src/base/dynamic_annotations.h
 noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
+                        src/base/dynamic_annotations.cc \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
@@ -153,7 +155,7 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
                                    src/tests/low_level_alloc_unittest.cc \
                                    $(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES)
-low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) libstacktrace.la
+low_level_alloc_unittest_LDADD = libstacktrace.la
 
 if !MINGW
 TESTS += atomicops_unittest
@@ -181,11 +183,9 @@ STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 googleinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
 
 ### Making the library
-lib_LTLIBRARIES += libstacktrace.la
+noinst_LTLIBRARIES += libstacktrace.la
 libstacktrace_la_SOURCES = src/stacktrace.cc \
                            $(STACKTRACE_INCLUDES)
-# TODO(csilvers): only add these two things when stacktrace.cc would
-#                 #include "stacktrace_libunwind-inl.h"
 libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)
 STACKTRACE_SYMBOLS = '(GetStackTrace)'
 libstacktrace_la_LDFLAGS = -export-symbols-regex $(STACKTRACE_SYMBOLS)
@@ -257,19 +257,9 @@ libtcmalloc_minimal_la_SOURCES = src/internal_logging.cc \
 libtcmalloc_minimal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) \
-                                libstacktrace.la $(LIBSPINLOCK)
+                                libstacktrace.la
 
-# Whenever we link in tcmalloc_minimal, we also need to link in
-# libstacktrace.so (we also need libspinlock and liblogging, but those
-# are created as .a's, not .so's).  libtool should do this for us, via
-# the LIBADD above.  But on some systems, -rpath doesn't work
-# properly, and whatever libtool does fails.  So we just manually link
-# in -lstacktrace whenever linking in -ltcmalloc_minimal.
-# (Note this isn't a problem for an *installed* tcmalloc, because then
-# everything lives in /usr/lib or /usr/local/lib, which is on the
-# linker search path, so the value of -rpath doesn't matter.)
-# Remember tcmalloc should always be linked in last!
-LIBTCMALLOC_MINIMAL = libstacktrace.la libtcmalloc_minimal.la
+LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 
 ### Unittests
 
@@ -495,12 +485,9 @@ libtcmalloc_la_SOURCES = src/internal_logging.cc \
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) \
-                        libstacktrace.la $(LIBSPINLOCK)
+                        libstacktrace.la
 
-# See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
-# Basically it's to work around systems where --rpath doesn't work right.
-# Remember tcmalloc should always be linked in last!
-LIBTCMALLOC = libstacktrace.la libtcmalloc.la
+LIBTCMALLOC = libtcmalloc.la
 
 
 ### Unittests
@@ -518,6 +505,7 @@ tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
 # This makes sure it's safe to link in both tcmalloc and tcmalloc_minimal.
 # (One would never do this on purpose, but perhaps by accident...)
+# We also link in libprofiler to make sure that works too
 TESTS += tcmalloc_both_unittest
 tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                  src/tests/testutil.h src/tests/testutil.cc \
@@ -525,7 +513,7 @@ tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 tcmalloc_both_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_both_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
-                               liblogging.la $(PTHREAD_LIBS)
+                               libprofiler.la liblogging.la $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_large_unittest
 tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
@@ -619,7 +607,7 @@ lib_LTLIBRARIES += libprofiler.la
 libprofiler_la_SOURCES = src/profiler.cc \
                          src/profiledata.cc \
                          $(CPU_PROFILER_INCLUDES)
-libprofiler_la_LIBADD = $(LIBSPINLOCK) libstacktrace.la
+libprofiler_la_LIBADD = libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
 CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)

@@ -39,78 +39,153 @@
 #define BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__
 #include "base/basictypes.h"  // For COMPILE_ASSERT
 
-typedef intptr_t AtomicWord;
-#ifdef _WIN64
-typedef LONG Atomic32;
-#else
-typedef AtomicWord Atomic32;
+typedef int32 Atomic32;
+
+#if defined(_WIN64)
+#define BASE_HAS_ATOMIC64 1  // Use only in tests and base/atomic*
 #endif
 
-COMPILE_ASSERT(sizeof(AtomicWord) == sizeof(PVOID), atomic_word_is_atomic);
+namespace base {
+namespace subtle {
 
-inline AtomicWord CompareAndSwap(volatile AtomicWord* ptr,
-                                 AtomicWord old_value,
-                                 AtomicWord new_value) {
-  PVOID result = InterlockedCompareExchangePointer(
-    reinterpret_cast<volatile PVOID*>(ptr),
-    reinterpret_cast<PVOID>(new_value), reinterpret_cast<PVOID>(old_value));
-  return reinterpret_cast<AtomicWord>(result);
+typedef int64 Atomic64;
+
+// 32-bit low-level operations on any platform
+
+inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
+                                         Atomic32 old_value,
+                                         Atomic32 new_value) {
+  LONG result = InterlockedCompareExchange(
+      reinterpret_cast<volatile LONG*>(ptr),
+      static_cast<LONG>(new_value),
+      static_cast<LONG>(old_value));
+  return static_cast<Atomic32>(result);
 }
 
-inline AtomicWord AtomicExchange(volatile AtomicWord* ptr,
-                                 AtomicWord new_value) {
-  PVOID result = InterlockedExchangePointer(
-    const_cast<PVOID*>(reinterpret_cast<volatile PVOID*>(ptr)),
-    reinterpret_cast<PVOID>(new_value));
-  return reinterpret_cast<AtomicWord>(result);
+inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
+                                         Atomic32 new_value) {
+  LONG result = InterlockedExchange(
+      reinterpret_cast<volatile LONG*>(ptr),
+      static_cast<LONG>(new_value));
+  return static_cast<Atomic32>(result);
 }
 
-#ifdef _WIN64
-inline Atomic32 AtomicIncrement(volatile Atomic32* ptr, Atomic32 increment) {
-  // InterlockedExchangeAdd returns *ptr before being incremented
-  // and we must return nonzero iff *ptr is nonzero after being
-  // incremented.
-  return InterlockedExchangeAdd(ptr, increment) + increment;
-}
-
-inline AtomicWord AtomicIncrement(volatile AtomicWord* ptr, AtomicWord increment) {
-    return InterlockedExchangeAdd64(
-      reinterpret_cast<volatile LONGLONG*>(ptr),
-      static_cast<LONGLONG>(increment)) + increment;
-}
-#else
-inline AtomicWord AtomicIncrement(volatile AtomicWord* ptr, AtomicWord increment) {
-    return InterlockedExchangeAdd(
+inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
+                                        Atomic32 increment) {
+  return InterlockedExchangeAdd(
       reinterpret_cast<volatile LONG*>(ptr),
       static_cast<LONG>(increment)) + increment;
 }
-#endif
 
-inline AtomicWord Acquire_CompareAndSwap(volatile AtomicWord* ptr,
-                                         AtomicWord old_value,
-                                         AtomicWord new_value) {
-  return CompareAndSwap(ptr, old_value, new_value);
+inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
+                                          Atomic32 increment) {
+  return Barrier_AtomicIncrement(ptr, increment);
 }
 
-inline AtomicWord Release_CompareAndSwap(volatile AtomicWord* ptr,
-                                         AtomicWord old_value,
-                                         AtomicWord new_value) {
-  return CompareAndSwap(ptr, old_value, new_value);
-}
+}  // namespace base::subtle
+}  // namespace base
+
 
 // In msvc8/vs2005, winnt.h already contains a definition for MemoryBarrier.
+// Defined it outside the namespace.
 #if !(defined(_MSC_VER) && _MSC_VER >= 1400)
 inline void MemoryBarrier() {
-  AtomicWord value = 0;
-  AtomicExchange(&value, 0); // acts as a barrier
+  Atomic32 value = 0;
+  base::subtle::NoBarrier_AtomicExchange(&value, 0);
+                        // actually acts as a barrier in thisd implementation
 }
 #endif
 
-inline void Acquire_Store(volatile AtomicWord* ptr, AtomicWord value) {
-  AtomicExchange(ptr, value);
+namespace base {
+namespace subtle {
+
+inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
+                                       Atomic32 old_value,
+                                       Atomic32 new_value) {
+  return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
 }
 
-inline void Release_Store(volatile AtomicWord* ptr, AtomicWord value) {
+inline Atomic32 Release_CompareAndSwap(volatile Atomic32* ptr,
+                                       Atomic32 old_value,
+                                       Atomic32 new_value) {
+  return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
+}
+
+inline void NoBarrier_Store(volatile Atomic32* ptr, Atomic32 value) {
+  *ptr = value;
+}
+
+inline void Acquire_Store(volatile Atomic32* ptr, Atomic32 value) {
+  NoBarrier_AtomicExchange(ptr, value);
+              // acts as a barrier in this implementation
+}
+
+inline void Release_Store(volatile Atomic32* ptr, Atomic32 value) {
+  *ptr = value; // works w/o barrier for current Intel chips as of June 2005
+  // See comments in Atomic64 version of Release_Store() below.
+}
+
+inline Atomic32 NoBarrier_Load(volatile const Atomic32* ptr) {
+  return *ptr;
+}
+
+inline Atomic32 Acquire_Load(volatile const Atomic32* ptr) {
+  Atomic32 value = *ptr;
+  return value;
+}
+
+inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
+  MemoryBarrier();
+  return *ptr;
+}
+
+// 64-bit operations
+
+#if defined(_WIN64)
+
+// 64-bit low-level operations on 64-bit platform.
+
+COMPILE_ASSERT(sizeof(Atomic64) == sizeof(PVOID), atomic_word_is_atomic);
+
+inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
+                                         Atomic64 old_value,
+                                         Atomic64 new_value) {
+  PVOID result = InterlockedCompareExchangePointer(
+    reinterpret_cast<volatile PVOID*>(ptr),
+    reinterpret_cast<PVOID>(new_value), reinterpret_cast<PVOID>(old_value));
+  return reinterpret_cast<Atomic64>(result);
+}
+
+inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
+                                         Atomic64 new_value) {
+  PVOID result = InterlockedExchangePointer(
+    const_cast<PVOID*>(reinterpret_cast<volatile PVOID*>(ptr)),
+    reinterpret_cast<PVOID>(new_value));
+  return reinterpret_cast<Atomic64>(result);
+}
+
+inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
+                                        Atomic64 increment) {
+  return InterlockedExchangeAdd64(
+      reinterpret_cast<volatile LONGLONG*>(ptr),
+      static_cast<LONGLONG>(increment)) + increment;
+}
+
+inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
+                                          Atomic64 increment) {
+  return Barrier_AtomicIncrement(ptr, increment);
+}
+
+inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
+  *ptr = value;
+}
+
+inline void Acquire_Store(volatile Atomic64* ptr, Atomic64 value) {
+  NoBarrier_AtomicExchange(ptr, value);
+              // acts as a barrier in this implementation
+}
+
+inline void Release_Store(volatile Atomic64* ptr, Atomic64 value) {
   *ptr = value; // works w/o barrier for current Intel chips as of June 2005
 
   // When new chips come out, check:
@@ -121,15 +196,179 @@ inline void Release_Store(volatile AtomicWord* ptr, AtomicWord value) {
   //   http://developer.intel.com/design/pentium4/manuals/index_new.htm
 }
 
-inline AtomicWord Acquire_Load(volatile const AtomicWord* ptr) {
-  AtomicWord value = *ptr;
-  MemoryBarrier();
+inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
+  return *ptr;
+}
+
+inline Atomic64 Acquire_Load(volatile const Atomic64* ptr) {
+  Atomic64 value = *ptr;
   return value;
 }
 
-inline AtomicWord Release_Load(volatile const AtomicWord* ptr) {
+inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
   MemoryBarrier();
   return *ptr;
 }
+
+#else  // defined(_WIN64)
+
+// 64-bit low-level operations on 32-bit platform
+
+// TBD(vchen): The GNU assembly below must be converted to MSVC inline
+// assembly.
+
+#include <stdio.h>
+#include <stdlib.h>
+
+inline void NotImplementedFatalError(const char *function_name) {
+  fprintf(stderr, "64-bit %s() not implemented on this platform\n",
+          function_name);
+  abort();
+}
+
+inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
+                                         Atomic64 old_value,
+                                         Atomic64 new_value) {
+#if 0 // Not implemented
+  Atomic64 prev;
+  __asm__ __volatile__("movl (%3), %%ebx\n\t"    // Move 64-bit new_value into
+                       "movl 4(%3), %%ecx\n\t"   // ecx:ebx
+                       "lock; cmpxchg8b %1\n\t"  // If edx:eax (old_value) same
+                       : "=A" (prev)             // as contents of ptr:
+                       : "m" (*ptr),             //   ecx:ebx => ptr
+                         "0" (old_value),        // else:
+                         "r" (&new_value)        //   old *ptr => edx:eax
+                       : "memory", "%ebx", "%ecx");
+  return prev;
+#else
+  NotImplementedFatalError("NoBarrier_CompareAndSwap");
+  return 0;
+#endif
+}
+
+inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
+                                         Atomic64 new_value) {
+#if 0 // Not implemented
+  __asm__ __volatile__(
+                       "movl (%2), %%ebx\n\t"    // Move 64-bit new_value into
+                       "movl 4(%2), %%ecx\n\t"   // ecx:ebx
+                       "0:\n\t"
+                       "movl %1, %%eax\n\t"      // Read contents of ptr into
+                       "movl 4%1, %%edx\n\t"     // edx:eax
+                       "lock; cmpxchg8b %1\n\t"  // Attempt cmpxchg; if *ptr
+                       "jnz 0b\n\t"              // is no longer edx:eax, loop
+                       : "=A" (new_value)
+                       : "m" (*ptr),
+                         "r" (&new_value)
+                       : "memory", "%ebx", "%ecx");
+  return new_value;  // Now it's the previous value.
+#else
+  NotImplementedFatalError("NoBarrier_AtomicExchange");
+  return 0;
+#endif
+}
+
+inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
+                                          Atomic64 increment) {
+#if 0 // Not implemented
+  Atomic64 temp = increment;
+  __asm__ __volatile__(
+                       "0:\n\t"
+                       "movl (%3), %%ebx\n\t"    // Move 64-bit increment into
+                       "movl 4(%3), %%ecx\n\t"   // ecx:ebx
+                       "movl (%2), %%eax\n\t"    // Read contents of ptr into
+                       "movl 4(%2), %%edx\n\t"   // edx:eax
+                       "add %%eax, %%ebx\n\t"    // sum => ecx:ebx
+                       "adc %%edx, %%ecx\n\t"    // edx:eax still has old *ptr
+                       "lock; cmpxchg8b (%2)\n\t"// Attempt cmpxchg; if *ptr
+                       "jnz 0b\n\t"              // is no longer edx:eax, loop
+                       : "=A"(temp), "+m"(*ptr)
+                       : "D" (ptr), "S" (&increment)
+                       : "memory", "%ebx", "%ecx");
+  // temp now contains the previous value of *ptr
+  return temp + increment;
+#else
+  NotImplementedFatalError("NoBarrier_AtomicIncrement");
+  return 0;
+#endif
+}
+
+inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
+                                        Atomic64 increment) {
+#if 0 // Not implemented
+  Atomic64 new_val = NoBarrier_AtomicIncrement(ptr, increment);
+  if (AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug) {
+    __asm__ __volatile__("lfence" : : : "memory");
+  }
+  return new_val;
+#else
+  NotImplementedFatalError("Barrier_AtomicIncrement");
+  return 0;
+#endif
+}
+
+inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
+#if 0 // Not implemented
+  __asm {
+    mov mm0, value;  // Use mmx reg for 64-bit atomic moves
+    mov ptr, mm0;
+    emms;            // Empty mmx state to enable FP registers
+  }
+#else
+  NotImplementedFatalError("NoBarrier_Store");
+#endif
+}
+
+inline void Acquire_Store(volatile Atomic64* ptr, Atomic64 value) {
+  NoBarrier_AtomicExchange(ptr, value);
+              // acts as a barrier in this implementation
+}
+
+inline void Release_Store(volatile Atomic64* ptr, Atomic64 value) {
+  NoBarrier_Store(ptr, value);
+}
+
+inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
+#if 0 // Not implemented
+  Atomic64 value;
+  __asm {
+    mov mm0, ptr;    // Use mmx reg for 64-bit atomic moves
+    mov value, mm0;
+    emms;            // Empty mmx state to enable FP registers
+  }
+  return value;
+#else
+  NotImplementedFatalError("NoBarrier_Store");
+  return 0;
+#endif
+}
+
+inline Atomic64 Acquire_Load(volatile const Atomic64* ptr) {
+  Atomic64 value = NoBarrier_Load(ptr);
+  return value;
+}
+
+inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
+  MemoryBarrier();
+  return NoBarrier_Load(ptr);
+}
+
+#endif  // defined(_WIN64)
+
+
+inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
+                                       Atomic64 old_value,
+                                       Atomic64 new_value) {
+  return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
+}
+
+inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
+                                       Atomic64 old_value,
+                                       Atomic64 new_value) {
+  return NoBarrier_CompareAndSwap(ptr, old_value, new_value);
+}
+
+}  // namespace base::subtle
+}  // namespace base
 
 #endif  // BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__

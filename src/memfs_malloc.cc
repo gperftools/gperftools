@@ -168,7 +168,12 @@ static void InitSystemAllocator() {
 
     int hugetlb_fd = open(hugetlbfs_path.c_str(), O_RDWR | O_CREAT | O_EXCL,
                           0600);
-    CHECK_ERR(hugetlb_fd);
+    if (hugetlb_fd == -1) {
+      RAW_LOG(WARNING, "unable to create memfs_malloc_path file %s: %s",
+              hugetlbfs_path.c_str(), strerror(errno));
+      return;
+    }
+
     // Cleanup memory on process exit
     CHECK_ERR(unlink(hugetlbfs_path.c_str()));
 

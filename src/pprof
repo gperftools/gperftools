@@ -2444,6 +2444,16 @@ sub FindLibrary {
   return $file;
 }
 
+# Return path to library with debugging symbols.
+# For libc libraries, the copy in /usr/lib/debug contains debugging symbols
+sub DebuggingLibrary {
+  my $file = shift;
+  if ($file =~ m|^/| && -f "/usr/lib/debug$file") {
+    return "/usr/lib/debug$file";
+  }
+  return undef;
+}
+
 # Parse text section header of a library using objdump
 sub ParseTextSectionHeader {
    my $lib = shift;
@@ -2527,10 +2537,17 @@ sub ParseLibraries {
 
     $lib = FindLibrary($lib);
 
-    my $text = ParseTextSectionHeader($lib);
-    if (defined($text)) {
-       my $vma_offset = AddressSub($text->{vma}, $text->{file_offset});
-       $offset = AddressAdd($offset, $vma_offset);
+    # Check for pre-relocated libraries, which use pre-relocated symbol tables
+    # and thus require adjusting the offset that we'll use to translate
+    # VM addresses into symbol table addresses.
+    # Only do this if we're not going to fetch the symbol table from a 
+    # debugging copy of the library.
+    if (!DebuggingLibrary($lib)) {
+      my $text = ParseTextSectionHeader($lib);
+      if (defined($text)) {
+         my $vma_offset = AddressSub($text->{vma}, $text->{file_offset});
+         $offset = AddressAdd($offset, $vma_offset);
+      }
     }
 
     push(@{$result}, [$lib, $start, $finish, $offset]);
@@ -3004,9 +3021,11 @@ sub GetProcedureBoundaries {
   my $regexp = shift;
 
   # For libc libraries, the copy in /usr/lib/debug contains debugging symbols
-  if ($image =~ m|^/| && -f "/usr/lib/debug$image") {
-    $image = "/usr/lib/debug$image";
+  my $debugging = DebuggingLibrary($image);
+  if ($debugging) {
+    $image = $debugging;
   }
+
   my $nm = $obj_tool_map{"nm"};
   my $cppfilt = $obj_tool_map{"c++filt"};
 

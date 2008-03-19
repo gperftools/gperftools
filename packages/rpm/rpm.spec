@@ -66,8 +66,6 @@ rm -rf $RPM_BUILD_ROOT
 %doc doc/cpuprofile.html doc/cpuprofile-fileformat.html
 %doc doc/pprof-test-big.gif doc/pprof-test.gif doc/pprof-vsnprintf-big.gif doc/pprof-vsnprintf.gif
 
-%{prefix}/lib/libstacktrace.so.0
-%{prefix}/lib/libstacktrace.so.0.0.0
 %{prefix}/lib/libtcmalloc.so.0
 %{prefix}/lib/libtcmalloc.so.0.0.0
 %{prefix}/lib/libtcmalloc_minimal.so.0
@@ -81,9 +79,6 @@ rm -rf $RPM_BUILD_ROOT
 %defattr(-,root,root)
 
 %{prefix}/include/google
-%{prefix}/lib/libstacktrace.a
-%{prefix}/lib/libstacktrace.la
-%{prefix}/lib/libstacktrace.so
 %{prefix}/lib/libtcmalloc.a
 %{prefix}/lib/libtcmalloc.la
 %{prefix}/lib/libtcmalloc.so

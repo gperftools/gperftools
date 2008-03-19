@@ -421,7 +421,7 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
       const char* fname = g.gl_pathv[i];
       if ((strlen(fname) >= prefix_length) &&
           (memcmp(fname, prefix, prefix_length) == 0)) {
-        RAW_VLOG(0, "Removing old heap profile %s", fname);
+        RAW_VLOG(1, "Removing old heap profile %s", fname);
         unlink(fname);
       }
     }

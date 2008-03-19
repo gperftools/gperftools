@@ -61,8 +61,15 @@ UNITTEST_DIR=`$UNITTEST_DIR/low_level_alloc_unittest --help 2>&1 \
               | awk '{print $2; exit;}' \
               | xargs dirname`
 
-# We need to set the library-path too: libtcmalloc depends on libstacktrace
-# (Note we try several different names: OS X uses its own libpath varname).
-LD_LIBRARY_PATH="$UNITTEST_DIR" DYLD_LIBRARY_PATH="$UNITTEST_DIR" \
-LD_PRELOAD="$UNITTEST_DIR/libtcmalloc_minimal.so" \
-    $UNITTEST_DIR/low_level_alloc_unittest
+# Figure out where libtcmalloc lives.   It should be in UNITTEST_DIR,
+# but with libtool it might be in a subdir.
+if [ -e "$UNITTEST_DIR/libtcmalloc_minimal.so" ]; then
+  LIB_PATH="$UNITTEST_DIR/libtcmalloc_minimal.so"
+elif [ -e "$UNITTEST_DIR/.libs/libtcmalloc_minimal.so" ]; then
+  LIB_PATH="$UNITTEST_DIR/.libs/libtcmalloc_minimal.so"
+else
+  echo "Cannot run $0: cannot find libtcmalloc_minimal.so"
+  exit 2
+fi
+
+LD_PRELOAD="$LIB_PATH" $UNITTEST_DIR/low_level_alloc_unittest

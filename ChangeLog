@@ -1,3 +1,13 @@
+Tue Mar 18 14:30:44 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.96 release
+	* major atomicops rewrite; fixed atomic ops code for linux/ppc (vchen)
+	* nix the stacktrace library; now build structure is simpler (csilvers)
+	* Speed up heap-checker, and reduce extraneous logging (maxim)
+	* Improve itimer code for NPTL case (cgd)
+	* Add source code annotations for use by valgrind, etc (kcc)
+	* PORTING: Fix high resolution timers for Mac OS X (adlr)
+
 Tue Feb 19 12:01:31 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.95.1 release  (bugfix release)

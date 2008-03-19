@@ -1325,9 +1325,9 @@ struct kernel_statfs {
     }
 
     LSS_INLINE void (*LSS_NAME(restore_rt)(void))(void) {
-      /* For real-time signals, the kernel does not know how to return from
-       * a signal handler. Instead, it relies on user space to provide a
-       * restorer function that calls the rt_sigreturn() system call.
+      /* On i386, the kernel does not know how to return from a signal
+       * handler. Instead, it relies on user space to provide a
+       * restorer function that calls the {rt_,}sigreturn() system call.
        * Unfortunately, we cannot just reference the glibc version of this
        * function, as glibc goes out of its way to make it inaccessible.
        */
@@ -1340,6 +1340,25 @@ struct kernel_statfs {
                            "addl   $(1b-0b),%0\n"
                            : "=a" (res)
                            : "i"  (__NR_rt_sigreturn));
+      return res;
+    }
+    LSS_INLINE void (*LSS_NAME(restore)(void))(void) {
+      /* On i386, the kernel does not know how to return from a signal
+       * handler. Instead, it relies on user space to provide a
+       * restorer function that calls the {rt_,}sigreturn() system call.
+       * Unfortunately, we cannot just reference the glibc version of this
+       * function, as glibc goes out of its way to make it inaccessible.
+       */
+      void (*res)(void);
+      __asm__ __volatile__("call   2f\n"
+                         "0:.align 16\n"
+                         "1:pop    %%eax\n"
+                           "movl   %1,%%eax\n"
+                           "int    $0x80\n"
+                         "2:popl   %0\n"
+                           "addl   $(1b-0b),%0\n"
+                           : "=a" (res)
+                           : "i"  (__NR_sigreturn));
       return res;
     }
   #elif defined(__x86_64__)
@@ -2190,14 +2209,16 @@ struct kernel_statfs {
        * This function must have a "magic" signature that the "gdb"
        * (and maybe the kernel?) can recognize.
        */
-      struct kernel_sigaction a;
-      if (act != NULL) {
-        a             = *act;
+      if (act != NULL && !(act->sa_flags & SA_RESTORER)) {
+        struct kernel_sigaction a = *act;
         a.sa_flags   |= SA_RESTORER;
         a.sa_restorer = LSS_NAME(restore_rt)();
+        return LSS_NAME(rt_sigaction)(signum, &a, oldact,
+                                      (KERNEL_NSIG+7)/8);
+      } else {
+        return LSS_NAME(rt_sigaction)(signum, act, oldact,
+                                      (KERNEL_NSIG+7)/8);
       }
-      return LSS_NAME(rt_sigaction)(signum, act ? &a : act, oldact,
-                                    (KERNEL_NSIG+7)/8);
     }
 
     LSS_INLINE int LSS_NAME(sigpending)(struct kernel_sigset_t *set) {
@@ -2394,8 +2415,11 @@ struct kernel_statfs {
          *
          * TODO: Test whether ARM needs a restorer
          */
-        a.sa_flags   |= SA_RESTORER;
-        a.sa_restorer = LSS_NAME(restore_rt)();
+        if (!(a.sa_flags & SA_RESTORER)) {
+          a.sa_flags   |= SA_RESTORER;
+          a.sa_restorer = (a.sa_flags & SA_SIGINFO)
+                          ? LSS_NAME(restore_rt)() : LSS_NAME(restore)();
+        }
         #endif
       }
       rc = LSS_NAME(rt_sigaction)(signum, act ? &a : act, oldact,

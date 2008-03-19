@@ -41,7 +41,7 @@ application, running the code, and analyzing the output.</p>
 Also, while we don't necessarily recommend this form of usage, it's
 possible to add in the profiler at run-time using
 <code>LD_PRELOAD</code>:
-<pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" <binary></pre>
+<pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" &lt;binary&gt;</pre>
 
 <p>This does <i>not</i> turn on heap profiling; it just inserts the
 code.  For that reason, it's practical to just always link

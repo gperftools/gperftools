@@ -48,30 +48,34 @@
 #include <sys/sysctl.h>
 #elif defined __sun__         // Solaris
 #include <procfs.h>           // for, e.g., prmap_t
-#elif defined _MSC_VER        // Windows
+#elif defined WIN32           // Windows
 #include <process.h>          // for getpid() (actually, _getpid())
 #include <shlwapi.h>          // for SHGetValueA()
+#include <tlhelp32.h>         // for Module32First()
 #endif
 #include "base/sysinfo.h"
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/cycleclock.h"
 
-#if defined(WIN32) && defined(MODULEENTRY32)
+#ifdef WIN32
+#ifdef MODULEENTRY32
 // In a change from the usual W-A pattern, there is no A variant of
 // MODULEENTRY32.  Tlhelp32.h #defines the W variant, but not the A.
-// We want the original A variants, and this #undef is the only
-// way I see to get them.
+// In unicode mode, tlhelp32.h #defines MODULEENTRY32 to be
+// MODULEENTRY32W.  These #undefs are the only way I see to get back
+// access to the original, ascii struct (and related functions).
 #undef MODULEENTRY32
 #undef Module32First
 #undef Module32Next
 #undef PMODULEENTRY32
 #undef LPMODULEENTRY32
+#endif  /* MODULEENTRY32 */
 // MinGW doesn't seem to define this, perhaps some windowsen don't either.
 #ifndef TH32CS_SNAPMODULE32
 #define TH32CS_SNAPMODULE32  0
-#endif
-#endif
+#endif  /* TH32CS_SNAPMODULE32 */
+#endif  /* WIN32 */
 
 // Re-run fn until it doesn't cause EINTR.
 #define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
@@ -335,8 +339,20 @@ static void InitializeSystemInfo() {
   // TODO(csilvers): also figure out cpuinfo_num_cpus
 
 #elif defined(__MACH__) && defined(__APPLE__)
-  // TODO(csilvers): can we do better than this?
-  cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+  // returning "mach time units" per second. the current number of elapsed
+  // mach time units can be found by calling uint64 mach_absolute_time();
+  // while not as precise as actual CPU cycles, it is accurate in the face
+  // of CPU frequency scaling and multi-cpu/core machines.
+  // Our mac users have these types of machines, and accuracy
+  // (i.e. correctness) trumps precision.
+  // See cycleclock.h: CycleClock::Now(), which returns number of mach time
+  // units on Mac OS X.
+  mach_timebase_info_data_t timebase_info;
+  mach_timebase_info(&timebase_info);
+  double mach_time_units_per_nanosecond =
+      static_cast<double>(timebase_info.denom) /
+      static_cast<double>(timebase_info.numer);
+  cpuinfo_cycles_per_second = mach_time_units_per_nanosecond * 1e9;
 
   int num_cpus = 0;
   size_t size = sizeof(num_cpus);

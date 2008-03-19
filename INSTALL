@@ -79,7 +79,7 @@ Perftools has been tested on the following systems:
    Windows XP, Visual Studio 2005 (VC++ 8) (x86)
    Windows XP, MinGW 5.1.3 (x86)
 
-It works in its full generality on the Linux x86 and x86_64 systems
+It works in its full generality on the Linux systems
 tested (though see 64-bit notes above).  Portions of perftools work on
 the other systems.  The basic memory-allocation library,
 tcmalloc_minimal, works on all systems.  The cpu-profiler also works
@@ -125,20 +125,14 @@ above, by linking in libtcmalloc_minimal.
 
    I have not tested other *BSD systems, but they are probably similar.
 
-** Linux/PPC:
-
-   I've tested on a PowerPC Linux box using qemu against Debian Etch
-   (4.0).  Most of the tests pass.  The heap-checker unittest does not
-   pass for reasons which are not yet clear but seem to be related to
-   the clone() system call.  Heap checking may work properly for
-   single-threaded programs, though I haven't tested that.
-
 ** Mac OS X:
 
    I've tested OS X 10.5 [Leopard], OS X 10.4 [Tiger] and OS X 10.3
-   [Panther] on both intel (x86) and PowerPC systems.  For Panther/ppc
+   [Panther] on both intel (x86) and PowerPC systems.  For Panther
    systems, perftools does not work at all: it depends on a header
-   file, OSAtomic.h, which is new in 10.4.
+   file, OSAtomic.h, which is new in 10.4.  (It's possible to get the
+   code working for Panther/i386 without too much work; if you're
+   interested in exploring this, drop an e-mail.)
 
    For the other seven systems, the binaries and libraries that
    successfully build are exactly the same as for FreeBSD.  See that

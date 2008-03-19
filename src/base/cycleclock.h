@@ -50,7 +50,18 @@
 struct CycleClock {
   // This should return the number of cycles since power-on
   static inline int64 Now() {
-#if defined(__i386__)
+#if defined(__MACH__) && defined(__APPLE__)
+    // this goes at the top because we need ALL Macs, regardless
+    // of architecture, to return the number of "mach time units"
+    // that have passes since startup. See sysinfo.cc where
+    // InitializeSystemInfo() sets the supposed cpu clock frequency of macs
+    // to the number of mach time units per second, not actual
+    // CPU clock frequency (which can change in the face of CPU
+    // frequency scaling).  also note that when the Mac sleeps,
+    // this counter pauses; it does not continue counting, nor resets
+    // to zero.
+    return mach_absolute_time();
+#elif defined(__i386__)
     int64 ret;
     __asm__ volatile ("rdtsc"
                       : "=A" (ret) );
@@ -79,8 +90,6 @@ struct CycleClock {
     return itc;
 #elif defined(_MSC_VER) && defined(_M_IX86)
     _asm rdtsc
-#elif defined(__MACH__) && defined(__APPLE__)
-    return mach_absolute_time();
 #else
     // We could define __alpha here as well, but it only has a 32-bit
     // timer (good for like 4 seconds), which isn't very useful.

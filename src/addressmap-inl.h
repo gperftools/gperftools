@@ -91,6 +91,14 @@
 #include <sys/types.h>          // our last best hope
 #endif
 
+// This class is thread-unsafe -- that is, instances of this class can
+// not be accessed concurrently by multiple threads -- because the
+// callback function for Iterate() may mutate contained values. If the
+// callback functions you pass do not mutate their Value* argument,
+// AddressMap can be treated as thread-compatible -- that is, it's
+// safe for multiple threads to call "const" methods on this class,
+// but not safe for one thread to call const methods on this class
+// while another thread is calling non-const methods on the class.
 template <class Value>
 class AddressMap {
  public:
@@ -200,6 +208,8 @@ class AddressMap {
   // Find cluster object for specified address.  If not found
   // and "create" is true, create the object.  If not found
   // and "create" is false, return NULL.
+  //
+  // This method is bitwise-const if create is false.
   Cluster* FindCluster(Number address, bool create) {
     // Look in hashtable
     const Number cluster_id = address >> (kBlockBits + kClusterBits);

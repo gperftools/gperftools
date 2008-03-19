@@ -34,14 +34,16 @@
 #include "base/logging.h"
 #include "base/atomicops.h"
 
+#define GG_ULONGLONG(x)  static_cast<uint64>(x)
+
 template <class AtomicType>
 static void TestAtomicIncrement() {
   // For now, we just test single threaded execution
 
-  // use a guard value to make sure the AtomicIncrement doesn't go
+  // use a guard value to make sure the NoBarrier_AtomicIncrement doesn't go
   // outside the expected address bounds.  This is in particular to
   // test that some future change to the asm code doesn't cause the
-  // 32-bit AtomicIncrement doesn't do the wrong thing on 64-bit
+  // 32-bit NoBarrier_AtomicIncrement doesn't do the wrong thing on 64-bit
   // machines.
   struct {
     AtomicType prev_word;
@@ -57,55 +59,208 @@ static void TestAtomicIncrement() {
   s.count = 0;
   s.next_word = next_word_value;
 
-  CHECK_EQ(AtomicIncrement(&s.count, 1), 1);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 1), 1);
   CHECK_EQ(s.count, 1);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, 2), 3);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 2), 3);
   CHECK_EQ(s.count, 3);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, 3), 6);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 3), 6);
   CHECK_EQ(s.count, 6);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, -3), 3);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -3), 3);
   CHECK_EQ(s.count, 3);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, -2), 1);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -2), 1);
   CHECK_EQ(s.count, 1);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, -1), 0);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -1), 0);
   CHECK_EQ(s.count, 0);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, -1), -1);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -1), -1);
   CHECK_EQ(s.count, -1);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, -4), -5);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -4), -5);
   CHECK_EQ(s.count, -5);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 
-  CHECK_EQ(AtomicIncrement(&s.count, 5), 0);
+  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 5), 0);
   CHECK_EQ(s.count, 0);
   CHECK_EQ(s.prev_word, prev_word_value);
   CHECK_EQ(s.next_word, next_word_value);
 }
 
+
+#define NUM_BITS(T) (sizeof(T) * 8)
+
+
+template <class AtomicType>
+static void TestCompareAndSwap() {
+  AtomicType value = 0;
+  AtomicType prev = base::subtle::NoBarrier_CompareAndSwap(&value, 0, 1);
+  CHECK_EQ(1, value);
+  CHECK_EQ(0, prev);
+
+  // Use test value that has non-zero bits in both halves, more for testing
+  // 64-bit implementation on 32-bit platforms.
+  const AtomicType k_test_val = (GG_ULONGLONG(1) <<
+                                 (NUM_BITS(AtomicType) - 2)) + 11;
+  value = k_test_val;
+  prev = base::subtle::NoBarrier_CompareAndSwap(&value, 0, 5);
+  CHECK_EQ(k_test_val, value);
+  CHECK_EQ(k_test_val, prev);
+
+  value = k_test_val;
+  prev = base::subtle::NoBarrier_CompareAndSwap(&value, k_test_val, 5);
+  CHECK_EQ(5, value);
+  CHECK_EQ(k_test_val, prev);
+}
+
+
+template <class AtomicType>
+static void TestAtomicExchange() {
+  AtomicType value = 0;
+  AtomicType new_value = base::subtle::NoBarrier_AtomicExchange(&value, 1);
+  CHECK_EQ(1, value);
+  CHECK_EQ(0, new_value);
+
+  // Use test value that has non-zero bits in both halves, more for testing
+  // 64-bit implementation on 32-bit platforms.
+  const AtomicType k_test_val = (GG_ULONGLONG(1) <<
+                                 (NUM_BITS(AtomicType) - 2)) + 11;
+  value = k_test_val;
+  new_value = base::subtle::NoBarrier_AtomicExchange(&value, k_test_val);
+  CHECK_EQ(k_test_val, value);
+  CHECK_EQ(k_test_val, new_value);
+
+  value = k_test_val;
+  new_value = base::subtle::NoBarrier_AtomicExchange(&value, 5);
+  CHECK_EQ(5, value);
+  CHECK_EQ(k_test_val, new_value);
+}
+
+
+template <class AtomicType>
+static void TestAtomicIncrementBounds() {
+  // Test at rollover boundary between int_max and int_min
+  AtomicType test_val = (GG_ULONGLONG(1) <<
+                         (NUM_BITS(AtomicType) - 1));
+  AtomicType value = -1 ^ test_val;
+  AtomicType new_value = base::subtle::NoBarrier_AtomicIncrement(&value, 1);
+  CHECK_EQ(test_val, value);
+  CHECK_EQ(value, new_value);
+
+  base::subtle::NoBarrier_AtomicIncrement(&value, -1);
+  CHECK_EQ(-1 ^ test_val, value);
+
+  // Test at 32-bit boundary for 64-bit atomic type.
+  test_val = GG_ULONGLONG(1) << (NUM_BITS(AtomicType) / 2);
+  value = test_val - 1;
+  new_value = base::subtle::NoBarrier_AtomicIncrement(&value, 1);
+  CHECK_EQ(test_val, value);
+  CHECK_EQ(value, new_value);
+
+  base::subtle::NoBarrier_AtomicIncrement(&value, -1);
+  CHECK_EQ(test_val - 1, value);
+}
+
+// This is a simple sanity check that values are correct. Not testing
+// atomicity
+template <class AtomicType>
+static void TestStore() {
+  const AtomicType kVal1 = static_cast<AtomicType>(0xa5a5a5a5a5a5a5a5LL);
+  const AtomicType kVal2 = static_cast<AtomicType>(-1);
+
+  AtomicType value;
+
+  base::subtle::NoBarrier_Store(&value, kVal1);
+  CHECK_EQ(kVal1, value);
+  base::subtle::NoBarrier_Store(&value, kVal2);
+  CHECK_EQ(kVal2, value);
+
+  base::subtle::Acquire_Store(&value, kVal1);
+  CHECK_EQ(kVal1, value);
+  base::subtle::Acquire_Store(&value, kVal2);
+  CHECK_EQ(kVal2, value);
+
+  base::subtle::Release_Store(&value, kVal1);
+  CHECK_EQ(kVal1, value);
+  base::subtle::Release_Store(&value, kVal2);
+  CHECK_EQ(kVal2, value);
+}
+
+// This is a simple sanity check that values are correct. Not testing
+// atomicity
+template <class AtomicType>
+static void TestLoad() {
+  const AtomicType kVal1 = static_cast<AtomicType>(0xa5a5a5a5a5a5a5a5LL);
+  const AtomicType kVal2 = static_cast<AtomicType>(-1);
+
+  AtomicType value;
+
+  value = kVal1;
+  CHECK_EQ(kVal1, base::subtle::NoBarrier_Load(&value));
+  value = kVal2;
+  CHECK_EQ(kVal2, base::subtle::NoBarrier_Load(&value));
+
+  value = kVal1;
+  CHECK_EQ(kVal1, base::subtle::Acquire_Load(&value));
+  value = kVal2;
+  CHECK_EQ(kVal2, base::subtle::Acquire_Load(&value));
+
+  value = kVal1;
+  CHECK_EQ(kVal1, base::subtle::Release_Load(&value));
+  value = kVal2;
+  CHECK_EQ(kVal2, base::subtle::Release_Load(&value));
+}
+
+template <class AtomicType>
+static void TestAtomicOps() {
+  TestCompareAndSwap<AtomicType>();
+  TestAtomicExchange<AtomicType>();
+  TestAtomicIncrementBounds<AtomicType>();
+  TestStore<AtomicType>();
+  TestLoad<AtomicType>();
+}
+
 int main(int argc, char** argv) {
   TestAtomicIncrement<AtomicWord>();
   TestAtomicIncrement<Atomic32>();
+
+  TestAtomicOps<AtomicWord>();
+  TestAtomicOps<Atomic32>();
+
+  // I've commented the Atomic64 tests out for now, because Atomic64
+  // doesn't work on x86 systems that are not compiled to support mmx
+  // registers.  Since I want this project to be as portable as
+  // possible -- that is, not to assume we've compiled for mmx or even
+  // that the processor supports it -- and we don't actually use
+  // Atomic64 anywhere, I've commented it out of the test for now.
+  // (Luckily, if we ever do use Atomic64 by accident, we'll get told
+  // via a compiler error rather than some obscure runtime failure, so
+  // this course of action is safe.)
+  // If we ever *do* want to enable this, try adding -msse (or -mmmx?)
+  // to the CXXFLAGS in Makefile.am.
+#if 0 and defined(BASE_HAS_ATOMIC64)
+  TestAtomicIncrement<base::subtle::Atomic64>();
+  TestAtomicOps<base::subtle::Atomic64>();
+#endif
+
   printf("PASS\n");
   return 0;
 }

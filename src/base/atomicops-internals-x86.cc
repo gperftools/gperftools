@@ -40,6 +40,12 @@
 #include "base/logging.h"
 #include <string.h>
 
+// This file only makes sense with atomicops-internals-x86.h -- it
+// depends on structs that are defined in that file.  If atomicops.h
+// doesn't sub-include that file, then we aren't needed, and shouldn't
+// try to do anything.
+#ifdef BASE_ATOMICOPS_INTERNALS_X86_H__
+
 // Inline cpuid instruction.  In PIC compilations, %ebx contains the address
 // of the global offset table.  To avoid breaking such executables, this code
 // must preserve that register's value across cpuid instructions.
@@ -117,3 +123,5 @@ REGISTER_MODULE_INITIALIZER(atomicops_x86, {
 });
 
 #endif
+
+#endif  /* ifdef BASE_ATOMICOPS_INTERNALS_X86_H__ */

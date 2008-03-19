@@ -30,7 +30,9 @@ profiler data file format is documented separately,
 <p>To install the CPU profiler into your executable, add
 <code>-lprofiler</code> to the link-time step for your executable.
 (It's also probably possible to add in the profiler at run-time using
-<code>LD_PRELOAD</code>, but this isn't necessarily recommended.)</p>
+<code>LD_PRELOAD</code>, e.g.
+<code>% env LD_PRELOAD="/usr/lib/libprofiler.so" &lt;binary&gt;</code>,
+but this isn't necessarily recommended.)</p>
 
 <p>This does <i>not</i> turn on CPU profiling; it just inserts the
 code.  For that reason, it's practical to just always link
@@ -78,6 +80,7 @@ environment variables.</p>
 
 <tr valign=top>
   <td><code>CPUPROFILE_FREQUENCY=<i>x</i></code></td>
+  <td>default: 100</td>
   <td>
     How many interrupts/second the cpu-profiler samples.
   </td>

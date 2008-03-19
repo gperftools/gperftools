@@ -51,6 +51,9 @@ void SubmitSpinLockProfileData(const void *, int64) {}
 
 static int adaptive_spin_count = 0;
 
+const base::LinkerInitialized SpinLock::LINKER_INITIALIZED =
+    base::LINKER_INITIALIZED;
+
 struct SpinLock_InitHelper {
   SpinLock_InitHelper() {
     // On multi-cpu machines, spin for longer before yielding

@@ -37,6 +37,7 @@
 // it should not be used when performance is key.
 
 #include "base/low_level_alloc.h"
+#include "base/dynamic_annotations.h"
 #include "base/spinlock.h"
 #include "base/logging.h"
 #include <google/malloc_hook.h>
@@ -400,12 +401,12 @@ void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
       void *new_pages = mmap(0, new_pages_size,
                      PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
       RAW_CHECK(new_pages != MAP_FAILED, "mmap error");
+      arena->mu.Lock();
       s = reinterpret_cast<AllocList *>(new_pages);
       s->header.size = new_pages_size;
       // Pretend the block is allocated; call AddToFreelist() to free it.
       s->header.magic = Magic(kMagicAllocated, &s->header);
       s->header.arena = arena;
-      arena->mu.Lock();
       AddToFreelist(&s->levels, arena);  // insert new region into free list
     }
     AllocList *prev[kMaxLevel];
@@ -426,6 +427,7 @@ void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
     arena->mu.Unlock();
     result = &s->levels;
   }
+  ANNOTATE_NEW_MEMORY(result, request);
   return result;
 }
 

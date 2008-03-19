@@ -1116,7 +1116,7 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
     IgnoreNonThreadLiveObjectsLocked();
   }
   if (live_objects_total) {
-    RAW_VLOG(0, "Ignoring %"PRId64" reachable objects of %"PRId64" bytes",
+    RAW_VLOG(1, "Ignoring %"PRId64" reachable objects of %"PRId64" bytes",
                 live_objects_total, live_bytes_total);
   }
   // Free these: we made them here and heap_profile never saw them
@@ -1229,6 +1229,7 @@ void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
             // log call stacks to help debug how come something is not a leak
             HeapProfileTable::AllocInfo alloc;
             bool r = heap_profile->FindAllocDetails(ptr, &alloc);
+            r = r;              // suppress compiler warning in non-debug mode
             RAW_DCHECK(r, "");  // sanity
             RAW_LOG(INFO, "New live %p object's alloc stack:", ptr);
             for (int i = 0; i < alloc.stack_depth; ++i) {
@@ -1377,7 +1378,7 @@ void HeapLeakChecker::DumpProfileLocked(ProfileType profile_type,
                                         const void* self_stack_top,
                                         size_t* alloc_bytes,
                                         size_t* alloc_objects) {
-  RAW_VLOG(0, "%s check \"%s\"%s",
+  RAW_VLOG(1, "%s check \"%s\"%s",
               (profile_type == START_PROFILE ? "Starting"
                                              : "At an end point for"),
               name_,
@@ -1640,6 +1641,9 @@ bool HeapLeakChecker::DoNoLeaksOnce(CheckType check_type,
     size_t end_inuse_allocs;
     DumpProfileLocked(END_PROFILE, &a_local_var,
                       &end_inuse_bytes, &end_inuse_allocs);
+    // DumpProfileLocked via IgnoreAllLiveObjectsLocked sets these:
+    const int64 live_objects = live_objects_total;
+    const int64 live_bytes = live_bytes_total;
     const bool use_initial_profile =
       !(FLAGS_heap_check_before_constructors  &&  this == main_heap_checker);
     if (!use_initial_profile) {  // compare against empty initial profile
@@ -1746,8 +1750,10 @@ bool HeapLeakChecker::DoNoLeaksOnce(CheckType check_type,
         }
       }
     } else {
-      RAW_VLOG(0, "No leaks found for check \"%s\" "
-                  "(but no 100%% guarantee that there aren't any)", name_);
+      RAW_LOG(INFO, "No leaks found for check \"%s\" "
+                    "(but no 100%% guarantee that there aren't any): "
+                    "found %"PRId64" reachable heap objects of %"PRId64" bytes",
+                    name_, live_objects, live_bytes);
     }
     return !see_leaks;
   } else {
@@ -1946,6 +1952,8 @@ void HeapLeakChecker::InternalInitStart() {
   // (i.e. nm will list __builtin_new and __builtin_vec_new as undefined).
   // If this happens, it is a BUILD bug to be fixed.
 
+  RAW_LOG(WARNING, "Heap leak checker is active -- Performance may suffer");
+
   if (FLAGS_heap_check != "local") {
     // Schedule registered heap cleanup
     atexit(RunHeapCleanups);
@@ -1995,7 +2003,7 @@ bool HeapLeakChecker::NoGlobalLeaks() {
     CheckFullness fullness = check_type == NO_LEAKS ? USE_PPROF : USE_COUNTS;
       // use pprof if it can help ignore false leaks
     ReportMode report_mode = FLAGS_heap_check_report ? PPROF_REPORT : NO_REPORT;
-    RAW_VLOG(0, "Checking for whole-program memory leaks");
+    RAW_VLOG(1, "Checking for whole-program memory leaks");
     result = main_hc->DoNoLeaks(check_type, fullness, report_mode);
   }
   return result;
@@ -2090,7 +2098,7 @@ void HeapLeakChecker::BeforeConstructors() {
   heap_profile = new (Allocator::Allocate(sizeof(HeapProfileTable)))
                    HeapProfileTable(&Allocator::Allocate, &Allocator::Free);
   heap_checker_lock.Unlock();
-  RAW_VLOG(0, "Starting tracking the heap");
+  RAW_VLOG(1, "Starting tracking the heap");
   heap_checker_on = true;
   // Run silencing if we are called from the first global c-tor,
   // not from the first mmap/sbrk/alloc call:
@@ -2273,8 +2281,7 @@ void HeapLeakChecker::DisableChecksFromToLocked(const void* start_address,
         val.start_address != value.start_address) {
       RAW_LOG(FATAL, "Two DisableChecksToHereFrom calls conflict: "
                      "(%p, %p, %d) vs. (%p, %p, %d)",
-                     (void*)value.start_address, end_address,
-                     value.max_depth,
+                     (void*)val.start_address, end_address, val.max_depth,
                      start_address, end_address, max_depth);
     }
   }
