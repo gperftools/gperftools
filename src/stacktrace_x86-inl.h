@@ -34,6 +34,12 @@
 
 #include <stdint.h>   // for uintptr_t
 #include <stdlib.h>   // for NULL
+
+#if !defined(WIN32)
+#include <unistd.h>
+#include <sys/mman.h>
+#endif
+
 #include "google/stacktrace.h"
 
 // Given a pointer to a stack frame, locate and return the calling
@@ -66,6 +72,19 @@ static void **NextStackFrame(void **old_sp) {
   // 0xffffffff, so we explicitly check for a pointer into the
   // last two pages in the address space
   if ((uintptr_t)new_sp >= 0xffffe000) return NULL;
+#endif
+#if !defined(WIN32)
+  if (!STRICT_UNWINDING) {
+    // Lax sanity checks cause a crash on AMD-based machines with
+    // VDSO-enabled kernels.
+    // Make an extra sanity check to insure new_sp is readable.
+    // Note: NextStackFrame<false>() is only called while the program
+    //       is already on its last leg, so it's ok to be slow here.
+    static int page_size = getpagesize();
+    void *new_sp_aligned = (void *)((uintptr_t)new_sp & ~(page_size - 1));
+    if (msync(new_sp_aligned, page_size, MS_ASYNC) == -1)
+      return NULL;
+  }
 #endif
   return new_sp;
 }

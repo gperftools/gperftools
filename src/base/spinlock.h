@@ -48,7 +48,16 @@
 #include "base/atomicops.h"
 #include "base/dynamic_annotations.h"
 
-class SpinLock {
+// One day, we may use __attribute__ stuff on gcc to annotate these functions
+#define LOCKABLE
+#define SCOPED_LOCKABLE
+#define EXCLUSIVE_LOCK_FUNCTION(...)
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...)
+#define UNLOCK_FUNCTION(...)
+
+
+
+class LOCKABLE SpinLock {
  public:
   SpinLock() : lockword_(0) { }
 
@@ -65,14 +74,19 @@ class SpinLock {
     // Does nothing; lockword_ is already initialized
   }
 
-  inline void Lock() {
+  // Acquire this SpinLock.
+  inline void Lock() EXCLUSIVE_LOCK_FUNCTION() {
     if (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
       SlowLock();
     }
     ANNOTATE_RWLOCK_ACQUIRED(this, 1);
   }
 
-  inline bool TryLock() {
+  // Acquire this SpinLock and return true if the acquisition can be
+  // done without blocking, else return false.  If this SpinLock is
+  // free at the time of the call, TryLock will return true with high
+  // probability.
+  inline bool TryLock() EXCLUSIVE_TRYLOCK_FUNCTION(true) {
     bool res = (Acquire_CompareAndSwap(&lockword_, 0, 1) == 0);
     if (res) {
       ANNOTATE_RWLOCK_ACQUIRED(this, 1);
@@ -80,7 +94,8 @@ class SpinLock {
     return res;
   }
 
-  inline void Unlock() {
+  // Release this SpinLock, which must be held by the calling thread.
+  inline void Unlock() UNLOCK_FUNCTION() {
     // This is defined in mutex.cc.
     extern void SubmitSpinLockProfileData(const void *, int64);
 
@@ -129,12 +144,15 @@ class SpinLock {
 
 // Corresponding locker object that arranges to acquire a spinlock for
 // the duration of a C++ scope.
-class SpinLockHolder {
+class SCOPED_LOCKABLE SpinLockHolder {
  private:
   SpinLock* lock_;
  public:
-  inline explicit SpinLockHolder(SpinLock* l) : lock_(l) { l->Lock(); }
-  inline ~SpinLockHolder() { lock_->Unlock(); }
+  inline explicit SpinLockHolder(SpinLock* l) EXCLUSIVE_LOCK_FUNCTION(l)
+      : lock_(l) {
+    l->Lock();
+  }
+  inline ~SpinLockHolder() UNLOCK_FUNCTION() { lock_->Unlock(); }
 };
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
 #define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)

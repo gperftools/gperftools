@@ -78,7 +78,7 @@ static const char kProcSelfMapsHeader[] = "\nMAPPED_LIBRARIES:\n";
 const char HeapProfileTable::kFileExt[] = ".heap";
 
 const int HeapProfileTable::kHashTableSize;
-const int HeapProfileTable::kMaxStackTrace;
+const int HeapProfileTable::kMaxStackDepth;
 
 //----------------------------------------------------------------------
 
@@ -184,11 +184,8 @@ HeapProfileTable::~HeapProfileTable() {
   table_ = NULL;
 }
 
-HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int skip_count) {
-  // Get raw stack trace
-  void* key[kMaxStackTrace];
-  int depth =
-    MallocHook::GetCallerStackTrace(key, kMaxStackTrace, skip_count+1);
+HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
+                                                      const void* const key[]) {
   // Make hash-value
   uintptr_t h = 0;
   for (int i = 0; i < depth; i++) {
@@ -226,7 +223,16 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int skip_count) {
 
 void HeapProfileTable::RecordAlloc(const void* ptr, size_t bytes,
                                    int skip_count) {
-  Bucket* b = GetBucket(kStripFrames + skip_count + 1);
+  void* key[kMaxStackDepth];
+  int depth = MallocHook::GetCallerStackTrace(
+    key, kMaxStackDepth, kStripFrames + skip_count + 1);
+  RecordAllocWithStack(ptr, bytes, depth, key);
+}
+
+void HeapProfileTable::RecordAllocWithStack(
+    const void* ptr, size_t bytes, int stack_depth,
+    const void* const call_stack[]) {
+  Bucket* b = GetBucket(stack_depth, call_stack);
   b->allocs++;
   b->alloc_size += bytes;
   total_.allocs++;
@@ -374,11 +380,11 @@ void HeapProfileTable::DumpNonLiveIterator(const void* ptr, AllocValue* v,
   memset(&b, 0, sizeof(b));
   b.allocs = 1;
   b.alloc_size = v->bytes;
-  const void* stack[kMaxStackTrace + 1];
-  b.depth = v->bucket()->depth + int(args.dump_alloc_addresses);
+  const void* stack[kMaxStackDepth + 1];
+  b.depth = v->bucket()->depth + static_cast<int>(args.dump_alloc_addresses);
   b.stack = stack;
   if (args.dump_alloc_addresses) stack[0] = ptr;
-  memcpy(stack + int(args.dump_alloc_addresses),
+  memcpy(stack + static_cast<int>(args.dump_alloc_addresses),
          v->bucket()->stack, sizeof(stack[0]) * v->bucket()->depth);
   char buf[1024];
   int len = UnparseBucket(b, buf, 0, sizeof(buf), args.profile_stats);

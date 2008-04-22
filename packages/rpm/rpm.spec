@@ -1,18 +1,17 @@
-%define	ver	%VERSION
 %define	RELEASE	1
 %define rel     %{?CUSTOM_RELEASE} %{!?CUSTOM_RELEASE:%RELEASE}
 %define	prefix	/usr
 
 Name: %NAME
 Summary: Performance tools for C++
-Version: %ver
+Version: %VERSION
 Release: %rel
 Group: Development/Libraries
-URL: http://goog-perftools.sourceforge.net
+URL: http://code.google.com/p/google-perftools/
 License: BSD
 Vendor: Google
 Packager: Google <opensource@google.com>
-Source: http://goog-perftools.sourceforge.net/%{NAME}-%{PACKAGE_VERSION}.tar.gz
+Source: http://%{NAME}.googlecode.com/files/%{NAME}-%{VERSION}.tar.gz
 Distribution: Redhat 7 and above.
 Buildroot: %{_tmppath}/%{name}-root
 Prefix: %prefix
@@ -25,6 +24,7 @@ malloc() and cpu and heap profiling utilities.
 %package devel
 Summary: Performance tools for C++
 Group: Development/Libraries
+Requires: %{NAME} = %{VERSION}
 
 %description devel
 The %name-devel package contains static and debug libraries and header

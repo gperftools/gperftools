@@ -308,14 +308,27 @@ static void InitializeSystemInfo() {
 
 #elif defined __FreeBSD__
   // For this sysctl to work, the machine must be configured without
-  // SMP, APIC, or APM support.
+  // SMP, APIC, or APM support.  hz should be 64-bit in freebsd 7.0
+  // and later.  Before that, it's a 32-bit quantity (and gives the
+  // wrong answer on machines faster than 2^32 Hz).  See
+  //  http://lists.freebsd.org/pipermail/freebsd-i386/2004-November/001846.html
+  // But also compare FreeBSD 7.0:
+  //  http://fxr.watson.org/fxr/source/i386/i386/tsc.c?v=RELENG70#L223
+  //  231         error = sysctl_handle_quad(oidp, &freq, 0, req);
+  // To FreeBSD 6.3 (it's the same in 6-STABLE):
+  //  http://fxr.watson.org/fxr/source/i386/i386/tsc.c?v=RELENG6#L131
+  //  139         error = sysctl_handle_int(oidp, &freq, sizeof(freq), req);
+#if __FreeBSD__ >= 7
+  uint64_t hz = 0;
+#else
   unsigned int hz = 0;
+#endif
   size_t sz = sizeof(hz);
   const char *sysctl_path = "machdep.tsc_freq";
   if ( sysctlbyname(sysctl_path, &hz, &sz, NULL, 0) != 0 ) {
+    fprintf(stderr, "Unable to determine clock rate from sysctl: %s: %s\n",
+            sysctl_path, strerror(errno));
     cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
-    fprintf(stderr, "Unable to determine clock rate from sysctl: %s\n",
-            sysctl_path);
   } else {
     cpuinfo_cycles_per_second = hz;
   }

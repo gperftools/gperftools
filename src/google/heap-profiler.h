@@ -81,4 +81,4 @@ extern "C" PERFTOOLS_DLL_DECL void HeapProfilerDump(const char *reason);
 // free()-ed as soon as the caller does not need it anymore.
 extern "C" PERFTOOLS_DLL_DECL char* GetHeapProfile();
 
-#endif /* BASE_HEAP_PROFILER_H__ */
+#endif  // BASE_HEAP_PROFILER_H__

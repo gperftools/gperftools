@@ -51,6 +51,9 @@ class HeapProfileTable {
   // Extension to be used for heap pforile files.
   static const char kFileExt[];
 
+  // Longest stack trace we record.
+  static const int kMaxStackDepth = 32;
+
   // data types ----------------------------
 
   // Profile stats.
@@ -59,6 +62,12 @@ class HeapProfileTable {
     int32 frees;       // Number of free calls
     int64 alloc_size;  // Total size of all allocated objects so far
     int64 free_size;   // Total size of all freed objects so far
+
+    // semantic equality
+    bool Equivalent(const Stats& x) const {
+      return allocs - frees == x.allocs - x.frees  &&
+             alloc_size - free_size == x.alloc_size - x.free_size;
+    }
   };
 
   // Info we can return about an allocation.
@@ -69,8 +78,8 @@ class HeapProfileTable {
   };
 
   // Memory (de)allocator interface we'll use.
-  typedef void* (*Allocator)(size_t);
-  typedef void  (*DeAllocator)(void*);
+  typedef void* (*Allocator)(size_t size);
+  typedef void  (*DeAllocator)(void* ptr);
 
   // interface ---------------------------
 
@@ -81,6 +90,11 @@ class HeapProfileTable {
   // skip_count gives the number of stack frames between this call
   // and the memory allocation function that was asked to do the allocation.
   void RecordAlloc(const void* ptr, size_t bytes, int skip_count);
+
+  // Direct version of RecordAlloc when the caller stack to use
+  // is already known: call_stack of depth stack_depth.
+  void RecordAllocWithStack(const void* ptr, size_t bytes,
+                            int stack_depth, const void* const call_stack[]);
 
   // Record the deallocation of memory at 'ptr'.
   void RecordFree(const void* ptr);
@@ -123,7 +137,7 @@ class HeapProfileTable {
   // of currently allocated bytes.
   // We do not provision for 0-terminating 'buf'.
   int FillOrderedProfile(char buf[], int size) const;
-  
+
   // Allocation data dump filtering callback:
   // gets passed object pointer and size
   // needs to return true iff the object is to be filtered out of the dump.
@@ -198,9 +212,9 @@ class HeapProfileTable {
                            char* buf, int buflen, int bufsize,
                            Stats* profile_stats);
 
-  // Get the bucket for the current stack trace creating one if needed
-  // (skip "skip_count" most recent frames).
-  Bucket* GetBucket(int skip_count);
+  // Get the bucket for the caller stack trace 'key' of depth 'depth'
+  // creating the bucket if needed.
+  Bucket* GetBucket(int depth, const void* const key[]);
 
   // Helper for IterateAllocs to do callback signature conversion
   // from AllocationMap::Iterate to AllocIterator.
@@ -222,9 +236,6 @@ class HeapProfileTable {
 
   // Size for table_.
   static const int kHashTableSize = 179999;
-
-  // Longest stack trace we record.
-  static const int kMaxStackTrace = 32;
 
   // Memory (de)allocator that we use.
   Allocator alloc_;

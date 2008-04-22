@@ -67,6 +67,10 @@ if [ -e "$UNITTEST_DIR/libtcmalloc_minimal.so" ]; then
   LIB_PATH="$UNITTEST_DIR/libtcmalloc_minimal.so"
 elif [ -e "$UNITTEST_DIR/.libs/libtcmalloc_minimal.so" ]; then
   LIB_PATH="$UNITTEST_DIR/.libs/libtcmalloc_minimal.so"
+elif [ -e "$UNITTEST_DIR/libtcmalloc_minimal.dylib" ]; then   # for os x
+  LIB_PATH="$UNITTEST_DIR/libtcmalloc_minimal.dylib"
+elif [ -e "$UNITTEST_DIR/.libs/libtcmalloc_minimal.dylib" ]; then
+  LIB_PATH="$UNITTEST_DIR/.libs/libtcmalloc_minimal.dylib"
 else
   echo "Cannot run $0: cannot find libtcmalloc_minimal.so"
   exit 2

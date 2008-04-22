@@ -420,12 +420,10 @@ static int NumMoveSize(size_t size) {
 static void InitSizeClasses() {
   // Do some sanity checking on add_amount[]/shift_amount[]/class_array[]
   if (ClassIndex(0) < 0) {
-    MESSAGE("Invalid class index %d for size 0\n", ClassIndex(0));
-    abort();
+    CRASH("Invalid class index %d for size 0\n", ClassIndex(0));
   }
   if (ClassIndex(kMaxSize) >= sizeof(class_array)) {
-    MESSAGE("Invalid class index %d for kMaxSize\n", ClassIndex(kMaxSize));
-    abort();
+    CRASH("Invalid class index %d for kMaxSize\n", ClassIndex(kMaxSize));
   }
 
   // Compute the size classes we want to use
@@ -475,9 +473,8 @@ static void InitSizeClasses() {
     sc++;
   }
   if (sc != kNumClasses) {
-    MESSAGE("wrong number of size classes: found %d instead of %d\n",
-            sc, int(kNumClasses));
-    abort();
+    CRASH("wrong number of size classes: found %d instead of %d\n",
+          sc, int(kNumClasses));
   }
 
   // Initialize the mapping arrays
@@ -494,26 +491,21 @@ static void InitSizeClasses() {
   for (size_t size = 0; size <= kMaxSize; size++) {
     const int sc = SizeClass(size);
     if (sc == 0) {
-      MESSAGE("Bad size class %d for %" PRIuS "\n", sc, size);
-      abort();
+      CRASH("Bad size class %d for %" PRIuS "\n", sc, size);
     }
     if (sc > 1 && size <= class_to_size[sc-1]) {
-      MESSAGE("Allocating unnecessarily large class %d for %" PRIuS
-              "\n", sc, size);
-      abort();
+      CRASH("Allocating unnecessarily large class %d for %" PRIuS
+            "\n", sc, size);
     }
     if (sc >= kNumClasses) {
-      MESSAGE("Bad size class %d for %" PRIuS "\n", sc, size);
-      abort();
+      CRASH("Bad size class %d for %" PRIuS "\n", sc, size);
     }
     const size_t s = class_to_size[sc];
     if (size > s) {
-      MESSAGE("Bad size %" PRIuS " for %" PRIuS " (sc = %d)\n", s, size, sc);
-      abort();
+      CRASH("Bad size %" PRIuS " for %" PRIuS " (sc = %d)\n", s, size, sc);
     }
     if (s == 0) {
-      MESSAGE("Bad size %" PRIuS " for %" PRIuS " (sc = %d)\n", s, size, sc);
-      abort();
+      CRASH("Bad size %" PRIuS " for %" PRIuS " (sc = %d)\n", s, size, sc);
     }
   }
 
@@ -596,7 +588,7 @@ class PageHeapAllocator {
       if (free_avail_ < kAlignedSize) {
         // Need more room
         free_area_ = reinterpret_cast<char*>(MetaDataAlloc(kAllocIncrement));
-        if (free_area_ == NULL) abort();
+        CHECK_CONDITION(free_area_ != NULL);
         free_avail_ = kAllocIncrement;
       }
       result = free_area_;

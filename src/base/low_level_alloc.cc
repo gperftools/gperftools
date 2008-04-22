@@ -386,7 +386,7 @@ void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
       // find the minimum levels that a block of this size must have
       int i = LLA_SkiplistLevels(req_rnd, arena->min_size, false) - 1;
       if (i < arena->freelist.levels) {   // potential blocks exist
-        AllocList *before = &arena->freelist; // predecessor of s
+        AllocList *before = &arena->freelist;  // predecessor of s
         while ((s = Next(i, before, arena)) != 0 && s->header.size < req_rnd) {
           before = s;
         }
@@ -397,7 +397,9 @@ void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
       // we unlock before mmap() both because mmap() may call a callback hook,
       // and because it may be slow.
       arena->mu.Unlock();
-      size_t new_pages_size = RoundUp(req_rnd, arena->pagesize);
+      // mmap generous 64K chunks to decrease
+      // the chances/impact of fragmentation:
+      size_t new_pages_size = RoundUp(req_rnd, arena->pagesize * 16);
       void *new_pages = mmap(0, new_pages_size,
                      PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
       RAW_CHECK(new_pages != MAP_FAILED, "mmap error");
@@ -412,7 +414,7 @@ void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
     AllocList *prev[kMaxLevel];
     LLA_SkiplistDelete(&arena->freelist, s, prev);    // remove from free list
     // s points to the first free region that's big enough
-    if (req_rnd + arena->min_size <= s->header.size) { // big enough to split
+    if (req_rnd + arena->min_size <= s->header.size) {  // big enough to split
       AllocList *n = reinterpret_cast<AllocList *>
                         (req_rnd + reinterpret_cast<char *>(s));
       n->header.size = s->header.size - req_rnd;

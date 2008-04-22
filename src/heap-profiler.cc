@@ -59,6 +59,7 @@
 #include "base/low_level_alloc.h"
 #include "base/sysinfo.h"      // for GetUniquePathFromEnv()
 #include "heap-profile-table.h"
+#include "memory_region_map.h"
 
 
 #ifndef	PATH_MAX
@@ -90,7 +91,12 @@ DEFINE_bool(mmap_log,
             "Should mmap/munmap calls be logged?");
 DEFINE_bool(mmap_profile,
             EnvToBool("HEAP_PROFILE_MMAP", false),
-            "If heap-profiling on, also profile mmaps");
+            "If heap-profiling is on, also profile mmap, mremap, and sbrk)");
+DEFINE_bool(only_mmap_profile,
+            EnvToBool("HEAP_PROFILE_ONLY_MMAP", false),
+            "If heap-profiling is on, only profile mmap, mremap, and sbrk; "
+            "do not profile malloc/new/etc");
+
 
 //----------------------------------------------------------------------
 // Locking
@@ -135,31 +141,80 @@ static HeapProfileTable* heap_profile = NULL;  // the heap profile table
 // Profile generation
 //----------------------------------------------------------------------
 
-extern "C" char* GetHeapProfile() {
+enum AddOrRemove { ADD, REMOVE };
+
+// Add or remove all MMap-allocated regions to/from *heap_profile.
+// Assumes heap_lock is held.
+static void AddRemoveMMapDataLocked(AddOrRemove mode) {
+  RAW_DCHECK(heap_lock.IsHeld(), "");
+  if (!FLAGS_mmap_profile || !is_on) return;
+  if (!FLAGS_mmap_log) MemoryRegionMap::CheckMallocHooks();
+  // MemoryRegionMap maintained all the data we need for all
+  // mmap-like allocations, so we just use it here:
+  MemoryRegionMap::LockHolder l;
+  for (MemoryRegionMap::RegionIterator r = MemoryRegionMap::BeginRegionLocked();
+       r != MemoryRegionMap::EndRegionLocked(); ++r) {
+    if (mode == ADD) {
+      heap_profile->RecordAllocWithStack(
+        reinterpret_cast<const void*>(r->start_addr),
+        r->end_addr - r->start_addr,
+        r->call_stack_depth, r->call_stack);
+    } else {
+      heap_profile->RecordFree(reinterpret_cast<void*>(r->start_addr));
+    }
+  }
+}
+
+static char* DoGetHeapProfile(void* (*alloc_func)(size_t)) {
   // We used to be smarter about estimating the required memory and
   // then capping it to 1MB and generating the profile into that.
   // However it should not cost us much to allocate 1MB every time.
   static const int size = 1 << 20;
-  // This is intended to be normal malloc: we return it to the user to free it
-  char* buf = reinterpret_cast<char*>(malloc(size));
+  char* buf = reinterpret_cast<char*>((*alloc_func)(size));
   if (buf == NULL) return NULL;
 
   // Grab the lock and generate the profile.
-  heap_lock.Lock();
+  SpinLockHolder l(&heap_lock);
+  HeapProfileTable::Stats const stats = heap_profile->total();
+  AddRemoveMMapDataLocked(ADD);
   int buflen = is_on ? heap_profile->FillOrderedProfile(buf, size - 1) : 0;
   buf[buflen] = '\0';
+  // FillOrderedProfile should not reduce the set of active mmap-ed regions,
+  // hence MemoryRegionMap will let us remove everything we've added above:
+  AddRemoveMMapDataLocked(REMOVE);
+  RAW_DCHECK(stats.Equivalent(heap_profile->total()), "");
+    // if this fails, we somehow removed by AddRemoveMMapDataLocked
+    // more than we have added.
   RAW_DCHECK(buflen == strlen(buf), "");
-  heap_lock.Unlock();
 
   return buf;
 }
 
+extern "C" char* GetHeapProfile() {
+  // Use normal malloc: we return the profile to the user to free it:
+  return DoGetHeapProfile(&malloc);
+}
+
+// defined below
+static void NewHook(const void* ptr, size_t size);
+static void DeleteHook(const void* ptr);
+
 // Helper for HeapProfilerDump.
 static void DumpProfileLocked(const char* reason) {
+  RAW_DCHECK(heap_lock.IsHeld(), "");
   RAW_DCHECK(is_on, "");
   RAW_DCHECK(!dumping, "");
 
   if (filename_prefix == NULL) return;  // we do not yet need dumping
+
+  if (FLAGS_only_mmap_profile == false) {
+    if (MallocHook::GetNewHook() != NewHook  ||
+        MallocHook::GetDeleteHook() != DeleteHook) {
+      RAW_LOG(FATAL, "Had our new/delete MallocHook-s replaced. "
+                     "Are you using another MallocHook client? "
+                     "Do not use --heap_profile=... to avoid this conflict.");
+    }
+  }
 
   dumping = true;
 
@@ -177,9 +232,10 @@ static void DumpProfileLocked(const char* reason) {
     RAW_VLOG(0, "Dumping heap profile to %s (%s)", file_name, reason);
     FILE* f = fopen(file_name, "w");
     if (f != NULL) {
-      const char* profile = GetHeapProfile();
+      // Use ProfilerMalloc not to put info about profile itself into itself:
+      char* profile = DoGetHeapProfile(&ProfilerMalloc);
       fputs(profile, f);
-      free(const_cast<char*>(profile));  // was made with normal malloc
+      ProfilerFree(profile);
       fclose(f);
     } else {
       RAW_LOG(ERROR, "Failed dumping heap profile to %s", file_name);
@@ -196,7 +252,7 @@ static void DumpProfileLocked(const char* reason) {
 
 // Record an allocation in the profile.
 static void RecordAlloc(const void* ptr, size_t bytes, int skip_count) {
-  heap_lock.Lock();
+  SpinLockHolder l(&heap_lock);
   if (is_on) {
     heap_profile->RecordAlloc(ptr, bytes, skip_count + 1);
     const HeapProfileTable::Stats& total = heap_profile->total();
@@ -213,7 +269,7 @@ static void RecordAlloc(const void* ptr, size_t bytes, int skip_count) {
         need_to_dump = true;
       } else if (inuse_bytes >
                  high_water_mark + FLAGS_heap_profile_inuse_interval) {
-        sprintf(buf, "%"PRId64" MB in use", inuse_bytes >> 20);
+        snprintf(buf, sizeof(buf), "%"PRId64" MB in use", inuse_bytes >> 20);
         // Track that we made a "high water mark" dump
         high_water_mark = inuse_bytes;
         need_to_dump = true;
@@ -223,28 +279,27 @@ static void RecordAlloc(const void* ptr, size_t bytes, int skip_count) {
       }
     }
   }
-  heap_lock.Unlock();
 }
 
 // Record a deallocation in the profile.
 static void RecordFree(const void* ptr) {
-  heap_lock.Lock();
+  SpinLockHolder l(&heap_lock);
   if (is_on) {
     heap_profile->RecordFree(ptr);
   }
-  heap_lock.Unlock();
 }
-
 
 //----------------------------------------------------------------------
 // Allocation/deallocation hooks for MallocHook
 //----------------------------------------------------------------------
 
-static void NewHook(const void* ptr, size_t size) {
+// static
+void NewHook(const void* ptr, size_t size) {
   if (ptr != NULL) RecordAlloc(ptr, size, 0);
 }
 
-static void DeleteHook(const void* ptr) {
+// static
+void DeleteHook(const void* ptr) {
   if (ptr != NULL) RecordFree(ptr);
 }
 
@@ -256,10 +311,15 @@ static void RawInfoStackDumper(const char* message, void*) {
 }
 #endif
 
+// Saved MemoryRegionMap's hooks to daisy-chain calls to.
+MallocHook::MmapHook saved_mmap_hook = NULL;
+MallocHook::MremapHook saved_mremap_hook = NULL;
+MallocHook::MunmapHook saved_munmap_hook = NULL;
+MallocHook::SbrkHook saved_sbrk_hook = NULL;
+
 static void MmapHook(const void* result, const void* start, size_t size,
                      int prot, int flags, int fd, off_t offset) {
-  // Log the mmap if necessary
-  if (FLAGS_mmap_log) {
+  if (FLAGS_mmap_log) {  // log it
     // We use PRIxS not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
@@ -272,23 +332,60 @@ static void MmapHook(const void* result, const void* start, size_t size,
     DumpStackTrace(1, RawInfoStackDumper, NULL);
 #endif
   }
+  if (saved_mmap_hook) {
+    // Call MemoryRegionMap's hook: it will record needed info about the mmap
+    // for us w/o deadlocks:
+    (*saved_mmap_hook)(result, start, size, prot, flags, fd, offset);
+  }
+}
 
-  // Record mmap in profile if appropriate
-  if (FLAGS_mmap_profile && result != (void*) MAP_FAILED) {
-    RecordAlloc(result, size, 0);
+static void MremapHook(const void* result, const void* old_addr,
+                       size_t old_size, size_t new_size,
+                       int flags, const void* new_addr) {
+  if (FLAGS_mmap_log) {  // log it
+    // We use PRIxS not just '%p' to avoid deadlocks
+    // in pretty-printing of NULL as "nil".
+    // TODO(maxim): instead should use a safe snprintf reimplementation
+    RAW_LOG(INFO,
+            "mremap(old_addr=0x%"PRIxS", old_size=%"PRIuS", new_size=%"PRIuS", "
+            "flags=0x%x, new_addr=0x%"PRIxS") = 0x%"PRIxS"",
+            (uintptr_t) old_addr, old_size, new_size, flags,
+            (uintptr_t) new_addr, (uintptr_t) result);
+#ifdef TODO_REENABLE_STACK_TRACING
+    DumpStackTrace(1, RawInfoStackDumper, NULL);
+#endif
+  }
+  if (saved_mremap_hook) {  // call MemoryRegionMap's hook
+    (*saved_mremap_hook)(result, old_addr, old_size, new_size, flags, new_addr);
   }
 }
 
 static void MunmapHook(const void* ptr, size_t size) {
-  if (FLAGS_mmap_profile) {
-    RecordFree(ptr);
-  }
-  if (FLAGS_mmap_log) {
+  if (FLAGS_mmap_log) {  // log it
     // We use PRIxS not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO, "munmap(start=0x%"PRIxS", len=%"PRIuS")",
                   (uintptr_t) ptr, size);
+#ifdef TODO_REENABLE_STACK_TRACING
+    DumpStackTrace(1, RawInfoStackDumper, NULL);
+#endif
+  }
+  if (saved_munmap_hook) {  // call MemoryRegionMap's hook
+    (*saved_munmap_hook)(ptr, size);
+  }
+}
+
+static void SbrkHook(const void* result, ptrdiff_t increment) {
+  if (FLAGS_mmap_log) {  // log it
+    RAW_LOG(INFO, "sbrk(inc=%"PRIdS") = 0x%"PRIxS"",
+                  increment, (uintptr_t) result);
+#ifdef TODO_REENABLE_STACK_TRACING
+    DumpStackTrace(1, RawInfoStackDumper, NULL);
+#endif
+  }
+  if (saved_sbrk_hook) {  // call MemoryRegionMap's hook
+    (*saved_sbrk_hook)(result, increment);
   }
 }
 
@@ -297,19 +394,38 @@ static void MunmapHook(const void* ptr, size_t size) {
 //----------------------------------------------------------------------
 
 extern "C" void HeapProfilerStart(const char* prefix) {
-  heap_lock.Lock();
+  SpinLockHolder l(&heap_lock);
 
-  if (filename_prefix != NULL) return;
+  if (is_on) return;
 
-  RAW_DCHECK(!is_on, "");
+  is_on = true;
+
+  RAW_VLOG(0, "Starting tracking the heap");
+
+  if (FLAGS_only_mmap_profile) {
+    FLAGS_mmap_profile = true;
+  }
+
+  if (FLAGS_mmap_profile) {
+    // Ask MemoryRegionMap to record all mmap, mremap, and sbrk
+    // call stack traces of at least size kMaxStackDepth:
+    MemoryRegionMap::Init(HeapProfileTable::kMaxStackDepth);
+  }
+
+  if (FLAGS_mmap_log) {
+    // Install our hooks to do the logging
+    // and maybe save MemoryRegionMap's hooks to call:
+    saved_mmap_hook = MallocHook::SetMmapHook(MmapHook);
+    saved_mremap_hook = MallocHook::SetMremapHook(MremapHook);
+    saved_munmap_hook = MallocHook::SetMunmapHook(MunmapHook);
+    saved_sbrk_hook = MallocHook::SetSbrkHook(SbrkHook);
+  }
 
   heap_profiler_memory =
     LowLevelAlloc::NewArena(0, LowLevelAlloc::DefaultArena());
 
-  heap_profile = new (ProfilerMalloc(sizeof(HeapProfileTable)))
+  heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
                    HeapProfileTable(ProfilerMalloc, ProfilerFree);
-
-  is_on = true;
 
   last_dump = 0;
 
@@ -317,18 +433,23 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   // HeapProfilerStart/HeapProfileStop, we will get a continuous
   // sequence of profiles.
 
-  // Now set the hooks that capture mallocs/frees
-  MallocHook::SetNewHook(NewHook);
-  MallocHook::SetDeleteHook(DeleteHook);
-  RAW_VLOG(0, "Starting tracking the heap");
+  if (FLAGS_only_mmap_profile == false) {
+    // Now set the hooks that capture new/delete and malloc/free
+    // and check that these are the only hooks:
+    if (MallocHook::SetNewHook(NewHook) != NULL  ||
+        MallocHook::SetDeleteHook(DeleteHook) != NULL) {
+      RAW_LOG(FATAL, "Had other new/delete MallocHook-s set. "
+                     "Are you using the heap leak checker? "
+                     "Use --heap_check=\"\" to avoid this conflict.");
+    }
+  }
 
   // Copy filename prefix
+  RAW_DCHECK(filename_prefix == NULL, "");
   const int prefix_length = strlen(prefix);
   filename_prefix = reinterpret_cast<char*>(ProfilerMalloc(prefix_length + 1));
   memcpy(filename_prefix, prefix, prefix_length);
   filename_prefix[prefix_length] = '\0';
-
-  heap_lock.Unlock();
 
   // This should be done before the hooks are set up, since it should
   // call new, and we want that to be accounted for correctly.
@@ -336,14 +457,30 @@ extern "C" void HeapProfilerStart(const char* prefix) {
 }
 
 extern "C" void HeapProfilerStop() {
-  heap_lock.Lock();
+  SpinLockHolder l(&heap_lock);
 
   if (!is_on) return;
 
-  filename_prefix = NULL;
-
-  MallocHook::SetNewHook(NULL);
-  MallocHook::SetDeleteHook(NULL);
+  if (FLAGS_only_mmap_profile == false) {
+    // Unset our new/delete hooks, checking they were the ones set:
+    if (MallocHook::SetNewHook(NULL) != NewHook  ||
+        MallocHook::SetDeleteHook(NULL) != DeleteHook) {
+      RAW_LOG(FATAL, "Had our new/delete MallocHook-s replaced. "
+                     "Are you using another MallocHook client? "
+                     "Do not use --heap_profile=... to avoid this conflict.");
+    }
+  }
+  if (FLAGS_mmap_log) {
+    // Restore mmap/sbrk hooks, checking that our hooks were the ones set:
+    if (MallocHook::SetMmapHook(saved_mmap_hook) != MmapHook  ||
+        MallocHook::SetMremapHook(saved_mremap_hook) != MremapHook  ||
+        MallocHook::SetMunmapHook(saved_munmap_hook) != MunmapHook  ||
+        MallocHook::SetSbrkHook(saved_sbrk_hook) != SbrkHook) {
+      RAW_LOG(FATAL, "Had our mmap/mremap/munmap/sbrk MallocHook-s replaced. "
+                     "Are you using another MallocHook client? "
+                     "Do not use --heap_profile=... to avoid this conflict.");
+    }
+  }
 
   // free profile
   heap_profile->~HeapProfileTable();
@@ -358,17 +495,18 @@ extern "C" void HeapProfilerStop() {
     RAW_LOG(FATAL, "Memory leak in HeapProfiler:");
   }
 
-  is_on = false;
+  if (FLAGS_mmap_profile) {
+    MemoryRegionMap::Shutdown();
+  }
 
-  heap_lock.Unlock();
+  is_on = false;
 }
 
 extern "C" void HeapProfilerDump(const char *reason) {
-  heap_lock.Lock();
+  SpinLockHolder l(&heap_lock);
   if (is_on && !dumping) {
     DumpProfileLocked(reason);
   }
-  heap_lock.Unlock();
 }
 
 //----------------------------------------------------------------------
@@ -377,11 +515,6 @@ extern "C" void HeapProfilerDump(const char *reason) {
 
 // Initialization code
 static void HeapProfilerInit() {
-  if (FLAGS_mmap_profile || FLAGS_mmap_log) {
-    MallocHook::SetMmapHook(MmapHook);
-    MallocHook::SetMunmapHook(MunmapHook);
-  }
-
   // Everything after this point is for setting up the profiler based on envvar
   char fname[PATH_MAX];
   if (!GetUniquePathFromEnv("HEAPPROFILE", fname)) {

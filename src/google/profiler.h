@@ -52,6 +52,8 @@
 // Use pprof to view the resulting profile output.
 //    % pprof <path_to_executable> <profile_file_name>
 //    % pprof --gv  <path_to_executable> <profile_file_name>
+//
+// These functions are thread-safe.
 
 #ifndef BASE_PROFILER_H__
 #define BASE_PROFILER_H__

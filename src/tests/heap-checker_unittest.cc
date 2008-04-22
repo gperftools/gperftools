@@ -373,7 +373,7 @@ static void DoDeAllocHidden(void** ptr) {
   void* p = *ptr;
   VLOG(2) << "Deallocating hidden " << p;
   UnHide(&p);
-  delete [] (char*)p;
+  delete [] reinterpret_cast<char*>(p);
 }
 
 static void DeAllocHidden(void** ptr) {
@@ -435,8 +435,8 @@ static void TestHeapLeakCheckerDeathSimple() {
 static void MakeDeathLoop(void** arr1, void** arr2) {
   void** a1 = new(initialized) void*[2];
   void** a2 = new(initialized) void*[2];
-  a1[1] = (void*)a2;
-  a2[1] = (void*)a1;
+  a1[1] = reinterpret_cast<void*>(a2);
+  a2[1] = reinterpret_cast<void*>(a1);
   Hide(&a1);
   Hide(&a2);
   Use(&a1);
@@ -474,7 +474,7 @@ static void TestHeapLeakCheckerDeathInverse() {
   LogHidden("Leaking", foo);
   DeAllocHidden(&bar);
   Pause();
-  VerifyLeaks(&check, SAME_HEAP, -150 * int64(sizeof(int)), 0);
+  VerifyLeaks(&check, SAME_HEAP, -150 * static_cast<int64>(sizeof(int)), 0);
   DeAllocHidden(&foo);
 }
 
@@ -672,10 +672,10 @@ static void ThreadDisabledLeaks() {
   if (FLAGS_no_threads)  return;
   pthread_t tid;
   pthread_attr_t attr;
-  CHECK(pthread_attr_init(&attr) == 0);
-  CHECK(pthread_create(&tid, &attr, RunDisabledLeaks, NULL) == 0);
+  CHECK_EQ(pthread_attr_init(&attr), 0);
+  CHECK_EQ(pthread_create(&tid, &attr, RunDisabledLeaks, NULL), 0);
   void* res;
-  CHECK(pthread_join(tid, &res) == 0);
+  CHECK_EQ(pthread_join(tid, &res), 0);
 }
 
 // different disabled leaks (some in threads)
@@ -764,9 +764,9 @@ static void TestSTLAllocInverse() {
 template<class Alloc>
 static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
   HeapLeakChecker check((string("direct_stl-") + name).c_str());
-  const int size = 1000;
-  typename Alloc::pointer ptrs[size];
-  for (int i = 0; i < size; ++i) {
+  static const int kSize = 1000;
+  typename Alloc::pointer ptrs[kSize];
+  for (int i = 0; i < kSize; ++i) {
     typename Alloc::pointer p = allocator.allocate(i*3+1);
     HeapLeakChecker::IgnoreObject(p);
     // This will crash if p is not known to heap profiler:
@@ -774,7 +774,7 @@ static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
     HeapLeakChecker::UnIgnoreObject(p);
     ptrs[i] = p;
   }
-  for (int i = 0; i < size; ++i) {
+  for (int i = 0; i < kSize; ++i) {
     allocator.deallocate(ptrs[i], i*3+1);
     ptrs[i] = NULL;
   }
@@ -786,7 +786,7 @@ static const int kKeys = 50;
 static pthread_key_t key[kKeys];
 
 static void KeyFree(void* ptr) {
-  delete [] (char*)ptr;
+  delete [] reinterpret_cast<char*>(ptr);
 }
 
 static bool key_init_has_run = false;
@@ -929,7 +929,7 @@ static void RunHeapBusyThreads() {
 
   pthread_t tid;
   pthread_attr_t attr;
-  CHECK(pthread_attr_init(&attr) == 0);
+  CHECK_EQ(pthread_attr_init(&attr), 0);
   // make them and let them run
   for (int i = 0; i < n; ++i) {
     VLOG(0) << "Creating extra thread " << i + 1;
@@ -1018,10 +1018,10 @@ static void ThreadNamedDisabledLeaks() {
   if (FLAGS_no_threads)  return;
   pthread_t tid;
   pthread_attr_t attr;
-  CHECK(pthread_attr_init(&attr) == 0);
-  CHECK(pthread_create(&tid, &attr, RunNamedDisabledLeaks, NULL) == 0);
+  CHECK_EQ(pthread_attr_init(&attr), 0);
+  CHECK_EQ(pthread_create(&tid, &attr, RunNamedDisabledLeaks, NULL), 0);
   void* res;
-  CHECK(pthread_join(tid, &res) == 0);
+  CHECK_EQ(pthread_join(tid, &res), 0);
 }
 
 // test leak disabling via function names
@@ -1092,7 +1092,7 @@ static void TestPointerReach(ObjMakerFunc obj_maker) {
   HeapLeakChecker::IgnoreObject(obj);
   HeapLeakChecker::UnIgnoreObject(obj);  // test UnIgnoreObject
   HeapLeakChecker::IgnoreObject(obj);  // not to need deletion for obj
-  
+
   live_objects->push_back(obj_maker());  // test reachability at leak check
 }
 
@@ -1181,7 +1181,7 @@ REGISTER_OBJ_MAKER(set,
 
 class ClassA {
  public:
-  ClassA(int a) : ptr(NULL) { }
+  explicit ClassA(int a) : ptr(NULL) { }
   mutable char* ptr;
 };
 static const ClassA live_leak_mutable(1);
@@ -1189,7 +1189,7 @@ static const ClassA live_leak_mutable(1);
 template<class C>
 class TClass {
  public:
-  TClass(int a) : ptr(NULL) { }
+  explicit TClass(int a) : ptr(NULL) { }
   mutable C val;
   mutable C* ptr;
 };
@@ -1285,16 +1285,16 @@ class ClassMltD2 : public InterfaceA, public InterfaceB, public ClassB {
 
 // to specifically test heap reachability under
 // inerface-only multiple inheritance (some use inside-object pointers):
-REGISTER_OBJ_MAKER(MltD1,       ClassMltD1* p = new (initialized) ClassMltD1;)
-REGISTER_OBJ_MAKER(MltD1_as_B,  ClassB*     p = new (initialized) ClassMltD1;)
-REGISTER_OBJ_MAKER(MltD1_as_IA, InterfaceA* p = new (initialized) ClassMltD1;)
-REGISTER_OBJ_MAKER(MltD1_as_IB, InterfaceB* p = new (initialized) ClassMltD1;)
-REGISTER_OBJ_MAKER(MltD1_as_IC, InterfaceC* p = new (initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1,       ClassMltD1* p = new(initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_B,  ClassB*     p = new(initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_IA, InterfaceA* p = new(initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_IB, InterfaceB* p = new(initialized) ClassMltD1;)
+REGISTER_OBJ_MAKER(MltD1_as_IC, InterfaceC* p = new(initialized) ClassMltD1;)
 
-REGISTER_OBJ_MAKER(MltD2,       ClassMltD2* p = new (initialized) ClassMltD2;)
-REGISTER_OBJ_MAKER(MltD2_as_B,  ClassB*     p = new (initialized) ClassMltD2;)
-REGISTER_OBJ_MAKER(MltD2_as_IA, InterfaceA* p = new (initialized) ClassMltD2;)
-REGISTER_OBJ_MAKER(MltD2_as_IB, InterfaceB* p = new (initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2,       ClassMltD2* p = new(initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2_as_B,  ClassB*     p = new(initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2_as_IA, InterfaceA* p = new(initialized) ClassMltD2;)
+REGISTER_OBJ_MAKER(MltD2_as_IB, InterfaceB* p = new(initialized) ClassMltD2;)
 
 // to mimic UnicodeString defined in third_party/icu,
 // which store a platform-independent-sized refcount in the first
@@ -1354,7 +1354,7 @@ static void* Mmapper(uintptr_t* addr_after_mmap_call) {
 }
 
 // to trick complier into preventing inlining
-static void* (*mmapper_addr)(uintptr_t*) = &Mmapper;
+static void* (*mmapper_addr)(uintptr_t* addr) = &Mmapper;
 
 // TODO(maxim): copy/move this to memory_region_map_unittest
 // TODO(maxim): expand this test to include mmap64, mremap and sbrk calls.
@@ -1362,16 +1362,16 @@ static void VerifyMemoryRegionMapStackGet() {
   uintptr_t caller_addr_limit;
   void* addr = (*mmapper_addr)(&caller_addr_limit);
   uintptr_t caller = 0;
-  MemoryRegionMap::Lock();
-  for (MemoryRegionMap::RegionIterator
-         i = MemoryRegionMap::BeginRegionLocked();
-         i != MemoryRegionMap::EndRegionLocked(); ++i) {
-    if (i->start_addr == reinterpret_cast<uintptr_t>(addr)) {
-      CHECK(caller == 0);
-      caller = i->caller;
+  { MemoryRegionMap::LockHolder l;
+    for (MemoryRegionMap::RegionIterator
+           i = MemoryRegionMap::BeginRegionLocked();
+           i != MemoryRegionMap::EndRegionLocked(); ++i) {
+      if (i->start_addr == reinterpret_cast<uintptr_t>(addr)) {
+        CHECK_EQ(caller, 0);
+        caller = i->caller();
+      }
     }
   }
-  MemoryRegionMap::Unlock();
   // caller must point into Mmapper function:
   if (!(reinterpret_cast<uintptr_t>(mmapper_addr) <= caller  &&
         caller < caller_addr_limit)) {
@@ -1395,7 +1395,7 @@ static void* Mallocer(uintptr_t* addr_after_malloc_call) {
 }
 
 // to trick complier into preventing inlining
-static void* (*mallocer_addr)(uintptr_t*) = &Mallocer;
+static void* (*mallocer_addr)(uintptr_t* addr) = &Mallocer;
 
 // non-static for friendship with HeapProfiler
 // TODO(maxim): expand this test to include
@@ -1535,7 +1535,8 @@ int main(int argc, char** argv) {
   // Test that various STL allocators work.  Some of these are redundant, but
   // we don't know how STL might change in the future.  For example,
   // http://wiki/Main/StringNeStdString.
-#define DTSL(a) { DirectTestSTLAlloc(a, #a); Pause(); }
+#define DTSL(a) { DirectTestSTLAlloc(a, #a); \
+                  Pause(); }
   DTSL(std::allocator<char>());
   DTSL(std::allocator<int>());
   DTSL(std::string().get_allocator());

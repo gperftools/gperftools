@@ -77,8 +77,8 @@
 //      b. An array access in the cluster structure
 //      c. A traversal over the linked-list for a block
 
-#ifndef _ADDRESSMAP_H
-#define _ADDRESSMAP_H
+#ifndef BASE_ADDRESSMAP_INL_H__
+#define BASE_ADDRESSMAP_INL_H__
 
 #include "config.h"
 #include <stddef.h>
@@ -102,10 +102,10 @@
 template <class Value>
 class AddressMap {
  public:
-  typedef void* (*Allocator)(size_t);
-  typedef void  (*DeAllocator)(void*);
+  typedef void* (*Allocator)(size_t size);
+  typedef void  (*DeAllocator)(void* ptr);
   typedef const void* Key;
-  
+
   // Create an AddressMap that uses the specified allocator/deallocator.
   // The allocator/deallocator should behave like malloc/free.
   // For instance, the allocator does not need to return initialized memory.
@@ -230,7 +230,7 @@ class AddressMap {
     }
     return NULL;
   }
-  
+
   // Return the block ID for an address within its cluster
   static int BlockID(Number address) {
     return (address >> kBlockBits) & (kClusterBlocks - 1);
@@ -278,7 +278,7 @@ AddressMap<Value>::AddressMap(Allocator alloc, DeAllocator dealloc)
 template <class Value>
 AddressMap<Value>::~AddressMap() {
   // De-allocate all of the objects we allocated
-  for (Object* obj = allocated_; obj != NULL; ) {
+  for (Object* obj = allocated_; obj != NULL; /**/) {
     Object* next = obj->next;
     (*dealloc_)(obj);
     obj = next;
@@ -418,4 +418,4 @@ inline void AddressMap<Value>::Iterate(void (*callback)(Key, Value*, Type),
   }
 }
 
-#endif /* _ADDRESSMAP_H */
+#endif  // BASE_ADDRESSMAP_INL_H__

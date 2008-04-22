@@ -116,6 +116,7 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
   int n = 0;
   unw_cursor_t cursor;
   unw_context_t uc;
+  unw_word_t sp = 0, next_sp = 0;
 
   if (!libunwind_lock.TryLock()) {
     return 0;
@@ -125,23 +126,28 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
   RAW_CHECK(unw_init_local(&cursor, &uc) >= 0, "unw_init_local failed");
   skip_count++;         // Do not include the "GetStackFrames" frame
 
-  while (n < max_depth) {
-    int ret = unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip);
-    if (ret < 0)
-      break;
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      pcs[n++] = ip;
+  while (skip_count--) {
+    if (unw_step(&cursor) <= 0 ||
+        unw_get_reg(&cursor, UNW_REG_SP, &next_sp) < 0) {
+      goto out;
     }
-    ret = unw_step(&cursor);
-    if (ret <= 0)
-      break;
   }
-
-  // No implementation for finding out the stack frame sizes yet.
-  memset(sizes, 0, sizeof(*sizes) * n);
-
+  while (n < max_depth) {
+    sp = next_sp;
+    if (unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip) < 0)
+      break;
+    if (unw_step(&cursor) <= 0 ||
+        unw_get_reg(&cursor, UNW_REG_SP, &next_sp)) {
+      // We couldn't step any further (possibly because we reached _start).
+      // Provide the last good PC we've got, and get out.
+      sizes[n] = 0;
+      pcs[n++] = ip;
+      break;
+    }
+    sizes[n] = next_sp - sp;
+    pcs[n++] = ip;
+  }
+ out:
   libunwind_lock.Unlock();
   return n;
 }

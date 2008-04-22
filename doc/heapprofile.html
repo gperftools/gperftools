@@ -106,9 +106,21 @@ commandline flags.</p>
   <td><code>HEAP_PROFILE_MMAP</code></td>
   <td>default: false</td>
   <td>
-    Profile <code>mmap</code> calls in addition to
+    Profile <code>mmap</code>, <code>mremap</code>, and <code>sbrk</code>
+    calls in addition to
     <code>malloc</code>, <code>calloc</code>, <code>realloc</code>,
     and <code>new</code>.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>HEAP_PROFILE_MMAP_ONLY</code></td>
+  <td>default: false</td>
+  <td>
+    Only profile <code>mmap</code>, <code>mremap</code>, and <code>sbrk</code>
+    calls; do not profile
+    <code>malloc</code>, <code>calloc</code>, <code>realloc</code>,
+    or <code>new</code>.
   </td>
 </tr>
 
@@ -116,7 +128,7 @@ commandline flags.</p>
   <td><code>HEAP_PROFILE_MMAP_LOG</code></td>
   <td>default: false</td>
   <td>
-    Log <code>mmap</code>/<code>munmap</code>calls.
+    Log <code>mmap</code>/<code>munmap</code> calls.
   </td>
 </tr>
 

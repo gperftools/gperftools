@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "0.93";
+my $PPROF_VERSION = "0.97";
 
 # These are the object tools we use, which come from various sources.
 # We want to invoke them directly, rather than via users' aliases and/or
@@ -430,11 +430,12 @@ sub Init() {
 
   # Parse profile file/location arguments
   foreach my $farg (@ARGV) {
-    if ($farg =~ m/(.*)\@([0-9]+)/ ) {
+    if ($farg =~ m/(.*)\@([0-9]+)(|\/.*)$/ ) {
       my $machine = $1;
       my $num_machines = $2;
+      my $path = $3;
       for (my $i = 0; $i < $num_machines; $i++) {
-        unshift(@main::pfile_args, "$i.$machine");
+        unshift(@main::pfile_args, "$i.$machine$path");
       }
     } else {
       unshift(@main::pfile_args, $farg);
@@ -1786,8 +1787,8 @@ sub IsProfileURL {
 sub ParseProfileURL {
   my $profile_name = shift;
   if (defined($profile_name) &&
-      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|/|$PROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE)$,o) {
-    return ($2, $3, $4);
+      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|\@\d+)(|/|$PROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE)$,o) {
+    return ($2, $3, $5);
   }
   return ();
 }

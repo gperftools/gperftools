@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
     }
   }
   printf("PASS\n");
-  MallocHook::SetNewHook(old_alloc_hook);
-  MallocHook::SetDeleteHook(old_free_hook);
+  CHECK_EQ(MallocHook::SetNewHook(old_alloc_hook), AllocHook);
+  CHECK_EQ(MallocHook::SetDeleteHook(old_free_hook), FreeHook);
   return 0;
 }

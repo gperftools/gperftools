@@ -30,6 +30,9 @@
 // ---
 // Author: Mike Burrows
 
+// All functions here are thread-hostile due to file caching unless
+// commented otherwise.
+
 #ifndef _SYSINFO_H_
 #define _SYSINFO_H_
 
@@ -65,7 +68,7 @@ extern bool GetUniquePathFromEnv(const char* env_name, char* path);
 
 extern int NumCPUs();
 
-// processor cycles per second of each processor
+// processor cycles per second of each processor.  Thread-safe.
 extern double CyclesPerSecond(void);
 
 

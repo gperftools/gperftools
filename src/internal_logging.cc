@@ -48,6 +48,17 @@ void TCMalloc_MESSAGE(const char* format, ...) {
   write(STDERR_FILENO, buf, strlen(buf));
 }
 
+void TCMalloc_CRASH(const char* format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  char buf[800];
+  vsnprintf(buf, sizeof(buf), format, ap);
+  va_end(ap);
+  write(STDERR_FILENO, buf, strlen(buf));
+
+  abort();
+}
+
 void TCMalloc_Printer::printf(const char* format, ...) {
   if (left_ > 0) {
     va_list ap;

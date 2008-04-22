@@ -28,7 +28,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * ---
- * Author: Markus Gutschke
+ * Author: Markus Gutschke, Carl Crous
  */
 
 #ifndef _ELFCORE_H
@@ -372,9 +372,10 @@ extern "C" {
  */
 int InternalGetCoreDump(void *frame, int num_threads, pid_t *thread_pids,
                         va_list ap
-                     /* const char *PATH,
-                        const struct CoredumperCompressor *compressors,
-                        const struct CoredumperCompressor **selected_comp */);
+                     /* const struct CoreDumpParameters *params,
+                        const char *file_name,
+                        const char *PATH
+                      */);
 
 #endif
 

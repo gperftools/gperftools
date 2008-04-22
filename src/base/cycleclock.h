@@ -48,7 +48,7 @@
 // with modifications by m3b.  cf
 //    https://setisvn.ssl.berkeley.edu/svn/lib/fftw-3.0.1/kernel/cycle.h
 struct CycleClock {
-  // This should return the number of cycles since power-on
+  // This should return the number of cycles since power-on.  Thread-safe.
   static inline int64 Now() {
 #if defined(__MACH__) && defined(__APPLE__)
     // this goes at the top because we need ALL Macs, regardless

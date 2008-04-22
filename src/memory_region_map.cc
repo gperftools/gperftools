@@ -31,6 +31,70 @@
  * Author: Maxim Lifantsev
  */
 
+//
+// Background and key design points of MemoryRegionMap.
+//
+// MemoryRegionMap is a low-level module with quite atypical requirements that
+// result in some degree of non-triviality of the implementation and design.
+//
+// MemoryRegionMap collects info about *all* memory regions created with
+// mmap, munmap, mremap, sbrk.
+// They key word above is 'all': all that are happening in a process
+// during its lifetime frequently starting even before global object
+// constructor execution.
+//
+// This is needed by the primary client of MemoryRegionMap:
+// HeapLeakChecker uses the regions and the associated stack traces
+// to figure out what part of the memory is the heap:
+// if MemoryRegionMap were to miss some (early) regions, leak checking would
+// stop working correctly.
+//
+// To accomplish the goal of functioning before/during global object
+// constructor execution MemoryRegionMap is done as a singleton service
+// that relies on own on-demand initialized static constructor-less data,
+// and only relies on other low-level modules that can also function properly
+// even before global object constructors run.
+//
+// Accomplishing the goal of collecting data about all mmap, munmap, mremap,
+// sbrk occurrences is a more involved: conceptually to do this one needs to
+// record some bits of data in particular about any mmap or sbrk call,
+// but to do that one needs to allocate memory for that data at some point,
+// but all memory allocations in the end themselves come from an mmap
+// or sbrk call (that's how the address space of the process grows).
+//
+// Also note that we need to do all the above recording from
+// within an mmap/sbrk hook which is sometimes/frequently is made by a memory
+// allocator, including the allocator MemoryRegionMap itself must rely on.
+// In the case of heap-checker usage this includes even the very first
+// mmap/sbrk call happening in the program: heap-checker gets activated due to
+// a link-time installed mmap/sbrk hook and it initializes MemoryRegionMap
+// and asks it to record info about this very first call right from that
+// very first hook invocation.
+//
+// MemoryRegionMap is doing its memory allocations via LowLevelAlloc:
+// unlike more complex standard memory allocator, LowLevelAlloc cooperates with
+// MemoryRegionMap by not holding any of its own locks while it calls mmap
+// to get memory, thus we are able to call LowLevelAlloc from
+// our mmap/sbrk hooks without causing a deadlock in it.
+// For the same reason of deadlock prevention the locking in MemoryRegionMap
+// itself is write-recursive which is an exception to Google's mutex usage.
+//
+// We still need to break the infinite cycle of mmap calling our hook,
+// which asks LowLevelAlloc for memory to record this mmap,
+// which (sometimes) causes mmap, which calls our hook, and so on.
+// We do this as follows: on a recursive call of MemoryRegionMap's
+// mmap/sbrk/mremap hook we record the data about the allocation in a
+// static fixed-sized stack (saved_regions), when the recursion unwinds
+// but before returning from the outer hook call we unwind this stack and
+// move the data from saved_regions to its permanent place in the RegionSet,
+// which can cause more allocations and mmap-s and recursion and unwinding,
+// but the whole process ends eventually due to the fact that for the small
+// allocations we are doing LowLevelAlloc reuses one mmap call and parcels out
+// the memory it created to satisfy several of our allocation requests.
+//
+
+// ========================================================================= //
+
 #include "config.h"
 
 #ifdef HAVE_UNISTD_H
@@ -61,14 +125,20 @@
 # define MREMAP_FIXED  0
 #endif
 
+using std::max;
+
 // ========================================================================= //
 
-bool MemoryRegionMap::have_initialized_ = false;
+const int MemoryRegionMap::kMaxStackDepth;
+int MemoryRegionMap::client_count_ = 0;
+int MemoryRegionMap::max_stack_depth_ = 0;
 MemoryRegionMap::RegionSet* MemoryRegionMap::regions_ = NULL;
 LowLevelAlloc::Arena* MemoryRegionMap::arena_ = NULL;
 SpinLock MemoryRegionMap::lock_(SpinLock::LINKER_INITIALIZED);
-int MemoryRegionMap::recursion_count_ = 0;
-pthread_t MemoryRegionMap::self_tid_;
+SpinLock MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
+    SpinLock::LINKER_INITIALIZED);
+int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
+pthread_t MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
 
 // ========================================================================= //
 
@@ -86,12 +156,16 @@ static inline bool current_thread_is(pthread_t should_be) {
 
 // ========================================================================= //
 
+// Constructor-less place-holder to store a RegionSet in.
 union MemoryRegionMap::RegionSetRep {
   char rep[sizeof(RegionSet)];
-  void* align_it;
+  void* align_it;  // do not need a better alignment for 'rep' than this
+  RegionSet* region_set() { return reinterpret_cast<RegionSet*>(rep); }
 };
 
-// The bytes where MemoryRegionMap::regions_ will point to
+// The bytes where MemoryRegionMap::regions_ will point to.
+// We use RegionSetRep with noop c-tor so that global construction
+// does not interfere.
 static MemoryRegionMap::RegionSetRep regions_rep;
 
 // ========================================================================= //
@@ -100,22 +174,42 @@ static MemoryRegionMap::RegionSetRep regions_rep;
 // (or rather should we *not* use regions_ to record a hooked mmap).
 static bool recursive_insert = false;
 
-void MemoryRegionMap::Init() {
+void MemoryRegionMap::Init(int max_stack_depth) {
   RAW_VLOG(2, "MemoryRegionMap Init");
+  RAW_CHECK(max_stack_depth >= 0, "");
+  // Make sure we don't overflow the memory in region stacks:
+  RAW_CHECK(max_stack_depth <= kMaxStackDepth,
+            "need to increase kMaxStackDepth?");
   Lock();
-  if (have_initialized_) {
+  client_count_ += 1;
+  max_stack_depth_ = max(max_stack_depth_, max_stack_depth);
+  if (client_count_ > 1) {
+    // not first client: already did initialization-proper
     Unlock();
+    RAW_VLOG(2, "MemoryRegionMap Init increment done");
     return;
   }
-  MallocHook::SetMmapHook(MmapHook);
-  MallocHook::SetMremapHook(MremapHook);
-  MallocHook::SetSbrkHook(SbrkHook);
-  recursive_insert = true;  // to buffer the mmap info caused by NewArena
+  // Set our hooks and make sure no other hooks existed:
+  if (MallocHook::SetMmapHook(MmapHook) != NULL  ||
+      MallocHook::SetMremapHook(MremapHook) != NULL  ||
+      MallocHook::SetSbrkHook(SbrkHook) != NULL  ||
+      MallocHook::SetMunmapHook(MunmapHook) != NULL) {
+    RAW_LOG(FATAL, "Had other mmap/mremap/munmap/sbrk MallocHook-s set. "
+                   "Make sure only one of MemoryRegionMap and the other "
+                   "client is active.");
+  }
+  // We need to set recursive_insert since the NewArena call itself
+  // will already do some allocations with mmap which our hooks will catch
+  // recursive_insert allows us to buffer info about these mmap calls.
+  // Note that Init() can be (and is) sometimes called
+  // already from within an mmap/sbrk hook.
+  recursive_insert = true;
   arena_ = LowLevelAlloc::NewArena(0, LowLevelAlloc::DefaultArena());
   recursive_insert = false;
   HandleSavedRegionsLocked(&InsertRegionLocked);  // flush the buffered ones
-  MallocHook::SetMunmapHook(MunmapHook);
-  have_initialized_ = true;
+    // Can't instead use HandleSavedRegionsLocked(&DoInsertRegionLocked) before
+    // recursive_insert = false; as InsertRegionLocked will also construct
+    // regions_ on demand for us.
   Unlock();
   RAW_VLOG(2, "MemoryRegionMap Init done");
 }
@@ -123,8 +217,14 @@ void MemoryRegionMap::Init() {
 bool MemoryRegionMap::Shutdown() {
   RAW_VLOG(2, "MemoryRegionMap Shutdown");
   Lock();
-  RAW_CHECK(have_initialized_, "");
-  CheckMallocHooks();
+  RAW_CHECK(client_count_ > 0, "");
+  client_count_ -= 1;
+  if (client_count_ != 0) {  // not last client; need not really shutdown
+    Unlock();
+    RAW_VLOG(2, "MemoryRegionMap Shutdown decrement done");
+    return true;
+  }
+  CheckMallocHooks();  // we assume no other hooks
   MallocHook::SetMmapHook(NULL);
   MallocHook::SetMremapHook(NULL);
   MallocHook::SetSbrkHook(NULL);
@@ -137,7 +237,6 @@ bool MemoryRegionMap::Shutdown() {
   } else {
     RAW_LOG(WARNING, "Can't delete LowLevelAlloc arena: it's being used");
   }
-  have_initialized_ = false;
   Unlock();
   RAW_VLOG(2, "MemoryRegionMap Shutdown done");
   return deleted_arena;
@@ -148,65 +247,109 @@ void MemoryRegionMap::CheckMallocHooks() {
       MallocHook::GetMunmapHook() != MunmapHook  ||
       MallocHook::GetMremapHook() != MremapHook  ||
       MallocHook::GetSbrkHook() != SbrkHook) {
-    RAW_LOG(FATAL, "Some malloc hooks got changed");
+    RAW_LOG(FATAL, "Our mmap/mremap/munmap/sbrk MallocHook-s got changed.");
   }
 }
 
+// Invariants (once libpthread_initialized is true):
+//   * While lock_ is not held, recursion_count_ is 0 (and
+//     lock_owner_tid_ is the previous owner, but we don't rely on
+//     that).
+//   * recursion_count_ and lock_owner_tid_ are only written while
+//     both lock_ and owner_lock_ are held. They may be read under
+//     just owner_lock_.
+//   * At entry and exit of Lock() and Unlock(), the current thread
+//     owns lock_ iff pthread_equal(lock_owner_tid_, pthread_self())
+//     && recursion_count_ > 0.
 void MemoryRegionMap::Lock() {
-  if (recursion_count_ == 0  ||  !current_thread_is(self_tid_)) {
-    lock_.Lock();
-    if (libpthread_initialized)
-      self_tid_ = pthread_self();
+  {
+    SpinLockHolder l(&owner_lock_);
+    if (recursion_count_ > 0 && current_thread_is(lock_owner_tid_)) {
+      RAW_CHECK(lock_.IsHeld(), "Invariants violated");
+      recursion_count_++;
+      RAW_CHECK(recursion_count_ <= 5,
+                "recursive lock nesting unexpectedly deep");
+      return;
+    }
   }
-  recursion_count_++;
-  RAW_CHECK(recursion_count_ <= 5, "recursive lock nesting unexpectedly deep");
+  lock_.Lock();
+  {
+    SpinLockHolder l(&owner_lock_);
+    RAW_CHECK(recursion_count_ == 0,
+              "Last Unlock didn't reset recursion_count_");
+    if (libpthread_initialized)
+      lock_owner_tid_ = pthread_self();
+    recursion_count_ = 1;
+  }
 }
 
 void MemoryRegionMap::Unlock() {
+  SpinLockHolder l(&owner_lock_);
   RAW_CHECK(recursion_count_ >  0, "unlock when not held");
-  RAW_CHECK(current_thread_is(self_tid_), "unlock by non-holder");
+  RAW_CHECK(lock_.IsHeld(),
+            "unlock when not held, and recursion_count_ is wrong");
+  RAW_CHECK(current_thread_is(lock_owner_tid_), "unlock by non-holder");
   recursion_count_--;
   if (recursion_count_ == 0) {
     lock_.Unlock();
   }
 }
 
-bool MemoryRegionMap::LockIsHeldByThisThread() {
-  return lock_.IsHeld()  &&  current_thread_is(self_tid_);
+bool MemoryRegionMap::LockIsHeld() {
+  SpinLockHolder l(&owner_lock_);
+  return lock_.IsHeld()  &&  current_thread_is(lock_owner_tid_);
 }
 
-bool MemoryRegionMap::FindStackRegion(uintptr_t stack_top, Region* result) {
-  bool found = false;
-  Lock();
+const MemoryRegionMap::Region*
+MemoryRegionMap::DoFindRegionLocked(uintptr_t addr) {
+  RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
   if (regions_ != NULL) {
     Region sample;
-    sample.end_addr = stack_top;
+    sample.SetRegionSetKey(addr);
     RegionSet::iterator region = regions_->lower_bound(sample);
     if (region != regions_->end()) {
-      RAW_CHECK(stack_top <= region->end_addr, "");
-      if (region->start_addr <= stack_top  &&  stack_top < region->end_addr) {
-        RAW_VLOG(2, "Stack at %p is inside region %p..%p",
-                    reinterpret_cast<void*>(stack_top),
-                    reinterpret_cast<void*>(region->start_addr),
-                    reinterpret_cast<void*>(region->end_addr));
-        const_cast<Region*>(&*region)->is_stack = true;  // now we know
-        *result = *region;
-        found = true;
+      RAW_CHECK(addr <= region->end_addr, "");
+      if (region->start_addr <= addr  &&  addr < region->end_addr) {
+        return &(*region);
       }
     }
   }
+  return NULL;
+}
+
+bool MemoryRegionMap::FindRegion(uintptr_t addr, Region* result) {
+  Lock();
+  const Region* region = DoFindRegionLocked(addr);
+  if (region != NULL) *result = *region;  // create it as an independent copy
   Unlock();
-  return found;
+  return region != NULL;
+}
+
+bool MemoryRegionMap::FindAndMarkStackRegion(uintptr_t stack_top,
+                                             Region* result) {
+  Lock();
+  const Region* region = DoFindRegionLocked(stack_top);
+  if (region != NULL) {
+    RAW_VLOG(2, "Stack at %p is inside region %p..%p",
+                reinterpret_cast<void*>(stack_top),
+                reinterpret_cast<void*>(region->start_addr),
+                reinterpret_cast<void*>(region->end_addr));
+    const_cast<Region*>(region)->set_is_stack();  // now we know
+      // cast is safe (set_is_stack does not change the set ordering key)
+    *result = *region;  // create *result as an independent copy
+  }
+  Unlock();
+  return region != NULL;
 }
 
 MemoryRegionMap::RegionIterator MemoryRegionMap::BeginRegionLocked() {
-  RAW_CHECK(LockIsHeldByThisThread(), "should be held (by this thread)");
+  RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
   RAW_CHECK(regions_ != NULL, "");
   return regions_->begin();
 }
 
 MemoryRegionMap::RegionIterator MemoryRegionMap::EndRegionLocked() {
-  RAW_CHECK(LockIsHeldByThisThread(), "should be held (by this thread)");
+  RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
   RAW_CHECK(regions_ != NULL, "");
   return regions_->end();
 }
@@ -217,7 +360,7 @@ inline void MemoryRegionMap::DoInsertRegionLocked(const Region& region) {
     RAW_CHECK(i == regions_->end()  ||  !region.Overlaps(*i),
               "Wow, overlapping memory regions");
     Region sample;
-    sample.end_addr = region.start_addr;
+    sample.SetRegionSetKey(region.start_addr);
     i = regions_->lower_bound(sample);
     RAW_CHECK(i == regions_->end()  ||  !region.Overlaps(*i),
               "Wow, overlapping memory regions");
@@ -225,7 +368,10 @@ inline void MemoryRegionMap::DoInsertRegionLocked(const Region& region) {
   RAW_VLOG(4, "Inserting region %p..%p from %p",
               reinterpret_cast<void*>(region.start_addr),
               reinterpret_cast<void*>(region.end_addr),
-              reinterpret_cast<void*>(region.caller));
+              reinterpret_cast<void*>(region.caller()));
+  region.AssertIsConsistent();  // just making sure
+  // This inserts and allocates permanent storage for region
+  // and its call stack data: it's safe to do it now:
   regions_->insert(region);
   RAW_VLOG(4, "Inserted region %p..%p :",
               reinterpret_cast<void*>(region.start_addr),
@@ -237,48 +383,56 @@ inline void MemoryRegionMap::DoInsertRegionLocked(const Region& region) {
 // and MemoryRegionMap::HandleSavedRegionsLocked()
 // and are file-level to ensure that they are initialized at load time.
 
-// No. of unprocessed inserts
+// Number of unprocessed region inserts.
 static int saved_regions_count = 0;
+
 // Unprocessed inserts (must be big enough to hold all allocations that can
 // be caused by a InsertRegionLocked call).
+// Region has no constructor, so that c-tor execution does not interfere
+// with the any-time use of the static memory behind saved_regions.
 static MemoryRegionMap::Region saved_regions[10];
 
 inline void MemoryRegionMap::HandleSavedRegionsLocked(
               void (*insert_func)(const Region& region)) {
   while (saved_regions_count > 0) {
-    // Making a copy of the region argument is important:
+    // Making a local-var copy of the region argument to insert_func
+    // including its stack (w/o doing any memory allocations) is important:
     // in many cases the memory in saved_regions
     // will get written-to during the (*insert_func)(r) call below.
-    Region r(saved_regions[--saved_regions_count]);
+    Region r = saved_regions[--saved_regions_count];
     (*insert_func)(r);
   }
 }
 
 inline void MemoryRegionMap::InsertRegionLocked(const Region& region) {
-  RAW_CHECK(LockIsHeldByThisThread(), "should be held (by this thread)");
+  RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
   // We can be called recursively, because RegionSet constructor
   // and DoInsertRegionLocked() (called below) can call the allocator.
   // recursive_insert tells us if that's the case. When this happens,
   // region insertion information is recorded in saved_regions[],
   // and taken into account when the recursion unwinds.
   // Do the insert:
-  if (recursive_insert) {  // recursion
+  if (recursive_insert) {  // recursion: save in saved_regions
     RAW_VLOG(4, "Saving recursive insert of region %p..%p from %p",
                 reinterpret_cast<void*>(region.start_addr),
                 reinterpret_cast<void*>(region.end_addr),
-                reinterpret_cast<void*>(region.caller));
+                reinterpret_cast<void*>(region.caller()));
     RAW_CHECK(saved_regions_count < arraysize(saved_regions), "");
+    // Copy 'region' to saved_regions[saved_regions_count]
+    // together with the contents of its call_stack,
+    // then increment saved_regions_count.
     saved_regions[saved_regions_count++] = region;
   } else {  // not a recusrive call
     if (regions_ == NULL) {  // init regions_
       RAW_VLOG(4, "Initializing region set");
-      regions_ = reinterpret_cast<RegionSet*>(&regions_rep.rep);
+      regions_ = regions_rep.region_set();
       recursive_insert = true;
       new(regions_) RegionSet();
       HandleSavedRegionsLocked(&DoInsertRegionLocked);
       recursive_insert = false;
     }
     recursive_insert = true;
+    // Do the actual insertion work to put new regions into regions_:
     DoInsertRegionLocked(region);
     HandleSavedRegionsLocked(&DoInsertRegionLocked);
     recursive_insert = false;
@@ -294,34 +448,32 @@ static const int kStripFrames = 3;
 #endif
 
 void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
+  // Record start/end info about this memory acquisition call in a new region:
   Region region;
-  // Record data about this memory acquisition call:
-  region.start_addr = reinterpret_cast<uintptr_t>(start);
-  region.end_addr = region.start_addr + size;
-  region.is_stack = false;
-  void* caller;
+  region.Create(start, size);
+  // First get the call stack info into the local varible 'region':
   const int depth =
-    MallocHook::GetCallerStackTrace(&caller, 1, kStripFrames + 1);
-  if (depth != 1) {
-    // If we weren't able to get the stack frame, that's ok.  This
-    // usually happens in recursive calls, when the stack-unwinder
-    // calls mmap() which in turn calls the stack-unwinder.
-    caller = NULL;
-  }
-  region.caller = reinterpret_cast<uintptr_t>(caller);
+    max_stack_depth_ > 0
+    ? MallocHook::GetCallerStackTrace(const_cast<void**>(region.call_stack),
+                                      max_stack_depth_, kStripFrames + 1)
+    : 0;
+  region.set_call_stack_depth(depth);  // record stack info fully
   RAW_VLOG(2, "New global region %p..%p from %p",
               reinterpret_cast<void*>(region.start_addr),
               reinterpret_cast<void*>(region.end_addr),
-              reinterpret_cast<void*>(region.caller));
+              reinterpret_cast<void*>(region.caller()));
+  // Note: none of the above allocates memory.
   Lock();  // recursively lock
   InsertRegionLocked(region);
+    // This will (eventually) allocate storage for and copy over the stack data
+    // from region.call_stack_data_ that is pointed by region.call_stack().
   Unlock();
 }
 
 void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
   Lock();
   HandleSavedRegionsLocked(&InsertRegionLocked);
-    // first handle saved regions if any
+    // first handle adding saved regions if any
   uintptr_t start_addr = reinterpret_cast<uintptr_t>(start);
   uintptr_t end_addr = start_addr + size;
   // subtract start_addr, end_addr from all the regions
@@ -329,11 +481,11 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
               reinterpret_cast<void*>(start_addr),
               reinterpret_cast<void*>(end_addr),
               regions_->size());
-  Region start_point;
-  memset(&start_point, 0, sizeof(start_point));  // zero out don't-care fields
-  start_point.start_addr = start_point.end_addr = start_addr;
-  for (RegionSet::iterator region = regions_->lower_bound(start_point);
-       region != regions_->end() && region->start_addr < end_addr;
+  Region sample;
+  sample.SetRegionSetKey(start_addr);
+  // Only iterate over the regions that might overlap start_addr..end_addr:
+  for (RegionSet::iterator region = regions_->lower_bound(sample);
+       region != regions_->end()  &&  region->start_addr < end_addr;
        /*noop*/) {
     RAW_VLOG(5, "Looking at region %p..%p",
                 reinterpret_cast<void*>(region->start_addr),
@@ -355,20 +507,17 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
       // Make another region for the start portion:
       // The new region has to be the start portion because we can't
       // just modify region->end_addr as it's the sorting key.
-      Region r;
-      r.start_addr = region->start_addr;
-      r.end_addr = start_addr;
-      r.caller = region->caller;
-      r.is_stack = region->is_stack;
+      Region r = *region;
+      r.set_end_addr(start_addr);
       InsertRegionLocked(r);
-      // cut region from start
-      const_cast<Region*>(&*region)->start_addr = end_addr;
+      // cut *region from start:
+      const_cast<Region&>(*region).set_start_addr(end_addr);
     } else if (end_addr > region->start_addr  &&
                start_addr <= region->start_addr) {  // cut from start
       RAW_VLOG(4, "Start-chopping region %p..%p",
                   reinterpret_cast<void*>(region->start_addr),
                   reinterpret_cast<void*>(region->end_addr));
-      const_cast<Region*>(&*region)->start_addr = end_addr;
+      const_cast<Region&>(*region).set_start_addr(end_addr);
     } else if (start_addr > region->start_addr  &&
                start_addr < region->end_addr) {  // cut from end
       RAW_VLOG(4, "End-chopping region %p..%p",
@@ -376,9 +525,11 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
                   reinterpret_cast<void*>(region->end_addr));
       // Can't just modify region->end_addr (it's the sorting key):
       Region r = *region;
-      r.end_addr = start_addr;
+      r.set_end_addr(start_addr);
       RegionSet::iterator d = region;
       ++region;
+      // It's safe to erase before inserting since r is independent of *d:
+      // r contains an own copy of the call stack:
       regions_->erase(d);
       InsertRegionLocked(r);
       continue;
@@ -449,14 +600,14 @@ void MemoryRegionMap::SbrkHook(const void* result, ptrdiff_t increment) {
 }
 
 void MemoryRegionMap::LogAllLocked() {
-  RAW_CHECK(LockIsHeldByThisThread(), "should be held (by this thread)");
+  RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
   RAW_LOG(INFO, "List of regions:");
   uintptr_t previous = 0;
   for (RegionSet::const_iterator r = regions_->begin();
        r != regions_->end(); ++r) {
     RAW_LOG(INFO, "Memory region 0x%"PRIxS"..0x%"PRIxS" "
                   "from 0x%"PRIxS" stack=%d",
-                  r->start_addr, r->end_addr, r->caller, r->is_stack);
+                  r->start_addr, r->end_addr, r->caller(), r->is_stack);
     RAW_CHECK(previous < r->end_addr, "wow, we messed up the set order");
       // this must be caused by uncontrolled recursive operations on regions_
     previous = r->end_addr;

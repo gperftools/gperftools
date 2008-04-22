@@ -54,13 +54,21 @@ extern void TCMalloc_MESSAGE(const char* format, ...)
 // Short form for convenience
 #define MESSAGE TCMalloc_MESSAGE
 
+// Dumps the specified message and then calls abort()
+extern void TCMalloc_CRASH(const char* format, ...)
+#ifdef HAVE___ATTRIBUTE__
+  __attribute__ ((__format__ (__printf__, 1, 2)))
+#endif
+;
+
+#define CRASH TCMalloc_CRASH
+
 // Like assert(), but executed even in NDEBUG mode
 #undef CHECK_CONDITION
 #define CHECK_CONDITION(cond)                                            \
 do {                                                                     \
   if (!(cond)) {                                                         \
-    MESSAGE("%s:%d: assertion failed: %s\n", __FILE__, __LINE__, #cond); \
-    abort();                                                             \
+    CRASH("%s:%d: assertion failed: %s\n", __FILE__, __LINE__, #cond);   \
   }                                                                      \
 } while (0)
 

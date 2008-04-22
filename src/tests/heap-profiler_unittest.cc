@@ -46,7 +46,7 @@
 #include <sys/wait.h>               // for wait()
 #include <google/heap-profiler.h>
 
-const static int kMaxCount = 100000;
+static const int kMaxCount = 100000;
 int* g_array[kMaxCount];              // an array of int-vectors
 
 static void Allocate(int start, int end, int size) {

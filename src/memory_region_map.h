@@ -44,27 +44,52 @@
 #include "base/spinlock.h"
 #include "base/low_level_alloc.h"
 
-/// TODO(maxim): add a unittest
+// TODO(maxim): add a unittest:
+//  execute a bunch of mmaps and compare memory map what strace logs
+//  execute a bunch of mmap/munmup and compare memory map with
+//  own accounting of what those mmaps generated
 
-// Class to collect and query the map of all memory regions
-// in a process that have been created with mmap, munmap, mremap, sbrk.
+// Class to collect and query the map of all memory regions in a process
+// that have been created with mmap, munmap, mremap, sbrk.
+// For each memory region, we keep track of (and provide to users)
+// the stack trace that allocated that memory region.
+// The recorded stack trace depth is bounded by
+// a user-supplied max_stack_depth parameter of Init().
 // After initialization with Init()
 // (which can happened even before global object constructor execution)
 // we collect the map by installing and monitoring MallocHook-s
 // to mmap, munmap, mremap, sbrk.
 // At any time one can query this map via provided interface.
+// For more details on the design of MemoryRegionMap
+// see the comment at the top of our .cc file.
 class MemoryRegionMap {
- public:  // interface
+ public:
 
-  // Start up this module (can be called more than once w/o harm).
-  // Will install mmap, munmap, mremap, sbrk hooks
+  // interface ================================================================
+
+  // Every client of MemoryRegionMap must call Init() before first use,
+  // and Shutdown() after last use.  This allows us to reference count
+  // this (singleton) class properly.
+
+  // Initialize this module to record memory allocation stack traces.
+  // Stack traces that have more than "max_stack_depth" frames
+  // are automatically shrunk to "max_stack_depth" when they are recorded.
+  // Init() can be called more than once w/o harm, largest max_stack_depth
+  // will be the effective one.
+  // It will install mmap, munmap, mremap, sbrk hooks
   // and initialize arena_ and our hook and locks, hence one can use
   // MemoryRegionMap::Lock()/Unlock() to manage the locks.
   // Uses Lock/Unlock inside.
-  static void Init();
+  static void Init(int max_stack_depth);
+
+  // Max call stack recording depth supported by Init().
+  // Set it to be high enough for all our clients.
+  static const int kMaxStackDepth = 32;
 
   // Try to shutdown this module undoing what Init() did.
-  // Returns iff could do full shutdown.
+  // Returns true iff could do full shutdown (or it was not attempted).
+  // Full shutdown is attempted when the number of Shutdown() calls equals
+  // the number of Init() calls.
   static bool Shutdown();
 
   // Check that our hooks are still in place and crash if not.
@@ -72,34 +97,121 @@ class MemoryRegionMap {
   static void CheckMallocHooks();
 
   // Locks to protect our internal data structures.
-  // These also protect use of arena_
-  // if our Init() has been done.
+  // These also protect use of arena_ if our Init() has been done.
   // The lock is recursive.
   static void Lock();
   static void Unlock();
-  // Whether the lock is held by this thread.
-  static bool LockIsHeldByThisThread();
+
+  // Returns true when the lock is held by this thread (for use in RAW_CHECK-s).
+  static bool LockIsHeld();
+
+  // Locker object that acquires the MemoryRegionMap::Lock
+  // for the duration of its lifetime (a C++ scope).
+  class LockHolder {
+   public:
+    LockHolder() { Lock(); }
+    ~LockHolder() { Unlock(); }
+   private:
+    DISALLOW_EVIL_CONSTRUCTORS(LockHolder);
+  };
 
   // A memory region that we know about through malloc_hook-s.
+  // This is essentially an interface through which MemoryRegionMap
+  // exports the collected data to its clients.
   struct Region {
     uintptr_t start_addr;  // region start address
     uintptr_t end_addr;  // region end address
-    uintptr_t caller;  // who called this region's allocation function
-                       // (return address in the stack of the immediate caller)
-                       // NULL if could not get it
-    bool is_stack;  // does this region contain a thread's stack
+    int call_stack_depth;  // number of caller stack frames that we saved
+    const void* call_stack[kMaxStackDepth];  // caller address stack array
+                                             // filled to call_stack_depth size
+    bool is_stack;  // does this region contain a thread's stack:
+                    // a user of MemoryRegionMap supplies this info
 
+    // Convenience accessor for call_stack[0],
+    // i.e. (the program counter of) the immediate caller
+    // of this region's allocation function,
+    // but it also returns NULL when call_stack_depth is 0,
+    // i.e whe we weren't able to get the call stack.
+    // This usually happens in recursive calls, when the stack-unwinder
+    // calls mmap() which in turn calls the stack-unwinder.
+    uintptr_t caller() const {
+      return reinterpret_cast<uintptr_t>(call_stack_depth >= 1
+                                         ? call_stack[0] : NULL);
+    }
+
+    // Return true iff this region overlaps region x.
     bool Overlaps(const Region& x) const {
       return start_addr < x.end_addr  &&  end_addr > x.start_addr;
     }
+
+   private:  // helpers for MemoryRegionMap
+    friend class MemoryRegionMap;
+
+    // The ways we create Region-s:
+    void Create(const void* start, size_t size) {
+      start_addr = reinterpret_cast<uintptr_t>(start);
+      end_addr = start_addr + size;
+      is_stack = false;  // not a stack till marked such
+      call_stack_depth = 0;
+      AssertIsConsistent();
+    }
+    void set_call_stack_depth(int depth) {
+      RAW_DCHECK(call_stack_depth == 0, "");  // only one such set is allowed
+      call_stack_depth = depth;
+      AssertIsConsistent();
+    }
+
+    // The ways we modify Region-s:
+    void set_is_stack() { is_stack = true; }
+    void set_start_addr(uintptr_t addr) {
+      start_addr = addr;
+      AssertIsConsistent();
+    }
+    void set_end_addr(uintptr_t addr) {
+      end_addr = addr;
+      AssertIsConsistent();
+    }
+
+    // Verifies that *this contains consistent data, crashes if not the case.
+    void AssertIsConsistent() const {
+      RAW_DCHECK(start_addr < end_addr, "");
+      RAW_DCHECK(call_stack_depth >= 0  &&
+                 call_stack_depth <= kMaxStackDepth, "");
+    }
+
+    // Post-default construction helper to make a Region suitable
+    // for searching in RegionSet regions_.
+    void SetRegionSetKey(uintptr_t addr) {
+      // make sure *this has no usable data:
+      if (DEBUG_MODE) memset(this, 0xFF, sizeof(*this));
+      end_addr = addr;
+    }
+
+    // Note: call_stack[kMaxStackDepth] as a member lets us make Region
+    // a simple self-contained struct with correctly behaving bit-vise copying.
+    // This simplifies the code of this module but wastes some memory:
+    // in most-often use case of this module (leak checking)
+    // only one call_stack element out of kMaxStackDepth is actually needed.
+    // Making the storage for call_stack variable-sized,
+    // substantially complicates memory management for the Region-s:
+    // as they need to be created and manipulated for some time
+    // w/o any memory allocations, yet are also given out to the users.
   };
 
-  // Find the region that contains stack_top, mark that region as
-  // a stack region, and write its data into *result.
+  // Find the region that covers addr and write its data into *result if found,
+  // in which case *result gets filled so that it stays fully functional
+  // even when the underlying region gets removed from MemoryRegionMap.
   // Returns success. Uses Lock/Unlock inside.
-  static bool FindStackRegion(uintptr_t stack_top, Region* result);
+  static bool FindRegion(uintptr_t addr, Region* result);
 
- private:  // our internal types
+  // Find the region that contains stack_top, mark that region as
+  // a stack region, and write its data into *result if found,
+  // in which case *result gets filled so that it stays fully functional
+  // even when the underlying region gets removed from MemoryRegionMap.
+  // Returns success. Uses Lock/Unlock inside.
+  static bool FindAndMarkStackRegion(uintptr_t stack_top, Region* result);
+
+ private:  // our internal types ==============================================
 
   // Region comparator for sorting with STL
   struct RegionCmp {
@@ -113,37 +225,43 @@ class MemoryRegionMap {
     static void *Allocate(size_t n) {
       return LowLevelAlloc::AllocWithArena(n, arena_);
     }
-    static void Free(void *p) { LowLevelAlloc::Free(p); }
+    static void Free(const void *p) {
+      LowLevelAlloc::Free(const_cast<void*>(p));
+    }
   };
 
   // Set of the memory regions
   typedef std::set<Region, RegionCmp,
               STL_Allocator<Region, MyAllocator> > RegionSet;
 
- public:  // more in-depth interface
+ public:  // more in-depth interface ==========================================
 
   // STL iterator with values of Region
   typedef RegionSet::const_iterator RegionIterator;
 
   // Return the begin/end iterators to all the regions.
-  // Ideally these need Lock/Unlock protection around their whole usage (loop),
-  // but LockOther/UnlockOther is usually sufficient:
-  // in this case of single-threaded mutability (achieved by (Un)lockOther)
-  // via region additions/modifications
-  // the loop iterator will still be valid as log as its region
-  // has not been deleted and EndRegionLocked should be
+  // These need Lock/Unlock protection around their whole usage (loop).
+  // Even when the same thread causes modifications during such a loop
+  // (which are permitted due to recursive locking)
+  // the loop iterator will still be valid as long as its region
+  // has not been deleted, but EndRegionLocked should be
   // re-evaluated whenever the set of regions has changed.
   static RegionIterator BeginRegionLocked();
   static RegionIterator EndRegionLocked();
 
- public:  // effectively private type
+  // Effectively private type from our .cc =================================
+  // public to let us declare global objects:
+  union RegionSetRep;
 
-  union RegionSetRep;  // in .cc
+ private:
 
- private:  // representation
+  // representation ===========================================================
 
-  // If have initialized this module
-  static bool have_initialized_;
+  // Counter of clients of this module that have called Init().
+  static int client_count_;
+
+  // Maximal number of caller stack frames to save (>= 0).
+  static int max_stack_depth_;
 
   // Arena used for our allocations in regions_.
   static LowLevelAlloc::Arena* arena_;
@@ -158,16 +276,22 @@ class MemoryRegionMap {
 
   // Lock to protect regions_ variable and the data behind.
   static SpinLock lock_;
+  // Lock to protect the recursive lock itself.
+  static SpinLock owner_lock_;
 
   // Recursion count for the recursive lock.
   static int recursion_count_;
   // The thread id of the thread that's inside the recursive lock.
-  static pthread_t self_tid_;
+  static pthread_t lock_owner_tid_;
 
- private:  // helpers
+  // helpers ==================================================================
+
+  // Helper for FindRegion and FindAndMarkStackRegion:
+  // returns the region covering 'addr' or NULL; assumes our lock_ is held.
+  static const Region* DoFindRegionLocked(uintptr_t addr);
 
   // Verifying wrapper around regions_->insert(region)
-  // To be called for InsertRegionLocked only!
+  // To be called to do InsertRegionLocked's work only!
   inline static void DoInsertRegionLocked(const Region& region);
   // Handle regions saved by InsertRegionLocked into a tmp static array
   // by calling insert_func on them.

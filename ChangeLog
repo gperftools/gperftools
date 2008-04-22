@@ -1,3 +1,14 @@
+Mon Apr 21 15:20:52 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.97 release
+	* Refactor GetHeapProfile to avoid using malloc (maxim)
+	* Fix heap-checker and heap-profiler hook interactions (maxim)
+	* Fix a data race in MemoryRegionMap::Lock (jyasskin)
+	* Improve thread-safety of leak checker (maxim)
+	* Fix mmap profile to no longer deadlock (maxim)
+	* Fix rpm to have devel package depend on non-devel (csilvers)
+	* PORTING: Fix clock-speed detection for Mac OS X (csilvers)
+
 Tue Mar 18 14:30:44 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.96 release
