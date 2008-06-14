@@ -51,8 +51,8 @@ for a given run of an executable:</p>
 <ol>
   <li> <p>Define the environment variable CPUPROFILE to the filename
        to dump the profile to.  For instance, to profile
-       <code>/usr/local/bin/my_binary_compiled_with_tcmalloc</code>:</p>
-       <pre>% env CPUPROFILE=/tmp/mybin.prof /usr/local/bin/my_binary_compiled_with_tcmalloc</pre>
+       <code>/usr/local/bin/my_binary_compiled_with_libprofiler_so</code>:</p>
+       <pre>% env CPUPROFILE=/tmp/mybin.prof /usr/local/bin/my_binary_compiled_with_libprofiler_so</pre>
 
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>ProfilerStart()</code> and <code>ProfilerStop()</code>.
@@ -122,6 +122,8 @@ detail below.</p>
                        (Per-PC) annotated disassembly for getdir()
 % pprof --text localhost:1234
                        Outputs one line per procedure for localhost:1234
+% pprof --callgrind /bin/ls ls.prof
+                       Outputs the call information in callgrind format
 </pre>
 
 
@@ -142,6 +144,23 @@ detail below.</p>
   <li> Function name
 </ol>
 
+<h3>Analyzing Callgrind Output</h3>
+
+<p>Use <a href="http://kcachegrind.sourceforge.net">kcachegrind</a> to 
+analyze your callgrind output:</p>
+<pre>
+% pprof --callgrind /bin/ls ls.prof > ls.callgrind
+% kcachegrind ls.callgrind
+</pre>
+
+<p>The cost is specified in 'hits', i.e. how many times a function
+appears in the recorded call stack information. The 'calls' from
+function a to b record how many times function b was found in the
+stack traces directly below function a.</p>
+
+<p>Tip: if you use a debug build the output will include file and line
+number information and kcachegrind will show an annotated source
+code view.</p>
 
 <h3>Node Information</h3>
 
@@ -477,7 +496,7 @@ add up to only 40.</p>
 <address>Sanjay Ghemawat<br>
 <!-- Created: Tue Dec 19 10:43:14 PST 2000 -->
 <!-- hhmts start -->
-Last modified: Sat Feb 24 13:11:38 PST 2007  (csilvers)
+Last modified: Fri May  9 14:41:29 PDT 2008
 <!-- hhmts end -->
 </address>
 </BODY>

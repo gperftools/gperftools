@@ -35,7 +35,7 @@
 // Note:  The glibc implementation may cause a call to malloc.
 // This can cause a deadlock in HeapProfiler.
 #include <execinfo.h>
-#include <stdlib.h>
+#include <string.h>
 #include "google/stacktrace.h"
 
 // If you change this function, also change GetStackFrames below.

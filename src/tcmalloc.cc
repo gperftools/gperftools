@@ -64,6 +64,19 @@
 // in Populate() for pages with sizeclass > 0 objects, and in do_malloc() and
 // do_memalign() for all other relevant pages.
 //
+// PAGEMAP
+// -------
+// Page map contains a mapping from page id to Span.
+//
+// If Span s occupies pages [p..q],
+//      pagemap[p] == s
+//      pagemap[q] == s
+//      pagemap[p+1..q-1] are undefined
+//      pagemap[p-1] and pagemap[q+1] are defined:
+//         NULL if the corresponding page is not yet in the address space.
+//         Otherwise it points to a Span.  This span may be free
+//         or allocated.  If free, it is in one of pageheap's freelist.
+//
 // TODO: Bias reclamation to larger addresses
 // TODO: implement mallinfo/mallopt
 // TODO: Better testing
@@ -101,6 +114,7 @@
 #include "base/basictypes.h"               // gets us PRIu64
 #include "base/sysinfo.h"
 #include "base/spinlock.h"
+#include "malloc_hook-inl.h"
 #include <google/malloc_hook.h>
 #include <google/malloc_extension.h>
 #include "internal_logging.h"
@@ -216,7 +230,7 @@ static const size_t kMaxPages = kMinSystemAlloc;
 static unsigned int primes_list[] = {
 	// Small values might cause high rates of sampling
 	// and hence commented out.
-	// 2, 5, 11, 17, 37, 67, 131, 257,
+        // 2, 5, 11, 17, 37, 67, 131, 257,
 	// 521, 1031, 2053, 4099, 8209, 16411,
 	32771, 65537, 131101, 262147, 524309, 1048583,
 	2097169, 4194319, 8388617, 16777259, 33554467 };
@@ -627,19 +641,6 @@ static inline Length pages(size_t bytes) {
       ((bytes & (kPageSize - 1)) > 0 ? 1 : 0);
 }
 
-// Convert a user size into the number of bytes that will actually be
-// allocated
-static size_t AllocationSize(size_t bytes) {
-  if (bytes > kMaxSize) {
-    // Large object: we allocate an integral number of pages
-    ASSERT(bytes <= (kMaxValidPages << kPageShift));
-    return pages(bytes) << kPageShift;
-  } else {
-    // Small object: find the size class to which it belongs
-    return ByteSizeForClass(SizeClass(bytes));
-  }
-}
-
 // Information kept for a span (a contiguous run of pages).
 struct Span {
   PageID        start;          // Starting page number
@@ -649,7 +650,7 @@ struct Span {
   void*         objects;        // Linked list of free objects
   unsigned int  refcount : 16;  // Number of non-free objects
   unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
-  unsigned int  free : 1;       // Is the span free
+  unsigned int  location : 2;   // Is the span on a freelist, and if so, which?
   unsigned int  sample : 1;     // Sampled object?
 
 #undef SPAN_HISTORY
@@ -659,6 +660,9 @@ struct Span {
   char history[64];
   int value[64];
 #endif
+
+  // What freelist the span is on: IN_USE if on none, or normal or returned
+  enum { IN_USE, ON_NORMAL_FREELIST, ON_RETURNED_FREELIST };
 };
 
 #ifdef SPAN_HISTORY
@@ -818,7 +822,7 @@ class TCMalloc_PageHeap {
   // Returns a pointer to the second span.
   //
   // REQUIRES: "0 < n < span->length"
-  // REQUIRES: !span->free
+  // REQUIRES: span->location == IN_USE
   // REQUIRES: span->sizeclass == 0
   Span* Split(Span* span, Length n);
 
@@ -839,7 +843,8 @@ class TCMalloc_PageHeap {
   }
 
   bool Check();
-  bool CheckList(Span* list, Length min_pages, Length max_pages);
+  bool CheckList(Span* list, Length min_pages, Length max_pages,
+                 int freelist);  // ON_NORMAL_FREELIST or ON_RETURNED_FREELIST
 
   // Release all pages on the free list for reuse by the OS:
   void ReleaseFreePages();
@@ -883,15 +888,14 @@ class TCMalloc_PageHeap {
 
   bool GrowHeap(Length n);
 
-  // REQUIRES   span->length >= n
+  // REQUIRES: span->length >= n
+  // REQUIRES: span->location != IN_USE
   // Remove span from its free list, and move any leftover part of
   // span into appropriate free lists.  Also update "span" to have
   // length exactly "n" and mark it as non-free so it can be returned
   // to the client.  After all that, decrease free_pages_ by n and
   // return span.
-  //
-  // "released" is true iff "span" was found on a "returned" list.
-  Span* Carve(Span* span, Length n, bool released);
+  Span* Carve(Span* span, Length n);
 
   void RecordSpan(Span* span) {
     pagemap_.set(span->start, span);
@@ -939,18 +943,18 @@ Span* TCMalloc_PageHeap::New(Length n) {
   // Find first size >= n that has a non-empty list
   for (Length s = n; s < kMaxPages; s++) {
     Span* ll = &free_[s].normal;
-    bool released = false;
     // If we're lucky, ll is non-empty, meaning it has a suitable span.
-    if (DLL_IsEmpty(ll)) {
-      // Alternatively, maybe there's a usable returned span.
-      ll = &free_[s].returned;
-      released = true;
-      if (DLL_IsEmpty(ll)) {
-        // Still no luck, so keep looking in larger classes.
-        continue;
-      }
+    if (!DLL_IsEmpty(ll)) {
+      ASSERT(ll->next->location == Span::ON_NORMAL_FREELIST);
+      return Carve(ll->next, n);
     }
-    return Carve(ll->next, n, released);
+    // Alternatively, maybe there's a usable returned span.
+    ll = &free_[s].returned;
+    if (!DLL_IsEmpty(ll)) {
+      ASSERT(ll->next->location == Span::ON_RETURNED_FREELIST);
+      return Carve(ll->next, n);
+    }
+    // Still no luck, so keep looking in larger classes.
   }
 
   Span* result = AllocLarge(n);
@@ -968,7 +972,6 @@ Span* TCMalloc_PageHeap::New(Length n) {
 Span* TCMalloc_PageHeap::AllocLarge(Length n) {
   // find the best span (closest to n in size).
   // The following loops implements address-ordered best-fit.
-  bool from_released = false;
   Span *best = NULL;
 
   // Search through normal list
@@ -980,7 +983,7 @@ Span* TCMalloc_PageHeap::AllocLarge(Length n) {
           || (span->length < best->length)
           || ((span->length == best->length) && (span->start < best->start))) {
         best = span;
-        from_released = false;
+        ASSERT(best->location == Span::ON_NORMAL_FREELIST);
       }
     }
   }
@@ -994,23 +997,24 @@ Span* TCMalloc_PageHeap::AllocLarge(Length n) {
           || (span->length < best->length)
           || ((span->length == best->length) && (span->start < best->start))) {
         best = span;
-        from_released = true;
+        ASSERT(best->location == Span::ON_RETURNED_FREELIST);
       }
     }
   }
 
-  return best == NULL ? NULL : Carve(best, n, from_released);
+  return best == NULL ? NULL : Carve(best, n);
 }
 
 Span* TCMalloc_PageHeap::Split(Span* span, Length n) {
   ASSERT(0 < n);
   ASSERT(n < span->length);
-  ASSERT(!span->free);
+  ASSERT(span->location == Span::IN_USE);
   ASSERT(span->sizeclass == 0);
   Event(span, 'T', n);
 
   const int extra = span->length - n;
   Span* leftover = NewSpan(span->start + n, extra);
+  ASSERT(leftover->location == Span::IN_USE);
   Event(leftover, 'U', extra);
   RecordSpan(leftover);
   pagemap_.set(span->start + n - 1, span); // Update map from pageid to span
@@ -1019,23 +1023,26 @@ Span* TCMalloc_PageHeap::Split(Span* span, Length n) {
   return leftover;
 }
 
-Span* TCMalloc_PageHeap::Carve(Span* span, Length n, bool released) {
+Span* TCMalloc_PageHeap::Carve(Span* span, Length n) {
   ASSERT(n > 0);
+  ASSERT(span->location != Span::IN_USE);
+  const int old_location = span->location;
   DLL_Remove(span);
-  span->free = 0;
+  span->location = Span::IN_USE;
   Event(span, 'A', n);
 
   const int extra = span->length - n;
   ASSERT(extra >= 0);
   if (extra > 0) {
     Span* leftover = NewSpan(span->start + n, extra);
-    leftover->free = 1;
+    leftover->location = old_location;
     Event(leftover, 'S', extra);
     RecordSpan(leftover);
 
     // Place leftover span on appropriate free list
     SpanList* listpair = (extra < kMaxPages) ? &free_[extra] : &large_;
-    Span* dst = released ? &listpair->returned : &listpair->normal;
+    Span* dst = (leftover->location == Span::ON_RETURNED_FREELIST
+                 ? &listpair->returned : &listpair->normal);
     DLL_Prepend(dst, leftover);
 
     span->length = n;
@@ -1048,7 +1055,7 @@ Span* TCMalloc_PageHeap::Carve(Span* span, Length n, bool released) {
 
 void TCMalloc_PageHeap::Delete(Span* span) {
   ASSERT(Check());
-  ASSERT(!span->free);
+  ASSERT(span->location == Span::IN_USE);
   ASSERT(span->length > 0);
   ASSERT(GetDescriptor(span->start) == span);
   ASSERT(GetDescriptor(span->start + span->length - 1) == span);
@@ -1066,7 +1073,7 @@ void TCMalloc_PageHeap::Delete(Span* span) {
   const PageID p = span->start;
   const Length n = span->length;
   Span* prev = GetDescriptor(p-1);
-  if (prev != NULL && prev->free) {
+  if (prev != NULL && prev->location != Span::IN_USE) {
     // Merge preceding span into this span
     ASSERT(prev->start + prev->length == p);
     const Length len = prev->length;
@@ -1078,7 +1085,7 @@ void TCMalloc_PageHeap::Delete(Span* span) {
     Event(span, 'L', len);
   }
   Span* next = GetDescriptor(p+n);
-  if (next != NULL && next->free) {
+  if (next != NULL && next->location != Span::IN_USE) {
     // Merge next span into this span
     ASSERT(next->start == p+n);
     const Length len = next->length;
@@ -1090,7 +1097,7 @@ void TCMalloc_PageHeap::Delete(Span* span) {
   }
 
   Event(span, 'D', span->length);
-  span->free = 1;
+  span->location = Span::ON_NORMAL_FREELIST;
   if (span->length < kMaxPages) {
     DLL_Prepend(&free_[span->length].normal, span);
   } else {
@@ -1131,9 +1138,11 @@ void TCMalloc_PageHeap::IncrementalScavenge(Length n) {
     if (!DLL_IsEmpty(&slist->normal)) {
       // Release the last span on the normal portion of this list
       Span* s = slist->normal.prev;
+      ASSERT(s->location == Span::ON_NORMAL_FREELIST);
       DLL_Remove(s);
       TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
                              static_cast<size_t>(s->length << kPageShift));
+      s->location = Span::ON_RETURNED_FREELIST;
       DLL_Prepend(&slist->returned, s);
 
       // Compute how long to wait until we return memory.
@@ -1159,7 +1168,7 @@ void TCMalloc_PageHeap::IncrementalScavenge(Length n) {
 
 void TCMalloc_PageHeap::RegisterSizeClass(Span* span, size_t sc) {
   // Associate span object with all interior pages as well
-  ASSERT(!span->free);
+  ASSERT(span->location == Span::IN_USE);
   ASSERT(GetDescriptor(span->start) == span);
   ASSERT(GetDescriptor(span->start+span->length-1) == span);
   Event(span, 'C', sc);
@@ -1296,18 +1305,19 @@ bool TCMalloc_PageHeap::GrowHeap(Length n) {
 bool TCMalloc_PageHeap::Check() {
   ASSERT(free_[0].normal.next == &free_[0].normal);
   ASSERT(free_[0].returned.next == &free_[0].returned);
-  CheckList(&large_.normal, kMaxPages, 1000000000);
-  CheckList(&large_.returned, kMaxPages, 1000000000);
+  CheckList(&large_.normal, kMaxPages, 1000000000, Span::ON_NORMAL_FREELIST);
+  CheckList(&large_.returned, kMaxPages, 1000000000, Span::ON_RETURNED_FREELIST);
   for (Length s = 1; s < kMaxPages; s++) {
-    CheckList(&free_[s].normal, s, s);
-    CheckList(&free_[s].returned, s, s);
+    CheckList(&free_[s].normal, s, s, Span::ON_NORMAL_FREELIST);
+    CheckList(&free_[s].returned, s, s, Span::ON_RETURNED_FREELIST);
   }
   return true;
 }
 
-bool TCMalloc_PageHeap::CheckList(Span* list, Length min_pages, Length max_pages) {
+bool TCMalloc_PageHeap::CheckList(Span* list, Length min_pages, Length max_pages,
+                                  int freelist) {
   for (Span* s = list->next; s != list; s = s->next) {
-    CHECK_CONDITION(s->free);
+    CHECK_CONDITION(s->location == freelist);  // NORMAL or RETURNED
     CHECK_CONDITION(s->length >= min_pages);
     CHECK_CONDITION(s->length <= max_pages);
     CHECK_CONDITION(GetDescriptor(s->start) == s);
@@ -1323,6 +1333,8 @@ static void ReleaseFreeList(Span* list, Span* returned) {
     Span* s = list->prev;
     DLL_Remove(s);
     DLL_Prepend(returned, s);
+    ASSERT(s->location == Span::ON_NORMAL_FREELIST);
+    s->location = Span::ON_RETURNED_FREELIST;
     TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
                            static_cast<size_t>(s->length << kPageShift));
   }
@@ -2503,6 +2515,7 @@ class TCMallocImplementation : public MallocExtension {
       *value = stats.system_bytes
                - stats.thread_bytes
                - stats.central_bytes
+               - stats.transfer_bytes
                - stats.pageheap_bytes;
       return true;
     }
@@ -2963,9 +2976,23 @@ extern "C" void* realloc(void* old_ptr, size_t new_size) __THROW {
 
   // Reallocate if the new size is larger than the old size,
   // or if the new size is significantly smaller than the old size.
-  if ((new_size > old_size) || (AllocationSize(new_size) < old_size)) {
-    // Need to reallocate
-    void* new_ptr = do_malloc(new_size);
+  // We do hysteresis to avoid resizing ping-pongs:
+  //    . If we need to grow, grow to max(new_size, old_size * 1.X)
+  //    . Don't shrink unless new_size < old_size * 0.Y
+  // X and Y trade-off time for wasted space.  For now we do 1.25 and 0.5.
+  const int lower_bound_to_grow = old_size + old_size / 4;
+  const int upper_bound_to_shrink = old_size / 2;
+  if ((new_size > old_size) || (new_size < upper_bound_to_shrink)) {
+    // Need to reallocate.
+    void* new_ptr = NULL;
+
+    if (new_size > old_size && new_size < lower_bound_to_grow) {
+      new_ptr = do_malloc(lower_bound_to_grow);
+    }
+    if (new_ptr == NULL) {
+      // Either new_size is not a tiny increment, or last do_malloc failed.
+      new_ptr = do_malloc(new_size);
+    }
     if (new_ptr == NULL) {
       return NULL;
     }

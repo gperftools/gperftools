@@ -42,9 +42,10 @@
 #endif
 
 #include <algorithm>
-#include <google/malloc_hook.h>
 #include "base/basictypes.h"
 #include "base/logging.h"
+#include "malloc_hook-inl.h"
+#include <google/malloc_hook.h>
 #include <google/stacktrace.h>
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
@@ -86,12 +87,72 @@ extern void InitialMallocHook_MMap(const void* result,
 ATTRIBUTE_WEAK
 extern void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment);
 
-MallocHook::NewHook    MallocHook::new_hook_ = InitialMallocHook_New;
-MallocHook::DeleteHook MallocHook::delete_hook_ = NULL;
-MallocHook::MmapHook   MallocHook::mmap_hook_ = InitialMallocHook_MMap;
-MallocHook::MunmapHook MallocHook::munmap_hook_ = NULL;
-MallocHook::MremapHook MallocHook::mremap_hook_ = NULL;
-MallocHook::SbrkHook   MallocHook::sbrk_hook_ = InitialMallocHook_Sbrk;
+namespace base { namespace internal {
+template<typename PtrT>
+PtrT AtomicPtr<PtrT>::Exchange(PtrT new_val) {
+  base::subtle::MemoryBarrier();  // Release semantics.
+  // Depending on the system, NoBarrier_AtomicExchange(AtomicWord*)
+  // may have been defined to return an AtomicWord, Atomic32, or
+  // Atomic64.  We hide that implementation detail here with an
+  // explicit cast.  This prevents MSVC 2005, at least, from complaining.
+  PtrT old_val = reinterpret_cast<PtrT>(static_cast<AtomicWord>(
+      base::subtle::NoBarrier_AtomicExchange(
+          &data_,
+          reinterpret_cast<AtomicWord>(new_val))));
+  base::subtle::MemoryBarrier();  // And acquire semantics.
+  return old_val;
+}
+
+AtomicPtr<MallocHook::NewHook>    new_hook_ = {
+  reinterpret_cast<AtomicWord>(InitialMallocHook_New) };
+AtomicPtr<MallocHook::DeleteHook> delete_hook_ = { 0 };
+AtomicPtr<MallocHook::MmapHook>   mmap_hook_ = {
+  reinterpret_cast<AtomicWord>(InitialMallocHook_MMap) };
+AtomicPtr<MallocHook::MunmapHook> munmap_hook_ = { 0 };
+AtomicPtr<MallocHook::MremapHook> mremap_hook_ = { 0 };
+AtomicPtr<MallocHook::SbrkHook>   sbrk_hook_ = {
+  reinterpret_cast<AtomicWord>(InitialMallocHook_Sbrk) };
+
+} }  // namespace base::internal
+
+using base::internal::new_hook_;
+using base::internal::delete_hook_;
+using base::internal::mmap_hook_;
+using base::internal::munmap_hook_;
+using base::internal::mremap_hook_;
+using base::internal::sbrk_hook_;
+
+
+// static
+MallocHook::NewHook MallocHook::SetNewHook(NewHook hook) {
+  return new_hook_.Exchange(hook);
+}
+
+// static
+MallocHook::DeleteHook MallocHook::SetDeleteHook(DeleteHook hook) {
+  return delete_hook_.Exchange(hook);
+}
+
+// static
+MallocHook::MmapHook MallocHook::SetMmapHook(MmapHook hook) {
+  return mmap_hook_.Exchange(hook);
+}
+
+// static
+MallocHook::MunmapHook MallocHook::SetMunmapHook(MunmapHook hook) {
+  return munmap_hook_.Exchange(hook);
+}
+
+// static
+MallocHook::MremapHook MallocHook::SetMremapHook(MremapHook hook) {
+  return mremap_hook_.Exchange(hook);
+}
+
+// static
+MallocHook::SbrkHook MallocHook::SetSbrkHook(SbrkHook hook) {
+  return sbrk_hook_.Exchange(hook);
+}
+
 
 // The definitions of weak default malloc hooks (New, MMap, and Sbrk)
 // that self deinstall on their first call.  This is entirely for
@@ -186,7 +247,9 @@ static inline void CheckInHookCaller() {
 // into the implementations for GetStackTrace instead of the skip_count.
 int MallocHook::GetCallerStackTrace(void** result, int max_depth,
                                     int skip_count) {
-#ifndef HAVE_ATTRIBUTE_SECTION_START
+#if defined(NO_TCMALLOC_SAMPLES)
+  return 0;
+#elif !defined(HAVE_ATTRIBUTE_SECTION_START)
   // Fall back to GetStackTrace and good old but fragile frame skip counts.
   // Note: this path is inaccurate when a hook is not called directly by an
   // allocation function but is daisy-chained through another hook,
@@ -194,7 +257,7 @@ int MallocHook::GetCallerStackTrace(void** result, int max_depth,
   return GetStackTrace(result, max_depth, skip_count + int(DEBUG_MODE));
   // due to -foptimize-sibling-calls in opt mode
   // there's no need for extra frame skip here then
-#endif
+#else
   CheckInHookCaller();
   // MallocHook caller determination via InHookCaller works, use it:
   static const int kMaxSkip = 32 + 6 + 3;
@@ -230,6 +293,7 @@ int MallocHook::GetCallerStackTrace(void** result, int max_depth,
     // e.g. for every section used in InHookCaller
     // all functions in that section must be inside the same library.
   return 0;
+#endif
 }
 
 // On Linux/x86, we override mmap/munmap/mremap/sbrk

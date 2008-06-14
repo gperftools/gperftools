@@ -33,8 +33,8 @@
  * Definition of PreamblePatcher
  */
 
-#ifndef GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H__
-#define GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H__
+#ifndef GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H_
+#define GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H_
 
 #include <windows.h>
 
@@ -317,4 +317,4 @@ class PreamblePatcher {
 
 };  // namespace sidestep
 
-#endif  // GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H__
+#endif  // GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H_

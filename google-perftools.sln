@@ -40,11 +40,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "packed-cache_test", "vsproj
 	ProjectSection(ProjectDependencies) = postProject
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "system_alloc_unittest", "vsprojects\system_alloc_unittest\system_alloc_unittest.vcproj", "{8249D44B-4CF5-4BDC-9183-C5D6F12413E7}"
-	ProjectSection(ProjectDependencies) = postProject
-		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
-	EndProjectSection
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "thread_dealloc_unittest", "vsprojects\thread_dealloc_unittest\thread_dealloc_unittest.vcproj", "{6CFFBD0F-09E3-4282-A711-0564451FDF74}"
 	ProjectSection(ProjectDependencies) = postProject
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
@@ -98,10 +93,6 @@ Global
 		{605D3CED-B530-424E-B7D2-2A31F14FD570}.Debug.Build.0 = Debug|Win32
 		{605D3CED-B530-424E-B7D2-2A31F14FD570}.Release.ActiveCfg = Release|Win32
 		{605D3CED-B530-424E-B7D2-2A31F14FD570}.Release.Build.0 = Release|Win32
-		{8249D44B-4CF5-4BDC-9183-C5D6F12413E7}.Debug.ActiveCfg = Debug|Win32
-		{8249D44B-4CF5-4BDC-9183-C5D6F12413E7}.Debug.Build.0 = Debug|Win32
-		{8249D44B-4CF5-4BDC-9183-C5D6F12413E7}.Release.ActiveCfg = Release|Win32
-		{8249D44B-4CF5-4BDC-9183-C5D6F12413E7}.Release.Build.0 = Release|Win32
 		{6CFFBD0F-09E3-4282-A711-0564451FDF74}.Debug.ActiveCfg = Debug|Win32
 		{6CFFBD0F-09E3-4282-A711-0564451FDF74}.Debug.Build.0 = Debug|Win32
 		{6CFFBD0F-09E3-4282-A711-0564451FDF74}.Release.ActiveCfg = Release|Win32

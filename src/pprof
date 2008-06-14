@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "0.97";
+my $PPROF_VERSION = "0.98";
 
 # These are the object tools we use, which come from various sources.
 # We want to invoke them directly, rather than via users' aliases and/or
@@ -103,9 +103,10 @@ my $SYMBOL_PAGE = "/pprof/symbol";     # must support symbol lookup via POST
 my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 
 
-# There is a pervasive dependency on the length (in hex characters, i.e.,
-# nibbles) of an address, distinguishing between 32-bit and 64-bit profiles:
-my $address_length = 8;   # Hope for 32-bit, reset if 64-bit detected.
+# There is a pervasive dependency on the length (in hex characters,
+# i.e., nibbles) of an address, distinguishing between 32-bit and
+# 64-bit profiles.  To err on the safe size, default to 64-bit here:
+my $address_length = 16;
 
 # A list of paths to search for shared object files
 my @prefix_list = ();
@@ -149,6 +150,7 @@ Reporting Granularity:
 
 Output type:
    --text              Generate text report
+   --callgrind         Generate callgrind format to stdout
    --gv                Generate Postscript and display
    --list=<regexp>     Generate source listing of matching routines
    --disasm=<regexp>   Generate disassembly of matching routines
@@ -250,6 +252,7 @@ sub Init() {
   $main::opt_lib_prefix = "";
 
   $main::opt_text = 0;
+  $main::opt_callgrind = 0;
   $main::opt_list = "";
   $main::opt_disasm = "";
   $main::opt_gv = 0;
@@ -307,6 +310,7 @@ sub Init() {
              "addresses!"     => \$main::opt_addresses,
              "files!"         => \$main::opt_files,
              "text!"          => \$main::opt_text,
+             "callgrind!"     => \$main::opt_callgrind,
              "list=s"         => \$main::opt_list,
              "disasm=s"       => \$main::opt_disasm,
              "gv!"            => \$main::opt_gv,
@@ -380,6 +384,7 @@ sub Init() {
   # Check output modes
   my $modes =
       $main::opt_text +
+      $main::opt_callgrind +
       ($main::opt_list eq '' ? 0 : 1) +
       ($main::opt_disasm eq '' ? 0 : 1) +
       $main::opt_gv +
@@ -503,6 +508,8 @@ sub Main() {
     $symbols = ExtractSymbols($libs, $profile, $pcs);
   }
 
+  my $calls = ExtractCalls($symbols, $profile);
+
   # Remove uniniteresting stack items
   $profile = RemoveUninterestingFrames($symbols, $profile);
 
@@ -532,6 +539,8 @@ sub Main() {
       PrintListing($libs, $flat, $cumulative, $main::opt_list);
     } elsif ($main::opt_text) {
       PrintText($symbols, $flat, $cumulative, $total, -1);
+    } elsif ($main::opt_callgrind) {
+      PrintCallgrind($calls);
     } else {
       if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
         if ($main::opt_gv) {
@@ -638,6 +647,7 @@ sub InteractiveCommand {
   }
   # Clear all the mode options -- mode is controlled by "$command"
   $main::opt_text = 0;
+  $main::opt_callgrind = 0;
   $main::opt_disasm = 0;
   $main::opt_list = 0;
   $main::opt_gv = 0;
@@ -861,6 +871,31 @@ sub PrintText {
     }
     $lines++;
     last if ($line_limit >= 0 && $lines > $line_limit);
+  }
+}
+
+# Print the call graph in a way that's suiteable for callgrind.
+sub PrintCallgrind {
+  my $calls = shift;
+  printf("events: Hits\n\n");
+  foreach my $call ( map { $_->[0] }
+                     sort { $a->[1] cmp $b ->[1] ||
+                            $a->[2] <=> $b->[2] }
+                     map { /([^:]+):(\d+):([^ ]+)( -> ([^:]+):(\d+):(.+))?/; 
+                           [$_, $1, $2] }
+                     keys %$calls ) {
+    my $count = $calls->{$call};
+    $call =~ /([^:]+):(\d+):([^ ]+)( -> ([^:]+):(\d+):(.+))?/;
+    my ( $caller_file, $caller_line, $caller_function,
+         $callee_file, $callee_line, $callee_function ) =
+       ( $1, $2, $3, $5, $6, $7 );
+    printf("fl=$caller_file\nfn=$caller_function\n");
+    if (defined $6) {
+      printf("cfl=$callee_file\n");
+      printf("cfn=$callee_function\n");
+      printf("calls=$count $callee_line\n");
+    }
+    printf("$caller_line $count\n\n");
   }
 }
 
@@ -1478,6 +1513,33 @@ sub IsSecondPcAlwaysTheSame {
     }
   }
   return $second_pc;
+}
+
+# Extracts a graph of calls.
+sub ExtractCalls {
+  my $symbols = shift;
+  my $profile = shift;
+
+  my $calls = {};
+  while( my ($stack_trace, $count) = each %$profile ) {
+    my @address = split(/\n/, $stack_trace);
+    for (my $i = 1; $i <= $#address; $i++) {
+      if (exists $symbols->{$address[$i]}) {
+	my $source = $symbols->{$address[$i]}->[1] . ":" . 
+                     $symbols->{$address[$i]}->[0];
+	my $destination = $symbols->{$address[$i-1]}->[1] . ":" . 
+                          $symbols->{$address[$i-1]}->[0];
+	my $call = "$source -> $destination";
+	AddEntry($calls, $call, $count);
+
+	if ($i == 1) {
+	  AddEntry($calls, $destination, $count);
+	}
+      }
+    }
+  }
+
+  return $calls;
 }
 
 sub RemoveUninterestingFrames {
@@ -2413,6 +2475,11 @@ sub HexExtend {
   my $addr = shift;
 
   $addr =~ s/^0x//;
+
+  if (length $addr > $address_length) {
+    printf STDERR "Warning:  address $addr is longer than address length $address_length\n";
+  }
+
   return substr("000000000000000".$addr, -$address_length);
 }
 
@@ -2780,6 +2847,7 @@ sub MapToSymbols {
       $main::opt_lines       ||
       $main::opt_files       ||
       $main::opt_list        ||
+      $main::opt_callgrind   ||
       !$got_symbols) {
     GetLineNumbers($image, $offset, $pclist, $symbols);
   }

@@ -35,8 +35,8 @@
 // application can link against a malloc that does not implement these
 // extensions, and it will get default versions that do nothing.
 
-#ifndef BASE_MALLOC_EXTENSION_H__
-#define BASE_MALLOC_EXTENSION_H__
+#ifndef BASE_MALLOC_EXTENSION_H_
+#define BASE_MALLOC_EXTENSION_H_
 
 #include <stddef.h>
 #include <string>
@@ -53,6 +53,8 @@
 static const int kMallocHistogramSize = 64;
 
 // The default implementations of the following routines do nothing.
+// All implementations should be thread-safe; the current one
+// (TCMallocImplementation) is.
 class PERFTOOLS_DLL_DECL MallocExtension {
  public:
   virtual ~MallocExtension();
@@ -199,4 +201,4 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   virtual void** ReadHeapGrowthStackTraces();
 };
 
-#endif  // BASE_MALLOC_EXTENSION_H__
+#endif  // BASE_MALLOC_EXTENSION_H_

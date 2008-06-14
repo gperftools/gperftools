@@ -42,8 +42,8 @@
 // a page number.  E.g., with 32 bit pointers and 4K pages (i.e.,
 // page offset fits in lower 12 bits), BITS == 20.
 
-#ifndef TCMALLOC_PAGEMAP_H__
-#define TCMALLOC_PAGEMAP_H__
+#ifndef TCMALLOC_PAGEMAP_H_
+#define TCMALLOC_PAGEMAP_H_
 
 #include "config.h"
 #if defined HAVE_STDINT_H
@@ -59,6 +59,8 @@
 template <int BITS>
 class TCMalloc_PageMap1 {
  private:
+  static const int LENGTH = 1 << BITS;
+
   void** array_;
 
  public:
@@ -72,8 +74,11 @@ class TCMalloc_PageMap1 {
   // Ensure that the map contains initialized entries "x .. x+n-1".
   // Returns true if successful, false if we could not allocate memory.
   bool Ensure(Number x, size_t n) {
-    // Nothing to do since flat array was allocate at start
-    return true;
+    // Nothing to do since flat array was allocated at start.  All
+    // that's left is to check for overflow (that is, we don't want to
+    // ensure a number y where array_[y] would be an out-of-bounds
+    // access).
+    return n <= LENGTH - x;   // an overflow-free way to do "x + n <= LENGTH"
   }
 
   void PreallocateMoreMemory() {}
@@ -140,6 +145,10 @@ class TCMalloc_PageMap2 {
   bool Ensure(Number start, size_t n) {
     for (Number key = start; key <= start + n - 1; ) {
       const Number i1 = key >> LEAF_BITS;
+
+      // Check for overflow
+      if (i1 >= ROOT_LENGTH)
+        return false;
 
       // Make 2nd level node if necessary
       if (root_[i1] == NULL) {
@@ -223,6 +232,10 @@ class TCMalloc_PageMap3 {
       const Number i1 = key >> (LEAF_BITS + INTERIOR_BITS);
       const Number i2 = (key >> LEAF_BITS) & (INTERIOR_LENGTH-1);
 
+      // Check for overflow
+      if (i1 >= INTERIOR_LENGTH || i2 >= INTERIOR_LENGTH)
+        return false;
+
       // Make 2nd level node if necessary
       if (root_->ptrs[i1] == NULL) {
         Node* n = NewNode();
@@ -248,4 +261,4 @@ class TCMalloc_PageMap3 {
   }
 };
 
-#endif  // TCMALLOC_PAGEMAP_H__
+#endif  // TCMALLOC_PAGEMAP_H_

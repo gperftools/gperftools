@@ -37,13 +37,13 @@
  *    http://developer.gnome.org/doc/API/glib/glib-windows-compatability-functions.html
  */
 
-#ifndef GOOGLE_BASE_WINDOWS_H__
-#define GOOGLE_BASE_WINDOWS_H__
+#ifndef GOOGLE_BASE_WINDOWS_H_
+#define GOOGLE_BASE_WINDOWS_H_
 
 // You should never include this file directly, but always include it
 // from either config.h (MSVC) or mingw.h (MinGW/msys).
-#if !defined(GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__) && \
-    !defined(GOOGLE_PERFTOOLS_WINDOWS_MINGW_H__)
+#if !defined(GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_) && \
+    !defined(GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_)
 # error "port.h should only be included from config.h or mingw.h"
 #endif
 
@@ -239,7 +239,9 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 
 // By defining this, we get away without having to get a StackTrace
 // But maybe play around with ExperimentalGetStackTrace in port.cc
+#ifndef NO_TCMALLOC_SAMPLES
 #define NO_TCMALLOC_SAMPLES
+#endif
 
 // tcmalloc.cc calls this so we can patch VirtualAlloc() et al.
 // TODO(csilvers): instead of patching the functions, consider just replacing
@@ -262,10 +264,10 @@ extern PERFTOOLS_DLL_DECL void UnpatchWindowsFunctions();
 // windows/port.h defines compatibility APIs for several .h files, which
 // we therefore shouldn't be #including directly.  This hack keeps us from
 // doing so.  TODO(csilvers): do something more principled.
-#define BASE_SPINLOCK_H__ 1
-#define GOOGLE_MAYBE_THREADS_H__ 1
+#define BASE_SPINLOCK_H_ 1
+#define GOOGLE_MAYBE_THREADS_H_ 1
 
 
 #endif  /* WIN32 */
 
-#endif  /* GOOGLE_BASE_WINDOWS_H__ */
+#endif  /* GOOGLE_BASE_WINDOWS_H_ */

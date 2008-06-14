@@ -129,6 +129,23 @@
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath="..\..\src\tests\testutil.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -142,6 +159,9 @@
 			</File>
 			<File
 				RelativePath="..\..\src\windows\port.h">
+			</File>
+			<File
+				RelativePath="..\..\src\tests\testutil.h">
 			</File>
 		</Filter>
 	</Files>

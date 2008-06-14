@@ -53,6 +53,7 @@
 #include "base/basictypes.h"   // for PRId64, among other things
 #include "base/googleinit.h"
 #include "base/commandlineflags.h"
+#include "malloc_hook-inl.h"
 #include <google/malloc_hook.h>
 #include <google/malloc_extension.h>
 #include "base/spinlock.h"
@@ -75,6 +76,9 @@ using STL_NAMESPACE::sort;
 
 //----------------------------------------------------------------------
 // Flags that control heap-profiling
+//
+// The thread-safety of the profiler depends on these being immutable
+// after main starts, so don't change them.
 //----------------------------------------------------------------------
 
 DEFINE_int64(heap_profile_allocation_interval,
@@ -175,16 +179,19 @@ static char* DoGetHeapProfile(void* (*alloc_func)(size_t)) {
 
   // Grab the lock and generate the profile.
   SpinLockHolder l(&heap_lock);
-  HeapProfileTable::Stats const stats = heap_profile->total();
-  AddRemoveMMapDataLocked(ADD);
-  int buflen = is_on ? heap_profile->FillOrderedProfile(buf, size - 1) : 0;
-  buf[buflen] = '\0';
-  // FillOrderedProfile should not reduce the set of active mmap-ed regions,
-  // hence MemoryRegionMap will let us remove everything we've added above:
-  AddRemoveMMapDataLocked(REMOVE);
-  RAW_DCHECK(stats.Equivalent(heap_profile->total()), "");
+  int buflen = 0;
+  if (is_on) {
+    HeapProfileTable::Stats const stats = heap_profile->total();
+    AddRemoveMMapDataLocked(ADD);
+    buflen = heap_profile->FillOrderedProfile(buf, size - 1);
+    // FillOrderedProfile should not reduce the set of active mmap-ed regions,
+    // hence MemoryRegionMap will let us remove everything we've added above:
+    AddRemoveMMapDataLocked(REMOVE);
+    RAW_DCHECK(stats.Equivalent(heap_profile->total()), "");
     // if this fails, we somehow removed by AddRemoveMMapDataLocked
     // more than we have added.
+  }
+  buf[buflen] = '\0';
   RAW_DCHECK(buflen == strlen(buf), "");
 
   return buf;

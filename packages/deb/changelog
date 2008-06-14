@@ -1,3 +1,9 @@
+google-perftools (0.98-1) unstable; urgency=low
+
+  * New upstream release.
+
+ -- Google Inc. <opensource@google.com>  Mon, 09 Jun 2008 16:47:03 -0700
+	
 google-perftools (0.97-1) unstable; urgency=low
 
   * New upstream release.

@@ -34,8 +34,8 @@
 // be included directly.  Clients should instead include
 // "base/atomicops.h".
 
-#ifndef BASE_ATOMICOPS_INTERNALS_LINUXPPC_H__
-#define BASE_ATOMICOPS_INTERNALS_LINUXPPC_H__
+#ifndef BASE_ATOMICOPS_INTERNALS_LINUXPPC_H_
+#define BASE_ATOMICOPS_INTERNALS_LINUXPPC_H_
 
 // int32_t and intptr_t seems to be equal on ppc-linux
 // There are no Atomic64 implementations in this file.
@@ -222,4 +222,4 @@ inline Atomic32 Release_Load(volatile const Atomic32 *ptr) {
 inline void MemoryBarrier() {
   base::subtle::MemoryBarrier();
 }
-#endif  // BASE_ATOMICOPS_INTERNALS_LINUXPPC_H__
+#endif  // BASE_ATOMICOPS_INTERNALS_LINUXPPC_H_

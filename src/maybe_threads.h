@@ -35,8 +35,8 @@
 // against non-pthreads apps.
 //-------------------------------------------------------------------
 
-#ifndef GOOGLE_MAYBE_THREADS_H__
-#define GOOGLE_MAYBE_THREADS_H__
+#ifndef GOOGLE_MAYBE_THREADS_H_
+#define GOOGLE_MAYBE_THREADS_H_
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
@@ -49,4 +49,4 @@ int perftools_pthread_setspecific(pthread_key_t key, void *val);
 int perftools_pthread_once(pthread_once_t *ctl,
                            void  (*init_routine) (void));
 
-#endif  /* GOOGLE_MAYBE_THREADS_H__ */
+#endif  /* GOOGLE_MAYBE_THREADS_H_ */

@@ -35,8 +35,8 @@
 // be included directly.  Clients should instead include
 // "base/atomicops.h".
 
-#ifndef BASE_ATOMICOPS_INTERNALS_X86_H__
-#define BASE_ATOMICOPS_INTERNALS_X86_H__
+#ifndef BASE_ATOMICOPS_INTERNALS_X86_H_
+#define BASE_ATOMICOPS_INTERNALS_X86_H_
 
 typedef int32_t Atomic32;
 #define BASE_HAS_ATOMIC64 1  // Use only in tests and base/atomic*
@@ -417,4 +417,4 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
 inline void MemoryBarrier() {
   base::subtle::MemoryBarrier();
 }
-#endif  // BASE_ATOMICOPS_INTERNALS_X86_H__
+#endif  // BASE_ATOMICOPS_INTERNALS_X86_H_

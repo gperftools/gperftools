@@ -54,8 +54,15 @@
 #ifdef HAVE_STDINT_H
 #include <stdint.h>        // for uintptr_t
 #endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>        // for getpagesize()
+#endif
+#ifdef HAVE_MALLOC_H
+#include <malloc.h>
+#endif
 #include "base/basictypes.h"
 #include "base/logging.h"
+#include "tests/testutil.h"
 
 
 // Return the next interesting size/delta to check.  Returns -1 if no more.
@@ -115,6 +122,8 @@ static bool Valid(const void* p, int n, char seed) {
 }
 
 int main(int argc, char** argv) {
+  SetTestResourceLimit();
+
   // Try allocating data with a bunch of alignments and sizes
   for (int a = 1; a < 1048576; a *= 2) {
     for (int s = 0; s != -1; s = NextSize(s)) {

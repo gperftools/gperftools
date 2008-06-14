@@ -35,8 +35,8 @@
  * stuff that MinGW doesn't support, like pthreads.
  */
 
-#ifndef GOOGLE_PERFTOOLS_WINDOWS_MINGW_H__
-#define GOOGLE_PERFTOOLS_WINDOWS_MINGW_H__
+#ifndef GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_
+#define GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_
 
 #ifdef __MINGW32__
 
@@ -44,4 +44,4 @@
 
 #endif  /* __MINGW32__ */
 
-#endif  /* GOOGLE_PERFTOOLS_WINDOWS_MINGW_H__ */
+#endif  /* GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_ */

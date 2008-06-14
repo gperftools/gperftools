@@ -32,8 +32,8 @@
  */
 
 
-#ifndef BASE_STL_ALLOCATOR_H__
-#define BASE_STL_ALLOCATOR_H__
+#ifndef BASE_STL_ALLOCATOR_H_
+#define BASE_STL_ALLOCATOR_H_
 
 #include "config.h"
 
@@ -46,6 +46,10 @@
 // that uses a given type-less allocator Alloc, which must provide:
 //   static void* Alloc::Allocate(size_t size);
 //   static void Alloc::Free(void* ptr);
+//
+// STL_Allocator<T, MyAlloc> provides the same thread-safety
+// guarantees as MyAlloc.
+//
 // Usage example:
 //   set<T, less<T>, STL_Allocator<T, MyAlloc> > my_set;
 // CAVEAT: Parts of the code below are probably specific
@@ -89,4 +93,4 @@ class STL_Allocator {
   bool operator==(const STL_Allocator&) const { return true; }
 };
 
-#endif  // BASE_STL_ALLOCATOR_H__
+#endif  // BASE_STL_ALLOCATOR_H_

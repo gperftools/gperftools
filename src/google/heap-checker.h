@@ -48,11 +48,12 @@
 // a memory leak at program-exit, it will print instructions on how
 // to track down the leak.
 
-#ifndef BASE_HEAP_CHECKER_H__
-#define BASE_HEAP_CHECKER_H__
+#ifndef BASE_HEAP_CHECKER_H_
+#define BASE_HEAP_CHECKER_H_
 
 #include <sys/types.h>  // for size_t
 #include <stdint.h>     // for uintptr_t
+#include <stdarg.h>     // for va_list
 #include <vector>
 
 // Annoying stuff for windows -- makes sure clients can import these functions
@@ -75,9 +76,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
 
   // If heap leak checking is currently active in some mode
   // e.g. if leak checking was started (and is still active now)
-  // due to any valid non-empty --heap_check flag value
-  // (including "local") on the command-line
-  // or via a dependency on //base:heapcheck.
+  // due to HEAPCHECK=... defined in the environment.
   // The return value reflects iff HeapLeakChecker objects manually
   // constructed right now will be doing leak checking or nothing.
   // Note that we can go from active to inactive state during InitGoogle()
@@ -464,4 +463,4 @@ class PERFTOOLS_DLL_DECL HeapCleaner {
   static HeapCleaner heapcheck_cleaner_##name(&heapcheck_cleanup_##name); \
   }
 
-#endif  // BASE_HEAP_CHECKER_H__
+#endif  // BASE_HEAP_CHECKER_H_

@@ -1,3 +1,24 @@
+Mon Jun  9 16:47:03 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.98 release
+	* Add ProfilerStartWithOptions() (cgd)
+	* Change tcmalloc_minimal to not do any stack-tracing at all (csilvers)
+	* Prefer mmap to sbrk for 64-buit debug mode (sanjay)
+	* Fix accounting for some tcmalloc stats (sanjay)
+	* Use setrlimit() to keep unittests from killing the machine (odo)
+	* Fix a bug when sbrk-ing near address 4G (csilvers)
+	* Make MallocHook thread-safe (jyasskin)
+	* Fix windows build for MemoryBarrier (jyasskin)
+	* Fix CPU-profiler docs to mention correct libs (csilvers)
+	* Fix for GetHeapProfile() when heap-profiling is off (maxim)
+	* Avoid realloc resizing ping-pongs using hysteresis (csilvers)
+	* Add --callgrind output support to pprof (klimek)
+	* Fix profiler.h and heap-profiler.h to be C-compatible (csilvers)
+	* Break malloc_hook.h into two parts to reduce dependencies (csilvers)
+	* Better handle systems that don't implement mmap (csilvers)
+	* PORTING: disable system_alloc_unittest for msvc (csilvers)
+	* PORTING: Makefile tweaks to build better on cygwin (csilvers)
+	
 Mon Apr 21 15:20:52 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.97 release

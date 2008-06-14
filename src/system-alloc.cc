@@ -65,6 +65,14 @@
   extern "C" { extern int madvise(caddr_t, size_t, int); }
 #endif
 
+// Set kDebugMode mode so that we can have use C++ conditionals
+// instead of preprocessor conditionals.
+#ifdef NDEBUG
+static const bool kDebugMode = false;
+#else
+static const bool kDebugMode = true;
+#endif
+
 // Structure for discovering alignment
 union MemoryAligner {
   void*  p;
@@ -74,8 +82,10 @@ union MemoryAligner {
 
 static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
 
-// Page size is initialized on demand
+#if defined(HAVE_MMAP) || defined(MADV_DONTNEED)
+// Page size is initialized on demand (only needed for mmap-based allocators)
 static size_t pagesize = 0;
+#endif
 
 // Configuration parameters.
 
@@ -147,6 +157,19 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
   // This doesn't overflow because TCMalloc_SystemAlloc has already
   // tested for overflow at the alignment boundary.
   size = ((size + alignment - 1) / alignment) * alignment;
+
+  // Check that we we're not asking for so much more memory that we'd
+  // wrap around the end of the virtual address space.  (This seems
+  // like something sbrk() should check for us, and indeed opensolaris
+  // does, but glibc does not:
+  //    http://src.opensolaris.org/source/xref/onnv/onnv-gate/usr/src/lib/libc/port/sys/sbrk.c?a=true
+  //    http://sourceware.org/cgi-bin/cvsweb.cgi/~checkout~/libc/misc/sbrk.c?rev=1.1.2.1&content-type=text/plain&cvsroot=glibc
+  // Without this check, sbrk may succeed when it ought to fail.)
+  if (reinterpret_cast<intptr_t>(sbrk(0)) + size < size) {
+    failed_ = true;
+    return NULL;
+  }
+
   void* result = sbrk(size);
   if (result == reinterpret_cast<void*>(-1)) {
     failed_ = true;
@@ -185,6 +208,10 @@ void SbrkSysAllocator::DumpStats(TCMalloc_Printer* printer) {
 
 void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
+#ifndef HAVE_MMAP
+  failed_ = true;
+  return NULL;
+#else
   // Check if we should use mmap allocation.
   // FLAGS_malloc_skip_mmap starts out as false (its uninitialized
   // state) and eventually gets initialized to the specified value.  Note
@@ -246,6 +273,7 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
 
   ptr += adjust;
   return reinterpret_cast<void*>(ptr);
+#endif  // HAVE_MMAP
 }
 
 void MmapSysAllocator::DumpStats(TCMalloc_Printer* printer) {
@@ -254,6 +282,10 @@ void MmapSysAllocator::DumpStats(TCMalloc_Printer* printer) {
 
 void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
                                 size_t alignment) {
+#ifndef HAVE_MMAP
+  failed_ = true;
+  return NULL;
+#else
   static bool initialized = false;
   static off_t physmem_base;  // next physical memory address to allocate
   static off_t physmem_limit; // maximum physical address allowed
@@ -338,6 +370,7 @@ void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
   physmem_base += adjust + size;
 
   return reinterpret_cast<void*>(ptr);
+#endif  // HAVE_MMAP
 }
 
 void DevMemSysAllocator::DumpStats(TCMalloc_Printer* printer) {
@@ -349,8 +382,21 @@ void InitSystemAllocators(void) {
   // This determines the order in which system allocators are called
   int i = kMaxDynamicAllocators;
   allocators[i++] = new (devmem_space) DevMemSysAllocator();
-  allocators[i++] = new (sbrk_space) SbrkSysAllocator();
-  allocators[i++] = new (mmap_space) MmapSysAllocator();
+
+  // In 64-bit debug mode, place the mmap allocator first since it
+  // allocates pointers that do not fit in 32 bits and therefore gives
+  // us better testing of code's 64-bit correctness.  It also leads to
+  // less false negatives in heap-checking code.  (Numbers are less
+  // likely to look like pointers and therefore the conservative gc in
+  // the heap-checker is less likely to misinterpret a number as a
+  // pointer).
+  if (kDebugMode && sizeof(void*) > 4) {
+    allocators[i++] = new (mmap_space) MmapSysAllocator();
+    allocators[i++] = new (sbrk_space) SbrkSysAllocator();
+  } else {
+    allocators[i++] = new (sbrk_space) SbrkSysAllocator();
+    allocators[i++] = new (mmap_space) MmapSysAllocator();
+  }
 }
 
 void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,

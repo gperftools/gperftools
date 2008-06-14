@@ -33,8 +33,8 @@
  * Definition of MiniDisassembler.
  */
 
-#ifndef GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H__
-#define GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H__
+#ifndef GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H_
+#define GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H_
 
 #include <windows.h>
 #include "mini_disassembler_types.h"
@@ -187,4 +187,4 @@ class MiniDisassembler {
 
 };  // namespace sidestep
 
-#endif  // GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H__
+#endif  // GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H_

@@ -241,6 +241,15 @@
 				RelativePath="..\..\src\google\malloc_hook.h">
 			</File>
 			<File
+				RelativePath="..\..\src\malloc_hook-inl.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-x86-msvc.h">
+			</File>
+			<File
 				RelativePath="..\..\src\windows\port.h">
 			</File>
 		</Filter>

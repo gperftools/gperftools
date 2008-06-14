@@ -30,10 +30,11 @@
 // ---
 // Author: Sanjay Ghemawat
 //
-// Routine to extract the current stack trace.
+// Routines to extract the current stack trace.  These functions are
+// thread-safe.
 
-#ifndef _GOOGLE_STACKTRACE_H
-#define _GOOGLE_STACKTRACE_H
+#ifndef GOOGLE_STACKTRACE_H_
+#define GOOGLE_STACKTRACE_H_
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
@@ -98,4 +99,4 @@ extern PERFTOOLS_DLL_DECL int GetStackFrames(void** pcs, int* sizes, int max_dep
 extern PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
                                             int skip_count);
 
-#endif /* _GOOGLE_STACKTRACE_H */
+#endif /* GOOGLE_STACKTRACE_H_ */

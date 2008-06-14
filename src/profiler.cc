@@ -68,7 +68,7 @@ class CpuProfiler {
   ~CpuProfiler();
 
   // Start profiler to write profile info into fname
-  bool Start(const char* fname, bool (*filter)(void*), void* filter_arg);
+  bool Start(const char* fname, const ProfilerOptions* options);
 
   // Stop profiling and write the data to disk.
   void Stop();
@@ -131,7 +131,7 @@ class CpuProfiler {
   // all samples).  Set at start, read-only while running.  Written
   // while holding both control_lock_ and signal_lock_, read and
   // executed under signal_lock_.
-  bool          (*filter_)(void*);
+  int           (*filter_)(void*);
   void*         filter_arg_;
 
   // Whether or not the threading system provides interval timers
@@ -206,14 +206,14 @@ CpuProfiler::CpuProfiler()
     return;
 #endif
 
-  if (!Start(fname, NULL, NULL)) {
+  if (!Start(fname, NULL)) {
     RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
             fname, strerror(errno));
   }
 }
 
 bool CpuProfiler::Start(const char* fname,
-                        bool (*filter)(void*), void* filter_arg) {
+                        const ProfilerOptions* options) {
   SpinLockHolder cl(&control_lock_);
 
   if (collector_.enabled()) {
@@ -233,8 +233,11 @@ bool CpuProfiler::Start(const char* fname,
       return false;
     }
 
-    filter_ = filter;
-    filter_arg_ = filter_arg;
+    filter_ = NULL;
+    if (options != NULL && options->filter_in_thread != NULL) {
+      filter_ = options->filter_in_thread;
+      filter_arg_ = options->filter_in_thread_arg;
+    }
 
     // Must unlock before setting prof_handler to avoid deadlock
     // with signal delivered to this thread.
@@ -286,7 +289,7 @@ void CpuProfiler::FlushTable() {
     return;
   }
 
-  // Disable timer signal while hoding signal_lock_, to prevent deadlock
+  // Disable timer signal while holding signal_lock_, to prevent deadlock
   // if we take a timer signal while flushing.
   DisableHandler();
   {
@@ -454,19 +457,17 @@ extern "C" void ProfilerFlush() {
   CpuProfiler::instance_.FlushTable();
 }
 
-extern "C" bool ProfilingIsEnabledForAllThreads() {
+extern "C" int ProfilingIsEnabledForAllThreads() {
   return CpuProfiler::instance_.Enabled();
 }
 
-extern "C" bool ProfilerStart(const char* fname) {
-  return CpuProfiler::instance_.Start(fname, NULL, NULL);
+extern "C" int ProfilerStart(const char* fname) {
+  return CpuProfiler::instance_.Start(fname, NULL);
 }
 
-extern "C" bool ProfilerStartFiltered(const char* fname,
-                                      bool (*filter_in_thread)(void* arg),
-                                      void *filter_in_thread_arg) {
-  return CpuProfiler::instance_.Start(fname, filter_in_thread,
-                                      filter_in_thread_arg);
+extern "C" int ProfilerStartWithOptions(const char *fname,
+                                         const ProfilerOptions *options) {
+  return CpuProfiler::instance_.Start(fname, options);
 }
 
 extern "C" void ProfilerStop() {

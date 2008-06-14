@@ -35,8 +35,8 @@
 // be included directly.  Clients should instead include
 // "base/atomicops.h".
 
-#ifndef BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__
-#define BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__
+#ifndef BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
+#define BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
 #include "base/basictypes.h"  // For COMPILE_ASSERT
 
 typedef int32 Atomic32;
@@ -51,6 +51,24 @@ namespace subtle {
 typedef int64 Atomic64;
 
 // 32-bit low-level operations on any platform
+
+// MinGW has a bug in the header files where it doesn't indicate the
+// first argument is volatile -- they're not up to date.  See
+//   http://readlist.com/lists/lists.sourceforge.net/mingw-users/0/3861.html
+// We have to const_cast away the volatile to avoid compiler warnings.
+// TODO(csilvers): remove this once MinGW has updated MinGW/include/winbase.h
+#ifdef __MINGW32__
+inline LONG InterlockedCompareExchange(volatile LONG* ptr,
+                                       LONG newval, LONG oldval) {
+  return ::InterlockedCompareExchange(const_cast<LONG*>(ptr), newval, oldval);
+}
+inline LONG InterlockedExchange(volatile LONG* ptr, LONG newval) {
+  return ::InterlockedExchange(const_cast<LONG*>(ptr), newval);
+}
+inline LONG InterlockedExchangeAdd(volatile LONG* ptr, LONG increment) {
+  return ::InterlockedExchangeAdd(const_cast<LONG*>(ptr), increment);
+}
+#endif  // ifdef __MINGW32__
 
 inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
                                          Atomic32 old_value,
@@ -86,8 +104,9 @@ inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
 }  // namespace base
 
 
-// In msvc8/vs2005, winnt.h already contains a definition for MemoryBarrier.
-// Defined it outside the namespace.
+// In msvc8/vs2005, winnt.h already contains a definition for
+// MemoryBarrier in the global namespace.  Add it there for earlier
+// versions and forward to it from within the namespace.
 #if !(defined(_MSC_VER) && _MSC_VER >= 1400)
 inline void MemoryBarrier() {
   Atomic32 value = 0;
@@ -98,6 +117,10 @@ inline void MemoryBarrier() {
 
 namespace base {
 namespace subtle {
+
+inline void MemoryBarrier() {
+  ::MemoryBarrier();
+}
 
 inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value,
@@ -141,11 +164,28 @@ inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
 
 // 64-bit operations
 
-#if defined(_WIN64)
+#if defined(_WIN64) || defined(__MINGW64__)
 
 // 64-bit low-level operations on 64-bit platform.
 
 COMPILE_ASSERT(sizeof(Atomic64) == sizeof(PVOID), atomic_word_is_atomic);
+
+// Like for the __MINGW32__ case above, this works around a header
+// error in mingw, where it's missing 'volatile'.
+#ifdef __MINGW64__
+inline PVOID InterlockedCompareExchangePointer(volatile PVOID* ptr,
+                                               PVOID newval, PVOID oldval) {
+  return ::InterlockedCompareExchangePointer(const_cast<PVOID*>(ptr),
+                                             newval, oldval);
+}
+inline PVOID InterlockedExchangePointer(volatile PVOID* ptr, PVOID newval) {
+  return ::InterlockedExchangePointer(const_cast<PVOID*>(ptr), newval);
+}
+inline LONGLONG InterlockedExchangeAdd64(volatile LONGLONG* ptr,
+                                         LONGLONG increment) {
+  return ::InterlockedExchangeAdd64(const_cast<LONGLONG*>(ptr), increment);
+}
+#endif  // ifdef __MINGW64__
 
 inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
                                          Atomic64 old_value,
@@ -159,7 +199,7 @@ inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
 inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
                                          Atomic64 new_value) {
   PVOID result = InterlockedExchangePointer(
-    const_cast<PVOID*>(reinterpret_cast<volatile PVOID*>(ptr)),
+    reinterpret_cast<volatile PVOID*>(ptr),
     reinterpret_cast<PVOID>(new_value));
   return reinterpret_cast<Atomic64>(result);
 }
@@ -210,7 +250,7 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
   return *ptr;
 }
 
-#else  // defined(_WIN64)
+#else  // defined(_WIN64) || defined(__MINGW64__)
 
 // 64-bit low-level operations on 32-bit platform
 
@@ -353,7 +393,7 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
   return NoBarrier_Load(ptr);
 }
 
-#endif  // defined(_WIN64)
+#endif  // defined(_WIN64) || defined(__MINGW64__)
 
 
 inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
@@ -371,4 +411,4 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
 }  // namespace base::subtle
 }  // namespace base
 
-#endif  // BASE_ATOMICOPS_INTERNALS_X86_MSVC_H__
+#endif  // BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_

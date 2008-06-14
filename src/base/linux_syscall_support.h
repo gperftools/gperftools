@@ -553,6 +553,26 @@ struct kernel_statfs {
 #ifndef SA_RESTORER
 #define SA_RESTORER             0x04000000
 #endif
+#ifndef CPUCLOCK_PROF
+#define CPUCLOCK_PROF           0
+#endif
+#ifndef CPUCLOCK_VIRT
+#define CPUCLOCK_VIRT           1
+#endif
+#ifndef CPUCLOCK_SCHED
+#define CPUCLOCK_SCHED          2
+#endif
+#ifndef CPUCLOCK_PERTHREAD_MASK
+#define CPUCLOCK_PERTHREAD_MASK 4
+#endif
+#ifndef MAKE_PROCESS_CPUCLOCK
+#define MAKE_PROCESS_CPUCLOCK(pid, clock)                                     \
+        ((~(int)(pid) << 3) | (int)(clock))
+#endif
+#ifndef MAKE_THREAD_CPUCLOCK
+#define MAKE_THREAD_CPUCLOCK(tid, clock)                                      \
+        ((~(int)(tid) << 3) | (int)((clock) | CPUCLOCK_PERTHREAD_MASK))
+#endif
 
 #if defined(__i386__)
 #ifndef __NR_setresuid
@@ -609,6 +629,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          230
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          232
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         233
+#endif
 #ifndef __NR_futex
 #define __NR_futex              240
 #endif
@@ -619,6 +645,12 @@ struct kernel_statfs {
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    258
 #endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      265
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       266
+#endif
 #ifndef __NR_statfs64
 #define __NR_statfs64           268
 #endif
@@ -627,6 +659,12 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_fadvise64_64
 #define __NR_fadvise64_64       272
+#endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         289
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         290
 #endif
 #ifndef __NR_openat
 #define __NR_openat             295
@@ -639,6 +677,9 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         317
+#endif
+#ifndef __NR_fallocate
+#define __NR_fallocate          324
 #endif
 /* End of i386 definitions                                                   */
 #elif defined(__ARM_ARCH_3__)
@@ -696,6 +737,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          (__NR_SYSCALL_BASE + 230)
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          (__NR_SYSCALL_BASE + 232)
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         (__NR_SYSCALL_BASE + 233)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_SYSCALL_BASE + 240)
 #endif
@@ -706,17 +753,35 @@ struct kernel_statfs {
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    (__NR_SYSCALL_BASE + 256)
 #endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      (__NR_SYSCALL_BASE + 263)
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       (__NR_SYSCALL_BASE + 264)
+#endif
 #ifndef __NR_statfs64
 #define __NR_statfs64           (__NR_SYSCALL_BASE + 266)
 #endif
 #ifndef __NR_fstatfs64
 #define __NR_fstatfs64          (__NR_SYSCALL_BASE + 267)
 #endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         (__NR_SYSCALL_BASE + 314)
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         (__NR_SYSCALL_BASE + 315)
+#endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_SYSCALL_BASE + 344)
 #endif
 /* End of ARM 3 definitions                                                  */
 #elif defined(__x86_64__)
+#ifndef __NR_pread64
+#define __NR_pread64             17
+#endif
+#ifndef __NR_pwrite64
+#define __NR_pwrite64            18
+#endif
 #ifndef __NR_setresuid
 #define __NR_setresuid          117
 #define __NR_setresgid          119
@@ -739,6 +804,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          192
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          194
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         195
+#endif
 #ifndef __NR_futex
 #define __NR_futex              202
 #endif
@@ -755,6 +826,18 @@ struct kernel_statfs {
 #ifndef __NR_fadvise64
 #define __NR_fadvise64          221
 #endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      228
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       229
+#endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         251
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         252
+#endif
 #ifndef __NR_openat
 #define __NR_openat             257
 #endif
@@ -766,6 +849,9 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         279
+#endif
+#ifndef __NR_fallocate
+#define __NR_fallocate          285
 #endif
 /* End of x86-64 definitions                                                 */
 #elif defined(__mips__)
@@ -813,6 +899,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          (__NR_Linux + 228)
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          (__NR_Linux + 230)
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         (__NR_Linux + 231)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 238)
 #endif
@@ -829,6 +921,12 @@ struct kernel_statfs {
 #ifndef __NR_fstatfs64
 #define __NR_fstatfs64          (__NR_Linux + 256)
 #endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      (__NR_Linux + 263)
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       (__NR_Linux + 264)
+#endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 288)
 #endif
@@ -841,8 +939,20 @@ struct kernel_statfs {
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_Linux + 308)
 #endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         (__NR_Linux + 314)
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         (__NR_Linux + 315)
+#endif
 /* End of MIPS (old 32bit API) definitions */
 #elif  _MIPS_SIM == _MIPS_SIM_ABI64
+#ifndef __NR_pread64
+#define __NR_pread64            (__NR_Linux +  16)
+#endif
+#ifndef __NR_pwrite64
+#define __NR_pwrite64           (__NR_Linux +  17)
+#endif
 #ifndef __NR_setresuid
 #define __NR_setresuid          (__NR_Linux + 115)
 #define __NR_setresgid          (__NR_Linux + 117)
@@ -865,6 +975,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          (__NR_Linux + 184)
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          (__NR_Linux + 186)
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         (__NR_Linux + 187)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 194)
 #endif
@@ -874,6 +990,12 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    (__NR_Linux + 212)
+#endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      (__NR_Linux + 222)
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       (__NR_Linux + 223)
 #endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 247)
@@ -886,6 +1008,12 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_Linux + 267)
+#endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         (__NR_Linux + 273)
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         (__NR_Linux + 274)
 #endif
 /* End of MIPS (64bit API) definitions */
 #else
@@ -911,6 +1039,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          (__NR_Linux + 184)
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          (__NR_Linux + 186)
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         (__NR_Linux + 187)
+#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 194)
 #endif
@@ -927,6 +1061,12 @@ struct kernel_statfs {
 #ifndef __NR_fstatfs64
 #define __NR_fstatfs64          (__NR_Linux + 218)
 #endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      (__NR_Linux + 226)
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       (__NR_Linux + 227)
+#endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 251)
 #endif
@@ -938,6 +1078,12 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_Linux + 271)
+#endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         (__NR_Linux + 277)
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         (__NR_Linux + 278)
 #endif
 /* End of MIPS (new 32bit API) definitions                                   */
 #endif
@@ -993,6 +1139,12 @@ struct kernel_statfs {
 #ifndef __NR_lgetxattr
 #define __NR_lgetxattr          213
 #endif
+#ifndef __NR_listxattr
+#define __NR_listxattr          215
+#endif
+#ifndef __NR_llistxattr
+#define __NR_llistxattr         216
+#endif
 #ifndef __NR_futex
 #define __NR_futex              221
 #endif
@@ -1003,6 +1155,12 @@ struct kernel_statfs {
 #ifndef __NR_set_tid_address
 #define __NR_set_tid_address    232
 #endif
+#ifndef __NR_clock_gettime
+#define __NR_clock_gettime      246
+#endif
+#ifndef __NR_clock_getres
+#define __NR_clock_getres       247
+#endif
 #ifndef __NR_statfs64
 #define __NR_statfs64           252
 #endif
@@ -1011,6 +1169,12 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_fadvise64_64
 #define __NR_fadvise64_64       254
+#endif
+#ifndef __NR_ioprio_set
+#define __NR_ioprio_set         273
+#endif
+#ifndef __NR_ioprio_get
+#define __NR_ioprio_get         274
 #endif
 #ifndef __NR_openat
 #define __NR_openat             286
@@ -1322,6 +1486,18 @@ struct kernel_statfs {
                                      (unsigned)offset, (unsigned)(offset >>32),
                                      (unsigned)len, (unsigned)(len >> 32),
                                      advice);
+    }
+
+    #define __NR__fallocate __NR_fallocate
+    LSS_INLINE _syscall6(int, _fallocate, int, fd,
+                         int, mode,
+                         unsigned, offset_lo, unsigned, offset_hi,
+                         unsigned, len_lo, unsigned, len_hi)
+
+    LSS_INLINE int LSS_NAME(fallocate)(int fd, int mode,
+                                       loff_t offset, loff_t len) {
+      union { loff_t off; unsigned w[2]; } o = { offset }, l = { len };
+      return LSS_NAME(_fallocate)(fd, mode, o.w[0], o.w[1], l.w[0], l.w[1]);
     }
 
     LSS_INLINE void (*LSS_NAME(restore_rt)(void))(void) {
@@ -2055,6 +2231,10 @@ struct kernel_statfs {
   #define __NR__mremap __NR_mremap
   LSS_INLINE _syscall1(int,     chdir,           const char *,p)
   LSS_INLINE _syscall1(int,     close,           int,         f)
+  LSS_INLINE _syscall2(int,     clock_getres,    int,         c,
+                       struct kernel_timespec*, t)
+  LSS_INLINE _syscall2(int,     clock_gettime,   int,         c,
+                       struct kernel_timespec*, t)
   LSS_INLINE _syscall1(int,     dup,             int,         f)
   LSS_INLINE _syscall2(int,     dup2,            int,         s,
                        int,            d)
@@ -2096,6 +2276,14 @@ struct kernel_statfs {
                        const char *,   n,        void *,      v, size_t, s)
   LSS_INLINE _syscall4(ssize_t, lgetxattr,       const char *,p,
                        const char *,   n,        void *,      v, size_t, s)
+  LSS_INLINE _syscall3(ssize_t, listxattr,       const char *,p,
+                       char *,   l,              size_t,      s)
+  LSS_INLINE _syscall3(ssize_t, llistxattr,      const char *,p,
+                       char *,   l,              size_t,      s)
+  LSS_INLINE _syscall2(int,     ioprio_get,      int,         which,
+                       int,     who)
+  LSS_INLINE _syscall3(int,     ioprio_set,      int,         which,
+                       int,     who,             int,         ioprio)
   LSS_INLINE _syscall2(int,     kill,            pid_t,       p,
                        int,            s)
   LSS_INLINE _syscall3(off_t,   lseek,           int,         f,
@@ -2138,6 +2326,8 @@ struct kernel_statfs {
   LSS_INLINE _syscall1(long,    set_tid_address, int *,       t)
   LSS_INLINE _syscall1(int,     setfsgid,        gid_t,       g)
   LSS_INLINE _syscall1(int,     setfsuid,        uid_t,       u)
+  LSS_INLINE _syscall1(int,     setuid,          uid_t,       u)
+  LSS_INLINE _syscall1(int,     setgid,          gid_t,       g)
   LSS_INLINE _syscall2(int,     setpgid,         pid_t,       p,
                        pid_t,          g)
   LSS_INLINE _syscall3(int,     setpriority,     int,         a,
@@ -2177,6 +2367,8 @@ struct kernel_statfs {
                          int,                     t, int,       p, int*, s)
   #endif
   #if defined(__x86_64__)
+    LSS_INLINE _syscall4(int, fallocate, int, fd, int, mode,
+                         loff_t, offset, loff_t, len)
     LSS_INLINE _syscall6(void*, mmap,              void*, s,
                          size_t,                   l, int,               p,
                          int,                      f, int,               d,
@@ -2754,7 +2946,12 @@ struct kernel_statfs {
   }
   #if defined(__x86_64__) ||                                                  \
      (defined(__mips__) && _MIPS_SIM == _MIPS_SIM_ABI64)
-    /* pread64() and pwrite64() do not exist on 64-bit systems...            */
+    LSS_INLINE _syscall4(ssize_t, pread64,        int,         f,
+                         void *,         b, size_t,   c,
+                         loff_t,         o)
+    LSS_INLINE _syscall4(ssize_t, pwrite64,       int,         f,
+                         const void *,   b, size_t,   c,
+                         loff_t,         o)
     LSS_INLINE _syscall3(int,     readahead,      int,         f,
                          loff_t,         o, unsigned, c)
   #else

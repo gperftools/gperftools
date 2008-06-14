@@ -77,8 +77,8 @@
 //      b. An array access in the cluster structure
 //      c. A traversal over the linked-list for a block
 
-#ifndef BASE_ADDRESSMAP_INL_H__
-#define BASE_ADDRESSMAP_INL_H__
+#ifndef BASE_ADDRESSMAP_INL_H_
+#define BASE_ADDRESSMAP_INL_H_
 
 #include "config.h"
 #include <stddef.h>
@@ -418,4 +418,4 @@ inline void AddressMap<Value>::Iterate(void (*callback)(Key, Value*, Type),
   }
 }
 
-#endif  // BASE_ADDRESSMAP_INL_H__
+#endif  // BASE_ADDRESSMAP_INL_H_

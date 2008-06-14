@@ -108,8 +108,8 @@
 //
 // Alternatives to this scheme will be added as needed.
 
-#ifndef TCMALLOC_PACKED_CACHE_INL_H__
-#define TCMALLOC_PACKED_CACHE_INL_H__
+#ifndef TCMALLOC_PACKED_CACHE_INL_H_
+#define TCMALLOC_PACKED_CACHE_INL_H_
 
 #include "base/basictypes.h"  // for COMPILE_ASSERT
 #include "base/logging.h"     // for DCHECK
@@ -225,4 +225,4 @@ class PackedCache {
 
 #undef N_ONES_
 
-#endif  // TCMALLOC_PACKED_CACHE_INL_H__
+#endif  // TCMALLOC_PACKED_CACHE_INL_H_

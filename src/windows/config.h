@@ -6,11 +6,11 @@
    */
 #ifdef __MINGW32__
 #include "../config.h"
-#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__
+#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #endif
 
-#ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__
-#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__
+#ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
+#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 
 /* the location of <hash_map> */
 #define HASH_MAP_H  <hash_map>
@@ -129,6 +129,9 @@
 /* Define to 1 if you have the <sys/prctl.h> header file. */
 #undef HAVE_SYS_PRCTL_H
 
+/* Define to 1 if you have the <sys/resource.h> header file. */
+#undef HAVE_SYS_RESOURCE_H
+
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
 
@@ -239,4 +242,4 @@
 // TODO(csilvers): include windows/port.h in every relevant source file instead?
 #include "windows/port.h"
 
-#endif  /* GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H__ */
+#endif  /* GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_ */

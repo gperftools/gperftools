@@ -149,6 +149,7 @@ WINDOWS_PROJECTS += vsprojects/low_level_alloc_unittest/low_level_alloc_unittest
 LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/base/basictypes.h \
                                     src/google/malloc_hook.h \
+                                    src/malloc_hook-inl.h \
                                     $(SPINLOCK_INCLUDES) \
                                     $(LOGGING_INCLUDES)
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
@@ -236,6 +237,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/internal_logging.h \
                               src/base/commandlineflags.h \
                               src/base/basictypes.h \
                               src/pagemap.h \
+                              src/malloc_hook-inl.h \
                               src/maybe_threads.h
 SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
                                src/google/malloc_extension.h \
@@ -254,10 +256,11 @@ libtcmalloc_minimal_la_SOURCES = src/internal_logging.cc \
                                  src/malloc_extension.cc \
                                  $(MAYBE_THREADS_CC) \
                                  $(TCMALLOC_MINIMAL_INCLUDES)
-libtcmalloc_minimal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
+# We #define NO_TCMALLOC_SAMPLES, since sampling is turned off for _minimal.
+libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
+                                  $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
-libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) \
-                                libstacktrace.la
+libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) $(LIBSPINLOCK)
 
 LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 
@@ -268,6 +271,7 @@ LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 ## TESTS += malloc_unittest
 ## MALLOC_UNITEST_INCLUDES = src/google/malloc_extension.h \
 ##                           src/google/malloc_hook.h \
+##                           src/malloc_hook-inl.h \
 ##                           src/base/basictypes.h \
 ##                           src/maybe_threads.h
 ## malloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
@@ -322,7 +326,6 @@ addressmap_unittest_LDADD = liblogging.la
 
 if !MINGW
 TESTS += system_alloc_unittest
-WINDOWS_PROJECTS += vsprojects/system_alloc_unittest/system_alloc_unittest.vcproj
 system_alloc_unittest_SOURCES = src/config_for_unittests.h \
                                 src/tests/system-alloc_unittest.cc
 system_alloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -356,7 +359,8 @@ TESTS += memalign_unittest
 WINDOWS_PROJECTS += vsprojects/memalign_unittest/memalign_unittest.vcproj
 memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
                             src/config_for_unittests.h \
-                            src/tcmalloc.h
+                            src/tcmalloc.h \
+                            src/tests/testutil.h src/tests/testutil.cc
 memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 memalign_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
@@ -441,6 +445,7 @@ S_TCMALLOC_INCLUDES = src/internal_logging.h \
                       src/system-alloc.h \
                       src/pagemap.h \
                       src/addressmap-inl.h \
+                      src/malloc_hook-inl.h \
                       src/packed-cache-inl.h \
                       src/heap-profile-table.h \
                       src/base/basictypes.h \
@@ -503,17 +508,24 @@ tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
-# This makes sure it's safe to link in both tcmalloc and tcmalloc_minimal.
-# (One would never do this on purpose, but perhaps by accident...)
-# We also link in libprofiler to make sure that works too
+# This makes sure it's safe to link in both tcmalloc and
+# tcmalloc_minimal.  (One would never do this on purpose, but perhaps
+# by accident...)  When we can compile libprofiler, we also link it in
+# to make sure that works too.
+
 TESTS += tcmalloc_both_unittest
 tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                  src/tests/testutil.h src/tests/testutil.cc \
                                  $(TCMALLOC_UNITTEST_INCLUDES)
 tcmalloc_both_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_both_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
+if HAS_PC
 tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
                                libprofiler.la liblogging.la $(PTHREAD_LIBS)
+else
+tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+                               liblogging.la $(PTHREAD_LIBS)
+endif !HAS_PC
 
 TESTS += tcmalloc_large_unittest
 tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
@@ -583,8 +595,10 @@ endif !MINGW
 
 ### ------- CPU profiler
 
-# The CPU profiler doesn't work on windows yet
+# The CPU profiler doesn't work on windows yet.  It also doesn't work
+# if there's no way to get the PC.
 if !MINGW
+if HAS_PC
 
 ### The header files we use.  We divide into categories based on directory
 S_CPU_PROFILER_INCLUDES = src/profiledata.h \
@@ -675,6 +689,7 @@ dist_doc_DATA += doc/cpuprofile.html \
                  doc/pprof-vsnprintf-big.gif \
                  doc/pprof-vsnprintf.gif
 
+endif HAS_PC
 endif !MINGW
 
 ## ^^^^ END OF RULES TO MAKE YOUR LIBRARIES, BINARIES, AND UNITTESTS

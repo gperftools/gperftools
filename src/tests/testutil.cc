@@ -34,7 +34,46 @@
 
 #include "config_for_unittests.h"
 #include <stdlib.h>           // for NULL, abort()
+// On FreeBSD, if you #include <sys/resource.h>, you have to get stdint first.
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
+#ifdef HAVE_SYS_RESOURCE_H
+#include <sys/resource.h>
+#endif
 #include "tests/testutil.h"
+
+
+// When compiled 64-bit and run on systems with swap several unittests will end
+// up trying to consume all of RAM+swap, and that can take quite some time.  By
+// limiting the address-space size we get sufficient coverage without blowing
+// out job limits.
+void SetTestResourceLimit() {
+#ifdef HAVE_SYS_RESOURCE_H
+  // The actual resource we need to set varies depending on which flavour of
+  // unix.  On Linux we need RLIMIT_AS because that covers the use of mmap.
+  // Otherwise hopefully RLIMIT_RSS is good enough.  (Unfortunately 64-bit
+  // and 32-bit headers disagree on the type of these constants!)
+#ifdef RLIMIT_AS
+#define USE_RESOURCE RLIMIT_AS
+#else
+#define USE_RESOURCE RLIMIT_RSS
+#endif
+
+  // Restrict the test to 1GiB, which should fit comfortably well on both
+  // 32-bit and 64-bit hosts, and executes in ~1s.
+  const rlim_t kMaxMem = 1<<30;
+
+  struct rlimit rlim;
+  if (getrlimit(USE_RESOURCE, &rlim) == 0) {
+    if (rlim.rlim_cur == RLIM_INFINITY || rlim.rlim_cur > kMaxMem) {
+      rlim.rlim_cur = kMaxMem;
+      setrlimit(USE_RESOURCE, &rlim); // ignore result
+    }
+  }
+#endif  /* HAVE_SYS_RESOURCE_H */
+}
+
 
 struct FunctionAndId {
   void (*ptr_to_function)(int);

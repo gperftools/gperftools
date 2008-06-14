@@ -34,10 +34,10 @@
 #if !defined(_BASE_LOW_LEVEL_ALLOC_H_)
 #define _BASE_LOW_LEVEL_ALLOC_H_
 
-// A simple memory allocator that does not depend on mutexes or
-// thread-specific data.  It is intended to be used sparingly,
-// and only when malloc() would introduce an unwanted dependency,
-// such as inside the heap-checker.
+// A simple thread-safe memory allocator that does not depend on
+// mutexes or thread-specific data.  It is intended to be used
+// sparingly, and only when malloc() would introduce an unwanted
+// dependency, such as inside the heap-checker.
 
 #include "config.h"
 #include <stddef.h>             // for size_t

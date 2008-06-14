@@ -40,8 +40,8 @@
 // the signal triggered.  How to get from a ucontext_t to a Program
 // Counter is OS-dependent.
 
-#ifndef BASE_GETPC_H__
-#define BASE_GETPC_H__
+#ifndef BASE_GETPC_H_
+#define BASE_GETPC_H_
 
 #include "config.h"
 
@@ -175,4 +175,4 @@ inline void* GetPC(const ucontext_t& signal_ucontext) {
 
 #endif
 
-#endif  // BASE_GETPC_H__
+#endif  // BASE_GETPC_H_

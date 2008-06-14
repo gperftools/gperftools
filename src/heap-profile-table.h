@@ -32,15 +32,15 @@
 //         Maxim Lifantsev (refactoring)
 //
 
-#ifndef BASE_HEAP_PROFILE_TABLE_H__
-#define BASE_HEAP_PROFILE_TABLE_H__
+#ifndef BASE_HEAP_PROFILE_TABLE_H_
+#define BASE_HEAP_PROFILE_TABLE_H_
 
 #include "addressmap-inl.h"
 #include "base/basictypes.h"
 
 // Table to maintain a heap profile data inside,
 // i.e. the set of currently active heap memory allocations.
-// Not thread-safe and non-reentrant code:
+// thread-unsafe and non-reentrant code:
 // each instance object must be used by one thread
 // at a time w/o self-recursion.
 //
@@ -258,4 +258,4 @@ class HeapProfileTable {
   DISALLOW_EVIL_CONSTRUCTORS(HeapProfileTable);
 };
 
-#endif  // BASE_HEAP_PROFILE_TABLE_H__
+#endif  // BASE_HEAP_PROFILE_TABLE_H_

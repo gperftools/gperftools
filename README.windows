@@ -32,6 +32,9 @@ understand yet, you still need to use the "DLL" CRT library even when
 statically linking.  Again, you can look at the
 tcmalloc_minimal_unittest-static project, which does this.
 
+Note that the other features of perftools, such as the cpu-profiler,
+heap-profiler, and leak-checker, have not yet been ported to Windows.
+
 I have little experience with Windows programming, so there may be
 better ways to set this up than I've done!  If you run across any
 problems, please post to the google-perftools Google Group, or report

@@ -1,7 +1,12 @@
 # This was retrieved from
-#    http://0pointer.de/cgi-bin/viewcvs.cgi/trunk/common/acx_pthread.m4?rev=1227
+#    http://svn.0pointer.de/viewvc/trunk/common/acx_pthread.m4?revision=1277&root=avahi
 # See also (perhaps for new versions?)
-#    http://0pointer.de/cgi-bin/viewcvs.cgi/trunk/common/acx_pthread.m4
+#    http://svn.0pointer.de/viewvc/trunk/common/acx_pthread.m4?root=avahi
+#
+# We've rewritten the inconsistency check code (from avahi), to work
+# more broadly.  In particular, it no longer assumes ld accepts -zdefs.
+# This caused a restructing of the code, but the functionality has only
+# changed a little.
 
 dnl @synopsis ACX_PTHREAD([ACTION-IF-FOUND[, ACTION-IF-NOT-FOUND]])
 dnl
@@ -231,108 +236,113 @@ if test "x$acx_pthread_ok" = xyes; then
           PTHREAD_CC=$CC
 	fi
 
-   # The next part tries to detect GCC inconsistency with -shared on some
-   # architectures and systems. The problem is that in certain
-   # configurations, when -shared is specified, GCC "forgets" to
-   # internally use various flags which are still necessary.
-   
-   AC_MSG_CHECKING([whether to check for GCC pthread/shared inconsistencies])
-   check_inconsistencies=yes
-   case "${host_cpu}-${host_os}" in
-     *-darwin*) check_inconsistencies=no ;;
-   esac
-   if test x"$GCC" != xyes -o "x$check_inconsistencies" != xyes ; then
-      AC_MSG_RESULT([no])
-   else
-      AC_MSG_RESULT([yes])
-
-      # In order not to create several levels of indentation, we test
-      # the value of "$ok" until we find out the cure or run out of
-      # ideas.
-      ok="no"
-
-      #
-      # Prepare the flags
-      #
-      save_CFLAGS="$CFLAGS"
-      save_LIBS="$LIBS"
-      save_CC="$CC"
-      # Try with the flags determined by the earlier checks.
-      #
-      # -Wl,-z,defs forces link-time symbol resolution, so that the
-      # linking checks with -shared actually have any value
-      #
-      # FIXME: -fPIC is required for -shared on many architectures,
-      # so we specify it here, but the right way would probably be to
-      # properly detect whether it is actually required.
-      CFLAGS="-shared -fPIC -Wl,-z,defs $CFLAGS $PTHREAD_CFLAGS"
-      LIBS="$PTHREAD_LIBS $LIBS"
-      CC="$PTHREAD_CC"
-
-      AC_MSG_CHECKING([whether -pthread is sufficient with -shared])
-      AC_TRY_LINK([#include <pthread.h>],
-         [pthread_t th; pthread_join(th, 0);
-         pthread_attr_init(0); pthread_cleanup_push(0, 0);
-         pthread_create(0,0,0,0); pthread_cleanup_pop(0); ],
-         [ok=yes])
-      
-      if test "x$ok" = xyes; then
-         AC_MSG_RESULT([yes])
-      else
-         AC_MSG_RESULT([no])
-      fi
-   
-      #
-      # Linux gcc on some architectures such as mips/mipsel forgets
-      # about -lpthread
-      #
-      if test x"$ok" = xno; then
-         AC_MSG_CHECKING([whether -lpthread fixes that])
-         LIBS="-lpthread $PTHREAD_LIBS $save_LIBS"
-         AC_TRY_LINK([#include <pthread.h>],
-            [pthread_t th; pthread_join(th, 0);
-            pthread_attr_init(0); pthread_cleanup_push(0, 0);
-            pthread_create(0,0,0,0); pthread_cleanup_pop(0); ],
-            [ok=yes])
-   
-         if test "x$ok" = xyes; then
-            AC_MSG_RESULT([yes])
-            PTHREAD_LIBS="-lpthread $PTHREAD_LIBS"
-         else
-            AC_MSG_RESULT([no])
-         fi
-      fi
-      #
-      # FreeBSD 4.10 gcc forgets to use -lc_r instead of -lc
-      #
-      if test x"$ok" = xno; then
-         AC_MSG_CHECKING([whether -lc_r fixes that])
-         LIBS="-lc_r $PTHREAD_LIBS $save_LIBS"
-         AC_TRY_LINK([#include <pthread.h>],
-             [pthread_t th; pthread_join(th, 0);
-              pthread_attr_init(0); pthread_cleanup_push(0, 0);
-              pthread_create(0,0,0,0); pthread_cleanup_pop(0); ],
-             [ok=yes])
-   
-         if test "x$ok" = xyes; then
-            AC_MSG_RESULT([yes])
-            PTHREAD_LIBS="-lc_r $PTHREAD_LIBS"
-         else
-            AC_MSG_RESULT([no])
-         fi
-      fi
-      if test x"$ok" = xno; then
-         # OK, we have run out of ideas
-         AC_MSG_WARN([Impossible to determine how to use pthreads with shared libraries])
-
-         # so it's not safe to assume that we may use pthreads
-         acx_pthread_ok=no
-      fi
-
-      CFLAGS="$save_CFLAGS"
-      LIBS="$save_LIBS"
-      CC="$save_CC"
-   fi
+	# The next part tries to detect GCC inconsistency with -shared on some
+	# architectures and systems. The problem is that in certain
+	# configurations, when -shared is specified, GCC "forgets" to
+	# internally use various flags which are still necessary.
+	
+	#
+	# Prepare the flags
+	#
+	save_CFLAGS="$CFLAGS"
+	save_LIBS="$LIBS"
+	save_CC="$CC"
+	
+	# Try with the flags determined by the earlier checks.
+	#
+	# -Wl,-z,defs forces link-time symbol resolution, so that the
+	# linking checks with -shared actually have any value
+	#
+	# FIXME: -fPIC is required for -shared on many architectures,
+	# so we specify it here, but the right way would probably be to
+	# properly detect whether it is actually required.
+	CFLAGS="-shared -fPIC -Wl,-z,defs $CFLAGS $PTHREAD_CFLAGS"
+	LIBS="$PTHREAD_LIBS $LIBS"
+	CC="$PTHREAD_CC"
+	
+	# In order not to create several levels of indentation, we test
+	# the value of "$done" until we find the cure or run out of ideas.
+	done="no"
+	
+	# First, make sure the CFLAGS we added are actually accepted by our
+	# compiler.  If not (and OS X's ld, for instance, does not accept -z),
+	# then we can't do this test.
+	if test x"$done" = xno; then
+	   AC_MSG_CHECKING([whether to check for GCC pthread/shared inconsistencies])
+	   AC_TRY_LINK(,, , [done=yes])
+	
+	   if test "x$done" = xyes ; then
+	      AC_MSG_RESULT([no])
+	   else
+	      AC_MSG_RESULT([yes])
+	   fi
+	fi
+	
+	if test x"$done" = xno; then
+	   AC_MSG_CHECKING([whether -pthread is sufficient with -shared])
+	   AC_TRY_LINK([#include <pthread.h>],
+	      [pthread_t th; pthread_join(th, 0);
+	      pthread_attr_init(0); pthread_cleanup_push(0, 0);
+	      pthread_create(0,0,0,0); pthread_cleanup_pop(0); ],
+	      [done=yes])
+	   
+	   if test "x$done" = xyes; then
+	      AC_MSG_RESULT([yes])
+	   else
+	      AC_MSG_RESULT([no])
+	   fi
+	fi
+	
+	#
+	# Linux gcc on some architectures such as mips/mipsel forgets
+	# about -lpthread
+	#
+	if test x"$done" = xno; then
+	   AC_MSG_CHECKING([whether -lpthread fixes that])
+	   LIBS="-lpthread $PTHREAD_LIBS $save_LIBS"
+	   AC_TRY_LINK([#include <pthread.h>],
+	      [pthread_t th; pthread_join(th, 0);
+	      pthread_attr_init(0); pthread_cleanup_push(0, 0);
+	      pthread_create(0,0,0,0); pthread_cleanup_pop(0); ],
+	      [done=yes])
+	
+	   if test "x$done" = xyes; then
+	      AC_MSG_RESULT([yes])
+	      PTHREAD_LIBS="-lpthread $PTHREAD_LIBS"
+	   else
+	      AC_MSG_RESULT([no])
+	   fi
+	fi
+	#
+	# FreeBSD 4.10 gcc forgets to use -lc_r instead of -lc
+	#
+	if test x"$done" = xno; then
+	   AC_MSG_CHECKING([whether -lc_r fixes that])
+	   LIBS="-lc_r $PTHREAD_LIBS $save_LIBS"
+	   AC_TRY_LINK([#include <pthread.h>],
+	       [pthread_t th; pthread_join(th, 0);
+	        pthread_attr_init(0); pthread_cleanup_push(0, 0);
+	        pthread_create(0,0,0,0); pthread_cleanup_pop(0); ],
+	       [done=yes])
+	
+	   if test "x$done" = xyes; then
+	      AC_MSG_RESULT([yes])
+	      PTHREAD_LIBS="-lc_r $PTHREAD_LIBS"
+	   else
+	      AC_MSG_RESULT([no])
+	   fi
+	fi
+	if test x"$done" = xno; then
+	   # OK, we have run out of ideas
+	   AC_MSG_WARN([Impossible to determine how to use pthreads with shared libraries])
+	
+	   # so it's not safe to assume that we may use pthreads
+	   acx_pthread_ok=no
+	fi
+	
+	CFLAGS="$save_CFLAGS"
+	LIBS="$save_LIBS"
+	CC="$save_CC"
 else
         PTHREAD_CC="$CC"
 fi

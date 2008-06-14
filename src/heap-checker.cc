@@ -74,6 +74,7 @@
 #include "base/thread_lister.h"
 #include "heap-profile-table.h"
 #include "base/low_level_alloc.h"
+#include "malloc_hook-inl.h"
 #include <google/malloc_hook.h>
 #include <google/malloc_extension.h>
 #include "memory_region_map.h"
@@ -247,16 +248,6 @@ static const int heap_checker_info_level = 0;
 // heap_check_test_pointer_alignment flag guides if we try the value of 1.
 // The larger it can be, the lesser is the chance of missing real leaks.
 static const size_t kPointerSourceAlignment = sizeof(void*);
-
-// Alignment at which all pointers (in)to heap memory objects
-// are supposed to point; use 1 if any alignment is ok.
-// sizeof(void*) is good enough for all the cases we want to support
-// -- see PointsIntoHeapObject
-// The larger it can be, the lesser is the chance of missing real leaks.
-static const size_t kPointerDestAlignment = sizeof(uint32);
-  // need sizeof(uint32) even for 64 bit binaries to support
-  // e.g. the internal structure of UnicodeString in ICU.
-static const size_t kPointerDestAlignmentMask = kPointerDestAlignment - 1;
 
 //----------------------------------------------------------------------
 // HeapLeakChecker's own memory allocator that is
@@ -1175,9 +1166,6 @@ static size_t pointer_source_alignment = kPointerSourceAlignment;
 // to protect pointer_source_alignment.
 static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
 
-static const size_t kUnicodeStringOffset = sizeof(uint32);
-static const size_t kUnicodeStringAlignmentMask = kUnicodeStringOffset - 1;
-
 // This function changes the live bits in the heap_profile-table's state:
 // we only record the live objects to be skipped.
 //
@@ -1247,10 +1235,8 @@ static const size_t kUnicodeStringAlignmentMask = kUnicodeStringOffset - 1;
         // (which is already slower) or by a factor of 1.5..1.91 in 64 bit mode.
 #if defined(__x86_64__)
         addr < max_heap_address  &&
-        (addr & kUnicodeStringAlignmentMask) == 0  &&  // must be aligned
         min_heap_address <= addr;
 #else
-        (addr & kUnicodeStringAlignmentMask) == 0  &&  // must be aligned
         min_heap_address <= addr  &&
         addr < max_heap_address;
 #endif
@@ -1956,7 +1942,7 @@ static bool internal_init_start_has_run = false;
     char name_buf[15+15];
     snprintf(name_buf, sizeof(name_buf),
              "/proc/%d/cmdline", static_cast<int>(getppid()));
-    char cmdline[1024*8];
+    char cmdline[1024*8];  // /proc/*/cmdline is at most 4Kb anyway usually
     int size = GetCommandLineFrom(name_buf, cmdline, sizeof(cmdline)-1);
     cmdline[size] = '\0';
     // look for "gdb" in the executable's name:
@@ -2303,10 +2289,10 @@ void HeapLeakChecker::TurnItselfOffLocked() {
 }
 
 // Read in the command line from 'file' into 'cmdline' and return the size read
-// 'size' is the space available in 'cmdline'
+// 'size' is the space available in 'cmdline'.
 // We need this because we don't yet have argv/argc.
-// CAVEAT: 'file' (some /proc/*/cmdline) might contain
-// the command line truncated.
+// CAVEAT: 'file' (some /proc/*/cmdline) usually contains the command line
+// already truncated (to 4K on Linux).
 // Arguments in cmdline will be '\0'-terminated,
 // the first one will be the binary's name.
 static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
@@ -2477,17 +2463,9 @@ inline bool HeapLeakChecker::HaveOnHeapLocked(const void** ptr,
   const uintptr_t addr = AsInt(*ptr);
   if (heap_profile->FindInsideAlloc(
         *ptr, max_heap_object_size, ptr, object_size)) {
-    const size_t offset = addr - AsInt(*ptr);
-    // must be aligned to kPointerDestAlignmentMask,
-    // kUnicodeStringOffset is a special case.
-    if ((offset & kPointerDestAlignmentMask) == 0  ||
-        offset == kUnicodeStringOffset) {
-      RAW_VLOG(7, "Got pointer into %p at +%"PRIuS" offset", *ptr, offset);
-      RAW_DCHECK((addr & kUnicodeStringAlignmentMask) == 0, "");
-        // alignment of at least kUnicodeStringAlignment
-        // must have been already ensured
-      return true;
-    }
+    RAW_VLOG(7, "Got pointer into %p at +%"PRIuS" offset",
+             *ptr, addr - AsInt(*ptr));
+    return true;
   }
   return false;
 }

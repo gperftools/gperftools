@@ -35,8 +35,8 @@
 // be included directly.  Clients should instead include
 // "base/atomicops.h".
 
-#ifndef BASE_ATOMICOPS_INTERNALS_MACOSX_H__
-#define BASE_ATOMICOPS_INTERNALS_MACOSX_H__
+#ifndef BASE_ATOMICOPS_INTERNALS_MACOSX_H_
+#define BASE_ATOMICOPS_INTERNALS_MACOSX_H_
 
 typedef int32_t Atomic32;
 
@@ -357,4 +357,4 @@ inline Atomic64 Release_Load(volatile const Atomic64 *ptr) {
 inline void MemoryBarrier() {
   base::subtle::MemoryBarrier();
 }
-#endif  // BASE_ATOMICOPS_INTERNALS_MACOSX_H__
+#endif  // BASE_ATOMICOPS_INTERNALS_MACOSX_H_

@@ -31,8 +31,8 @@
  * Author: Maxim Lifantsev
  */
 
-#ifndef BASE_MEMORY_REGION_MAP_H__
-#define BASE_MEMORY_REGION_MAP_H__
+#ifndef BASE_MEMORY_REGION_MAP_H_
+#define BASE_MEMORY_REGION_MAP_H_
 
 #include "config.h"
 
@@ -49,8 +49,8 @@
 //  execute a bunch of mmap/munmup and compare memory map with
 //  own accounting of what those mmaps generated
 
-// Class to collect and query the map of all memory regions in a process
-// that have been created with mmap, munmap, mremap, sbrk.
+// Thread-safe class to collect and query the map of all memory regions
+// in a process that have been created with mmap, munmap, mremap, sbrk.
 // For each memory region, we keep track of (and provide to users)
 // the stack trace that allocated that memory region.
 // The recorded stack trace depth is bounded by
@@ -69,7 +69,10 @@ class MemoryRegionMap {
 
   // Every client of MemoryRegionMap must call Init() before first use,
   // and Shutdown() after last use.  This allows us to reference count
-  // this (singleton) class properly.
+  // this (singleton) class properly.  MemoryRegionMap assumes it's the
+  // only client of MallocHooks, so a client can only register other
+  // MallocHooks after calling Init() and must unregister them before
+  // calling Shutdown().
 
   // Initialize this module to record memory allocation stack traces.
   // Stack traces that have more than "max_stack_depth" frames
@@ -117,7 +120,7 @@ class MemoryRegionMap {
 
   // A memory region that we know about through malloc_hook-s.
   // This is essentially an interface through which MemoryRegionMap
-  // exports the collected data to its clients.
+  // exports the collected data to its clients.  Thread-compatible.
   struct Region {
     uintptr_t start_addr;  // region start address
     uintptr_t end_addr;  // region end address
@@ -326,4 +329,4 @@ class MemoryRegionMap {
   DISALLOW_EVIL_CONSTRUCTORS(MemoryRegionMap);
 };
 
-#endif  // BASE_MEMORY_REGION_MAP_H__
+#endif  // BASE_MEMORY_REGION_MAP_H_

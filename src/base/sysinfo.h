@@ -72,6 +72,8 @@ extern int NumCPUs();
 extern double CyclesPerSecond(void);
 
 
+#ifndef SWIG  // SWIG doesn't like struct Buffer and variable arguments.
+
 // A ProcMapsIterator abstracts access to /proc/maps for a given
 // process. Needs to be stack-allocatable and avoid using stdio/malloc
 // so it can be used in the google stack dumper, heap-profiler, etc.
@@ -203,5 +205,7 @@ class ProcMapsIterator {
   Buffer* dynamic_buffer_;  // dynamically-allocated Buffer
   bool using_maps_backing_; // true if we are looking at maps_backing instead of maps.
 };
+
+#endif  /* #ifndef SWIG */
 
 #endif   /* #ifndef _SYSINFO_H_ */

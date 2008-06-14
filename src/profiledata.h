@@ -37,8 +37,8 @@
 // doc/cpuprofile-fileformat.html
 
 
-#ifndef BASE_PROFILEDATA_H__
-#define BASE_PROFILEDATA_H__
+#ifndef BASE_PROFILEDATA_H_
+#define BASE_PROFILEDATA_H_
 
 #include "config.h"
 #include <time.h>   // for time_t
@@ -159,4 +159,4 @@ class ProfileData {
   DISALLOW_EVIL_CONSTRUCTORS(ProfileData);
 };
 
-#endif  // BASE_PROFILEDATA_H__
+#endif  // BASE_PROFILEDATA_H_

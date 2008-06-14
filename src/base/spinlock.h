@@ -40,8 +40,8 @@
 // If used within a signal handler, all lock holders 
 // should block the signal even outside the signal handler.
 
-#ifndef BASE_SPINLOCK_H__
-#define BASE_SPINLOCK_H__
+#ifndef BASE_SPINLOCK_H_
+#define BASE_SPINLOCK_H_
 
 #include "config.h"
 #include "base/basictypes.h"
@@ -158,4 +158,4 @@ class SCOPED_LOCKABLE SpinLockHolder {
 #define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)
 
 
-#endif  // BASE_SPINLOCK_H__
+#endif  // BASE_SPINLOCK_H_

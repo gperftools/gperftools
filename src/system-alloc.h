@@ -33,8 +33,8 @@
 // Routine that uses sbrk/mmap to allocate memory from the system.
 // Useful for implementing malloc.
 
-#ifndef TCMALLOC_SYSTEM_ALLOC_H__
-#define TCMALLOC_SYSTEM_ALLOC_H__
+#ifndef TCMALLOC_SYSTEM_ALLOC_H_
+#define TCMALLOC_SYSTEM_ALLOC_H_
 
 #include "config.h"
 #include "internal_logging.h"
@@ -110,4 +110,4 @@ static const int kMaxDynamicAllocators = 2;
 // Retrieve the current state of various system allocators.
 extern PERFTOOLS_DLL_DECL void DumpSystemAllocatorStats(TCMalloc_Printer* printer);
 
-#endif /* TCMALLOC_SYSTEM_ALLOC_H__ */
+#endif /* TCMALLOC_SYSTEM_ALLOC_H_ */

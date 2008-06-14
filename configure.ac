@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.97, opensource@google.com)
+AC_INIT(google-perftools, 0.98, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -31,7 +31,6 @@ AC_CHECK_TYPES([__int64])       # defined in some windows platforms
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
-AC_FUNC_MMAP
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
@@ -45,6 +44,7 @@ AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
+AC_CHECK_HEADERS(sys/resource.h)         # for memalign_unittest.cc
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 AC_CHECK_DECLS([cfree,
@@ -55,6 +55,20 @@ AC_CHECK_DECLS([cfree,
                [#define _XOPEN_SOURCE 600
                 #include <stdlib.h>
                 #include <malloc.h>])
+
+# We need to check for mmap.  cygwin supports mmap, but the autoconf
+# test doesn't work on cygwin:
+#    http://www.cygwin.com/ml/cygwin/2002-04/msg00412.html
+# This workaround comes from
+#    http://cygwin.com/ml/cygwin/2004-11/msg00138.html
+case "$host" in
+  *-*-cygwin*) ac_cv_func_mmap_fixed_mapped=yes
+               AC_DEFINE(HAVE_MMAP, 1,
+                         [Define to 1 if you have a working `mmap' system call.])
+               ;;
+            *) AC_FUNC_MMAP
+               ;;
+esac
 
 # If AtomicWord != Atomic32, we need to define two versions of all the
 # atomicops functions.  If they're the same, we want to define only one.
@@ -97,8 +111,9 @@ for pc_field in $pc_fields; do
   fi
 done
 if ! $pc_field_found; then
-  AC_MSG_WARN(Could not find the PC.  libprofiler will probably not compile!)
+  AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
 fi
+AM_CONDITIONAL(HAS_PC, test "$pc_field_found" = true)
 
 # We want to link in libunwind if it exists
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)

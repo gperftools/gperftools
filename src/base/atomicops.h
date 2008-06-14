@@ -63,11 +63,13 @@
 // The intent is eventually to put all of these routines in namespace
 // base::subtle
 
-#ifndef THREAD_ATOMICOPS_H__
-#define THREAD_ATOMICOPS_H__
+#ifndef THREAD_ATOMICOPS_H_
+#define THREAD_ATOMICOPS_H_
 
 #include "config.h"
+#ifdef HAVE_STDINT_H
 #include <stdint.h>
+#endif
 
 // ------------------------------------------------------------------------
 // Include the platform specific implementations of the types
@@ -87,10 +89,12 @@
 // TODO(csilvers): match piii, not just __i386.  Also, match k8
 #if defined(__MACH__) && defined(__APPLE__)
 #include "base/atomicops-internals-macosx.h"
+#elif defined(_MSC_VER) && defined(_M_IX86)
+#include "base/atomicops-internals-x86-msvc.h"
+#elif defined(__MINGW32__) && defined(__i386__)
+#include "base/atomicops-internals-x86-msvc.h"
 #elif defined(__GNUC__) && (defined(__i386) || defined(ARCH_K8))
 #include "base/atomicops-internals-x86.h"
-#elif defined(__i386) && defined(_MSC_VER)
-#include "base/atomicops-internals-x86-msvc.h"
 #elif defined(__linux__) && defined(__PPC__)
 #include "base/atomicops-internals-linuxppc.h"
 #else
@@ -380,4 +384,4 @@ inline base::subtle::Atomic64 Release_Load(
 
 #endif  // BASE_HAS_ATOMIC64
 
-#endif  // THREAD_ATOMICOPS_H__
+#endif  // THREAD_ATOMICOPS_H_

@@ -45,8 +45,8 @@
 // We also put the type of the variable in the namespace, so that
 // people can't DECLARE_int32 something that they DEFINE_bool'd
 // elsewhere.
-#ifndef BASE_COMMANDLINEFLAGS_H__
-#define BASE_COMMANDLINEFLAGS_H__
+#ifndef BASE_COMMANDLINEFLAGS_H_
+#define BASE_COMMANDLINEFLAGS_H_
 
 #include "config.h"
 #include <string>
@@ -125,4 +125,4 @@
 #define EnvToInt64(envname, dflt)  \
   (!getenv(envname) ? (dflt) : strtoll(getenv(envname), NULL, 10))
 
-#endif  // BASE_COMMANDLINEFLAGS_H__
+#endif  // BASE_COMMANDLINEFLAGS_H_

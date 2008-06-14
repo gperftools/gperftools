@@ -516,6 +516,29 @@ static void TestCalloc(size_t n, size_t s, bool ok) {
   }
 }
 
+// This makes sure that reallocing a small number of bytes in either
+// direction doesn't cause us to allocate new memory.
+static void TestRealloc() {
+  int start_sizes[] = { 100, 1000, 10000, 100000 };
+  int deltas[] = { 1, -2, 4, -8, 16, -32, 64, -128 };
+
+  for (int s = 0; s < sizeof(start_sizes)/sizeof(*start_sizes); ++s) {
+    void* p = malloc(start_sizes[s]);
+    CHECK(p);
+    // The larger the start-size, the larger the non-reallocing delta.
+    for (int d = 0; d < s*2; ++d) {
+      void* new_p = realloc(p, start_sizes[s] + deltas[d]);
+      CHECK(p == new_p);  // realloc should not allocate new memory
+    }
+    // Test again, but this time reallocing smaller first.
+    for (int d = 0; d < s*2; ++d) {
+      void* new_p = realloc(p, start_sizes[s] - deltas[d]);
+      CHECK(p == new_p);  // realloc should not allocate new memory
+    }
+    free(p);
+  }
+}
+
 static void TestNewHandler() throw (std::bad_alloc) {
   ++news_handled;
   throw std::bad_alloc();
@@ -646,6 +669,20 @@ MAKE_HOOK_CALLBACK(SbrkHook);
 int main(int argc, char** argv) {
   // Optional argv[1] is the seed
   AllocatorState rnd(argc > 1 ? atoi(argv[1]) : 100);
+
+  SetTestResourceLimit();
+
+  // TODO(odo):  This test has been disabled because it is only by luck that it
+  // does not result in fragmentation.  When tcmalloc makes an allocation which
+  // spans previously unused leaves of the pagemap it will allocate and fill in
+  // the leaves to cover the new allocation.  The leaves happen to be 256MiB in
+  // the 64-bit build, and with the sbrk allocator these allocations just
+  // happen to fit in one leaf by luck.  With other allocators (mmap,
+  // memfs_malloc when used with small pages) the allocations generally span
+  // two leaves and this results in a very bad fragmentation pattern with this
+  // code.  The same failure can be forced with the sbrk allocator just by
+  // allocating something on the order of 128MiB prior to starting this test so
+  // that the test allocations straddle a 256MiB boundary.
 
   // TODO(csilvers): port MemoryUsage() over so the test can use that
 #if 0
@@ -824,6 +861,10 @@ int main(int argc, char** argv) {
   TestCalloc(kMaxSignedSize, 3, false);
   TestCalloc(3, kMaxSignedSize, false);
   TestCalloc(kMaxSignedSize, kMaxSignedSize, false);
+
+  // Test that realloc doesn't always reallocate and copy memory.
+  fprintf(LOGSTREAM, "Testing realloc\n");
+  TestRealloc();
 
   fprintf(LOGSTREAM, "Testing operator new(nothrow).\n");
   TestNothrowNew(&::operator new);

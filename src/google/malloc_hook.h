@@ -32,7 +32,17 @@
 //
 // Some of our malloc implementations can invoke the following hooks
 // whenever memory is allocated or deallocated.  If the hooks are
-// NULL, they are not invoked.
+// NULL, they are not invoked.  MallocHook is thread-safe, and things
+// you do before calling SetFooHook(MyHook) are visible to any
+// resulting calls to MyHook.  Hooks must be thread-safe, and if you
+// write:
+//
+//   MallocHook::NewHook old_new_hook_ = NULL;
+//   ...
+//   old_new_hook_ = MallocHook::SetNewHook(&MyNewHook);
+//
+// old_new_hook_ could still be NULL the first couple times MyNewHook
+// is called.
 //
 // One important user of these hooks is the heap profiler.
 //
@@ -40,9 +50,18 @@
 // then those calls must be directly in the code of the (de)allocation
 // function that is provided to the user and that function must have
 // an ATTRIBUTE_SECTION(malloc_hook) attribute.
+//
+// Note: Get*Hook() and Invoke*Hook() functions are defined in
+// malloc_hook-inl.h.  If you need to get or invoke a hook (which you
+// shouldn't unless you're part of tcmalloc), be sure to #include
+// malloc_hook-inl.h in addition to malloc_hook.h.
+//
+// TODO(csilvers): support a non-inlined function called
+// Assert*HookIs()?  This is the context in which I normally see
+// Get*Hook() called in non-tcmalloc code.
 
-#ifndef _MALLOC_HOOK_H
-#define _MALLOC_HOOK_H
+#ifndef _MALLOC_HOOK_H_
+#define _MALLOC_HOOK_H_
 
 #include <stddef.h>
 #include <sys/types.h>
@@ -56,34 +75,21 @@
 # endif
 #endif
 
-
 class PERFTOOLS_DLL_DECL MallocHook {
  public:
   // The NewHook is invoked whenever an object is allocated.
   // It may be passed NULL if the allocator returned NULL.
   typedef void (*NewHook)(const void* ptr, size_t size);
-  inline static NewHook GetNewHook() { return new_hook_; }
-  inline static NewHook SetNewHook(NewHook hook) {
-    NewHook result = new_hook_;
-    new_hook_ = hook;
-    return result;
-  }
-  inline static void InvokeNewHook(const void* p, size_t s) {
-    if (new_hook_ != NULL) (*new_hook_)(p, s);
-  }
+  inline static NewHook GetNewHook();
+  static NewHook SetNewHook(NewHook hook);
+  inline static void InvokeNewHook(const void* p, size_t s);
 
   // The DeleteHook is invoked whenever an object is deallocated.
   // It may be passed NULL if the caller is trying to delete NULL.
   typedef void (*DeleteHook)(const void* ptr);
-  inline static DeleteHook GetDeleteHook() { return delete_hook_; }
-  inline static DeleteHook SetDeleteHook(DeleteHook hook) {
-    DeleteHook result = delete_hook_;
-    delete_hook_ = hook;
-    return result;
-  }
-  inline static void InvokeDeleteHook(const void* p) {
-    if (delete_hook_ != NULL) (*delete_hook_)(p);
-  }
+  inline static DeleteHook GetDeleteHook();
+  static DeleteHook SetDeleteHook(DeleteHook hook);
+  inline static void InvokeDeleteHook(const void* p);
 
   // The MmapHook is invoked whenever a region of memory is mapped.
   // It may be passed MAP_FAILED if the mmap failed.
@@ -94,36 +100,21 @@ class PERFTOOLS_DLL_DECL MallocHook {
                            int flags,
                            int fd,
                            off_t offset);
-  inline static MmapHook GetMmapHook() { return mmap_hook_; }
-  inline static MmapHook SetMmapHook(MmapHook hook) {
-    MmapHook result = mmap_hook_;
-    mmap_hook_ = hook;
-    return result;
-  }
+  inline static MmapHook GetMmapHook();
+  static MmapHook SetMmapHook(MmapHook hook);
   inline static void InvokeMmapHook(const void* result,
                                     const void* start,
                                     size_t size,
                                     int protection,
                                     int flags,
                                     int fd,
-                                    off_t offset) {
-    if (mmap_hook_ != NULL) (*mmap_hook_)(result,
-                                          start, size,
-                                          protection, flags,
-                                          fd, offset);
-  }
+                                    off_t offset);
 
   // The MunmapHook is invoked whenever a region of memory is unmapped.
   typedef void (*MunmapHook)(const void* ptr, size_t size);
-  inline static MunmapHook GetMunmapHook() { return munmap_hook_; }
-  inline static MunmapHook SetMunmapHook(MunmapHook hook) {
-    MunmapHook result = munmap_hook_;
-    munmap_hook_ = hook;
-    return result;
-  }
-  inline static void InvokeMunmapHook(const void* p, size_t size) {
-    if (munmap_hook_ != NULL) (*munmap_hook_)(p, size);
-  }
+  inline static MunmapHook GetMunmapHook();
+  static MunmapHook SetMunmapHook(MunmapHook hook);
+  inline static void InvokeMunmapHook(const void* p, size_t size);
 
   // The MremapHook is invoked whenever a region of memory is remapped.
   typedef void (*MremapHook)(const void* result,
@@ -132,37 +123,23 @@ class PERFTOOLS_DLL_DECL MallocHook {
                              size_t new_size,
                              int flags,
                              const void* new_addr);
-  inline static MremapHook GetMremapHook() { return mremap_hook_; }
-  inline static MremapHook SetMremapHook(MremapHook hook) {
-    MremapHook result = mremap_hook_;
-    mremap_hook_ = hook;
-    return result;
-  }
+  inline static MremapHook GetMremapHook();
+  static MremapHook SetMremapHook(MremapHook hook);
   inline static void InvokeMremapHook(const void* result,
                                       const void* old_addr,
                                       size_t old_size,
                                       size_t new_size,
                                       int flags,
-                                      const void* new_addr) {
-    if (mremap_hook_ != NULL) (*mremap_hook_)(result,
-                                              old_addr, old_size,
-                                              new_size, flags, new_addr);
-  }
+                                      const void* new_addr);
 
   // The SbrkHook is invoked whenever sbrk is called -- except when
   // the increment is 0.  This is because sbrk(0) is often called
   // to get the top of the memory stack, and is not actually a
   // memory-allocation call.
   typedef void (*SbrkHook)(const void* result, ptrdiff_t increment);
-  inline static SbrkHook GetSbrkHook() { return sbrk_hook_; }
-  inline static SbrkHook SetSbrkHook(SbrkHook hook) {
-    SbrkHook result = sbrk_hook_;
-    sbrk_hook_ = hook;
-    return result;
-  }
-  inline static void InvokeSbrkHook(const void* result, ptrdiff_t increment) {
-    if (sbrk_hook_ != NULL && increment != 0) (*sbrk_hook_)(result, increment);
-  }
+  inline static SbrkHook GetSbrkHook();
+  static SbrkHook SetSbrkHook(SbrkHook hook);
+  inline static void InvokeSbrkHook(const void* result, ptrdiff_t increment);
 
   // Get the current stack trace.  Try to skip all routines up to and
   // and including the caller of MallocHook::Invoke*.
@@ -170,15 +147,6 @@ class PERFTOOLS_DLL_DECL MallocHook {
   // as a hint about how many routines to skip if better information
   // is not available.
   static int GetCallerStackTrace(void** result, int max_depth, int skip_count);
-
- private:
-
-  static NewHook     new_hook_;
-  static DeleteHook  delete_hook_;
-  static MmapHook    mmap_hook_;
-  static MunmapHook  munmap_hook_;
-  static MremapHook  mremap_hook_;
-  static SbrkHook    sbrk_hook_;
 };
 
-#endif /* _MALLOC_HOOK_H */
+#endif /* _MALLOC_HOOK_H_ */

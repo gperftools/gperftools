@@ -102,6 +102,8 @@
 #endif
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
+#elif !defined(MAP_FAILED)
+#define MAP_FAILED -1  // the only thing we need from mman.h
 #endif
 #ifdef HAVE_PTHREAD
 #include <pthread.h>   // for pthread_t, pthread_self()
@@ -114,6 +116,7 @@
 #include "base/linux_syscall_support.h"
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
+#include "malloc_hook-inl.h"
 
 #include <google/stacktrace.h>
 #include <google/malloc_hook.h>

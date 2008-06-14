@@ -34,8 +34,8 @@
 //    involve a system call and is much more precise.
 // ----------------------------------------------------------------------
 
-#ifndef GOOGLE_BASE_CYCLECLOCK_H__
-#define GOOGLE_BASE_CYCLECLOCK_H__
+#ifndef GOOGLE_BASE_CYCLECLOCK_H_
+#define GOOGLE_BASE_CYCLECLOCK_H_
 
 #include "base/basictypes.h"   // make sure we get the def for int64
 #if defined(__MACH__) && defined(__APPLE__)
@@ -99,4 +99,4 @@ struct CycleClock {
 };
 
 
-#endif  // GOOGLE_BASE_CYCLECLOCK_H__
+#endif  // GOOGLE_BASE_CYCLECLOCK_H_

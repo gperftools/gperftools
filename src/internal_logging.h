@@ -32,8 +32,8 @@
 //
 // Internal logging and related utility routines.
 
-#ifndef TCMALLOC_INTERNAL_LOGGING_H__
-#define TCMALLOC_INTERNAL_LOGGING_H__
+#ifndef TCMALLOC_INTERNAL_LOGGING_H_
+#define TCMALLOC_INTERNAL_LOGGING_H_
 
 #include "config.h"
 #include <stdlib.h>   // for abort()
@@ -99,4 +99,4 @@ class TCMalloc_Printer {
 ;
 };
 
-#endif  // TCMALLOC_INTERNAL_LOGGING_H__
+#endif  // TCMALLOC_INTERNAL_LOGGING_H_

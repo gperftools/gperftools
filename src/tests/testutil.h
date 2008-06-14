@@ -30,8 +30,8 @@
 // ---
 // Author: Craig Silverstein
 
-#ifndef TCMALLOC_TOOLS_TESTUTIL_H__
-#define TCMALLOC_TOOLS_TESTUTIL_H__
+#ifndef TCMALLOC_TOOLS_TESTUTIL_H_
+#define TCMALLOC_TOOLS_TESTUTIL_H_
 
 // Run a function in a thread of its own and wait for it to finish.
 // The function you pass in must have the signature
@@ -52,4 +52,10 @@ extern "C" void RunManyThreads(void (*fn)(), int count);
 // where idx is the index of the thread (which of the X threads this is).
 extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize);
 
-#endif  // TCMALLOC_TOOLS_TESTUTIL_H__
+// When compiled 64-bit and run on systems with swap several unittests will end
+// up trying to consume all of RAM+swap, and that can take quite some time.  By
+// limiting the address-space size we get sufficient coverage without blowing
+// out job limits.
+void SetTestResourceLimit();
+
+#endif  // TCMALLOC_TOOLS_TESTUTIL_H_
