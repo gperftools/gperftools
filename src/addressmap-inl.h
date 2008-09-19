@@ -169,7 +169,7 @@ class AddressMap {
   // The data for a cluster is represented as a dense array of
   // linked-lists, one list per contained block.
   static const int kClusterBits = 13;
-  static const int kClusterSize = 1 << (kBlockBits + kClusterBits);
+  static const Number kClusterSize = 1 << (kBlockBits + kClusterBits);
   static const int kClusterBlocks = 1 << kClusterBits;
 
   // We use a simple chaining hash-table to represent the clusters.

@@ -87,7 +87,7 @@ extern PERFTOOLS_DLL_DECL int GetStackFrames(void** pcs, int* sizes, int max_dep
 //      foo() { bar(); }
 //      bar() {
 //        void* result[10];
-//        int depth = GetStackFrames(result, 10, 1);
+//        int depth = GetStackTrace(result, 10, 1);
 //      }
 //
 // This produces:

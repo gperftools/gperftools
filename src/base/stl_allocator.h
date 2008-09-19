@@ -82,7 +82,7 @@ class STL_Allocator {
     RAW_DCHECK((n * sizeof(T)) / sizeof(T) == n, "n is too big to allocate");
     return static_cast<T*>(Alloc::Allocate(n * sizeof(T)));
   }
-  void deallocate(pointer p, size_type n) { Alloc::Free(p); }
+  void deallocate(pointer p, size_type /*n*/) { Alloc::Free(p); }
 
   size_type max_size() const { return size_t(-1) / sizeof(T); }
 

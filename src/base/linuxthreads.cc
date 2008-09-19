@@ -38,18 +38,13 @@
 extern "C" {
 #endif
 
-#include <asm/stat.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
-
-#include <asm/fcntl.h>
-#include <asm/posix_types.h>
-#include <asm/types.h>
-#include <linux/dirent.h>
 
 #include "base/linux_syscall_support.h"
 #include "base/thread_lister.h"

@@ -290,6 +290,10 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // Type for DumpProfileLocked
   enum ProfileType { START_PROFILE, END_PROFILE };
 
+  // Create the name of the heap profile file of profile_type;
+  // to be deleted via Allocator::Free().
+  char* MakeProfileNameLocked(ProfileType profile_type);
+
   // Helper for dumping start/end heap leak checking profiles
   // and getting the byte/object counts.
   void DumpProfileLocked(ProfileType profile_type, const void* self_stack_top,
@@ -311,6 +315,10 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   bool DoNoLeaksOnceLocked(CheckType check_type,
                            CheckFullness fullness,
                            ReportMode report_mode);
+
+  // Handle a leak profile file: delete it if !keep_profiles_.
+  void HandleProfile(ProfileType profile_type);
+  void HandleProfileLocked(ProfileType profile_type);
 
   // Helper for DisableChecksAt
   static void DisableChecksAtLocked(const void* address);
@@ -433,6 +441,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   ssize_t inuse_bytes_increase_;  // bytes-in-use increase for this checker
   ssize_t inuse_allocs_increase_;  // allocations-in-use increase
                                    // for this checker
+  bool keep_profiles_;  // iff we should keep the heap profiles we've made
 
   // ----------------------------------------------------------------------- //
 

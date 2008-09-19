@@ -229,7 +229,9 @@ bool CpuProfiler::Start(const char* fname,
     // recorded against the new profile, but there's no harm in that.
     SpinLockHolder sl(&signal_lock_);
 
-    if (!collector_.Start(fname, frequency_)) {
+    ProfileData::Options collector_options;
+    collector_options.set_frequency(frequency_);
+    if (!collector_.Start(fname, collector_options)) {
       return false;
     }
 

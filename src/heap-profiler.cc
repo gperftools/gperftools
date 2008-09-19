@@ -38,11 +38,15 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>    // for open()
+#endif
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #endif
 #include <errno.h>
 #include <assert.h>
+#include <sys/types.h>
 
 #include <algorithm>
 #include <string>
@@ -127,6 +131,17 @@ static void ProfilerFree(void* p) {
   LowLevelAlloc::Free(p);
 }
 
+// We use buffers of this size in DoGetHeapProfile.
+static const int kProfileBufferSize = 1 << 20;
+
+// This is a last-ditch buffer we use in DumpProfileLocked in case we
+// can't allocate more memory from ProfilerMalloc.  We expect this
+// will be used by HeapProfileEndWriter when the application has to
+// exit due to out-of-memory.  This buffer is allocated in
+// HeapProfilerStart.  Access to this must be protected by heap_lock.
+static char* global_profiler_buffer = NULL;
+
+
 //----------------------------------------------------------------------
 // Profiling control/state data
 //----------------------------------------------------------------------
@@ -169,21 +184,19 @@ static void AddRemoveMMapDataLocked(AddOrRemove mode) {
   }
 }
 
-static char* DoGetHeapProfile(void* (*alloc_func)(size_t)) {
+// Input must be a buffer of size at least 1MB.
+static char* DoGetHeapProfileLocked(char* buf, int buflen) {
   // We used to be smarter about estimating the required memory and
   // then capping it to 1MB and generating the profile into that.
-  // However it should not cost us much to allocate 1MB every time.
-  static const int size = 1 << 20;
-  char* buf = reinterpret_cast<char*>((*alloc_func)(size));
-  if (buf == NULL) return NULL;
+  if (buf == NULL || buflen < 1)
+    return NULL;
 
-  // Grab the lock and generate the profile.
-  SpinLockHolder l(&heap_lock);
-  int buflen = 0;
+  RAW_DCHECK(heap_lock.IsHeld(), "");
+  int bytes_written = 0;
   if (is_on) {
     HeapProfileTable::Stats const stats = heap_profile->total();
     AddRemoveMMapDataLocked(ADD);
-    buflen = heap_profile->FillOrderedProfile(buf, size - 1);
+    bytes_written = heap_profile->FillOrderedProfile(buf, buflen - 1);
     // FillOrderedProfile should not reduce the set of active mmap-ed regions,
     // hence MemoryRegionMap will let us remove everything we've added above:
     AddRemoveMMapDataLocked(REMOVE);
@@ -191,20 +204,35 @@ static char* DoGetHeapProfile(void* (*alloc_func)(size_t)) {
     // if this fails, we somehow removed by AddRemoveMMapDataLocked
     // more than we have added.
   }
-  buf[buflen] = '\0';
-  RAW_DCHECK(buflen == strlen(buf), "");
+  buf[bytes_written] = '\0';
+  RAW_DCHECK(bytes_written == strlen(buf), "");
 
   return buf;
 }
 
 extern "C" char* GetHeapProfile() {
   // Use normal malloc: we return the profile to the user to free it:
-  return DoGetHeapProfile(&malloc);
+  SpinLockHolder l(&heap_lock);
+  return DoGetHeapProfileLocked(
+      reinterpret_cast<char*>(malloc(kProfileBufferSize)), kProfileBufferSize);
 }
 
 // defined below
 static void NewHook(const void* ptr, size_t size);
 static void DeleteHook(const void* ptr);
+
+// Dump data to fd.  Copied from heap-profile-table.cc.
+#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
+
+static void FDWrite(int fd, const char* buf, size_t len) {
+  while (len > 0) {
+    ssize_t r;
+    NO_INTR(r = write(fd, buf, len));
+    RAW_CHECK(r >= 0, "");  // strerror(errno)
+    buf += r;
+    len -= r;
+  }
+}
 
 // Helper for HeapProfilerDump.
 static void DumpProfileLocked(const char* reason) {
@@ -231,24 +259,28 @@ static void DumpProfileLocked(const char* reason) {
   snprintf(file_name, sizeof(file_name), "%s.%04d%s",
            filename_prefix, dump_count, HeapProfileTable::kFileExt);
 
-  // Release allocation lock around the meat of this routine
-  // thus not blocking other threads too much.
-  heap_lock.Unlock();
-  {
-    // Dump the profile
-    RAW_VLOG(0, "Dumping heap profile to %s (%s)", file_name, reason);
-    FILE* f = fopen(file_name, "w");
-    if (f != NULL) {
-      // Use ProfilerMalloc not to put info about profile itself into itself:
-      char* profile = DoGetHeapProfile(&ProfilerMalloc);
-      fputs(profile, f);
-      ProfilerFree(profile);
-      fclose(f);
-    } else {
-      RAW_LOG(ERROR, "Failed dumping heap profile to %s", file_name);
-    }
+  // Dump the profile
+  RAW_VLOG(0, "Dumping heap profile to %s (%s)", file_name, reason);
+  // We must use file routines that don't access memory, since we hold
+  // a memory lock now.
+  int fd = open(file_name, O_WRONLY | O_CREAT | O_EXCL, 0664);
+  if (fd < 0) {
+    RAW_LOG(ERROR, "Failed dumping heap profile to %s", file_name);
+    dumping = false;
+    return;
   }
-  heap_lock.Lock();
+
+  // This case may be impossible, but it's best to be safe.
+  // It's safe to use the global buffer: we're protected by heap_lock.
+  if (global_profiler_buffer == NULL) {
+    global_profiler_buffer =
+        reinterpret_cast<char*>(ProfilerMalloc(kProfileBufferSize));
+  }
+
+  char* profile = DoGetHeapProfileLocked(global_profiler_buffer,
+                                         kProfileBufferSize);
+  FDWrite(fd, profile, strlen(profile));
+  close(fd);
 
   dumping = false;
 }
@@ -431,6 +463,11 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   heap_profiler_memory =
     LowLevelAlloc::NewArena(0, LowLevelAlloc::DefaultArena());
 
+  // Reserve space now for the heap profiler, so we can still write a
+  // heap profile even if the application runs out of memory.
+  global_profiler_buffer =
+      reinterpret_cast<char*>(ProfilerMalloc(kProfileBufferSize));
+
   heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
                    HeapProfileTable(ProfilerMalloc, ProfilerFree);
 
@@ -463,6 +500,11 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   MallocExtension::Initialize();
 }
 
+extern "C" bool IsHeapProfilerRunning() {
+  SpinLockHolder l(&heap_lock);
+  return is_on;
+}
+
 extern "C" void HeapProfilerStop() {
   SpinLockHolder l(&heap_lock);
 
@@ -493,6 +535,9 @@ extern "C" void HeapProfilerStop() {
   heap_profile->~HeapProfileTable();
   ProfilerFree(heap_profile);
   heap_profile = NULL;
+
+  // free output-buffer memory
+  ProfilerFree(global_profiler_buffer);
 
   // free prefix
   ProfilerFree(filename_prefix);

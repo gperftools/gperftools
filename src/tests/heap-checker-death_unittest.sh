@@ -155,13 +155,18 @@ Test 20 1 "Exiting .* because of .* leaks$" "" \
 Test 20 1 "Exiting .* because of .* leaks$" "" \
   HEAP_CHECKER_TEST_TEST_LOOP_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 || exit 9
 
+# Test that we produce a reasonable textual leak report.
+Test 60 1 "DoAllocHidden heap-checker_unittest[.]cc:" "" \
+          HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECK_TEST_NO_THREADS=1 \
+  || exit 10
+
 # Test that very early log messages are present and controllable:
 Test 60 1 "Starting tracking the heap$" "" \
   HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 PERFTOOLS_VERBOSE=1 \
-  || exit 9
+  || exit 11
 Test 60 1 "" "Starting tracking the heap" \
   HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 PERFTOOLS_VERBOSE=-1 \
-  || exit 10
+  || exit 12
 
 cd /    # so we're not in TMPDIR when we delete it
 rm -rf $TMPDIR

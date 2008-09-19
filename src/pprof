@@ -72,15 +72,18 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "0.98";
+my $PPROF_VERSION = "0.99";
 
-# These are the object tools we use, which come from various sources.
-# We want to invoke them directly, rather than via users' aliases and/or
-# search paths, because some people have colorizing versions of them that
-# can cause trouble, or because the default versions on a system may not
-# deal with 64-bit objects if 64-bit profiles are being analyzed.
-# (However, we will default to the user's defaults if we can't find better.)
-# See ConfigureObjTools near the bottom of this script.
+# These are the object tools we use which can come from a
+# user-specified location using --tools, from the PPROF_TOOLS
+# environment variable, or from the latest installed crosstool under
+# /usr/crosstool.  We avoid using the system versions for more
+# predictable behavior.  System versions may not support 64-bit
+# binaries and older object tools may have difficulties with binaries
+# produced with the latest crosstool versions.  For example,
+# name-mangling changed with GCC 4.3 which can cause problems with
+# demangling in the object tools.  See ConfigureObjTools near the
+# bottom of this script for how the tool paths are determined.
 my %obj_tool_map = (
   "objdump" => "objdump",
   "nm" => "nm",
@@ -188,6 +191,10 @@ Miscellaneous:
    --help              This message
    --version           Version information
 
+Environment Variables:
+   PPROF_TMPDIR        Profiles directory. Defaults to \$HOME/pprof
+   PPROF_TOOLS         Prefix for object tools pathnames
+
 Examples:
 
 pprof /bin/ls ls.prof
@@ -239,6 +246,8 @@ sub Init() {
   $main::next_tmpfile = 0;
   $SIG{'INT'} = \&sighandler;
 
+  # Cache from filename/linenumber to source code
+  $main::source_cache = ();
 
   $main::opt_help = 0;
   $main::opt_version = 0;
@@ -493,8 +502,9 @@ sub Main() {
 
   # Subtract base from profile, if specified
   if ($main::opt_base ne '') {
-    my $base = ReadProfile($main::prog, $main::opt_base)->{profile};
-    $profile = SubtractProfile($profile, $base);
+    my $base = ReadProfile($main::prog, $main::opt_base);
+    $profile = SubtractProfile($profile, $base->{profile});
+    $pcs = AddPcs($pcs, $base->{pcs});
   }
 
   # Get total data in profile
@@ -534,10 +544,16 @@ sub Main() {
   # Print
   if (!$main::opt_interactive) {
     if ($main::opt_disasm) {
-      PrintDisassembly($libs, $flat, $cumulative, $main::opt_disasm);
+      PrintDisassembly($libs, $flat, $cumulative, $main::opt_disasm, $total);
     } elsif ($main::opt_list) {
       PrintListing($libs, $flat, $cumulative, $main::opt_list);
     } elsif ($main::opt_text) {
+      # Make sure the output is empty when have nothing to report
+      # (only matters when --heapcheck is given but we must be
+      # compatible with old branches that did not pass --heapcheck always):
+      if ($total != 0) {
+        printf("Total: %s %s\n", Unparse($total), Units());
+      }
       PrintText($symbols, $flat, $cumulative, $total, -1);
     } elsif ($main::opt_callgrind) {
       PrintCallgrind($calls);
@@ -704,7 +720,7 @@ sub InteractiveCommand {
     my $flat = FlatProfile($reduced);
     my $cumulative = CumulativeProfile($reduced);
 
-    PrintDisassembly($libs, $flat, $cumulative, $routine);
+    PrintDisassembly($libs, $flat, $cumulative, $routine, $total);
     return 1;
   }
   if (m/^ *gv *(.*)/) {
@@ -905,6 +921,7 @@ sub PrintDisassembly {
   my $flat = shift;
   my $cumulative = shift;
   my $disasm_opts = shift;
+  my $total = shift;
 
   foreach my $lib (@{$libs}) {
     my $symbol_table = GetProcedureBoundaries($lib->[0], $disasm_opts);
@@ -913,42 +930,16 @@ sub PrintDisassembly {
       my $start_addr = $symbol_table->{$routine}->[0];
       my $end_addr = $symbol_table->{$routine}->[1];
       # See if there are any samples in this routine
-      my $total_flat = 0;
-      my $total_cum = 0;
       my $length = hex(AddressSub($end_addr, $start_addr));
       my $addr = AddressAdd($start_addr, $offset);
       for (my $i = 0; $i < $length; $i++) {
-        $total_cum += GetEntry($cumulative, $addr);
-        $total_flat += GetEntry($flat, $addr);
-        $addr = AddressInc($addr);
-      }
-
-      # Skip disassembly if there are no samples in routine
-      next if ($total_cum == 0);
-
-      print "ROUTINE ====================== $routine\n";
-      printf "%6s %6s Total %s (flat / cumulative)\n",
-        Unparse($total_flat), Unparse($total_cum), Units();
-
-      my @instructions = Disassemble($lib->[0], $offset,
-                                     $start_addr, $end_addr);
-      foreach my $e (@instructions) {
-        my $location = ($e->[2] >= 0) ? "$e->[1]:$e->[2]" : "";
-        $location =~ s|.*/||;   # Remove directory portion, if any
-        if (length($location) >= 20) {
-          # For long locations, just show the last 20 characters
-          $location = substr($location, -20);
+        if (defined($cumulative->{$addr})) {
+          PrintDisassembledFunction($lib->[0], $offset,
+                                    $routine, $flat, $cumulative,
+                                    $start_addr, $end_addr, $total);
+          last;
         }
-        my $f = GetEntry($flat, $e->[0]);
-        my $c = GetEntry($cumulative, $e->[0]);
-        my $address = $e->[0];
-        $address =~ s/^0x//;
-        printf("%6s %6s %-20s %8s: %6s\n",
-               UnparseAlt($f),
-               UnparseAlt($c),
-               $location,
-               $address,
-               $e->[3]);
+        $addr = AddressInc($addr);
       }
     }
   }
@@ -965,7 +956,7 @@ sub Disassemble {
   my $end_addr = shift;
 
   my $objdump = $obj_tool_map{"objdump"};
-  my $cmd = sprintf("$objdump -d -l --no-show-raw-insn " .
+  my $cmd = sprintf("$objdump -C -d -l --no-show-raw-insn " .
                     "--start-address=0x$start_addr " .
                     "--stop-address=0x$end_addr $prog");
   open(OBJDUMP, "$cmd |") || error("$objdump: $!\n");
@@ -1177,6 +1168,160 @@ sub PrintSource {
     };
   }
   close(FILE);
+}
+
+# Return the source line for the specified file/linenumber.
+# Returns undef if not found.
+sub SourceLine {
+  my $file = shift;
+  my $line = shift;
+
+  # Look in cache
+  if (!defined($main::source_cache{$file})) {
+    if (100 < scalar keys(%main::source_cache)) {
+      # Clear the cache when it gets too big
+      $main::source_cache = ();
+    }
+
+    # Read all lines from the file
+    if (!open(FILE, "<$file")) {
+      print STDERR "$file: $!\n";
+      $main::source_cache{$file} = [];  # Cache the negative result
+      return undef;
+    }
+    my $lines = [];
+    push(@{$lines}, "");	# So we can use 1-based line numbers as indices
+    while (<FILE>) {
+      push(@{$lines}, $_);
+    }
+    close(FILE);
+
+    # Save the lines in the cache
+    $main::source_cache{$file} = $lines;
+  }
+
+  my $lines = $main::source_cache{$file};
+  if (($line < 0) || ($line > $#{$lines})) {
+    return undef;
+  } else {
+    return $lines->[$line];
+  }
+}
+
+# Print disassembly for one routine with interspersed source if available
+sub PrintDisassembledFunction {
+  my $prog = shift;
+  my $offset = shift;
+  my $routine = shift;
+  my $flat = shift;
+  my $cumulative = shift;
+  my $start_addr = shift;
+  my $end_addr = shift;
+  my $total = shift;
+
+  # Disassemble all instructions
+  my @instructions = Disassemble($prog, $offset, $start_addr, $end_addr);
+
+  # Make array of counts per instruction
+  my @flat_count = ();
+  my @cum_count = ();
+  my $flat_total = 0;
+  my $cum_total = 0;
+  foreach my $e (@instructions) {
+    my $c1 = GetEntry($flat, $e->[0]);
+    my $c2 = GetEntry($cumulative, $e->[0]);
+    push(@flat_count, $c1);
+    push(@cum_count, $c2);
+    $flat_total += $c1;
+    $cum_total += $c2;
+  }
+
+  # Print header with total counts
+  printf("ROUTINE ====================== %s\n" .
+         "%6s %6s %s (flat, cumulative) %.1f%% of total\n",
+         ShortFunctionName($routine),
+         Unparse($flat_total),
+         Unparse($cum_total),
+         Units(),
+         ($cum_total * 100.0) / $total);
+
+  # Process instructions in order
+  my $current_file = "";
+  for (my $i = 0; $i <= $#instructions; ) {
+    my $e = $instructions[$i];
+
+    # Print the new file name whenever we switch files
+    if ($e->[1] ne $current_file) {
+      $current_file = $e->[1];
+      my $fname = $current_file;
+      $fname =~ s|^\./||;   # Trim leading "./"
+
+      # Shorten long file names
+      if (length($fname) >= 58) {
+        $fname = "..." . substr($fname, -55);
+      }
+      printf("-------------------- %s\n", $fname);
+    }
+
+    # TODO: Compute range of lines to print together to deal with
+    # small reorderings.
+    my $first_line = $e->[2];
+    my $last_line = $first_line;
+    my %flat_sum = ();
+    my %cum_sum = ();
+    for (my $l = $first_line; $l <= $last_line; $l++) {
+      $flat_sum{$l} = 0;
+      $cum_sum{$l} = 0;
+    }
+
+    # Find run of instructions for this range of source lines
+    my $first_inst = $i;
+    while (($i <= $#instructions) &&
+	   ($instructions[$i]->[2] >= $first_line) &&
+	   ($instructions[$i]->[2] <= $last_line)) {
+      $e = $instructions[$i];
+      $flat_sum{$e->[2]} += $flat_count[$i];
+      $cum_sum{$e->[2]} += $cum_count[$i];
+      $i++;
+    }
+    my $last_inst = $i - 1;
+
+    # Print source lines
+    for (my $l = $first_line; $l <= $last_line; $l++) {
+      my $line = SourceLine($current_file, $l);
+      if (!defined($line)) {
+	$line = "?\n";
+        next;
+      } else {
+        $line =~ s/^\s+//;
+      }
+      printf("%6s %6s %5d: %s",
+	     UnparseAlt($flat_sum{$l}),
+	     UnparseAlt($cum_sum{$l}),
+	     $l,
+	     $line);
+    }
+
+    # Print disassembly
+    for (my $x = $first_inst; $x <= $last_inst; $x++) {
+      my $e = $instructions[$x];
+      my $address = $e->[0];
+      $address = AddressSub($address, $offset);  # Make relative to section
+      $address =~ s/^0x//;
+      $address =~ s/^0*//;
+
+      # Trim symbols
+      my $d = $e->[3];
+      while ($d =~ s/\([^()]*\)(\s*const)?//g) { }   # Argument types
+      while ($d =~ s/(\w+)<[^<>]*>/$1/g)  { }    # Remove template arguments
+
+      printf("%6s %6s    %8s: %6s\n",
+	     UnparseAlt($flat_count[$x]),
+	     UnparseAlt($cum_count[$x]),
+	     $address,
+             $d);
+    }
+  }
 }
 
 # Print DOT graph
@@ -1582,6 +1727,7 @@ sub RemoveUninterestingFrames {
     foreach my $name ('ProfileData::Add',           # historical
 		      'ProfileData::prof_handler',  # historical
 		      'CpuProfiler::prof_handler',
+                      '__FRAME_END__',
 		      '__pthread_sighandler',
 		      '__restore') {
       $skip{$name} = 1;
@@ -2955,68 +3101,88 @@ sub ShortFunctionName {
 
 ##### Miscellaneous #####
 
-# Find the right versions of the above object tools to use.  The argument
-# is the program file being analyzed, and should be an ELF 32-bit or ELF
-# 64-bit executable file.  If it is, we select the default tools location
-# based on that; otherwise, we'll emit a warning and take the user's
-# defaults.
+# Find the right versions of the above object tools to use.  The
+# argument is the program file being analyzed, and should be an ELF
+# 32-bit or ELF 64-bit executable file.  The location of the tools
+# is determined by considering the following options in this order:
+#   1) --tools option, if set
+#   2) PPROF_TOOLS environment variable, if set
+#   3) otherwise, the latest installed crosstool under /usr/crosstool
+# It is a fatal error if --tools and PPROF_TOOLS are not specified and no
+# tools exist under /usr/crosstool.
 sub ConfigureObjTools {
   my $prog_file = shift;
 
-  # Figure out the right default pathname prefix based on the program file
-  # type:
-  my $default_prefix = "/usr/bin/";
+  # Check for the existence of $prog_file because /usr/bin/file does not
+  # predictably return error status in prod.
+  (-e $prog_file)  || error("$prog_file does not exist.\n");
+
   # Follow symlinks (at least for systems where "file" supports that)
   my $file_type = `/usr/bin/file -L $prog_file 2>/dev/null || /usr/bin/file $prog_file`;
-  if ($file_type !~ /executable/) {
-    warn "WARNING: program $prog_file is apparently not an executable\n";
-    # Don't change the default prefix.
-  } elsif ($file_type =~ /64-bit/) {
+  if ($file_type =~ /64-bit/) {
     # Change $address_length to 16 if the program file is ELF 64-bit.
     # We can't detect this from many (most?) heap or lock contention
     # profiles, since the actual addresses referenced are generally in low
     # memory even for 64-bit programs.
-    $address_length = 16;
+    $address_length = 16; 
   }
 
   # Go fill in %obj_tool_map with the pathnames to use:
   foreach my $tool (keys %obj_tool_map) {
-    $obj_tool_map{$tool} = ConfigureTool($obj_tool_map{$tool},
-					 $default_prefix);
+    $obj_tool_map{$tool} = ConfigureTool($obj_tool_map{$tool}, 
+                                         LatestCrosstoolPrefix());
   }
 }
 
+# Return the prefix of the latest 64-bit crosstool available in
+# /usr/crosstool.  64-bit (x86_64) utilities are used because they
+# handle both 32-bit and 64-bit binaries.
+sub LatestCrosstoolPrefix {
+  my $prefix = "";
+  my $latest_version = 0;
+  for my $gcc (glob("/usr/crosstool/v*/gcc-*/x86_64*/bin/*-gcc")) {
+    if (($gcc =~ m{/usr/crosstool/v([0-9]+)}) &&
+        ($1 > $latest_version)) {
+      $latest_version = $1;
+      $prefix = $gcc;
+      $prefix =~ s/gcc$//;
+    }
+  }
+  return $prefix;
+}
+
+# Returns the path of a caller-specified object tool.  If --tools or
+# PPROF_TOOLS are specified, then returns the full path to the tool
+# with that prefix.  Otherwise, returns the path of the tool in the
+# latest installed crosstool version.  Raises a fatal error if the
+# tool cannot be found in these directories.
 sub ConfigureTool {
   my $tool = shift;
-  my $prefix = shift;
+  my $crosstool_prefix = shift;
   my $path;
 
-  if ($main::opt_debug) {
-    print STDERR "Configuring '$tool' with default prefix '$prefix'\n";
-  }
-
-  # Try a specific prefix specified by the user:
   if ($main::opt_tools ne "") {
+    # Use a prefix specified by the --tools option...
     $path = $main::opt_tools . $tool;
-    if ($main::opt_debug) { print STDERR "  (a) Trying '$path'\n"; }
-    if (-x $path) { return $path; }
+    if (!-x $path) {
+      error("No '$tool' found with prefix specified by --tools $main::opt_tools\n");
+    }
+  } elsif (exists $ENV{"PPROF_TOOLS"} &&
+           $ENV{"PPROF_TOOLS"} ne "") {
+    #... or specified with the PPROF_TOOLS environment variable...
+    $path = $ENV{"PPROF_TOOLS"} . $tool;
+    if (!-x $path) {
+      error("No '$tool' found with prefix specified by PPROF_TOOLS=$ENV{PPROF_TOOLS}\n");
+    }
+  } else {
+    # ... otherwise use the latest crosstool.
+    $path = $crosstool_prefix . $tool;
+    if ($crosstool_prefix eq "" || !-x $path) {
+      error("No '$tool' found in /usr/crosstool.  Specify prefix for object tool pathnames with --tools.\n");
+    }
   }
-
-  # Try the default prefix passed to us:
-  $path = $prefix . $tool;
-  if ($main::opt_debug) { print STDERR "  (b) Trying '$path'\n"; }
-  if (-x $path) { return $path; }
-
-  # Try the normal system default (/usr/bin/):
-  if ($prefix ne "/usr/bin/") {
-    $path = "/usr/bin/$tool";
-    if ($main::opt_debug) { print STDERR "  (c) Trying '$path'\n"; }
-    if (-x $path) { return $path; }
-  }
-
-  # If all else fails, hope the bare toolname works:
-  if ($main::opt_debug) { print STDERR "  Returning '$tool'\n"; }
-  return $tool;
+  if ($main::opt_debug) { print STDERR "Using '$path' for '$tool'.\n"; }
+  return $path;
 }
 
 sub cleanup {
@@ -3068,6 +3234,13 @@ sub GetProcedureBoundariesViaNm {
     if (m/^([0-9a-f]+) . (..*)/) {
       my $start_val = $1;
       my $this_routine = $2;
+
+      # Tag this routine with the starting address in case the image
+      # has multiple occurrences of this routine.  We use a syntax
+      # that resembles template paramters that are automatically
+      # stripped out by ShortFunctionName()
+      $this_routine .= "<$start_val>";
+
       if (defined($routine) && $routine =~ m/$regexp/) {
         $symbol_table->{$routine} = [HexExtend($last_start),
 				     HexExtend($start_val)];
@@ -3330,3 +3503,4 @@ sub RunUnitTests {
   }
   exit ($error_count);
 }
+

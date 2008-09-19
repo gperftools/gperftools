@@ -70,7 +70,9 @@ for a given run of an executable:</p>
        <code>HeapProfilerStart()</code> will take
        the profile-filename-prefix as an argument.  You can then use
        <code>HeapProfilerDump()</code> or
-       <code>GetHeapProfile()</code> to examine the profile.</p>
+       <code>GetHeapProfile()</code> to examine the profile.
+       In case it's useful, IsHeapProfilerRunning() will tell you
+       whether you've already called HeapProfilerStart() or not.</p>
 </ol>
 
 
@@ -80,7 +82,7 @@ and is thus not usable -- for setuid programs.</p>
 <H2>Modifying Runtime Behavior</H2>
 
 <p>You can more finely control the behavior of the heap profiler via
-commandline flags.</p>
+environment variables.</p>
 
 <table frame=box rules=sides cellpadding=5 width=100%>
 

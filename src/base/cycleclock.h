@@ -32,6 +32,14 @@
 //    A CycleClock tells you the current time in Cycles.  The "time"
 //    is actually time since power-on.  This is like time() but doesn't
 //    involve a system call and is much more precise.
+//
+// NOTE: Not all cpu/platform/kernel combinations guarantee that this
+// clock increments at a constant rate or is synchronized across all logical
+// cpus in a system.
+//
+// Also, in some out of order CPU implementations, the CycleClock is not 
+// serializing. So if you're trying to count at cycles granularity, your
+// data might be inaccurate due to out of order instruction execution.
 // ----------------------------------------------------------------------
 
 #ifndef GOOGLE_BASE_CYCLECLOCK_H_

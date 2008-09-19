@@ -125,4 +125,7 @@
 #define EnvToInt64(envname, dflt)  \
   (!getenv(envname) ? (dflt) : strtoll(getenv(envname), NULL, 10))
 
+#define EnvToDouble(envname, dflt)  \
+  (!getenv(envname) ? (dflt) : strtod(getenv(envname), NULL))
+
 #endif  // BASE_COMMANDLINEFLAGS_H_

@@ -64,6 +64,22 @@ using std::string;
 
 namespace {
 
+// Re-runs fn until it doesn't cause EINTR.
+#define NO_INTR(fn)   do {} while ((fn) < 0 && errno == EINTR)
+
+// Thin wrapper around a file descriptor so that the file descriptor
+// gets closed for sure.
+struct FileDescriptor {
+  const int fd_;
+  explicit FileDescriptor(int fd) : fd_(fd) {}
+  ~FileDescriptor() {
+    if (fd_ >= 0) {
+      NO_INTR(close(fd_));
+    }
+  }
+  int get() { return fd_; }
+};
+
 // must be the same as with ProfileData::Slot.
 typedef uintptr_t ProfileDataSlot;
 
@@ -84,16 +100,27 @@ class ProfileDataChecker {
   string filename() const { return filename_; }
 
   void Check(const ProfileDataSlot* slots, int num_slots) {
-    size_t num_bytes = num_slots * sizeof slots[0];
-    char* filedata = new char[num_bytes];
+    CheckWithSkips(slots, num_slots, NULL, 0);
+  }
 
-    int fd = open(filename_.c_str(), O_RDONLY);
-    EXPECT_GE(fd, 0);
-    ssize_t numread = read(fd, filedata, num_bytes);
-    EXPECT_EQ(numread, num_bytes);
-    EXPECT_EQ(0, memcmp(slots, filedata, num_bytes));
-    close(fd);
+  void CheckWithSkips(const ProfileDataSlot* slots, int num_slots,
+                      const int* skips, int num_skips) {
+    FileDescriptor fd(open(filename_.c_str(), O_RDONLY));
+    CHECK_GE(fd.get(), 0);
 
+    ProfileDataSlot* filedata = new ProfileDataSlot[num_slots];
+    size_t expected_bytes = num_slots * sizeof filedata[0];
+    ssize_t bytes_read = read(fd.get(), filedata, expected_bytes);
+    CHECK_EQ(expected_bytes, bytes_read);
+
+    for (int i = 0; i < num_slots; i++) {
+      if (num_skips > 0 && *skips == i) {
+        num_skips--;
+        skips++;
+        continue;
+      }
+      CHECK_EQ(slots[i], filedata[i]);  // "first mismatch at slot " << i;
+    }
     delete[] filedata;
   }
 
@@ -129,6 +156,7 @@ class ProfileDataTest {
   // The tests to run
   void OpsWhenStopped();
   void StartStopEmpty();
+  void StartStopNoOptionsEmpty();
   void StartWhenStarted();
   void StartStopEmpty2();
   void CollectOne();
@@ -192,11 +220,34 @@ TEST_F(ProfileDataTest, StartStopEmpty) {
   };
 
   ExpectStopped();
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), frequency));
+  ProfileData::Options options;
+  options.set_frequency(frequency);
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
   collector_.Stop();
   ExpectStopped();
   checker_.Check(slots, arraysize(slots));
+}
+
+// Start and Stop with no options, collecting no samples.  Verify
+// output contents.
+TEST_F(ProfileDataTest, StartStopNoOptionsEmpty) {
+  // We're not requesting a specific period, implementation can do
+  // whatever it likes.
+  ProfileDataSlot slots[] = {
+    0, 3, 0, 0 /* skipped */, 0,        // binary header
+    0, 1, 0                             // binary trailer
+  };
+  int slots_to_skip[] = { 3 };
+
+  ExpectStopped();
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(),
+                               ProfileData::Options()));
+  ExpectRunningSamples(0);
+  collector_.Stop();
+  ExpectStopped();
+  checker_.CheckWithSkips(slots, arraysize(slots),
+                          slots_to_skip, arraysize(slots_to_skip));
 }
 
 // Start after already started.  Should return false and not impact
@@ -208,12 +259,15 @@ TEST_F(ProfileDataTest, StartWhenStarted) {
     0, 1, 0                             // binary trailer
   };
 
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), frequency));
+  ProfileData::Options options;
+  options.set_frequency(frequency);
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
 
   ProfileData::State state_before;
   collector_.GetCurrentState(&state_before);
 
-  CHECK(!collector_.Start("foobar", frequency * 2));
+  options.set_frequency(frequency * 2);
+  CHECK(!collector_.Start("foobar", options));
 
   ProfileData::State state_after;
   collector_.GetCurrentState(&state_after);
@@ -233,7 +287,9 @@ TEST_F(ProfileDataTest, StartStopEmpty2) {
   };
 
   ExpectStopped();
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), frequency));
+  ProfileData::Options options;
+  options.set_frequency(frequency);
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
   collector_.Stop();
   ExpectStopped();
@@ -249,7 +305,9 @@ TEST_F(ProfileDataTest, CollectOne) {
   };
 
   ExpectStopped();
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), frequency));
+  ProfileData::Options options;
+  options.set_frequency(frequency);
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
 
   const void *trace[] = { V(100), V(101), V(102), V(103), V(104) };
@@ -270,7 +328,9 @@ TEST_F(ProfileDataTest, CollectTwoMatching) {
   };
 
   ExpectStopped();
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), frequency));
+  ProfileData::Options options;
+  options.set_frequency(frequency);
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
 
   for (int i = 0; i < 2; ++i) {
@@ -294,7 +354,9 @@ TEST_F(ProfileDataTest, CollectTwoFlush) {
   };
 
   ExpectStopped();
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), frequency));
+  ProfileData::Options options;
+  options.set_frequency(frequency);
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
 
   const void *trace[] = { V(100), V(201), V(302), V(403), V(504) };

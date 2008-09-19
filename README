@@ -142,6 +142,21 @@ win32's malloc.
   http://gaiacrtn.free.fr/articles/win32perftools.html
 
 
+OLD SYSTEM ISSUES
+-----------------
+
+When compiling perftools on some old systems, like RedHat 8, you may
+get an error like this:
+    ___tls_get_addr: symbol not found
+
+This means that you have a system where some parts are updated enough
+to support Thread Local Storage, but others are not.  The perftools
+configure script can't always detect this kind of case, leading to
+that error.  To fix it, just comment out (or delete) the line
+   #define HAVE_TLS 1
+in your config.h file before building.
+
+
 64-BIT ISSUES
 -------------
 

@@ -42,6 +42,7 @@
 
 #include "config.h"
 #include <time.h>   // for time_t
+#include <stdint.h>
 #include "base/basictypes.h"
 
 // A class that accumulates profile samples and writes them to a file.
@@ -83,19 +84,35 @@ class ProfileData {
     int      samples_gathered;    // Number of samples gathered to far (or 0)
   };
 
+  class Options {
+   public:
+    Options();
+
+    // Get and set the sample frequency.
+    int frequency() const {
+      return frequency_;
+    }
+    void set_frequency(int frequency) {
+      frequency_ = frequency;
+    }
+
+   private:
+    int      frequency_;                  // Sample frequency.
+  };
+
   static const int kMaxStackDepth = 64;  // Max stack depth stored in profile
 
   ProfileData();
   ~ProfileData();
 
   // If data collection is not already enabled start to collect data
-  // into fname.  The data includes the frequency of samples, as
-  // provided by 'frequency'.
+  // into fname.  Parameters related to this profiling run are specified
+  // by 'options'.
   //
   // Returns true if data collection could be started, otherwise (if an
   // error occurred or if data collection was already enabled) returns
   // false.
-  bool Start(const char* fname, int frequency);
+  bool Start(const char *fname, const Options& options);
 
   // If data collection is enabled, stop data collection and write the
   // data to disk.

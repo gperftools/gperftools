@@ -57,6 +57,19 @@ Even with the use of libunwind, there are still known problems with
 stack unwinding on 64-bit systems, particularly x86-64.  See the
 "64-BIT ISSUES" section in README.
 
+*** NOTE FOR ___tls_get_addr ERROR
+
+When compiling perftools on some old systems, like RedHat 8, you may
+get an error like this:
+    ___tls_get_addr: symbol not found
+
+This means that you have a system where some parts are updated enough
+to support Thread Local Storage, but others are not.  The perftools
+configure script can't always detect this kind of case, leading to
+that error.  To fix it, just uncomment the line
+   #define HAVE_TLS 1
+in your config.h file before building.
+
 
 *** COMPILING ON NON-LINUX SYSTEMS
 
@@ -164,8 +177,8 @@ above, by linking in libtcmalloc_minimal.
    not yet implemented (see TODOs in src/windows/port.cc if you're
    interested in playing around with this).  But as in other ports,
    the basic tcmalloc library functionality, overriding malloc and new
-   and such, is working fine, both with VC++ 7.1 (Visual Studio 2003)
-   and VC++ 8.0 (Visual Studio 2005).  See README.windows for
+   and such, is working fine at least with VC++ 8.0 (Visual Studio
+   2005) when compiled in debug mode.  See README.windows for
    instructions on how to install on Windows using Visual Studio.
 
    This Windows functionality is also available using MinGW and Msys.

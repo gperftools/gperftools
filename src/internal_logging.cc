@@ -37,24 +37,45 @@
 #include <unistd.h>    // for write()
 #endif
 #include <string.h>
+#include <google/malloc_extension.h>
 #include "internal_logging.h"
 
-void TCMalloc_MESSAGE(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  char buf[800];
-  vsnprintf(buf, sizeof(buf), format, ap);
-  va_end(ap);
+static const int kLogBufSize = 800;
+
+void TCMalloc_MESSAGE(const char* filename,
+                      int line_number,
+                      const char* format, ...) {
+  char buf[kLogBufSize];
+  const int n = snprintf(buf, sizeof(buf), "%s:%d] ", filename, line_number);
+  if (n < kLogBufSize) {
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(buf + n, kLogBufSize - n, format, ap);
+    va_end(ap);
+  }
   write(STDERR_FILENO, buf, strlen(buf));
 }
 
-void TCMalloc_CRASH(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  char buf[800];
-  vsnprintf(buf, sizeof(buf), format, ap);
-  va_end(ap);
+static const int kStatsBufferSize = 16 << 10;
+static char stats_buffer[kStatsBufferSize] = { 0 };
+
+void TCMalloc_CRASH(bool dump_stats,
+                    const char* filename,
+                    int line_number,
+                    const char* format, ...) {
+  char buf[kLogBufSize];
+  const int n = snprintf(buf, sizeof(buf), "%s:%d] ", filename, line_number);
+  if (n < kLogBufSize) {
+    va_list ap;
+    va_start(ap, format);
+    vsnprintf(buf + n, kLogBufSize - n, format, ap);
+    va_end(ap);
+  }
   write(STDERR_FILENO, buf, strlen(buf));
+  if (dump_stats) {
+    MallocExtension::instance()->GetStats(stats_buffer, kStatsBufferSize);
+    write(STDERR_FILENO, stats_buffer, strlen(stats_buffer));
+  }
 
   abort();
 }

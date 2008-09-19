@@ -45,30 +45,42 @@
 // Safe debugging routine: we write directly to the stderr file
 // descriptor and avoid FILE buffering because that may invoke
 // malloc()
-extern void TCMalloc_MESSAGE(const char* format, ...)
+extern void TCMalloc_MESSAGE(const char* filename,
+                             int line_number,
+                             const char* format, ...)
 #ifdef HAVE___ATTRIBUTE__
-  __attribute__ ((__format__ (__printf__, 1, 2)))
+  __attribute__ ((__format__ (__printf__, 3, 4)))
 #endif
 ;
 
 // Short form for convenience
-#define MESSAGE TCMalloc_MESSAGE
+#define MESSAGE(format, ...) \
+  TCMalloc_MESSAGE(__FILE__, __LINE__, format, __VA_ARGS__)
 
-// Dumps the specified message and then calls abort()
-extern void TCMalloc_CRASH(const char* format, ...)
+// Dumps the specified message and then calls abort().  If
+// "dump_stats" is specified, the first call will also dump the
+// tcmalloc stats.
+extern void TCMalloc_CRASH(bool dump_stats,
+                           const char* filename,
+                           int line_number,
+                           const char* format, ...)
 #ifdef HAVE___ATTRIBUTE__
-  __attribute__ ((__format__ (__printf__, 1, 2)))
+  __attribute__ ((__format__ (__printf__, 4, 5)))
 #endif
 ;
 
-#define CRASH TCMalloc_CRASH
+#define CRASH(format, ...) \
+  TCMalloc_CRASH(false, __FILE__, __LINE__, format, __VA_ARGS__)
+
+#define CRASH_WITH_STATS(format, ...) \
+  TCMalloc_CRASH(true, __FILE__, __LINE__, format, __VA_ARGS__)
 
 // Like assert(), but executed even in NDEBUG mode
 #undef CHECK_CONDITION
 #define CHECK_CONDITION(cond)                                            \
 do {                                                                     \
   if (!(cond)) {                                                         \
-    CRASH("%s:%d: assertion failed: %s\n", __FILE__, __LINE__, #cond);   \
+    CRASH("assertion failed: %s\n", #cond);   \
   }                                                                      \
 } while (0)
 

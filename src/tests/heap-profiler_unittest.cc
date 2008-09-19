@@ -40,23 +40,29 @@
 #include "config_for_unittests.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <fcntl.h>                  // for mkdir()
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>                 // for fork()
 #endif
 #include <sys/wait.h>               // for wait()
+#include <string>
+#include "base/basictypes.h"
+#include "base/logging.h"
 #include <google/heap-profiler.h>
+
+using std::string;
 
 static const int kMaxCount = 100000;
 int* g_array[kMaxCount];              // an array of int-vectors
 
-static void Allocate(int start, int end, int size) {
+static ATTRIBUTE_NOINLINE void Allocate(int start, int end, int size) {
   for (int i = start; i < end; ++i) {
     if (i < kMaxCount)
       g_array[i] = new int[size];
   }
 }
 
-static void Allocate2(int start, int end, int size) {
+static ATTRIBUTE_NOINLINE void Allocate2(int start, int end, int size) {
   for (int i = start; i < end; ++i) {
     if (i < kMaxCount)
       g_array[i] = new int[size];
@@ -70,6 +76,25 @@ static void Deallocate(int start, int end) {
   }
 }
 
+static void TestHeapProfilerStartStopIsRunning() {
+  // If you run this with whole-program heap-profiling on, than
+  // IsHeapProfilerRunning should return true.
+  if (!IsHeapProfilerRunning()) {
+    const char* tmpdir = getenv("TMPDIR");
+    if (tmpdir == NULL)
+      tmpdir = "/tmp";
+    mkdir(tmpdir, 0755);     // if necessary
+    HeapProfilerStart((string(tmpdir) + "/start_stop").c_str());
+    CHECK(IsHeapProfilerRunning());
+
+    Allocate(0, 40, 100);
+    Deallocate(0, 40);
+
+    HeapProfilerStop();
+    CHECK(!IsHeapProfilerRunning());
+  }
+}
+
 int main(int argc, char** argv) {
   if (argc > 2 || (argc == 2 && argv[1][0] == '-')) {
     printf("USAGE: %s [number of children to fork]\n", argv[0]);
@@ -79,6 +104,8 @@ int main(int argc, char** argv) {
   if (argc == 2) {
     num_forks = atoi(argv[1]);
   }
+
+  TestHeapProfilerStartStopIsRunning();
 
   Allocate(0, 40, 100);
   Deallocate(0, 40);
@@ -106,6 +133,8 @@ int main(int argc, char** argv) {
         wait(NULL);       // we'll let the kids run one at a time
     }
   }
+
+  printf("DONE.\n");
 
   return 0;
 }

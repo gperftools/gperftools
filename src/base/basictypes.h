@@ -177,9 +177,11 @@ struct CompileAssert {
     reinterpret_cast<char*>(16))
 
 #ifdef HAVE___ATTRIBUTE__
-# define ATTRIBUTE_WEAK  __attribute__((weak))
+# define ATTRIBUTE_WEAK      __attribute__((weak))
+# define ATTRIBUTE_NOINLINE  __attribute__((noinline))
 #else
 # define ATTRIBUTE_WEAK
+# define ATTRIBUTE_NOINLINE
 #endif
 
 // Section attributes are supported for both ELF and Mach-O, but in

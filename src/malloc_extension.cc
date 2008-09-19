@@ -43,6 +43,7 @@
 #endif
 #include <string>
 #include HASH_SET_H          // defined in config.h
+#include "base/dynamic_annotations.h"
 #include "google/malloc_extension.h"
 #include "maybe_threads.h"
 
@@ -141,7 +142,11 @@ MallocExtension* MallocExtension::instance() {
 
 void MallocExtension::Register(MallocExtension* implementation) {
   perftools_pthread_once(&module_init, InitModule);
-  current_instance = implementation;
+  // When running under valgrind, our custom malloc is replaced with
+  // valgrind's one and malloc extensions will not work.
+  if (!RunningOnValgrind()) {
+    current_instance = implementation;
+  }
 }
 
 // -----------------------------------------------------------------------
@@ -308,3 +313,28 @@ void MallocExtension::GetHeapGrowthStacks(string* result) {
   // TODO(menage) Get this working in google-perftools
   //DumpAddressMap(DebugStringWriter, result);
 }
+
+// These are C shims that work on the current instance.
+
+#define C_SHIM(fn, retval, paramlist, arglist)          \
+  extern "C" retval MallocExtension_##fn paramlist {    \
+    return MallocExtension::instance()->fn arglist;     \
+  }
+
+C_SHIM(VerifyAllMemory, bool, (), ());
+C_SHIM(VerifyNewMemory, bool, (void* p), (p));
+C_SHIM(VerifyArrayNewMemory, bool, (void* p), (p));
+C_SHIM(VerifyMallocMemory, bool, (void* p), (p));
+C_SHIM(MallocMemoryStats, bool,
+       (int* blocks, size_t* total, int histogram[kMallocHistogramSize]),
+       (blocks, total, histogram));
+
+C_SHIM(GetStats, void,
+       (char* buffer, int buffer_length), (buffer, buffer_length));
+C_SHIM(GetNumericProperty, bool,
+       (const char* property, size_t* value), (property, value));
+C_SHIM(SetNumericProperty, bool,
+       (const char* property, size_t value), (property, value));
+
+C_SHIM(MarkThreadIdle, void, (), ());
+C_SHIM(ReleaseFreeMemory, void, (), ());

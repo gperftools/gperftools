@@ -123,33 +123,35 @@ using base::internal::mremap_hook_;
 using base::internal::sbrk_hook_;
 
 
-// static
-MallocHook::NewHook MallocHook::SetNewHook(NewHook hook) {
+// These are available as C bindings as well as C++, hence their
+// definition outside the MallocHook class.
+extern "C"
+MallocHook_NewHook MallocHook_SetNewHook(MallocHook_NewHook hook) {
   return new_hook_.Exchange(hook);
 }
 
-// static
-MallocHook::DeleteHook MallocHook::SetDeleteHook(DeleteHook hook) {
+extern "C"
+MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook) {
   return delete_hook_.Exchange(hook);
 }
 
-// static
-MallocHook::MmapHook MallocHook::SetMmapHook(MmapHook hook) {
+extern "C"
+MallocHook_MmapHook MallocHook_SetMmapHook(MallocHook_MmapHook hook) {
   return mmap_hook_.Exchange(hook);
 }
 
-// static
-MallocHook::MunmapHook MallocHook::SetMunmapHook(MunmapHook hook) {
+extern "C"
+MallocHook_MunmapHook MallocHook_SetMunmapHook(MallocHook_MunmapHook hook) {
   return munmap_hook_.Exchange(hook);
 }
 
-// static
-MallocHook::MremapHook MallocHook::SetMremapHook(MremapHook hook) {
+extern "C"
+MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook) {
   return mremap_hook_.Exchange(hook);
 }
 
-// static
-MallocHook::SbrkHook MallocHook::SetSbrkHook(SbrkHook hook) {
+extern "C"
+MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook) {
   return sbrk_hook_.Exchange(hook);
 }
 
@@ -245,8 +247,8 @@ static inline void CheckInHookCaller() {
 // We can improve behavior/compactness of this function
 // if we pass a generic test function (with a generic arg)
 // into the implementations for GetStackTrace instead of the skip_count.
-int MallocHook::GetCallerStackTrace(void** result, int max_depth,
-                                    int skip_count) {
+extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
+                                              int skip_count) {
 #if defined(NO_TCMALLOC_SAMPLES)
   return 0;
 #elif !defined(HAVE_ATTRIBUTE_SECTION_START)

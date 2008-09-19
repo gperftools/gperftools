@@ -51,6 +51,9 @@ extern "C" void AnnotateCondVarSignal(const char *file, int line,
                                       const volatile void *cv){}
 extern "C" void AnnotateCondVarSignalAll(const char *file, int line,
                                          const volatile void *cv){}
+extern "C" void AnnotatePublishMemoryRange(const char *file, int line,
+                                           const volatile void *address,
+                                           long size){}
 extern "C" void AnnotatePCQCreate(const char *file, int line,
                                   const volatile void *pcq){}
 extern "C" void AnnotatePCQDestroy(const char *file, int line,
@@ -74,5 +77,11 @@ extern "C" void AnnotateTraceMemory(const char *file, int line,
                                     const volatile void *arg){}
 extern "C" void AnnotateIgnoreReadsBegin(const char *file, int line){}
 extern "C" void AnnotateIgnoreReadsEnd(const char *file, int line){}
+extern "C" void AnnotateIgnoreWritesBegin(const char *file, int line){}
+extern "C" void AnnotateIgnoreWritesEnd(const char *file, int line){}
 extern "C" void AnnotateNoOp(const char *file, int line,
                              const volatile void *arg){}
+
+// When running under valgrind, this function will be intercepted
+// and a non-zero value will be returned.
+extern "C" int RunningOnValgrind() { return 0; }

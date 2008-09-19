@@ -212,7 +212,7 @@ am__libtcmalloc_la_SOURCES_DIST = src/internal_logging.cc \
 	src/malloc_hook.cc src/malloc_extension.cc \
 	src/maybe_threads.cc src/memory_region_map.cc \
 	src/heap-profiler.cc src/heap-profile-table.cc \
-	src/heap-checker.cc src/base/linuxthreads.c \
+	src/heap-checker.cc src/base/linuxthreads.cc \
 	src/base/thread_lister.c src/base/low_level_alloc.cc \
 	src/internal_logging.h src/system-alloc.h src/pagemap.h \
 	src/addressmap-inl.h src/malloc_hook-inl.h \
@@ -228,9 +228,9 @@ am__libtcmalloc_la_SOURCES_DIST = src/internal_logging.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h src/base/logging.h \
 	src/base/dynamic_annotations.h src/google/malloc_hook.h \
-	src/google/malloc_extension.h src/google/heap-profiler.h \
-	src/google/heap-checker.h src/google/stacktrace.h \
-	src/heap-checker-bcad.cc
+	src/google/malloc_hook_c.h src/google/malloc_extension.h \
+	src/google/heap-profiler.h src/google/heap-checker.h \
+	src/google/stacktrace.h src/heap-checker-bcad.cc
 @MINGW_FALSE@am__objects_5 = libtcmalloc_la-system-alloc.lo
 @MINGW_FALSE@am__objects_6 = libtcmalloc_la-maybe_threads.lo
 @MINGW_FALSE@am__objects_7 = $(am__objects_1) $(am__objects_1)
@@ -245,8 +245,8 @@ am__libtcmalloc_la_SOURCES_DIST = src/internal_logging.cc \
 @MINGW_FALSE@	libtcmalloc_la-memory_region_map.lo \
 @MINGW_FALSE@	libtcmalloc_la-heap-profiler.lo \
 @MINGW_FALSE@	libtcmalloc_la-heap-profile-table.lo \
-@MINGW_FALSE@	libtcmalloc_la-heap-checker.lo linuxthreads.lo \
-@MINGW_FALSE@	thread_lister.lo \
+@MINGW_FALSE@	libtcmalloc_la-heap-checker.lo \
+@MINGW_FALSE@	libtcmalloc_la-linuxthreads.lo thread_lister.lo \
 @MINGW_FALSE@	libtcmalloc_la-low_level_alloc.lo \
 @MINGW_FALSE@	$(am__objects_8) \
 @MINGW_FALSE@	libtcmalloc_la-heap-checker-bcad.lo
@@ -265,7 +265,8 @@ am__libtcmalloc_minimal_la_SOURCES_DIST = src/internal_logging.cc \
 	src/base/atomicops-internals-x86.h src/base/commandlineflags.h \
 	src/base/basictypes.h src/pagemap.h src/malloc_hook-inl.h \
 	src/maybe_threads.h src/google/malloc_hook.h \
-	src/google/malloc_extension.h src/google/stacktrace.h
+	src/google/malloc_hook_c.h src/google/malloc_extension.h \
+	src/google/stacktrace.h
 @MINGW_FALSE@am__objects_9 = libtcmalloc_minimal_la-system-alloc.lo
 @MINGW_FALSE@am__objects_10 = libtcmalloc_minimal_la-maybe_threads.lo
 am__objects_11 = $(am__objects_1)
@@ -390,8 +391,8 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/low_level_alloc.cc src/malloc_hook.cc \
 	src/tests/low_level_alloc_unittest.cc \
 	src/base/low_level_alloc.h src/base/basictypes.h \
-	src/google/malloc_hook.h src/malloc_hook-inl.h \
-	src/base/spinlock.h src/base/atomicops.h \
+	src/google/malloc_hook.h src/google/malloc_hook_c.h \
+	src/malloc_hook-inl.h src/base/spinlock.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
@@ -673,9 +674,9 @@ am__dist_doc_DATA_DIST = AUTHORS COPYING ChangeLog INSTALL NEWS README \
 dist_docDATA_INSTALL = $(INSTALL_DATA)
 DATA = $(dist_doc_DATA)
 am__googleinclude_HEADERS_DIST = src/google/stacktrace.h \
-	src/google/malloc_hook.h src/google/malloc_extension.h \
-	src/google/heap-profiler.h src/google/heap-checker.h \
-	src/google/profiler.h
+	src/google/malloc_hook.h src/google/malloc_hook_c.h \
+	src/google/malloc_extension.h src/google/heap-profiler.h \
+	src/google/heap-checker.h src/google/profiler.h
 googleincludeHEADERS_INSTALL = $(INSTALL_HEADER)
 HEADERS = $(googleinclude_HEADERS)
 ETAGS = etags
@@ -993,6 +994,8 @@ libsysinfo_la_SOURCES = src/base/sysinfo.cc \
 LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/base/basictypes.h \
                                     src/google/malloc_hook.h \
+                                    src/google/malloc_hook_c.h \
+                                    src/google/malloc_hook_c.h \
                                     src/malloc_hook-inl.h \
                                     $(SPINLOCK_INCLUDES) \
                                     $(LOGGING_INCLUDES)
@@ -1064,6 +1067,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/internal_logging.h \
                               src/maybe_threads.h
 
 SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
+                               src/google/malloc_hook_c.h \
                                src/google/malloc_extension.h \
                                src/google/stacktrace.h
 
@@ -1188,6 +1192,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@                      $(LOGGING_INCLUDES)
 
 @MINGW_FALSE@SG_TCMALLOC_INCLUDES = src/google/malloc_hook.h \
+@MINGW_FALSE@                       src/google/malloc_hook_c.h \
 @MINGW_FALSE@                       src/google/malloc_extension.h \
 @MINGW_FALSE@                       src/google/heap-profiler.h \
 @MINGW_FALSE@                       src/google/heap-checker.h \
@@ -1206,7 +1211,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @MINGW_FALSE@                         src/heap-profiler.cc \
 @MINGW_FALSE@                         src/heap-profile-table.cc \
 @MINGW_FALSE@                         src/heap-checker.cc \
-@MINGW_FALSE@                         src/base/linuxthreads.c \
+@MINGW_FALSE@                         src/base/linuxthreads.cc \
 @MINGW_FALSE@                         src/base/thread_lister.c \
 @MINGW_FALSE@                         src/base/low_level_alloc.cc \
 @MINGW_FALSE@                         $(TCMALLOC_INCLUDES) \
@@ -1590,6 +1595,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-heap-profile-table.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-heap-profiler.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-internal_logging.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-linuxthreads.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-low_level_alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-malloc_extension.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_la-malloc_hook.Plo@am__quote@
@@ -1605,7 +1611,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_minimal_la-memfs_malloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_minimal_la-system-alloc.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/libtcmalloc_minimal_la-tcmalloc.Plo@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/linuxthreads.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/logging.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_level_alloc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_level_alloc_unittest.Po@am__quote@
@@ -1670,13 +1675,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
-
-linuxthreads.lo: src/base/linuxthreads.c
-@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT linuxthreads.lo -MD -MP -MF "$(DEPDIR)/linuxthreads.Tpo" -c -o linuxthreads.lo `test -f 'src/base/linuxthreads.c' || echo '$(srcdir)/'`src/base/linuxthreads.c; \
-@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/linuxthreads.Tpo" "$(DEPDIR)/linuxthreads.Plo"; else rm -f "$(DEPDIR)/linuxthreads.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='src/base/linuxthreads.c' object='linuxthreads.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o linuxthreads.lo `test -f 'src/base/linuxthreads.c' || echo '$(srcdir)/'`src/base/linuxthreads.c
 
 thread_lister.lo: src/base/thread_lister.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT thread_lister.lo -MD -MP -MF "$(DEPDIR)/thread_lister.Tpo" -c -o thread_lister.lo `test -f 'src/base/thread_lister.c' || echo '$(srcdir)/'`src/base/thread_lister.c; \
@@ -1866,6 +1864,13 @@ libtcmalloc_la-heap-checker.lo: src/heap-checker.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/heap-checker.cc' object='libtcmalloc_la-heap-checker.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -c -o libtcmalloc_la-heap-checker.lo `test -f 'src/heap-checker.cc' || echo '$(srcdir)/'`src/heap-checker.cc
+
+libtcmalloc_la-linuxthreads.lo: src/base/linuxthreads.cc
+@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -MT libtcmalloc_la-linuxthreads.lo -MD -MP -MF "$(DEPDIR)/libtcmalloc_la-linuxthreads.Tpo" -c -o libtcmalloc_la-linuxthreads.lo `test -f 'src/base/linuxthreads.cc' || echo '$(srcdir)/'`src/base/linuxthreads.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/libtcmalloc_la-linuxthreads.Tpo" "$(DEPDIR)/libtcmalloc_la-linuxthreads.Plo"; else rm -f "$(DEPDIR)/libtcmalloc_la-linuxthreads.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/linuxthreads.cc' object='libtcmalloc_la-linuxthreads.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -c -o libtcmalloc_la-linuxthreads.lo `test -f 'src/base/linuxthreads.cc' || echo '$(srcdir)/'`src/base/linuxthreads.cc
 
 libtcmalloc_la-low_level_alloc.lo: src/base/low_level_alloc.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(libtcmalloc_la_CXXFLAGS) $(CXXFLAGS) -MT libtcmalloc_la-low_level_alloc.lo -MD -MP -MF "$(DEPDIR)/libtcmalloc_la-low_level_alloc.Tpo" -c -o libtcmalloc_la-low_level_alloc.lo `test -f 'src/base/low_level_alloc.cc' || echo '$(srcdir)/'`src/base/low_level_alloc.cc; \

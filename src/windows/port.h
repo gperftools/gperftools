@@ -233,6 +233,12 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 #define random   rand
 #define sleep(t) Sleep(t * 1000)
 
+#define strtoq   _strtoi64
+#define strtouq  _strtoui64
+#define strtoll  _strtoi64
+#define strtoull _strtoui64
+#define atoll    _atoi64
+
 #define __THROW throw()
 
 // ----------------------------------- TCMALLOC-SPECIFIC

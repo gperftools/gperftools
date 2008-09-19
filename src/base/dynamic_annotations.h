@@ -39,8 +39,8 @@
 // Each such annotation is attached to a particular
 // instruction and/or to a particular object (address) in the program.
 //
-// The annotations that should be used by users are macros
-// (e.g. ANNOTATE_NEW_MEMORY).
+// The annotations that should be used by users are macros in all upper-case
+// (e.g., ANNOTATE_NEW_MEMORY).
 //
 // Actual implementation of these macros may differ depending on the
 // dynamic analysis tool being used.
@@ -59,82 +59,100 @@
 // All the annotation macros are in effect only in debug mode.
 #ifndef NDEBUG
 
-  // Report that "lock" has been created.
-  #define ANNOTATE_RWLOCK_CREATE(lock) \
-    AnnotateRWLockCreate(__FILE__, __LINE__, lock)
+  // -------------------------------------------------------------
+  // Annotations useful when implementing condition variables such as CondVar,
+  // using conditional critical sections (Await/LockWhen) and when constructing
+  // user-defined synchronization mechanisms.
+  //
+  // The annotations ANNOTATE_CONDVAR_SIGNAL() and ANNOTATE_CONDVAR_WAIT() can
+  // be used to define happens-before arcs in user-defined synchronization
+  // mechanisms:  the race detector will infer an arc from the former to the
+  // latter when they share the same argument pointer.
 
-  // Report that "lock" is about to be destroyed.
-  #define ANNOTATE_RWLOCK_DESTROY(lock) \
-    AnnotateRWLockDestroy(__FILE__, __LINE__, lock)
-
-  // Report that "lock" has been acquired.
-  // is_w=1 for writer lock, is_w=0 for reader lock.
-  #define ANNOTATE_RWLOCK_ACQUIRED(lock, is_w) \
-    AnnotateRWLockAcquired(__FILE__, __LINE__, lock, is_w)
-
-  // Report that "lock" is about to be relased.
-  #define ANNOTATE_RWLOCK_RELEASED(lock, is_w) \
-    AnnotateRWLockReleased(__FILE__, __LINE__, lock, is_w)
-
-  // Report that wait on 'cv' has succeeded and 'lock' is held.
+  // Report that wait on the condition variable at address "cv" has succeeded
+  // and the lock at address "lock" is held.
   #define ANNOTATE_CONDVAR_LOCK_WAIT(cv, lock) \
     AnnotateCondVarWait(__FILE__, __LINE__, cv, lock)
 
-  // Report that wait on 'cv' has succeeded. Variant w/o lock.
+  // Report that wait on the condition variable at "cv" has succeeded.  Variant
+  // w/o lock.
+  // When used with user-defined synchronization mechanism at address "cv",
+  // indicates that a ANNOTATE_CONDVAR_SIGNAL(cv) "happened-before" this event.
   #define ANNOTATE_CONDVAR_WAIT(cv) \
     AnnotateCondVarWait(__FILE__, __LINE__, cv, NULL)
 
-  // Report that we are about to signal on 'cv'.
+  // Report that we are about to signal on the condition variable at address
+  // "cv".  When used with user-defined synchronization mechanism at address
+  // "cv", indicates that a ANNOTATE_CONDVAR_WAIT(cv) "happened-after" this
+  // event.  This call should be applied to the mutex in critical sections
+  // that make LockWhen() and Await() conditions true.
   #define ANNOTATE_CONDVAR_SIGNAL(cv) \
     AnnotateCondVarSignal(__FILE__, __LINE__, cv)
 
-  // Report that we are about to signal_all on 'cv'.
+  // Report that we are about to signal_all on the condition variable at "cv".
   #define ANNOTATE_CONDVAR_SIGNAL_ALL(cv) \
     AnnotateCondVarSignalAll(__FILE__, __LINE__, cv)
 
-  // Report that "pcq" (ProducerConsumerQueue) has been created.
-  // The ANNOTATE_PCQ_* annotations should be used only for FIFO queues.
-  // For non-FIFO queues use ANNOTATE_CONDVAR_SIGNAL (for put) and
-  // ANNOTATE_CONDVAR_WAIT (for get).
-  #define ANNOTATE_PCQ_CREATE(pcq) \
-    AnnotatePCQCreate(__FILE__, __LINE__, pcq)
+  // Report that the bytes in the range [pointer, pointer+size) are about
+  // to be published safely. The race checker will create a happens-before
+  // arc from the call ANNOTATE_PUBLISH_MEMORY_RANGE(pointer, size) to
+  // subsequent accesses to this memory.
+  #define ANNOTATE_PUBLISH_MEMORY_RANGE(pointer, size) \
+    AnnotatePublishMemoryRange(__FILE__, __LINE__, pointer, size)
 
-  // Report that "pcq" is about to be destroyed.
-  #define ANNOTATE_PCQ_DESTROY(pcq) \
-    AnnotatePCQDestroy(__FILE__, __LINE__, pcq)
-
-  // Report that we are about to put an element into a FIFO queue 'pcq'.
-  #define ANNOTATE_PCQ_PUT(pcq) \
-    AnnotatePCQPut(__FILE__, __LINE__, pcq)
-
-  // Report that we've just got an element from a FIFO queue 'pcq'.
-  #define ANNOTATE_PCQ_GET(pcq) \
-    AnnotatePCQGet(__FILE__, __LINE__, pcq)
-
-  // Report that a new memory 'mem' of size 'size' has been allocated.
-  #define ANNOTATE_NEW_MEMORY(mem, size) \
-    AnnotateNewMemory(__FILE__, __LINE__, mem, size)
-
-  // Report that we expect a race on 'mem'.
-  // To use only in unit tests for a race detector.
-  #define ANNOTATE_EXPECT_RACE(mem, description) \
-    AnnotateExpectRace(__FILE__, __LINE__, mem, description)
-
-  // Report that we may have a benign race on 'mem'.
-  // Insert at the point where 'mem' exists, preferably close to the point
-  // where the race happens.
-  // See also ANNOTATE_BENIGN_RACE_STATIC.
-  #define ANNOTATE_BENIGN_RACE(mem, description) \
-    AnnotateBenignRace(__FILE__, __LINE__, mem, description)
-
-  // Instruct the tool to create a happens-before arc
-  // between mu->Unlock() and mu->Lock().
+  // Instruct the tool to create a happens-before arc between mu->Unlock() and
+  // mu->Lock().  This annotation may slow down the race detector; normally it
+  // is used only when it would be difficult to annotate each of the mutex's
+  // critical sections individually using the annotations above.
   #define ANNOTATE_MUTEX_IS_USED_AS_CONDVAR(mu) \
     AnnotateMutexIsUsedAsCondVar(__FILE__, __LINE__, mu)
 
-  // Request to trace every access to 'arg'.
-  #define ANNOTATE_TRACE_MEMORY(arg) \
-    AnnotateTraceMemory(__FILE__, __LINE__, arg)
+  // -------------------------------------------------------------
+  // Annotations useful when defining memory allocators, or when memory that
+  // was protected in one way starts to be protected in another.
+
+  // Report that a new memory at "address" of size "size" has been allocated.
+  // This might be used when the memory has been retrieved from a free list and
+  // is about to be reused, or when a the locking discipline for a variable
+  // changes.
+  #define ANNOTATE_NEW_MEMORY(address, size) \
+    AnnotateNewMemory(__FILE__, __LINE__, address, size)
+
+  // -------------------------------------------------------------
+  // Annotations useful when defining FIFO queues that transfer data between
+  // threads.
+
+  // Report that the producer-consumer queue (such as ProducerConsumerQueue) at
+  // address "pcq" has been created.  The ANNOTATE_PCQ_* annotations
+  // should be used only for FIFO queues.  For non-FIFO queues use
+  // ANNOTATE_CONDVAR_SIGNAL (for put) and ANNOTATE_CONDVAR_WAIT (for get).
+  #define ANNOTATE_PCQ_CREATE(pcq) \
+    AnnotatePCQCreate(__FILE__, __LINE__, pcq)
+
+  // Report that the queue at address "pcq" is about to be destroyed.
+  #define ANNOTATE_PCQ_DESTROY(pcq) \
+    AnnotatePCQDestroy(__FILE__, __LINE__, pcq)
+
+  // Report that we are about to put an element into a FIFO queue at address
+  // "pcq".
+  #define ANNOTATE_PCQ_PUT(pcq) \
+    AnnotatePCQPut(__FILE__, __LINE__, pcq)
+
+  // Report that we've just got an element from a FIFO queue at address "pcq".
+  #define ANNOTATE_PCQ_GET(pcq) \
+    AnnotatePCQGet(__FILE__, __LINE__, pcq)
+
+  // -------------------------------------------------------------
+  // Annotations that suppress errors.  It is usually better to express the
+  // program's synchronization using the other annotations, but these can
+  // be used when all else fails.
+
+  // Report that we may have a benign race on at "address".
+  // Insert at the point where "address" has been allocated, preferably close
+  // to the point where the race happens.
+  // See also ANNOTATE_BENIGN_RACE_STATIC.
+  #define ANNOTATE_BENIGN_RACE(address, description) \
+    AnnotateBenignRace(__FILE__, __LINE__, address, description)
 
   // Request the analysis tool to ignore all reads in the current thread
   // until ANNOTATE_IGNORE_READS_END is called.
@@ -147,6 +165,65 @@
   // Stop ignoring reads.
   #define ANNOTATE_IGNORE_READS_END() \
     AnnotateIgnoreReadsEnd(__FILE__, __LINE__)
+
+  // Similar to ANNOTATE_IGNORE_READS_BEGIN, but ignore writes.
+  #define ANNOTATE_IGNORE_WRITES_BEGIN() \
+    AnnotateIgnoreWritesBegin(__FILE__, __LINE__)
+
+  // Stop ignoring writes.
+  #define ANNOTATE_IGNORE_WRITES_END() \
+    AnnotateIgnoreWritesEnd(__FILE__, __LINE__)
+
+  // Start ignoring all memory accesses (reads and writes).
+  #define ANNOTATE_IGNORE_READS_AND_WRITES_BEGIN() \
+    do {\
+      ANNOTATE_IGNORE_READS_BEGIN();\
+      ANNOTATE_IGNORE_WRITES_BEGIN();\
+    }while(0)\
+
+  // Stop ignoring all memory accesses.
+  #define ANNOTATE_IGNORE_READS_AND_WRITES_END() \
+    do {\
+      ANNOTATE_IGNORE_WRITES_END();\
+      ANNOTATE_IGNORE_READS_END();\
+    }while(0)\
+
+  // -------------------------------------------------------------
+  // Annotations useful for debugging.
+
+  // Request to trace every access to "address".
+  #define ANNOTATE_TRACE_MEMORY(address) \
+    AnnotateTraceMemory(__FILE__, __LINE__, address)
+
+  // -------------------------------------------------------------
+  // Annotations useful when implementing locks.  They are not
+  // normally needed by modules that merely use locks.
+  // The "lock" argument is a pointer to the lock object.
+
+  // Report that a lock has been created at address "lock".
+  #define ANNOTATE_RWLOCK_CREATE(lock) \
+    AnnotateRWLockCreate(__FILE__, __LINE__, lock)
+
+  // Report that the lock at address "lock" is about to be destroyed.
+  #define ANNOTATE_RWLOCK_DESTROY(lock) \
+    AnnotateRWLockDestroy(__FILE__, __LINE__, lock)
+
+  // Report that the lock at address "lock" has been acquired.
+  // is_w=1 for writer lock, is_w=0 for reader lock.
+  #define ANNOTATE_RWLOCK_ACQUIRED(lock, is_w) \
+    AnnotateRWLockAcquired(__FILE__, __LINE__, lock, is_w)
+
+  // Report that the lock at address "lock" is about to be released.
+  #define ANNOTATE_RWLOCK_RELEASED(lock, is_w) \
+    AnnotateRWLockReleased(__FILE__, __LINE__, lock, is_w)
+
+  // -------------------------------------------------------------
+  // Annotations useful for testing race detectors.
+
+  // Report that we expect a race on the variable at "address".
+  // Use only in unit tests for a race detector.
+  #define ANNOTATE_EXPECT_RACE(address, description) \
+    AnnotateExpectRace(__FILE__, __LINE__, address, description)
 
   // A no-op. Insert where you like to test the interceptors.
   #define ANNOTATE_NO_OP(arg) \
@@ -162,17 +239,23 @@
   #define ANNOTATE_CONDVAR_WAIT(cv) // empty
   #define ANNOTATE_CONDVAR_SIGNAL(cv) // empty
   #define ANNOTATE_CONDVAR_SIGNAL_ALL(cv) // empty
+  #define ANNOTATE_PUBLISH_MEMORY_RANGE(address, size) // empty
+  #define ANNOTATE_PUBLISH_OBJECT(address) // empty
   #define ANNOTATE_PCQ_CREATE(pcq) // empty
   #define ANNOTATE_PCQ_DESTROY(pcq) // empty
   #define ANNOTATE_PCQ_PUT(pcq) // empty
   #define ANNOTATE_PCQ_GET(pcq) // empty
-  #define ANNOTATE_NEW_MEMORY(mem, size) // empty
-  #define ANNOTATE_EXPECT_RACE(mem, description) // empty
-  #define ANNOTATE_BENIGN_RACE(mem, description) // empty
+  #define ANNOTATE_NEW_MEMORY(address, size) // empty
+  #define ANNOTATE_EXPECT_RACE(address, description) // empty
+  #define ANNOTATE_BENIGN_RACE(address, description) // empty
   #define ANNOTATE_MUTEX_IS_USED_AS_CONDVAR(mu) // empty
   #define ANNOTATE_TRACE_MEMORY(arg) // empty
   #define ANNOTATE_IGNORE_READS_BEGIN() // empty
   #define ANNOTATE_IGNORE_READS_END() // empty
+  #define ANNOTATE_IGNORE_WRITES_BEGIN() // empty
+  #define ANNOTATE_IGNORE_WRITES_END() // empty
+  #define ANNOTATE_IGNORE_READS_AND_WRITES_BEGIN() // empty
+  #define ANNOTATE_IGNORE_READS_AND_WRITES_END() // empty
   #define ANNOTATE_NO_OP(arg) // empty
 
 #endif  // NDEBUG
@@ -193,6 +276,9 @@ extern "C" void AnnotateCondVarSignal(const char *file, int line,
                                       const volatile void *cv);
 extern "C" void AnnotateCondVarSignalAll(const char *file, int line,
                                          const volatile void *cv);
+extern "C" void AnnotatePublishMemoryRange(const char *file, int line,
+                                           const volatile void *address,
+                                           long size);
 extern "C" void AnnotatePCQCreate(const char *file, int line,
                                   const volatile void *pcq);
 extern "C" void AnnotatePCQDestroy(const char *file, int line,
@@ -202,13 +288,13 @@ extern "C" void AnnotatePCQPut(const char *file, int line,
 extern "C" void AnnotatePCQGet(const char *file, int line,
                                const volatile void *pcq);
 extern "C" void AnnotateNewMemory(const char *file, int line,
-                                  const volatile void *mem,
+                                  const volatile void *address,
                                   long size);
 extern "C" void AnnotateExpectRace(const char *file, int line,
-                                   const volatile void *mem,
+                                   const volatile void *address,
                                    const char *description);
 extern "C" void AnnotateBenignRace(const char *file, int line,
-                                   const volatile void *mem,
+                                   const volatile void *address,
                                    const char *description);
 extern "C" void AnnotateMutexIsUsedAsCondVar(const char *file, int line,
                                             const volatile void *mu);
@@ -216,38 +302,50 @@ extern "C" void AnnotateTraceMemory(const char *file, int line,
                                     const volatile void *arg);
 extern "C" void AnnotateIgnoreReadsBegin(const char *file, int line);
 extern "C" void AnnotateIgnoreReadsEnd(const char *file, int line);
+extern "C" void AnnotateIgnoreWritesBegin(const char *file, int line);
+extern "C" void AnnotateIgnoreWritesEnd(const char *file, int line);
 extern "C" void AnnotateNoOp(const char *file, int line,
                              const volatile void *arg);
 
+#ifndef NDEBUG
 
-// ANNOTATE_UNPROTECTED_READ is the preferred way to annotate racey reads.
-//
-// Instead of doing
-//    ANNOTATE_IGNORE_READS_BEGIN();
-//    ... = x;
-//    ANNOTATE_IGNORE_READS_END();
-// one can use
-//    ... = ANNOTATE_UNPROTECTED_READ(x);
-template <class T>
-inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x) {
-  ANNOTATE_IGNORE_READS_BEGIN();
-  T res = x;
-  ANNOTATE_IGNORE_READS_END();
-  return res;
-}
-
-// Apply ANNOTATE_BENIGN_RACE to a static variable.
-#define ANNOTATE_BENIGN_RACE_STATIC(static_var, description)        \
-  namespace {                                                       \
-    class static_var ## _annotator {                                \
-     public:                                                        \
-      static_var ## _annotator() {                                  \
-        ANNOTATE_BENIGN_RACE(&static_var,                           \
-          # static_var ": " description);                           \
-      }                                                             \
-    };                                                              \
-    static static_var ## _annotator the ## static_var ## _annotator;\
+  // ANNOTATE_UNPROTECTED_READ is the preferred way to annotate racey reads.
+  //
+  // Instead of doing
+  //    ANNOTATE_IGNORE_READS_BEGIN();
+  //    ... = x;
+  //    ANNOTATE_IGNORE_READS_END();
+  // one can use
+  //    ... = ANNOTATE_UNPROTECTED_READ(x);
+  template <class T>
+  inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x) {
+    ANNOTATE_IGNORE_READS_BEGIN();
+    T res = x;
+    ANNOTATE_IGNORE_READS_END();
+    return res;
   }
+
+  // Apply ANNOTATE_BENIGN_RACE to a static variable.
+  #define ANNOTATE_BENIGN_RACE_STATIC(static_var, description)        \
+    namespace {                                                       \
+      class static_var ## _annotator {                                \
+       public:                                                        \
+        static_var ## _annotator() {                                  \
+          ANNOTATE_BENIGN_RACE(&static_var,                           \
+            # static_var ": " description);                           \
+        }                                                             \
+      };                                                              \
+      static static_var ## _annotator the ## static_var ## _annotator;\
+    }
+#else // !NDEBUG
+
+  #define ANNOTATE_UNPROTECTED_READ(x) (x)
+  #define ANNOTATE_BENIGN_RACE_STATIC(static_var, description)  // empty
+
+#endif // !NDEBUG
+
+// Return non-zero value if running under valgrind.
+extern "C" int RunningOnValgrind();
 
 
 #endif  // BASE_DYNAMIC_ANNOTATIONS_H_

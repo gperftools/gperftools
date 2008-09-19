@@ -71,6 +71,13 @@ extern "C" {
  */
 PERFTOOLS_DLL_DECL void HeapProfilerStart(const char* prefix);
 
+/* Returns true if we are currently profiling the heap.  This is true
+ * between calls to HeapProfilerStart() and HeapProfilerStop(), and
+ * also if the program has been run with HEAPPROFILER, or some other
+ * way to turn on whole-program profiling.
+ */
+bool IsHeapProfilerRunning();
+
 /* Stop heap profiling.  Can be restarted again with HeapProfilerStart(),
  * but the currently accumulated profiling information will be cleared.
  */

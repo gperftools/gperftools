@@ -1,3 +1,25 @@
+Thu Sep 18 16:00:27 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.99 release
+	* Add IsHeapProfileRunning (csilvers)
+	* Add C shims for some of the C++ header files (csilvers)
+	* Fix heap profile file clean-up logic (maxim)
+	* Rename linuxthreads.c to .cc for better compiler support (csilvers)
+	* Add source info to disassembly in pprof (sanjay)
+	* Use open instead of fopen to avoid memory alloc (csilvers)
+	* Disable malloc extensions when running under valgrind (kcc)
+	* BUG FIX: Fix out-of-bound error by reordering a check (larryz)
+	* Add Options struct to ProfileData (cgd)
+	* Correct PC-handling of --base in pprof (csilvers)
+	* Handle 1 function occurring twice in an image (sanjay)
+	* Improve stack-data cleaning (maxim)
+	* Use 'struct Foo' to make header C compatible (csilvers)
+	* Add 'total' line to pprof --text (csilvers)
+	* Pre-allocate buffer for heap-profiler to avoid OOM errors (csilvers)
+	* Allow a few more env-settings to control tcmalloc (csilvers)
+	* Document some of the issues involving thread-local storage (csilvers)
+	* BUG FIX: Define strtoll and friends for windows (csilvers)
+
 Mon Jun  9 16:47:03 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.98 release

@@ -478,7 +478,6 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
 }
 
 ProcMapsIterator::~ProcMapsIterator() {
-  delete dynamic_buffer_;
 #if defined(WIN32)
   if (snapshot_ != INVALID_HANDLE_VALUE) CloseHandle(snapshot_);
 #elif defined(__MACH__)

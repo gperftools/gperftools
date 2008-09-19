@@ -6,6 +6,12 @@ You can load this solution file into either VC++ 7.1 (Visual Studio
 2003) or VC++ 8.0 (Visual Studio 2005) -- in the latter case, it will
 automatically convert the files to the latest format for you.
 
+There are a few issues compiling with VC++ 7.1, due to its lack of
+support for __VA_ARGS__.  If you need to compile perftools in that
+environment, send mail to google-perftools@googlegroups.com; there may
+be ways to work around this issue.  The code compiles without problem
+in VC++ 8.0 (Visual Studio 2005).
+
 When you build the solution, it will create a number of unittests,
 which you can run by hand (or, more easily, under the Visual Studio
 debugger) to make sure everything is working properly on your system.

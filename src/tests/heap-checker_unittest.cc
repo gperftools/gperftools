@@ -103,6 +103,7 @@
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/commandlineflags.h"
+#include "base/thread_lister.h"
 #include <google/heap-checker.h>
 #include "memory_region_map.h"
 #include <google/malloc_extension.h>
@@ -257,6 +258,9 @@ void* operator new[](size_t size, const Initialized&) {
   return p;
 }
 
+static void DoWipeStack(int n);  // defined below
+static void WipeStack() { DoWipeStack(20); }
+
 static void Pause() {
   poll(NULL, 0, 77);  // time for thread activity in HeapBusyThreadBody
 
@@ -275,6 +279,8 @@ static void Pause() {
       }
     }
   }
+  WipeStack();  // e.g. MallocExtension::VerifyAllMemory
+                // can leave pointers to heap objects on stack
 }
 
 // Make gcc think a pointer is "used"
@@ -315,30 +321,28 @@ static void LogHidden(const char* message, const void* ptr) {
        << ptr << " ^ " << reinterpret_cast<void*>(kHideMask) << endl;
 }
 
-// non-static to fool the compiler against inlining
-extern void (*run_hidden_ptr)(Closure* c, int n);
-void (*run_hidden_ptr)(Closure* c, int n);
-extern void (*wipe_stack_ptr)(int n);
-void (*wipe_stack_ptr)(int n);
+// volatile to fool the compiler against inlining the calls to these
+void (*volatile run_hidden_ptr)(Closure* c, int n);
+void (*volatile wipe_stack_ptr)(int n);
 
 static void DoRunHidden(Closure* c, int n) {
   if (n) {
     VLOG(10) << "Level " << n << " at " << &n;
-    run_hidden_ptr(c, n-1);
-    wipe_stack_ptr(n);
+    (*run_hidden_ptr)(c, n-1);
+    (*wipe_stack_ptr)(n);
     sleep(0);  // undo -foptimize-sibling-calls
   } else {
     c->Run();
   }
 }
 
-static void DoWipeStack(int n) {
+/*static*/ void DoWipeStack(int n) {
   VLOG(10) << "Wipe level " << n << " at " << &n;
   if (n) {
     const int sz = 30;
     volatile int arr[sz];
-    for (int i = 0; i < sz; ++i)  arr[i] = 0;
-    wipe_stack_ptr(n-1);
+    for (int i = 0; i < sz; ++i) arr[i] = 0;
+    (*wipe_stack_ptr)(n-1);
     sleep(0);  // undo -foptimize-sibling-calls
   }
 }
@@ -402,6 +406,7 @@ enum CheckType { SAME_HEAP, NO_LEAKS };
 
 static void VerifyLeaks(HeapLeakChecker* check, CheckType type,
                         int leaked_bytes, int leaked_objects) {
+  WipeStack();  // to help with can_create_leaks_reliably
   const bool no_leaks =
     type == NO_LEAKS ? RUN_SILENT(*check, BriefNoLeaks)
                      : RUN_SILENT(*check, BriefSameHeap);
@@ -595,6 +600,7 @@ static void TestHeapLeakCheckerTrick() {
   DeAllocHidden(&bar2);
   Pause();
   if (can_create_leaks_reliably) {
+    WipeStack();  // to help with can_create_leaks_reliably
     // this might still fail occasionally, but it should be very rare:
     CHECK(check.BriefSameHeap());
   } else {
@@ -747,6 +753,7 @@ static void TestSTLAllocInverse() {
   RunHidden(NewCallback(DoTestSTLAllocInverse, &x));
   LogHidden("Leaking", x);
   if (can_create_leaks_reliably) {
+    WipeStack();  // to help with can_create_leaks_reliably
     // these might still fail occasionally, but it should be very rare
     CHECK_EQ(RUN_SILENT(check, BriefNoLeaks), false);
     CHECK_GE(check.BytesLeaked(), 100 * sizeof(int));
@@ -904,7 +911,7 @@ static void* HeapBusyThreadBody(void* a) {
       ptr = reinterpret_cast<int **>(
           reinterpret_cast<uintptr_t>(ptr) ^ kHideMask);
       // busy loop to get the thread interrupted at:
-      for (int i = 1; i < 1000000; ++i)  user += (1 + user * user * 5) / i;
+      for (int i = 1; i < 10000000; ++i)  user += (1 + user * user * 5) / i;
       ptr = reinterpret_cast<int **>(
           reinterpret_cast<uintptr_t>(ptr) ^ kHideMask);
     } else {
@@ -941,10 +948,19 @@ static void RunHeapBusyThreads() {
   Pause();
 }
 
+static int NumThreads(void* parameter, int num_threads,
+                      pid_t* thread_pids, va_list ap) {
+  ResumeAllProcessThreads(num_threads, thread_pids);
+  return num_threads;
+}
+
 // tests disabling via function name
 REGISTER_MODULE_INITIALIZER(heap_checker_unittest, {
   // TODO(csilvers): figure out when this might be true
   can_create_leaks_reliably = false;
+  if (can_create_leaks_reliably) {  // should have no threads:
+    CHECK_LE(ListAllProcessThreads(NULL, NumThreads), 1);
+  }
   HeapLeakChecker::DisableChecksIn("NamedDisabledLeaks");
 });
 
@@ -1490,7 +1506,10 @@ int main(int argc, char** argv) {
   if (FLAGS_test_register_leak) {
     // make us fail only where the .sh test expects:
     Pause();
-    for (int i = 0; i < 20; ++i) CHECK(HeapLeakChecker::NoGlobalLeaks());
+    for (int i = 0; i < 100; ++i) {  // give it some time to crash
+      CHECK(HeapLeakChecker::NoGlobalLeaks());
+      Pause();
+    }
     return Pass();
   }
 
@@ -1575,6 +1594,6 @@ int main(int argc, char** argv) {
   ThreadNamedDisabledLeaks();
 
   CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
-
+  
   return Pass();
 }

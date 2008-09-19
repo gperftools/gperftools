@@ -37,7 +37,7 @@
 // of a compare-and-swap which is expensive).
 
 // SpinLock is async signal safe.
-// If used within a signal handler, all lock holders 
+// If used within a signal handler, all lock holders
 // should block the signal even outside the signal handler.
 
 #ifndef BASE_SPINLOCK_H_
@@ -70,7 +70,7 @@ class LOCKABLE SpinLock {
   // A SpinLock constructed like this can be freely used from global
   // initializers without worrying about the order in which global
   // initializers run.
-  explicit SpinLock(base::LinkerInitialized x) {
+  explicit SpinLock(base::LinkerInitialized /*x*/) {
     // Does nothing; lockword_ is already initialized
   }
 

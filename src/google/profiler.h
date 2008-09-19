@@ -159,7 +159,7 @@ struct ProfilerState {
   char   profile_name[1024];  /* Name of profile file being written, or '\0' */
   int    samples_gathered;    /* Number of samples gatheered to far (or 0) */
 };
-PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(ProfilerState* state);
+PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(struct ProfilerState* state);
 
 #ifdef __cplusplus
 }  // extern "C"

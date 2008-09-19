@@ -358,8 +358,18 @@ MemoryRegionMap::RegionIterator MemoryRegionMap::EndRegionLocked() {
 }
 
 inline void MemoryRegionMap::DoInsertRegionLocked(const Region& region) {
+  RAW_VLOG(4, "Inserting region %p..%p from %p",
+              reinterpret_cast<void*>(region.start_addr),
+              reinterpret_cast<void*>(region.end_addr),
+              reinterpret_cast<void*>(region.caller()));
+  RegionSet::const_iterator i = regions_->lower_bound(region);
+  if (i != regions_->end() && i->start_addr <= region.start_addr) {
+    RAW_DCHECK(region.end_addr <= i->end_addr, "");  // lower_bound ensures this
+    return;  // 'region' is a subset of an already recorded region; do nothing
+    // We can be stricter and allow this only when *i has been created via
+    // an mmap with MAP_NORESERVE flag set.
+  }
   if (DEBUG_MODE) {
-    RegionSet::const_iterator i = regions_->lower_bound(region);
     RAW_CHECK(i == regions_->end()  ||  !region.Overlaps(*i),
               "Wow, overlapping memory regions");
     Region sample;
@@ -368,10 +378,6 @@ inline void MemoryRegionMap::DoInsertRegionLocked(const Region& region) {
     RAW_CHECK(i == regions_->end()  ||  !region.Overlaps(*i),
               "Wow, overlapping memory regions");
   }
-  RAW_VLOG(4, "Inserting region %p..%p from %p",
-              reinterpret_cast<void*>(region.start_addr),
-              reinterpret_cast<void*>(region.end_addr),
-              reinterpret_cast<void*>(region.caller()));
   region.AssertIsConsistent();  // just making sure
   // This inserts and allocates permanent storage for region
   // and its call stack data: it's safe to do it now:

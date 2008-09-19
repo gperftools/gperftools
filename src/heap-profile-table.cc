@@ -320,9 +320,8 @@ int HeapProfileTable::UnparseBucket(const Bucket& b,
   return buflen;
 }
 
-int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
-  // We can't allocate list on the stack, as this would overflow on threads
-  // running with a small stack size.
+HeapProfileTable::Bucket** 
+HeapProfileTable::MakeSortedBucketList() const {
   Bucket** list =
     reinterpret_cast<Bucket**>(alloc_(sizeof(Bucket) * num_buckets_));
 
@@ -335,6 +334,25 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   RAW_DCHECK(n == num_buckets_, "");
 
   sort(list, list + num_buckets_, ByAllocatedSpace);
+
+  return list;
+}
+
+void HeapProfileTable::IterateOrderedAllocContexts(
+    AllocContextIterator callback) const {
+  Bucket** list = MakeSortedBucketList();
+  AllocContextInfo info;
+  for (int i = 0; i < num_buckets_; ++i) {
+    *static_cast<Stats*>(&info) = *static_cast<Stats*>(list[i]);
+    info.stack_depth = list[i]->depth;
+    info.call_stack = list[i]->stack;
+    callback(info);
+  }
+  dealloc_(list);
+}
+
+int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
+  Bucket** list = MakeSortedBucketList();
 
   // Our file format is "bucket, bucket, ..., bucket, proc_self_maps_info".
   // In the cases buf is too small, we'd rather leave out the last
@@ -356,7 +374,7 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   int bucket_length = snprintf(buf, size, "%s", kProfileHeader);
   if (bucket_length < 0 || bucket_length >= size) return 0;
   bucket_length = UnparseBucket(total_, buf, bucket_length, size, &stats);
-  for (int i = 0; i < n; i++) {
+  for (int i = 0; i < num_buckets_; i++) {
     bucket_length = UnparseBucket(*list[i], buf, bucket_length, size, &stats);
   }
   RAW_DCHECK(bucket_length < size, "");

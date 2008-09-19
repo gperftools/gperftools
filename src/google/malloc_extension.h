@@ -34,6 +34,9 @@
 // extensions are accessed through a virtual base class so an
 // application can link against a malloc that does not implement these
 // extensions, and it will get default versions that do nothing.
+//
+// NOTE FOR C USERS: If you wish to use this functionality from within
+// a C program, see malloc_extension_c.h.
 
 #ifndef BASE_MALLOC_EXTENSION_H_
 #define BASE_MALLOC_EXTENSION_H_

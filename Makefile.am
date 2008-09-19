@@ -149,6 +149,8 @@ WINDOWS_PROJECTS += vsprojects/low_level_alloc_unittest/low_level_alloc_unittest
 LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/base/basictypes.h \
                                     src/google/malloc_hook.h \
+                                    src/google/malloc_hook_c.h \
+                                    src/google/malloc_hook_c.h \
                                     src/malloc_hook-inl.h \
                                     $(SPINLOCK_INCLUDES) \
                                     $(LOGGING_INCLUDES)
@@ -240,6 +242,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/internal_logging.h \
                               src/malloc_hook-inl.h \
                               src/maybe_threads.h
 SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
+                               src/google/malloc_hook_c.h \
                                src/google/malloc_extension.h \
                                src/google/stacktrace.h
 TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES)
@@ -271,6 +274,7 @@ LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 ## TESTS += malloc_unittest
 ## MALLOC_UNITEST_INCLUDES = src/google/malloc_extension.h \
 ##                           src/google/malloc_hook.h \
+##                           src/google/malloc_hook_c.h \
 ##                           src/malloc_hook-inl.h \
 ##                           src/base/basictypes.h \
 ##                           src/maybe_threads.h
@@ -461,6 +465,7 @@ S_TCMALLOC_INCLUDES = src/internal_logging.h \
                       $(SPINLOCK_INCLUDES) \
                       $(LOGGING_INCLUDES)
 SG_TCMALLOC_INCLUDES = src/google/malloc_hook.h \
+                       src/google/malloc_hook_c.h \
                        src/google/malloc_extension.h \
                        src/google/heap-profiler.h \
                        src/google/heap-checker.h \
@@ -482,7 +487,7 @@ libtcmalloc_la_SOURCES = src/internal_logging.cc \
                          src/heap-profiler.cc \
                          src/heap-profile-table.cc \
                          src/heap-checker.cc \
-                         src/base/linuxthreads.c \
+                         src/base/linuxthreads.cc \
                          src/base/thread_lister.c \
                          src/base/low_level_alloc.cc \
                          $(TCMALLOC_INCLUDES) \

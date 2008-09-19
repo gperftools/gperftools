@@ -89,13 +89,16 @@ static size_t pagesize = 0;
 
 // Configuration parameters.
 
-DEFINE_int32(malloc_devmem_start, 0,
+DEFINE_int32(malloc_devmem_start,
+             EnvToInt("TCMALLOC_DEVMEM_START", 0),
              "Physical memory starting location in MB for /dev/mem allocation."
              "  Setting this to 0 disables /dev/mem allocation");
-DEFINE_int32(malloc_devmem_limit, 0,
+DEFINE_int32(malloc_devmem_limit,
+             EnvToInt("TCMALLOC_DEVMEM_LIMIT", 0),
              "Physical memory limit location in MB for /dev/mem allocation."
              "  Setting this to 0 means no limit.");
-DEFINE_bool(malloc_skip_mmap, false,
+DEFINE_bool(malloc_skip_mmap,
+            EnvToBool("TCMALLOC_SKIP_MMAP", false),
             "Whether mmap can be used to obtain memory.");
 
 // static allocators
@@ -129,7 +132,7 @@ static char devmem_space[sizeof(DevMemSysAllocator)];
 static const int kStaticAllocators = 3;
 // kMaxDynamicAllocators + kStaticAllocators;
 static const int kMaxAllocators = 5;
-SysAllocator *allocators[kMaxAllocators];
+static SysAllocator *allocators[kMaxAllocators];
 
 bool RegisterSystemAllocator(SysAllocator *a, int priority) {
   SpinLockHolder lock_holder(&spinlock);
