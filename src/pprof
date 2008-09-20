@@ -72,18 +72,11 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "0.99";
+my $PPROF_VERSION = "0.99.1";
 
 # These are the object tools we use which can come from a
 # user-specified location using --tools, from the PPROF_TOOLS
-# environment variable, or from the latest installed crosstool under
-# /usr/crosstool.  We avoid using the system versions for more
-# predictable behavior.  System versions may not support 64-bit
-# binaries and older object tools may have difficulties with binaries
-# produced with the latest crosstool versions.  For example,
-# name-mangling changed with GCC 4.3 which can cause problems with
-# demangling in the object tools.  See ConfigureObjTools near the
-# bottom of this script for how the tool paths are determined.
+# environment variable, or from the environment.
 my %obj_tool_map = (
   "objdump" => "objdump",
   "nm" => "nm",
@@ -3107,9 +3100,7 @@ sub ShortFunctionName {
 # is determined by considering the following options in this order:
 #   1) --tools option, if set
 #   2) PPROF_TOOLS environment variable, if set
-#   3) otherwise, the latest installed crosstool under /usr/crosstool
-# It is a fatal error if --tools and PPROF_TOOLS are not specified and no
-# tools exist under /usr/crosstool.
+#   3) the environment
 sub ConfigureObjTools {
   my $prog_file = shift;
 
@@ -3129,36 +3120,16 @@ sub ConfigureObjTools {
 
   # Go fill in %obj_tool_map with the pathnames to use:
   foreach my $tool (keys %obj_tool_map) {
-    $obj_tool_map{$tool} = ConfigureTool($obj_tool_map{$tool}, 
-                                         LatestCrosstoolPrefix());
+    $obj_tool_map{$tool} = ConfigureTool($obj_tool_map{$tool});
   }
-}
-
-# Return the prefix of the latest 64-bit crosstool available in
-# /usr/crosstool.  64-bit (x86_64) utilities are used because they
-# handle both 32-bit and 64-bit binaries.
-sub LatestCrosstoolPrefix {
-  my $prefix = "";
-  my $latest_version = 0;
-  for my $gcc (glob("/usr/crosstool/v*/gcc-*/x86_64*/bin/*-gcc")) {
-    if (($gcc =~ m{/usr/crosstool/v([0-9]+)}) &&
-        ($1 > $latest_version)) {
-      $latest_version = $1;
-      $prefix = $gcc;
-      $prefix =~ s/gcc$//;
-    }
-  }
-  return $prefix;
 }
 
 # Returns the path of a caller-specified object tool.  If --tools or
 # PPROF_TOOLS are specified, then returns the full path to the tool
-# with that prefix.  Otherwise, returns the path of the tool in the
-# latest installed crosstool version.  Raises a fatal error if the
-# tool cannot be found in these directories.
+# with that prefix.  Otherwise, returns the path unmodified (which
+# means we will look for it on PATH).
 sub ConfigureTool {
   my $tool = shift;
-  my $crosstool_prefix = shift;
   my $path;
 
   if ($main::opt_tools ne "") {
@@ -3175,11 +3146,8 @@ sub ConfigureTool {
       error("No '$tool' found with prefix specified by PPROF_TOOLS=$ENV{PPROF_TOOLS}\n");
     }
   } else {
-    # ... otherwise use the latest crosstool.
-    $path = $crosstool_prefix . $tool;
-    if ($crosstool_prefix eq "" || !-x $path) {
-      error("No '$tool' found in /usr/crosstool.  Specify prefix for object tool pathnames with --tools.\n");
-    }
+    # ... otherwise use $PATH
+    $path = $tool;
   }
   if ($main::opt_debug) { print STDERR "Using '$path' for '$tool'.\n"; }
   return $path;
