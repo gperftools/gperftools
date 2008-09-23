@@ -1,3 +1,8 @@
+Tue Sep 23 08:56:31 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 0.99.2 release
+	* COMPILE FIX: add #include needed for FreeBSD and OS X (csilvers)
+
 Sat Sep 20 09:37:18 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.99.1 release

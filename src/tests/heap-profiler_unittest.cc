@@ -41,6 +41,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>                  // for mkdir()
+#include <sys/stat.h>               // for mkdir() on freebsd and os x
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>                 // for fork()
 #endif
