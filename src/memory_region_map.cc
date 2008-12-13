@@ -100,6 +100,9 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #elif !defined(MAP_FAILED)
@@ -109,6 +112,7 @@
 #include <pthread.h>   // for pthread_t, pthread_self()
 #endif
 
+#include <algorithm>
 #include <set>
 
 #include "memory_region_map.h"
@@ -132,7 +136,6 @@ using std::max;
 
 // ========================================================================= //
 
-const int MemoryRegionMap::kMaxStackDepth;
 int MemoryRegionMap::client_count_ = 0;
 int MemoryRegionMap::max_stack_depth_ = 0;
 MemoryRegionMap::RegionSet* MemoryRegionMap::regions_ = NULL;
@@ -559,7 +562,7 @@ void MemoryRegionMap::MmapHook(const void* result,
                                int fd, off_t offset) {
   // TODO(maxim): replace all 0x%"PRIxS" by %p when RAW_VLOG uses a safe
   // snprintf reimplementation that does not malloc to pretty-print NULL
-  RAW_VLOG(2, "MMap = 0x%"PRIxS" of %"PRIuS" at %llu "
+  RAW_VLOG(2, "MMap = 0x%"PRIxPTR" of %"PRIuS" at %llu "
               "prot %d flags %d fd %d offs %lld",
               reinterpret_cast<uintptr_t>(result), size,
               reinterpret_cast<uint64>(start), prot, flags, fd,
@@ -580,8 +583,8 @@ void MemoryRegionMap::MremapHook(const void* result,
                                  const void* old_addr, size_t old_size,
                                  size_t new_size, int flags,
                                  const void* new_addr) {
-  RAW_VLOG(2, "MRemap = 0x%"PRIxS" of 0x%"PRIxS" %"PRIuS" "
-              "to %"PRIuS" flags %d new_addr=0x%"PRIxS,
+  RAW_VLOG(2, "MRemap = 0x%"PRIxPTR" of 0x%"PRIxPTR" %"PRIuS" "
+              "to %"PRIuS" flags %d new_addr=0x%"PRIxPTR,
               (uintptr_t)result, (uintptr_t)old_addr,
                old_size, new_size, flags,
                flags & MREMAP_FIXED ? (uintptr_t)new_addr : 0);
@@ -594,7 +597,7 @@ void MemoryRegionMap::MremapHook(const void* result,
 extern "C" void* __sbrk(ptrdiff_t increment);  // defined in libc
 
 void MemoryRegionMap::SbrkHook(const void* result, ptrdiff_t increment) {
-  RAW_VLOG(2, "Sbrk = 0x%"PRIxS" of %"PRIdS"", (uintptr_t)result, increment);
+  RAW_VLOG(2, "Sbrk = 0x%"PRIxPTR" of %"PRIdS"", (uintptr_t)result, increment);
   if (result != reinterpret_cast<void*>(-1)) {
     if (increment > 0) {
       void* new_end = sbrk(0);
@@ -614,8 +617,8 @@ void MemoryRegionMap::LogAllLocked() {
   uintptr_t previous = 0;
   for (RegionSet::const_iterator r = regions_->begin();
        r != regions_->end(); ++r) {
-    RAW_LOG(INFO, "Memory region 0x%"PRIxS"..0x%"PRIxS" "
-                  "from 0x%"PRIxS" stack=%d",
+    RAW_LOG(INFO, "Memory region 0x%"PRIxPTR"..0x%"PRIxPTR" "
+                  "from 0x%"PRIxPTR" stack=%d",
                   r->start_addr, r->end_addr, r->caller(), r->is_stack);
     RAW_CHECK(previous < r->end_addr, "wow, we messed up the set order");
       // this must be caused by uncontrolled recursive operations on regions_

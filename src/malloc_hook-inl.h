@@ -80,9 +80,11 @@ class AtomicPtr {
 // These are initialized in malloc_hook.cc
 extern AtomicPtr<MallocHook::NewHook>     new_hook_;
 extern AtomicPtr<MallocHook::DeleteHook>  delete_hook_;
+extern AtomicPtr<MallocHook::PreMmapHook> premmap_hook_;
 extern AtomicPtr<MallocHook::MmapHook>    mmap_hook_;
 extern AtomicPtr<MallocHook::MunmapHook>  munmap_hook_;
 extern AtomicPtr<MallocHook::MremapHook>  mremap_hook_;
+extern AtomicPtr<MallocHook::PreSbrkHook> presbrk_hook_;
 extern AtomicPtr<MallocHook::SbrkHook>    sbrk_hook_;
 
 } }  // namespace base::internal
@@ -103,6 +105,22 @@ inline MallocHook::DeleteHook MallocHook::GetDeleteHook() {
 inline void MallocHook::InvokeDeleteHook(const void* p) {
   MallocHook::DeleteHook hook = MallocHook::GetDeleteHook();
   if (hook != NULL) (*hook)(p);
+}
+
+inline MallocHook::PreMmapHook MallocHook::GetPreMmapHook() {
+  return base::internal::premmap_hook_.Get();
+}
+
+inline void MallocHook::InvokePreMmapHook(const void* start,
+                                          size_t size,
+                                          int protection,
+                                          int flags,
+                                          int fd,
+                                          off_t offset) {
+  MallocHook::PreMmapHook hook = MallocHook::GetPreMmapHook();
+  if (hook != NULL) (*hook)(start, size,
+                            protection, flags,
+                            fd, offset);
 }
 
 inline MallocHook::MmapHook MallocHook::GetMmapHook() {
@@ -146,6 +164,15 @@ inline void MallocHook::InvokeMremapHook(const void* result,
   if (hook != NULL) (*hook)(result,
                             old_addr, old_size,
                             new_size, flags, new_addr);
+}
+
+inline MallocHook::PreSbrkHook MallocHook::GetPreSbrkHook() {
+  return base::internal::presbrk_hook_.Get();
+}
+
+inline void MallocHook::InvokePreSbrkHook(ptrdiff_t increment) {
+  MallocHook::PreSbrkHook hook = MallocHook::GetPreSbrkHook();
+  if (hook != NULL && increment != 0) (*hook)(increment);
 }
 
 inline MallocHook::SbrkHook MallocHook::GetSbrkHook() {

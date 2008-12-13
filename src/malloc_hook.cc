@@ -63,8 +63,9 @@ using std::copy;
 //
 // These default hooks let some other library we link in
 // to define strong versions of InitialMallocHook_New, InitialMallocHook_MMap,
-// and InitialMallocHook_Sbrk to have a chance to hook into the very
-// first invocation of an allocation function call, mmap, or sbrk.
+// InitialMallocHook_PreMMap, InitialMallocHook_PreSbrk, and
+// InitialMallocHook_Sbrk to have a chance to hook into the very first
+// invocation of an allocation function call, mmap, or sbrk.
 //
 // These functions are declared here as weak, and defined later, rather than a
 // more straightforward simple weak definition, as a workround for an icc
@@ -76,6 +77,14 @@ ATTRIBUTE_WEAK
 extern void InitialMallocHook_New(const void* ptr, size_t size);
 
 ATTRIBUTE_WEAK
+extern void InitialMallocHook_PreMMap(const void* start,
+                                      size_t size,
+                                      int protection,
+                                      int flags,
+                                      int fd,
+                                      off_t offset);
+
+ATTRIBUTE_WEAK
 extern void InitialMallocHook_MMap(const void* result,
                                    const void* start,
                                    size_t size,
@@ -83,6 +92,9 @@ extern void InitialMallocHook_MMap(const void* result,
                                    int flags,
                                    int fd,
                                    off_t offset);
+
+ATTRIBUTE_WEAK
+extern void InitialMallocHook_PreSbrk(ptrdiff_t increment);
 
 ATTRIBUTE_WEAK
 extern void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment);
@@ -106,10 +118,14 @@ PtrT AtomicPtr<PtrT>::Exchange(PtrT new_val) {
 AtomicPtr<MallocHook::NewHook>    new_hook_ = {
   reinterpret_cast<AtomicWord>(InitialMallocHook_New) };
 AtomicPtr<MallocHook::DeleteHook> delete_hook_ = { 0 };
+AtomicPtr<MallocHook::PreMmapHook> premmap_hook_ = {
+  reinterpret_cast<AtomicWord>(InitialMallocHook_PreMMap) };
 AtomicPtr<MallocHook::MmapHook>   mmap_hook_ = {
   reinterpret_cast<AtomicWord>(InitialMallocHook_MMap) };
 AtomicPtr<MallocHook::MunmapHook> munmap_hook_ = { 0 };
 AtomicPtr<MallocHook::MremapHook> mremap_hook_ = { 0 };
+AtomicPtr<MallocHook::PreSbrkHook> presbrk_hook_ = {
+  reinterpret_cast<AtomicWord>(InitialMallocHook_PreSbrk) };
 AtomicPtr<MallocHook::SbrkHook>   sbrk_hook_ = {
   reinterpret_cast<AtomicWord>(InitialMallocHook_Sbrk) };
 
@@ -117,9 +133,11 @@ AtomicPtr<MallocHook::SbrkHook>   sbrk_hook_ = {
 
 using base::internal::new_hook_;
 using base::internal::delete_hook_;
+using base::internal::premmap_hook_;
 using base::internal::mmap_hook_;
 using base::internal::munmap_hook_;
 using base::internal::mremap_hook_;
+using base::internal::presbrk_hook_;
 using base::internal::sbrk_hook_;
 
 
@@ -136,6 +154,11 @@ MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook) {
 }
 
 extern "C"
+MallocHook_PreMmapHook MallocHook_SetPreMmapHook(MallocHook_PreMmapHook hook) {
+  return premmap_hook_.Exchange(hook);
+}
+
+extern "C"
 MallocHook_MmapHook MallocHook_SetMmapHook(MallocHook_MmapHook hook) {
   return mmap_hook_.Exchange(hook);
 }
@@ -148,6 +171,11 @@ MallocHook_MunmapHook MallocHook_SetMunmapHook(MallocHook_MunmapHook hook) {
 extern "C"
 MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook) {
   return mremap_hook_.Exchange(hook);
+}
+
+extern "C"
+MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook) {
+  return presbrk_hook_.Exchange(hook);
 }
 
 extern "C"
@@ -183,6 +211,16 @@ void InitialMallocHook_New(const void* ptr, size_t size) {
      MallocHook::SetNewHook(NULL);
 }
 
+void InitialMallocHook_PreMMap(const void* start,
+                               size_t size,
+                               int protection,
+                               int flags,
+                               int fd,
+                               off_t offset) {
+  if (MallocHook::GetPreMmapHook() == &InitialMallocHook_PreMMap)
+    MallocHook::SetPreMmapHook(NULL);
+}
+
 void InitialMallocHook_MMap(const void* result,
                             const void* start,
                             size_t size,
@@ -192,6 +230,11 @@ void InitialMallocHook_MMap(const void* result,
                             off_t offset) {
   if (MallocHook::GetMmapHook() == &InitialMallocHook_MMap)
     MallocHook::SetMmapHook(NULL);
+}
+
+void InitialMallocHook_PreSbrk(ptrdiff_t increment) {
+  if (MallocHook::GetPreSbrkHook() == &InitialMallocHook_PreSbrk)
+    MallocHook::SetPreSbrkHook(NULL);
 }
 
 void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment) {
@@ -318,7 +361,15 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
 // The x86-32 case and the x86-64 case differ:
 // 32b has a mmap2() syscall, 64b does not.
 // 64b and 32b have different calling conventions for mmap().
-#if defined(__i386__) || defined(__PPC__)
+#if defined(__x86_64__) || defined(__PPC64__)
+
+static inline void* do_mmap64(void *start, size_t length,
+                              int prot, int flags,
+                              int fd, __off64_t offset) __THROW {
+  return (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
+}
+
+#elif defined(__i386__) || defined(__PPC__)
 
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,
@@ -364,14 +415,6 @@ static inline void* do_mmap64(void *start, size_t length,
   return result;
 }
 
-# elif defined(__x86_64__)
-
-static inline void* do_mmap64(void *start, size_t length,
-                              int prot, int flags,
-                              int fd, __off64_t offset) __THROW {
-  return (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
-}
-
 # endif
 
 // We use do_mmap64 abstraction to put MallocHook::InvokeMmapHook
@@ -400,6 +443,7 @@ extern "C" {
 
 extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
                         int fd, __off64_t offset) __THROW {
+  MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
   void *result = do_mmap64(start, length, prot, flags, fd, offset);
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
@@ -407,6 +451,7 @@ extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
 
 extern "C" void* mmap(void *start, size_t length, int prot, int flags,
                       int fd, off_t offset) __THROW {
+  MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
   void *result = do_mmap64(start, length, prot, flags, fd,
                            static_cast<size_t>(offset)); // avoid sign extension
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
@@ -434,6 +479,7 @@ extern "C" void* mremap(void* old_addr, size_t old_size, size_t new_size,
 extern "C" void* __sbrk(ptrdiff_t increment);
 
 extern "C" void* sbrk(ptrdiff_t increment) __THROW {
+  MallocHook::InvokePreSbrkHook(increment);
   void *result = __sbrk(increment);
   MallocHook::InvokeSbrkHook(result, increment);
   return result;

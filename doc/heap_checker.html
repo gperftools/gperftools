@@ -27,7 +27,7 @@ into an application, running the code, and analyzing the output.</p>
 checker into your executable, add <code>-ltcmalloc</code> to the
 link-time step for your executable.  Also, while we don't necessarily
 recommend this form of usage, it's possible to add in the profiler at
-run-time using <code>LD_PRELOAD</code>:
+run-time using <code>LD_PRELOAD</code>:</p>
 <pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" <binary></pre>
 
 <p>This does <i>not</i> turn on heap checking; it just inserts the
@@ -55,7 +55,11 @@ at program-exit.  If it finds any memory leaks -- that is, any memory
 not pointed to by objects that are still "live" at program-exit -- it
 aborts the program (via <code>exit(1)</code>) and prints a message
 describing how to track down the memory leak (using <A
-HREF="heapprofile.html#pprof">pprof</A>).
+HREF="heapprofile.html#pprof">pprof</A>).</p>
+
+<p>The heap-checker records the stack trace for each allocation while
+it is active. This causes a significant increase in memory usage, in
+addition to slowing your program down.</p>
 
 <p>Here's how to run a program with whole-program heap checking:</p>
 
@@ -224,16 +228,20 @@ checking your program.  You can do this by bracketing the code in
 question with an appropriate heap-checking construct:</p>
 <pre>
    ...
-   void *mark = HeapLeakChecker::GetDisableChecksStart();
-   &lt;leaky code&gt;
-   HeapLeakChecker::DisableChecksToHereFrom(mark);
+   {
+     HeapLeakChecker::Disabler disabler;
+     &lt;leaky code&gt;
+   }
    ...
 </pre>
+Any objects allocated by <code>leaky code</code> (including inside any
+routines called by <code>leaky code</code>) and any objects reachable
+from such objects are not reported as leaks.
 
 <p>Alternately, you can use <code>IgnoreObject()</code>, which takes a
 pointer to an object to ignore.  That memory, and everything reachable
 from it (by following pointers), is ignored for the purposes of leak
-checking.  You can call <code>UnignoreObject()</code> to undo the
+checking.  You can call <code>UnIgnoreObject()</code> to undo the
 effects of <code>IgnoreObject()</code>.</p>
 
 
@@ -362,7 +370,7 @@ occurs.</p>
 
 <p>If you are sure that the reported leaks are not dangerous and there
 is no good way to fix them, then you can use
-<code>HeapLeakChecker::GetDisableChecksStart()</code> and/or
+<code>HeapLeakChecker::Disabler</code> and/or
 <code>HeapLeakChecker::IgnoreObject()</code> to disable heap-checking
 for certain parts of the codebase.</p>
 

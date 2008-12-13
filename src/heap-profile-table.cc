@@ -40,6 +40,9 @@
 #include <fcntl.h>    // for open()
 #ifdef HAVE_GLOB_H
 #include <glob.h>
+#ifndef GLOB_NOMATCH  // true on some old cygwins
+# define GLOB_NOMATCH 0
+#endif
 #endif
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h> // for PRIxPTR
@@ -54,12 +57,16 @@
 #include <google/stacktrace.h>
 #include <google/malloc_hook.h>
 #include "base/commandlineflags.h"
+#include "base/logging.h"    // for the RawFD I/O commands
 #include "base/sysinfo.h"
 
 using std::sort;
 using std::equal;
 using std::copy;
 using std::string;
+
+using tcmalloc::FillProcSelfMaps;   // from sysinfo.h
+using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
 
 //----------------------------------------------------------------------
 
@@ -77,8 +84,10 @@ static const char kProcSelfMapsHeader[] = "\nMAPPED_LIBRARIES:\n";
 
 const char HeapProfileTable::kFileExt[] = ".heap";
 
-const int HeapProfileTable::kHashTableSize;
-const int HeapProfileTable::kMaxStackDepth;
+//----------------------------------------------------------------------
+
+static const int kHashTableSize = 179999;   // Size for table_.
+/*static*/ const int HeapProfileTable::kMaxStackDepth = 32;
 
 //----------------------------------------------------------------------
 
@@ -90,64 +99,11 @@ static const int kStripFrames = 2;
 static const int kStripFrames = 3;
 #endif
 
-// Re-run fn until it doesn't cause EINTR.
-#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
-
-// Wrapper around ::write to undo it's potential partiality.
-static void FDWrite(int fd, const char* buf, size_t len) {
-  while (len > 0) {
-    ssize_t r;
-    NO_INTR(r = write(fd, buf, len));
-    if (r <= 0) break;
-    buf += r;
-    len -= r;
-  }
-}
-
 // For sorting Stats or Buckets by in-use space
 static bool ByAllocatedSpace(HeapProfileTable::Stats* a,
                              HeapProfileTable::Stats* b) {
   // Return true iff "a" has more allocated space than "b"
   return (a->alloc_size - a->free_size) > (b->alloc_size - b->free_size);
-}
-
-// Helper to add the list of mapped shared libraries to a profile.
-// Fill formatted "/proc/self/maps" contents into buffer 'buf' of size 'size'
-// and return the actual size occupied in 'buf'.
-// We do not provision for 0-terminating 'buf'.
-static int FillProcSelfMaps(char buf[], int size) {
-  ProcMapsIterator::Buffer iterbuf;
-  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-  uint64 start, end, offset;
-  int64 inode;
-  char *flags, *filename;
-  int bytes_written = 0;
-  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-    bytes_written += it.FormatLine(buf + bytes_written, size - bytes_written,
-                                   start, end, flags, offset, inode, filename,
-                                   0);
-  }
-  return bytes_written;
-}
-
-// Dump the same data as FillProcSelfMaps reads to fd.
-// It seems easier to repeat parts of FillProcSelfMaps here than to
-// reuse it via a call.
-static void DumpProcSelfMaps(int fd) {
-  ProcMapsIterator::Buffer iterbuf;
-  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-  uint64 start, end, offset;
-  int64 inode;
-  char *flags, *filename;
-  ProcMapsIterator::Buffer linebuf;
-  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-                                start, end, flags, offset, inode, filename,
-                                0);
-    FDWrite(fd, linebuf.buf_, written);
-  }
 }
 
 //----------------------------------------------------------------------
@@ -239,7 +195,7 @@ void HeapProfileTable::RecordAllocWithStack(
   total_.alloc_size += bytes;
 
   AllocValue v;
-  v.set_bucket(b);  // also did set_live(false)
+  v.set_bucket(b);  // also did set_live(false); set_ignore(false)
   v.bytes = bytes;
   allocation_->Insert(ptr, v);
 }
@@ -289,6 +245,13 @@ bool HeapProfileTable::MarkAsLive(const void* ptr) {
     return true;
   }
   return false;
+}
+
+void HeapProfileTable::MarkAsIgnored(const void* ptr) {
+  AllocValue* alloc = allocation_->FindMutable(ptr);
+  if (alloc) {
+    alloc->set_ignore(true);
+  }
 }
 
 // We'd be happier using snprintfer, but we don't to reduce dependencies.
@@ -394,6 +357,9 @@ void HeapProfileTable::DumpNonLiveIterator(const void* ptr, AllocValue* v,
     v->set_live(false);
     return;
   }
+  if (v->ignore()) {
+    return;
+  }
   Bucket b;
   memset(&b, 0, sizeof(b));
   b.allocs = 1;
@@ -406,25 +372,25 @@ void HeapProfileTable::DumpNonLiveIterator(const void* ptr, AllocValue* v,
          v->bucket()->stack, sizeof(stack[0]) * v->bucket()->depth);
   char buf[1024];
   int len = UnparseBucket(b, buf, 0, sizeof(buf), args.profile_stats);
-  FDWrite(args.fd, buf, len);
+  RawWrite(args.fd, buf, len);
 }
 
 bool HeapProfileTable::DumpNonLiveProfile(const char* file_name,
                                           bool dump_alloc_addresses,
                                           Stats* profile_stats) const {
   RAW_VLOG(1, "Dumping non-live heap profile to %s", file_name);
-  int fd = open(file_name, O_WRONLY|O_CREAT|O_TRUNC, 0644);
-  if (fd >= 0) {
-    FDWrite(fd, kProfileHeader, strlen(kProfileHeader));
+  RawFD fd = RawOpenForWriting(file_name);
+  if (fd != kIllegalRawFD) {
+    RawWrite(fd, kProfileHeader, strlen(kProfileHeader));
     char buf[512];
     int len = UnparseBucket(total_, buf, 0, sizeof(buf), profile_stats);
-    FDWrite(fd, buf, len);
+    RawWrite(fd, buf, len);
     memset(profile_stats, 0, sizeof(*profile_stats));
     const DumpArgs args(fd, dump_alloc_addresses, profile_stats);
     allocation_->Iterate<const DumpArgs&>(DumpNonLiveIterator, args);
-    FDWrite(fd, kProcSelfMapsHeader, strlen(kProcSelfMapsHeader));
+    RawWrite(fd, kProcSelfMapsHeader, strlen(kProcSelfMapsHeader));
     DumpProcSelfMaps(fd);
-    NO_INTR(close(fd));
+    RawClose(fd);
     return true;
   } else {
     RAW_LOG(ERROR, "Failed dumping filtered heap profile to %s", file_name);

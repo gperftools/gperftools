@@ -98,6 +98,7 @@ void CheckStackTraceLeaf(void) {
 
   size = GetStackTrace(stack, STACK_LEN, 0);
   printf("Obtained %d stack frames.\n", size);
+  CHECK_GE(size, 1);
   CHECK_LE(size, STACK_LEN);
 
 #ifdef HAVE_EXECINFO_H

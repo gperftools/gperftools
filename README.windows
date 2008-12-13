@@ -16,30 +16,46 @@ When you build the solution, it will create a number of unittests,
 which you can run by hand (or, more easily, under the Visual Studio
 debugger) to make sure everything is working properly on your system.
 The binaries will end up in a directory called "debug" or "release" in
-the top-level directory (next to the .sln file).
+the top-level directory (next to the .sln file).  It will also create
+two binaries, nm-pdb and addr2line-pdb, which you should install in
+the same directory you install the 'pprof' perl script.
 
 Note that these systems are set to build in Debug mode by default.
 You may want to change them to Release mode.
 
 To use tcmalloc_minimal in your own projects, you should only need to
 build the dll and install it someplace, so you can link it into
-further binaries.  Note that the tcmalloc DLL is compiled with
-the "Multithreaded DLL" CRT library -- this is required so we can
-override malloc in user applications.  This means, to use the tcmalloc
-DLL, your applcation must link in the "Multithreaded DLL" CRT library
-as well.  (It is a TODO to try to remove this restriction in the
-future.)
+further binaries.  To use the dll, you need to add the following to
+the linker line of your executable:
+   "libtcmalloc_minimal.lib" /INCLUDE:"__tcmalloc" 
+
+Here is how to accomplish this in Visual Studio 2005 (VC8):
+
+1) Have your executable depend on the tcmalloc library by selecting
+   "Project Dependencies..." from the "Project" menu.  Your executable
+   should depend on "libtcmalloc_minimal".
+
+2) Have your executable depend on a tcmalloc symbol -- this is
+   necessary so the linker doesn't "optimize out" the libtcmalloc
+   dependency -- by right-clicking on your executable's project (in
+   the solution explorer), selecting Properties from the pull-down
+   menu, then selecting "Configuration Properties" -> "Linker" ->
+   "Input".  Then, in the "Force Symbol References" field, enter the
+   text "__tcmalloc" (without the quotes).  Be sure to do this for both
+   debug and release modes!
 
 You can also link tcmalloc code in statically -- see the example
 project tcmalloc_minimal_unittest-static, which does this.  For this
 to work, you'll need to add "/D PERFTOOLS_DLL_DECL=" to the compile
-line of every perftools .cc file.  For reasons I don't fully
-understand yet, you still need to use the "DLL" CRT library even when
-statically linking.  Again, you can look at the
-tcmalloc_minimal_unittest-static project, which does this.
+line of every perftools .cc file.  You do not need to depend on the
+tcmalloc symbol in this case (that is, you don't need to do either
+step 1 or step 2 from above).
 
-Note that the other features of perftools, such as the cpu-profiler,
-heap-profiler, and leak-checker, have not yet been ported to Windows.
+The heap-profiler has had a preliminary port to Windows.  It has not
+been well tested, and probably does not work at all when Frame Pointer
+Optimization (FPO) is enabled -- that is, in release mode.  The other
+features of perftools, such as the cpu-profiler and leak-checker, have
+not yet been ported to Windows at all.
 
 I have little experience with Windows programming, so there may be
 better ways to set this up than I've done!  If you run across any
@@ -49,3 +65,5 @@ them on the google-perftools Google Code site:
    http://code.google.com/p/google-perftools/issues/list
 
 -- craig
+
+Last modified: 18 November 2008

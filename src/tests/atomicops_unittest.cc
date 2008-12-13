@@ -31,6 +31,7 @@
  * Author: Sanjay Ghemawat
  */
 
+#include <stdio.h>
 #include "base/logging.h"
 #include "base/atomicops.h"
 
@@ -157,21 +158,11 @@ static void TestAtomicExchange() {
 
 template <class AtomicType>
 static void TestAtomicIncrementBounds() {
-  // Test at rollover boundary between int_max and int_min
-  AtomicType test_val = (GG_ULONGLONG(1) <<
-                         (NUM_BITS(AtomicType) - 1));
-  AtomicType value = -1 ^ test_val;
+  // Test increment at the half-width boundary of the atomic type.
+  // It is primarily for testing at the 32-bit boundary for 64-bit atomic type.
+  AtomicType test_val = GG_ULONGLONG(1) << (NUM_BITS(AtomicType) / 2);
+  AtomicType value = test_val - 1;
   AtomicType new_value = base::subtle::NoBarrier_AtomicIncrement(&value, 1);
-  CHECK_EQ(test_val, value);
-  CHECK_EQ(value, new_value);
-
-  base::subtle::NoBarrier_AtomicIncrement(&value, -1);
-  CHECK_EQ(-1 ^ test_val, value);
-
-  // Test at 32-bit boundary for 64-bit atomic type.
-  test_val = GG_ULONGLONG(1) << (NUM_BITS(AtomicType) / 2);
-  value = test_val - 1;
-  new_value = base::subtle::NoBarrier_AtomicIncrement(&value, 1);
   CHECK_EQ(test_val, value);
   CHECK_EQ(value, new_value);
 

@@ -57,6 +57,7 @@ Even with the use of libunwind, there are still known problems with
 stack unwinding on 64-bit systems, particularly x86-64.  See the
 "64-BIT ISSUES" section in README.
 
+
 *** NOTE FOR ___tls_get_addr ERROR
 
 When compiling perftools on some old systems, like RedHat 8, you may
@@ -66,9 +67,21 @@ get an error like this:
 This means that you have a system where some parts are updated enough
 to support Thread Local Storage, but others are not.  The perftools
 configure script can't always detect this kind of case, leading to
-that error.  To fix it, just uncomment the line
+that error.  To fix it, just comment out the line
    #define HAVE_TLS 1
 in your config.h file before building.
+
+
+*** TCMALLOC AND DLOPEN
+
+To improve performance, we use the "initial exec" model of Thread
+Local Storage in tcmalloc.  The price for this is the library will not
+work correctly if it is loaded via dlopen().  This should not be a
+problem, since loading a malloc-replacement library via dlopen is
+asking for trouble in any case: some data will be allocated with one
+malloc, some with another.  If, for some reason, you *do* need to use
+dlopen on tcmalloc, the easiest way is to use a version of tcmalloc
+with TLS turned off; see the ___tls_get_addr note above.
 
 
 *** COMPILING ON NON-LINUX SYSTEMS
@@ -91,6 +104,7 @@ Perftools has been tested on the following systems:
    Windows XP, Visual Studio 2003 (VC++ 7) (x86)
    Windows XP, Visual Studio 2005 (VC++ 8) (x86)
    Windows XP, MinGW 5.1.3 (x86)
+   Windows XP, Cygwin 5.1 (x86)
 
 It works in its full generality on the Linux systems
 tested (though see 64-bit notes above).  Portions of perftools work on
@@ -172,16 +186,33 @@ above, by linking in libtcmalloc_minimal.
 
 ** Windows:
 
-   Work on Windows is rather preliminary: we have to #define a special
-   symbol that turns off the stacktrace functionality, since that is
-   not yet implemented (see TODOs in src/windows/port.cc if you're
-   interested in playing around with this).  But as in other ports,
-   the basic tcmalloc library functionality, overriding malloc and new
-   and such, is working fine at least with VC++ 8.0 (Visual Studio
-   2005) when compiled in debug mode.  See README.windows for
-   instructions on how to install on Windows using Visual Studio.
+   Work on Windows is rather preliminary: we haven't found a good way
+   to get stack traces in release mode on windows (that is, when FPO
+   is enabled), so the heap profiling may not be reliable in that
+   case.  Also, heap-checking and CPU profiling do not yet work at
+   all.  But as in other ports, the basic tcmalloc library
+   functionality, overriding malloc and new and such (and even
+   windows-specific functions like _aligned_malloc!), is working fine,
+   at least with VC++ 8.0 (Visual Studio 2005), in both debug and
+   release modes.  See README.windows for instructions on how to
+   install on Windows using Visual Studio.
 
-   This Windows functionality is also available using MinGW and Msys.
+   Cygwin can compile some but not all of perftools.  Furthermore,
+   there is a problem with exception-unwinding in cygwin (it can call
+   malloc, which can call the exception-unwinding-setup code, which
+   can lead to an infinite loop).  I've comitted a workaround to the
+   exception unwinding problem, but it only works in debug mode.  I
+   hope to have a more proper fix in a later release.  To configure
+   under cygwin, run
+      ./configure CXXFLAGS=-g && make -k
+   Most of cygwin will compile (cygwin doesn't allow weak symbols, so
+   the heap-checker and a few other pieces of functionality will not
+   compile).  'make -k' will compile those libraries and tests that
+   can be compiled.  You can run
+      ./tcmalloc_minimal_unittest
+   to make sure the basic functionality is working.
+
+   This Windows functionality is also available using MinGW and Msys,
    In this case, you can use the regular './configure && make'
    process.  'make install' should also work.  The Makefile will limit
    itself to those libraries and binaries that work on windows.

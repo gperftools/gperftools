@@ -37,94 +37,98 @@
 #ifndef BASE_ATOMICOPS_INTERNALS_LINUXPPC_H_
 #define BASE_ATOMICOPS_INTERNALS_LINUXPPC_H_
 
-// int32_t and intptr_t seems to be equal on ppc-linux
-// There are no Atomic64 implementations in this file.
 typedef int32_t Atomic32;
 
-#define LWSYNC_ON_SMP
-#define PPC405_ERR77(a, b)
-#define ISYNC_ON_SMP
-
-
-/* Adapted from atomic_add in asm-powerpc/atomic.h */
-inline int32_t OSAtomicAdd32(int32_t amount, int32_t *value) {
-  int32_t t;
-  __asm__ __volatile__(
-"1:		lwarx   %0,0,%3         # atomic_add\n\
-		add     %0,%2,%0\n"
-		PPC405_ERR77(0,%3)
-"		stwcx.  %0,0,%3 \n\
-		bne-    1b"
-		: "=&r" (t), "+m" (*value)
-		: "r" (amount), "r" (value)
-                : "cc", "memory");
-  return t;
-}
-
-inline int32_t OSAtomicAdd32Barrier(int32_t amount, int32_t *value) {
-  int32_t t;
-  __asm__ __volatile__(
-"1:		lwarx   %0,0,%3         # atomic_add\n\
-		add     %0,%2,%0\n"
-		PPC405_ERR77(0,%3)
-"		stwcx.  %0,0,%3 \n\
-		bne-    1b"
-		ISYNC_ON_SMP
-		: "=&r" (t), "+m" (*value)
-		: "r" (amount), "r" (value)
-                : "cc", "memory");
-  return t;
-}
-
-/* Adapted from __cmpxchg_u32 in asm-powerpc/atomic.h */
-inline bool OSAtomicCompareAndSwap32(int32_t old_value, int32_t new_value,
-                                     int32_t *value) {
-  int32_t prev;
-  __asm__ __volatile__ (
-		LWSYNC_ON_SMP
-"1:		lwarx   %0,0,%2         # __cmpxchg_u32\n\
-		cmpw    0,%0,%3\n\
-		bne-    2f\n"
-		PPC405_ERR77(0,%2)
-"		stwcx.  %4,0,%2\n\
-		bne-    1b"
-		"\n\
-2:"
-                : "=&r" (prev), "+m" (*value)
-                : "r" (value), "r" (old_value), "r" (new_value)
-                : "cc", "memory");
-  return prev == old_value;
-}
-
-/* Adapted from __cmpxchg_u32 in asm-powerpc/atomic.h */
-inline int32_t OSAtomicCompareAndSwap32Barrier(int32_t old_value,
-                                               int32_t new_value,
-                                               int32_t *value) {
-  int32_t prev;
-  __asm__ __volatile__ (
-		LWSYNC_ON_SMP
-"1:		lwarx   %0,0,%2         # __cmpxchg_u32\n\
-		cmpw    0,%0,%3\n\
-		bne-    2f\n"
-		PPC405_ERR77(0,%2)
-"		stwcx.  %4,0,%2\n\
-		bne-    1b"
-		ISYNC_ON_SMP
-		"\n\
-2:"
-                : "=&r" (prev), "+m" (*value)
-                : "r" (value), "r" (old_value), "r" (new_value)
-                : "cc", "memory");
-  return prev == old_value;
-}
+#ifdef __PPC64__
+#define BASE_HAS_ATOMIC64 1
+#endif
 
 namespace base {
 namespace subtle {
 
-typedef int64_t Atomic64;  // Defined but unused
+static inline void _sync(void) {
+  __asm__ __volatile__("sync": : : "memory");
+}
+
+static inline void _lwsync(void) {
+  __asm__ __volatile__("lwsync": : : "memory");
+}
+
+static inline void _isync(void) {
+  __asm__ __volatile__("isync": : : "memory");
+}
+
+static inline Atomic32 OSAtomicAdd32(Atomic32 amount, Atomic32 *value) {
+  Atomic32 t;
+  __asm__ __volatile__(
+"1:		lwarx   %0,0,%3\n\
+		add     %0,%2,%0\n\
+		stwcx.  %0,0,%3 \n\
+		bne-    1b"
+		: "=&r" (t), "+m" (*value)
+		: "r" (amount), "r" (value)
+                : "cc");
+  return t;
+}
+
+static inline Atomic32 OSAtomicAdd32Barrier(Atomic32 amount, Atomic32 *value) {
+  Atomic32 t;
+  _lwsync();
+  t = OSAtomicAdd32(amount, value);
+  // This is based on the code snippet in the architecture manual (Vol
+  // 2, Appendix B).  It's a little tricky: correctness depends on the
+  // fact that the code right before this (in OSAtomicAdd32) has a
+  // conditional branch with a data dependency on the update.
+  // Otherwise, we'd have to use sync.
+  _isync();
+  return t;
+}
+
+static inline bool OSAtomicCompareAndSwap32(Atomic32 old_value,
+                                            Atomic32 new_value,
+                                            Atomic32 *value) {
+  Atomic32 prev;
+  __asm__ __volatile__(
+"1:		lwarx   %0,0,%2\n\
+		cmpw    0,%0,%3\n\
+		bne-    2f\n\
+		stwcx.  %4,0,%2\n\
+		bne-    1b\n\
+2:"
+                : "=&r" (prev), "+m" (*value)
+                : "r" (value), "r" (old_value), "r" (new_value)
+                : "cc");
+  return prev == old_value;
+}
+
+static inline Atomic32 OSAtomicCompareAndSwap32Acquire(Atomic32 old_value,
+                                                       Atomic32 new_value,
+                                                       Atomic32 *value) {
+  Atomic32 t;
+  t = OSAtomicCompareAndSwap32(old_value, new_value, value);
+  // This is based on the code snippet in the architecture manual (Vol
+  // 2, Appendix B).  It's a little tricky: correctness depends on the
+  // fact that the code right before this (in
+  // OSAtomicCompareAndSwap32) has a conditional branch with a data
+  // dependency on the update.  Otherwise, we'd have to use sync.
+  _isync();
+  return t;
+}
+
+static inline Atomic32 OSAtomicCompareAndSwap32Release(Atomic32 old_value,
+                                                       Atomic32 new_value,
+                                                       Atomic32 *value) {
+  _lwsync();
+  return OSAtomicCompareAndSwap32(old_value, new_value, value);
+}
+
+typedef int64_t Atomic64;
 
 inline void MemoryBarrier() {
-  // TODO
+  // This can't be _lwsync(); we need to order the immediately
+  // preceding stores against any load that may follow, but lwsync
+  // doesn't guarantee that.
+  _sync();
 }
 
 // 32-bit Versions.
@@ -168,7 +172,7 @@ inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32 *ptr,
                                        Atomic32 new_value) {
   Atomic32 prev_value;
   do {
-    if (OSAtomicCompareAndSwap32Barrier(old_value, new_value,
+    if (OSAtomicCompareAndSwap32Acquire(old_value, new_value,
                                         const_cast<Atomic32*>(ptr))) {
       return old_value;
     }
@@ -180,39 +184,225 @@ inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32 *ptr,
 inline Atomic32 Release_CompareAndSwap(volatile Atomic32 *ptr,
                                        Atomic32 old_value,
                                        Atomic32 new_value) {
-  // The ppc interface does not distinguish between Acquire and
-  // Release memory barriers; they are equivalent.
-  return Acquire_CompareAndSwap(ptr, old_value, new_value);
+  Atomic32 prev_value;
+  do {
+    if (OSAtomicCompareAndSwap32Release(old_value, new_value,
+                                        const_cast<Atomic32*>(ptr))) {
+      return old_value;
+    }
+    prev_value = *ptr;
+  } while (prev_value == old_value);
+  return prev_value;
 }
 
-inline void NoBarrier_Store(volatile Atomic32* ptr, Atomic32 value) {
+#ifdef __PPC64__
+
+// 64-bit Versions.
+
+static inline Atomic64 OSAtomicAdd64(Atomic64 amount, Atomic64 *value) {
+  Atomic64 t;
+  __asm__ __volatile__(
+"1:		ldarx   %0,0,%3\n\
+		add     %0,%2,%0\n\
+		stdcx.  %0,0,%3 \n\
+		bne-    1b"
+		: "=&r" (t), "+m" (*value)
+		: "r" (amount), "r" (value)
+                : "cc");
+  return t;
+}
+
+static inline Atomic64 OSAtomicAdd64Barrier(Atomic64 amount, Atomic64 *value) {
+  Atomic64 t;
+  _lwsync();
+  t = OSAtomicAdd64(amount, value);
+  // This is based on the code snippet in the architecture manual (Vol
+  // 2, Appendix B).  It's a little tricky: correctness depends on the
+  // fact that the code right before this (in OSAtomicAdd64) has a
+  // conditional branch with a data dependency on the update.
+  // Otherwise, we'd have to use sync.
+  _isync();
+  return t;
+}
+
+static inline bool OSAtomicCompareAndSwap64(Atomic64 old_value,
+                                            Atomic64 new_value,
+                                            Atomic64 *value) {
+  Atomic64 prev;
+  __asm__ __volatile__(
+"1:		ldarx   %0,0,%2\n\
+		cmpw    0,%0,%3\n\
+		bne-    2f\n\
+		stdcx.  %4,0,%2\n\
+		bne-    1b\n\
+2:"
+                : "=&r" (prev), "+m" (*value)
+                : "r" (value), "r" (old_value), "r" (new_value)
+                : "cc");
+  return prev == old_value;
+}
+
+static inline Atomic64 OSAtomicCompareAndSwap64Acquire(Atomic64 old_value,
+                                                       Atomic64 new_value,
+                                                       Atomic64 *value) {
+  Atomic64 t;
+  t = OSAtomicCompareAndSwap64(old_value, new_value, value);
+  // This is based on the code snippet in the architecture manual (Vol
+  // 2, Appendix B).  It's a little tricky: correctness depends on the
+  // fact that the code right before this (in
+  // OSAtomicCompareAndSwap64) has a conditional branch with a data
+  // dependency on the update.  Otherwise, we'd have to use sync.
+  _isync();
+  return t;
+}
+
+static inline Atomic64 OSAtomicCompareAndSwap64Release(Atomic64 old_value,
+                                                       Atomic64 new_value,
+                                                       Atomic64 *value) {
+  _lwsync();
+  return OSAtomicCompareAndSwap64(old_value, new_value, value);
+}
+
+
+inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64 *ptr,
+                                         Atomic64 old_value,
+                                         Atomic64 new_value) {
+  Atomic64 prev_value;
+  do {
+    if (OSAtomicCompareAndSwap64(old_value, new_value,
+                                 const_cast<Atomic64*>(ptr))) {
+      return old_value;
+    }
+    prev_value = *ptr;
+  } while (prev_value == old_value);
+  return prev_value;
+}
+
+inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64 *ptr,
+                                         Atomic64 new_value) {
+  Atomic64 old_value;
+  do {
+    old_value = *ptr;
+  } while (!OSAtomicCompareAndSwap64(old_value, new_value,
+                                     const_cast<Atomic64*>(ptr)));
+  return old_value;
+}
+
+inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64 *ptr,
+                                          Atomic64 increment) {
+  return OSAtomicAdd64(increment, const_cast<Atomic64*>(ptr));
+}
+
+inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64 *ptr,
+                                        Atomic64 increment) {
+  return OSAtomicAdd64Barrier(increment, const_cast<Atomic64*>(ptr));
+}
+
+inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64 *ptr,
+                                       Atomic64 old_value,
+                                       Atomic64 new_value) {
+  Atomic64 prev_value;
+  do {
+    if (OSAtomicCompareAndSwap64Acquire(old_value, new_value,
+                                        const_cast<Atomic64*>(ptr))) {
+      return old_value;
+    }
+    prev_value = *ptr;
+  } while (prev_value == old_value);
+  return prev_value;
+}
+
+inline Atomic64 Release_CompareAndSwap(volatile Atomic64 *ptr,
+                                       Atomic64 old_value,
+                                       Atomic64 new_value) {
+  Atomic64 prev_value;
+  do {
+    if (OSAtomicCompareAndSwap64Release(old_value, new_value,
+                                        const_cast<Atomic64*>(ptr))) {
+      return old_value;
+    }
+    prev_value = *ptr;
+  } while (prev_value == old_value);
+  return prev_value;
+}
+
+#endif
+
+inline void NoBarrier_Store(volatile Atomic32 *ptr, Atomic32 value) {
   *ptr = value;
 }
 
 inline void Acquire_Store(volatile Atomic32 *ptr, Atomic32 value) {
   *ptr = value;
-  MemoryBarrier();
+  // This can't be _lwsync(); we need to order the immediately
+  // preceding stores against any load that may follow, but lwsync
+  // doesn't guarantee that.
+  _sync();
 }
 
 inline void Release_Store(volatile Atomic32 *ptr, Atomic32 value) {
-  MemoryBarrier();
+  _lwsync();
   *ptr = value;
 }
 
-inline Atomic32 NoBarrier_Load(volatile const Atomic32* ptr) {
+inline Atomic32 NoBarrier_Load(volatile const Atomic32 *ptr) {
   return *ptr;
 }
 
 inline Atomic32 Acquire_Load(volatile const Atomic32 *ptr) {
   Atomic32 value = *ptr;
-  MemoryBarrier();
+  _lwsync();
   return value;
 }
 
 inline Atomic32 Release_Load(volatile const Atomic32 *ptr) {
-  MemoryBarrier();
+  // This can't be _lwsync(); we need to order the immediately
+  // preceding stores against any load that may follow, but lwsync
+  // doesn't guarantee that.
+  _sync();
   return *ptr;
 }
+
+#ifdef __PPC64__
+
+// 64-bit Versions.
+
+inline void NoBarrier_Store(volatile Atomic64 *ptr, Atomic64 value) {
+  *ptr = value;
+}
+
+inline void Acquire_Store(volatile Atomic64 *ptr, Atomic64 value) {
+  *ptr = value;
+  // This can't be _lwsync(); we need to order the immediately
+  // preceding stores against any load that may follow, but lwsync
+  // doesn't guarantee that.
+  _sync();
+}
+
+inline void Release_Store(volatile Atomic64 *ptr, Atomic64 value) {
+  _lwsync();
+  *ptr = value;
+}
+
+inline Atomic64 NoBarrier_Load(volatile const Atomic64 *ptr) {
+  return *ptr;
+}
+
+inline Atomic64 Acquire_Load(volatile const Atomic64 *ptr) {
+  Atomic64 value = *ptr;
+  _lwsync();
+  return value;
+}
+
+inline Atomic64 Release_Load(volatile const Atomic64 *ptr) {
+  // This can't be _lwsync(); we need to order the immediately
+  // preceding stores against any load that may follow, but lwsync
+  // doesn't guarantee that.
+  _sync();
+  return *ptr;
+}
+
+#endif
 
 }   // namespace base::subtle
 }   // namespace base

@@ -32,12 +32,17 @@
 //
 // Produce stack trace
 
-#include <stdint.h>   // for uintptr_t
-#include <stdlib.h>   // for NULL
+#include "config.h"
 
-#if !defined(WIN32)
+#include <stdlib.h>   // for NULL
+#ifdef HAVE_STDINT_H
+#include <stdint.h>   // for uintptr_t
+#endif
+#ifdef HAVE_UNISTD_H
 #include <unistd.h>
-#include <sys/mman.h>
+#endif
+#ifdef HAVE_MMAP
+#include <sys/mman.h> // for msync
 #endif
 
 #include "google/stacktrace.h"
@@ -73,7 +78,7 @@ static void **NextStackFrame(void **old_sp) {
   // last two pages in the address space
   if ((uintptr_t)new_sp >= 0xffffe000) return NULL;
 #endif
-#if !defined(WIN32)
+#if !defined(_WIN32)
   if (!STRICT_UNWINDING) {
     // Lax sanity checks cause a crash on AMD-based machines with
     // VDSO-enabled kernels.
@@ -92,17 +97,21 @@ static void **NextStackFrame(void **old_sp) {
 // If you change this function, also change GetStackFrames below.
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void **sp;
-#ifdef __i386__
+#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
+  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
+  // It's always correct on llvm, and the techniques below aren't (in
+  // particular, llvm-gcc will make a copy of pcs, so it's not in sp[2]),
+  // so we also prefer __builtin_frame_address when running under llvm.
+  sp = reinterpret_cast<void**>(__builtin_frame_address(0));
+#elif defined(__i386__)
   // Stack frame format:
   //    sp[0]   pointer to previous frame
   //    sp[1]   caller address
   //    sp[2]   first argument
   //    ...
+  // NOTE: This will break under llvm, since result is a copy and not in sp[2]
   sp = (void **)&result - 2;
-#endif
-
-#ifdef __x86_64__
-  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8
+#elif defined(__x86_64__)
   unsigned long rbp;
   // Move the value of the register %rbp into the local variable rbp.
   // We need 'volatile' to prevent this instruction from getting moved
@@ -115,6 +124,8 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   // Arguments are passed in registers on x86-64, so we can't just
   // offset from &result
   sp = (void **) rbp;
+#else
+# error Using stacktrace_x86-inl.h on a non x86 architecture!
 #endif
 
   int n = 0;
@@ -164,17 +175,20 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 // class, we are in trouble.
 int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
   void **sp;
-#ifdef __i386__
+#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
+  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
+  // It's always correct on llvm, and the techniques below aren't (in
+  // particular, llvm-gcc will make a copy of pcs, so it's not in sp[2]),
+  // so we also prefer __builtin_frame_address when running under llvm.
+  sp = reinterpret_cast<void**>(__builtin_frame_address(0));
+#elif defined(__i386__)
   // Stack frame format:
   //    sp[0]   pointer to previous frame
   //    sp[1]   caller address
   //    sp[2]   first argument
   //    ...
   sp = (void **)&pcs - 2;
-#endif
-
-#ifdef __x86_64__
-  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8
+#elif defined(__x86_64__)
   unsigned long rbp;
   // Move the value of the register %rbp into the local variable rbp.
   // We need 'volatile' to prevent this instruction from getting moved
@@ -185,8 +199,10 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
   //   static void Noop() { asm(""); }  // prevent optimizing-away
   __asm__ volatile ("mov %%rbp, %0" : "=r" (rbp));
   // Arguments are passed in registers on x86-64, so we can't just
-  // offset from &pcs
+  // offset from &result
   sp = (void **) rbp;
+#else
+# error Using stacktrace_x86-inl.h on a non x86 architecture!
 #endif
 
   int n = 0;

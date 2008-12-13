@@ -52,6 +52,7 @@ int ListAllProcessThreads(void *parameter,
                           ListAllProcessThreadsCallBack callback, ...) {
   int rc;
   va_list ap;
+  pid_t pid;
 
 #ifdef HAVE_SYS_PRCTL
   int dumpable = prctl(PR_GET_DUMPABLE, 0);
@@ -59,7 +60,7 @@ int ListAllProcessThreads(void *parameter,
     prctl(PR_SET_DUMPABLE, 1);
 #endif
   va_start(ap, callback);
-  pid_t pid = getpid();
+  pid = getpid();
   rc = callback(parameter, 1, &pid, ap);
   va_end(ap);
 #ifdef HAVE_SYS_PRCTL

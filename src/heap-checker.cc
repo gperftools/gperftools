@@ -44,6 +44,9 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #endif
+#ifdef HAVE_PTHREAD
+#include <pthread.h>
+#endif
 #include <sys/poll.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -54,6 +57,13 @@
 #endif
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
+#endif
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
+#include <wtypes.h>
+#include <winbase.h>
+#undef ERROR     // windows defines these as macros, which can cause trouble
+#undef max
+#undef min
 #endif
 
 #include <string>
@@ -77,6 +87,7 @@
 #include "malloc_hook-inl.h"
 #include <google/malloc_hook.h>
 #include <google/malloc_extension.h>
+#include "maybe_threads.h"
 #include "memory_region_map.h"
 #include "base/spinlock.h"
 #include "base/sysinfo.h"
@@ -367,13 +378,6 @@ typedef map<HCL_string, LiveObjectsStack, less<HCL_string>,
            > LibraryLiveObjectsStacks;
 static LibraryLiveObjectsStacks* library_live_objects = NULL;
 
-// The disabled program counter addresses for profile dumping
-// that are registered with HeapLeakChecker::DisableChecksUp
-typedef set<uintptr_t, less<uintptr_t>,
-            STL_Allocator<uintptr_t, HeapLeakChecker::Allocator>
-           > DisabledAddressSet;
-static DisabledAddressSet* disabled_addresses = NULL;
-
 // Value stored in the map of disabled address ranges;
 // its key is the end of the address range.
 // We'll ignore allocations with a return address in a disabled range
@@ -411,6 +415,94 @@ static GlobalRegionCallerRangeMap* global_region_caller_ranges = NULL;
 
 // TODO(maxim): make our big data structs into own modules
 
+// Disabler is implemented by keeping track of a per-thread count
+// of active Disabler objects.  Any objects allocated while the
+// count > 0 are not reported.
+
+#ifdef HAVE_TLS
+
+static __thread int thread_disable_counter
+// The "inital exec" model is faster than the default TLS model, at
+// the cost you can't dlopen this library.  But dlopen on heap-checker
+// doesn't work anyway -- it must run before main -- so this is a good
+// trade-off.
+# ifdef HAVE___ATTRIBUTE__
+   __attribute__ ((tls_model ("initial-exec")))
+# endif
+    ;
+inline int get_thread_disable_counter() {
+  return thread_disable_counter;
+}
+inline void set_thread_disable_counter(int value) {
+  thread_disable_counter = value;
+}
+
+#else  // #ifdef HAVE_TLS
+
+static pthread_key_t thread_disable_counter_key;
+static int main_thread_counter;   // storage for use before main()
+static bool use_main_thread_counter = true;
+
+// TODO(csilvers): this is called from NewHook, in the middle of malloc().
+// If perftools_pthread_getspecific calls malloc, that will lead to an
+// infinite loop.  I don't know how to fix that, so I hope it never happens!
+inline int get_thread_disable_counter() {
+  if (use_main_thread_counter)  // means we're running really early
+    return main_thread_counter;
+  void* p = perftools_pthread_getspecific(thread_disable_counter_key);
+  return (int)p;   // kinda evil: store the counter directly in the void*
+}
+
+inline void set_thread_disable_counter(int value) {
+  if (use_main_thread_counter) {   // means we're running really early
+    main_thread_counter = value;
+    return;
+  }
+  void* p = (void*)value; // kinda evil: store the counter directly in the void*
+  // NOTE: this may call malloc, which will call NewHook which will call
+  // get_thread_disable_counter() which will call pthread_getspecific().  I
+  // don't know if anything bad can happen if we call getspecific() in the
+  // middle of a setspecific() call.  It seems to work ok in practice...
+  perftools_pthread_setspecific(thread_disable_counter_key, p);
+}
+
+// The idea here is that this initializer will run pretty late: after
+// pthreads have been totally set up.  At this point we can call
+// pthreads routines, so we set those up.
+class InitThreadDisableCounter {
+ public:
+  InitThreadDisableCounter() {
+    perftools_pthread_key_create(&thread_disable_counter_key, NULL);
+    // Set up the main thread's value, which we have a special variable for.
+    void* p = (void*)main_thread_counter;   // store the counter directly
+    perftools_pthread_setspecific(thread_disable_counter_key, p);
+    use_main_thread_counter = false;
+  }
+};
+InitThreadDisableCounter init_thread_disable_counter;
+
+#endif  // #ifdef HAVE_TLS
+
+HeapLeakChecker::Disabler::Disabler() {
+  // It is faster to unconditionally increment the thread-local
+  // counter than to check whether or not heap-checking is on
+  // in a thread-safe manner.
+  int counter = get_thread_disable_counter();
+  set_thread_disable_counter(counter + 1);
+  RAW_VLOG(1, "Increasing thread disable counter to %d", counter + 1);
+}
+
+HeapLeakChecker::Disabler::~Disabler() {
+  int counter = get_thread_disable_counter();
+  RAW_DCHECK(counter > 0, "");
+  if (counter > 0) {
+    set_thread_disable_counter(counter - 1);
+    RAW_VLOG(1, "Decreasing thread disable counter to %d", counter);
+  } else {
+    RAW_VLOG(0, "Thread disable counter underflow : %d", counter);
+  }
+}
+
 //----------------------------------------------------------------------
 
 // The size of the largest heap object allocated so far.
@@ -436,7 +528,10 @@ inline static uintptr_t AsInt(const void* ptr) {
 // Our hooks for MallocHook
 static void NewHook(const void* ptr, size_t size) {
   if (ptr != NULL) {
-    RAW_VLOG(7, "Recording Alloc: %p of %"PRIuS, ptr, size);
+    const int counter = get_thread_disable_counter();
+    const bool ignore = (counter > 0);
+    RAW_VLOG(7, "Recording Alloc: %p of %"PRIuS "; %d", ptr, size,
+             int(counter));
     { SpinLockHolder l(&heap_checker_lock);
       if (size > max_heap_object_size) max_heap_object_size = size;
       uintptr_t addr = AsInt(ptr);
@@ -444,6 +539,9 @@ static void NewHook(const void* ptr, size_t size) {
       addr += size;
       if (addr > max_heap_address) max_heap_address = addr;
       heap_profile->RecordAlloc(ptr, size, 0);
+      if (ignore) {
+        heap_profile->MarkAsIgnored(ptr);
+      }
     }
     RAW_VLOG(8, "Alloc Recorded: %p of %"PRIuS"", ptr, size);
   }
@@ -467,20 +565,16 @@ enum StackDirection {
   UNKNOWN_DIRECTION
 };
 
-static StackDirection GetStackDirection(const int* ptr);  // defined below
-
-// Function pointer to trick compiler into not inlining a call:
-static StackDirection (*do_stack_direction)(const int* ptr) = GetStackDirection;
-
 // Determine which way the stack grows:
-// Call with NULL argument.
-static StackDirection GetStackDirection(const int* ptr) {
-  int a_local;
-  if (ptr == NULL) return do_stack_direction(&a_local);
-  if (&a_local > ptr) return GROWS_TOWARDS_HIGH_ADDRESSES;
-  if (&a_local < ptr) return GROWS_TOWARDS_LOW_ADDRESSES;
-  RAW_CHECK(0, "");  // &a_local == ptr, i.e. the recursive call got inlined
-                     // and we can't do it (need more hoops to prevent inlining)
+
+static StackDirection ATTRIBUTE_NOINLINE GetStackDirection() {
+  if (__builtin_frame_address(0) > __builtin_frame_address(1))
+    return GROWS_TOWARDS_HIGH_ADDRESSES;
+  if (__builtin_frame_address(0) < __builtin_frame_address(1))
+    return GROWS_TOWARDS_LOW_ADDRESSES;
+
+  RAW_CHECK(0, "");  // Couldn't determine the stack direction.
+
   return UNKNOWN_DIRECTION;
 }
 
@@ -497,7 +591,7 @@ static void RegisterStackLocked(const void* top_ptr) {
 
   // make sure stack_direction is initialized
   if (stack_direction == UNKNOWN_DIRECTION) {
-    stack_direction = GetStackDirection(NULL);
+    stack_direction = GetStackDirection();
   }
 
   // Find memory region with this stack
@@ -505,12 +599,12 @@ static void RegisterStackLocked(const void* top_ptr) {
   if (MemoryRegionMap::FindAndMarkStackRegion(top, &region)) {
     // Make the proper portion of the stack live:
     if (stack_direction == GROWS_TOWARDS_LOW_ADDRESSES) {
-      RAW_VLOG(2, "Live stack at %p of %"PRIuS" bytes",
+      RAW_VLOG(2, "Live stack at %p of %"PRIuPTR" bytes",
                   top_ptr, region.end_addr - top);
       live_objects->push_back(AllocObject(top_ptr, region.end_addr - top,
                                           THREAD_DATA));
     } else {  // GROWS_TOWARDS_HIGH_ADDRESSES
-      RAW_VLOG(2, "Live stack at %p of %"PRIuS" bytes",
+      RAW_VLOG(2, "Live stack at %p of %"PRIuPTR" bytes",
                   AsPtr(region.start_addr),
                   top - region.start_addr);
       live_objects->push_back(AllocObject(AsPtr(region.start_addr),
@@ -552,12 +646,12 @@ static void RegisterStackLocked(const void* top_ptr) {
           }
           // Make the proper portion of the stack live:
           if (stack_direction == GROWS_TOWARDS_LOW_ADDRESSES) {
-            RAW_VLOG(2, "Live stack at %p of %"PRIuS" bytes",
+            RAW_VLOG(2, "Live stack at %p of %"PRIuPTR" bytes",
                         top_ptr, stack_end - top);
             live_objects->push_back(
               AllocObject(top_ptr, stack_end - top, THREAD_DATA));
           } else {  // GROWS_TOWARDS_HIGH_ADDRESSES
-            RAW_VLOG(2, "Live stack at %p of %"PRIuS" bytes",
+            RAW_VLOG(2, "Live stack at %p of %"PRIuPTR" bytes",
                         AsPtr(stack_start), top - stack_start);
             live_objects->push_back(
               AllocObject(AsPtr(stack_start), top - stack_start, THREAD_DATA));
@@ -581,6 +675,17 @@ static void RegisterStackLocked(const void* top_ptr) {
   }
 }
 
+// Iterator for heap allocation map data to make ignored objects "live"
+// (i.e., treated as roots for the mark-and-sweep phase)
+static void MakeIgnoredObjectsLiveCallbackLocked(
+    const void* ptr, const HeapProfileTable::AllocInfo& info) {
+  RAW_DCHECK(heap_checker_lock.IsHeld(), "");
+  if (info.ignored) {
+    live_objects->push_back(AllocObject(ptr, info.object_size,
+                                        MUST_BE_ON_HEAP));
+  }
+}
+
 // Iterator for heap allocation map data to make objects allocated from
 // disabled regions of code to be live.
 static void MakeDisabledLiveCallbackLocked(
@@ -590,11 +695,6 @@ static void MakeDisabledLiveCallbackLocked(
   bool range_disable = false;
   for (int depth = 0; depth < info.stack_depth; depth++) {
     uintptr_t addr = AsInt(info.call_stack[depth]);
-    if (disabled_addresses  &&
-        disabled_addresses->find(addr) != disabled_addresses->end()) {
-      stack_disable = true;  // found; dropping
-      break;
-    }
     if (disabled_ranges) {
       DisabledRangeMap::const_iterator iter
         = disabled_ranges->upper_bound(addr);
@@ -936,6 +1036,13 @@ void HeapLeakChecker::IgnoreNonThreadLiveObjectsLocked() {
     IgnoreLiveObjectsLocked("ignored objects", "");
   }
 
+  // Treat objects that were allocated when a Disabler was live as
+  // roots.  I.e., if X was allocated while a Disabler was active,
+  // and Y is reachable from X, arrange that neither X nor Y are
+  // treated as leaks.
+  heap_profile->IterateAllocs(MakeIgnoredObjectsLiveCallbackLocked);
+  IgnoreLiveObjectsLocked("disabled objects", "");
+
   // Make code-address-disabled objects live and ignored:
   // This in particular makes all thread-specific data live
   // because the basic data structure to hold pointers to thread-specific data
@@ -1029,7 +1136,7 @@ void HeapLeakChecker::IgnoreNonThreadLiveObjectsLocked() {
       if (VLOG_IS_ON(2)) {
         for (LiveObjectsStack::const_iterator i = l->second.begin();
              i != l->second.end(); ++i) {
-          RAW_VLOG(2, "Library live region at %p of %"PRIuS" bytes",
+          RAW_VLOG(2, "Library live region at %p of %"PRIuPTR" bytes",
                       i->ptr, i->size);
         }
       }
@@ -1236,11 +1343,11 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
         // After the alignment test got dropped the above performance figures
         // must have changed; might need to revisit this.
 #if defined(__x86_64__)
-        addr < max_heap_address  &&
+        addr <= max_heap_address  &&  // <= is for 0-sized object with max addr
         min_heap_address <= addr;
 #else
         min_heap_address <= addr  &&
-        addr < max_heap_address;
+        addr <= max_heap_address;  // <= is for 0-sized object with max addr
 #endif
       if (can_be_on_heap) {
         const void* ptr = reinterpret_cast<const void*>(addr);
@@ -1288,49 +1395,6 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
 //----------------------------------------------------------------------
 // HeapLeakChecker leak check disabling components
 //----------------------------------------------------------------------
-
-// static
-void HeapLeakChecker::DisableChecksUp(int stack_frames) {
-  { SpinLockHolder l(&heap_checker_lock);
-    if (!heap_checker_on) return;
-  }
-  RAW_CHECK(stack_frames >= 1, "");
-  void* stack[1];
-  if (GetStackTrace(stack, 1, stack_frames + 1) != 1) {
-    RAW_LOG(FATAL, "Can't get stack trace");
-  }
-  DisableChecksAt(stack[0]);
-}
-
-// static
-void HeapLeakChecker::DisableChecksAt(const void* address) {
-  SpinLockHolder l(&heap_checker_lock);
-  if (!heap_checker_on) return;
-  DisableChecksAtLocked(address);
-}
-
-// static
-bool HeapLeakChecker::HaveDisabledChecksUp(int stack_frames) {
-  { SpinLockHolder l(&heap_checker_lock);
-    if (!heap_checker_on) return false;
-  }
-  RAW_CHECK(stack_frames >= 1, "");
-  void* stack[1];
-  if (GetStackTrace(stack, 1, stack_frames + 1) != 1) {
-    RAW_LOG(FATAL, "Can't get stack trace");
-  }
-  return HaveDisabledChecksAt(stack[0]);
-}
-
-// static
-bool HeapLeakChecker::HaveDisabledChecksAt(const void* address) {
-  SpinLockHolder l(&heap_checker_lock);
-  if (!heap_checker_on) return false;
-  bool result = disabled_addresses != NULL  &&
-                disabled_addresses->find(AsInt(address)) !=
-                disabled_addresses->end();
-  return result;
-}
 
 // static
 void HeapLeakChecker::DisableChecksIn(const char* pattern) {
@@ -2353,7 +2417,6 @@ void HeapLeakChecker::TurnItselfOffLocked() {
     // free our optional global data:
     Allocator::DeleteAndNullIfNot(&disabled_regexp);
     Allocator::DeleteAndNullIfNot(&ignored_objects);
-    Allocator::DeleteAndNullIfNot(&disabled_addresses);
     Allocator::DeleteAndNullIfNot(&disabled_ranges);
     Allocator::DeleteAndNullIfNot(&global_region_caller_ranges);
     Allocator::Shutdown();
@@ -2372,7 +2435,7 @@ void HeapLeakChecker::TurnItselfOffLocked() {
 static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
   // This routine is only used to check if we're running under gdb, so
   // it's ok if this #if fails and the routine is a no-op.
-#if defined(HAVE_SYS_SYSCALL_H)
+  //
   // This function is called before memory allocation hooks are set up
   // so we must not have any memory allocations in it.  We use syscall
   // versions of open/read/close here because we don't trust the non-syscall
@@ -2386,6 +2449,13 @@ static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
   // to is live (not a memory leak) as well.  But because this memory
   // was hidden from the heap-checker, everything it points to was
   // taken to be orphaned, and therefore, a memory leak.
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
+  // Use a win32 call to get the command line.
+  const char* command_line = ::GetCommandLine();
+  strncpy(cmdline, command_line, size);
+  cmdline[size - 1] = '\0';
+  return strlen(cmdline);
+#elif defined(HAVE_SYS_SYSCALL_H)
   int fd = syscall(SYS_open, file, O_RDONLY);
   int result = 0;
   if (fd >= 0) {
@@ -2397,7 +2467,7 @@ static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
     syscall(SYS_close, fd);
   }
   return result;
-#else   // HAVE_SYS_SYSCALL_H
+#else
   return 0;
 #endif
 }
@@ -2518,20 +2588,6 @@ void HeapLeakChecker::DisableChecksFromToLocked(const void* start_address,
 }
 
 // static
-void HeapLeakChecker::DisableChecksAtLocked(const void* address) {
-  RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-  if (disabled_addresses == NULL) {
-    disabled_addresses = new(Allocator::Allocate(sizeof(DisabledAddressSet)))
-                           DisabledAddressSet;
-  }
-  // disable the requested address
-  if (disabled_addresses->insert(AsInt(address)).second) {
-    RAW_VLOG(1, "Disabling leak checking in stack traces "
-                "under frame address %p", address);
-  }
-}
-
-// static
 inline bool HeapLeakChecker::HaveOnHeapLocked(const void** ptr,
                                               size_t* object_size) {
   // Commented-out because HaveOnHeapLocked is very performance-critical:
@@ -2539,7 +2595,7 @@ inline bool HeapLeakChecker::HaveOnHeapLocked(const void** ptr,
   const uintptr_t addr = AsInt(*ptr);
   if (heap_profile->FindInsideAlloc(
         *ptr, max_heap_object_size, ptr, object_size)) {
-    RAW_VLOG(7, "Got pointer into %p at +%"PRIuS" offset",
+    RAW_VLOG(7, "Got pointer into %p at +%"PRIuPTR" offset",
              *ptr, addr - AsInt(*ptr));
     return true;
   }

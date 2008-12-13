@@ -39,8 +39,15 @@
 #include <assert.h>
 #include <stdio.h>
 #include <errno.h>
-#include <ucontext.h>
 #include <string.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>  // for getpid()
+#endif
+#ifdef HAVE_UCONTEXT_H
+#include <ucontext.h>
+#else
+typedef int ucontext_t;   // just to quiet the compiler, mostly
+#endif
 #include <sys/time.h>
 #include <string>
 #include <google/profiler.h>
@@ -386,7 +393,7 @@ void CpuProfiler::StopTimer() {
 
 bool CpuProfiler::IsTimerRunning() {
   itimerval current_timer;
-  RAW_CHECK(getitimer(ITIMER_PROF, &current_timer) == 0, "getitimer failed");
+  RAW_CHECK(0 == getitimer(ITIMER_PROF, &current_timer), "getitimer failed");
   return (current_timer.it_value.tv_sec != 0 ||
           current_timer.it_value.tv_usec != 0);
 }

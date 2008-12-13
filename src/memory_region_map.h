@@ -42,6 +42,7 @@
 #include <set>
 #include "base/stl_allocator.h"
 #include "base/spinlock.h"
+#include "base/thread_annotations.h"
 #include "base/low_level_alloc.h"
 
 // TODO(maxim): add a unittest:
@@ -63,8 +64,14 @@
 // For more details on the design of MemoryRegionMap
 // see the comment at the top of our .cc file.
 class MemoryRegionMap {
- public:
+ private:
+  // Max call stack recording depth supported by Init().  Set it to be
+  // high enough for all our clients.  Note: we do not define storage
+  // for this (doing that requires special handling in windows), so
+  // don't take the address of it!
+  static const int kMaxStackDepth = 32;
 
+ public:
   // interface ================================================================
 
   // Every client of MemoryRegionMap must call Init() before first use,
@@ -85,10 +92,6 @@ class MemoryRegionMap {
   // Uses Lock/Unlock inside.
   static void Init(int max_stack_depth);
 
-  // Max call stack recording depth supported by Init().
-  // Set it to be high enough for all our clients.
-  static const int kMaxStackDepth = 32;
-
   // Try to shutdown this module undoing what Init() did.
   // Returns true iff could do full shutdown (or it was not attempted).
   // Full shutdown is attempted when the number of Shutdown() calls equals
@@ -102,8 +105,8 @@ class MemoryRegionMap {
   // Locks to protect our internal data structures.
   // These also protect use of arena_ if our Init() has been done.
   // The lock is recursive.
-  static void Lock();
-  static void Unlock();
+  static void Lock() EXCLUSIVE_LOCK_FUNCTION(lock_);
+  static void Unlock() UNLOCK_FUNCTION(lock_);
 
   // Returns true when the lock is held by this thread (for use in RAW_CHECK-s).
   static bool LockIsHeld();

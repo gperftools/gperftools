@@ -32,6 +32,7 @@
 
 #include "config.h"
 #include <assert.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdio.h>
 #if defined HAVE_STDINT_H
@@ -44,10 +45,28 @@
 #include <string>
 #include HASH_SET_H          // defined in config.h
 #include "base/dynamic_annotations.h"
+#include "base/sysinfo.h"    // for FillProcSelfMaps
 #include "google/malloc_extension.h"
 #include "maybe_threads.h"
 
 using STL_NAMESPACE::string;
+
+static void DumpAddressMap(string* result) {
+  *result += "\nMAPPED_LIBRARIES:\n";
+  // We keep doubling until we get a fit
+  const size_t old_resultlen = result->size();
+  for (int amap_size = 10240; amap_size < 10000000; amap_size *= 2) {
+    result->resize(old_resultlen + amap_size);
+    const int bytes_written =
+        tcmalloc::FillProcSelfMaps(&((*result)[old_resultlen]), amap_size);
+    if (bytes_written < amap_size - 1) {   // we fit!
+      (*result)[old_resultlen + bytes_written] = '\0';
+      result->resize(old_resultlen + bytes_written);
+      return;
+    }
+  }
+  result->reserve(old_resultlen);   // just don't print anything
+}
 
 // Note: this routine is meant to be called before threads are spawned.
 void MallocExtension::Initialize() {
@@ -120,6 +139,14 @@ void MallocExtension::MarkThreadIdle() {
 
 void MallocExtension::ReleaseFreeMemory() {
   // Default implementation does nothing
+}
+
+void MallocExtension::SetMemoryReleaseRate(double rate) {
+  // Default implementation does nothing
+}
+
+double MallocExtension::GetMemoryReleaseRate() {
+  return -1.0;
 }
 
 // The current malloc extension object.  We also keep a pointer to
@@ -211,7 +238,7 @@ struct StackTraceEqual {
   }
 };
 
-#ifdef WIN32
+#ifdef _WIN32
 typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash> StackTraceTable;
 #else
 typedef HASH_NAMESPACE::hash_set<void**, StackTraceHash, StackTraceEqual> StackTraceTable;
@@ -285,8 +312,7 @@ void MallocExtension::GetHeapSample(string* result) {
     PrintStackEntry(result, *iter);
   }
 
-  // TODO(menage) Get this working in google-perftools
-  //DumpAddressMap(DebugStringWriter, result);
+  DumpAddressMap(result);
   delete[] entries;
 }
 
@@ -310,8 +336,7 @@ void MallocExtension::GetHeapGrowthStacks(string* result) {
   }
   delete[] entries;
 
-  // TODO(menage) Get this working in google-perftools
-  //DumpAddressMap(DebugStringWriter, result);
+  DumpAddressMap(result);
 }
 
 // These are C shims that work on the current instance.

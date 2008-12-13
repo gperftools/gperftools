@@ -52,8 +52,9 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   if ((NULL == target_function) ||
       (NULL == replacement_function) ||
       (NULL == preamble_stub)) {
-    ASSERT(false, "Invalid parameters - either pTargetFunction or "
-                  "pReplacementFunction or pPreambleStub were NULL.");
+    SIDESTEP_ASSERT(false &&
+                    "Invalid parameters - either pTargetFunction or "
+                    "pReplacementFunction or pPreambleStub were NULL.");
     return SIDESTEP_INVALID_PARAMETER;
   }
 
@@ -74,7 +75,6 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // doing it atomically does not help if one of the other threads happens
   // to have its eip in the middle of the bytes you change while you change
   // them.
-  unsigned char* target = reinterpret_cast<unsigned char*>(target_function);
 
   // First, deal with a special case that we see with functions that
   // point into an IAT table (including functions linked statically
@@ -83,19 +83,15 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // JMP to __malloc().  In that case, we replace the destination of
   // the JMP (__malloc), rather than the JMP itself (malloc).  This
   // way we get the correct behavior no matter how malloc gets called.
-  if (target[0] == ASM_JMP32REL) {
-    // target[1-4] holds the place the jmp goes to, but it's
-    // relative to the next instruction.
-    int relative_offset;   // Windows guarantees int is 4 bytes
-    ASSERT1(sizeof(relative_offset) == 4);
-    memcpy(reinterpret_cast<void*>(&relative_offset),
-           reinterpret_cast<void*>(target + 1), 4);
-    // I'd like to just say "target = target + 5 + relative_offset" here, but
-    // I can't, because the new target will need to have its protections set.
-    return RawPatchWithStubAndProtections(target + 5 + relative_offset,
-                                          replacement_function, preamble_stub,
-                                          stub_size, bytes_needed);
+  void *new_target = ResolveTarget(target_function);
+  if (new_target != target_function) {   // we're in the IAT case
+    // I'd like to just say "target = new_target", but I can't,
+    // because the new target will need to have its protections set.
+    return RawPatchWithStubAndProtections(new_target, replacement_function,
+                                          preamble_stub, stub_size,
+                                          bytes_needed);
   }
+  unsigned char* target = reinterpret_cast<unsigned char*>(new_target);
 
   // Let's disassemble the preamble of the target function to see if we can
   // patch, and to see how much of the preamble we need to take.  We need 5
@@ -105,17 +101,20 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   unsigned int preamble_bytes = 0;
   while (preamble_bytes < 5) {
     InstructionType instruction_type =
-      disassembler.Disassemble(target + preamble_bytes, preamble_bytes);
+        disassembler.Disassemble(target + preamble_bytes, preamble_bytes);
     if (IT_JUMP == instruction_type) {
-      ASSERT(false, "Unable to patch because there is a jump instruction "
-                     "in the first 5 bytes.");
+      SIDESTEP_ASSERT(false &&
+                      "Unable to patch because there is a jump instruction "
+                      "in the first 5 bytes.");
       return SIDESTEP_JUMP_INSTRUCTION;
     } else if (IT_RETURN == instruction_type) {
-      ASSERT(false, "Unable to patch because function is too short");
+      SIDESTEP_ASSERT(false &&
+                      "Unable to patch because function is too short");
       return SIDESTEP_FUNCTION_TOO_SMALL;
     } else if (IT_GENERIC != instruction_type) {
-      ASSERT(false, "Disassembler encountered unsupported instruction "
-                    "(either unused or unknown)");
+      SIDESTEP_ASSERT(false &&
+                      "Disassembler encountered unsupported instruction "
+                      "(either unused or unknown");
       return SIDESTEP_UNSUPPORTED_INSTRUCTION;
     }
   }
@@ -128,7 +127,7 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // in size total. The size of the stub required is cbPreamble + size of
   // jmp (5)
   if (preamble_bytes + 5 > stub_size) {
-    ASSERT1(false);
+    SIDESTEP_ASSERT(false);
     return SIDESTEP_INSUFFICIENT_BUFFER;
   }
 
@@ -144,8 +143,8 @@ SideStepError PreamblePatcher::RawPatchWithStub(
 #pragma warning(disable:4244)
 #endif
   int relative_offset_to_target_rest
-    = ((reinterpret_cast<unsigned char*>(target) + preamble_bytes) -
-        (preamble_stub + preamble_bytes + 5));
+      = ((reinterpret_cast<unsigned char*>(target) + preamble_bytes) -
+         (preamble_stub + preamble_bytes + 5));
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -153,7 +152,7 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   preamble_stub[preamble_bytes] = ASM_JMP32REL;
   // copy the address
   memcpy(reinterpret_cast<void*>(preamble_stub + preamble_bytes + 1),
-    reinterpret_cast<void*>(&relative_offset_to_target_rest), 4);
+         reinterpret_cast<void*>(&relative_offset_to_target_rest), 4);
 
   // Inv: preamble_stub points to assembly code that will execute the
   // original function by first executing the first cbPreamble bytes of the
@@ -170,8 +169,8 @@ SideStepError PreamblePatcher::RawPatchWithStub(
 #pragma warning(disable:4244)
 #endif
   int offset_to_replacement_function =
-    reinterpret_cast<unsigned char*>(replacement_function) -
-    reinterpret_cast<unsigned char*>(target) - 5;
+      reinterpret_cast<unsigned char*>(replacement_function) -
+      reinterpret_cast<unsigned char*>(target) - 5;
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif

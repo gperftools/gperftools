@@ -1,3 +1,24 @@
+Thu Dec 11 16:01:32 2008  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.0rc1 release
+	* Replace API for selectively disabling heap-checker in code (sanjay)
+	* Add a pre-mmap hook (daven, adlr)
+	* Add MallocExtension interface to set memory-releasing rate (fikes)
+	* Augment pprof to allow any string ending in /pprof/profile (csilvers)
+	* PORTING: Rewrite -- and fix --  malloc patching for windows (dvitek)
+	* PORTING: Add nm-pdb and addr2line-pdb for use by pprof (dvitek)
+	* PORTING: Improve cygwin and mingw support (jperkins, csilvers)
+	* PORTING: Fix pprof for mac os x, other pprof improvements (csilvers)
+	* PORTING: Fix some PPC bugs in our locking code (anton.blanchard)
+	* A new unittest, smapling_test, to verify tcmalloc-profiles (csilvers)
+	* Turn off TLS for gcc < 4.1.2, due to a TLS + -fPIC bug (csilvers)
+	* Prefer __builtin_frame_address to assembly for stacktraces (nlewycky)
+	* Separate tcmalloc.cc out into multiple files -- finally! (kash)
+	* Make our locking code work with -fPIC on 32-bit x86 (aruns)
+	* Fix an initialization-ordering bug for tcmalloc/profiling (csilvers)
+	* Use "initial exec" model of TLS to speed up tcmalloc (csilvers)
+	* Enforce 16-byte alignment for tcmalloc, for SSE (sanjay)
+	
 Tue Sep 23 08:56:31 2008  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 0.99.2 release

@@ -56,6 +56,14 @@ MallocHook_NewHook MallocHook_SetNewHook(MallocHook_NewHook hook);
 typedef void (*MallocHook_DeleteHook)(const void* ptr);
 MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook);
 
+typedef void (*MallocHook_PreMmapHook)(const void *start,
+                                       size_t size,
+                                       int protection,
+                                       int flags,
+                                       int fd,
+                                       off_t offset);
+MallocHook_PreMmapHook MallocHook_SetPreMmapHook(MallocHook_PreMmapHook hook);
+
 typedef void (*MallocHook_MmapHook)(const void* result,
                                     const void* start,
                                     size_t size,
@@ -75,6 +83,9 @@ typedef void (*MallocHook_MremapHook)(const void* result,
                                       int flags,
                                       const void* new_addr);
 MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook);
+
+typedef void (*MallocHook_PreSbrkHook)(ptrdiff_t increment);
+MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook);
 
 typedef void (*MallocHook_SbrkHook)(const void* result, ptrdiff_t increment);
 MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook);

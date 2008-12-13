@@ -201,4 +201,24 @@ inline void LOG_IF(int lvl, bool cond, const char* pat, ...) {
   if (cond)  LOG_PRINTF(lvl, pat);
 }
 
+// This isn't technically logging, but it's also IO and also is an
+// attempt to be "raw" -- that is, to not use any higher-level libc
+// routines that might allocate memory or (ideally) try to allocate
+// locks.  We use an opaque file handle (not necessarily an int)
+// to allow even more low-level stuff in the future.
+// Like other "raw" routines, these functions are best effort, and
+// thus don't return error codes (except RawOpenForWriting()).
+#ifdef _WIN32
+#include <windows.h>
+typedef HANDLE RawFD;
+const RawFD kIllegalRawFD = INVALID_HANDLE_VALUE;
+#else
+typedef int RawFD;
+const RawFD kIllegalRawFD = -1;   // what open returns if it fails
+#endif  // _WIN32
+
+RawFD RawOpenForWriting(const char* filename);   // uses default permissions
+void RawWrite(RawFD fd, const char* buf, size_t len);
+void RawClose(RawFD fd);
+
 #endif // _LOGGING_H_

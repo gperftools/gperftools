@@ -34,9 +34,13 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
+#endif
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
 #endif
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>    // for open()
@@ -58,6 +62,7 @@
 #include "base/googleinit.h"
 #include "base/commandlineflags.h"
 #include "malloc_hook-inl.h"
+#include "tcmalloc_guard.h"
 #include <google/malloc_hook.h>
 #include <google/malloc_extension.h>
 #include "base/spinlock.h"
@@ -146,6 +151,7 @@ static char* global_profiler_buffer = NULL;
 // Profiling control/state data
 //----------------------------------------------------------------------
 
+// Access to all of these is protected by heap_lock.
 static bool  is_on = false;           // If are on as a subsytem.
 static bool  dumping = false;         // Dumping status to prevent recursion
 static char* filename_prefix = NULL;  // Prefix used for profile file names
@@ -221,19 +227,6 @@ extern "C" char* GetHeapProfile() {
 static void NewHook(const void* ptr, size_t size);
 static void DeleteHook(const void* ptr);
 
-// Dump data to fd.  Copied from heap-profile-table.cc.
-#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
-
-static void FDWrite(int fd, const char* buf, size_t len) {
-  while (len > 0) {
-    ssize_t r;
-    NO_INTR(r = write(fd, buf, len));
-    RAW_CHECK(r >= 0, "");  // strerror(errno)
-    buf += r;
-    len -= r;
-  }
-}
-
 // Helper for HeapProfilerDump.
 static void DumpProfileLocked(const char* reason) {
   RAW_DCHECK(heap_lock.IsHeld(), "");
@@ -263,8 +256,8 @@ static void DumpProfileLocked(const char* reason) {
   RAW_VLOG(0, "Dumping heap profile to %s (%s)", file_name, reason);
   // We must use file routines that don't access memory, since we hold
   // a memory lock now.
-  int fd = open(file_name, O_WRONLY | O_CREAT | O_EXCL, 0664);
-  if (fd < 0) {
+  RawFD fd = RawOpenForWriting(file_name);
+  if (fd == kIllegalRawFD) {
     RAW_LOG(ERROR, "Failed dumping heap profile to %s", file_name);
     dumping = false;
     return;
@@ -279,8 +272,8 @@ static void DumpProfileLocked(const char* reason) {
 
   char* profile = DoGetHeapProfileLocked(global_profiler_buffer,
                                          kProfileBufferSize);
-  FDWrite(fd, profile, strlen(profile));
-  close(fd);
+  RawWrite(fd, profile, strlen(profile));
+  RawClose(fd);
 
   dumping = false;
 }
@@ -363,8 +356,8 @@ static void MmapHook(const void* result, const void* start, size_t size,
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO,
-            "mmap(start=0x%"PRIxS", len=%"PRIuS", prot=0x%x, flags=0x%x, "
-            "fd=%d, offset=0x%x) = 0x%"PRIxS"",
+            "mmap(start=0x%"PRIxPTR", len=%"PRIuS", prot=0x%x, flags=0x%x, "
+            "fd=%d, offset=0x%x) = 0x%"PRIxPTR"",
             (uintptr_t) start, size, prot, flags, fd, (unsigned int) offset,
             (uintptr_t) result);
 #ifdef TODO_REENABLE_STACK_TRACING
@@ -386,8 +379,9 @@ static void MremapHook(const void* result, const void* old_addr,
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO,
-            "mremap(old_addr=0x%"PRIxS", old_size=%"PRIuS", new_size=%"PRIuS", "
-            "flags=0x%x, new_addr=0x%"PRIxS") = 0x%"PRIxS"",
+            "mremap(old_addr=0x%"PRIxPTR", old_size=%"PRIuS", "
+            "new_size=%"PRIuS", flags=0x%x, new_addr=0x%"PRIxPTR") = "
+            "0x%"PRIxPTR"",
             (uintptr_t) old_addr, old_size, new_size, flags,
             (uintptr_t) new_addr, (uintptr_t) result);
 #ifdef TODO_REENABLE_STACK_TRACING
@@ -404,7 +398,7 @@ static void MunmapHook(const void* ptr, size_t size) {
     // We use PRIxS not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
-    RAW_LOG(INFO, "munmap(start=0x%"PRIxS", len=%"PRIuS")",
+    RAW_LOG(INFO, "munmap(start=0x%"PRIxPTR", len=%"PRIuS")",
                   (uintptr_t) ptr, size);
 #ifdef TODO_REENABLE_STACK_TRACING
     DumpStackTrace(1, RawInfoStackDumper, NULL);
@@ -417,7 +411,7 @@ static void MunmapHook(const void* ptr, size_t size) {
 
 static void SbrkHook(const void* result, ptrdiff_t increment) {
   if (FLAGS_mmap_log) {  // log it
-    RAW_LOG(INFO, "sbrk(inc=%"PRIdS") = 0x%"PRIxS"",
+    RAW_LOG(INFO, "sbrk(inc=%"PRIdS") = 0x%"PRIxPTR"",
                   increment, (uintptr_t) result);
 #ifdef TODO_REENABLE_STACK_TRACING
     DumpStackTrace(1, RawInfoStackDumper, NULL);
@@ -440,6 +434,10 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   is_on = true;
 
   RAW_VLOG(0, "Starting tracking the heap");
+
+  // This should be done before the hooks are set up, since it should
+  // call new, and we want that to be accounted for correctly.
+  MallocExtension::Initialize();
 
   if (FLAGS_only_mmap_profile) {
     FLAGS_mmap_profile = true;
@@ -494,10 +492,6 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   filename_prefix = reinterpret_cast<char*>(ProfilerMalloc(prefix_length + 1));
   memcpy(filename_prefix, prefix, prefix_length);
   filename_prefix[prefix_length] = '\0';
-
-  // This should be done before the hooks are set up, since it should
-  // call new, and we want that to be accounted for correctly.
-  MallocExtension::Initialize();
 }
 
 extern "C" bool IsHeapProfilerRunning() {
@@ -591,5 +585,7 @@ struct HeapProfileEndWriter {
   ~HeapProfileEndWriter() { HeapProfilerDump("Exiting"); }
 };
 
+// We want to make sure tcmalloc is up and running before starting the profiler
+static const TCMallocGuard tcmalloc_initializer;
 REGISTER_MODULE_INITIALIZER(heapprofiler, HeapProfilerInit());
 static HeapProfileEndWriter heap_profile_end_writer;

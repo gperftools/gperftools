@@ -644,32 +644,26 @@ static void TransLeaks() {
   AllocHidden(1 * sizeof(char));
 }
 
-// have leaks but disable them
-static void DisabledLeaks() {
-  HeapLeakChecker::DisableChecksUp(1);
-  AllocHidden(3 * sizeof(int));
-  TransLeaks();
-}
-
 // have leaks but range-disable them
-static void RangeDisabledLeaks() {
+void RangeDisabledLeaks() {
   void* start_address = HeapLeakChecker::GetDisableChecksStart();
   AllocHidden(3 * sizeof(int));
   TransLeaks();
   HeapLeakChecker::DisableChecksToHereFrom(start_address);
 }
 
-// We need this function pointer trickery to fool an aggressive
-// optimizing compiler such as icc into not inlining DisabledLeaks().
-// Otherwise the stack-frame-address-based disabling in it
-// will wrongly disable allocation tracking in
-// the functions into which it's inlined.
-static void (*disabled_leaks_addr)() = &DisabledLeaks;
+// range-based disabling using Disabler
+static void ScopedDisabledLeaks() {
+  HeapLeakChecker::Disabler disabler;
+  AllocHidden(3 * sizeof(int));
+  TransLeaks();
+  malloc(10);  // Direct leak
+}
 
 // have different disabled leaks
 static void* RunDisabledLeaks(void* a) {
-  disabled_leaks_addr();
   RangeDisabledLeaks();
+  ScopedDisabledLeaks();
   return a;
 }
 
@@ -694,10 +688,6 @@ static void TestHeapLeakCheckerDisabling() {
   RunDisabledLeaks(NULL);
   ThreadDisabledLeaks();
   ThreadDisabledLeaks();
-
-  LOG_IF(FATAL, HeapLeakChecker::HaveDisabledChecksUp(1),
-        "Some code with DisableChecksUp() got inlined into here; "
-        "need to add more tricks to prevent this inlining.");
 
   Pause();
 
@@ -948,22 +938,6 @@ static void RunHeapBusyThreads() {
   Pause();
 }
 
-static int NumThreads(void* parameter, int num_threads,
-                      pid_t* thread_pids, va_list ap) {
-  ResumeAllProcessThreads(num_threads, thread_pids);
-  return num_threads;
-}
-
-// tests disabling via function name
-REGISTER_MODULE_INITIALIZER(heap_checker_unittest, {
-  // TODO(csilvers): figure out when this might be true
-  can_create_leaks_reliably = false;
-  if (can_create_leaks_reliably) {  // should have no threads:
-    CHECK_LE(ListAllProcessThreads(NULL, NumThreads), 1);
-  }
-  HeapLeakChecker::DisableChecksIn("NamedDisabledLeaks");
-});
-
 // NOTE: For NamedDisabledLeaks, NamedTwoDisabledLeaks
 // and NamedThreeDisabledLeaks for the name-based disabling to work in opt mode
 // we need to undo the tail-recursion optimization effect
@@ -984,7 +958,7 @@ static void NamedDisabledLeaks() {
 static void (*named_disabled_leaks)() = &NamedDisabledLeaks;
 
 // have leaks that we disable via our function name ourselves
-static void NamedTwoDisabledLeaks() {
+void NamedTwoDisabledLeaks() {
   static bool first = true;
   if (first) {
     HeapLeakChecker::DisableChecksIn("NamedTwoDisabledLeaks");
@@ -1011,7 +985,7 @@ static void (*named_three_disabled_leaks)() = &NamedThreeDisabledLeaks;
 static bool range_disable_named = false;
 
 // have leaks that we disable via function names
-static void* RunNamedDisabledLeaks(void* a) {
+void* RunNamedDisabledLeaks(void* a) {
   // We get the address unconditionally here to fool gcc 4.1.0 in opt mode:
   // else it reorders the binary code so that our return address bracketing
   // does not work here.
@@ -1041,7 +1015,7 @@ static void ThreadNamedDisabledLeaks() {
 }
 
 // test leak disabling via function names
-static void TestHeapLeakCheckerNamedDisabling() {
+void TestHeapLeakCheckerNamedDisabling() {
   HeapLeakChecker::DisableChecksIn("NamedThreeDisabledLeaks");
 
   HeapLeakChecker check("named_disabling");

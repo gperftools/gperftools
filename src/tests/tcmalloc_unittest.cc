@@ -81,6 +81,23 @@
 #include "google/malloc_extension.h"
 #include "tests/testutil.h"
 
+// Windows doesn't define pvalloc and a few other obsolete unix
+// functions; nor does it define posix_memalign (which is not obsolete).
+#ifdef _WIN32
+# define cfree free         // don't bother to try to test these obsolete fns
+# define valloc malloc
+# define pvalloc malloc
+# ifdef PERFTOOLS_NO_ALIGNED_MALLOC
+#   define _aligned_malloc(size, alignment) malloc(size)
+# endif
+# define memalign(alignment, size) _aligned_malloc(size, alignment)
+// Assume if we fail, it's because of out-of-memory.
+// Note, this isn't a perfect analogue: we don't enforce constraints on "align"
+# include <errno.h>
+# define posix_memalign(pptr, align, size) \
+      ((*(pptr)=_aligned_malloc(size, align)) ? 0 : ENOMEM)
+#endif
+
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
 // form of the name instead.
 #ifndef MAP_ANONYMOUS
@@ -665,6 +682,33 @@ MAKE_HOOK_CALLBACK(MremapHook);
 MAKE_HOOK_CALLBACK(MunmapHook);
 MAKE_HOOK_CALLBACK(SbrkHook);
 
+static void TestAlignmentForSize(int size) {
+  fprintf(LOGSTREAM, "Testing alignment of malloc(%d)\n", size);
+  static const int kNum = 100;
+  void* ptrs[kNum];
+  for (int i = 0; i < kNum; i++) {
+    ptrs[i] = malloc(size);
+    uintptr_t p = reinterpret_cast<uintptr_t>(ptrs[i]);
+    CHECK((p % sizeof(void*)) == 0);
+    CHECK((p % sizeof(double)) == 0);
+
+    // Must have 16-byte alignment for large enough objects
+    if (size >= 16) {
+      CHECK((p % 16) == 0);
+    }
+  }
+  for (int i = 0; i < kNum; i++) {
+    free(ptrs[i]);
+  }
+}
+
+static void TestMallocAlignment() {
+  for (int lg = 0; lg < 16; lg++) {
+    TestAlignmentForSize((1<<lg) - 1);
+    TestAlignmentForSize((1<<lg) + 0);
+    TestAlignmentForSize((1<<lg) + 1);
+  }
+}
 
 int main(int argc, char** argv) {
   // Optional argv[1] is the seed
@@ -769,7 +813,7 @@ int main(int argc, char** argv) {
 
     p2 = new char[100];
     VerifyNewHookWasCalled();
-    delete p2;
+    delete[] p2;
     VerifyDeleteHookWasCalled();
 
     // Test mmap too: both anonymous mmap and mmap of a file
@@ -840,6 +884,8 @@ int main(int argc, char** argv) {
     CHECK(p != NULL);  // could not allocate
     free(p);
   }
+
+  TestMallocAlignment();
 
   // Check calloc() with various arguments
   fprintf(LOGSTREAM, "Testing calloc\n");

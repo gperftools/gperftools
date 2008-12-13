@@ -74,7 +74,7 @@ extern "C" {
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef WIN32
+# ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
 # else
 #   define PERFTOOLS_DLL_DECL
@@ -105,6 +105,22 @@ class PERFTOOLS_DLL_DECL MallocHook {
     return MallocHook_SetDeleteHook(hook);
   }
   inline static void InvokeDeleteHook(const void* p);
+
+  // The PreMmapHook is invoked with mmap or mmap64 arguments just
+  // before the call is actually made.  Such a hook may be useful
+  // in memory limited contexts, to catch allocations that will exceed
+  // a memory limit, and take outside actions to increase that limit.
+  typedef MallocHook_PreMmapHook PreMmapHook;
+  inline static PreMmapHook GetPreMmapHook();
+  inline static PreMmapHook SetPreMmapHook(PreMmapHook hook) {
+    return MallocHook_SetPreMmapHook(hook);
+  }
+  inline static void InvokePreMmapHook(const void* start,
+                                       size_t size,
+                                       int protection,
+                                       int flags,
+                                       int fd,
+                                       off_t offset);
 
   // The MmapHook is invoked whenever a region of memory is mapped.
   // It may be passed MAP_FAILED if the mmap failed.
@@ -141,6 +157,19 @@ class PERFTOOLS_DLL_DECL MallocHook {
                                       size_t new_size,
                                       int flags,
                                       const void* new_addr);
+
+  // The PreSbrkHook is invoked just before sbrk is called -- except when
+  // the increment is 0.  This is because sbrk(0) is often called
+  // to get the top of the memory stack, and is not actually a
+  // memory-allocation call.  It may be useful in memory-limited contexts,
+  // to catch allocations that will exceed the limit and take outside
+  // actions to increase such a limit.
+  typedef MallocHook_PreSbrkHook PreSbrkHook;
+  inline static PreSbrkHook GetPreSbrkHook();
+  inline static PreSbrkHook SetPreSbrkHook(PreSbrkHook hook) {
+    return MallocHook_SetPreSbrkHook(hook);
+  }
+  inline static void InvokePreSbrkHook(ptrdiff_t increment);
 
   // The SbrkHook is invoked whenever sbrk is called -- except when
   // the increment is 0.  This is because sbrk(0) is often called

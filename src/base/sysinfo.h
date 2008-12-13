@@ -39,7 +39,7 @@
 #include "config.h"
 
 #include <time.h>
-#ifdef WIN32
+#if defined(_WIN32) || defined(__MINGW32__)
 #include <windows.h>   // for DWORD
 #include <TlHelp32.h>  // for CreateToolhelp32Snapshot
 #endif
@@ -49,6 +49,7 @@
 #include <stddef.h>    // for size_t
 #include <limits.h>    // for PATH_MAX
 #include "base/basictypes.h"
+#include "base/logging.h"   // for RawFD
 
 // This getenv prefers using /proc/self/environ to calling getenv().
 // It's intended to be used in routines that run before main(), when
@@ -181,7 +182,7 @@ class ProcMapsIterator {
   char *etext_;       // end of text
   char *nextline_;    // start of next line
   char *ebuf_;        // end of buffer (1 char for a nul)
-#if defined(WIN32)
+#if defined(_WIN32) || defined(__MINGW32__)
   HANDLE snapshot_;   // filehandle on dll info
   // In a change from the usual W-A pattern, there is no A variant of
   // MODULEENTRY32.  Tlhelp32.h #defines the W variant, but not the A.
@@ -207,5 +208,12 @@ class ProcMapsIterator {
 };
 
 #endif  /* #ifndef SWIG */
+
+// Helper routines
+
+namespace tcmalloc {
+int FillProcSelfMaps(char buf[], int size);
+void DumpProcSelfMaps(RawFD fd);
+}
 
 #endif   /* #ifndef _SYSINFO_H_ */

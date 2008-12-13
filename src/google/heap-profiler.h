@@ -54,7 +54,7 @@
 
 /* Annoying stuff for windows; makes sure clients can import these functions */
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef WIN32
+# ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
 # else
 #   define PERFTOOLS_DLL_DECL

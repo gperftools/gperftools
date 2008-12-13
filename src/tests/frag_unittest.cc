@@ -35,7 +35,7 @@
 #include "config_for_unittests.h"
 #include <stdlib.h>
 #include <stdio.h>
-#ifndef WIN32
+#ifndef _WIN32
 #include <sys/time.h>           // for struct timeval
 #include <sys/resource.h>       // for getrusage
 #endif
@@ -80,7 +80,7 @@ int main(int argc, char** argv) {
   // Now do timing tests
   for (int i = 0; i < 5; i++) {
     static const int kIterations = 100000;
-#ifdef WIN32
+#ifdef _WIN32
     long long int tv_start = GetTickCount();
 #else
     struct rusage r;
@@ -94,7 +94,7 @@ int main(int argc, char** argv) {
                                                       &s);
     }
 
-#ifdef WIN32
+#ifdef _WIN32
     long long int tv_end = GetTickCount();
     int64 sumsec = (tv_end - tv_start) / 1000;
     // Resolution in windows is only to the millisecond, alas

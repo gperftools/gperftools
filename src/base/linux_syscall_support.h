@@ -2567,10 +2567,12 @@ struct kernel_statfs {
     LSS_INLINE _syscall5(int, _llseek,     uint, fd, ulong, hi, ulong, lo,
                          loff_t *, res, uint, wh)
     LSS_INLINE _syscall1(void*, mmap,              void*, a)
+#ifndef __PPC64__
     LSS_INLINE _syscall6(void*, mmap2,             void*, s,
                          size_t,                   l, int,               p,
                          int,                      f, int,               d,
                          __off64_t,                o)
+#endif
     LSS_INLINE _syscall3(int,   _sigaction,        int,   s,
                          const struct kernel_old_sigaction*,  a,
                          struct kernel_old_sigaction*,        o)

@@ -48,7 +48,7 @@
 #include <sys/sysctl.h>
 #elif defined __sun__         // Solaris
 #include <procfs.h>           // for, e.g., prmap_t
-#elif defined WIN32           // Windows
+#elif defined(_WIN32) || defined(__MINGW32__)
 #include <process.h>          // for getpid() (actually, _getpid())
 #include <shlwapi.h>          // for SHGetValueA()
 #include <tlhelp32.h>         // for Module32First()
@@ -58,7 +58,7 @@
 #include "base/logging.h"
 #include "base/cycleclock.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 #ifdef MODULEENTRY32
 // In a change from the usual W-A pattern, there is no A variant of
 // MODULEENTRY32.  Tlhelp32.h #defines the W variant, but not the A.
@@ -75,7 +75,7 @@
 #ifndef TH32CS_SNAPMODULE32
 #define TH32CS_SNAPMODULE32  0
 #endif  /* TH32CS_SNAPMODULE32 */
-#endif  /* WIN32 */
+#endif  /* _WIN32 */
 
 // Re-run fn until it doesn't cause EINTR.
 #define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
@@ -177,7 +177,7 @@ static double cpuinfo_cycles_per_second = 1.0;  // 0.0 might be dangerous
 static int cpuinfo_num_cpus = 1;  // Conservative guess
 
 static void SleepForMilliseconds(int milliseconds) {
-#ifdef WIN32
+#ifdef _WIN32
   _sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
 #else
   // Sleep for a few milliseconds
@@ -219,7 +219,7 @@ static void InitializeSystemInfo() {
   // to silence the compiler for OS's that don't need it
   if (0) EstimateCyclesPerSecond(0);
 
-#if defined __linux__
+#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   char line[1024];
   char* err;
 
@@ -334,7 +334,7 @@ static void InitializeSystemInfo() {
   }
   // TODO(csilvers): also figure out cpuinfo_num_cpus
 
-#elif defined WIN32
+#elif defined(_WIN32) || defined(__MINGW32__)
 # pragma comment(lib, "shlwapi.lib")  // for SHGetValue()
   // In NT, read MHz from the registry. If we fail to do so or we're in win9x
   // then make a crude estimate.
@@ -393,7 +393,7 @@ int NumCPUs(void) {
 
 // ----------------------------------------------------------------------
 
-#if defined __linux__ || defined __FreeBSD__ || defined __sun__
+#if defined __linux__ || defined __FreeBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__
 static void ConstructFilename(const char* spec, pid_t pid,
                               char* buf, int buf_size) {
   CHECK_LT(snprintf(buf, buf_size,
@@ -434,7 +434,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
   ebuf_ = ibuf_ + Buffer::kBufSize - 1;
   nextline_ = ibuf_;
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   if (use_maps_backing) {  // don't bother with clever "self" stuff in this case
     ConstructFilename("/proc/%d/maps_backing", pid, ibuf_, Buffer::kBufSize);
   } else if (pid == 0) {
@@ -466,7 +466,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
 #elif defined(__MACH__)
   current_image_ = _dyld_image_count();   // count down from the top
   current_load_cmd_ = -1;
-#elif defined(WIN32)
+#elif defined(_WIN32) || defined(__MINGW32__)
   snapshot_ = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
                                        TH32CS_SNAPMODULE32,
                                        GetCurrentProcessId());
@@ -478,7 +478,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
 }
 
 ProcMapsIterator::~ProcMapsIterator() {
-#if defined(WIN32)
+#if defined(_WIN32) || defined(__MINGW32__)
   if (snapshot_ != INVALID_HANDLE_VALUE) CloseHandle(snapshot_);
 #elif defined(__MACH__)
   // no cleanup necessary!
@@ -489,7 +489,7 @@ ProcMapsIterator::~ProcMapsIterator() {
 }
 
 bool ProcMapsIterator::Valid() const {
-#if defined(WIN32)
+#if defined(_WIN32) || defined(__MINGW32__)
   return snapshot_ != INVALID_HANDLE_VALUE;
 #elif defined(__MACH__)
   return 1;
@@ -513,7 +513,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
                                uint64 *anon_mapping, uint64 *anon_pages,
                                dev_t *dev) {
 
-#if defined(__linux__) || defined(__FreeBSD__)
+#if defined(__linux__) || defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   do {
     // Advance to the start of the next line
     stext_ = nextline_;
@@ -553,7 +553,8 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     int64 tmpinode;
     int major, minor;
     unsigned filename_offset = 0;
-#if defined(__linux__)  // for now, assume all linuxes have the same format
+#if defined(__linux__)  || defined(__CYGWIN__) || defined(__CYGWIN32__)
+    // for now, assume all linuxes have the same format
     if (sscanf(stext_, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
                start ? start : &tmpstart,
                end ? end : &tmpend,
@@ -695,7 +696,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     // If we get here, no more load_cmd's in this image talk about
     // segments.  Go on to the next image.
   }
-#elif defined(WIN32)
+#elif defined(_WIN32) || defined(__MINGW32__)
   static char kDefaultPerms[5] = "r-xp";
   BOOL ok;
   if (module_.dwSize == 0) {  // only possible before first call
@@ -744,3 +745,46 @@ int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
                           inode, filename);
   return (rc < 0 || rc >= bufsize) ? 0 : rc;
 }
+
+namespace tcmalloc {
+
+// Helper to add the list of mapped shared libraries to a profile.
+// Fill formatted "/proc/self/maps" contents into buffer 'buf' of size 'size'
+// and return the actual size occupied in 'buf'.
+// We do not provision for 0-terminating 'buf'.
+int FillProcSelfMaps(char buf[], int size) {
+  ProcMapsIterator::Buffer iterbuf;
+  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
+
+  uint64 start, end, offset;
+  int64 inode;
+  char *flags, *filename;
+  int bytes_written = 0;
+  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
+    bytes_written += it.FormatLine(buf + bytes_written, size - bytes_written,
+                                   start, end, flags, offset, inode, filename,
+                                   0);
+  }
+  return bytes_written;
+}
+
+// Dump the same data as FillProcSelfMaps reads to fd.
+// It seems easier to repeat parts of FillProcSelfMaps here than to
+// reuse it via a call.
+void DumpProcSelfMaps(RawFD fd) {
+  ProcMapsIterator::Buffer iterbuf;
+  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
+
+  uint64 start, end, offset;
+  int64 inode;
+  char *flags, *filename;
+  ProcMapsIterator::Buffer linebuf;
+  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
+    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
+                                start, end, flags, offset, inode, filename,
+                                0);
+    RawWrite(fd, linebuf.buf_, written);
+  }
+}
+
+}  // namespace tcmalloc

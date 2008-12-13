@@ -40,14 +40,14 @@
 
 // compatibility shim
 #include "base/logging.h"
-#define ASSERT(cond, msg)  RAW_DCHECK(cond, msg)
-#define ASSERT1(cond)      RAW_DCHECK(cond, #cond)
+#define SIDESTEP_ASSERT(cond)  RAW_DCHECK(cond, #cond)
+#define SIDESTEP_LOG(msg)      RAW_VLOG(1, msg)
 
 // Maximum size of the preamble stub. We overwrite at least the first 5
 // bytes of the function. Considering the worst case scenario, we need 4
 // bytes + the max instruction size + 5 more bytes for our jump back to
 // the original code. With that in mind, 32 is a good number :)
-#define MAX_PREAMBLE_STUB_SIZE    (32)     
+#define MAX_PREAMBLE_STUB_SIZE    (32)
 
 namespace sidestep {
 
@@ -65,7 +65,7 @@ enum SideStepError {
   SIDESTEP_UNEXPECTED,
 };
 
-#define SIDESTEP_TO_HRESULT(error) \
+#define SIDESTEP_TO_HRESULT(error)                      \
   MAKE_HRESULT(SEVERITY_ERROR, FACILITY_NULL, error)
 
 // Implements a patching mechanism that overwrites the first few bytes of
@@ -78,10 +78,10 @@ enum SideStepError {
 // See the TODO in preamble_patcher_with_stub.cc for instructions on what
 // we need to do before using it in production code; it's fairly simple
 // but unnecessary for now since we only intend to use it in unit tests.
-// 
+//
 // To patch a function, use either of the typesafe Patch() methods.  You
 // can unpatch a function using Unpatch().
-// 
+//
 // Typical usage goes something like this:
 // @code
 // typedef int (*MyTypesafeFuncPtr)(int x);
@@ -95,11 +95,11 @@ enum SideStepError {
 //   if (!original_func_stub) {
 //     // ... error handling ...
 //   }
-// 
+//
 //   // ... continue - you have patched the function successfully ...
 // }
 // @endcode
-// 
+//
 // Note that there are a number of ways that this method of patching can
 // fail.  The most common are:
 //    - If there is a jump (jxx) instruction in the first 5 bytes of
@@ -114,7 +114,7 @@ enum SideStepError {
 //    - If there is another thread currently executing within the bytes
 //    that are copied to the preamble stub, it will crash in an undefined
 //    way.
-// 
+//
 // If you get any other error than the above, you're either pointing the
 // patcher at an invalid instruction (e.g. into the middle of a multi-
 // byte instruction, or not at memory containing executable instructions)
@@ -143,8 +143,8 @@ class PreamblePatcher {
   // @endcode
   template <class T>
   static SideStepError Patch(T target_function,
-                               T replacement_function,
-                               T* original_function_stub) {
+                             T replacement_function,
+                             T* original_function_stub) {
     // NOTE: casting from a function to a pointer is contra the C++
     //       spec.  It's not safe on IA64, but is on i386.  We use
     //       a C-style cast here to emphasize this is not legal C++.
@@ -178,23 +178,25 @@ class PreamblePatcher {
   // indicates success.
   template <class T>
   static SideStepError Patch(LPCTSTR module_name,
-                               LPCSTR function_name,
-                               T replacement_function,
-                               T* original_function_stub) {
-    ASSERT1(module_name && function_name);
+                             LPCSTR function_name,
+                             T replacement_function,
+                             T* original_function_stub) {
+    SIDESTEP_ASSERT(module_name && function_name);
     if (!module_name || !function_name) {
-      ASSERT(false,
-             "You must specify a module name and function name.");
+      SIDESTEP_ASSERT(false &&
+                      "You must specify a module name and function name.");
       return SIDESTEP_INVALID_PARAMETER;
     }
     HMODULE module = ::GetModuleHandle(module_name);
-    ASSERT1(module != NULL);
+    SIDESTEP_ASSERT(module != NULL);
     if (!module) {
-      ASSERT(false, "Invalid module name.");
+      SIDESTEP_ASSERT(false && "Invalid module name.");
       return SIDESTEP_NO_SUCH_MODULE;
     }
     FARPROC existing_function = ::GetProcAddress(module, function_name);
     if (!existing_function) {
+      SIDESTEP_ASSERT(
+          false && "Did not find any function with that name in the module.");
       return SIDESTEP_NO_SUCH_FUNCTION;
     }
     // NOTE: casting from a function to a pointer is contra the C++
@@ -238,8 +240,8 @@ class PreamblePatcher {
   // See however UnsafeUnpatch, which can be used for binaries where you
   // know only one thread is running, e.g. unit tests.
   static SideStepError RawPatch(void* target_function,
-                                  void* replacement_function,
-                                  void** original_function_stub);
+                                void* replacement_function,
+                                void** original_function_stub);
 
   // Unpatches target_function and deletes the stub that previously could be
   // used to call the original version of the function.
@@ -259,7 +261,7 @@ class PreamblePatcher {
   // unpatching is useless.
   //
   // If your original call was
-  //    origptr = Patch(VirtualAlloc, MyVirtualAlloc)
+  //    Patch(VirtualAlloc, MyVirtualAlloc, &origptr)
   // then to undo it you would call
   //    Unpatch(VirtualAlloc, MyVirtualAlloc, origptr);
   //
@@ -269,8 +271,23 @@ class PreamblePatcher {
                                void* replacement_function,
                                void* original_function_stub);
 
- private:
+  // A helper routine when patching, which follows jmp instructions at
+  // function addresses, to get to the "actual" function contents.
+  // This allows us to identify two functions that are at different
+  // addresses but actually resolve to the same code.
+  //
+  // @param target_function Pointer to a function.
+  //
+  // @return Either target_function (the input parameter), or if
+  // target_function's body consists entirely of a JMP instruction,
+  // the address it JMPs to (or more precisely, the address at the end
+  // of a chain of JMPs).
+  template <class T>
+  static T ResolveTarget(T target_function) {
+    return (T)ResolveTargetImpl((unsigned char*)target_function, NULL);
+  }
 
+ private:
   // Patches a function by overwriting its first few bytes with
   // a jump to a different function.  This is similar to the RawPatch
   // function except that it uses the stub allocated by the caller
@@ -287,9 +304,9 @@ class PreamblePatcher {
   // exactly the same calling convention and parameters as the original
   // function.
   //
-  // @param preamble_stub A pointer to a buffer where the preamble stub 
+  // @param preamble_stub A pointer to a buffer where the preamble stub
   // should be copied. The size of the buffer should be sufficient to
-  // hold the preamble bytes. 
+  // hold the preamble bytes.
   //
   // @param stub_size Size in bytes of the buffer allocated for the
   // preamble_stub
@@ -299,20 +316,61 @@ class PreamblePatcher {
   // not interested.
   //
   // @return An error code indicating the result of patching.
-  static SideStepError RawPatchWithStubAndProtections(void* target_function, 
-                                          void *replacement_function, 
-                                          unsigned char* preamble_stub, 
-                                          unsigned long stub_size, 
-                                          unsigned long* bytes_needed);
+  static SideStepError RawPatchWithStubAndProtections(
+      void* target_function,
+      void *replacement_function,
+      unsigned char* preamble_stub,
+      unsigned long stub_size,
+      unsigned long* bytes_needed);
 
-  // A helper function used by RawPatchWithStubAndProtections -- it does
-  // everything but the VirtualProtect wsork.  Defined in
+  // A helper function used by RawPatchWithStubAndProtections -- it
+  // does everything but the VirtualProtect work.  Defined in
   // preamble_patcher_with_stub.cc.
-  static SideStepError RawPatchWithStub(void* target_function, 
-                                          void *replacement_function, 
-                                          unsigned char* preamble_stub, 
-                                          unsigned long stub_size, 
-                                          unsigned long* bytes_needed);
+  //
+  // @param target_function A pointer to the function that should be
+  // patched.
+  //
+  // @param replacement_function A pointer to the function that should
+  // replace the target function.  The replacement function must have
+  // exactly the same calling convention and parameters as the original
+  // function.
+  //
+  // @param preamble_stub A pointer to a buffer where the preamble stub
+  // should be copied. The size of the buffer should be sufficient to
+  // hold the preamble bytes.
+  //
+  // @param stub_size Size in bytes of the buffer allocated for the
+  // preamble_stub
+  //
+  // @param bytes_needed Pointer to a variable that receives the minimum
+  // number of bytes required for the stub.  Can be set to NULL if you're
+  // not interested.
+  //
+  // @return An error code indicating the result of patching.
+  static SideStepError RawPatchWithStub(void* target_function,
+                                        void *replacement_function,
+                                        unsigned char* preamble_stub,
+                                        unsigned long stub_size,
+                                        unsigned long* bytes_needed);
+
+
+  // A helper routine when patching, which follows jmp instructions at
+  // function addresses, to get to the "actual" function contents.
+  // This allows us to identify two functions that are at different
+  // addresses but actually resolve to the same code.
+  //
+  // @param target_function Pointer to a function.
+  //
+  // @param stop_before If, when following JMP instructions from
+  // target_function, we get to the address stop, we return
+  // immediately, the address that jumps to stop_before.
+  //
+  // @return Either target_function (the input parameter), or if
+  // target_function's body consists entirely of a JMP instruction,
+  // the address it JMPs to (or more precisely, the address at the end
+  // of a chain of JMPs).
+  static void* ResolveTargetImpl(unsigned char* target_function,
+                                 unsigned char* stop_before);
 };
 
 };  // namespace sidestep

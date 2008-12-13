@@ -82,7 +82,7 @@ enum OperandSize {
 // is a mask for the rest.  The other enumeration values are named for the
 // names given to the addressing methods in the manual, e.g. enAm_D is for
 // the D addressing method.
-// 
+//
 // The reason we use a full 4 bytes and a mask, is that we need to combine
 // these flags with the enOperandType to store the details
 // on the operand in a single integer.
@@ -138,7 +138,7 @@ enum OperandType {
   OT_W = 0x0E000000,
   OT_SD = 0x0F000000,  // scalar double-precision floating-point value
   OT_PD = 0x10000000,  // double-precision floating point
-  // dummy "operand type" for address mode M - which doesn't specify 
+  // dummy "operand type" for address mode M - which doesn't specify
   // operand type
   OT_ADDRESS_MODE_M = 0x80000000
 };
@@ -148,7 +148,7 @@ enum OperandType {
 struct SpecificOpcode {
   // Index to continuation table, or 0 if this is the last
   // byte in the opcode.
-  int table_index_;    
+  int table_index_;
 
   // The opcode type
   InstructionType type_;
@@ -169,7 +169,7 @@ struct SpecificOpcode {
 struct Opcode {
   // Index to continuation table, or 0 if this is the last
   // byte in the opcode.
-  int table_index_;    
+  int table_index_;
 
   // The opcode type
   InstructionType type_;

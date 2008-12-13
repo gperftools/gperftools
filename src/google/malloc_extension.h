@@ -46,7 +46,7 @@
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef WIN32
+# ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
 # else
 #   define PERFTOOLS_DLL_DECL
@@ -124,7 +124,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // "tcmalloc.max_total_thread_cache_bytes"
   //      Upper limit on total number of bytes stored across all
   //      per-thread caches.  Default: 16MB.
-  // 
+  //
   // "tcmalloc.current_total_thread_cache_bytes"
   //      Number of bytes used across all thread caches.
   //      This property is not writable.
@@ -170,6 +170,16 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // OS, and that may be slow.  (Currently only implemented in
   // tcmalloc.)
   virtual void ReleaseFreeMemory();
+
+  // Sets the rate at which we release unused memory to the system.
+  // Zero means we never release memory back to the system.  Increase
+  // this flag to return memory faster; decrease it to return memory
+  // slower.  Reasonable rates are in the range [0,10].  (Currently
+  // only implemented in tcmalloc).
+  virtual void SetMemoryReleaseRate(double rate);
+
+  // Gets the release rate.  Returns a value < 0 if unknown.
+  virtual double GetMemoryReleaseRate();
 
   // The current malloc implementation.  Always non-NULL.
   static MallocExtension* instance();

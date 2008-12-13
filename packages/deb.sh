@@ -12,6 +12,7 @@ LIB=
 #LIB=lib
 
 PACKAGE="$1"
+VERSION="$2"
 
 # We can only build Debian packages, if the Debian build tools are installed
 if [ \! -x /usr/bin/debuild ]; then
@@ -30,7 +31,7 @@ fi
 topdir="${PWD%/*}"
 
 # Find the tar archive built by "make dist"
-archive="$(basename "$(ls -1 ${topdir}/$PACKAGE*.tar.gz | tail -n 1)" .tar.gz)"
+archive="$PACKAGE-$VERSION"
 if [ -z "${archive}" ]; then
   echo "Cannot find ../$PACKAGE*.tar.gz. Run \"make dist\" first." 1>&2
   exit 0

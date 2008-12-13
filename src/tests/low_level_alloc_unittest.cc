@@ -33,6 +33,7 @@
 
 // A test for low_level_alloc.cc
 
+#include <stdio.h>
 #include <map>
 #include "base/low_level_alloc.h"
 #include "base/logging.h"

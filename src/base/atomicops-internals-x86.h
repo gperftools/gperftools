@@ -287,56 +287,63 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
 
 // 64-bit low-level operations on 32-bit platform.
 
-inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
-                                         Atomic64 old_value,
-                                         Atomic64 new_value) {
+#if !((__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 1))
+// For compilers older than gcc 4.1, we use inline asm.
+//
+// Potential pitfalls:
+//
+// 1. %ebx points to Global offset table (GOT) with -fPIC.
+//    We need to preserve this register.
+// 2. When explicit registers are used in inline asm, the
+//    compiler may not be aware of it and might try to reuse
+//    the same register for another argument which has constraints
+//    that allow it ("r" for example).
+
+inline Atomic64 __sync_val_compare_and_swap(volatile Atomic64* ptr,
+                                            Atomic64 old_value,
+                                            Atomic64 new_value) {
   Atomic64 prev;
-  __asm__ __volatile__("movl (%3), %%ebx\n\t"    // Move 64-bit new_value into
+  __asm__ __volatile__("push %%ebx\n\t"
+                       "movl (%3), %%ebx\n\t"    // Move 64-bit new_value into
                        "movl 4(%3), %%ecx\n\t"   // ecx:ebx
-                       "lock; cmpxchg8b %1\n\t"  // If edx:eax (old_value) same
+                       "lock; cmpxchg8b (%1)\n\t"// If edx:eax (old_value) same
+                       "pop %%ebx\n\t"
                        : "=A" (prev)             // as contents of ptr:
-                       : "m" (*ptr),             //   ecx:ebx => ptr
+                       : "D" (ptr),              //   ecx:ebx => ptr
                          "0" (old_value),        // else:
-                         "r" (&new_value)        //   old *ptr => edx:eax
-                       : "memory", "%ebx", "%ecx");
+                         "S" (&new_value)        //   old *ptr => edx:eax
+                       : "memory", "%ecx");
   return prev;
+}
+#endif  // Compiler < gcc-4.1
+
+inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
+                                         Atomic64 old_val,
+                                         Atomic64 new_val) {
+  return __sync_val_compare_and_swap(ptr, old_val, new_val);
 }
 
 inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
-                                         Atomic64 new_value) {
-  __asm__ __volatile__(
-                       "movl (%2), %%ebx\n\t"    // Move 64-bit new_value into
-                       "movl 4(%2), %%ecx\n\t"   // ecx:ebx
-                       "0:\n\t"
-                       "movl %1, %%eax\n\t"      // Read contents of ptr into
-                       "movl 4%1, %%edx\n\t"     // edx:eax
-                       "lock; cmpxchg8b %1\n\t"  // Attempt cmpxchg; if *ptr
-                       "jnz 0b\n\t"              // is no longer edx:eax, loop
-                       : "=&A" (new_value)
-                       : "m" (*ptr),
-                         "r" (&new_value)
-                       : "memory", "%ebx", "%ecx");
-  return new_value;  // Now it's the previous value.
+                                         Atomic64 new_val) {
+  Atomic64 old_val;
+
+  do {
+    old_val = *ptr;
+  } while (__sync_val_compare_and_swap(ptr, old_val, new_val) != old_val);
+
+  return old_val;
 }
 
 inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
                                           Atomic64 increment) {
-  Atomic64 temp = increment;
-  __asm__ __volatile__(
-                       "0:\n\t"
-                       "movl (%3), %%ebx\n\t"    // Move 64-bit increment into
-                       "movl 4(%3), %%ecx\n\t"   // ecx:ebx
-                       "movl (%2), %%eax\n\t"    // Read contents of ptr into
-                       "movl 4(%2), %%edx\n\t"   // edx:eax
-                       "add %%eax, %%ebx\n\t"    // sum => ecx:ebx
-                       "adc %%edx, %%ecx\n\t"    // edx:eax still has old *ptr
-                       "lock; cmpxchg8b (%2)\n\t"// Attempt cmpxchg; if *ptr
-                       "jnz 0b\n\t"              // is no longer edx:eax, loop
-                       : "=A"(temp), "+m"(*ptr)
-                       : "D" (ptr), "S" (&increment)
-                       : "memory", "%ebx", "%ecx");
-  // temp now contains the previous value of *ptr
-  return temp + increment;
+  Atomic64 old_val, new_val;
+
+  do {
+    old_val = *ptr;
+    new_val = old_val + increment;
+  } while (__sync_val_compare_and_swap(ptr, old_val, new_val) != old_val);
+
+  return old_val + increment;
 }
 
 inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
@@ -412,9 +419,4 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
 
 #undef ATOMICOPS_COMPILER_BARRIER
 
-// NOTE(vchen): The following is also deprecated.  New callers should use
-// the base::subtle namespace.
-inline void MemoryBarrier() {
-  base::subtle::MemoryBarrier();
-}
 #endif  // BASE_ATOMICOPS_INTERNALS_X86_H_

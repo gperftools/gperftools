@@ -113,11 +113,12 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
-				RelativePath="..\..\src\base\dynamic_annotations.cc">
+				RelativePath="..\..\src\central_freelist.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -125,6 +126,26 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\base\dynamic_annotations.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -154,6 +175,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -161,6 +183,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -171,6 +194,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -178,6 +202,26 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\common.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -302,6 +346,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -309,6 +354,26 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\page_heap.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -357,6 +422,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -364,6 +430,7 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -374,6 +441,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -381,6 +449,62 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\span.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\stacktrace.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\static_vars.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
@@ -391,6 +515,7 @@
 					Name="Debug|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows;..\..\src"
 						RuntimeLibrary="3"/>
 				</FileConfiguration>
@@ -398,26 +523,8 @@
 					Name="Release|Win32">
 					<Tool
 						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
 						AdditionalIncludeDirectories="..\..\src\windows;..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\src\tcmalloc.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
@@ -459,6 +566,25 @@
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath="..\..\src\thread_cache.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -469,6 +595,9 @@
 			</File>
 			<File
 				RelativePath="..\..\src\base\basictypes.h">
+			</File>
+			<File
+				RelativePath="..\..\src\central_freelist.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\commandlineflags.h">
@@ -492,7 +621,13 @@
 				RelativePath="..\..\src\google\heap-profiler.h">
 			</File>
 			<File
+				RelativePath="..\..\src\common.h">
+			</File>
+			<File
 				RelativePath="..\..\src\internal_logging.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\linked_list.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\logging.h">
@@ -531,6 +666,12 @@
 				RelativePath="..\..\src\packed-cache-inl.h">
 			</File>
 			<File
+				RelativePath="..\..\src\page_heap.h">
+			</File>
+			<File
+				RelativePath="..\..\src\page_heap_allocator.h">
+			</File>
+			<File
 				RelativePath="..\..\src\pagemap.h">
 			</File>
 			<File
@@ -543,7 +684,16 @@
 				RelativePath="..\..\src\google\profiler.h">
 			</File>
 			<File
+				RelativePath="..\..\src\span.h">
+			</File>
+			<File
 				RelativePath="..\..\src\google\stacktrace.h">
+			</File>
+			<File
+				RelativePath="..\..\src\stacktrace_win32-inl.h.h">
+			</File>
+			<File
+				RelativePath="..\..\src\static_vars.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\stl_allocator.h">
@@ -559,6 +709,12 @@
 			</File>
 			<File
 				RelativePath="..\..\src\tests\testutil.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\thread_annotations.h">
+			</File>
+			<File
+				RelativePath="..\..\src\thread_cache.h">
 			</File>
 		</Filter>
 		<Filter

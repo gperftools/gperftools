@@ -56,6 +56,9 @@ typedef int32_t Atomic32;
 
 #include <libkern/OSAtomic.h>
 
+namespace base {
+namespace subtle {
+
 #if !defined(__LP64__) && defined(__ppc__)
 
 // The Mac 64-bit OSAtomic implementations are not available for 32-bit PowerPC,
@@ -99,10 +102,6 @@ inline int64_t OSAtomicAdd64Barrier(
   return new_val;
 }
 #endif
-
-
-namespace base {
-namespace subtle {
 
 typedef int64_t Atomic64;
 
@@ -352,9 +351,4 @@ inline Atomic64 Release_Load(volatile const Atomic64 *ptr) {
 }   // namespace base::subtle
 }   // namespace base
 
-// NOTE(vchen): The following is also deprecated.  New callers should use
-// the base::subtle namespace.
-inline void MemoryBarrier() {
-  base::subtle::MemoryBarrier();
-}
 #endif  // BASE_ATOMICOPS_INTERNALS_MACOSX_H_

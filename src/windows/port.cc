@@ -31,7 +31,7 @@
  * Author: Craig Silverstein
  */
 
-#ifndef WIN32
+#ifndef _WIN32
 # error You should only be including windows/port.cc in a windows environment!
 #endif
 
@@ -255,83 +255,4 @@ void DeleteMatchingFiles(const char* prefix, const char* full_glob) {
     } while (FindNextFileA(hFind, &found) != FALSE);  // A is for Ansi
     FindClose(hFind);
   }
-}
-
-// -----------------------------------------------------------------------
-// Stacktrace functionality
-
-static SpinLock get_stack_trace_lock(SpinLock::LINKER_INITIALIZED);
-
-// TODO(csilvers): This will need some loving care to get it working.
-// It's also not super-fast.
-
-// Here are some notes from mmentovai:
-// ----
-// Line 140: GetThreadContext(hThread, &context);
-// Doesn't work.  GetThreadContext only returns the saved thread
-// context, which is only valid as a present-state snapshot for
-// suspended threads.  For running threads, it's just going to be the
-// context from the last time the scheduler started the thread.  You
-// obviously can't suspend the current thread to grab its context.
-//
-// You can call RtlCaptureContext if you don't care about Win2k or
-// earlier.  If you do, you'll need to provide CPU-specific code
-// (usually a little bit of _asm and a function call) to grab the
-// values of important registers.
-// ------------------------------------
-// Line 144: frame.AddrPC.Offset = context.Eip;
-// This (and other uses of context members, and
-// IMAGE_FILE_MACHINE_I386) is x86(-32)-only.  I see a comment about
-// that below, but you should probably mention it more prominently.
-//
-// (I don't think there's anything nonportable about
-// frame.AddrPC.Offset below.)
-// ------------------------------------
-// Line 148:
-// You also need to set frame.AddrStack.  Its offset field gets the
-// value of context.Esp (on x86).  The initial stack pointer can be
-// crucial to a stackwalk in the FPO cases I mentioned.
-
-#if 0
-#include <dbghelp.h>   // Provided with Microsoft Debugging Tools for Windows
-#endif
-
-int GetStackTrace(void** result, int max_depth, int skip_count) {
-  int n = 0;
-#if 0  // TODO(csilvers): figure out how to get this to work
-  SpinLockHolder holder(&get_stack_trace_lock);
-
-  HANDLE hProc = GetCurrentProcess();
-  HANDLE hThread = GetCurrentThread();
-
-  CONTEXT context;
-  memset(&context, 0, sizeof(context));
-  context.ContextFlags = CONTEXT_FULL;
-  GetThreadContext(hThread, &context);
-
-  STACKFRAME64 frame;
-  memset(&frame, 0, sizeof(frame));
-  frame.AddrPC.Offset = context.Eip;
-  frame.AddrPC.Mode = AddrModeFlat;
-  frame.AddrFrame.Offset = context.Ebp;
-  frame.AddrFrame.Mode = AddrModeFlat;
-
-  while (StackWalk64(IMAGE_FILE_MACHINE_I386,
-                     hProc,
-                     hThread,
-                     &frame,
-                     &context,
-                     0,
-                     SymFunctionTableAccess64,
-                     SymGetModuleBase64,
-                     0)
-         && n < max_depth) {
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      result[n++] = (void*)frame.AddrPC.Offset; // Might break x64 portability
-    }
-  }
-#endif
-  return n;
 }

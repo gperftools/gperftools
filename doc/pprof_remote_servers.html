@@ -37,8 +37,20 @@ several urls.  The following sections list the urls that
 <code>pprof</code> can send, and the responses it expects in
 return.</p>
 
+<p>Here are examples that pprof will recognize, when you give them
+on the commandline, are urls.  In general, you
+specify the host and a port (the port-number is required), and put
+the service-name at the end of the url.:</p>
+<blockquote><pre>
+http://myhost:80/pprof/heap            # retrieves a heap profile
+http://myhost:8008/pprof/profile       # retrieves a CPU profile
+http://myhost:80                       # retrieves a CPU profile (the default)
+http://myhost:8080/                    # retrieves a CPU profile (the default)
+myhost:8088/pprof/growth               # "http://" is optional, but port is not
+http://myhost:80/myservice/pprof/heap  # /pprof/heap just has to come at the end
+</pre></blockquote>
 
-<ul><li> <code><b>/pprof/heap</b></code>
+<h2> <code><b>/pprof/heap</b></code> </h2>
 
 <p><code>pprof</code> asks for the url <code>/pprof/heap</code> to
 get heap information.  The actual url is controlled via the variable
@@ -64,7 +76,7 @@ heap profile:   9369: 126987529 [  9369: 126987529] @ heap
 </pre>
 
 
-</li><li> <code><b>/pprof/growth</b></code>
+<h2> <code><b>/pprof/growth</b></code> </h2>
 
 <p><code>pprof</code> asks for the url <code>/pprof/growth</code> to
 get heap-profiling delta (growth) information.  The actual url is
@@ -89,7 +101,7 @@ heap profile:    741: 812122112 [   741: 812122112] @ growth
 </pre>
 
 
-</li><li> <code><b>/pprof/profile</b></code>
+<h2> <code><b>/pprof/profile</b></code> </h2>
 
 <p><code>pprof</code> asks for the url
 <code>/pprof/profile?seconds=XX</code> to get cpu-profiling
@@ -119,13 +131,13 @@ should have lines of text somewhat like this:</p>
 </pre>
 
 
-</li><li> <code><b>/pprof/contention</b></code>
+<h2> <code><b>/pprof/contention</b></code> </h2>
 
 <p>This is intended to be able to profile (thread) lock contention in
 addition to CPU and memory use.  It's not yet usable.</p>
 
 
-</li><li> <code><b>/pprof/cmdline</b></code>
+<h2> <code><b>/pprof/cmdline</b></code> </h2>
 
 <p><code>pprof</code> asks for the url <code>/pprof/cmdline</code> to
 figure out what application it's profiling.  The actual url is
@@ -145,7 +157,7 @@ response to <code>pprof</code>.</p>
 </pre>
 
 
-</li><li> <code><b>/pprof/symbol</b></code>
+<h2> <code><b>/pprof/symbol</b></code> </h2>
 
 <p><code>pprof</code> asks for the url <code>/pprof/symbol</code> to
 map from hex addresses to variable names.  The actual url is

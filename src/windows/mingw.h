@@ -40,6 +40,11 @@
 
 #ifdef __MINGW32__
 
+// Older version of the mingw msvcrt don't define _aligned_malloc
+#if __MSVCRT_VERSION__ < 0x0700
+# define PERFTOOLS_NO_ALIGNED_MALLOC 1
+#endif
+
 #include "windows/port.h"
 
 #endif  /* __MINGW32__ */

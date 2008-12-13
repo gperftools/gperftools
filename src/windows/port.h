@@ -47,7 +47,7 @@
 # error "port.h should only be included from config.h or mingw.h"
 #endif
 
-#ifdef WIN32
+#ifdef _WIN32
 
 #define WIN32_LEAN_AND_MEAN  /* We always want minimal includes */
 #include <windows.h>
@@ -126,10 +126,13 @@ class SpinLock {
   // Used for global SpinLock vars (see base/spinlock.h for more details).
   enum StaticInitializer { LINKER_INITIALIZED };
   explicit SpinLock(StaticInitializer) : initialize_token_(PTHREAD_ONCE_INIT) {}
-  ~SpinLock() {
-    perftools_pthread_once(&initialize_token_, InitializeMutex);
-    DeleteCriticalSection(&mutex_);
-  }
+  // It's important SpinLock not have a destructor: otherwise we run
+  // into problems when the main thread has exited, but other threads
+  // are still running and try to access a main-thread spinlock.  This
+  // means we leak mutex_ (we should call DeleteCriticalSection()
+  // here).  However, I've verified that all SpinLocks used in
+  // perftools have program-long scope anyway, so the leak is
+  // perfectly fine.  But be aware of this for the future!
 
   void Lock() {
     perftools_pthread_once(&initialize_token_, InitializeMutex);
@@ -203,6 +206,17 @@ extern PERFTOOLS_DLL_DECL int safe_vsnprintf(char *str, size_t size,
                                              const char *format, va_list ap);
 #define vsnprintf(str, size, format, ap)  safe_vsnprintf(str, size, format, ap)
 
+#define PRIx64  "I64x"
+#define SCNx64  "I64x"
+#define PRId64  "I64d"
+#define SCNd64  "I64d"
+#define PRIu64  "I64u"
+#ifdef _WIN64
+# define PRIxPTR "llx"
+#else
+# define PRIxPTR "lx"
+#endif
+
 // ----------------------------------- FILE IO
 #ifndef PATH_MAX
 #define PATH_MAX 1024
@@ -210,16 +224,19 @@ extern PERFTOOLS_DLL_DECL int safe_vsnprintf(char *str, size_t size,
 #ifndef __MINGW32__
 enum { STDIN_FILENO = 0, STDOUT_FILENO = 1, STDERR_FILENO = 2 };
 #endif
-#define getcwd  _getcwd
-#define access  _access
-#define open    _open
-#define read    _read
-#define write   _write
-#define lseek   _lseek
-#define close   _close
-#define popen   _popen
-#define pclose  _pclose
+#define getcwd    _getcwd
+#define access    _access
+#define open      _open
+#define read      _read
+#define write     _write
+#define lseek     _lseek
+#define close     _close
+#define popen     _popen
+#define pclose    _pclose
 #define mkdir(dirname, mode)  _mkdir(dirname)
+#ifndef O_RDONLY
+#define O_RDONLY  _O_RDONLY
+#endif
 
 // ----------------------------------- SYSTEM/PROCESS
 typedef int pid_t;
@@ -233,37 +250,20 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 #define random   rand
 #define sleep(t) Sleep(t * 1000)
 
+#ifndef __MINGW32__
 #define strtoq   _strtoi64
 #define strtouq  _strtoui64
 #define strtoll  _strtoi64
 #define strtoull _strtoui64
 #define atoll    _atoi64
+#endif
 
 #define __THROW throw()
 
 // ----------------------------------- TCMALLOC-SPECIFIC
 
-// By defining this, we get away without having to get a StackTrace
-// But maybe play around with ExperimentalGetStackTrace in port.cc
-#ifndef NO_TCMALLOC_SAMPLES
-#define NO_TCMALLOC_SAMPLES
-#endif
-
 // tcmalloc.cc calls this so we can patch VirtualAlloc() et al.
-// TODO(csilvers): instead of patching the functions, consider just replacing
-// them.  To do this, add the following post-build step the the .vcproj:
-// <Tool Name="VCPostBuildEventTool"
-//       CommandLine="lib /out:$(OutDir)\tmp.lib /remove:build\intel\xst_obj\dbgheap.obj libcd.lib
-//       lib /out:$(OutDir)\foo.lib $(OutDir)\libem.lib $(OutDir)\tmp.lib
-// "/>
-// libem.lib is a library you write that defines calloc, free, malloc,
-// realloc, _calloc_dbg, _free_dbg, _msize_dbg, _malloc_dbg,
-// _realloc_dbg, _CrtDumpMemoryLeaks, and _CrtSetDbgFlag (at least for
-// VC++ 7.1).  The list of functions to override, and the name/location of
-// the files to remove, may differ between VC++ versions.
-
 extern PERFTOOLS_DLL_DECL void PatchWindowsFunctions();
-extern PERFTOOLS_DLL_DECL void UnpatchWindowsFunctions();
 
 // ----------------------------------- BUILD-SPECIFIC
 
@@ -274,6 +274,6 @@ extern PERFTOOLS_DLL_DECL void UnpatchWindowsFunctions();
 #define GOOGLE_MAYBE_THREADS_H_ 1
 
 
-#endif  /* WIN32 */
+#endif  /* _WIN32 */
 
 #endif  /* GOOGLE_BASE_WINDOWS_H_ */

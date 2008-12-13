@@ -58,7 +58,7 @@
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef WIN32
+# ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
 # else
 #   define PERFTOOLS_DLL_DECL
@@ -170,91 +170,28 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // ----------------------------------------------------------------------- //
   // Static helpers to make us ignore certain leaks.
 
-  // NOTE: All calls to DisableChecks* affect all later heap profile generation
-  // that happens in our construction and inside of *NoLeaks().
-  // They do nothing when heap leak checking is turned off.
-
-  // CAVEAT: Disabling via all the DisableChecks* functions happens only
-  // up to kMaxStackTrace stack frames (see heap-profile-table.h)
-  // down from the stack frame identified by the function.
-  // Hence, this disabling will stop working for very deep call stacks
-  // and you might see quite wierd leak profile dumps in such cases.
-
-  // CAVEAT: Disabling via DisableChecksIn works only with non-strip'ped
-  // binaries.  It's better not to use this function if at all possible.
+  // Scoped helper class.  Should be allocated on the stack inside a
+  // block of code.  Any heap allocations done in the code block
+  // covered by the scoped object (including in nested function calls
+  // done by the code block) will not be reported as leaks.  This is
+  // the recommended replacement for the GetDisableChecksStart() and
+  // DisableChecksToHereFrom() routines below.
   //
-  // Register 'pattern' as another variant of a regular expression to match
-  // function_name, file_name:line_number, or function_address
-  // of function call/return points for which allocations below them should be
-  // ignored during heap leak checking.
-  // (This becomes a part of pprof's '--ignore' argument.)
-  // Usually this should be caled from a REGISTER_HEAPCHECK_CLEANUP
-  // in the source file that is causing the leaks being ignored.
-  static void DisableChecksIn(const char* pattern);
-
-  // A pair of functions to disable heap checking between them.
-  // For example
-  //    ...
-  //    void* start_address = HeapLeakChecker::GetDisableChecksStart();
-  //    <do things>
-  //    HeapLeakChecker::DisableChecksToHereFrom(start_address);
-  //    ...
-  // will disable heap leak checking for everything that happens
-  // during any execution of <do things> (including any calls from it),
-  // i.e. all objects allocated from there
-  // and everything reachable from them will not be considered a leak.
-  // Each such pair of function calls must be from the same function,
-  // because this disabling works by remembering the range of
-  // return program counter addresses for the two calls.
-  static void* GetDisableChecksStart();
-  static void DisableChecksToHereFrom(const void* start_address);
-
-  // ADVICE: Use GetDisableChecksStart, DisableChecksToHereFrom
-  //         instead of DisableChecksUp|At whenever possible
-  //         to make the code less fragile under different degrees of inlining.
-  // Register the function call point (return program counter address)
-  // 'stack_frames' above us for which allocations
-  // (everything reachable from them) below it should be
-  // ignored during heap leak checking.
-  // 'stack_frames' must be >= 1 (in most cases one would use the value of 1).
-  // For example
-  //    void Foo() {  // Foo() should not get inlined
-  //      HeapLeakChecker::DisableChecksUp(1);
-  //      <do things>
-  //    }
-  // will disable heap leak checking for everything that happens
-  // during any execution of <do things> (including any calls from it),
-  // i.e. all objects allocated from there
-  // and everything reachable from them will not be considered a leak.
-  // CAVEAT: If Foo() is inlined this will disable heap leak checking
-  // under all processing of all functions Foo() is inlined into.
-  // Hence, for potentially inlined functions, use the GetDisableChecksStart,
-  // DisableChecksToHereFrom calls instead.
-  // (In the above example we store and use the return program counter
-  //  addresses from Foo to do the disabling.)
-  static void DisableChecksUp(int stack_frames);
-
-  // Same as DisableChecksUp,
-  // but the function return program counter address is given explicitly.
-  static void DisableChecksAt(const void* address);
-
-  // Tests for checking that DisableChecksUp and DisableChecksAt
-  // behaved as expected, for example
-  //    void Foo() {
-  //      HeapLeakChecker::DisableChecksUp(1);
-  //      <do things>
-  //    }
-  //    void Bar() {
-  //      Foo();
-  //      CHECK(!HeapLeakChecker::HaveDisabledChecksUp(1));
-  //        // This will fail if Foo() got inlined into Bar()
-  //        // (due to more aggressive optimization in the (new) compiler)
-  //        // which breaks the intended behavior of DisableChecksUp(1) in it.
-  //      <do things>
-  //    }
-  // These return false when heap leak checking is turned off.
-  static bool HaveDisabledChecksUp(int stack_frames);
-  static bool HaveDisabledChecksAt(const void* address);
+  // Example:
+  //   void Foo() {
+  //     HeapLeakChecker::Disabler disabler;
+  //     ... code that allocates objects whose leaks should be ignored ...
+  //   }
+  //
+  // REQUIRES: Destructor runs in same thread as constructor
+  class Disabler {
+   public:
+    Disabler();
+    ~Disabler();
+   private:
+    Disabler(const Disabler&);        // disallow copy
+    void operator=(const Disabler&);  // and assign
+  };
 
   // Ignore an object located at 'ptr' (can go at the start or into the object)
   // as well as all heap objects (transitively) referenced from it
@@ -320,8 +257,18 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   void HandleProfile(ProfileType profile_type);
   void HandleProfileLocked(ProfileType profile_type);
 
-  // Helper for DisableChecksAt
-  static void DisableChecksAtLocked(const void* address);
+  // These used to be public, but they are now deprecated.
+  // Will remove entirely when all internal uses are fixed.
+  // In the meantime, use friendship so the unittest can still test them.
+  static void* GetDisableChecksStart();
+  static void DisableChecksToHereFrom(const void* start_address);
+  static void DisableChecksIn(const char* pattern);
+  friend void RangeDisabledLeaks();
+  friend void NamedTwoDisabledLeaks();
+  friend void* RunNamedDisabledLeaks(void*);
+  friend void TestHeapLeakCheckerNamedDisabling();
+  friend int main(int, char**);
+
 
   // Helper for DisableChecksIn
   static void DisableChecksInLocked(const char* pattern);

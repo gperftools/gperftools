@@ -37,6 +37,7 @@
 
 #include "addressmap-inl.h"
 #include "base/basictypes.h"
+#include "base/logging.h"   // for RawFD
 
 // Table to maintain a heap profile data inside,
 // i.e. the set of currently active heap memory allocations.
@@ -51,8 +52,8 @@ class HeapProfileTable {
   // Extension to be used for heap pforile files.
   static const char kFileExt[];
 
-  // Longest stack trace we record.
-  static const int kMaxStackDepth = 32;
+  // Longest stack trace we record.  Defined in the .cc file.
+  static const int kMaxStackDepth;
 
   // data types ----------------------------
 
@@ -75,6 +76,8 @@ class HeapProfileTable {
     size_t object_size;  // size of the allocation
     const void* const* call_stack;  // call stack that made the allocation call
     int stack_depth;  // depth of call_stack
+    bool live;
+    bool ignored;
   };
 
   // Info we return about an allocation context.
@@ -126,6 +129,11 @@ class HeapProfileTable {
   // also makes all allocations non-live.
   bool MarkAsLive(const void* ptr);
 
+  // If "ptr" points to a recorded allocation, mark it as "ignored".
+  // Ignored objects are treated like other objects, except that they
+  // are skipped in heap checking reports.
+  void MarkAsIgnored(const void* ptr);
+
   // Return current total (de)allocation statistics.
   const Stats& total() const { return total_; }
 
@@ -165,6 +173,7 @@ class HeapProfileTable {
   // and write the sums of allocated byte and object counts in the dump
   // to *alloc_bytes and *alloc_objects.
   // dump_alloc_addresses controls if object addresses are dumped.
+  // Ignores any objects that have the "ignore" bit set.
   bool DumpNonLiveProfile(const char* file_name,
                           bool dump_alloc_addresses,
                           Stats* profile_stats) const;
@@ -189,17 +198,32 @@ class HeapProfileTable {
   struct AllocValue {
     // Access to the stack-trace bucket
     Bucket* bucket() const {
-      return reinterpret_cast<Bucket*>(bucket_rep & ~uintptr_t(1));
+      return reinterpret_cast<Bucket*>(bucket_rep & ~uintptr_t(kMask));
     }
     // This also does set_live(false).
     void set_bucket(Bucket* b) { bucket_rep = reinterpret_cast<uintptr_t>(b); }
     size_t  bytes;   // Number of bytes in this allocation
+
     // Access to the allocation liveness flag (for leak checking)
-    bool live() const { return bucket_rep & 1; }
-    void set_live(bool l) { bucket_rep = (bucket_rep & ~uintptr_t(1)) | l; }
+    bool live() const { return bucket_rep & kLive; }
+    void set_live(bool l) {
+      bucket_rep = (bucket_rep & ~uintptr_t(kLive)) | (l ? kLive : 0);
+    }
+
+    // Should this allocation be ignored if it looks like a leak?
+    bool ignore() const { return bucket_rep & kIgnore; }
+    void set_ignore(bool r) {
+      bucket_rep = (bucket_rep & ~uintptr_t(kIgnore)) | (r ? kIgnore : 0);
+    }
+
    private:
-    uintptr_t bucket_rep;  // Bucket* with the lower bit being the "live" flag:
-                           // pointers point to at least 4-byte aligned storage.
+    // We store a few bits in the bottom bits of bucket_rep.
+    // (Alignment is at least four, so we have at least two bits.)
+    static const int kLive = 1;
+    static const int kIgnore = 2;
+    static const int kMask = kLive | kIgnore;
+
+    uintptr_t bucket_rep;
   };
 
   // helper for FindInsideAlloc
@@ -209,11 +233,11 @@ class HeapProfileTable {
 
   // Arguments that need to be passed DumpNonLiveIterator callback below.
   struct DumpArgs {
-    int fd;  // file to write to
+    RawFD fd;  // file to write to
     bool dump_alloc_addresses;  // if we are dumping allocation's addresses
     Stats* profile_stats;  // stats to update
 
-    DumpArgs(int a, bool b, Stats* d)
+    DumpArgs(RawFD a, bool b, Stats* d)
       : fd(a), dump_alloc_addresses(b), profile_stats(d) { }
   };
 
@@ -240,6 +264,8 @@ class HeapProfileTable {
     info.object_size = v->bytes;
     info.call_stack = v->bucket()->stack;
     info.stack_depth = v->bucket()->depth;
+    info.live = v->live();
+    info.ignored = v->ignore();
     callback(ptr, info);
   }
 
@@ -254,9 +280,6 @@ class HeapProfileTable {
   Bucket** MakeSortedBucketList() const;
 
   // data ----------------------------
-
-  // Size for table_.
-  static const int kHashTableSize = 179999;
 
   // Memory (de)allocator that we use.
   Allocator alloc_;

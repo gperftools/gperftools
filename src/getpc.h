@@ -147,7 +147,7 @@ inline void* GetPC(const ucontext_t& signal_ucontext) {
 }
 
 // Special case #2: Windows, which has to do something totally different.
-#elif defined(WIN32)
+#elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
 // If this is ever implemented, probably the way to do it is to have
 // profiler.cc use a high-precision timer via timeSetEvent:
 //    http://msdn2.microsoft.com/en-us/library/ms712713.aspx
@@ -158,6 +158,7 @@ inline void* GetPC(const ucontext_t& signal_ucontext) {
 //    http://msdn2.microsoft.com/en-us/library/ms680650.aspx
 
 #include "base/logging.h"   // for RAW_LOG
+typedef int ucontext_t;
 
 inline void* GetPC(const struct ucontext_t& signal_ucontext) {
   RAW_LOG(ERROR, "GetPC is not yet implemented on Windows\n");

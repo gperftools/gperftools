@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 0.99.2, opensource@google.com)
+AC_INIT(google-perftools, 1.0rc1, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -150,8 +150,13 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM(, [void *sp = __builtin_stack_pointer()])],
                [AC_MSG_RESULT([no])])
 
 # If we support __thread, that can speed up tcmalloc a bit.
+# Note, however, that our code tickles a bug in gcc < 4.1.2
+# involving TLS and -fPIC (which our libraries will use) on x86:
+#   http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
 AC_MSG_CHECKING([for __thread])
-AC_LINK_IFELSE([AC_LANG_PROGRAM(, [static __thread int p = 0])],
+AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC__MINOR__ < 1) || (__GNUC__ == 4 && __GNUC__MINOR__ == 1 && __GNUC_PATCHLEVEL__ < 2))
+#error gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
+#endif], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
                       Define to 1 if compiler supports __thread)
                 AC_MSG_RESULT([yes])],

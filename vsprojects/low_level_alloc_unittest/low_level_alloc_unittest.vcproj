@@ -214,6 +214,23 @@
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath="..\..\src\stacktrace.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"
@@ -251,6 +268,12 @@
 			</File>
 			<File
 				RelativePath="..\..\src\windows\port.h">
+			</File>
+			<File
+				RelativePath="..\..\src\stacktrace_win32-inl.h.h">
+			</File>
+			<File
+				RelativePath="..\..\src\google\stacktrace.h">
 			</File>
 		</Filter>
 	</Files>

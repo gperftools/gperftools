@@ -41,8 +41,8 @@
 
 // compatibility shim
 #include "base/logging.h"
-#define ASSERT(cond, msg)  RAW_DCHECK(cond, msg)
-#define ASSERT1(cond)      RAW_DCHECK(cond, #cond)
+#define SIDESTEP_ASSERT(cond)  RAW_DCHECK(cond, #cond)
+#define SIDESTEP_LOG(msg)      RAW_VLOG(1, msg)
 
 namespace sidestep {
 
@@ -52,8 +52,8 @@ namespace sidestep {
 //
 // The limitations include at least the following:
 //  -# No support for coprocessor opcodes, MMX, etc.
-//  -# No machine-readable identification of opcodes or decoding of 
-//     assembly parameters. The name of the opcode (as a string) is given, 
+//  -# No machine-readable identification of opcodes or decoding of
+//     assembly parameters. The name of the opcode (as a string) is given,
 //     however, to aid debugging.
 //
 // You may ask what this little disassembler actually does, then?  The answer is
@@ -102,7 +102,7 @@ class MiniDisassembler {
   //
   // @post This instance of the disassembler is ready to be used again,
   // with unchanged defaults from creation time.
-  InstructionType Disassemble(byte* start, unsigned int& instruction_bytes);
+  InstructionType Disassemble(unsigned char* start, unsigned int& instruction_bytes);
 
  private:
 
@@ -111,13 +111,13 @@ class MiniDisassembler {
 
   // Sets the flags for address and operand sizes.
   // @return Number of prefix bytes.
-  InstructionType ProcessPrefixes(byte* start, unsigned int& size);
+  InstructionType ProcessPrefixes(unsigned char* start, unsigned int& size);
 
   // Sets the flag for whether we have ModR/M, and increments
   // operand_bytes_ if any are specifies by the opcode directly.
   // @return Number of opcode bytes.
-  InstructionType ProcessOpcode(byte* start, 
-                                unsigned int table, 
+  InstructionType ProcessOpcode(unsigned char* start,
+                                unsigned int table,
                                 unsigned int& size);
 
   // Checks the type of the supplied operand.  Increments
@@ -130,13 +130,13 @@ class MiniDisassembler {
   // by SIB if present.
   // @return 0 in case of error, 1 if there is just a ModR/M byte,
   // 2 if there is a ModR/M byte and a SIB byte.
-  bool ProcessModrm(byte* start, unsigned int& size);
+  bool ProcessModrm(unsigned char* start, unsigned int& size);
 
   // Processes the SIB byte that it is pointed to.
   // @param start Pointer to the SIB byte.
   // @param mod The mod field from the ModR/M byte.
   // @return 1 to indicate success (indicates 1 SIB byte)
-  bool ProcessSib(byte* start, byte mod, unsigned int& size);
+  bool ProcessSib(unsigned char* start, unsigned char mod, unsigned int& size);
 
   // The instruction type we have decoded from the opcode.
   InstructionType instruction_type_;

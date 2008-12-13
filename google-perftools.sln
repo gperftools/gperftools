@@ -31,11 +31,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "markidle_unittest", "vsproj
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "memalign_unittest", "vsprojects\memalign_unittest\memalign_unittest.vcproj", "{BA416723-325E-46E4-9F9A-BEF6FB928DFA}"
-	ProjectSection(ProjectDependencies) = postProject
-		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
-	EndProjectSection
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "packed-cache_test", "vsprojects\packed-cache_test\packed-cache_test.vcproj", "{605D3CED-B530-424E-B7D2-2A31F14FD570}"
 	ProjectSection(ProjectDependencies) = postProject
 	EndProjectSection
@@ -45,7 +40,17 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "thread_dealloc_unittest", "
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
 	EndProjectSection
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tcmalloc_minimal_unittest-static", "vsprojects\tcmalloc_minimal_unittest-static\tcmalloc_minimal_unittest-static.vcproj", "{8F708DCB-7EE4-4BA0-81AA-A52A0BA73B74}"
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "tmu-static", "vsprojects\tmu-static\tmu-static.vcproj", "{8F708DCB-7EE4-4BA0-81AA-A52A0BA73B74}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "addr2line-pdb", "vsprojects\addr2line-pdb\addr2line-pdb.vcproj", "{81CA712E-90B8-4AE5-9E89-5B436578D6DA}"
+	ProjectSection(ProjectDependencies) = postProject
+	EndProjectSection
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nm-pdb", "vsprojects\nm-pdb\nm-pdb.vcproj", "{3A559C75-FD26-4300-B86B-165FD43EE1CE}"
 	ProjectSection(ProjectDependencies) = postProject
 	EndProjectSection
 EndProject
@@ -101,6 +106,14 @@ Global
 		{8F708DCB-7EE4-4BA0-81AA-A52A0BA73B74}.Debug.Build.0 = Debug|Win32
 		{8F708DCB-7EE4-4BA0-81AA-A52A0BA73B74}.Release.ActiveCfg = Release|Win32
 		{8F708DCB-7EE4-4BA0-81AA-A52A0BA73B74}.Release.Build.0 = Release|Win32
+		{81CA712E-90B8-4AE5-9E89-5B436578D6DA}.Debug.ActiveCfg = Debug|Win32
+		{81CA712E-90B8-4AE5-9E89-5B436578D6DA}.Debug.Build.0 = Debug|Win32
+		{81CA712E-90B8-4AE5-9E89-5B436578D6DA}.Release.ActiveCfg = Release|Win32
+		{81CA712E-90B8-4AE5-9E89-5B436578D6DA}.Release.Build.0 = Release|Win32
+		{3A559C75-FD26-4300-B86B-165FD43EE1CE}.Debug.ActiveCfg = Debug|Win32
+		{3A559C75-FD26-4300-B86B-165FD43EE1CE}.Debug.Build.0 = Debug|Win32
+		{3A559C75-FD26-4300-B86B-165FD43EE1CE}.Release.ActiveCfg = Release|Win32
+		{3A559C75-FD26-4300-B86B-165FD43EE1CE}.Release.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 	EndGlobalSection

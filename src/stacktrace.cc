@@ -89,6 +89,11 @@
 #   include "stacktrace_generic-inl.h"
 # endif
 
+// The Windows case -- probably cygwin and mingw will use one of the
+// x86-includes above, but if not, we can fall back to windows intrinsics.
+#elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
+# include "stacktrace_win32-inl.h"
+
 // OK, those are all the processors we know how to deal with.
 #else
 # error Cannot calculate stack trace: will need to write for your environment

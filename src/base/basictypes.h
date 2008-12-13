@@ -31,6 +31,9 @@
 #define _BASICTYPES_H_
 
 #include "config.h"
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>     // gets us PRId64, etc
+#endif
 
 // To use this in an autoconf setting, make sure you run the following
 // autoconf macros:
@@ -80,8 +83,10 @@ const  int16 kint16min  = (   ( int16) 0x8000);
 const  int32 kint32min  = (   ( int32) 0x80000000);
 const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
 
-// Define the "portable" printf and scanf macros, if they're not already there
-// We just do something that works on many systems, and hope for the best
+// Define the "portable" printf and scanf macros, if they're not
+// already there (via the inttypes.h we #included above, hopefully).
+// Mostly it's old systems that don't support inttypes.h, so we assume
+// they're 32 bit.
 #ifndef PRIx64
 #define PRIx64 "llx"
 #endif
@@ -98,7 +103,7 @@ const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
 #define PRIu64 "llu"
 #endif
 #ifndef PRIxPTR
-#define PRIxPTR  PRIx64
+#define PRIxPTR "lx"
 #endif
 
 // A macro to disallow the evil copy constructor and operator= functions
