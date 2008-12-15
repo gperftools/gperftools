@@ -450,7 +450,7 @@ inline int get_thread_disable_counter() {
   if (use_main_thread_counter)  // means we're running really early
     return main_thread_counter;
   void* p = perftools_pthread_getspecific(thread_disable_counter_key);
-  return (int)p;   // kinda evil: store the counter directly in the void*
+  return (intptr_t)p;   // kinda evil: store the counter directly in the void*
 }
 
 inline void set_thread_disable_counter(int value) {
@@ -458,7 +458,9 @@ inline void set_thread_disable_counter(int value) {
     main_thread_counter = value;
     return;
   }
-  void* p = (void*)value; // kinda evil: store the counter directly in the void*
+  intptr_t pointer_sized_value = value;
+  // kinda evil: store the counter directly in the void*
+  void* p = (void*)pointer_sized_value;
   // NOTE: this may call malloc, which will call NewHook which will call
   // get_thread_disable_counter() which will call pthread_getspecific().  I
   // don't know if anything bad can happen if we call getspecific() in the
