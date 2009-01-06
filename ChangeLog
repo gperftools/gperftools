@@ -1,3 +1,7 @@
+Tue Jan  6 13:58:56 2009  Google Inc. <opensource@google.com>
+	* google-perftools: version 1.0 release
+	* Exactly the same as 1.0rc2
+
 Sun Dec 14 17:10:35 2008  Google Inc. <opensource@google.com>
 	* google-perftools: version 1.0rc2 release
 	* Fix compile error on 64-bit systems (casting ptr to int) (csilvers)
