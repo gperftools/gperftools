@@ -69,6 +69,8 @@ static const size_t kNumClasses = 61;
 // should not hurt to make this list somewhat big because the
 // scavenging code will shrink it down when its contents are not in use.
 static const int kMaxFreeListLength = 256;
+// Same as above but used when --tcmalloc_use_dynamic_thread_cache_sizes=true.
+static const int kMaxDynamicFreeListLength = 8192;
 
 static const Length kMaxValidPages = (~static_cast<Length>(0)) >> kPageShift;
 
@@ -90,7 +92,7 @@ class SizeMap {
   // it too big may temporarily cause unnecessary memory wastage in the
   // per-thread free list until the scavenger cleans up the list.
   int num_objects_to_move_[kNumClasses];
-  
+
   //-------------------------------------------------------------------
   // Mapping from size to size_class and vice versa
   //-------------------------------------------------------------------
@@ -171,7 +173,7 @@ class SizeMap {
   }
 
   // Dump contents of the computed size map
-  void Dump();
+  void Dump(TCMalloc_Printer* out);
 };
 
 // Allocates "bytes" worth of memory and returns it.  Increments

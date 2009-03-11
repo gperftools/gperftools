@@ -224,38 +224,22 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // ----------------------------------------------------------------------- //
   // Various helpers
 
-  // Type for DumpProfileLocked
-  enum ProfileType { START_PROFILE, END_PROFILE };
+  // Create the name of the heap profile file.
+  // Should be deleted via Allocator::Free().
+  char* MakeProfileNameLocked();
 
-  // Create the name of the heap profile file of profile_type;
-  // to be deleted via Allocator::Free().
-  char* MakeProfileNameLocked(ProfileType profile_type);
-
-  // Helper for dumping start/end heap leak checking profiles
-  // and getting the byte/object counts.
-  void DumpProfileLocked(ProfileType profile_type, const void* self_stack_top,
-                         size_t* alloc_bytes, size_t* alloc_objects);
   // Helper for constructors
-  void Create(const char *name);
+  void Create(const char *name, bool make_start_snapshot);
 
   // Types for DoNoLeaks and its helpers.
   enum CheckType { SAME_HEAP, NO_LEAKS };
   enum CheckFullness { USE_PPROF, USE_COUNTS };
   enum ReportMode { PPROF_REPORT, NO_REPORT };
 
-  // Helpers for *NoLeaks and *SameHeap
+  // Helper for *NoLeaks and *SameHeap
   bool DoNoLeaks(CheckType check_type,
                  CheckFullness fullness,
                  ReportMode report_mode);
-  struct LeakCheckResult;  // defined in .cc
-  LeakCheckResult DoLeakCheckLocked();
-  bool DoNoLeaksOnceLocked(CheckType check_type,
-                           CheckFullness fullness,
-                           ReportMode report_mode);
-
-  // Handle a leak profile file: delete it if !keep_profiles_.
-  void HandleProfile(ProfileType profile_type);
-  void HandleProfileLocked(ProfileType profile_type);
 
   // These used to be public, but they are now deprecated.
   // Will remove entirely when all internal uses are fixed.
@@ -273,7 +257,9 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // Helper for DisableChecksIn
   static void DisableChecksInLocked(const char* pattern);
 
-  // Helper for DisableChecksToHereFrom
+  // Disable checks based on stack trace entry at a depth <=
+  // max_depth.  Used to hide allocations done inside some special
+  // libraries.
   static void DisableChecksFromToLocked(const void* start_address,
                                         const void* end_address,
                                         int max_depth);
@@ -382,8 +368,12 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   class SpinLock* lock_;  // to make HeapLeakChecker objects thread-safe
   const char* name_;  // our remembered name (we own it)
                       // NULL means this leak checker is a noop
-  size_t start_inuse_bytes_;  // bytes in use at our construction
-  size_t start_inuse_allocs_;  // allocations in use at our construction
+
+  // Snapshot taken when the checker was created.  May be NULL
+  // for the global heap checker object.  We use void* instead of
+  // HeapProfileTable::Snapshot* to avoid including heap-profile-table.h.
+  void* start_snapshot_;
+
   bool has_checked_;  // if we have done the leak check, so these are ready:
   ssize_t inuse_bytes_increase_;  // bytes-in-use increase for this checker
   ssize_t inuse_allocs_increase_;  // allocations-in-use increase

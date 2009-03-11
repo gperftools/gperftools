@@ -55,6 +55,9 @@
 
 static const int kMallocHistogramSize = 64;
 
+// One day, we could support other types of writers (perhaps for C?)
+typedef std::string MallocExtensionWriter;
+
 // The default implementations of the following routines do nothing.
 // All implementations should be thread-safe; the current one
 // (TCMallocImplementation) is.
@@ -84,23 +87,17 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // REQUIRES: buffer_length > 0.
   virtual void GetStats(char* buffer, int buffer_length);
 
-  // Get a string that contains a sample of live objects and the stack
-  // traces that allocated these objects.  The format of the returned
-  // string is equivalent to the output of the heap profiler and can
+  // Outputs to "writer" a sample of live objects and the stack traces
+  // that allocated these objects.  The format of the returned output
+  // is equivalent to the output of the heap profiler and can
   // therefore be passed to "pprof".
-  //
-  // The generated data is *appended* to "*result".  I.e., the old
-  // contents of "*result" are preserved.
-  virtual void GetHeapSample(std::string* result);
+  virtual void GetHeapSample(MallocExtensionWriter* writer);
 
-  // Get a string that contains the stack traces that caused growth in
-  // the addres sspace size.  The format of the returned string is
+  // Outputs to "writer" the stack traces that caused growth in the
+  // address space size.  The format of the returned output is
   // equivalent to the output of the heap profiler and can therefore
   // be passed to "pprof".
-  //
-  // The generated data is *appended* to "*result".  I.e., the old
-  // contents of "*result" are preserved.
-  virtual void GetHeapGrowthStacks(std::string* result);
+  virtual void GetHeapGrowthStacks(MallocExtensionWriter* writer);
 
   // -------------------------------------------------------------------
   // Control operations for getting and setting malloc implementation
@@ -181,6 +178,24 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // Gets the release rate.  Returns a value < 0 if unknown.
   virtual double GetMemoryReleaseRate();
 
+  // Returns the estimated number of bytes that will be allocated for
+  // a request of "size" bytes.  This is an estimate: an allocation of
+  // SIZE bytes may reserve more bytes, but will never reserve less.
+  // (Currently only implemented in tcmalloc, other implementations
+  // always return SIZE.)
+  virtual size_t GetEstimatedAllocatedSize(size_t size);
+
+  // Returns the actual number of bytes reserved by tcmalloc for the
+  // pointer p.  This number may be equal to or greater than
+  // the number of bytes requested when p was allocated.
+  // p must have been allocated by this malloc implementation,
+  // must not be an interior pointer -- that is, must be exactly
+  // the pointer returned to by malloc() et al., not some offset
+  // from that -- and should not have been freed yet.  p may be NULL.
+  // (Currently only implemented in tcmalloc; other implementations
+  // will return 0.)
+  virtual size_t GetAllocatedSize(void* p);
+
   // The current malloc implementation.  Always non-NULL.
   static MallocExtension* instance();
 
@@ -189,13 +204,14 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   static void Register(MallocExtension* implementation);
 
  protected:
-  // Get a list of stack traces of sampled allocation points.
-  // Returns a pointer to a "new[]-ed" result array.
+  // Get a list of stack traces of sampled allocation points.  Returns
+  // a pointer to a "new[]-ed" result array, and stores the sample
+  // period in "sample_period".
   //
   // The state is stored as a sequence of adjacent entries
   // in the returned array.  Each entry has the following form:
   //    uintptr_t count;        // Number of objects with following trace
-  //    uintptr_t size;         // Size of object
+  //    uintptr_t size;         // Total size of objects with following trace
   //    uintptr_t depth;        // Number of PC values in stack trace
   //    void*     stack[depth]; // PC values that form the stack trace
   //
@@ -207,7 +223,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   //
   // This is an internal extension.  Callers should use the more
   // convenient "GetHeapSample(string*)" method defined above.
-  virtual void** ReadStackTraces();
+  virtual void** ReadStackTraces(int* sample_period);
 
   // Like ReadStackTraces(), but returns stack traces that caused growth
   // in the address space size.

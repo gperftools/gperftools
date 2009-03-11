@@ -121,23 +121,29 @@
 
 // When the compiler is not GCC, these annotations are simply no-ops.
 
+// NOTE: in theory, the macros that take "arg" below *could* take
+// multiple arguments, but in practice so far they only take one.
+// Since not all non-gcc compilers support ... -- notably MSVC 7.1 --
+// I just hard-code in a single arg.  If this assumption ever breaks,
+// we can change it back to "...", or handle it some other way.
+
 #define GUARDED_BY(x)                   // no-op
 #define GUARDED_VAR                     // no-op
 #define PT_GUARDED_BY(x)                // no-op
 #define PT_GUARDED_VAR                  // no-op
-#define ACQUIRED_AFTER(...)             // no-op
-#define ACQUIRED_BEFORE(...)            // no-op
-#define EXCLUSIVE_LOCKS_REQUIRED(...)   // no-op
-#define SHARED_LOCKS_REQUIRED(...)      // no-op
-#define LOCKS_EXCLUDED(...)             // no-op
+#define ACQUIRED_AFTER(arg)             // no-op
+#define ACQUIRED_BEFORE(arg)            // no-op
+#define EXCLUSIVE_LOCKS_REQUIRED(arg)   // no-op
+#define SHARED_LOCKS_REQUIRED(arg)      // no-op
+#define LOCKS_EXCLUDED(arg)             // no-op
 #define LOCK_RETURNED(x)                // no-op
 #define LOCKABLE                        // no-op
 #define SCOPED_LOCKABLE                 // no-op
-#define EXCLUSIVE_LOCK_FUNCTION(...)    // no-op
-#define SHARED_LOCK_FUNCTION(...)       // no-op
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...) // no-op
-#define SHARED_TRYLOCK_FUNCTION(...)    // no-op
-#define UNLOCK_FUNCTION(...)            // no-op
+#define EXCLUSIVE_LOCK_FUNCTION(arg)    // no-op
+#define SHARED_LOCK_FUNCTION(arg)       // no-op
+#define EXCLUSIVE_TRYLOCK_FUNCTION(arg) // no-op
+#define SHARED_TRYLOCK_FUNCTION(arg)    // no-op
+#define UNLOCK_FUNCTION(arg)            // no-op
 #define NO_THREAD_SAFETY_ANALYSIS       // no-op
 
 #endif // defined(__GNUC__) && defined(__SUPPORT_TS_ANNOTATION__)

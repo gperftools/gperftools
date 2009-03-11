@@ -50,6 +50,7 @@
 //   http://code.google.com/p/google-perftools/issues/detail?id=83
 
 #include <windows.h>    // for GetProcAddress and GetModuleHandle
+#include <assert.h>
 
 typedef USHORT NTAPI RtlCaptureStackBackTrace_Function(
     IN ULONG frames_to_skip,
@@ -70,4 +71,12 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   }
   return (int)RtlCaptureStackBackTrace_fn(skip_count + 2, max_depth,
                                           result, 0);
+}
+
+int GetStackFrames(void** /* pcs */,
+                   int* /* sizes */,
+                   int /* max_depth */,
+                   int /* skip_count */) {
+  assert(0 == "Not yet implemented");
+  return 0;
 }

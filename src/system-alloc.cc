@@ -97,6 +97,9 @@ DEFINE_int32(malloc_devmem_limit,
              EnvToInt("TCMALLOC_DEVMEM_LIMIT", 0),
              "Physical memory limit location in MB for /dev/mem allocation."
              "  Setting this to 0 means no limit.");
+DEFINE_bool(malloc_skip_sbrk,
+            EnvToBool("TCMALLOC_SKIP_SBRK", false),
+            "Whether sbrk can be used to obtain memory.");
 DEFINE_bool(malloc_skip_mmap,
             EnvToBool("TCMALLOC_SKIP_MMAP", false),
             "Whether mmap can be used to obtain memory.");
@@ -147,6 +150,16 @@ bool RegisterSystemAllocator(SysAllocator *a, int priority) {
 
 void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
+  // Check if we should use sbrk allocation.
+  // FLAGS_malloc_skip_sbrk starts out as false (its uninitialized
+  // state) and eventually gets initialized to the specified value.  Note
+  // that this code runs for a while before the flags are initialized.
+  // That means that even if this flag is set to true, some (initial)
+  // memory will be allocated with sbrk before the flag takes effect.
+  if (FLAGS_malloc_skip_sbrk) {
+    return NULL;
+  }
+
   // sbrk will release memory if passed a negative number, so we do
   // a strict check here
   if (static_cast<ptrdiff_t>(size + alignment) < 0) return NULL;

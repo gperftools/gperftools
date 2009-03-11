@@ -75,6 +75,8 @@ extern "C" void AnnotateMutexIsUsedAsCondVar(const char *file, int line,
                                             const volatile void *mu){}
 extern "C" void AnnotateTraceMemory(const char *file, int line,
                                     const volatile void *arg){}
+extern "C" void AnnotateThreadName(const char *file, int line,
+                                   const char *name){}
 extern "C" void AnnotateIgnoreReadsBegin(const char *file, int line){}
 extern "C" void AnnotateIgnoreReadsEnd(const char *file, int line){}
 extern "C" void AnnotateIgnoreWritesBegin(const char *file, int line){}

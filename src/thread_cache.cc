@@ -30,47 +30,45 @@
 // ---
 // Author: Ken Ashcraft <opensource@google.com>
 
+#include "config.h"
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
+#include <algorithm>   // for min and max
 #include "thread_cache.h"
 #include "maybe_threads.h"
 
-// Twice the approximate gap between sampling actions.
-// I.e., we take one sample approximately once every
-//      tcmalloc_sample_parameter/2
-// bytes of allocation, i.e., ~ once every 128KB.
-// Must be a prime number.
-#ifdef NO_TCMALLOC_SAMPLES
-DEFINE_int64(tcmalloc_sample_parameter, 0,
-             "Unused: code is compiled with NO_TCMALLOC_SAMPLES");
-static size_t sample_period = 0;
-#else
-DEFINE_int64(tcmalloc_sample_parameter,
-             EnvToInt("TCMALLOC_SAMPLE_PARAMETER", 262147),
-	     "Twice the approximate gap between sampling actions."
-	     " Must be a prime number. Otherwise will be rounded up to a "
-	     " larger prime number");
-static size_t sample_period = EnvToInt("TCMALLOC_SAMPLE_PARAMETER", 262147);
-#endif
-// Protects sample_period above
-static SpinLock sample_period_lock(SpinLock::LINKER_INITIALIZED);
+using std::min;
+using std::max;
+
+DEFINE_bool(tcmalloc_use_dynamic_thread_cache_sizes,
+            EnvToBool("TCMALLOC_USE_DYNAMIC_THREAD_CACHE_SIZES", true),
+            "When false, active threads will equally share "
+            "FLAGS_tcmalloc_max_total_thread_cache_bytes and the freelists "
+            "within each thread cache will have a max length of "
+            "256.  When on, active threads will compete for allocation of "
+            "FLAGS_tcmalloc_max_total_thread_cache_bytes, and the max length "
+            "of each freelist will change based on the usage pattern.");
+
+DEFINE_int64(tcmalloc_max_total_thread_cache_bytes,
+             EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES", 16<<20),
+             "Bound on the total amount of bytes allocated to "
+             "thread caches.  This bound is not strict, so it is possible "
+             "for the cache to go over this bound in certain circumstances. ");
 
 namespace tcmalloc {
 
-/* The smallest prime > 2^n */
-static unsigned int primes_list[] = {
-	// Small values might cause high rates of sampling
-	// and hence commented out.
-        // 2, 5, 11, 17, 37, 67, 131, 257,
-	// 521, 1031, 2053, 4099, 8209, 16411,
-	32771, 65537, 131101, 262147, 524309, 1048583,
-	2097169, 4194319, 8388617, 16777259, 33554467 };
-
 static bool phinited = false;
 
+volatile bool ThreadCache::use_dynamic_cache_size_ =
+  FLAGS_tcmalloc_use_dynamic_thread_cache_sizes;
 volatile size_t ThreadCache::per_thread_cache_size_ = kMaxThreadCacheSize;
 size_t ThreadCache::overall_thread_cache_size_ = kDefaultOverallThreadCacheSize;
+ssize_t ThreadCache::unclaimed_cache_space_ = kDefaultOverallThreadCacheSize;
 PageHeapAllocator<ThreadCache> threadcache_allocator;
 ThreadCache* ThreadCache::thread_heaps_ = NULL;
 int ThreadCache::thread_heap_count_ = 0;
+ThreadCache* ThreadCache::next_memory_steal_ = NULL;
 #ifdef HAVE_TLS
 __thread ThreadCache* ThreadCache::threadlocal_heap_
 # ifdef HAVE___ATTRIBUTE__
@@ -114,6 +112,23 @@ bool kernel_supports_tls = false;      // be conservative
 
 void ThreadCache::Init(pthread_t tid) {
   size_ = 0;
+
+  if (use_dynamic_cache_size_) {
+    max_size_ = 0;
+    IncreaseCacheLimitLocked();
+    if (max_size_ == 0) {
+      // There isn't enough memory to go around.  Just give the minimum to
+      // this thread.
+      max_size_ = kMinThreadCacheSize;
+
+      // Take unclaimed_cache_space_ negative.
+      unclaimed_cache_space_ -= kMinThreadCacheSize;
+      ASSERT(unclaimed_cache_space_ < 0);
+    }
+  } else {
+    max_size_ = per_thread_cache_size_;
+  }
+
   next_ = NULL;
   prev_ = NULL;
   tid_  = tid;
@@ -122,12 +137,9 @@ void ThreadCache::Init(pthread_t tid) {
     list_[cl].Init();
   }
 
-  // Initialize RNG -- run it for a bit to get to good values
-  bytes_until_sample_ = 0;
-  rnd_ = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this));
-  for (int i = 0; i < 100; i++) {
-    PickNextSample(FLAGS_tcmalloc_sample_parameter * 2);
-  }
+  uint32_t sampler_seed;
+  memcpy(&sampler_seed, &tid, sizeof(sampler_seed));
+  sampler_.Init(sampler_seed);
 }
 
 void ThreadCache::Cleanup() {
@@ -142,21 +154,76 @@ void ThreadCache::Cleanup() {
 // Remove some objects of class "cl" from central cache and add to thread heap.
 // On success, return the first object for immediate use; otherwise return NULL.
 void* ThreadCache::FetchFromCentralCache(size_t cl, size_t byte_size) {
+  FreeList* list = &list_[cl];
+  ASSERT(list->empty());
+  const int batch_size = Static::sizemap()->num_objects_to_move(cl);
+
+  // If !use_dynamic_cache_size_, batch_size should always be less than
+  // max_length() (which will be kMaxFreeListLength).
+  const int num_to_move = min<int>(list->max_length(), batch_size);
   void *start, *end;
   int fetch_count = Static::central_cache()[cl].RemoveRange(
-      &start, &end,
-      Static::sizemap()->num_objects_to_move(cl));
+      &start, &end, num_to_move);
+
   ASSERT((start == NULL) == (fetch_count == 0));
   if (--fetch_count >= 0) {
     size_ += byte_size * fetch_count;
-    list_[cl].PushRange(fetch_count, SLL_Next(start), end);
+    list->PushRange(fetch_count, SLL_Next(start), end);
+  }
+
+  if (use_dynamic_cache_size_) {
+    // Increase max length slowly up to batch_size.  After that,
+    // increase by batch_size in one shot so that the length is a
+    // multiple of batch_size.
+    if (list->max_length() < batch_size) {
+      list->set_max_length(list->max_length() + 1);
+    } else {
+      // Don't let the list get too long.  In 32 bit builds, the length
+      // is represented by a 16 bit int, so we need to watch out for
+      // integer overflow.
+      int new_length = min<int>(list->max_length() + batch_size,
+                                kMaxDynamicFreeListLength);
+      // The list's max_length must always be a multiple of batch_size,
+      // and kMaxDynamicFreeListLength is not necessarily a multiple
+      // of batch_size.
+      new_length -= new_length % batch_size;
+      ASSERT(new_length % batch_size == 0);
+      list->set_max_length(new_length);
+    }
   }
   return start;
 }
 
+void ThreadCache::ListTooLong(FreeList* list, size_t cl) {
+  const int batch_size = Static::sizemap()->num_objects_to_move(cl);
+  ReleaseToCentralCache(list, cl, batch_size);
+
+  if (!use_dynamic_cache_size_) {
+    return;
+  }
+
+  // If the list is too long, we need to transfer some number of
+  // objects to the central cache.  Ideally, we would transfer
+  // num_objects_to_move, so the code below tries to make max_length
+  // converge on num_objects_to_move.
+
+  if (list->max_length() < batch_size) {
+    // Slow start the max_length so we don't overreserve.
+    list->set_max_length(list->max_length() + 1);
+  } else if (list->max_length() > batch_size) {
+    // If we consistently go over max_length, shrink max_length.  If we don't
+    // shrink it, some amount of memory will always stay in this freelist.
+    list->set_length_overages(list->length_overages() + 1);
+    if (list->length_overages() > kMaxOverages) {
+      ASSERT(list->max_length() > batch_size);
+      list->set_max_length(list->max_length() - batch_size);
+      list->set_length_overages(0);
+    }
+  }
+}
+
 // Remove some objects of class "cl" from thread heap and add to central cache
-size_t ThreadCache::ReleaseToCentralCache(FreeList* src,
-                                                   size_t cl, int N) {
+void ThreadCache::ReleaseToCentralCache(FreeList* src, size_t cl, int N) {
   ASSERT(src == &list_[cl]);
   if (N > src->length()) N = src->length();
   size_t delta_bytes = N * Static::sizemap()->ByteSizeForClass(cl);
@@ -173,7 +240,7 @@ size_t ThreadCache::ReleaseToCentralCache(FreeList* src,
   void *tail, *head;
   src->PopRange(N, &head, &tail);
   Static::central_cache()[cl].InsertRange(head, tail, N);
-  return size_ -= delta_bytes;
+  size_ -= delta_bytes;
 }
 
 // Release idle memory to the central cache
@@ -185,67 +252,77 @@ void ThreadCache::Scavenge() {
   // may not release much memory, but if so we will call scavenge again
   // pretty soon and the low-water marks will be high on that call.
   //int64 start = CycleClock::Now();
-
   for (int cl = 0; cl < kNumClasses; cl++) {
     FreeList* list = &list_[cl];
     const int lowmark = list->lowwatermark();
     if (lowmark > 0) {
       const int drop = (lowmark > 1) ? lowmark/2 : 1;
       ReleaseToCentralCache(list, cl, drop);
+
+      if (use_dynamic_cache_size_) {
+        // Shrink the max length if it isn't used.  Only shrink down to
+        // batch_size -- if the thread was active enough to get the max_length
+        // above batch_size, it will likely be that active again.  If
+        // max_length shinks below batch_size, the thread will have to
+        // go through the slow-start behavior again.  The slow-start is useful
+        // mainly for threads that stay relatively idle for their entire
+        // lifetime.
+        const int batch_size = Static::sizemap()->num_objects_to_move(cl);
+        if (list->max_length() > batch_size) {
+          list->set_max_length(
+              max<int>(list->max_length() - batch_size, batch_size));
+        }
+      }
     }
     list->clear_lowwatermark();
   }
 
-  //int64 finish = CycleClock::Now();
-  //CycleTimer ct;
-  //MESSAGE("GC: %.0f ns\n", ct.CyclesToUsec(finish-start)*1000.0);
+  if (use_dynamic_cache_size_) {
+    IncreaseCacheLimit();
+  }
+
+//   int64 finish = CycleClock::Now();
+//   CycleTimer ct;
+//   MESSAGE("GC: %.0f ns\n", ct.CyclesToUsec(finish-start)*1000.0);
 }
 
-void ThreadCache::PickNextSample(size_t k) {
-  // Copied from "base/synchronization.cc" (written by Mike Burrows)
-  // Make next "random" number
-  // x^32+x^22+x^2+x^1+1 is a primitive polynomial for random numbers
-  static const uint32_t kPoly = (1 << 22) | (1 << 2) | (1 << 1) | (1 << 0);
-  uint32_t r = rnd_;
-  rnd_ = (r << 1) ^ ((static_cast<int32_t>(r) >> 31) & kPoly);
+void ThreadCache::IncreaseCacheLimit() {
+  SpinLockHolder h(Static::pageheap_lock());
+  IncreaseCacheLimitLocked();
+}
 
-  // Next point is "rnd_ % (sample_period)".  I.e., average
-  // increment is "sample_period/2".
-  const int flag_value = FLAGS_tcmalloc_sample_parameter;
-  static int last_flag_value = -1;
-
-  if (flag_value != last_flag_value) {
-    SpinLockHolder h(&sample_period_lock);
-    int i;
-    for (i = 0; i < (sizeof(primes_list)/sizeof(primes_list[0]) - 1); i++) {
-      if (primes_list[i] >= flag_value) {
-        break;
-      }
-    }
-    sample_period = primes_list[i];
-    last_flag_value = flag_value;
-  }
-
-  bytes_until_sample_ += rnd_ % sample_period;
-
-  if (k > (static_cast<size_t>(-1) >> 2)) {
-    // If the user has asked for a huge allocation then it is possible
-    // for the code below to loop infinitely.  Just return (note that
-    // this throws off the sampling accuracy somewhat, but a user who
-    // is allocating more than 1G of memory at a time can live with a
-    // minor inaccuracy in profiling of small allocations, and also
-    // would rather not wait for the loop below to terminate).
+void ThreadCache::IncreaseCacheLimitLocked() {
+  if (unclaimed_cache_space_ > 0) {
+    // Possibly make unclaimed_cache_space_ negative.
+    unclaimed_cache_space_ -= kStealAmount;
+    max_size_ += kStealAmount;
     return;
   }
+  // Don't hold pageheap_lock too long.  Try to steal from 10 other
+  // threads before giving up.  The i < 10 condition also prevents an
+  // infinite loop in case none of the existing thread heaps are
+  // suitable places to steal from.
+  for (int i = 0; i < 10;
+       ++i, next_memory_steal_ = next_memory_steal_->next_) {
+    // Reached the end of the linked list.  Start at the beginning.
+    if (next_memory_steal_ == NULL) {
+      ASSERT(thread_heaps_ != NULL);
+      next_memory_steal_ = thread_heaps_;
+    }
+    if (next_memory_steal_ == this ||
+        next_memory_steal_->max_size_ <= kMinThreadCacheSize) {
+      continue;
+    }
+    next_memory_steal_->max_size_ -= kStealAmount;
+    max_size_ += kStealAmount;
 
-  while (bytes_until_sample_ < k) {
-    // Increase bytes_until_sample_ by enough average sampling periods
-    // (sample_period >> 1) to allow us to sample past the current
-    // allocation.
-    bytes_until_sample_ += (sample_period >> 1);
+    next_memory_steal_ = next_memory_steal_->next_;
+    return;
   }
+}
 
-  bytes_until_sample_ -= k;
+int ThreadCache::GetSamplePeriod() {
+  return sampler_.GetSamplePeriod();
 }
 
 void ThreadCache::InitModule() {
@@ -322,6 +399,27 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   return heap;
 }
 
+ThreadCache* ThreadCache::NewHeap(pthread_t tid) {
+  // Create the heap and add it to the linked list
+  ThreadCache *heap = threadcache_allocator.New();
+  heap->Init(tid);
+  heap->next_ = thread_heaps_;
+  heap->prev_ = NULL;
+  if (thread_heaps_ != NULL) {
+    thread_heaps_->prev_ = heap;
+  } else {
+    // This is the only thread heap at the momment.
+    ASSERT(next_memory_steal_ == NULL);
+    next_memory_steal_ = heap;
+  }
+  thread_heaps_ = heap;
+  thread_heap_count_++;
+  if (!use_dynamic_cache_size_) {
+    RecomputePerThreadCacheSize();
+  }
+  return heap;
+}
+
 void ThreadCache::BecomeIdle() {
   if (!tsd_inited_) return;              // No caches yet
   ThreadCache* heap = GetThreadHeap();
@@ -367,12 +465,19 @@ void ThreadCache::DeleteCache(ThreadCache* heap) {
   if (heap->prev_ != NULL) heap->prev_->next_ = heap->next_;
   if (thread_heaps_ == heap) thread_heaps_ = heap->next_;
   thread_heap_count_--;
-  RecomputeThreadCacheSize();
+
+  if (next_memory_steal_ == heap) next_memory_steal_ = heap->next_;
+  if (next_memory_steal_ == NULL) next_memory_steal_ = thread_heaps_;
+  unclaimed_cache_space_ += heap->max_size_;
+
+  if (!use_dynamic_cache_size_) {
+    RecomputePerThreadCacheSize();
+  }
 
   threadcache_allocator.Delete(heap);
 }
 
-void ThreadCache::RecomputeThreadCacheSize() {
+void ThreadCache::RecomputePerThreadCacheSize() {
   // Divide available space across threads
   int n = thread_heap_count_ > 0 ? thread_heap_count_ : 1;
   size_t space = overall_thread_cache_size_ / n;
@@ -381,17 +486,42 @@ void ThreadCache::RecomputeThreadCacheSize() {
   if (space < kMinThreadCacheSize) space = kMinThreadCacheSize;
   if (space > kMaxThreadCacheSize) space = kMaxThreadCacheSize;
 
+  double ratio = space / max<double>(1, per_thread_cache_size_);
+  size_t claimed = 0;
+  for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
+    // Don't circumvent the slow-start growth of max_size_ by increasing
+    // the total cache size.
+    if (!use_dynamic_cache_size_ || ratio < 1.0) {
+      h->max_size_ = static_cast<size_t>(h->max_size_ * ratio);
+    }
+    claimed += h->max_size_;
+  }
+  unclaimed_cache_space_ = overall_thread_cache_size_ - claimed;
   per_thread_cache_size_ = space;
   //MESSAGE("Threads %d => cache size %8d\n", n, int(space));
 }
 
-void ThreadCache::Print() const {
+void ThreadCache::Print(TCMalloc_Printer* out) const {
   for (int cl = 0; cl < kNumClasses; ++cl) {
-    MESSAGE("      %5" PRIuS " : %4" PRIuS " len; %4d lo\n",
-            Static::sizemap()->ByteSizeForClass(cl),
-            list_[cl].length(),
-            list_[cl].lowwatermark());
+    out->printf("      %5" PRIuS " : %4" PRIuS " len; %4d lo; %4"PRIuS
+                " max; %4"PRIuS" overages;\n",
+                Static::sizemap()->ByteSizeForClass(cl),
+                list_[cl].length(),
+                list_[cl].lowwatermark(),
+                list_[cl].max_length(),
+                list_[cl].length_overages());
   }
+}
+
+void ThreadCache::PrintThreads(TCMalloc_Printer* out) {
+  size_t actual_limit = 0;
+  for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
+    h->Print(out);
+    actual_limit += h->max_size_;
+  }
+  out->printf("ThreadCache overall: %"PRIuS ", unclaimed: %"PRIuS
+              ", actual: %"PRIuS"\n",
+              overall_thread_cache_size_, unclaimed_cache_space_, actual_limit);
 }
 
 void ThreadCache::GetThreadStats(uint64_t* total_bytes, uint64_t* class_count) {
@@ -409,9 +539,13 @@ void ThreadCache::set_overall_thread_cache_size(size_t new_size) {
   // Clip the value to a reasonable range
   if (new_size < kMinThreadCacheSize) new_size = kMinThreadCacheSize;
   if (new_size > (1<<30)) new_size = (1<<30);     // Limit to 1GB
-
   overall_thread_cache_size_ = new_size;
-  ThreadCache::RecomputeThreadCacheSize();
+
+  RecomputePerThreadCacheSize();
+}
+
+void ThreadCache::set_use_dynamic_thread_cache_size(bool use_dynamic) {
+  use_dynamic_cache_size_ = use_dynamic;
 }
 
 }  // namespace tcmalloc

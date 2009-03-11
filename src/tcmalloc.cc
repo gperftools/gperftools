@@ -173,6 +173,31 @@ DEFINE_int64(tcmalloc_large_alloc_report_threshold,
              "is very large and therefore you should see no extra "
              "logging unless the flag is overridden.");
 
+// These routines are called by free(), realloc(), etc. if the pointer is
+// invalid.  This is a cheap (source-editing required) kind of exception
+// handling for these routines.
+namespace {
+void InvalidFree(void* ptr) {
+  CRASH("Attempt to free invalid pointer: %p\n", ptr);
+}
+
+void* InvalidRealloc(void* old_ptr, size_t new_size) {
+  CRASH("Attempt to realloc invalid pointer: %p (realloc to %" PRIuS ")\n",
+        old_ptr, new_size);
+  return NULL;
+}
+
+size_t InvalidGetSizeForRealloc(void* old_ptr) {
+  CRASH("Attempt to realloc invalid pointer: %p\n", old_ptr);
+  return 0;
+}
+
+size_t InvalidGetAllocatedSize(void* ptr) {
+  CRASH("Attempt to get the size of an invalid pointer: %p\n", ptr);
+  return 0;
+}
+}  // unnamed namespace
+
 // Extract interesting stats
 struct TCMallocStats {
   uint64_t system_bytes;        // Bytes alloced from system
@@ -281,50 +306,6 @@ static void PrintStats(int level) {
   delete[] buffer;
 }
 
-static void** DumpStackTraces() {
-  // Count how much space we need
-  int needed_slots = 0;
-  {
-    SpinLockHolder h(Static::pageheap_lock());
-    Span* sampled = Static::sampled_objects();
-    for (Span* s = sampled->next; s != sampled; s = s->next) {
-      StackTrace* stack = reinterpret_cast<StackTrace*>(s->objects);
-      needed_slots += 3 + stack->depth;
-    }
-    needed_slots += 100;            // Slop in case sample grows
-    needed_slots += needed_slots/8; // An extra 12.5% slop
-  }
-
-  void** result = new void*[needed_slots];
-  if (result == NULL) {
-    MESSAGE("tcmalloc: could not allocate %d slots for stack traces\n",
-            needed_slots);
-    return NULL;
-  }
-
-  SpinLockHolder h(Static::pageheap_lock());
-  int used_slots = 0;
-  Span* sampled = Static::sampled_objects();
-  for (Span* s = sampled->next; s != sampled; s = s->next) {
-    ASSERT(used_slots < needed_slots);  // Need to leave room for terminator
-    StackTrace* stack = reinterpret_cast<StackTrace*>(s->objects);
-    if (used_slots + 3 + stack->depth >= needed_slots) {
-      // No more room
-      break;
-    }
-
-    result[used_slots+0] = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
-    result[used_slots+1] = reinterpret_cast<void*>(stack->size);
-    result[used_slots+2] = reinterpret_cast<void*>(stack->depth);
-    for (int d = 0; d < stack->depth; d++) {
-      result[used_slots+3+d] = stack->stack[d];
-    }
-    used_slots += 3 + stack->depth;
-  }
-  result[used_slots] = reinterpret_cast<void*>(static_cast<uintptr_t>(0));
-  return result;
-}
-
 static void** DumpHeapGrowthStackTraces() {
   // Count how much space we need
   int needed_slots = 0;
@@ -342,8 +323,8 @@ static void** DumpHeapGrowthStackTraces() {
 
   void** result = new void*[needed_slots];
   if (result == NULL) {
-    MESSAGE("tcmalloc: could not allocate %d slots for stack traces\n",
-            needed_slots);
+    MESSAGE("tcmalloc: allocation failed for stack trace slots",
+            needed_slots * sizeof(*result));
     return NULL;
   }
 
@@ -386,8 +367,17 @@ class TCMallocImplementation : public MallocExtension {
     }
   }
 
-  virtual void** ReadStackTraces() {
-    return DumpStackTraces();
+  virtual void** ReadStackTraces(int* sample_period) {
+    tcmalloc::StackTraceTable table;
+    {
+      SpinLockHolder h(Static::pageheap_lock());
+      Span* sampled = Static::sampled_objects();
+      for (Span* s = sampled->next; s != sampled; s = s->next) {
+        table.AddTrace(*reinterpret_cast<StackTrace*>(s->objects));
+      }
+    }
+    *sample_period = ThreadCache::GetCache()->GetSamplePeriod();
+    return table.ReadStackTracesAndClear(); // grabs and releases pageheap_lock
   }
 
   virtual void** ReadHeapGrowthStackTraces() {
@@ -467,6 +457,20 @@ class TCMallocImplementation : public MallocExtension {
   virtual double GetMemoryReleaseRate() {
     return FLAGS_tcmalloc_release_rate;
   }
+  virtual size_t GetEstimatedAllocatedSize(size_t size) {
+    if (size <= kMaxSize) {
+      const size_t cl = Static::sizemap()->SizeClass(size);
+      const size_t alloc_size = Static::sizemap()->ByteSizeForClass(cl);
+      return alloc_size;
+    } else {
+      return tcmalloc::pages(size) << kPageShift;
+    }
+  }
+
+  // This just calls GetSizeWithCallback, but because that's in an
+  // unnamed namespace, we need to move the definition below it in the
+  // file.
+  virtual size_t GetAllocatedSize(void* ptr);
 };
 
 // The constructor allocates an object to ensure that initialization
@@ -584,19 +588,7 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
   write(STDERR_FILENO, buffer, strlen(buffer));
 }
 
-// These routines are called by free() and realloc() if the pointer is
-// invalid.  This is a cheap (source-editing required) kind of exception
-// handling for these routines.
 namespace {
-void InvalidFree(void* ptr) {
-  CRASH("Attempt to free invalid pointer: %p\n", ptr);
-}
-
-void* InvalidRealloc(void* old_ptr, size_t new_size) {
-  CRASH("Attempt to realloc invalid pointer: %p (realloc to %" PRIuS ")\n",
-        old_ptr, new_size);
-  return NULL;
-}
 
 // Helper for do_malloc().
 inline void* do_malloc_pages(Length num_pages) {
@@ -714,33 +706,35 @@ inline void do_free(void* ptr) {
   return do_free_with_callback(ptr, &InvalidFree);
 }
 
+inline size_t GetSizeWithCallback(void* ptr,
+                                  size_t (*invalid_getsize_fn)(void*)) {
+  if (ptr == NULL)
+    return 0;
+  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
+  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
+  if (cl != 0) {
+    return Static::sizemap()->ByteSizeForClass(cl);
+  } else {
+    Span *span = Static::pageheap()->GetDescriptor(p);
+    if (span == NULL) {  // means we do now own this memory
+      return (*invalid_getsize_fn)(ptr);
+    } else if (span->sizeclass != 0) {
+      Static::pageheap()->CacheSizeClass(p, span->sizeclass);
+      return Static::sizemap()->ByteSizeForClass(span->sizeclass);
+    } else {
+      return span->length << kPageShift;
+    }
+  }
+}
+
 // This lets you call back to a given function pointer if ptr is invalid.
 // It is used primarily by windows code which wants a specialized callback.
 inline void* do_realloc_with_callback(void* old_ptr, size_t new_size,
                                       void* (*invalid_realloc_fn)(void*,
                                                                   size_t)) {
   // Get the size of the old entry
-  const PageID p = reinterpret_cast<uintptr_t>(old_ptr) >> kPageShift;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-  Span *span = NULL;
-  size_t old_size;
-  if (cl == 0) {
-    span = Static::pageheap()->GetDescriptor(p);
-    if (!span) {
-      // span can be NULL because the pointer passed in is invalid
-      // (not something returned by malloc or friends), or because the
-      // pointer was allocated with some other allocator besides tcmalloc.
-      return InvalidRealloc(old_ptr, new_size);
-    }
-    cl = span->sizeclass;
-    Static::pageheap()->CacheSizeClass(p, cl);
-  }
-  if (cl != 0) {
-    old_size = Static::sizemap()->ByteSizeForClass(cl);
-  } else {
-    ASSERT(span != NULL);
-    old_size = span->length << kPageShift;
-  }
+  const size_t old_size = GetSizeWithCallback(old_ptr,
+                                              &InvalidGetSizeForRealloc);
 
   // Reallocate if the new size is larger than the old size,
   // or if the new size is significantly smaller than the old size.
@@ -935,6 +929,11 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
 }
 
 }  // end unnamed namespace
+
+// As promised, the definition of this function, declared above.
+size_t TCMallocImplementation::GetAllocatedSize(void* ptr) {
+  return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
+}
 
 //-------------------------------------------------------------------
 // Exported routines

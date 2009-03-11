@@ -54,6 +54,9 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #undef HAVE_DLFCN_H
 
+/* Define to 1 if the system has the type `Elf32_Versym'. */
+#undef HAVE_ELF32_VERSYM
+
 /* Define to 1 if you have the <execinfo.h> header file. */
 #undef HAVE_EXECINFO_H
 
@@ -132,6 +135,9 @@
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #undef HAVE_SYS_RESOURCE_H
 
+/* Define to 1 if you have the <sys/socket.h> header file. */
+#undef HAVE_SYS_SOCKET_H
+
 /* Define to 1 if you have the <sys/stat.h> header file. */
 #define HAVE_SYS_STAT_H 1
 
@@ -140,6 +146,9 @@
 
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
+
+/* Define to 1 if you have the <sys/wait.h> header file. */
+#undef HAVE_SYS_WAIT_H
 
 /* Define to 1 if compiler supports __thread */
 #define HAVE_TLS 1
@@ -152,6 +161,9 @@
 
 /* Define to 1 if you have the <unwind.h> header file. */
 #undef HAVE_UNWIND_H
+
+/* Define to 1 if you have the <windows.h> header file. */
+#define HAVE_WINDOWS_H 1
 
 /* define if your compiler has __attribute__ */
 #undef HAVE___ATTRIBUTE__

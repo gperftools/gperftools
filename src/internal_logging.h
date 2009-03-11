@@ -37,6 +37,9 @@
 
 #include "config.h"
 #include <stdlib.h>   // for abort()
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>   // for write()
+#endif
 
 //-------------------------------------------------------------------
 // Utility routines
@@ -53,9 +56,17 @@ extern void TCMalloc_MESSAGE(const char* filename,
 #endif
 ;
 
-// Short form for convenience
-#define MESSAGE(format, ...) \
-  TCMalloc_MESSAGE(__FILE__, __LINE__, format, __VA_ARGS__)
+// Right now, the only non-fatal messages we want to report are when
+// an allocation fails (we'll return NULL eventually, but sometimes
+// want more prominent notice to help debug).  message should be
+// a literal string with no %<whatever> format directives.
+#ifdef TCMALLOC_WARNINGS
+#define MESSAGE(message, num_bytes)                                     \
+   TCMalloc_MESSAGE(__FILE__, __LINE__, message " (%"PRIuS" bytes)\n",  \
+                    static_cast<size_t>(num_bytes))
+#else
+#define MESSAGE(message, num_bytes)
+#endif
 
 // Dumps the specified message and then calls abort().  If
 // "dump_stats" is specified, the first call will also dump the
@@ -69,11 +80,30 @@ extern void TCMalloc_CRASH(bool dump_stats,
 #endif
 ;
 
-#define CRASH(format, ...) \
-  TCMalloc_CRASH(false, __FILE__, __LINE__, format, __VA_ARGS__)
+// This is a class that makes using the macro easier.  With this class,
+// CRASH("%d", i) expands to TCMalloc_CrashReporter.PrintfAndDie("%d", i).
+class PERFTOOLS_DLL_DECL TCMalloc_CrashReporter {
+ public:
+  TCMalloc_CrashReporter(bool dump_stats, const char* file, int line)
+      : dump_stats_(dump_stats), file_(file), line_(line) {
+  }
+  void PrintfAndDie(const char* format, ...)
+#ifdef HAVE___ATTRIBUTE__
+      __attribute__ ((__format__ (__printf__, 2, 3)))  // 2,3 due to "this"
+#endif
+;
 
-#define CRASH_WITH_STATS(format, ...) \
-  TCMalloc_CRASH(true, __FILE__, __LINE__, format, __VA_ARGS__)
+ private:
+  bool dump_stats_;
+  const char* file_;
+  int line_;
+};
+
+#define CRASH \
+  TCMalloc_CrashReporter(false, __FILE__, __LINE__).PrintfAndDie
+
+#define CRASH_WITH_STATS \
+  TCMalloc_CrashReporter(true, __FILE__, __LINE__).PrintfAndDie
 
 // Like assert(), but executed even in NDEBUG mode
 #undef CHECK_CONDITION

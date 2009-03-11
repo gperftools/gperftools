@@ -392,6 +392,32 @@ int NumCPUs(void) {
 }
 
 // ----------------------------------------------------------------------
+// HasPosixThreads()
+//      Return true if we're running POSIX (e.g., NPTL on Linux)
+//      threads, as opposed to a non-POSIX thread libary.  The thing
+//      that we care about is whether a thread's pid is the same as
+//      the thread that spawned it.  If so, this function returns
+//      true.
+// ----------------------------------------------------------------------
+bool HasPosixThreads() {
+#if defined(__linux__)
+#ifndef _CS_GNU_LIBPTHREAD_VERSION
+#define _CS_GNU_LIBPTHREAD_VERSION 3
+#endif
+  char buf[32];
+  //  We assume that, if confstr() doesn't know about this name, then
+  //  the same glibc is providing LinuxThreads.
+  if (confstr(_CS_GNU_LIBPTHREAD_VERSION, buf, sizeof(buf)) == 0)
+    return false;
+  return strncmp(buf, "NPTL", 4) == 0;
+#elif defined(_WIN32) || defined(__MINGW32__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
+  return false;
+#else  // other OS
+  return true;      //  Assume that everything else has Posix
+#endif  // else OS_LINUX
+}
+
+// ----------------------------------------------------------------------
 
 #if defined __linux__ || defined __FreeBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__
 static void ConstructFilename(const char* spec, pid_t pid,

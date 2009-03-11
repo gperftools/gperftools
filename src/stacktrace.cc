@@ -53,48 +53,19 @@
 // Some code may do that.
 
 #include "config.h"
+#include <google/stacktrace.h>
+#include "stacktrace_config.h"
 
-// First, the i386 case.
-#if defined(__i386__) && __GNUC__ >= 2
-# if !defined(NO_FRAME_POINTER)
-#   include "stacktrace_x86-inl.h"
-# else
-#   include "stacktrace_generic-inl.h"
-# endif
-
-// Now, the x86_64 case.
-#elif defined(__x86_64__) && __GNUC__ >= 2
-# if !defined(NO_FRAME_POINTER)
-#   include "stacktrace_x86-inl.h"
-# elif defined(HAVE_LIBUNWIND_H)  // a proxy for having libunwind installed
-#   define UNW_LOCAL_ONLY
-#   include "stacktrace_libunwind-inl.h"
-# elif 0
-    // This is the unwinder used by gdb, which can call malloc (see above).
-    // We keep this code around, so we can test cases where libunwind
-    // doesn't work, but there's no way to enable it except for manually
-    // editing this file (by replacing this "elif 0" with "elif 1", e.g.).
-#   include "stacktrace_x86_64-inl.h"
-# elif defined(__linux)
-#   error Cannnot calculate stack trace: need either libunwind or frame-pointers (see INSTALL file)
-# else
-#   error Cannnot calculate stack trace: need libunwind (see INSTALL file)
-# endif
-
-// The PowerPC case
-#elif (defined(__ppc__) || defined(__PPC__)) && __GNUC__ >= 2
-# if !defined(NO_FRAME_POINTER)
-#   include "stacktrace_powerpc-inl.h"
-# else
-#   include "stacktrace_generic-inl.h"
-# endif
-
-// The Windows case -- probably cygwin and mingw will use one of the
-// x86-includes above, but if not, we can fall back to windows intrinsics.
-#elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
-# include "stacktrace_win32-inl.h"
-
-// OK, those are all the processors we know how to deal with.
+#if defined(STACKTRACE_INL_HEADER)
+# include STACKTRACE_INL_HEADER
+#elif 0
+// This is for the benefit of code analysis tools that may have
+// trouble with the computed #include above.
+# include "base/stacktrace_x86-inl.h"
+# include "base/stacktrace_libunwind-inl.h"
+# include "base/stacktrace_generic-inl.h"
+# include "base/stacktrace_powerpc-inl.h"
+# include "base/stacktrace_win32-inl.h"
 #else
 # error Cannot calculate stack trace: will need to write for your environment
 #endif

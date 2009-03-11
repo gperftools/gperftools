@@ -71,6 +71,9 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>      // for testing mmap hooks
 #endif
+#ifdef HAVE_MALLOC_H
+#include <malloc.h>        // defines pvalloc/etc on cygwin
+#endif
 #include <assert.h>
 #include <vector>
 #include <string>
@@ -79,16 +82,19 @@
 #include "base/simple_mutex.h"
 #include "google/malloc_hook.h"
 #include "google/malloc_extension.h"
+#include "thread_cache.h"
 #include "tests/testutil.h"
 
 // Windows doesn't define pvalloc and a few other obsolete unix
 // functions; nor does it define posix_memalign (which is not obsolete).
-#ifdef _WIN32
+#if defined(_MSC_VER) || defined(__MINGW32__)
 # define cfree free         // don't bother to try to test these obsolete fns
 # define valloc malloc
 # define pvalloc malloc
 # ifdef PERFTOOLS_NO_ALIGNED_MALLOC
 #   define _aligned_malloc(size, alignment) malloc(size)
+# else
+#   include <malloc.h>      // for _aligned_malloc
 # endif
 # define memalign(alignment, size) _aligned_malloc(size, alignment)
 // Assume if we fail, it's because of out-of-memory.
@@ -108,6 +114,8 @@
 
 using std::vector;
 using std::string;
+
+namespace testing {
 
 static const int FLAGS_numtests = 50000;
 static const int FLAGS_log_every_n_tests = 50000; // log exactly once
@@ -710,7 +718,21 @@ static void TestMallocAlignment() {
   }
 }
 
-int main(int argc, char** argv) {
+static void TestHugeThreadCache() {
+  fprintf(LOGSTREAM, "==== Testing huge thread cache\n");
+  // More than 2^16 to cause integer overflow of 16 bit counters.
+  static const int kNum = 70000;
+  char** array = new char*[kNum];
+  for (int i = 0; i < kNum; ++i) {
+    array[i] = new char[10];
+  }
+  for (int i = 0; i < kNum; ++i) {
+    delete[] array[i];
+  }
+  delete[] array;
+}
+
+static int RunAllTests(int argc, char** argv) {
   // Optional argv[1] is the seed
   AllocatorState rnd(argc > 1 ? atoi(argv[1]) : 100);
 
@@ -949,6 +971,17 @@ int main(int argc, char** argv) {
     free(large_object);
   }
 
-  fprintf(LOGSTREAM, "PASS\n");
+  TestHugeThreadCache();
+
   return 0;
+}
+
+}
+
+using testing::RunAllTests;
+
+int main(int argc, char** argv) {
+  RunAllTests(argc, argv);
+
+  fprintf(LOGSTREAM, "PASS\n");
 }

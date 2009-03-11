@@ -42,6 +42,7 @@
 #include "page_heap.h"
 #include "page_heap_allocator.h"
 #include "span.h"
+#include "stack_trace_table.h"
 
 namespace tcmalloc {
 
@@ -77,8 +78,11 @@ class Static {
   static StackTrace* growth_stacks() { return growth_stacks_; }
   static void set_growth_stacks(StackTrace* s) { growth_stacks_ = s; }
 
-  // Stack traces kept for sampled allocations.
+  // State kept for sampled allocations (/pprof/heap support)
   static Span* sampled_objects() { return &sampled_objects_; }
+  static PageHeapAllocator<StackTraceTable::Bucket>* bucket_allocator() {
+    return &bucket_allocator_;
+  }
 
  private:
   static SpinLock pageheap_lock_;
@@ -93,6 +97,7 @@ class Static {
   static PageHeapAllocator<Span> span_allocator_;
   static PageHeapAllocator<StackTrace> stacktrace_allocator_;
   static Span sampled_objects_;
+  static PageHeapAllocator<StackTraceTable::Bucket> bucket_allocator_;
 
   // Linked list of stack traces recorded every time we allocated memory
   // from the system.  Useful for finding allocation sites that cause

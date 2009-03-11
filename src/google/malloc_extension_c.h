@@ -42,31 +42,41 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef _WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-bool MallocExtension_VerifyAllMemory();
-bool MallocExtension_VerifyAllMemory();
-bool MallocExtension_VerifyNewMemory(void* p);
-bool MallocExtension_VerifyArrayNewMemory(void* p);
-bool MallocExtension_VerifyMallocMemory(void* p);
-bool MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
+bool PERFTOOLS_DLL_DECL MallocExtension_VerifyAllMemory();
+bool PERFTOOLS_DLL_DECL MallocExtension_VerifyAllMemory();
+bool PERFTOOLS_DLL_DECL MallocExtension_VerifyNewMemory(void* p);
+bool PERFTOOLS_DLL_DECL MallocExtension_VerifyArrayNewMemory(void* p);
+bool PERFTOOLS_DLL_DECL MallocExtension_VerifyMallocMemory(void* p);
+bool PERFTOOLS_DLL_DECL MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
                                        int histogram[kMallocHistogramSize]);
 
-void MallocExtension_GetStats(char* buffer, int buffer_length);
+void PERFTOOLS_DLL_DECL MallocExtension_GetStats(char* buffer, int buffer_length);
 
-/* NOTE: commented out because they require a c++ string.
- * TODO(csilvers): write a C version of these routines, that perhaps
- * take a fixed-size buffer.
+/* TODO(csilvers): write a C version of these routines, that perhaps
+ * takes a function ptr and a void *.
  */
 /* void MallocExtension_GetHeapSample(string* result); */
 /* void MallocExtension_GetHeapGrowthStacks(string* result); */
 
-bool MallocExtension_GetNumericProperty(const char* property, size_t* value);
-bool MallocExtension_SetNumericProperty(const char* property, size_t value);
-void MallocExtension_MarkThreadIdle();
-void MallocExtension_ReleaseFreeMemory();
+bool PERFTOOLS_DLL_DECL MallocExtension_GetNumericProperty(const char* property, size_t* value);
+bool PERFTOOLS_DLL_DECL MallocExtension_SetNumericProperty(const char* property, size_t value);
+void PERFTOOLS_DLL_DECL MallocExtension_MarkThreadIdle();
+void PERFTOOLS_DLL_DECL MallocExtension_ReleaseFreeMemory();
+size_t PERFTOOLS_DLL_DECL MallocExtension_GetEstimatedAllocatedSize(size_t size);
+size_t PERFTOOLS_DLL_DECL MallocExtension_GetAllocatedSize(void* p);
 
 #ifdef __cplusplus
 }   // extern "C"

@@ -484,6 +484,11 @@ void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
 
 void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
   Lock();
+  if (regions_ == NULL) {  // We must have just unset the hooks,
+                           // but this thread was already inside the hook.
+    Unlock();
+    return;
+  }
   HandleSavedRegionsLocked(&InsertRegionLocked);
     // first handle adding saved regions if any
   uintptr_t start_addr = reinterpret_cast<uintptr_t>(start);

@@ -84,8 +84,7 @@
   // Report that we are about to signal on the condition variable at address
   // "cv".  When used with user-defined synchronization mechanism at address
   // "cv", indicates that a ANNOTATE_CONDVAR_WAIT(cv) "happened-after" this
-  // event.  This call should be applied to the mutex in critical sections
-  // that make LockWhen() and Await() conditions true.
+  // event.
   #define ANNOTATE_CONDVAR_SIGNAL(cv) \
     AnnotateCondVarSignal(__FILE__, __LINE__, cv)
 
@@ -195,6 +194,10 @@
   #define ANNOTATE_TRACE_MEMORY(address) \
     AnnotateTraceMemory(__FILE__, __LINE__, address)
 
+  // Report the current thread name to a race detector.
+  #define ANNOTATE_THREAD_NAME(name) \
+    AnnotateThreadName(__FILE__, __LINE__, name)
+
   // -------------------------------------------------------------
   // Annotations useful when implementing locks.  They are not
   // normally needed by modules that merely use locks.
@@ -250,6 +253,7 @@
   #define ANNOTATE_BENIGN_RACE(address, description) // empty
   #define ANNOTATE_MUTEX_IS_USED_AS_CONDVAR(mu) // empty
   #define ANNOTATE_TRACE_MEMORY(arg) // empty
+  #define ANNOTATE_THREAD_NAME(name) // empty
   #define ANNOTATE_IGNORE_READS_BEGIN() // empty
   #define ANNOTATE_IGNORE_READS_END() // empty
   #define ANNOTATE_IGNORE_WRITES_BEGIN() // empty
@@ -300,6 +304,8 @@ extern "C" void AnnotateMutexIsUsedAsCondVar(const char *file, int line,
                                             const volatile void *mu);
 extern "C" void AnnotateTraceMemory(const char *file, int line,
                                     const volatile void *arg);
+extern "C" void AnnotateThreadName(const char *file, int line,
+                                   const char *name);
 extern "C" void AnnotateIgnoreReadsBegin(const char *file, int line);
 extern "C" void AnnotateIgnoreReadsEnd(const char *file, int line);
 extern "C" void AnnotateIgnoreWritesBegin(const char *file, int line);

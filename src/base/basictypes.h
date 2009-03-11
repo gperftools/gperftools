@@ -112,6 +112,9 @@ const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
   TypeName(const TypeName&);                    \
   void operator=(const TypeName&)
 
+// An alternate name that leaves out the moral judgment... :-)
+#define DISALLOW_COPY_AND_ASSIGN(TypeName) DISALLOW_EVIL_CONSTRUCTORS(TypeName)
+
 // The COMPILE_ASSERT macro can be used to verify that a compile time
 // expression is true. For example, you could use it to verify the
 // size of a static array:

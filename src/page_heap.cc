@@ -347,14 +347,14 @@ void PageHeap::Dump(TCMalloc_Printer* out) {
   int r_spans = 0;
   out->printf("Normal large spans:\n");
   for (Span* s = large_.normal.next; s != &large_.normal; s = s->next) {
-    out->printf("   [ %6" PRIuS " pages ] %6.1f MB\n",
+    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MB\n",
                 s->length, PagesToMB(s->length));
     n_pages += s->length;
     n_spans++;
   }
   out->printf("Unmapped large spans:\n");
   for (Span* s = large_.returned.next; s != &large_.returned; s = s->next) {
-    out->printf("   [ %6" PRIuS " pages ] %6.1f MB\n",
+    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MB\n",
                 s->length, PagesToMB(s->length));
     r_pages += s->length;
     r_spans++;

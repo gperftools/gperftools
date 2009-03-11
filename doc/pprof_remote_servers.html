@@ -65,16 +65,25 @@ can change it if you'd like.</p>
 <code>pprof</code>.  <code>MallocExtension</code> is defined in the
 header file <code>google/malloc_extension.h</code>.</p>
 
-<p>Here's an example, from an actual Google webserver, of what the
-output should look like:</p>
+<p>Here's an example of what the output should look like:</p>
 <pre>
-heap profile:   9369: 126987529 [  9369: 126987529] @ heap
-     2:     1024 [     2:     1024] @ 0x87da913 0x8923ad4 0x891d4c2 0x892de12 0x8930519 0x83a16c2 0x836cb38 0x834cd1c 0x8349ba5 0x10a3177 0x8349961
-     1:       36 [     1:       36] @ 0x87da913 0x83a0929 0x836cb38 0x834cd1c 0x8349ba5 0x10a3177 0x8349961
-   308: 10092544 [   308: 10092544] @ 0x87da913 0x8970d66 0x8970e64 0x896e8e2 0x88e69d2 0x88e6add 0x88e6dec 0x88e7384 0x88e73fa 0x8838793 0x8838b36 0x88395f8 0x88f5a4b 0x890d03a 0x890d65a 0x8917666 0x890d1f3 0x890e6e4 0x8349c1b 0x10a3177 0x8349961
+heap profile:   1923: 127923432 [  1923: 127923432] @ heap_v2/524288
+     1:      312 [     1:      312] @ 0x2aaaabaf5ccc 0x2aaaaba4cd2c 0x2aaaac08c09a
+   928: 122586016 [   928: 122586016] @ 0x2aaaabaf682c 0x400680 0x400bdd 0x2aaaab1c368a 0x2aaaab1c8f77 0x2aaaab1c0396 0x2aaaab1c86ed 0x4007ff 0x2aaaaca62afa
+     1:       16 [     1:       16] @ 0x2aaaabaf5ccc 0x2aaaabb04bac 0x2aaaabc1b262 0x2aaaabc21496 0x2aaaabc214bb
 [...]
 </pre>
 
+
+<p> Older code may produce "version 1" heap profiles which look like this:<p/>
+<pre>
+heap profile:  14933: 791700132 [ 14933: 791700132] @ heap
+     1:   848688 [     1:   848688] @ 0xa4b142 0x7f5bfc 0x87065e 0x4056e9 0x4125f8 0x42b4f1 0x45b1ba 0x463248 0x460871 0x45cb7c 0x5f1744 0x607cee 0x5f4a5e 0x40080f 0x2aaaabad7afa
+     1:  1048576 [     1:  1048576] @ 0xa4a9b2 0x7fd025 0x4ca6d8 0x4ca814 0x4caa88 0x2aaaab104cf0 0x404e20 0x4125f8 0x42b4f1 0x45b1ba 0x463248 0x460871 0x45cb7c 0x5f1744 0x607cee 0x5f4a5e 0x40080f 0x2aaaabad7afa
+  2942: 388629374 [  2942: 388629374] @ 0xa4b142 0x4006a0 0x400bed 0x5f0cfa 0x5f1744 0x607cee 0x5f4a5e 0x40080f 0x2aaaabad7afa
+[...]
+</pre>
+<p> pprof accepts both old and new heap profiles and automatically detects which one you are using.</p>
 
 <h2> <code><b>/pprof/growth</b></code> </h2>
 

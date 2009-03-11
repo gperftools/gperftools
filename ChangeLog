@@ -1,8 +1,29 @@
+Wed Mar 11 11:25:34 2009  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.1 release
+	* Dynamically resize thread caches -- nice perf. improvement (kash)
+	* Add VDSO support to give better stacktraces in linux (ppluzhnikov)
+	* Improve heap-profiling sampling algorithm (ford)
+	* Rewrite leak-checking code: should be faster and more robust (sanjay)
+	* Use ps2 instead of ps for dot: better page cropping for gv (csilvers)
+	* Disable malloc-failure warning messages by default (csilvers)
+	* Update config/Makefile to disable tests on a per-OS basis (csilvers)
+	* PORTING: Get perftools compiling under MSVC 7.1 again (csilvers)
+	* PORTING: Get perftools compiling under cygwin again (csilvers)
+	* PORTING: automatically set library flags for solaris x86 (csilvers)
+	* Add TCMALLOC_SKIP_SBRK to mirror TCMALLOC_SKIP_MMAP (csilvers)
+	* Add --enable flags to allow selective building (csilvers)
+	* Put addr2line-pdb and nm-pdb in proper output directory (csilvers)
+	* Remove deprecated DisableChecksIn (sanjay)
+	* DOCUMENTATION: Document most MallocExtension routines (csilvers)
+	
 Tue Jan  6 13:58:56 2009  Google Inc. <opensource@google.com>
+
 	* google-perftools: version 1.0 release
 	* Exactly the same as 1.0rc2
 
 Sun Dec 14 17:10:35 2008  Google Inc. <opensource@google.com>
+
 	* google-perftools: version 1.0rc2 release
 	* Fix compile error on 64-bit systems (casting ptr to int) (csilvers)
 

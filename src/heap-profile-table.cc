@@ -37,6 +37,12 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>   // for write()
 #endif
+#ifdef HAVE_SYS_SOCKET_H
+#include <sys/socket.h>   // for socketpair() -- needed by Symbolize
+#endif
+#ifdef HAVE_SYS_WAIT_H
+#include <sys/wait.h>   // for wait() -- needed by Symbolize
+#endif
 #include <fcntl.h>    // for open()
 #ifdef HAVE_GLOB_H
 #include <glob.h>
@@ -48,12 +54,15 @@
 #include <inttypes.h> // for PRIxPTR
 #endif
 #include <errno.h>
+#include <stdarg.h>
 #include <string>
+#include <map>
 #include <algorithm>  // for sort(), equal(), and copy()
 
 #include "heap-profile-table.h"
 
 #include "base/logging.h"
+#include "raw_printer.h"
 #include <google/stacktrace.h>
 #include <google/malloc_hook.h>
 #include "base/commandlineflags.h"
@@ -64,6 +73,7 @@ using std::sort;
 using std::equal;
 using std::copy;
 using std::string;
+using std::map;
 
 using tcmalloc::FillProcSelfMaps;   // from sysinfo.h
 using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
@@ -73,6 +83,15 @@ using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
 DEFINE_bool(cleanup_old_heap_profiles,
             EnvToBool("HEAP_PROFILE_CLEANUP", true),
             "At initialization time, delete old heap profiles.");
+
+DEFINE_string(heap_profile_table_pprof,
+              EnvToString("PPROF_PATH", "pprof"),
+              "Path to pprof to call for reporting function names.");
+
+// heap_profile_table_pprof may be referenced after destructors are
+// called (since that's when leak-checking is done), so we make
+// a more-permanent copy that won't ever get destroyed.
+static string* g_pprof_path = new string(FLAGS_heap_profile_table_pprof);
 
 //----------------------------------------------------------------------
 
@@ -257,17 +276,21 @@ void HeapProfileTable::MarkAsIgnored(const void* ptr) {
 // We'd be happier using snprintfer, but we don't to reduce dependencies.
 int HeapProfileTable::UnparseBucket(const Bucket& b,
                                     char* buf, int buflen, int bufsize,
+                                    const char* extra,
                                     Stats* profile_stats) {
-  profile_stats->allocs += b.allocs;
-  profile_stats->alloc_size += b.alloc_size;
-  profile_stats->frees += b.frees;
-  profile_stats->free_size += b.free_size;
+  if (profile_stats != NULL) {
+    profile_stats->allocs += b.allocs;
+    profile_stats->alloc_size += b.alloc_size;
+    profile_stats->frees += b.frees;
+    profile_stats->free_size += b.free_size;
+  }
   int printed =
-    snprintf(buf + buflen, bufsize - buflen, "%6d: %8"PRId64" [%6d: %8"PRId64"] @",
+    snprintf(buf + buflen, bufsize - buflen, "%6d: %8"PRId64" [%6d: %8"PRId64"] @%s",
              b.allocs - b.frees,
              b.alloc_size - b.free_size,
              b.allocs,
-             b.alloc_size);
+             b.alloc_size,
+             extra);
   // If it looks like the snprintf failed, ignore the fact we printed anything
   if (printed < 0 || printed >= bufsize - buflen) return buflen;
   buflen += printed;
@@ -336,9 +359,11 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   memset(&stats, 0, sizeof(stats));
   int bucket_length = snprintf(buf, size, "%s", kProfileHeader);
   if (bucket_length < 0 || bucket_length >= size) return 0;
-  bucket_length = UnparseBucket(total_, buf, bucket_length, size, &stats);
+  bucket_length = UnparseBucket(total_, buf, bucket_length, size,
+                                " heapprofile", &stats);
   for (int i = 0; i < num_buckets_; i++) {
-    bucket_length = UnparseBucket(*list[i], buf, bucket_length, size, &stats);
+    bucket_length = UnparseBucket(*list[i], buf, bucket_length, size, "",
+                                  &stats);
   }
   RAW_DCHECK(bucket_length < size, "");
 
@@ -364,30 +389,41 @@ void HeapProfileTable::DumpNonLiveIterator(const void* ptr, AllocValue* v,
   memset(&b, 0, sizeof(b));
   b.allocs = 1;
   b.alloc_size = v->bytes;
-  const void* stack[kMaxStackDepth + 1];
-  b.depth = v->bucket()->depth + static_cast<int>(args.dump_alloc_addresses);
-  b.stack = stack;
-  if (args.dump_alloc_addresses) stack[0] = ptr;
-  memcpy(stack + static_cast<int>(args.dump_alloc_addresses),
-         v->bucket()->stack, sizeof(stack[0]) * v->bucket()->depth);
+  b.depth = v->bucket()->depth;
+  b.stack = v->bucket()->stack;
   char buf[1024];
-  int len = UnparseBucket(b, buf, 0, sizeof(buf), args.profile_stats);
+  int len = UnparseBucket(b, buf, 0, sizeof(buf), "", args.profile_stats);
   RawWrite(args.fd, buf, len);
 }
 
-bool HeapProfileTable::DumpNonLiveProfile(const char* file_name,
-                                          bool dump_alloc_addresses,
-                                          Stats* profile_stats) const {
+// Callback from NonLiveSnapshot; adds entry to arg->dest
+// if not the entry is not live and is not present in arg->base.
+void HeapProfileTable::AddIfNonLive(const void* ptr, AllocValue* v,
+                                    AddNonLiveArgs* arg) {
+  if (v->live()) {
+    v->set_live(false);
+  } else {
+    if (arg->base != NULL && arg->base->map_.Find(ptr) != NULL) {
+      // Present in arg->base, so do not save
+    } else {
+      arg->dest->Add(ptr, *v);
+    }
+  }
+}
+
+bool HeapProfileTable::WriteProfile(const char* file_name,
+                                    const Bucket& total,
+                                    AllocationMap* allocations) {
   RAW_VLOG(1, "Dumping non-live heap profile to %s", file_name);
   RawFD fd = RawOpenForWriting(file_name);
   if (fd != kIllegalRawFD) {
     RawWrite(fd, kProfileHeader, strlen(kProfileHeader));
     char buf[512];
-    int len = UnparseBucket(total_, buf, 0, sizeof(buf), profile_stats);
+    int len = UnparseBucket(total, buf, 0, sizeof(buf), " heapprofile",
+                            NULL);
     RawWrite(fd, buf, len);
-    memset(profile_stats, 0, sizeof(*profile_stats));
-    const DumpArgs args(fd, dump_alloc_addresses, profile_stats);
-    allocation_->Iterate<const DumpArgs&>(DumpNonLiveIterator, args);
+    const DumpArgs args(fd, NULL);
+    allocations->Iterate<const DumpArgs&>(DumpNonLiveIterator, args);
     RawWrite(fd, kProcSelfMapsHeader, strlen(kProcSelfMapsHeader));
     DumpProcSelfMaps(fd);
     RawClose(fd);
@@ -420,4 +456,225 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
 #else   /* HAVE_GLOB_H */
   RAW_LOG(WARNING, "Unable to remove old heap profiles (can't run glob())");
 #endif
+}
+
+HeapProfileTable::Snapshot* HeapProfileTable::TakeSnapshot() {
+  Snapshot* s = new (alloc_(sizeof(Snapshot))) Snapshot(alloc_, dealloc_);
+  allocation_->Iterate(AddToSnapshot, s);
+  return s;
+}
+
+void HeapProfileTable::ReleaseSnapshot(Snapshot* s) {
+  s->~Snapshot();
+  dealloc_(s);
+}
+
+// Callback from TakeSnapshot; adds a single entry to snapshot
+void HeapProfileTable::AddToSnapshot(const void* ptr, AllocValue* v,
+                                     Snapshot* snapshot) {
+  snapshot->Add(ptr, *v);
+}
+
+HeapProfileTable::Snapshot* HeapProfileTable::NonLiveSnapshot(
+    Snapshot* base) {
+  RAW_VLOG(2, "NonLiveSnapshot input: %d %d\n",
+           int(total_.allocs - total_.frees),
+           int(total_.alloc_size - total_.free_size));
+
+  Snapshot* s = new (alloc_(sizeof(Snapshot))) Snapshot(alloc_, dealloc_);
+  AddNonLiveArgs args;
+  args.dest = s;
+  args.base = base;
+  allocation_->Iterate<AddNonLiveArgs*>(AddIfNonLive, &args);
+  RAW_VLOG(2, "NonLiveSnapshot output: %d %d\n",
+           int(s->total_.allocs - s->total_.frees),
+           int(s->total_.alloc_size - s->total_.free_size));
+  return s;
+}
+
+// Information kept per unique bucket seen
+struct HeapProfileTable::Snapshot::Entry {
+  int count;
+  int bytes;
+  Bucket* bucket;
+  Entry() : count(0), bytes(0) { }
+
+  // Order by decreasing bytes
+  bool operator<(const Entry& x) const {
+    return this->bytes > x.bytes;
+  }
+};
+
+// State used to generate leak report.  We keep a mapping from Bucket pointer
+// the collected stats for that bucket.
+struct HeapProfileTable::Snapshot::ReportState {
+  map<Bucket*, Entry> buckets_;
+};
+
+// Callback from ReportLeaks; updates ReportState.
+void HeapProfileTable::Snapshot::ReportCallback(const void* ptr,
+                                                AllocValue* v,
+                                                ReportState* state) {
+  Entry* e = &state->buckets_[v->bucket()]; // Creates empty Entry first time
+  e->bucket = v->bucket();
+  e->count++;
+  e->bytes += v->bytes;
+}
+
+// It would be much more efficient to call Symbolize on a bunch of pc's
+// at once, rather than calling one at a time, but this way it's simpler
+// to code, and efficiency probably isn't a top concern when reporting
+// found leaks at program-exit time.
+// Note that the forking/etc is not thread-safe or re-entrant.  That's
+// ok for the purpose we need -- reporting leaks detected by heap-checker
+// -- but be careful if you decide to use this routine for other purposes.
+static bool Symbolize(void *pc, char *out, int out_size) {
+#if !defined(HAVE_UNISTD_H)  || !defined(HAVE_SYS_SOCKET_H) || !defined(HAVE_SYS_WAIT_H)
+  return false;
+#elif !defined(HAVE_PROGRAM_INVOCATION_NAME)
+  return false;   // TODO(csilvers): get argv[0] somehow
+#else
+  // All this work is to do two-way communication.  ugh.
+  extern char* program_invocation_name;  // gcc provides this
+  int child_in[2];   // file descriptors
+  int child_out[2];  // for now, we don't worry about child_err
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_in) == -1) {
+    return false;
+  }
+  if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_out) == -1) {
+    close(child_in[0]);
+    close(child_in[1]);
+    return false;
+  }
+  switch (fork()) {
+    case -1: {  // error
+      close(child_in[0]);
+      close(child_in[1]);
+      close(child_out[0]);
+      close(child_out[1]);
+      return false;
+    }
+    case 0: {  // child
+      close(child_in[1]);   // child uses the 0's, parent uses the 1's
+      close(child_out[1]);  // child uses the 0's, parent uses the 1's
+      close(0);
+      close(1);
+      if (dup2(child_in[0], 0) == -1) _exit(1);
+      if (dup2(child_out[0], 1) == -1) _exit(2);
+      execlp(g_pprof_path->c_str(), g_pprof_path->c_str(),
+             "--symbols", program_invocation_name, NULL);
+      _exit(3);  // if execvp fails, it's bad news for us
+    }
+    default: {  // parent
+      close(child_in[0]);   // child uses the 0's, parent uses the 1's
+      close(child_out[0]);  // child uses the 0's, parent uses the 1's
+      DumpProcSelfMaps(child_in[1]);  // what pprof expects on stdin
+      char pcstr[64];                 // enough for a single address
+      snprintf(pcstr, sizeof(pcstr),  // pprof expects format to be 0xXXXXXX...
+               "0x%" PRIxPTR "\n", reinterpret_cast<uintptr_t>(pc));
+      write(child_in[1], pcstr, strlen(pcstr));
+      close(child_in[1]);             // that's all we need to write
+      int total_bytes_read = 0;
+      while (1) {
+        int bytes_read = read(child_out[1], out + total_bytes_read,
+                              out_size - total_bytes_read);
+        if (bytes_read < 0) {
+          close(child_out[1]);
+          return false;
+        } else if (bytes_read == 0) {
+          close(child_out[1]);
+          wait(NULL);
+          break;
+        } else {
+          total_bytes_read += bytes_read;
+        }
+      }
+      // We have successfully read the output of pprof into out.  Make sure
+      // we got the full symbol (we can tell because it ends with a \n).
+      if (total_bytes_read == 0 || out[total_bytes_read - 1] != '\n')
+        return false;
+      out[total_bytes_read - 1] = '\0';  // remove the trailing newline
+      return true;
+    }
+  }
+  return false;  // shouldn't be reachable
+#endif
+}
+
+void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
+                                             const char* filename) {
+  // This is only used by the heap leak checker, but is intimately
+  // tied to the allocation map that belongs in this module and is
+  // therefore placed here.
+  RAW_LOG(ERROR, "Leak check %s detected leaks of %"PRIuS" bytes "
+          "in %"PRIuS" objects",
+          checker_name,
+          size_t(total_.alloc_size),
+          size_t(total_.allocs));
+
+  // Group objects by Bucket
+  ReportState state;
+  map_.Iterate(&ReportCallback, &state);
+
+  // Sort buckets by decreasing leaked size
+  const int n = state.buckets_.size();
+  Entry* entries = new Entry[n];
+  int dst = 0;
+  for (map<Bucket*,Entry>::const_iterator iter = state.buckets_.begin();
+       iter != state.buckets_.end();
+       ++iter) {
+    entries[dst++] = iter->second;
+  }
+  sort(entries, entries + n);
+
+  // Report a bounded number of leaks to keep the leak report from
+  // growing too long.
+  const int to_report = (n > 20) ? 20 : n;
+  RAW_LOG(ERROR, "The %d largest leaks:", to_report);
+
+  // Print
+  char sym_buffer[1024];
+  static const int kBufSize = 2<<10;
+  char buffer[kBufSize];
+  for (int i = 0; i < to_report; i++) {
+    const Entry& e = entries[i];
+    base::RawPrinter printer(buffer, kBufSize);
+    printer.Printf("Leak of %d bytes in %d objects allocated from:\n",
+                   e.bytes, e.count);
+    for (int j = 0; j < e.bucket->depth; j++) {
+      const void* pc = e.bucket->stack[j];
+      const char* sym;
+      if (Symbolize(const_cast<void*>(pc), sym_buffer, sizeof(sym_buffer))) {
+        sym = sym_buffer;
+      } else {
+        sym = "";
+      }
+      printer.Printf("\t@ %p %s\n", pc, sym);
+    }
+    RAW_LOG(ERROR, "%s", buffer);
+  }
+  if (to_report < n) {
+    RAW_LOG(ERROR, "Skipping leaks numbered %d..%d",
+            to_report, n-1);
+  }
+  delete[] entries;
+
+  // TODO: Dump the sorted Entry list instead of dumping raw data?
+  // (should be much shorter)
+  if (!HeapProfileTable::WriteProfile(filename, total_, &map_)) {
+    RAW_LOG(ERROR, "Could not write pprof profile to %s", filename);
+  }
+}
+
+void HeapProfileTable::Snapshot::ReportObject(const void* ptr,
+                                              AllocValue* v,
+                                              char* unused) {
+  // Perhaps also log the allocation stack trace (unsymbolized)
+  // on this line in case somebody finds it useful.
+  RAW_LOG(ERROR, "leaked %"PRIuS" byte object %p", v->bytes, ptr);
+}
+
+void HeapProfileTable::Snapshot::ReportIndividualObjects() {
+  char unused;
+  map_.Iterate(ReportObject, &unused);
 }

@@ -35,6 +35,7 @@
 extern "C" {
 #include <stdlib.h> // for NULL
 #include <unwind.h> // ABI defined unwinder
+#include <string.h> // for memset
 }
 #include "google/stacktrace.h"
 

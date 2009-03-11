@@ -4,13 +4,59 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.0, opensource@google.com)
+AC_INIT(google-perftools, 1.1, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
-AC_CANONICAL_TARGET
+AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-zip])
 AM_CONFIG_HEADER(src/config.h)
+
+# The user can choose not to compile in the heap-profiler, the
+# heap-checker, or the cpu-profiler.  There's also the possibility
+# for a 'fully minimal' compile, which leaves out the stacktrace
+# code as well.  By default, we include all of these that the
+# target system supports.
+default_enable_cpu_profiler=yes
+default_enable_heap_profiler=yes
+default_enable_heap_checker=yes
+default_enable_minimal=no
+need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
+case "$host" in
+   *-mingw*) default_enable_minimal=yes; need_nanosleep=no;;
+   # TODO(csilvers): cygwin *can* do heap-profiler: just need to work on fileio
+   *-cygwin*) default_enable_heap_checker=no; default_enable_cpu_profiler=no; \
+              default_enable_heap_profiler=no;;
+   *-freebsd*) default_enable_heap_checker=no;;
+   *-darwin*) default_enable_heap_checker=no;;
+esac
+
+AC_ARG_ENABLE([cpu-profiler],
+              [AS_HELP_STRING([--disable-cpu-profiler],
+                              [do not build the cpu profiler])],
+              [],
+              [enable_cpu_profiler="$default_enable_cpu_profiler"])
+AC_ARG_ENABLE([heap-profiler],
+              [AS_HELP_STRING([--disable-heap-profiler],
+                              [do not build the heap profiler])],
+              [],
+              [enable_heap_profiler="$default_enable_heap_profiler"])
+AC_ARG_ENABLE([heap-checker],
+              [AS_HELP_STRING([--disable-heap-checker],
+                              [do not build the heap checker])],
+              [],
+              [enable_heap_checker="$default_enable_heap_checker"])
+AC_ARG_ENABLE([minimal],
+              [AS_HELP_STRING([--enable-minimal],
+                              [build only tcmalloc-minimal])],
+              [],
+              [enable_minimal="$default_enable_minimal"])
+if test "$enable_minimal" = yes; then
+  enable_cpu_profiler=no
+  enable_heap_profiler=no
+  enable_heap_checker=no
+fi
+
 
 # Checks for programs.
 AC_PROG_CC
@@ -27,8 +73,10 @@ AX_C___ATTRIBUTE__
 # Check whether some low-level functions/files are available
 AC_HEADER_STDC
 
+# TODO(csilvers): we could remove a lot when WITH_CPU_PROFILER etc is "no".
 AC_CHECK_TYPES([__int64])       # defined in some windows platforms
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
+AC_CHECK_TYPES([Elf32_Versym],,, [#include <elf.h>])   # for vdso_support.h
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
@@ -40,7 +88,10 @@ AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
 AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
+AC_CHECK_HEADERS(windows.h)     # let us know if we're cygwin or mingw
 AC_CHECK_HEADERS(sys/syscall.h)
+AC_CHECK_HEADERS(sys/socket.h)  # optional; for forking out to symbolizer
+AC_CHECK_HEADERS(sys/wait.h)    # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
@@ -55,6 +106,9 @@ AC_CHECK_DECLS([cfree,
                [#define _XOPEN_SOURCE 600
                 #include <stdlib.h>
                 #include <malloc.h>])
+
+# Let the Makefile know if we can build windows programs
+AM_CONDITIONAL(HAVE_WINDOWS_H, test "$ac_cv_header_windows_h" = yes)
 
 # We need to check for mmap.  cygwin supports mmap, but the autoconf
 # test doesn't work on cygwin:
@@ -83,37 +137,41 @@ AC_TRY_COMPILE([#include <stdint.h>],
 # We want to access the "PC" (Program Counter) register from a struct
 # ucontext.  Every system has its own way of doing that.  We try all the
 # possibilities we know about.  Note REG_PC should come first (REG_RIP
-# is also defined on solaris, but does the wrong thing).
-AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
-pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32 + 64 bit)
-pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
-pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
-pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
-pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
-pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
-pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
-pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386, <=10.4)
-pc_fields="$pc_fields uc_mcontext->__ss.__eip"      # OS X (i386, >=10.5)
-pc_fields="$pc_fields uc_mcontext->ss.rip"          # OS X (x86_64)
-pc_fields="$pc_fields uc_mcontext->__ss.__rip"      # OS X (>=10.5 [untested])
-pc_fields="$pc_fields uc_mcontext->ss.srr0"         # OS X (ppc, ppc64 [untested])
-pc_fields="$pc_fields uc_mcontext->__ss.__srr0"     # OS X (>=10.5 [untested])
-pc_field_found=false
-for pc_field in $pc_fields; do
+# is also defined on solaris, but does the wrong thing).  But don't
+# bother if we're not doing cpu-profiling.
+# [*] means that we've not actually tested one of these systems
+if test "$enable_cpu_profiler" = yes; then
+  AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
+  pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32+64 bit)
+  pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
+  pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
+  pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
+  pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
+  pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
+  pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [*])
+  pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386, <=10.4)
+  pc_fields="$pc_fields uc_mcontext->__ss.__eip"      # OS X (i386, >=10.5)
+  pc_fields="$pc_fields uc_mcontext->ss.rip"          # OS X (x86_64)
+  pc_fields="$pc_fields uc_mcontext->__ss.__rip"      # OS X (x86_64>=10.5 [*])
+  pc_fields="$pc_fields uc_mcontext->ss.srr0"         # OS X (ppc, ppc64 [*])
+  pc_fields="$pc_fields uc_mcontext->__ss.__srr0"     # OS X (ppc>=10.5 [*])
+  pc_field_found=false
+  for pc_field in $pc_fields; do
+    if ! $pc_field_found; then
+      AC_TRY_COMPILE([#define _GNU_SOURCE 1
+                      #include <ucontext.h>],
+                     [ucontext_t u; return u.$pc_field == 0;],
+                     AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                        How to access the PC from a struct ucontext)
+                     AC_MSG_RESULT([$pc_field])
+    		 pc_field_found=true)
+    fi
+  done
   if ! $pc_field_found; then
-    AC_TRY_COMPILE([#define _GNU_SOURCE 1
-                    #include <ucontext.h>],
-                   [ucontext_t u; return u.$pc_field == 0;],
-                   AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
-                                      How to access the PC from a struct ucontext)
-                   AC_MSG_RESULT([$pc_field])
-  		 pc_field_found=true)
+    AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
+    enable_cpu_profiler=no
   fi
-done
-if ! $pc_field_found; then
-  AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
 fi
-AM_CONDITIONAL(HAS_PC, test "$pc_field_found" = true)
 
 # We want to link in libunwind if it exists
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)
@@ -154,13 +212,30 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM(, [void *sp = __builtin_stack_pointer()])],
 # involving TLS and -fPIC (which our libraries will use) on x86:
 #   http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
 AC_MSG_CHECKING([for __thread])
-AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC__MINOR__ < 1) || (__GNUC__ == 4 && __GNUC__MINOR__ == 1 && __GNUC_PATCHLEVEL__ < 2))
+AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 1) || (__GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ < 2))
 #error gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
 #endif], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
                       Define to 1 if compiler supports __thread)
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
+
+# Nanosleep requires extra libraries on some architectures (solaris).
+# This sets NANOSLEEP_LIBS.  nanosleep doesn't exist on mingw, which
+# is fine for us because we don't compile libspinlock, which uses it.
+if test "$need_nanosleep" = yes; then
+  ACX_NANOSLEEP
+  AC_SUBST(NANOSLEEP_LIBS)
+fi
+
+# Solaris 10 6/06 has a bug where /usr/sfw/lib/libstdc++.la is empty.
+# If so, we replace it with our own version.
+LIBSTDCXX_LA_LINKER_FLAG=
+if test -f /usr/sfw/lib/libstdc++.la && ! test -s /usr/sfw/lib/libstdc++.la
+then
+  LIBSTDCXX_LA_LINKER_FLAG='-L$(top_srcdir)/src/solaris'
+fi
+AC_SUBST(LIBSTDCXX_LA_LINKER_FLAG)
 
 # We also need to check if the kernel supports __thread, which requires uname()
 AC_CHECK_DECLS(uname,,, [#include <sys/utsname.h>])
@@ -199,7 +274,22 @@ AH_BOTTOM([
 #include "windows/mingw.h"
 #endif
 ])
-AM_CONDITIONAL(MINGW, expr $target : '.*-mingw' >/dev/null 2>&1)
+AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
+
+# Export the --enable flags we set above.  We do this at the end so
+# other configure rules can enable or disable targets based on what
+# they find.
+AM_CONDITIONAL(WITH_CPU_PROFILER, test "$enable_cpu_profiler" = yes)
+AM_CONDITIONAL(WITH_HEAP_PROFILER, test "$enable_heap_profiler" = yes)
+AM_CONDITIONAL(WITH_HEAP_CHECKER, test "$enable_heap_checker" = yes)
+# We make tcmalloc.so if either heap-profiler or heap-checker is asked for.
+AM_CONDITIONAL(WITH_HEAP_PROFILER_OR_CHECKER,
+               test "$enable_heap_profiler" = yes -o \
+                    "$enable_heap_checker" = yes)
+# If we don't use any profilers, we don't need stack traces (or pprof)
+AM_CONDITIONAL(WITH_STACK_TRACE, test "$enable_cpu_profiler" = yes -o \
+                                      "$enable_heap_profiler" = yes -o \
+                                      "$enable_heap_checker" = yes)
 
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile])

@@ -45,6 +45,7 @@
 #include <windows.h>
 #include <dbghelp.h>
 
+
 #define SEARCH_CAP (1024*1024)
 #define WEBSYM "SRV*c:\\websymbols*http://msdl.microsoft.com/download/symbols"
 

@@ -31,10 +31,22 @@
 // Author: Sanjay Ghemawat
 //
 // Produce stack trace
+//
+// NOTE: there is code duplication between
+// GetStackTrace, GetStackTraceWithContext, GetStackFrames and
+// GetStackFramesWithContext. If you update one, update them all.
+//
+// There is no easy way to avoid this, because inlining
+// iterferes with skip_count, and there is no portable
+// way to turn inlining off, or force it always on.
 
 #include "config.h"
 
 #include <stdlib.h>   // for NULL
+#include <assert.h>
+#if HAVE_UCONTEXT_H
+#include <ucontext.h>  // for ucontext_t
+#endif
 #ifdef HAVE_STDINT_H
 #include <stdint.h>   // for uintptr_t
 #endif
@@ -43,17 +55,170 @@
 #endif
 #ifdef HAVE_MMAP
 #include <sys/mman.h> // for msync
+#include "base/vdso_support.h"
 #endif
 
 #include "google/stacktrace.h"
+
+#if defined(__linux__) && defined(__i386__) && defined(__ELF__) && defined(HAVE_MMAP)
+// Count "push %reg" instructions in VDSO __kernel_vsyscall(),
+// preceeding "syscall" or "sysenter".
+// If __kernel_vsyscall uses frame pointer, answer 0.
+//
+// kMaxBytes tells how many instruction bytes of __kernel_vsyscall
+// to analyze before giving up. Up to kMaxBytes+1 bytes of
+// instructions could be accessed.
+//
+// Here are known __kernel_vsyscall instruction sequences:
+//
+// SYSENTER (linux-2.6.26/arch/x86/vdso/vdso32/sysenter.S).
+// Used on Intel.
+//  0xffffe400 <__kernel_vsyscall+0>:       push   %ecx
+//  0xffffe401 <__kernel_vsyscall+1>:       push   %edx
+//  0xffffe402 <__kernel_vsyscall+2>:       push   %ebp
+//  0xffffe403 <__kernel_vsyscall+3>:       mov    %esp,%ebp
+//  0xffffe405 <__kernel_vsyscall+5>:       sysenter
+//
+// SYSCALL (see linux-2.6.26/arch/x86/vdso/vdso32/syscall.S).
+// Used on AMD.
+//  0xffffe400 <__kernel_vsyscall+0>:       push   %ebp
+//  0xffffe401 <__kernel_vsyscall+1>:       mov    %ecx,%ebp
+//  0xffffe403 <__kernel_vsyscall+3>:       syscall
+//
+// i386 (see linux-2.6.26/arch/x86/vdso/vdso32/int80.S)
+//  0xffffe400 <__kernel_vsyscall+0>:       int $0x80
+//  0xffffe401 <__kernel_vsyscall+1>:       ret
+//
+static const int kMaxBytes = 10;
+
+// We use assert()s instead of DCHECK()s -- this is too low level
+// for DCHECK().
+
+static int CountPushInstructions(const unsigned char *const addr) {
+  int result = 0;
+  for (int i = 0; i < kMaxBytes; ++i) {
+    if (addr[i] == 0x89) {
+      // "mov reg,reg"
+      if (addr[i + 1] == 0xE5) {
+        // Found "mov %esp,%ebp".
+        return 0;
+      }
+      ++i;  // Skip register encoding byte.
+    } else if (addr[i] == 0x0F &&
+               (addr[i + 1] == 0x34 || addr[i + 1] == 0x05)) {
+      // Found "sysenter" or "syscall".
+      return result;
+    } else if ((addr[i] & 0xF0) == 0x50) {
+      // Found "push %reg".
+      ++result;
+    } else if (addr[i] == 0xCD && addr[i + 1] == 0x80) {
+      // Found "int $0x80"
+      assert(result == 0);
+      return 0;
+    } else {
+      // Unexpected instruction.
+      assert(0 == "unexpected instruction in __kernel_vsyscall");
+      return 0;
+    }
+  }
+  // Unexpected: didn't find SYSENTER or SYSCALL in
+  // [__kernel_vsyscall, __kernel_vsyscall + kMaxBytes) interval.
+  assert(0 == "did not find SYSENTER or SYSCALL in __kernel_vsyscall");
+  return 0;
+}
+#endif
 
 // Given a pointer to a stack frame, locate and return the calling
 // stackframe, or return NULL if no stackframe can be found. Perform sanity
 // checks (the strictness of which is controlled by the boolean parameter
 // "STRICT_UNWINDING") to reduce the chance that a bad pointer is returned.
-template<bool STRICT_UNWINDING>
-static void **NextStackFrame(void **old_sp) {
+template<bool STRICT_UNWINDING, bool WITH_CONTEXT>
+static void **NextStackFrame(void **old_sp, const void *uc) {
   void **new_sp = (void **) *old_sp;
+
+#if defined(__linux__) && defined(__i386__) && defined(HAVE_VDSO_SUPPORT)
+  if (WITH_CONTEXT && uc != NULL) {
+    // How many "push %reg" instructions are there at __kernel_vsyscall?
+    // This is constant for a given kernel and processor, so compute
+    // it only once.
+    static int num_push_instructions = -1;  // Sentinel: not computed yet.
+    // Initialize with sentinel value: __kernel_rt_sigreturn can not possibly
+    // be there.
+    static const unsigned char *kernel_rt_sigreturn_address = NULL;
+    static const unsigned char *kernel_vsyscall_address = NULL;
+    if (num_push_instructions == -1) {
+      base::VDSOSupport vdso;
+      if (vdso.IsPresent()) {
+        base::VDSOSupport::SymbolInfo rt_sigreturn_symbol_info;
+        base::VDSOSupport::SymbolInfo vsyscall_symbol_info;
+        if (!vdso.LookupSymbol("__kernel_rt_sigreturn", "LINUX_2.5",
+                               STT_FUNC, &rt_sigreturn_symbol_info) ||
+            !vdso.LookupSymbol("__kernel_vsyscall", "LINUX_2.5",
+                               STT_FUNC, &vsyscall_symbol_info) ||
+            rt_sigreturn_symbol_info.address == NULL ||
+            vsyscall_symbol_info.address == NULL) {
+          // Unexpected: 32-bit VDSO is present, yet one of the expected
+          // symbols is missing or NULL.
+          assert(0 == "VDSO is present, but doesn't have expected symbols");
+          num_push_instructions = 0;
+        } else {
+          kernel_rt_sigreturn_address =
+              reinterpret_cast<const unsigned char *>(
+                  rt_sigreturn_symbol_info.address);
+          kernel_vsyscall_address =
+              reinterpret_cast<const unsigned char *>(
+                  vsyscall_symbol_info.address);
+          num_push_instructions =
+              CountPushInstructions(kernel_vsyscall_address);
+        }
+      } else {
+        num_push_instructions = 0;
+      }
+    }
+    if (num_push_instructions != 0 && kernel_rt_sigreturn_address != NULL &&
+        old_sp[1] == kernel_rt_sigreturn_address) {
+      const ucontext_t *ucv = static_cast<const ucontext_t *>(uc);
+      // This kernel does not use frame pointer in its VDSO code,
+      // and so %ebp is not suitable for unwinding.
+      const void **const reg_ebp =
+          reinterpret_cast<const void **>(ucv->uc_mcontext.gregs[REG_EBP]);
+      const unsigned char *const reg_eip =
+          reinterpret_cast<unsigned char *>(ucv->uc_mcontext.gregs[REG_EIP]);
+      if (new_sp == reg_ebp &&
+          kernel_vsyscall_address <= reg_eip &&
+          reg_eip - kernel_vsyscall_address < kMaxBytes) {
+        // We "stepped up" to __kernel_vsyscall, but %ebp is not usable.
+        // Restore from 'ucv' instead.
+        void **const reg_esp =
+            reinterpret_cast<void **>(ucv->uc_mcontext.gregs[REG_ESP]);
+        // Check that alleged %esp is not NULL and is reasonably aligned.
+        if (reg_esp &&
+            ((uintptr_t)reg_esp & (sizeof(reg_esp) - 1)) == 0) {
+          // Check that alleged %esp is actually readable. This is to prevent
+          // "double fault" in case we hit the first fault due to e.g. stack
+          // corruption.
+          //
+          // page_size is linker-initalized to avoid async-unsafe locking
+          // that GCC would otherwise insert (__cxa_guard_acquire etc).
+          static int page_size;
+          if (page_size == 0) {
+            // First time through.
+            page_size = getpagesize();
+          }
+          void *const reg_esp_aligned =
+              reinterpret_cast<void *>(
+                  (uintptr_t)(reg_esp + num_push_instructions - 1) &
+                  ~(page_size - 1));
+          if (msync(reg_esp_aligned, page_size, MS_ASYNC) == 0) {
+            // Alleged %esp is readable, use it for further unwinding.
+            new_sp = reinterpret_cast<void **>(
+                reg_esp[num_push_instructions - 1]);
+          }
+        }
+      }
+    }
+  }
+#endif
 
   // Check that the transition from frame pointer old_sp to frame
   // pointer new_sp isn't clearly bogus
@@ -94,7 +259,32 @@ static void **NextStackFrame(void **old_sp) {
   return new_sp;
 }
 
-// If you change this function, also change GetStackFrames below.
+// If you change this function, see NOTE at the top of file.
+// Same as above, but with signal ucontext_t pointer.
+int GetStackTraceWithContext(void** result,
+                             int max_depth,
+                             int skip_count,
+                             const void *uc) {
+  void **sp = reinterpret_cast<void**>(__builtin_frame_address(0));
+
+  int n = 0;
+  while (sp && n < max_depth) {
+    if (*(sp+1) == reinterpret_cast<void *>(0)) {
+      // In 64-bit code, we often see a frame that
+      // points to itself and has a return address of 0.
+      break;
+    }
+    if (skip_count > 0) {
+      skip_count--;
+    } else {
+      result[n++] = *(sp+1);
+    }
+    // Use strict unwinding rules.
+    sp = NextStackFrame<true, true>(sp, uc);
+  }
+  return n;
+}
+
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   void **sp;
 #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
@@ -130,7 +320,7 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 
   int n = 0;
   while (sp && n < max_depth) {
-    if (*(sp+1) == (void *)0) {
+    if (*(sp+1) == reinterpret_cast<void *>(0)) {
       // In 64-bit code, we often see a frame that
       // points to itself and has a return address of 0.
       break;
@@ -141,12 +331,12 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
       result[n++] = *(sp+1);
     }
     // Use strict unwinding rules.
-    sp = NextStackFrame<true>(sp);
+    sp = NextStackFrame<true, false>(sp, NULL);
   }
   return n;
 }
 
-// If you change this function, also change GetStackTrace above:
+// If you change this function, see NOTE at the top of file.
 //
 // This GetStackFrames routine shares a lot of code with GetStackTrace
 // above. This code could have been refactored into a common routine,
@@ -207,7 +397,7 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
 
   int n = 0;
   while (sp && n < max_depth) {
-    if (*(sp+1) == (void *)0) {
+    if (*(sp+1) == reinterpret_cast<void *>(0)) {
       // In 64-bit code, we often see a frame that
       // points to itself and has a return address of 0.
       break;
@@ -217,7 +407,46 @@ int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
     // Use the non-strict unwinding rules to produce a stack trace
     // that is as complete as possible (even if it contains a few bogus
     // entries in some rare cases).
-    void **next_sp = NextStackFrame<false>(sp);
+    void **next_sp = NextStackFrame<false, false>(sp, NULL);
+    if (skip_count > 0) {
+      skip_count--;
+    } else {
+      pcs[n] = *(sp+1);
+      if (next_sp > sp) {
+        sizes[n] = (uintptr_t)next_sp - (uintptr_t)sp;
+      } else {
+        // A frame-size of 0 is used to indicate unknown frame size.
+        sizes[n] = 0;
+      }
+      n++;
+    }
+    sp = next_sp;
+  }
+  return n;
+}
+
+// If you change this function, see NOTE at the top of file.
+// Same as above, but with signal ucontext_t pointer.
+int GetStackFramesWithContext(void** pcs,
+                              int* sizes,
+                              int max_depth,
+                              int skip_count,
+                              const void *uc) {
+  void **sp = reinterpret_cast<void**>(__builtin_frame_address(0));
+
+  int n = 0;
+  while (sp && n < max_depth) {
+    if (*(sp+1) == reinterpret_cast<void *>(0)) {
+      // In 64-bit code, we often see a frame that
+      // points to itself and has a return address of 0.
+      break;
+    }
+    // The GetStackFrames routine is called when we are in some
+    // informational context (the failure signal handler for example).
+    // Use the non-strict unwinding rules to produce a stack trace
+    // that is as complete as possible (even if it contains a few bogus
+    // entries in some rare cases).
+    void **next_sp = NextStackFrame<false, true>(sp, uc);
     if (skip_count > 0) {
       skip_count--;
     } else {

@@ -379,6 +379,25 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\src\sampler.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath="..\..\src\windows\patch_functions.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
@@ -455,6 +474,25 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\src\raw_printer.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath="..\..\src\span.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
@@ -475,6 +513,42 @@
 			</File>
 			<File
 				RelativePath="..\..\src\stacktrace.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\stacktrace_with_context.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\stack_trace_table.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool
@@ -690,7 +764,19 @@
 				RelativePath="..\..\src\google\stacktrace.h">
 			</File>
 			<File
+				RelativePath="..\..\src\google\stacktrace_config.h">
+			</File>
+			<File
 				RelativePath="..\..\src\stacktrace_win32-inl.h.h">
+			</File>
+			<File
+				RelativePath="..\..\src\raw_printer.h">
+			</File>
+			<File
+				RelativePath="..\..\src\sampler.h">
+			</File>
+			<File
+				RelativePath="..\..\src\stack_trace_table.h">
 			</File>
 			<File
 				RelativePath="..\..\src\static_vars.h">

@@ -46,7 +46,15 @@
 #include "base/logging.h"
 #include "malloc_hook-inl.h"
 #include <google/malloc_hook.h>
-#include <google/stacktrace.h>
+
+// This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
+// you're porting to a system where you really can't get a stacktrace.
+#ifdef NO_TCMALLOC_SAMPLES
+  // We use #define so code compiles even if you #include stacktrace.h somehow.
+# define GetStackTrace(stack, depth, skip)  (0)
+#else
+# include <google/stacktrace.h>
+#endif
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional

@@ -23,8 +23,10 @@ perftools.  libunwind can be found at
 
    http://download.savannah.nongnu.org/releases/libunwind/libunwind-snap-070410.tar.gz
 
-Even if you already have libunwind installed, you will probably still
-need to install from the snapshot to get the latest version.
+Even if you already have libunwind installed, you should check the
+version.  Versions older than this will not work properly; too-new
+versions introduce new code that does not work well with perftools
+(because libunwind can call malloc, which will lead to deadlock).
 
 CAUTION: if you install libunwind from the url above, be aware that
 you may have trouble if you try to statically link your binary with
@@ -56,6 +58,11 @@ built-in perftools stack unwinder by passing the
 Even with the use of libunwind, there are still known problems with
 stack unwinding on 64-bit systems, particularly x86-64.  See the
 "64-BIT ISSUES" section in README.
+
+If you encounter problems, try compiling perftools with './configure
+--enable-frame-pointer'.  Note you will need to compile your
+application with frame pointers (via 'gcc -fno-omit-frame-pointer
+...') in this case.
 
 
 *** NOTE FOR ___tls_get_addr ERROR
@@ -111,7 +118,9 @@ tested (though see 64-bit notes above).  Portions of perftools work on
 the other systems.  The basic memory-allocation library,
 tcmalloc_minimal, works on all systems.  The cpu-profiler also works
 fairly widely.  However, the heap-profiler and heap-checker are not
-yet as widely supported.
+yet as widely supported.  In general, the 'configure' script will
+detect what OS you are building for, and only build the components
+that work on that OS.
 
 Note that tcmalloc_minimal is perfectly usable as a malloc/new
 replacement, so it is possible to use tcmalloc on all the systems
@@ -130,7 +139,7 @@ above, by linking in libtcmalloc_minimal.
       % ./tcmalloc_minimal_unittest    # to run this test
       % [etc]                          # to run other tests
 
-   Two caveats: first, frag_unittest tries to allocate 400M of memory,
+   Three caveats: first, frag_unittest tries to allocate 400M of memory,
    and if you have less virtual memory on your system, the test may
    fail with a bad_alloc exception.
 
@@ -141,6 +150,11 @@ above, by linking in libtcmalloc_minimal.
    is working fine.  This only affects programs that call fork(); for
    most programs, the cpu profiler is entirely safe to use.
 
+   Third, perftools depends on /proc to get shared library
+   information.  If you are running a FreeBSD system without proc,
+   perftools will not be able to map addresses to functions.  Some
+   unittests will fail as a result.
+
    libtcmalloc.so successfully builds, and the "advanced" tcmalloc
    functionality all works except for the leak-checker, which has
    Linux-specific code:
@@ -149,6 +163,10 @@ above, by linking in libtcmalloc_minimal.
              tcmalloc_large_unittest              # THESE WORK
       % make -k heap-checker_unittest.sh \
                 heap-checker-death_unittest.sh    # THESE DO NOT
+
+   Note that unless you specify --enable-heap-checker explicitly,
+   'make' will not build the heap-checker unittests on a FreeBSD
+   system.
 
    I have not tested other *BSD systems, but they are probably similar.
 
@@ -169,11 +187,9 @@ above, by linking in libtcmalloc_minimal.
 
    I've only tested using the GNU C++ compiler, not the Sun C++
    compiler.  Using g++ requires setting the PATH appropriately when
-   configuring.  As another issue, Solaris 10 has a bug (see
-   src/solaris/libstdc++.la for more info), which we work around by
-   adding a custom LDFLAGS argument:
+   configuring.
 
-   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure LDFLAGS="-Lsrc/solaris -lrt"
+   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure
    % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make [...]
 
    Again, the binaries and libraries that successfully build are
@@ -193,9 +209,10 @@ above, by linking in libtcmalloc_minimal.
    all.  But as in other ports, the basic tcmalloc library
    functionality, overriding malloc and new and such (and even
    windows-specific functions like _aligned_malloc!), is working fine,
-   at least with VC++ 8.0 (Visual Studio 2005), in both debug and
-   release modes.  See README.windows for instructions on how to
-   install on Windows using Visual Studio.
+   at least with VC++ 7.1 (Visual Studio 2003) and VC++ 8.0
+   (Visual Studio 2005), in both debug and release modes.  See
+   README.windows for instructions on how to install on Windows using
+   Visual Studio.
 
    Cygwin can compile some but not all of perftools.  Furthermore,
    there is a problem with exception-unwinding in cygwin (it can call
@@ -204,13 +221,12 @@ above, by linking in libtcmalloc_minimal.
    exception unwinding problem, but it only works in debug mode.  I
    hope to have a more proper fix in a later release.  To configure
    under cygwin, run
-      ./configure CXXFLAGS=-g && make -k
+      ./configure CXXFLAGS=-g && make
    Most of cygwin will compile (cygwin doesn't allow weak symbols, so
    the heap-checker and a few other pieces of functionality will not
-   compile).  'make -k' will compile those libraries and tests that
-   can be compiled.  You can run
-      ./tcmalloc_minimal_unittest
-   to make sure the basic functionality is working.
+   compile).  'make' will compile those libraries and tests that can
+   be compiled.  You can run 'make check' to make sure the basic
+   functionality is working.
 
    This Windows functionality is also available using MinGW and Msys,
    In this case, you can use the regular './configure && make'

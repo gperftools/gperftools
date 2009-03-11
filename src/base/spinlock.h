@@ -47,15 +47,7 @@
 #include "base/basictypes.h"
 #include "base/atomicops.h"
 #include "base/dynamic_annotations.h"
-
-// One day, we may use __attribute__ stuff on gcc to annotate these functions
-#define LOCKABLE
-#define SCOPED_LOCKABLE
-#define EXCLUSIVE_LOCK_FUNCTION(...)
-#define EXCLUSIVE_TRYLOCK_FUNCTION(...)
-#define UNLOCK_FUNCTION(...)
-
-
+#include "base/thread_annotations.h"
 
 class LOCKABLE SpinLock {
  public:

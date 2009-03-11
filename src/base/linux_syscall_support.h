@@ -678,6 +678,9 @@ struct kernel_statfs {
 #ifndef __NR_move_pages
 #define __NR_move_pages         317
 #endif
+#ifndef __NR_getcpu
+#define __NR_getcpu             318
+#endif
 #ifndef __NR_fallocate
 #define __NR_fallocate          324
 #endif
@@ -773,6 +776,9 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_SYSCALL_BASE + 344)
+#endif
+#ifndef __NR_getcpu
+#define __NR_getcpu             (__NR_SYSCALL_BASE + 345)
 #endif
 /* End of ARM 3 definitions                                                  */
 #elif defined(__x86_64__)
@@ -939,6 +945,9 @@ struct kernel_statfs {
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_Linux + 308)
 #endif
+#ifndef __NR_getcpu
+#define __NR_getcpu             (__NR_Linux + 312)
+#endif
 #ifndef __NR_ioprio_set
 #define __NR_ioprio_set         (__NR_Linux + 314)
 #endif
@@ -1009,6 +1018,9 @@ struct kernel_statfs {
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_Linux + 267)
 #endif
+#ifndef __NR_getcpu
+#define __NR_getcpu             (__NR_Linux + 271)
+#endif
 #ifndef __NR_ioprio_set
 #define __NR_ioprio_set         (__NR_Linux + 273)
 #endif
@@ -1078,6 +1090,9 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         (__NR_Linux + 271)
+#endif
+#ifndef __NR_getcpu
+#define __NR_getcpu             (__NR_Linux + 275)
 #endif
 #ifndef __NR_ioprio_set
 #define __NR_ioprio_set         (__NR_Linux + 277)
@@ -1187,6 +1202,9 @@ struct kernel_statfs {
 #endif
 #ifndef __NR_move_pages
 #define __NR_move_pages         301
+#endif
+#ifndef __NR_getcpu
+#define __NR_getcpu             302
 #endif
 /* End of powerpc defininitions                                              */
 #endif
@@ -2349,6 +2367,10 @@ struct kernel_statfs {
                        const void *,   b, size_t, c)
   LSS_INLINE _syscall3(ssize_t, writev,           int,        f,
                        const struct kernel_iovec*, v, size_t, c)
+  #if defined(__NR_getcpu)
+    LSS_INLINE _syscall3(long, getcpu, unsigned *, cpu,
+                         unsigned *, node, void *, unused);
+  #endif
   #if defined(__x86_64__) ||                                                  \
      (defined(__mips__) && _MIPS_SIM != _MIPS_SIM_ABI32)
     LSS_INLINE _syscall3(int, recvmsg,            int,   s,

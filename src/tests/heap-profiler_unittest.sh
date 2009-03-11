@@ -59,8 +59,8 @@ TEST_TMPDIR=/tmp/heap_profile_info
 # It's meaningful to the profiler, so make sure we know its state
 unset HEAPPROFILE
 
-rm -rf $TEST_TMPDIR
-mkdir $TEST_TMPDIR || exit 2
+rm -rf "$TEST_TMPDIR"
+mkdir "$TEST_TMPDIR" || exit 2
 
 num_failures=0
 
@@ -69,7 +69,7 @@ num_failures=0
 # name, verify that the function name takes up at least 90% of the
 # allocated memory.  The function name is actually specified first.
 VerifyMemFunction() {
-  function=$1
+  function="$1"
   shift
 
   # get program name.  Note we have to unset HEAPPROFILE so running
@@ -79,21 +79,33 @@ VerifyMemFunction() {
   if [ $# = 2 ]; then
     [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
     [ -f "$2" ] || { echo "Profile not found: $2"; exit 1; }
-    $PPROF --base="$1" $exec "$2" >$TEST_TMPDIR/output.pprof 2>&1
+    $PPROF --base="$1" $exec "$2" >"$TEST_TMPDIR/output.pprof" 2>&1
   else
     [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
-    $PPROF $exec "$1" >$TEST_TMPDIR/output.pprof 2>&1
+    $PPROF $exec "$1" >"$TEST_TMPDIR/output.pprof" 2>&1
   fi
 
-  cat $TEST_TMPDIR/output.pprof \
+  cat "$TEST_TMPDIR/output.pprof" \
       | tr -d % | awk '$6 ~ /^'$function'$/ && $2 > 90 {exit 1;}'
   if [ $? != 1 ]; then
     echo
     echo "--- Test failed for $function: didn't account for 90% of executable memory"
     echo "--- Program output:"
-    cat $TEST_TMPDIR/output
+    cat "$TEST_TMPDIR/output"
     echo "--- pprof output:"
-    cat $TEST_TMPDIR/output.pprof
+    cat "$TEST_TMPDIR/output.pprof"
+    echo "---"
+    num_failures=`expr $num_failures + 1`
+  fi
+}
+
+VerifyOutputContains() {
+  text="$1"
+
+  if ! grep "$text" "$TEST_TMPDIR/output" >/dev/null 2>&1; then
+    echo "--- Test failed: output does not contain '$text'"
+    echo "--- Program output:"
+    cat "$TEST_TMPDIR/output"
     echo "---"
     num_failures=`expr $num_failures + 1`
   fi
@@ -101,20 +113,28 @@ VerifyMemFunction() {
 
 HEAPPROFILE="$TEST_TMPDIR/test"
 HEAP_PROFILE_INUSE_INTERVAL="10240"   # need this to be 10Kb
+HEAP_PROFILE_ALLOCATION_INTERVAL="$HEAP_PROFILE_INUSE_INTERVAL"
+HEAP_PROFILE_DEALLOCATION_INTERVAL="$HEAP_PROFILE_INUSE_INTERVAL"
 export HEAPPROFILE
 export HEAP_PROFILE_INUSE_INTERVAL
+export HEAP_PROFILE_ALLOCATION_INTERVAL
+export HEAP_PROFILE_DEALLOCATION_INTERVAL
 
 # We make the unittest run a child process, to test that the child
 # process doesn't try to write a heap profile as well and step on the
 # parent's toes.  If it does, we expect the parent-test to fail.
 $HEAP_PROFILER 1 >$TEST_TMPDIR/output 2>&1     # run program, with 1 child proc
 
-VerifyMemFunction Allocate2 $HEAPPROFILE.0723.heap
-VerifyMemFunction Allocate $HEAPPROFILE.0700.heap $HEAPPROFILE.0760.heap
+VerifyMemFunction Allocate2 "$HEAPPROFILE.1329.heap"
+VerifyMemFunction Allocate "$HEAPPROFILE.1448.heap" "$HEAPPROFILE.1548.heap"
 
 # Check the child process got to emit its own profile as well.
-VerifyMemFunction Allocate2 ${HEAPPROFILE}_*.0723.heap
-VerifyMemFunction Allocate ${HEAPPROFILE}_*.0700.heap ${HEAPPROFILE}_*.0760.heap
+VerifyMemFunction Allocate2 "$HEAPPROFILE"_*.1329.heap
+VerifyMemFunction Allocate "$HEAPPROFILE"_*.1448.heap "$HEAPPROFILE"_*.1548.heap
+
+# Make sure we logged both about allocating and deallocating memory
+VerifyOutputContains "62 MB allocated"
+VerifyOutputContains "62 MB freed"
 
 rm -rf $TMPDIR      # clean up
 

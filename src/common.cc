@@ -30,6 +30,7 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
+#include "config.h"
 #include "system-alloc.h"
 #include "config.h"
 #include "common.h"
@@ -179,20 +180,20 @@ void SizeMap::Init() {
   }
 }
 
-void SizeMap::Dump() {
+void SizeMap::Dump(TCMalloc_Printer* out) {
   // Dump class sizes and maximum external wastage per size class
   for (size_t cl = 1; cl  < kNumClasses; ++cl) {
     const int alloc_size = class_to_pages_[cl] << kPageShift;
     const int alloc_objs = alloc_size / class_to_size_[cl];
     const int min_used = (class_to_size_[cl-1] + 1) * alloc_objs;
     const int max_waste = alloc_size - min_used;
-    MESSAGE("SC %3d [ %8d .. %8d ] from %8d ; %2.0f%% maxwaste\n",
-            int(cl),
-            int(class_to_size_[cl-1] + 1),
-            int(class_to_size_[cl]),
-            int(class_to_pages_[cl] << kPageShift),
-            max_waste * 100.0 / alloc_size
-            );
+    out->printf("SC %3d [ %8d .. %8d ] from %8d ; %2.0f%% maxwaste\n",
+                int(cl),
+                int(class_to_size_[cl-1] + 1),
+                int(class_to_size_[cl]),
+                int(class_to_pages_[cl] << kPageShift),
+                max_waste * 100.0 / alloc_size
+                );
   }
 }
 

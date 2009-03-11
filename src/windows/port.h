@@ -88,6 +88,8 @@ typedef intptr_t ssize_t;
 #endif
 
 // ----------------------------------- THREADS
+
+#ifndef HAVE_PTHREAD   // not true for MSVC, but may be true for MSYS
 typedef DWORD pthread_t;
 typedef DWORD pthread_key_t;
 typedef LONG pthread_once_t;
@@ -107,6 +109,7 @@ extern pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  // in port.cc
 #define perftools_pthread_once(once, init)  do {                \
   if (InterlockedCompareExchange(once, 1, 0) == 0) (init)();    \
 } while (0)
+#endif  // HAVE_PTHREAD
 
 // __declspec(thread) isn't usable in a dll opened via LoadLibrary().
 // But it doesn't work to LoadLibrary() us anyway, because of all the
@@ -173,6 +176,8 @@ extern PERFTOOLS_DLL_DECL void RunManyInThreadWithId(void (*fn)(int), int count,
 
 
 // ----------------------------------- MMAP and other memory allocation
+
+#ifndef HAVE_MMAP   // not true for MSVC, but may be true for msys
 #define MAP_FAILED  0
 #define MREMAP_FIXED  2  // the value in linux, though it doesn't really matter
 // These, when combined with the mmap invariants below, yield the proper action
@@ -190,6 +195,7 @@ extern PERFTOOLS_DLL_DECL void RunManyInThreadWithId(void (*fn)(int), int count,
       : NULL )
 
 #define munmap(start, length)   (VirtualFree(start, 0, MEM_RELEASE) ? 0 : -1)
+#endif  // HAVE_MMAP
 
 // We could maybe use VirtualAlloc for sbrk as well, but no need
 #define sbrk(increment)  ( (void*)-1 )   // sbrk returns -1 on failure
@@ -212,8 +218,10 @@ extern PERFTOOLS_DLL_DECL int safe_vsnprintf(char *str, size_t size,
 #define SCNd64  "I64d"
 #define PRIu64  "I64u"
 #ifdef _WIN64
+# define PRIuPTR "llu"
 # define PRIxPTR "llx"
 #else
+# define PRIuPTR "lu"
 # define PRIxPTR "lx"
 #endif
 

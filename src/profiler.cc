@@ -444,7 +444,8 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext) {
       // removed by "pprof" at analysis time.  Instead of skipping the top
       // frames, we could skip nothing, but that would increase the
       // profile size unnecessarily.
-      int depth = GetStackTrace(stack + 1, arraysize(stack) - 1, 2);
+      int depth = GetStackTraceWithContext(stack + 1, arraysize(stack) - 1,
+                                           2, signal_ucontext);
       depth++;              // To account for pc value in stack[0];
 
       instance_.collector_.Add(depth, stack);

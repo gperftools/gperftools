@@ -31,6 +31,7 @@
 // Author: Ken Ashcraft <opensource@google.com>
 
 #include "static_vars.h"
+#include "sampler.h"  // for the init function
 
 namespace tcmalloc {
 
@@ -40,6 +41,7 @@ CentralFreeListPadded Static::central_cache_[kNumClasses];
 PageHeapAllocator<Span> Static::span_allocator_;
 PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
+PageHeapAllocator<StackTraceTable::Bucket> Static::bucket_allocator_;
 StackTrace* Static::growth_stacks_ = NULL;
 char Static::pageheap_memory_[sizeof(PageHeap)];
 
@@ -49,6 +51,7 @@ void Static::InitStaticVars() {
   span_allocator_.New(); // Reduce cache conflicts
   span_allocator_.New(); // Reduce cache conflicts
   stacktrace_allocator_.Init();
+  bucket_allocator_.Init();
   // Do a bit of sanitizing: make sure central_cache is aligned properly
   CHECK_CONDITION((sizeof(central_cache_[0]) % 64) == 0);
   for (int i = 0; i < kNumClasses; ++i) {
@@ -56,6 +59,7 @@ void Static::InitStaticVars() {
   }
   new ((void*)pageheap_memory_) PageHeap;
   DLL_Init(&sampled_objects_);
+  Sampler::InitStatics();
 }
 
 }  // namespace tcmalloc

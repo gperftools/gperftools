@@ -125,8 +125,7 @@ class HeapProfileTable {
 
   // If "ptr" points to a recorded allocation and it's not marked as live
   // mark it as live and return true. Else return false.
-  // All allocations start as non-live, DumpNonLiveProfile below
-  // also makes all allocations non-live.
+  // All allocations start as non-live.
   bool MarkAsLive(const void* ptr);
 
   // If "ptr" points to a recorded allocation, mark it as "ignored".
@@ -162,24 +161,25 @@ class HeapProfileTable {
   // We do not provision for 0-terminating 'buf'.
   int FillOrderedProfile(char buf[], int size) const;
 
-  // Allocation data dump filtering callback:
-  // gets passed object pointer and size
-  // needs to return true iff the object is to be filtered out of the dump.
-  typedef bool (*DumpFilter)(const void* ptr, size_t size);
-
-  // Dump non-live portion of the current heap profile
-  // for leak checking purposes to file_name.
-  // Also reset all objects to non-live state
-  // and write the sums of allocated byte and object counts in the dump
-  // to *alloc_bytes and *alloc_objects.
-  // dump_alloc_addresses controls if object addresses are dumped.
-  // Ignores any objects that have the "ignore" bit set.
-  bool DumpNonLiveProfile(const char* file_name,
-                          bool dump_alloc_addresses,
-                          Stats* profile_stats) const;
-
   // Cleanup any old profile files matching prefix + ".*" + kFileExt.
   static void CleanupOldProfiles(const char* prefix);
+
+  // Return a snapshot of the current contents of *this.
+  // Caller must call ReleaseSnapshot() on result when no longer needed.
+  // The result is only valid while this exists and until
+  // the snapshot is discarded by calling ReleaseSnapshot().
+  class Snapshot;
+  Snapshot* TakeSnapshot();
+
+  // Release a previously taken snapshot.  snapshot must not
+  // be used after this call.
+  void ReleaseSnapshot(Snapshot* snapshot);
+
+  // Return a snapshot of every non-live, non-ignored object in *this.
+  // If "base" is non-NULL, skip any objects present in "base".
+  // As a side-effect, clears the "live" bit on every live object in *this.
+  // Caller must call ReleaseSnapshot() on result when no longer needed.
+  Snapshot* NonLiveSnapshot(Snapshot* base);
 
  private:
 
@@ -234,11 +234,10 @@ class HeapProfileTable {
   // Arguments that need to be passed DumpNonLiveIterator callback below.
   struct DumpArgs {
     RawFD fd;  // file to write to
-    bool dump_alloc_addresses;  // if we are dumping allocation's addresses
-    Stats* profile_stats;  // stats to update
+    Stats* profile_stats;  // stats to update (may be NULL)
 
-    DumpArgs(RawFD a, bool b, Stats* d)
-      : fd(a), dump_alloc_addresses(b), profile_stats(d) { }
+    DumpArgs(RawFD a, Stats* d)
+      : fd(a), profile_stats(d) { }
   };
 
   // helpers ----------------------------
@@ -247,9 +246,16 @@ class HeapProfileTable {
   // We return the amount of space in buf that we use.  We start printing
   // at buf + buflen, and promise not to go beyond buf + bufsize.
   // We do not provision for 0-terminating 'buf'.
-  // We update *profile_stats by counting bucket b.
+  //
+  // If profile_stats is non-NULL, we update *profile_stats by
+  // counting bucket b.
+  //
+  // "extra" is appended to the unparsed bucket.  Typically it is empty,
+  // but may be set to something like " heapprofile" for the total
+  // bucket to indicate the type of the profile.
   static int UnparseBucket(const Bucket& b,
                            char* buf, int buflen, int bufsize,
+                           const char* extra,
                            Stats* profile_stats);
 
   // Get the bucket for the caller stack trace 'key' of depth 'depth'
@@ -279,6 +285,27 @@ class HeapProfileTable {
   // The caller is responsible for dellocating the returned list.
   Bucket** MakeSortedBucketList() const;
 
+  // Helper for TakeSnapshot.  Saves object to snapshot.
+  static void AddToSnapshot(const void* ptr, AllocValue* v, Snapshot* s);
+
+  // Arguments passed to AddIfNonLive
+  struct AddNonLiveArgs {
+    Snapshot* dest;
+    Snapshot* base;
+  };
+
+  // Helper for NonLiveSnapshot.  Adds the object to the destination
+  // snapshot if it is non-live.
+  static void AddIfNonLive(const void* ptr, AllocValue* v,
+                           AddNonLiveArgs* arg);
+
+  // Write contents of "*allocations" as a heap profile to
+  // "file_name".  "total" must contain the total of all entries in
+  // "*allocations".
+  static bool WriteProfile(const char* file_name,
+                           const Bucket& total,
+                           AllocationMap* allocations);
+
   // data ----------------------------
 
   // Memory (de)allocator that we use.
@@ -300,6 +327,55 @@ class HeapProfileTable {
   AllocationMap* allocation_;
 
   DISALLOW_EVIL_CONSTRUCTORS(HeapProfileTable);
+};
+
+class HeapProfileTable::Snapshot {
+ public:
+  const Stats& total() const { return total_; }
+
+  // Report anything in this snapshot as a leak.
+  // May use new/delete for temporary storage.
+  // Also writes a heap profile to "filename" that contains
+  // all of the objects in this snapshot.
+  void ReportLeaks(const char* checker_name, const char* filename);
+
+  // Report the addresses of all leaked objects.
+  // May use new/delete for temporary storage.
+  void ReportIndividualObjects();
+
+  bool Empty() const {
+    return (total_.allocs == 0) && (total_.alloc_size == 0);
+  }
+
+ private:
+  friend class HeapProfileTable;
+
+  // Total count/size are stored in a Bucket so we can reuse UnparseBucket
+  Bucket total_;
+
+  // We share the Buckets managed by the parent table, but have our
+  // own object->bucket map.
+  AllocationMap map_;
+
+  Snapshot(Allocator alloc, DeAllocator dealloc) : map_(alloc, dealloc) {
+    memset(&total_, 0, sizeof(total_));
+  }
+
+  // Callback used to populate a Snapshot object with entries found
+  // in another allocation map.
+  inline void Add(const void* ptr, const AllocValue& v) {
+    map_.Insert(ptr, v);
+    total_.allocs++;
+    total_.alloc_size += v.bytes;
+  }
+
+  // Helpers for sorting and generating leak reports
+  struct Entry;
+  struct ReportState;
+  static void ReportCallback(const void* ptr, AllocValue* v, ReportState*);
+  static void ReportObject(const void* ptr, AllocValue* v, char*);
+
+  DISALLOW_COPY_AND_ASSIGN(Snapshot);
 };
 
 #endif  // BASE_HEAP_PROFILE_TABLE_H_

@@ -95,7 +95,7 @@ Test() {
   fi
   # If we get here, we failed.  Now we just need to report why
   echo "FAIL"
-  if [ $actual_ec == 255 ]; then  # 255 == SIGTERM due to $ALARM
+  if [ $actual_ec -eq 255 ]; then  # 255 == SIGTERM due to $ALARM
     echo "Test was taking unexpectedly long time to run and so we aborted it."
     echo "Try the test case manually or raise the timeout from $timeout"
     echo "to distinguish test slowness from a real problem."
@@ -156,7 +156,7 @@ Test 20 1 "Exiting .* because of .* leaks$" "" \
   HEAP_CHECKER_TEST_TEST_LOOP_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 || exit 9
 
 # Test that we produce a reasonable textual leak report.
-Test 60 1 "DoAllocHidden heap-checker_unittest[.]cc:" "" \
+Test 60 1 "DoAllocHidden" "" \
           HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECK_TEST_NO_THREADS=1 \
   || exit 10
 

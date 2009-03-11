@@ -89,7 +89,7 @@ int DLL_Length(const Span* list) {
   return result;
 }
 
-#if 0  // This isn't used.
+#if 0  // This isn't used.  If that changes, rewrite to use TCMalloc_Printer.
 void DLL_Print(const char* label, const Span* list) {
   MESSAGE("%-10s %p:", label, list);
   for (const Span* s = list->next; s != list; s = s->next) {

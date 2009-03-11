@@ -92,13 +92,21 @@ using STL_NAMESPACE::sort;
 
 DEFINE_int64(heap_profile_allocation_interval,
              EnvToInt64("HEAP_PROFILE_ALLOCATION_INTERVAL", 1 << 30 /*1GB*/),
-             "Dump heap profiling information once every specified "
-             "number of bytes allocated by the program.");
+             "If non-zero, dump heap profiling information once every "
+             "specified number of bytes allocated by the program since "
+             "the last dump.");
+DEFINE_int64(heap_profile_deallocation_interval,
+             EnvToInt64("HEAP_PROFILE_DEALLOCATION_INTERVAL", 0),
+             "If non-zero, dump heap profiling information once every "
+             "specified number of bytes deallocated by the program "
+             "since the last dump.");
+// We could also add flags that report whenever inuse_bytes changes by
+// X or -X, but there hasn't been a need for that yet, so we haven't.
 DEFINE_int64(heap_profile_inuse_interval,
              EnvToInt64("HEAP_PROFILE_INUSE_INTERVAL", 100 << 20 /*100MB*/),
-              "Dump heap profiling information whenever the high-water "
-             "memory usage mark increases by the specified number of "
-             "bytes.");
+             "If non-zero, dump heap profiling information whenever "
+             "the high-water memory usage mark increases by the specified "
+             "number of bytes.");
 DEFINE_bool(mmap_log,
             EnvToBool("HEAP_PROFILE_MMAP_LOG", false),
             "Should mmap/munmap calls be logged?");
@@ -157,7 +165,8 @@ static bool  dumping = false;         // Dumping status to prevent recursion
 static char* filename_prefix = NULL;  // Prefix used for profile file names
                                       // (NULL if no need for dumping yet)
 static int   dump_count = 0;          // How many dumps so far
-static int64 last_dump = 0;           // When did we last dump
+static int64 last_dump_alloc = 0;     // alloc_size when did we last dump
+static int64 last_dump_free = 0;      // free_size when did we last dump
 static int64 high_water_mark = 0;     // In-use-bytes at last high-water dump
 
 static HeapProfileTable* heap_profile = NULL;  // the heap profile table
@@ -282,34 +291,52 @@ static void DumpProfileLocked(const char* reason) {
 // Profile collection
 //----------------------------------------------------------------------
 
+// Dump a profile after either an allocation or deallocation, if
+// the memory use has changed enough since the last dump.
+static void MaybeDumpProfileLocked() {
+  if (!dumping) {
+    const HeapProfileTable::Stats& total = heap_profile->total();
+    const int64 inuse_bytes = total.alloc_size - total.free_size;
+    bool need_to_dump = false;
+    char buf[128];
+    if (FLAGS_heap_profile_allocation_interval > 0 &&
+        total.alloc_size >=
+        last_dump_alloc + FLAGS_heap_profile_allocation_interval) {
+      snprintf(buf, sizeof(buf), ("%"PRId64" MB allocated cumulatively, "
+                                  "%"PRId64" MB currently in use"),
+               total.alloc_size >> 20, inuse_bytes >> 20);
+      need_to_dump = true;
+    } else if (FLAGS_heap_profile_deallocation_interval > 0 &&
+               total.free_size >=
+               last_dump_free + FLAGS_heap_profile_deallocation_interval) {
+      snprintf(buf, sizeof(buf), ("%"PRId64" MB freed cumulatively, "
+                                  "%"PRId64" MB currently in use"),
+               total.free_size >> 20, inuse_bytes >> 20);
+      need_to_dump = true;
+    } else if (FLAGS_heap_profile_inuse_interval > 0 &&
+               inuse_bytes >
+               high_water_mark + FLAGS_heap_profile_inuse_interval) {
+      snprintf(buf, sizeof(buf), "%"PRId64" MB currently in use",
+               inuse_bytes >> 20);
+      need_to_dump = true;
+    }
+    if (need_to_dump) {
+      DumpProfileLocked(buf);
+
+      last_dump_alloc = total.alloc_size;
+      last_dump_free = total.free_size;
+      if (inuse_bytes > high_water_mark)
+        high_water_mark = inuse_bytes;
+    }
+  }
+}
+
 // Record an allocation in the profile.
 static void RecordAlloc(const void* ptr, size_t bytes, int skip_count) {
   SpinLockHolder l(&heap_lock);
   if (is_on) {
     heap_profile->RecordAlloc(ptr, bytes, skip_count + 1);
-    const HeapProfileTable::Stats& total = heap_profile->total();
-    const int64 inuse_bytes = total.alloc_size - total.free_size;
-    if (!dumping) {
-      bool need_to_dump = false;
-      char buf[128];
-      if (total.alloc_size >=
-          last_dump + FLAGS_heap_profile_allocation_interval) {
-        snprintf(buf, sizeof(buf), "%"PRId64" MB allocated",
-                 total.alloc_size >> 20);
-        // Track that we made a "total allocation size" dump
-        last_dump = total.alloc_size;
-        need_to_dump = true;
-      } else if (inuse_bytes >
-                 high_water_mark + FLAGS_heap_profile_inuse_interval) {
-        snprintf(buf, sizeof(buf), "%"PRId64" MB in use", inuse_bytes >> 20);
-        // Track that we made a "high water mark" dump
-        high_water_mark = inuse_bytes;
-        need_to_dump = true;
-      }
-      if (need_to_dump) {
-        DumpProfileLocked(buf);
-      }
-    }
+    MaybeDumpProfileLocked();
   }
 }
 
@@ -318,6 +345,7 @@ static void RecordFree(const void* ptr) {
   SpinLockHolder l(&heap_lock);
   if (is_on) {
     heap_profile->RecordFree(ptr);
+    MaybeDumpProfileLocked();
   }
 }
 
@@ -469,7 +497,9 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
                    HeapProfileTable(ProfilerMalloc, ProfilerFree);
 
-  last_dump = 0;
+  last_dump_alloc = 0;
+  last_dump_free = 0;
+  high_water_mark = 0;
 
   // We do not reset dump_count so if the user does a sequence of
   // HeapProfilerStart/HeapProfileStop, we will get a continuous

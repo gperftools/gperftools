@@ -24,6 +24,13 @@ to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
 The CPU profiler is available on all unix-based systems we've tested;
 see INSTALL for more details.  It is not currently available on Windows.
 
+NOTE: CPU profiling doesn't work after fork (unless you immediately
+      do an exec()-like call afterwards).  Furthermore, if you do
+      fork, and the child calls exit(), it may corrupt the profile
+      data.  You can use _exit() to work around this.  We hope to have
+      a fix for both problems in the next release of perftools
+      (hopefully perftools 1.2).
+
 
 TCMALLOC
 --------
@@ -185,9 +192,7 @@ CPUPROFILE environment variable.  If you do not turn on cpu-profiling,
 you shouldn't see any crashes due to perftools.
 
 The gory details: The underlying problem is in the backtrace()
-function, which is a built-in function in libc.  (However, we
-*strongly* recommend for x86-64, that you use the libunwind
-functionality for backtraces instead; see the top of INSTALL.)
+function, which is a built-in function in libc.
 Backtracing is fairly straightforward in the normal case, but can run
 into problems when having to backtrace across a signal frame.
 Unfortunately, the cpu-profiler uses signals in order to register a
@@ -196,7 +201,7 @@ signal frame.
 
 In our experience, the only time there is trouble is when the signal
 fires in the middle of pthread_mutex_lock.  pthread_mutex_lock is
-called quite a bit from system libraries, particular at program
+called quite a bit from system libraries, particularly at program
 startup and when creating a new thread.
 
 The solution: The dwarf debugging format has support for 'cfi

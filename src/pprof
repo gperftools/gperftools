@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "1.0";
+my $PPROF_VERSION = "1.1";
 
 # These are the object tools we use which can come from a
 # user-specified location using --tools, from the PPROF_TOOLS
@@ -83,8 +83,8 @@ my %obj_tool_map = (
   "addr2line" => "addr2line",
   "c++filt" => "c++filt",
   ## ConfigureObjTools may add architecture-specific entries:
-  #"nm_pdb" => "nm_pdb",       # for reading windows (PDB-format) executables
-  #"addr2line_pdb" => "addr2line_pdb",                                # ditto
+  #"nm_pdb" => "nm-pdb",       # for reading windows (PDB-format) executables
+  #"addr2line_pdb" => "addr2line-pdb",                                # ditto
   #"otool" => "otool",         # equivalent of objdump on OS X
 );
 my $DOT = "dot";          # leave non-absolute, since it may be in /usr/local
@@ -123,14 +123,19 @@ pprof [options] <program> <profiles>
 pprof [options] <profile>
    <profile> is a remote form.  Symbols are obtained from host:port$SYMBOL_PAGE
 
-   Each profile name can be:
+   Each name can be:
    /path/to/profile        - a path to a profile file
    host:port[/<service>]   - a location of a service to get profile from
 
-   The /<service> can be $HEAP_PAGE, $PROFILE_PAGE, $GROWTH_PAGE, $CONTENTION_PAGE,
-   $WALL_PAGE, or $FILTEREDPROFILE_PAGE.
+   The /<service> can be $HEAP_PAGE, $PROFILE_PAGE, $GROWTH_PAGE,
+   $CONTENTION_PAGE, $WALL_PAGE, or $FILTEREDPROFILE_PAGE.
    For instance: "pprof http://myserver.com:80$HEAP_PAGE".
    If /<service> is omitted, the service defaults to $PROFILE_PAGE (cpu profiling).
+pprof --symbols <program>
+   Maps addresses to symbol names.  In this mode, stdin should be a
+   list of library mappings, in the same format as is found in the heap-
+   and cpu-profile files (this loosely matches that of /proc/self/maps
+   on linux), followed by a list of hex addresses to map, one per line.
 
    For more help with querying remote servers, including how to add the
    necessary server-side support code, see this filename (or one like it):
@@ -157,6 +162,7 @@ Output type:
    --gv                Generate Postscript and display
    --list=<regexp>     Generate source listing of matching routines
    --disasm=<regexp>   Generate disassembly of matching routines
+   --symbols           Print demangled symbol names found at given addresses
    --dot               Generate DOT file to stdout
    --ps                Generate Postcript to stdout
    --pdf               Generate PDF to stdout
@@ -171,9 +177,9 @@ Heap-Profile Options:
    --drop_negative     Ignore negative differences
 
 Contention-profile options:
-   --total_delay      Display total delay at each region [default]
-   --contentions      Display number of delays at each region
-   --mean_delay       Display mean delay at each region
+   --total_delay       Display total delay at each region [default]
+   --contentions       Display number of delays at each region
+   --mean_delay        Display mean delay at each region
 
 Call-graph Options:
    --nodecount=<n>     Show at most so many nodes [default=80]
@@ -264,6 +270,7 @@ sub Init() {
   $main::opt_callgrind = 0;
   $main::opt_list = "";
   $main::opt_disasm = "";
+  $main::opt_symbols = 0;
   $main::opt_gv = 0;
   $main::opt_dot = 0;
   $main::opt_ps = 0;
@@ -322,6 +329,7 @@ sub Init() {
              "callgrind!"     => \$main::opt_callgrind,
              "list=s"         => \$main::opt_list,
              "disasm=s"       => \$main::opt_disasm,
+             "symbols!"       => \$main::opt_symbols,
              "gv!"            => \$main::opt_gv,
              "dot!"           => \$main::opt_dot,
              "ps!"            => \$main::opt_ps,
@@ -360,8 +368,8 @@ sub Init() {
     exit(0);
   }
 
-  # Disassembly/listing mode requires address-level info
-  if ($main::opt_disasm || $main::opt_list) {
+  # Disassembly/listing/symbols mode requires address-level info
+  if ($main::opt_disasm || $main::opt_list || $main::opt_symbols) {
     $main::opt_functions = 0;
     $main::opt_lines = 0;
     $main::opt_addresses = 1;
@@ -396,6 +404,7 @@ sub Init() {
       $main::opt_callgrind +
       ($main::opt_list eq '' ? 0 : 1) +
       ($main::opt_disasm eq '' ? 0 : 1) +
+      ($main::opt_symbols == 0 ? 0 : 1) +
       $main::opt_gv +
       $main::opt_dot +
       $main::opt_ps +
@@ -437,6 +446,9 @@ sub Init() {
     }
     # Set $main::prog later...
     scalar(@ARGV) || usage("Did not specify profile file");
+  } elsif ($main::opt_symbols) {
+    # --symbols needs a binary-name (to run nm on, etc) but not profiles
+    $main::prog = shift(@ARGV) || usage("Did not specify program");
   } else {
     $main::prog = shift(@ARGV) || usage("Did not specify program");
     scalar(@ARGV) || usage("Did not specify profile file");
@@ -482,9 +494,15 @@ sub Main() {
   @main::profile_files = ();
   $main::op_time = time();
 
+  # Printing symbols is special and requires a lot less info that most.
+  if ($main::opt_symbols) {
+    PrintSymbols(*STDIN);   # Get /proc/maps and symbols output from stdin
+    return;
+  }
+
   # Fetch all profile data
   FetchDynamicProfiles();
-
+    
   # Read one profile, pick the last item on the list
   my $data = ReadProfile($main::prog, pop(@main::profile_files));
   my $profile = $data->{profile};
@@ -515,7 +533,7 @@ sub Main() {
   if ($main::use_symbol_page) {
     $symbols = FetchSymbols($pcs);
   } else {
-    $symbols = ExtractSymbols($libs, $profile, $pcs);
+    $symbols = ExtractSymbols($libs, $pcs);
   }
 
   my $calls = ExtractCalls($symbols, $profile);
@@ -983,6 +1001,38 @@ sub Disassemble {
   return @result;
 }
 
+# The input file should contain lines of the form /proc/maps-like
+# output (same format as expected from the profiles) or that looks
+# like hex addresses (like "0xDEADBEEF").  We will parse all
+# /proc/maps output, and for all the hex addresses, we will output
+# "short" symbol names, one per line, in the same order as the input.
+sub PrintSymbols {
+  my $maps_and_symbols_file = shift;
+
+  # ParseLibraries expects pcs to be in a set.  Fine by us...
+  my @pclist = ();   # pcs in sorted order
+  my $pcs = {};
+  my $map = "";
+  foreach my $line (<$maps_and_symbols_file>) {
+    $line =~ s/\r//g;    # turn windows-looking lines into unix-looking lines
+    if ($line =~ /\b(0x[0-9a-f]+)\b/i) {
+      push(@pclist, HexExtend($1));
+      $pcs->{$pclist[-1]} = 1;
+    } else {
+      $map .= $line;
+    }
+  }
+
+  my $libs = ParseLibraries($main::prog, $map, $pcs);
+  my $symbols = ExtractSymbols($libs, $pcs);
+
+  foreach my $pc (@pclist) {
+    # ->[0] is the shortname, ->[2] is the full name
+    print(($symbols->{$pc}->[0] || "??") . "\n");
+  }
+}
+
+
 # For sorting functions by name
 sub ByName {
   return ShortFunctionName($a) cmp ShortFunctionName($b);
@@ -1370,11 +1420,11 @@ sub PrintDot {
   # Open DOT output file
   my $output;
   if ($main::opt_gv) {
-    $output = "| $DOT -Tps >" . PsTempName($main::next_tmpfile);
+    $output = "| $DOT -Tps2 >" . PsTempName($main::next_tmpfile);
   } elsif ($main::opt_ps) {
-    $output = "| $DOT -Tps";
+    $output = "| $DOT -Tps2";
   } elsif ($main::opt_pdf) {
-    $output = "| $DOT -Tps | $PS2PDF - -";
+    $output = "| $DOT -Tps2 | $PS2PDF - -";
   } elsif ($main::opt_gif) {
     $output = "| $DOT -Tgif";
   } else {
@@ -1999,8 +2049,8 @@ sub CheckSymbolPage {
 
 sub IsProfileURL {
   my $profile_name = shift;
-  my ($host, $port, $type) = ParseProfileURL($profile_name);
-  return defined($host) and defined($port) and defined($type);
+  my ($host, $port, $path) = ParseProfileURL($profile_name);
+  return defined($host) and defined($port) and defined($path);
 }
 
 sub ParseProfileURL {
@@ -2018,12 +2068,12 @@ sub ParseProfileURL {
 
 # We fetch symbols from the first profile argument.
 sub SymbolPageURL {
-  my ($host, $port, $type) = ParseProfileURL($main::pfile_args[0]);
+  my ($host, $port, $path) = ParseProfileURL($main::pfile_args[0]);
   return "http://$host:$port$SYMBOL_PAGE";
 }
 
 sub FetchProgramName() {
-  my ($host, $port, $type) = ParseProfileURL($main::pfile_args[0]);
+  my ($host, $port, $path) = ParseProfileURL($main::pfile_args[0]);
   my $url = "http://$host:$port$PROGRAM_NAME_PAGE";
   my $command_line = "$WGET -qO- '$url'";
   open(CMDLINE, "$command_line |") or error($command_line);
@@ -2085,13 +2135,13 @@ sub FetchSymbols {
   close(SYMBOL);
 
   my $symbols = {};
-  for my $pc (@pcs) {
+  foreach my $pc (@pcs) {
     my $fullname;
     # For 64 bits binaries, symbols are extracted with 8 leading zeroes.
-    # Then /symbolz reads the long symbols in as uint64, and outputs
+    # Then /symbol reads the long symbols in as uint64, and outputs
     # the result with a "0x%08llx" format which get rid of the zeroes.
     # By removing all the leading zeroes in both $pc and the symbols from
-    # /symbolz, the symbols match and are retrievable from the map.
+    # /symbol, the symbols match and are retrievable from the map.
     my $shortpc = $pc;
     $shortpc =~ s/^0*//;
     if (defined($map{$shortpc})) {
@@ -2113,7 +2163,7 @@ sub BaseName {
 
 sub MakeProfileBaseName {
   my ($binary_name, $profile_name) = @_;
-  my ($host, $port, $type) = ParseProfileURL($profile_name);
+  my ($host, $port, $path) = ParseProfileURL($profile_name);
   my $binary_shortname = BaseName($binary_name);
   return sprintf("%s.%s.%s-port%s",
                  $binary_shortname, $main::op_time, $host, $port);
@@ -2128,17 +2178,17 @@ sub FetchDynamicProfile {
   if (!IsProfileURL($profile_name)) {
     return $profile_name;
   } else {
-    my ($host, $port, $type) = ParseProfileURL($profile_name);
-    if ($type eq "" || $type eq "/") {
+    my ($host, $port, $path) = ParseProfileURL($profile_name);
+    if ($path eq "" || $path eq "/") {
       # Missing type specifier defaults to cpu-profile
-      $type = $PROFILE_PAGE;
+      $path = $PROFILE_PAGE;
     }
 
     my $profile_file = MakeProfileBaseName($binary_name, $profile_name);
 
     my $url;
     my $wget_timeout;
-    if ($type eq $PROFILE_PAGE) {
+    if ($path eq $PROFILE_PAGE) {
       $url = sprintf("http://$host:$port$PROFILE_PAGE?seconds=%d",
                      $main::opt_seconds);
       $wget_timeout = sprintf("--timeout=%d",
@@ -2146,10 +2196,10 @@ sub FetchDynamicProfile {
     } else {
       # For non-CPU profiles, we add a type-extension to
       # the target profile file name.
-      my $suffix = $type;
+      my $suffix = $path;
       $suffix =~ s,/,.,g;
       $profile_file .= "$suffix";
-      $url = "http://$host:$port$type";
+      $url = "http://$host:$port$path";
       $wget_timeout = "";
     }
 
@@ -2166,13 +2216,13 @@ sub FetchDynamicProfile {
     }
 
     my $cmd = "$WGET $wget_timeout -q -O $tmp_profile '$url'";
-    if ($type eq $PROFILE_PAGE) {
+    if ($path eq $PROFILE_PAGE) {
       print STDERR "Gathering CPU profile from $host:$port for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
         print STDERR "Be patient...\n";
       }
     } else {
-      print STDERR "Fetching $type profile from $host:$port to\n  ${real_profile}\n";
+      print STDERR "Fetching $path profile from $host:$port to\n  ${real_profile}\n";
     }
 
     (system($cmd) == 0) || error("Failed to get profile: $cmd: $!\n");
@@ -2258,17 +2308,20 @@ sub ReadProfile {
   binmode PROFILE;      # New perls do UTF-8 processing
   my $header = <PROFILE>;
   $header =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
-  my $contention_marker = substr($CONTENTION_PAGE, 1);   # remove leading /
-  if ($header =~ m/^heap profile:.*growthz/) {
+  $CONTENTION_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $contention_marker = $&;
+  $GROWTH_PAGE  =~ m,[^/]+$,;
+  my $growth_marker = $&;
+  if ($header =~ m/^heap profile:.*$growth_marker/o) {
     $main::profile_type = 'growth';
     return ReadHeapProfile($prog, $fname, $header);
   } elsif ($header =~ m/^heap profile:/) {
     $main::profile_type = 'heap';
     return ReadHeapProfile($prog, $fname, $header);
-  } elsif ($header =~ m/^--- *$contention_marker/o ) {
+  } elsif ($header =~ m/^--- *$contention_marker/o) {
     $main::profile_type = 'contention';
     return ReadSynchProfile($prog, $fname);
-  } elsif ($header =~ m/^--- *Stacks:/ ) {
+  } elsif ($header =~ m/^--- *Stacks:/) {
     print STDERR
       "Old format contention profile: mistakenly reports " .
       "condition variable signals as lock contentions.\n";
@@ -2431,27 +2484,49 @@ sub ReadHeapProfile {
   #    heap profile:   1246:  8800744 [  1246:  8800744] @ <heap-url>/266053
   # There are two pairs <count: size>, the first inuse objects/space, and the
   # second allocated objects/space.  This is followed optionally by a profile
-  # type, and if that is present, optionally by a sampling frequency.  The
-  # interpretation of the sampling frequency is that the profiler, for each
-  # sample, calculates a uniformly distributed random integer less than the
-  # given value, and records the next sample after that many bytes have been
-  # allocated.  Therefore, the expected sample interval is half of the given
-  # frequency.  By default, if not specified, the expected sample interval is
-  # 128KB.  Only remote-heap-page profiles are adjusted for sample size.
-  my $should_adjust_sample = 0;
+  # type, and if that is present, optionally by a sampling frequency.
+  # For remote heap profiles (v1):
+  # The interpretation of the sampling frequency is that the profiler, for
+  # each sample, calculates a uniformly distributed random integer less than
+  # the given value, and records the next sample after that many bytes have
+  # been allocated.  Therefore, the expected sample interval is half of the
+  # given frequency.  By default, if not specified, the expected sample
+  # interval is 128KB.  Only remote-heap-page profiles are adjusted for
+  # sample size.
+  # For remote heap profiles (v2):
+  # The sampling frequency is the rate of a Poisson process. This means that
+  # the probability of sampling an allocation of size X with sampling rate Y
+  # is 1 - exp(-X/Y)
+  # For version 2, a typical header line might look like this:
+  # heap profile:   1922: 127792360 [  1922: 127792360] @ <heap-url>_v2/524288
+  # the trailing number (524288) is the sampling rate. (Version 1 showed
+  # double the 'rate' here)
+  my $sampling_algorithm = 0;
   my $sample_adjustment = 0;
   chomp($header);
   my $type = "unknown";
   if ($header =~ m"^heap profile:\s*(\d+):\s+(\d+)\s+\[\s*(\d+):\s+(\d+)\](\s*@\s*([^/]*)(/(\d+))?)?") {
     if (defined($6) && ($6 ne '')) {
       $type = $6;
-      # The regex test here is to see if type is a substring of HEAP_PAGE
-      if (($HEAP_PAGE =~ /$type/)) {
-	$should_adjust_sample = 1;
-	if (defined($8) && ($8 ne '')) {
-	  $sample_adjustment = int($8)/2;
-	  printf STDERR ("Adjusting heap profiles for 1-in-%d sampling rate\n",
-			 $sample_adjustment);
+      my $sample_period = $8;
+      # $type is "heapprofile" for profiles generated by the
+      # heap-profiler, and either "heap" or "heap_v2" for profiles
+      # generated by sampling directly within tcmalloc.  It can also
+      # be "growth" for heap-growth profiles.  The first is typically
+      # found for profiles generated locally, and the others for
+      # remote profiles.
+      if (($type eq "heapprofile") || ($type !~ /heap/) ) {
+	# No need to adjust for the sampling rate with heap-profiler-derived data
+	$sampling_algorithm = 0;
+      } elsif ($type =~ /_v2/) {
+	$sampling_algorithm = 2;     # version 2 sampling
+        if (defined($sample_period) && ($sample_period ne '')) {
+	  $sample_adjustment = int($sample_period);
+	}
+      } else {
+	$sampling_algorithm = 1;     # version 1 sampling
+        if (defined($sample_period) && ($sample_period ne '')) {
+	  $sample_adjustment = int($sample_period)/2;
 	}
       }
     } else {
@@ -2460,20 +2535,30 @@ sub ReadHeapProfile {
       # same as the in-use stats ($n1,$s1).  It is remotely conceivable
       # that a non-remote-heap profile may pass this check, but it is hard
       # to imagine how that could happen.
+      # In this case it's so old it's guaranteed to be remote-heap version 1.
       my ($n1, $s1, $n2, $s2) = ($1, $2, $3, $4);
       if (($n1 == $n2) && ($s1 == $s2)) {
         # This is likely to be a remote-heap based sample profile
-	$should_adjust_sample = 1;
+	$sampling_algorithm = 1;
       }
     }
   }
 
-  # For remote-heap generated profiles, adjust the counts and sizes to
-  # account for the sample rate (we sample once every 128KB by default).
-  if ($should_adjust_sample && ($sample_adjustment == 0)) {
-    # Turn on profile adjustment.
-    $sample_adjustment = 128*1024;
-    print STDERR "Adjusting heap profiles for 1-in-128KB sampling rate\n";
+  if ($sampling_algorithm > 0) {
+    # For remote-heap generated profiles, adjust the counts and sizes to
+    # account for the sample rate (we sample once every 128KB by default).
+    if ($sample_adjustment == 0) {
+      # Turn on profile adjustment.
+      $sample_adjustment = 128*1024;
+      print STDERR "Adjusting heap profiles for 1-in-128KB sampling rate\n";
+    } else {
+      printf STDERR ("Adjusting heap profiles for 1-in-%d sampling rate\n",
+		     $sample_adjustment);
+    }
+    if ($sampling_algorithm > 1) {
+      # We don't bother printing anything for the original version (version 1)
+      printf STDERR "Heap version $sampling_algorithm\n";
+    }
   }
 
   my $profile = {};
@@ -2518,16 +2603,34 @@ sub ReadHeapProfile {
       my ($n1, $s1, $n2, $s2) = ($1, $2, $3, $4);
 
       if ($sample_adjustment) {
-        my $ratio;
-        $ratio = (($s1*1.0)/$n1)/($sample_adjustment);
-        if ($ratio < 1) {
-          $n1 /= $ratio;
-          $s1 /= $ratio;
-        }
-        $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
-        if ($ratio < 1) {
-          $n2 /= $ratio;
-          $s2 /= $ratio;
+        if ($sampling_algorithm == 2) {
+          # Remote-heap version 2
+          # The sampling frequency is the rate of a Poisson process.
+          # This means that the probability of sampling an allocation of
+          # size X with sampling rate Y is 1 - exp(-X/Y)
+          my $ratio;
+          $ratio = (($s1*1.0)/$n1)/($sample_adjustment);
+          my $scale_factor;
+          $scale_factor = 1/(1 - exp(-$ratio));
+          $n1 *= $scale_factor;
+          $s1 *= $scale_factor;
+          $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
+          $scale_factor = 1/(1 - exp(-$ratio));
+          $n2 *= $scale_factor;
+          $s2 *= $scale_factor;
+        } else {
+          # Remote-heap version 1
+          my $ratio;
+          $ratio = (($s1*1.0)/$n1)/($sample_adjustment);
+          if ($ratio < 1) {
+            $n1 /= $ratio;
+            $s1 /= $ratio;
+          }
+          $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
+          if ($ratio < 1) {
+            $n2 /= $ratio;
+            $s2 /= $ratio;
+          }
         }
       }
 
@@ -2613,7 +2716,7 @@ sub ReadSynchProfile {
         # Currently nothing is done with this value in pprof
         # So we just silently ignore it for now
       } else {
-        printf STDERR ("Ignoring unnknown variable in /contentionz output: " .
+        printf STDERR ("Ignoring unnknown variable in /contention output: " .
                        "'%s' = '%s'\n",$variable,$value);
       }
     } else {
@@ -3061,7 +3164,6 @@ sub AddressInc {
 # Extract symbols for all PC values found in profile
 sub ExtractSymbols {
   my $libs = shift;
-  my $profile = shift;
   my $pcset = shift;
 
   my $symbols = {};
@@ -3270,8 +3372,8 @@ sub ConfigureObjTools {
     # the opensource release, which is capable of parsing
     # Windows-style PDB executables.  It should live in the path, or
     # in the same directory as pprof.
-    $obj_tool_map{"nm_pdb"} = "nm_pdb";
-    $obj_tool_map{"addr2line_pdb"} = "addr2line_pdb";
+    $obj_tool_map{"nm_pdb"} = "nm-pdb";
+    $obj_tool_map{"addr2line_pdb"} = "addr2line-pdb";
   }
 
   if ($file_type =~ /Mach-O/) {

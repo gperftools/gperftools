@@ -75,9 +75,9 @@ struct CycleClock {
                       : "=A" (ret) );
     return ret;
 #elif defined(__x86_64__) || defined(__amd64__)
-    uint32 low, high;
+    uint64 low, high;
     __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
-    return (static_cast<uint64>(high) << 32) | low;
+    return (high << 32) | low;
 #elif defined(__powerpc__) || defined(__ppc__)
     // This returns a time-base, which is not always precisely a cycle-count.
     int64 tbl, tbu0, tbu1;

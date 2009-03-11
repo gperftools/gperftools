@@ -73,6 +73,14 @@ extern int NumCPUs();
 extern double CyclesPerSecond(void);
 
 
+//  Return true if we're running POSIX (e.g., NPTL on Linux) threads,
+//  as opposed to a non-POSIX thread libary.  The thing that we care
+//  about is whether a thread's pid is the same as the thread that
+//  spawned it.  If so, this function returns true.
+//  Thread-safe.
+//  Note: We consider false negatives to be OK.
+bool HasPosixThreads();
+
 #ifndef SWIG  // SWIG doesn't like struct Buffer and variable arguments.
 
 // A ProcMapsIterator abstracts access to /proc/maps for a given

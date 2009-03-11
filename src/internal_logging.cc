@@ -59,17 +59,14 @@ void TCMalloc_MESSAGE(const char* filename,
 static const int kStatsBufferSize = 16 << 10;
 static char stats_buffer[kStatsBufferSize] = { 0 };
 
-void TCMalloc_CRASH(bool dump_stats,
-                    const char* filename,
-                    int line_number,
-                    const char* format, ...) {
+static void TCMalloc_CRASH_internal(bool dump_stats,
+                                    const char* filename,
+                                    int line_number,
+                                    const char* format, va_list ap) {
   char buf[kLogBufSize];
   const int n = snprintf(buf, sizeof(buf), "%s:%d] ", filename, line_number);
   if (n < kLogBufSize) {
-    va_list ap;
-    va_start(ap, format);
     vsnprintf(buf + n, kLogBufSize - n, format, ap);
-    va_end(ap);
   }
   write(STDERR_FILENO, buf, strlen(buf));
   if (dump_stats) {
@@ -78,6 +75,24 @@ void TCMalloc_CRASH(bool dump_stats,
   }
 
   abort();
+}
+
+void TCMalloc_CRASH(bool dump_stats,
+                    const char* filename,
+                    int line_number,
+                    const char* format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  TCMalloc_CRASH_internal(dump_stats, filename, line_number, format, ap);
+  va_end(ap);
+}
+
+
+void TCMalloc_CrashReporter::PrintfAndDie(const char* format, ...) {
+  va_list ap;
+  va_start(ap, format);
+  TCMalloc_CRASH_internal(dump_stats_, file_, line_, format, ap);
+  va_end(ap);
 }
 
 void TCMalloc_Printer::printf(const char* format, ...) {

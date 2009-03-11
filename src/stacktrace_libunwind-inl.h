@@ -32,6 +32,9 @@
 //
 // Produce stack trace using libunwind
 
+// We only need local unwinder.
+#define UNW_LOCAL_ONLY
+
 extern "C" {
 #include <assert.h>
 #include <string.h>   // for memset()
