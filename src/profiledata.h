@@ -60,11 +60,11 @@
 //  - 'Add' may be called from asynchronous signals, but is not
 //    re-entrant.
 //
-//  - None of 'Start', 'Stop', 'Flush', and 'Add' may be called at the
-//    same time.
+//  - None of 'Start', 'Stop', 'Reset', 'Flush', and 'Add' may be
+//    called at the same time.
 //
-//  - 'Start' and 'Stop' should not be called while 'Enabled' or
-//    'GetCurrent' are running, and vice versa.
+//  - 'Start', 'Stop', or 'Reset' should not be called while 'Enabled'
+//     or 'GetCurrent' are running, and vice versa.
 //
 // A profiler which uses asyncronous signals to add samples will
 // typically use two locks to protect this data structure:
@@ -72,7 +72,7 @@
 //  - A SpinLock which is held over all calls except for the 'Add'
 //    call made from the signal handler.
 //
-//  - A SpinLock which is held over calls to 'Start', 'Stop',
+//  - A SpinLock which is held over calls to 'Start', 'Stop', 'Reset',
 //    'Flush', and 'Add'.  (This SpinLock should be acquired after
 //    the first SpinLock in all cases where both are needed.)
 class ProfileData {
@@ -117,6 +117,10 @@ class ProfileData {
   // If data collection is enabled, stop data collection and write the
   // data to disk.
   void Stop();
+
+  // Stop data collection without writing anything else to disk, and
+  // discard any collected data.
+  void Reset();
 
   // If data collection is enabled, record a sample with 'depth'
   // entries from 'stack'.  (depth must be > 0.)  At most

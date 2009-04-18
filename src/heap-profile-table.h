@@ -335,9 +335,12 @@ class HeapProfileTable::Snapshot {
 
   // Report anything in this snapshot as a leak.
   // May use new/delete for temporary storage.
+  // If should_symbolize is true, will fork (which is not threadsafe)
+  // to turn addresses into symbol names.  Set to false for maximum safety.
   // Also writes a heap profile to "filename" that contains
   // all of the objects in this snapshot.
-  void ReportLeaks(const char* checker_name, const char* filename);
+  void ReportLeaks(const char* checker_name, const char* filename,
+                   bool should_symbolize);
 
   // Report the addresses of all leaked objects.
   // May use new/delete for temporary storage.

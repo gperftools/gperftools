@@ -12,6 +12,13 @@
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 
+/* define this if you are linking tcmalloc statically and overriding the
+ * default allocators.
+ * For instructions on how to use this mode, see
+ * http://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
+ */
+#undef WIN32_OVERRIDE_ALLOCATORS
+
 /* the location of <hash_map> */
 #define HASH_MAP_H  <hash_map>
 
@@ -20,6 +27,9 @@
 
 /* the location of <hash_set> */
 #define HASH_SET_H  <hash_set>
+
+/* Define to 1 if your libc has a snprintf implementation */
+#undef HAVE_SNPRINTF
 
 /* Define to 1 if compiler supports __builtin_stack_pointer */
 #undef HAVE_BUILTIN_STACK_POINTER
@@ -162,9 +172,6 @@
 /* Define to 1 if you have the <unwind.h> header file. */
 #undef HAVE_UNWIND_H
 
-/* Define to 1 if you have the <windows.h> header file. */
-#define HAVE_WINDOWS_H 1
-
 /* define if your compiler has __attribute__ */
 #undef HAVE___ATTRIBUTE__
 
@@ -176,6 +183,9 @@
 
 /* Define to 1 if int32_t is equivalent to intptr_t */
 #undef INT32_EQUALS_INTPTR
+
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE

@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.1, opensource@google.com)
+AC_INIT(google-perftools, 1.2, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -24,9 +24,7 @@ default_enable_minimal=no
 need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
    *-mingw*) default_enable_minimal=yes; need_nanosleep=no;;
-   # TODO(csilvers): cygwin *can* do heap-profiler: just need to work on fileio
-   *-cygwin*) default_enable_heap_checker=no; default_enable_cpu_profiler=no; \
-              default_enable_heap_profiler=no;;
+   *-cygwin*) default_enable_heap_checker=no; default_enable_cpu_profiler=no;;
    *-freebsd*) default_enable_heap_checker=no;;
    *-darwin*) default_enable_heap_checker=no;;
 esac
@@ -63,9 +61,29 @@ AC_PROG_CC
 AC_PROG_CPP
 AC_PROG_CXX
 AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
+AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
+
+# We work behind libtool's back, replacing 'ar' by 'ld -r' in some
+# situations.  The only issue is that 'ld -r' output doesn't support
+# ranlib.  Nobody needs ranlib anymore, so it's safe to just disable it.
+RANLIB=":"
+
+case $host_os in
+  *mingw*)
+    # Disabling fast install keeps libtool from creating wrapper scripts
+    # around the executables it builds.  Such scripts have caused failures on
+    # MinGW.  Using this option means an extra link step is executed during
+    # "make install".
+    AC_DISABLE_FAST_INSTALL
+    ;;
+   *)
+    AC_ENABLE_FAST_INSTALL
+    ;;
+esac
 
 AC_PROG_LIBTOOL
 AC_SUBST(LIBTOOL_DEPS)
+AM_CONDITIONAL(USE_LIBTOOL, test "x$LIBTOOL" != "x")
 
 AC_C_INLINE
 AX_C___ATTRIBUTE__
@@ -88,7 +106,6 @@ AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
 AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
-AC_CHECK_HEADERS(windows.h)     # let us know if we're cygwin or mingw
 AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(sys/socket.h)  # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(sys/wait.h)    # optional; for forking out to symbolizer
@@ -106,9 +123,6 @@ AC_CHECK_DECLS([cfree,
                [#define _XOPEN_SOURCE 600
                 #include <stdlib.h>
                 #include <malloc.h>])
-
-# Let the Makefile know if we can build windows programs
-AM_CONDITIONAL(HAVE_WINDOWS_H, test "$ac_cv_header_windows_h" = yes)
 
 # We need to check for mmap.  cygwin supports mmap, but the autoconf
 # test doesn't work on cygwin:

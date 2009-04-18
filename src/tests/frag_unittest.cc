@@ -35,9 +35,12 @@
 #include "config_for_unittests.h"
 #include <stdlib.h>
 #include <stdio.h>
-#ifndef _WIN32
+#ifdef HAVE_SYS_RESOURCE_H
 #include <sys/time.h>           // for struct timeval
 #include <sys/resource.h>       // for getrusage
+#endif
+#ifdef _WIN32
+#include <windows.h>            // for GetTickCount()
 #endif
 #include <vector>
 #include "base/logging.h"
@@ -80,12 +83,14 @@ int main(int argc, char** argv) {
   // Now do timing tests
   for (int i = 0; i < 5; i++) {
     static const int kIterations = 100000;
-#ifdef _WIN32
-    long long int tv_start = GetTickCount();
-#else
+#ifdef HAVE_SYS_RESOURCE_H
     struct rusage r;
     getrusage(RUSAGE_SELF, &r);    // figure out user-time spent on this
     struct timeval tv_start = r.ru_utime;
+#elif defined(_WIN32)
+    long long int tv_start = GetTickCount();
+#else
+# error No way to calculate time on your system
 #endif
 
     for (int i = 0; i < kIterations; i++) {
@@ -94,16 +99,18 @@ int main(int argc, char** argv) {
                                                       &s);
     }
 
-#ifdef _WIN32
+#ifdef HAVE_SYS_RESOURCE_H
+    getrusage(RUSAGE_SELF, &r);
+    struct timeval tv_end = r.ru_utime;
+    int64 sumsec = static_cast<int64>(tv_end.tv_sec) - tv_start.tv_sec;
+    int64 sumusec = static_cast<int64>(tv_end.tv_usec) - tv_start.tv_usec;
+#elif defined(_WIN32)
     long long int tv_end = GetTickCount();
     int64 sumsec = (tv_end - tv_start) / 1000;
     // Resolution in windows is only to the millisecond, alas
     int64 sumusec = ((tv_end - tv_start) % 1000) * 1000;
 #else
-    getrusage(RUSAGE_SELF, &r);
-    struct timeval tv_end = r.ru_utime;
-    int64 sumsec = static_cast<int64>(tv_end.tv_sec) - tv_start.tv_sec;
-    int64 sumusec = static_cast<int64>(tv_end.tv_usec) - tv_start.tv_usec;
+# error No way to calculate time on your system
 #endif
     fprintf(stderr, "getproperty: %6.1f ns/call\n",
             (sumsec * 1e9 + sumusec * 1e3) / kIterations);

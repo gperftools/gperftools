@@ -489,16 +489,23 @@ void ThreadCache::RecomputePerThreadCacheSize() {
   double ratio = space / max<double>(1, per_thread_cache_size_);
   size_t claimed = 0;
   for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
-    // Don't circumvent the slow-start growth of max_size_ by increasing
-    // the total cache size.
-    if (!use_dynamic_cache_size_ || ratio < 1.0) {
-      h->max_size_ = static_cast<size_t>(h->max_size_ * ratio);
+    if (use_dynamic_cache_size_) {
+      // Don't circumvent the slow-start growth of max_size_ by increasing the
+      // total cache size.
+      if (ratio < 1.0) {
+        h->max_size_ = static_cast<size_t>(h->max_size_ * ratio);
+      }
+    } else {
+      // Don't try to be clever and multiply by 'ratio' because rounding
+      // errors will eventually cause long-lived threads to have zero
+      // max_size_.
+      h->max_size_ = space;
     }
     claimed += h->max_size_;
   }
   unclaimed_cache_space_ = overall_thread_cache_size_ - claimed;
   per_thread_cache_size_ = space;
-  //MESSAGE("Threads %d => cache size %8d\n", n, int(space));
+  //  TCMalloc_MESSAGE(__FILE__, __LINE__, "Threads %d => cache size %8d\n", n, int(space));
 }
 
 void ThreadCache::Print(TCMalloc_Printer* out) const {

@@ -39,7 +39,7 @@
 
 using std::min;
 
-// Twice the approximate gap between sampling actions.
+// The approximate gap in bytes between sampling actions.
 // I.e., we take one sample approximately once every
 // tcmalloc_sample_parameter bytes of allocation
 // i.e. about once every 512KB.
@@ -59,9 +59,9 @@ namespace tcmalloc {
 // Statics for Sampler
 double Sampler::log_table_[1<<kFastlogNumBits];
 
-// Populate the lookup table for FastLog2
-// The approximates the log2 curve with a step function
-// Steps have height equal to log2 of the mid-point of the step
+// Populate the lookup table for FastLog2.
+// This approximates the log2 curve with a step function.
+// Steps have height equal to log2 of the mid-point of the step.
 void Sampler::PopulateFastLog2Table() {
   for (int i = 0; i < (1<<kFastlogNumBits); i++) {
     log_table_[i] = (log(1.0 + static_cast<double>(i+0.5)/(1<<kFastlogNumBits))
@@ -101,32 +101,30 @@ void Sampler::InitStatics() {
 // This is done by generating a random number between 0 and 1 and applying
 // the inverse cumulative distribution function for an exponential.
 // Specifically: Let m be the inverse of the sample period, then
-// p = 1 - exp(mx)
-// q = exp(mx)
-// log_e(q) = mx
-// log_e(q)/m = x
-// log_2(q) / (log_e(2) / m) = x
-// The value (log_e(2) / m) is precomputed
-// and may also be approximated for large sampler periods by
-// 1.0 / log2(1.0-1.0/(sample_period_));
-// In the code, q is actually in the range 1 to 2**26, hence the -26
+// the probability distribution function is m*exp(-mx) so the CDF is
+// p = 1 - exp(-mx), so
+// q = 1 - p = exp(-mx)
+// log_e(q) = -mx
+// -log_e(q)/m = x
+// log_2(q) * (-log_e(2) * 1/m) = x
+// In the code, q is actually in the range 1 to 2**26, hence the -26 below
 size_t Sampler::PickNextSamplingPoint() {
-  double sample_scaling = - log(2.0) * FLAGS_tcmalloc_sample_parameter;
   rnd_ = NextRandom(rnd_);
   // Take the top 26 bits as the random number
-  // (This plus the 1<<26 sampling bound give a max step possible of
-  // 1209424308 bytes.)
+  // (This plus the 1<<58 sampling bound give a max possible step of
+  // 5194297183973780480 bytes.)
   const uint64_t prng_mod_power = 48;  // Number of bits in prng
   // The uint32_t cast is to prevent a (hard-to-reproduce) NAN
   // under piii debug for some binaries.
   double q = static_cast<uint32_t>(rnd_ >> (prng_mod_power - 26)) + 1.0;
-  // Put the computed p-value through the CDF of a geometric
+  // Put the computed p-value through the CDF of a geometric.
   // For faster performance (save ~1/20th exec time), replace
-  // min(FastLog2(q) - 26,0)  by  (Fastlog2(q) - 26.000705)
+  // min(0.0, FastLog2(q) - 26)  by  (Fastlog2(q) - 26.000705)
   // The value 26.000705 is used rather than 26 to compensate
   // for inaccuracies in FastLog2 which otherwise result in a
   // negative answer.
-  return static_cast<size_t>(min(0.0, (FastLog2(q) - 26)) * sample_scaling + 1);
+  return static_cast<size_t>(min(0.0, (FastLog2(q) - 26)) * (-log(2.0)
+                             * FLAGS_tcmalloc_sample_parameter) + 1);
 }
 
 }  // namespace tcmalloc

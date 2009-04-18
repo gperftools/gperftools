@@ -146,9 +146,7 @@ PERFTOOLS_DLL_DECL void ProfilerDisable();
 /* Returns nonzero if profile is currently enabled, zero if it's not. */
 PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads();
 
-/* Routine for registering new threads with the profiler. This routine
- * is called by the Thread module in google3/thread whenever a new
- * thread is created.
+/* Routine for registering new threads with the profiler.
  */
 PERFTOOLS_DLL_DECL void ProfilerRegisterThread();
 

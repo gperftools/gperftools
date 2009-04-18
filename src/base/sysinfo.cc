@@ -31,6 +31,10 @@
 // Author: Mike Burrows
 
 #include "config.h"
+#if (defined(_WIN32) || defined(__MINGW32__)) && !defined(__CYGWIN__) && !defined(__CYGWIN32)
+# define OS_WINDOWS 1
+#endif
+
 #include <stdlib.h>   // for getenv()
 #include <stdio.h>    // for snprintf(), sscanf()
 #include <string.h>   // for memmove(), memchr(), etc.
@@ -48,7 +52,7 @@
 #include <sys/sysctl.h>
 #elif defined __sun__         // Solaris
 #include <procfs.h>           // for, e.g., prmap_t
-#elif defined(_WIN32) || defined(__MINGW32__)
+#elif defined(OS_WINDOWS)
 #include <process.h>          // for getpid() (actually, _getpid())
 #include <shlwapi.h>          // for SHGetValueA()
 #include <tlhelp32.h>         // for Module32First()
@@ -58,7 +62,7 @@
 #include "base/logging.h"
 #include "base/cycleclock.h"
 
-#ifdef _WIN32
+#ifdef OS_WINDOWS
 #ifdef MODULEENTRY32
 // In a change from the usual W-A pattern, there is no A variant of
 // MODULEENTRY32.  Tlhelp32.h #defines the W variant, but not the A.
@@ -75,7 +79,7 @@
 #ifndef TH32CS_SNAPMODULE32
 #define TH32CS_SNAPMODULE32  0
 #endif  /* TH32CS_SNAPMODULE32 */
-#endif  /* _WIN32 */
+#endif  /* OS_WINDOWS */
 
 // Re-run fn until it doesn't cause EINTR.
 #define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
@@ -177,7 +181,7 @@ static double cpuinfo_cycles_per_second = 1.0;  // 0.0 might be dangerous
 static int cpuinfo_num_cpus = 1;  // Conservative guess
 
 static void SleepForMilliseconds(int milliseconds) {
-#ifdef _WIN32
+#ifdef OS_WINDOWS
   _sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
 #else
   // Sleep for a few milliseconds
@@ -334,7 +338,7 @@ static void InitializeSystemInfo() {
   }
   // TODO(csilvers): also figure out cpuinfo_num_cpus
 
-#elif defined(_WIN32) || defined(__MINGW32__)
+#elif defined(OS_WINDOWS)
 # pragma comment(lib, "shlwapi.lib")  // for SHGetValue()
   // In NT, read MHz from the registry. If we fail to do so or we're in win9x
   // then make a crude estimate.
@@ -410,7 +414,7 @@ bool HasPosixThreads() {
   if (confstr(_CS_GNU_LIBPTHREAD_VERSION, buf, sizeof(buf)) == 0)
     return false;
   return strncmp(buf, "NPTL", 4) == 0;
-#elif defined(_WIN32) || defined(__MINGW32__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
+#elif defined(OS_WINDOWS) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   return false;
 #else  // other OS
   return true;      //  Assume that everything else has Posix
@@ -492,7 +496,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
 #elif defined(__MACH__)
   current_image_ = _dyld_image_count();   // count down from the top
   current_load_cmd_ = -1;
-#elif defined(_WIN32) || defined(__MINGW32__)
+#elif defined(OS_WINDOWS)
   snapshot_ = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
                                        TH32CS_SNAPMODULE32,
                                        GetCurrentProcessId());
@@ -504,7 +508,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
 }
 
 ProcMapsIterator::~ProcMapsIterator() {
-#if defined(_WIN32) || defined(__MINGW32__)
+#if defined(OS_WINDOWS)
   if (snapshot_ != INVALID_HANDLE_VALUE) CloseHandle(snapshot_);
 #elif defined(__MACH__)
   // no cleanup necessary!
@@ -515,7 +519,7 @@ ProcMapsIterator::~ProcMapsIterator() {
 }
 
 bool ProcMapsIterator::Valid() const {
-#if defined(_WIN32) || defined(__MINGW32__)
+#if defined(OS_WINDOWS)
   return snapshot_ != INVALID_HANDLE_VALUE;
 #elif defined(__MACH__)
   return 1;
@@ -579,13 +583,31 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     int64 tmpinode;
     int major, minor;
     unsigned filename_offset = 0;
-#if defined(__linux__)  || defined(__CYGWIN__) || defined(__CYGWIN32__)
+#if defined(__linux__)
     // for now, assume all linuxes have the same format
     if (sscanf(stext_, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
                start ? start : &tmpstart,
                end ? end : &tmpend,
                flags_,
                offset ? offset : &tmpoffset,
+               &major, &minor,
+               inode ? inode : &tmpinode, &filename_offset) != 7) continue;
+#elif defined(__CYGWIN__) || defined(__CYGWIN32__)
+    // cygwin is like linux, except the third field is the "entry point"
+    // rather than the offset (see format_process_maps at
+    // http://cygwin.com/cgi-bin/cvsweb.cgi/src/winsup/cygwin/fhandler_process.cc?rev=1.89&content-type=text/x-cvsweb-markup&cvsroot=src
+    // Offset is always be 0 on cygwin: cygwin implements an mmap
+    // by loading the whole file and then calling NtMapViewOfSection.
+    // Cygwin also seems to set its flags kinda randomly; use windows default.
+    char tmpflags[5];
+    if (offset)
+      *offset = 0;
+    strcpy(flags_, "r-xp");
+    if (sscanf(stext_, "%llx-%llx %4s %llx %x:%x %lld %n",
+               start ? start : &tmpstart,
+               end ? end : &tmpend,
+               tmpflags,
+               &tmpoffset,
                &major, &minor,
                inode ? inode : &tmpinode, &filename_offset) != 7) continue;
 #elif defined(__FreeBSD__)
@@ -722,7 +744,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     // If we get here, no more load_cmd's in this image talk about
     // segments.  Go on to the next image.
   }
-#elif defined(_WIN32) || defined(__MINGW32__)
+#elif defined(OS_WINDOWS)
   static char kDefaultPerms[5] = "r-xp";
   BOOL ok;
   if (module_.dwSize == 0) {  // only possible before first call

@@ -66,25 +66,25 @@ rm -rf $RPM_BUILD_ROOT
 %doc doc/cpuprofile.html doc/cpuprofile-fileformat.html
 %doc doc/pprof-test-big.gif doc/pprof-test.gif doc/pprof-vsnprintf-big.gif doc/pprof-vsnprintf.gif
 
-%{prefix}/lib/libtcmalloc.so.0
-%{prefix}/lib/libtcmalloc.so.0.0.0
-%{prefix}/lib/libtcmalloc_minimal.so.0
-%{prefix}/lib/libtcmalloc_minimal.so.0.0.0
-%{prefix}/lib/libprofiler.so.0
-%{prefix}/lib/libprofiler.so.0.0.0
-%{prefix}/bin/pprof
-%{prefix}/man/man1/pprof.1.gz
+%{_libdir}/libtcmalloc.so.0
+%{_libdir}/libtcmalloc.so.0.0.0
+%{_libdir}/libtcmalloc_minimal.so.0
+%{_libdir}/libtcmalloc_minimal.so.0.0.0
+%{_libdir}/libprofiler.so.0
+%{_libdir}/libprofiler.so.0.0.0
+%{_bindir}/pprof
+%{_mandir}/man1/pprof.1.gz
 
 %files devel
 %defattr(-,root,root)
 
-%{prefix}/include/google
-%{prefix}/lib/libtcmalloc.a
-%{prefix}/lib/libtcmalloc.la
-%{prefix}/lib/libtcmalloc.so
-%{prefix}/lib/libtcmalloc_minimal.a
-%{prefix}/lib/libtcmalloc_minimal.la
-%{prefix}/lib/libtcmalloc_minimal.so
-%{prefix}/lib/libprofiler.a
-%{prefix}/lib/libprofiler.la
-%{prefix}/lib/libprofiler.so
+%{_includedir}/google
+%{_libdir}/libtcmalloc.a
+%{_libdir}/libtcmalloc.la
+%{_libdir}/libtcmalloc.so
+%{_libdir}/libtcmalloc_minimal.a
+%{_libdir}/libtcmalloc_minimal.la
+%{_libdir}/libtcmalloc_minimal.so
+%{_libdir}/libprofiler.a
+%{_libdir}/libprofiler.la
+%{_libdir}/libprofiler.so

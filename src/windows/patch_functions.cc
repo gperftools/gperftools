@@ -28,7 +28,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //
 // ---
-// Author: Craig Silversteion
+// Author: Craig Silverstein
 //
 // The main purpose of this file is to patch the libc allocation
 // routines (malloc and friends, but also _msize and other
@@ -67,6 +67,11 @@
 #endif
 
 #include "config.h"
+
+#ifdef WIN32_OVERRIDE_ALLOCATORS
+#error This file is intended for patching allocators - use override_functions.cc instead.
+#endif
+
 #include <windows.h>
 #include <malloc.h>       // for _msize and _expand
 #include <tlhelp32.h>     // for CreateToolhelp32Snapshot()
@@ -476,7 +481,7 @@ void LibcInfoWithPatchFunctions<T>::Unpatch() {
 }
 
 void WindowsInfo::Patch() {
-  HMODULE hkernel32 = ::GetModuleHandle("kernel32");
+  HMODULE hkernel32 = ::GetModuleHandleA("kernel32");
   CHECK_NE(hkernel32, NULL);
 
   // Unlike for libc, we know these exist in our module, so we can get
@@ -693,8 +698,10 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
                           (void (*)(void*))origstub_fn_[kFree]);
     return NULL;
   }
-  return do_realloc_with_callback(old_ptr, new_size, ((void* (*)(void*, size_t))
-                                                      origstub_fn_[kRealloc]));
+  return do_realloc_with_callback(
+      old_ptr, new_size,
+      (void (*)(void*))origstub_fn_[kFree],
+      (size_t (*)(void*))origstub_fn_[k_Msize]);
 }
 
 template<int T>
@@ -772,28 +779,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
 
 template<int T>
 size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
-  // Get the size of the old entry
-  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-  Span *span = NULL;
-  size_t old_size;
-  if (cl == 0) {
-    span = Static::pageheap()->GetDescriptor(p);
-    if (!span) {
-      // This can happen on windows because some constructors may
-      // construct things before tcmalloc hooks _msize().
-      return ((size_t (*)(void*))origstub_fn_[k_Msize])(ptr);
-    }
-    cl = span->sizeclass;
-    Static::pageheap()->CacheSizeClass(p, cl);
-  }
-  if (cl != 0) {
-    old_size = Static::sizemap()->ByteSizeForClass(cl);
-  } else {
-    ASSERT(span != NULL);
-    old_size = span->length << kPageShift;
-  }
-  return old_size;
+  return GetSizeWithCallback(ptr, (size_t (*)(void*))origstub_fn_[k_Msize]);
 }
 
 // We need to define this because internal windows functions like to

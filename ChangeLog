@@ -1,3 +1,21 @@
+Fri Apr 17 16:40:48 2009  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.2 release
+	* Allow large_alloc_threshold=0 to turn it off entirely (csilvers)
+	* Die more helpfully when out of memory for internal data (csilvers)
+	* Refactor profile-data gathering, add a new unittest (cgd, nabeelmian)
+	* BUGFIX: fix rounding errors with static thread-size caches (addi)
+	* BUGFIX: disable hooks better when forking in leak-checker (csilvers)
+	* BUGFIX: fix realloc of crt pointers on windows (csilvers)
+	* BUGFIX: do a better job of finding binaries in .sh tests (csilvers)
+	* WINDOWS: allow overriding malloc/etc instead of patching (mbelshe)
+	* PORTING: fix compilation error in a ppc-specific file (csilvers)
+	* PORTING: deal with quirks in cygwin's /proc/self/maps (csilvers)
+	* PORTING: use 'A' version of functions for ascii input (mbelshe)
+	* PORTING: generate .so's on cygwin and mingw (ajenjo)
+	* PORTING: disable profiler methods on cygwin (jperkins)
+	* Updated autoconf version to 2.61 and libtool version to 1.5.26
+
 Wed Mar 11 11:25:34 2009  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.1 release

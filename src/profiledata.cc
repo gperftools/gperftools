@@ -190,13 +190,25 @@ void ProfileData::Stop() {
   // Dump "/proc/self/maps" so we get list of mapped shared libraries
   DumpProcSelfMaps(out_);
 
-  close(out_);
+  Reset();
   fprintf(stderr, "PROFILE: interrupts/evictions/bytes = %d/%d/%" PRIuS "\n",
           count_, evictions_, total_bytes_);
+}
+
+void ProfileData::Reset() {
+  if (!enabled()) {
+    return;
+  }
+
+  // Don't reset count_, evictions_, or total_bytes_ here.  They're used
+  // by Stop to print information about the profile after reset, and are
+  // cleared by Start when starting a new profile.
+  close(out_);
   delete[] hash_;
   hash_ = 0;
   delete[] evict_;
   evict_ = 0;
+  num_evicted_ = 0;
   free(fname_);
   fname_ = 0;
   start_time_ = 0;

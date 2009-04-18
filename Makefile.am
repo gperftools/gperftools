@@ -17,13 +17,14 @@ endif !WITH_STACK_TRACE
 # This is mostly based on configure options
 AM_CXXFLAGS =
 
-# This is to fix a solaris bug
-AM_LDFLAGS = $(LIBSTDCXX_LA_LINKER_FLAG)
-
 # These are good warnings to turn on by default,
 if GCC
 AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare
 endif GCC
+
+# The -no-undefined flag allows libtool to generate shared libraries for
+# Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
+AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
 
 # We know our low-level code cannot trigger an exception.  On some
 # systems, such as cygwin, it would be disastrous if they did, because
@@ -101,6 +102,9 @@ noinst_PROGRAMS =
 # Binaries we might build that should be installed
 bin_PROGRAMS =
 
+# This is my own var, used for extra libraries I make that I need installed
+EXTRA_INSTALL =
+
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
 dist_doc_DATA += doc/index.html doc/designstyle.css
@@ -156,6 +160,9 @@ LIBSPINLOCK = libwindows.la libsysinfo.la liblogging.la
 # (We do this via a #pragma for msvc, but need to do it here for mingw).
 libsysinfo_la_LIBADD += -lshlwapi
 
+# patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
+TCMALLOC_CC =
+# windows has its own system for threads and system memory allocation.
 MAYBE_THREADS_CC =
 SYSTEM_ALLOC_CC =
 else !MINGW
@@ -175,6 +182,7 @@ libspinlock_la_LIBADD = $(NANOSLEEP_LIBS)
 # spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
 LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
 
+TCMALLOC_CC = src/tcmalloc.cc
 MAYBE_THREADS_CC = src/maybe_threads.cc
 SYSTEM_ALLOC_CC = src/system-alloc.cc
 endif !MINGW
@@ -273,21 +281,12 @@ TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
 dist_man_MANS = doc/pprof.1
 dist_doc_DATA += doc/pprof_remote_servers.html
 
-# On windows, we need our own versions of addr2line and nm to work with pprof
-# We always include the relevant files in 'make dist', but only conditionally
-# compile them.
+# On MSVC, we need our own versions of addr2line and nm to work with pprof.
 WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcproj
 WINDOWS_PROJECTS += vsprojects/addr2line-pdb/addr2line-pdb.vcproj
-
-nm_pdb_SOURCES = src/windows/nm-pdb.c
-addr2line_pdb_SOURCES = src/windows/addr2line-pdb.c
-
-# TODO(csilvers): these don't currently compile under mingw/cygwin,
-# since they don't have dbghelp.h.  Figure that out later.
-## if HAVE_WINDOWS_H
-## bin_PROGRAMS += nm-pdb addr2line-pdb
-## endif HAVE_WINDOWS_H
-WINDOWS_PROJECTS += $(nm_pdb_SOURCES) $(addr2line_pdb_SOURCES)
+# This is a slight abuse of WINDOWS_PROJECTS, but not much
+WINDOWS_PROJECTS += src/windows/nm-pdb.c \
+                    src/windows/addr2line-pdb.c
 
 endif WITH_STACK_TRACE
 
@@ -353,7 +352,7 @@ libtcmalloc_minimal_internal_la_LIBADD = $(PTHREAD_LIBS) $(LIBSPINLOCK)
 
 lib_LTLIBRARIES += libtcmalloc_minimal.la
 WINDOWS_PROJECTS += vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcproj
-libtcmalloc_minimal_la_SOURCES = src/tcmalloc.cc $(TCMALLOC_MINIMAL_INCLUDES)
+libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
@@ -417,6 +416,7 @@ TESTS += maybe_threads_unittest.sh$(EXEEXT)
 maybe_threads_unittest_sh_SOURCES = src/tests/maybe_threads_unittest.sh
 noinst_SCRIPTS += $(maybe_threads_unittest_sh_SOURCES)
 # This script preloads libtcmalloc, and calls two other binaries as well
+# TODO(csilvers): replace by 'if ! cmp $^ $@ >/dev/null 2>&; then ...; fi'
 maybe_threads_unittest.sh$(EXEEXT): $(top_srcdir)/$(maybe_threads_unittest_sh_SOURCES) \
                            $(LIBTCMALLOC_MINIMAL) \
                            low_level_alloc_unittest
@@ -629,7 +629,7 @@ libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_internal_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
 
 lib_LTLIBRARIES += libtcmalloc.la
-libtcmalloc_la_SOURCES = src/tcmalloc.cc $(TCMALLOC_INCLUDES)
+libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES)
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) libtcmalloc_internal.la
@@ -644,6 +644,20 @@ libtcmalloc_la_SOURCES += src/base/thread_lister.c \
                           src/heap-checker.cc \
                           src/heap-checker-bcad.cc
 endif WITH_HEAP_CHECKER
+
+# We want a different libtcmalloc.a than the one libtool produces: we
+# want to use ld -r rather than ar.  Since all .o files in libtcmalloc
+# are used, 'ld -r' is a strict advantage over 'ar' -- in fact, with
+# the .a, the heap-profiler and heap-checker don't get linked in
+# (since they do work only in global constructors and destructors).
+# We just replace the .a with an 'ld-r-ized' version under libtool's
+# nose.  We use libtool to create a .o file (it uses ld -r to do that
+# when the input is a .a) and then rename it.
+libtcmalloc.o: libtcmalloc.la $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_DEPENDENCIES) $(libtcmalloc_la_LIBADD)
+	$(CXXLINK) $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_LIBADD)
+	cp -f "$@" .libs/libtcmalloc.a
+
+EXTRA_INSTALL += libtcmalloc.o 
 
 LIBTCMALLOC = libtcmalloc.la
 
@@ -800,6 +814,7 @@ if WITH_CPU_PROFILER
 
 ### The header files we use.  We divide into categories based on directory
 S_CPU_PROFILER_INCLUDES = src/profiledata.h \
+                          src/profile-handler.h \
                           src/getpc.h \
                           src/base/basictypes.h \
                           src/base/commandlineflags.h \
@@ -817,12 +832,26 @@ googleinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
 ### Making the library
 lib_LTLIBRARIES += libprofiler.la
 libprofiler_la_SOURCES = src/profiler.cc \
+                         src/profile-handler.cc \
                          src/profiledata.cc \
                          $(CPU_PROFILER_INCLUDES)
 libprofiler_la_LIBADD = libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
-CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData)'
+CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData|ProfileHandler)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
+
+# We want a different libprofiler.a than the one libtool produces: we
+# want to use ld -r rather than ar.  Since all .o files in libprofiler
+# are used, 'ld -r' is a strict advantage over 'ar' -- in fact, with
+# the .a, the library doesn't get linked in
+# (since it does work only in global constructors and destructors).
+# We just replace the .a with an 'ld-r-ized' version under libtool's
+# nose.
+libprofiler.o: libprofiler.la $(libprofiler_la_OBJECTS) $(libprofiler_la_DEPENDENCIES) $(libprofiler_la_LIBADD)
+	$(CXXLINK) $(libprofiler_la_OBJECTS) $(libprofiler_la_LIBADD)
+	cp -f "$@" .libs/libprofiler.a
+
+EXTRA_INSTALL += libprofiler.o
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
 # Basically it's to work around systems where --rpath doesn't work right.
@@ -841,6 +870,13 @@ profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc \
                                src/base/logging.h \
                                src/base/basictypes.h
 profiledata_unittest_LDADD = $(LIBPROFILER)
+
+TESTS += profile_handler_unittest
+profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc \
+                                   src/profile-handler.h
+profile_handler_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
+profile_handler_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
+profile_handler_unittest_LDADD = $(LIBPROFILER) $(PTHREAD_LIBS)
 
 TESTS += profiler_unittest.sh$(EXEEXT)
 profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
@@ -905,6 +941,16 @@ deb: dist-gzip packages/deb.sh packages/deb/*
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
+
+# Luckily, this gets run before install-libLTLIBRARIES, so it gives
+# us a chance to replace the libtool version of the .a's with our own
+install-exec-local: $(EXTRA_INSTALL)
+
+# Do the replacing at normal build time as well
+all-local: $(EXTRA_INSTALL)
+
+clean-local:
+	rm -f libtcmalloc.o libprofiler.o
 
 # Windows wants write permission to .vcproj files and maybe even sln files.
 dist-hook:

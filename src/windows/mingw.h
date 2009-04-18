@@ -47,6 +47,8 @@
 
 #include "windows/port.h"
 
+#define HAVE_SNPRINTF 1
+
 #endif  /* __MINGW32__ */
 
 #endif  /* GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_ */

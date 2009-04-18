@@ -77,17 +77,13 @@ bin_PROGRAMS =
 # Let unittests find pprof if they need to run it
 @WITH_STACK_TRACE_TRUE@am__append_14 = PPROF_PATH=$(top_srcdir)/src/pprof
 
-# On windows, we need our own versions of addr2line and nm to work with pprof
-# We always include the relevant files in 'make dist', but only conditionally
-# compile them.
-
-# TODO(csilvers): these don't currently compile under mingw/cygwin,
-# since they don't have dbghelp.h.  Figure that out later.
+# On MSVC, we need our own versions of addr2line and nm to work with pprof.
+# This is a slight abuse of WINDOWS_PROJECTS, but not much
 @WITH_STACK_TRACE_TRUE@am__append_15 =  \
 @WITH_STACK_TRACE_TRUE@	vsprojects/nm-pdb/nm-pdb.vcproj \
 @WITH_STACK_TRACE_TRUE@	vsprojects/addr2line-pdb/addr2line-pdb.vcproj \
-@WITH_STACK_TRACE_TRUE@	$(nm_pdb_SOURCES) \
-@WITH_STACK_TRACE_TRUE@	$(addr2line_pdb_SOURCES)
+@WITH_STACK_TRACE_TRUE@	src/windows/nm-pdb.c \
+@WITH_STACK_TRACE_TRUE@	src/windows/addr2line-pdb.c
 
 # This tests it works to LD_PRELOAD libtcmalloc (tests maybe_threads.cc)
 # In theory this should work under mingw, but mingw has trouble running
@@ -120,6 +116,7 @@ EXTRA_PROGRAMS = ptmalloc_unittest1$(EXEEXT) \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                          src/heap-checker.cc \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                          src/heap-checker-bcad.cc
 
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_24 = libtcmalloc.o 
 
 ### Unittests
 
@@ -127,59 +124,61 @@ EXTRA_PROGRAMS = ptmalloc_unittest1$(EXEEXT) \
 # tcmalloc_minimal.  (One would never do this on purpose, but perhaps
 # by accident...)  When we can compile libprofiler, we also link it in
 # to make sure that works too.
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_24 = tcmalloc_unittest \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_25 = tcmalloc_unittest \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_both_unittest \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_large_unittest \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	raw_printer_test \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampler_test \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampling_test.sh$(EXEEXT)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_25 = vsprojects/sampler_test/sampler_test.vcproj
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_26 = vsprojects/sampler_test/sampler_test.vcproj
 
 # These unittests often need to run binaries.  They're in the current dir
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_26 = BINDIR=. \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_27 = BINDIR=. \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	TMPDIR=/tmp/perftools
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_27 = $(sampling_test_sh_SOURCES)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_28 = $(sampling_test_sh_SOURCES)
 
 # This is the sub-program using by sampling_test.sh
 # The -g is so pprof can get symbol information.
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_28 = sampling_test
-@WITH_HEAP_PROFILER_TRUE@am__append_29 = heap-profiler_unittest.sh$(EXEEXT)
-@WITH_HEAP_PROFILER_TRUE@am__append_30 = $(heap_profiler_unittest_sh_SOURCES)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_29 = sampling_test
+@WITH_HEAP_PROFILER_TRUE@am__append_30 = heap-profiler_unittest.sh$(EXEEXT)
+@WITH_HEAP_PROFILER_TRUE@am__append_31 = $(heap_profiler_unittest_sh_SOURCES)
 
 # These are sub-programs used by heap-profiler_unittest.sh
-@WITH_HEAP_PROFILER_TRUE@am__append_31 = heap-profiler_unittest
-@WITH_HEAP_CHECKER_TRUE@am__append_32 =  \
+@WITH_HEAP_PROFILER_TRUE@am__append_32 = heap-profiler_unittest
+@WITH_HEAP_CHECKER_TRUE@am__append_33 =  \
 @WITH_HEAP_CHECKER_TRUE@	heap-checker_unittest.sh$(EXEEXT) \
 @WITH_HEAP_CHECKER_TRUE@	heap-checker-death_unittest.sh$(EXEEXT)
-@WITH_HEAP_CHECKER_TRUE@am__append_33 =  \
+@WITH_HEAP_CHECKER_TRUE@am__append_34 =  \
 @WITH_HEAP_CHECKER_TRUE@	$(heap_checker_unittest_sh_SOURCES) \
 @WITH_HEAP_CHECKER_TRUE@	$(top_srcdir)/$(heap_checker_death_unittest_sh_SOURCES)
 
 # These are sub-programs used by heap-checker_unittest.sh
-@WITH_HEAP_CHECKER_TRUE@am__append_34 = heap-checker_unittest
+@WITH_HEAP_CHECKER_TRUE@am__append_35 = heap-checker_unittest
 
 ### Documentation (above and beyond tcmalloc_minimal documentation)
-@WITH_HEAP_PROFILER_TRUE@am__append_35 = doc/heapprofile.html doc/heap-example1.png
-@WITH_HEAP_CHECKER_TRUE@am__append_36 = doc/heap_checker.html
-@WITH_CPU_PROFILER_TRUE@am__append_37 = $(SG_CPU_PROFILER_INCLUDES)
+@WITH_HEAP_PROFILER_TRUE@am__append_36 = doc/heapprofile.html doc/heap-example1.png
+@WITH_HEAP_CHECKER_TRUE@am__append_37 = doc/heap_checker.html
+@WITH_CPU_PROFILER_TRUE@am__append_38 = $(SG_CPU_PROFILER_INCLUDES)
 
 ### Making the library
-@WITH_CPU_PROFILER_TRUE@am__append_38 = libprofiler.la
+@WITH_CPU_PROFILER_TRUE@am__append_39 = libprofiler.la
+@WITH_CPU_PROFILER_TRUE@am__append_40 = libprofiler.o
 
 ### Unittests
-@WITH_CPU_PROFILER_TRUE@am__append_39 = getpc_test \
+@WITH_CPU_PROFILER_TRUE@am__append_41 = getpc_test \
 @WITH_CPU_PROFILER_TRUE@	profiledata_unittest \
+@WITH_CPU_PROFILER_TRUE@	profile_handler_unittest \
 @WITH_CPU_PROFILER_TRUE@	profiler_unittest.sh$(EXEEXT)
-@WITH_CPU_PROFILER_TRUE@am__append_40 = $(profiler_unittest_sh_SOURCES)
+@WITH_CPU_PROFILER_TRUE@am__append_42 = $(profiler_unittest_sh_SOURCES)
 
 # These are sub-programs used by profiler_unittest.sh
-@WITH_CPU_PROFILER_TRUE@am__append_41 = profiler1_unittest profiler2_unittest profiler3_unittest \
+@WITH_CPU_PROFILER_TRUE@am__append_43 = profiler1_unittest profiler2_unittest profiler3_unittest \
 @WITH_CPU_PROFILER_TRUE@                   profiler4_unittest
 
 @WITH_CPU_PROFILER_FALSE@profiler2_unittest_DEPENDENCIES =
 
 ### Documentation
-@WITH_CPU_PROFILER_TRUE@am__append_42 = doc/cpuprofile.html \
+@WITH_CPU_PROFILER_TRUE@am__append_44 = doc/cpuprofile.html \
 @WITH_CPU_PROFILER_TRUE@                 doc/cpuprofile-fileformat.html \
 @WITH_CPU_PROFILER_TRUE@                 doc/pprof-test-big.gif \
 @WITH_CPU_PROFILER_TRUE@                 doc/pprof-test.gif \
@@ -228,8 +227,9 @@ am_liblogging_la_OBJECTS = logging.lo dynamic_annotations.lo \
 liblogging_la_OBJECTS = $(am_liblogging_la_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@libprofiler_la_DEPENDENCIES =  \
 @WITH_CPU_PROFILER_TRUE@	libstacktrace.la
-am__libprofiler_la_SOURCES_DIST = src/profiler.cc src/profiledata.cc \
-	src/profiledata.h src/getpc.h src/base/basictypes.h \
+am__libprofiler_la_SOURCES_DIST = src/profiler.cc \
+	src/profile-handler.cc src/profiledata.cc src/profiledata.h \
+	src/profile-handler.h src/getpc.h src/base/basictypes.h \
 	src/base/commandlineflags.h src/base/googleinit.h \
 	src/base/logging.h src/base/simple_mutex.h src/base/sysinfo.h \
 	src/base/spinlock.h src/base/atomicops.h \
@@ -244,7 +244,8 @@ am__libprofiler_la_SOURCES_DIST = src/profiler.cc src/profiledata.cc \
 @WITH_CPU_PROFILER_TRUE@am__objects_3 = $(am__objects_2) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_libprofiler_la_OBJECTS = profiler.lo \
-@WITH_CPU_PROFILER_TRUE@	profiledata.lo $(am__objects_3)
+@WITH_CPU_PROFILER_TRUE@	profile-handler.lo profiledata.lo \
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_3)
 libprofiler_la_OBJECTS = $(am_libprofiler_la_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@am_libprofiler_la_rpath = -rpath $(libdir)
 am__DEPENDENCIES_1 =
@@ -310,19 +311,21 @@ am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/google/heap-profiler.h src/google/heap-checker.h \
 	src/base/thread_lister.c src/base/linuxthreads.cc \
 	src/heap-checker.cc src/heap-checker-bcad.cc
-am__objects_5 = $(am__objects_1)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_6 = $(am__objects_5) \
+@MINGW_FALSE@am__objects_5 = libtcmalloc_la-tcmalloc.lo
+am__objects_6 = $(am__objects_1)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_7 = $(am__objects_6) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_7 = $(am__objects_1)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_8 = $(am__objects_6) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_7)
-@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_9 = thread_lister.lo \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_8 = $(am__objects_1)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_9 = $(am__objects_7) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8)
+@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_10 = thread_lister.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_la-linuxthreads.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_la-heap-checker.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_la-heap-checker-bcad.lo
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_la_OBJECTS = libtcmalloc_la-tcmalloc.lo \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_la_OBJECTS =  \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_5) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_10)
 libtcmalloc_la_OBJECTS = $(am_libtcmalloc_la_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_la_rpath = -rpath \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(libdir)
@@ -358,12 +361,12 @@ am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/google/heap-checker.h src/base/low_level_alloc.cc \
 	src/heap-profile-table.cc src/heap-profiler.cc \
 	src/raw_printer.cc src/memory_region_map.cc
-@MINGW_FALSE@am__objects_10 = libtcmalloc_internal_la-system-alloc.lo
-@MINGW_FALSE@am__objects_11 =  \
+@MINGW_FALSE@am__objects_11 = libtcmalloc_internal_la-system-alloc.lo
+@MINGW_FALSE@am__objects_12 =  \
 @MINGW_FALSE@	libtcmalloc_internal_la-maybe_threads.lo
-am__objects_12 = $(am__objects_5) $(am__objects_1)
-am__objects_13 = libtcmalloc_internal_la-common.lo \
-	libtcmalloc_internal_la-internal_logging.lo $(am__objects_10) \
+am__objects_13 = $(am__objects_6) $(am__objects_1)
+am__objects_14 = libtcmalloc_internal_la-common.lo \
+	libtcmalloc_internal_la-internal_logging.lo $(am__objects_11) \
 	libtcmalloc_internal_la-memfs_malloc.lo \
 	libtcmalloc_internal_la-central_freelist.lo \
 	libtcmalloc_internal_la-page_heap.lo \
@@ -373,11 +376,11 @@ am__objects_13 = libtcmalloc_internal_la-common.lo \
 	libtcmalloc_internal_la-static_vars.lo \
 	libtcmalloc_internal_la-thread_cache.lo \
 	libtcmalloc_internal_la-malloc_hook.lo \
-	libtcmalloc_internal_la-malloc_extension.lo $(am__objects_11) \
-	$(am__objects_12)
+	libtcmalloc_internal_la-malloc_extension.lo $(am__objects_12) \
+	$(am__objects_13)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_internal_la_OBJECTS =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_13) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_14) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal_la-low_level_alloc.lo \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal_la-heap-profile-table.lo \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal_la-heap-profiler.lo \
@@ -403,8 +406,9 @@ am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/malloc_hook-inl.h src/maybe_threads.h \
 	src/google/malloc_hook.h src/google/malloc_hook_c.h \
 	src/google/malloc_extension.h src/google/stacktrace.h
-am_libtcmalloc_minimal_la_OBJECTS =  \
-	libtcmalloc_minimal_la-tcmalloc.lo $(am__objects_12)
+@MINGW_FALSE@am__objects_15 = libtcmalloc_minimal_la-tcmalloc.lo
+am_libtcmalloc_minimal_la_OBJECTS = $(am__objects_15) \
+	$(am__objects_13)
 libtcmalloc_minimal_la_OBJECTS = $(am_libtcmalloc_minimal_la_OBJECTS)
 libtcmalloc_minimal_internal_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_2)
@@ -428,14 +432,14 @@ am__libtcmalloc_minimal_internal_la_SOURCES_DIST = src/common.cc \
 	src/malloc_hook-inl.h src/maybe_threads.h \
 	src/google/malloc_hook.h src/google/malloc_hook_c.h \
 	src/google/malloc_extension.h src/google/stacktrace.h
-@MINGW_FALSE@am__objects_14 =  \
+@MINGW_FALSE@am__objects_16 =  \
 @MINGW_FALSE@	libtcmalloc_minimal_internal_la-system-alloc.lo
-@MINGW_FALSE@am__objects_15 =  \
+@MINGW_FALSE@am__objects_17 =  \
 @MINGW_FALSE@	libtcmalloc_minimal_internal_la-maybe_threads.lo
 am_libtcmalloc_minimal_internal_la_OBJECTS =  \
 	libtcmalloc_minimal_internal_la-common.lo \
 	libtcmalloc_minimal_internal_la-internal_logging.lo \
-	$(am__objects_14) \
+	$(am__objects_16) \
 	libtcmalloc_minimal_internal_la-memfs_malloc.lo \
 	libtcmalloc_minimal_internal_la-central_freelist.lo \
 	libtcmalloc_minimal_internal_la-page_heap.lo \
@@ -446,7 +450,7 @@ am_libtcmalloc_minimal_internal_la_OBJECTS =  \
 	libtcmalloc_minimal_internal_la-thread_cache.lo \
 	libtcmalloc_minimal_internal_la-malloc_hook.lo \
 	libtcmalloc_minimal_internal_la-malloc_extension.lo \
-	$(am__objects_15) $(am__objects_12)
+	$(am__objects_17) $(am__objects_13)
 libtcmalloc_minimal_internal_la_OBJECTS =  \
 	$(am_libtcmalloc_minimal_internal_la_OBJECTS)
 libwindows_la_LIBADD =
@@ -492,6 +496,7 @@ binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 @WITH_HEAP_CHECKER_TRUE@	heap-checker-death_unittest.sh$(EXEEXT)
 @WITH_CPU_PROFILER_TRUE@am__EXEEXT_13 = getpc_test$(EXEEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiledata_unittest$(EXEEXT) \
+@WITH_CPU_PROFILER_TRUE@	profile_handler_unittest$(EXEEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler_unittest.sh$(EXEEXT)
 am__EXEEXT_14 = low_level_alloc_unittest$(EXEEXT) $(am__EXEEXT_5) \
 	$(am__EXEEXT_6) tcmalloc_minimal_unittest$(EXEEXT) \
@@ -506,7 +511,7 @@ am__EXEEXT_14 = low_level_alloc_unittest$(EXEEXT) $(am__EXEEXT_5) \
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
 am_addressmap_unittest_OBJECTS =  \
 	addressmap_unittest-addressmap_unittest.$(OBJEXT) \
-	$(am__objects_5)
+	$(am__objects_6)
 addressmap_unittest_OBJECTS = $(am_addressmap_unittest_OBJECTS)
 addressmap_unittest_DEPENDENCIES = liblogging.la
 am__atomicops_unittest_SOURCES_DIST = src/tests/atomicops_unittest.cc \
@@ -515,9 +520,9 @@ am__atomicops_unittest_SOURCES_DIST = src/tests/atomicops_unittest.cc \
 	src/base/atomicops-internals-x86.h src/base/logging.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/base/dynamic_annotations.h
-@MINGW_FALSE@am__objects_16 = $(am__objects_1)
+@MINGW_FALSE@am__objects_18 = $(am__objects_1)
 @MINGW_FALSE@am_atomicops_unittest_OBJECTS =  \
-@MINGW_FALSE@	atomicops_unittest.$(OBJEXT) $(am__objects_16)
+@MINGW_FALSE@	atomicops_unittest.$(OBJEXT) $(am__objects_18)
 atomicops_unittest_OBJECTS = $(am_atomicops_unittest_OBJECTS)
 @MINGW_FALSE@atomicops_unittest_DEPENDENCIES = $(am__DEPENDENCIES_2)
 am_frag_unittest_OBJECTS = frag_unittest-frag_unittest.$(OBJEXT)
@@ -543,9 +548,9 @@ am__heap_checker_unittest_SOURCES_DIST =  \
 	src/base/googleinit.h src/google/heap-checker.h \
 	src/base/logging.h src/base/basictypes.h \
 	src/base/dynamic_annotations.h
-@WITH_HEAP_CHECKER_TRUE@am__objects_17 = $(am__objects_1)
+@WITH_HEAP_CHECKER_TRUE@am__objects_19 = $(am__objects_1)
 @WITH_HEAP_CHECKER_TRUE@am_heap_checker_unittest_OBJECTS = heap_checker_unittest-heap-checker_unittest.$(OBJEXT) \
-@WITH_HEAP_CHECKER_TRUE@	$(am__objects_17)
+@WITH_HEAP_CHECKER_TRUE@	$(am__objects_19)
 heap_checker_unittest_OBJECTS = $(am_heap_checker_unittest_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_4 =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc.la
@@ -584,12 +589,12 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h src/base/logging.h \
 	src/base/commandlineflags.h src/base/dynamic_annotations.h
-am__objects_18 = $(am__objects_1) $(am__objects_1)
+am__objects_20 = $(am__objects_1) $(am__objects_1)
 am_low_level_alloc_unittest_OBJECTS =  \
 	low_level_alloc_unittest-low_level_alloc.$(OBJEXT) \
 	low_level_alloc_unittest-malloc_hook.$(OBJEXT) \
 	low_level_alloc_unittest-low_level_alloc_unittest.$(OBJEXT) \
-	$(am__objects_18)
+	$(am__objects_20)
 low_level_alloc_unittest_OBJECTS =  \
 	$(am_low_level_alloc_unittest_OBJECTS)
 low_level_alloc_unittest_DEPENDENCIES = $(am__DEPENDENCIES_2)
@@ -627,6 +632,16 @@ am_pagemap_unittest_OBJECTS =  \
 pagemap_unittest_OBJECTS = $(am_pagemap_unittest_OBJECTS)
 pagemap_unittest_DEPENDENCIES = $(am__DEPENDENCIES_3) \
 	$(am__DEPENDENCIES_1)
+am__profile_handler_unittest_SOURCES_DIST =  \
+	src/tests/profile-handler_unittest.cc src/profile-handler.h
+@WITH_CPU_PROFILER_TRUE@am_profile_handler_unittest_OBJECTS = profile_handler_unittest-profile-handler_unittest.$(OBJEXT)
+profile_handler_unittest_OBJECTS =  \
+	$(am_profile_handler_unittest_OBJECTS)
+@WITH_CPU_PROFILER_TRUE@am__DEPENDENCIES_5 = libstacktrace.la \
+@WITH_CPU_PROFILER_TRUE@	libprofiler.la
+@WITH_CPU_PROFILER_TRUE@profile_handler_unittest_DEPENDENCIES =  \
+@WITH_CPU_PROFILER_TRUE@	$(am__DEPENDENCIES_5) \
+@WITH_CPU_PROFILER_TRUE@	$(am__DEPENDENCIES_1)
 am__profiledata_unittest_SOURCES_DIST =  \
 	src/tests/profiledata_unittest.cc src/profiledata.h \
 	src/base/commandlineflags.h src/base/logging.h \
@@ -634,38 +649,36 @@ am__profiledata_unittest_SOURCES_DIST =  \
 @WITH_CPU_PROFILER_TRUE@am_profiledata_unittest_OBJECTS =  \
 @WITH_CPU_PROFILER_TRUE@	profiledata_unittest.$(OBJEXT)
 profiledata_unittest_OBJECTS = $(am_profiledata_unittest_OBJECTS)
-@WITH_CPU_PROFILER_TRUE@am__DEPENDENCIES_5 = libstacktrace.la \
-@WITH_CPU_PROFILER_TRUE@	libprofiler.la
 @WITH_CPU_PROFILER_TRUE@profiledata_unittest_DEPENDENCIES =  \
 @WITH_CPU_PROFILER_TRUE@	$(am__DEPENDENCIES_5)
 am__profiler1_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/google/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_19 = profiler1_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_21 = profiler1_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler1_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler1_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_19)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_21)
 profiler1_unittest_OBJECTS = $(am_profiler1_unittest_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@profiler1_unittest_DEPENDENCIES =  \
 @WITH_CPU_PROFILER_TRUE@	$(am__DEPENDENCIES_5)
 am__profiler2_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/google/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_20 = profiler2_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_22 = profiler2_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler2_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler2_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_20)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_22)
 profiler2_unittest_OBJECTS = $(am_profiler2_unittest_OBJECTS)
 am__profiler3_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/google/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_21 = profiler3_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_23 = profiler3_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler3_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler3_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_21)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_23)
 profiler3_unittest_OBJECTS = $(am_profiler3_unittest_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@profiler3_unittest_DEPENDENCIES =  \
 @WITH_CPU_PROFILER_TRUE@	$(am__DEPENDENCIES_5) \
@@ -673,11 +686,11 @@ profiler3_unittest_OBJECTS = $(am_profiler3_unittest_OBJECTS)
 am__profiler4_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/google/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_22 = profiler4_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_24 = profiler4_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler4_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler4_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_22)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_24)
 profiler4_unittest_OBJECTS = $(am_profiler4_unittest_OBJECTS)
 am__profiler_unittest_sh_SOURCES_DIST =  \
 	src/tests/profiler_unittest.sh
@@ -737,11 +750,11 @@ am__stacktrace_unittest_SOURCES_DIST =  \
 	src/base/vdso_support.h src/google/stacktrace.h \
 	src/base/logging.h src/base/basictypes.h \
 	src/base/dynamic_annotations.h
-@WITH_STACK_TRACE_TRUE@am__objects_23 = $(am__objects_4) \
+@WITH_STACK_TRACE_TRUE@am__objects_25 = $(am__objects_4) \
 @WITH_STACK_TRACE_TRUE@	$(am__objects_1)
 @WITH_STACK_TRACE_TRUE@am_stacktrace_unittest_OBJECTS =  \
 @WITH_STACK_TRACE_TRUE@	stacktrace_unittest.$(OBJEXT) \
-@WITH_STACK_TRACE_TRUE@	$(am__objects_23)
+@WITH_STACK_TRACE_TRUE@	$(am__objects_25)
 stacktrace_unittest_OBJECTS = $(am_stacktrace_unittest_OBJECTS)
 @WITH_STACK_TRACE_TRUE@stacktrace_unittest_DEPENDENCIES =  \
 @WITH_STACK_TRACE_TRUE@	libstacktrace.la liblogging.la
@@ -849,14 +862,15 @@ SOURCES = $(liblogging_la_SOURCES) $(libprofiler_la_SOURCES) \
 	$(malloc_extension_test_SOURCES) $(markidle_unittest_SOURCES) \
 	$(maybe_threads_unittest_sh_SOURCES) \
 	$(memalign_unittest_SOURCES) $(packed_cache_test_SOURCES) \
-	$(pagemap_unittest_SOURCES) $(profiledata_unittest_SOURCES) \
-	$(profiler1_unittest_SOURCES) $(profiler2_unittest_SOURCES) \
-	$(profiler3_unittest_SOURCES) $(profiler4_unittest_SOURCES) \
-	$(profiler_unittest_sh_SOURCES) $(ptmalloc_unittest1_SOURCES) \
-	$(ptmalloc_unittest2_SOURCES) $(raw_printer_test_SOURCES) \
-	$(realloc_unittest_SOURCES) $(sampler_test_SOURCES) \
-	$(sampling_test_SOURCES) $(sampling_test_sh_SOURCES) \
-	$(stack_trace_table_test_SOURCES) \
+	$(pagemap_unittest_SOURCES) \
+	$(profile_handler_unittest_SOURCES) \
+	$(profiledata_unittest_SOURCES) $(profiler1_unittest_SOURCES) \
+	$(profiler2_unittest_SOURCES) $(profiler3_unittest_SOURCES) \
+	$(profiler4_unittest_SOURCES) $(profiler_unittest_sh_SOURCES) \
+	$(ptmalloc_unittest1_SOURCES) $(ptmalloc_unittest2_SOURCES) \
+	$(raw_printer_test_SOURCES) $(realloc_unittest_SOURCES) \
+	$(sampler_test_SOURCES) $(sampling_test_SOURCES) \
+	$(sampling_test_sh_SOURCES) $(stack_trace_table_test_SOURCES) \
 	$(stacktrace_unittest_SOURCES) \
 	$(system_alloc_unittest_SOURCES) \
 	$(tcmalloc_both_unittest_SOURCES) \
@@ -887,6 +901,7 @@ DIST_SOURCES = $(liblogging_la_SOURCES) \
 	$(am__maybe_threads_unittest_sh_SOURCES_DIST) \
 	$(am__memalign_unittest_SOURCES_DIST) \
 	$(packed_cache_test_SOURCES) $(pagemap_unittest_SOURCES) \
+	$(am__profile_handler_unittest_SOURCES_DIST) \
 	$(am__profiledata_unittest_SOURCES_DIST) \
 	$(am__profiler1_unittest_SOURCES_DIST) \
 	$(am__profiler2_unittest_SOURCES_DIST) \
@@ -984,6 +999,7 @@ CXXFLAGS = @CXXFLAGS@
 CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
+DSYMUTIL = @DSYMUTIL@
 ECHO = @ECHO@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -996,8 +1012,7 @@ F77 = @F77@
 FFLAGS = @FFLAGS@
 GCC_FALSE = @GCC_FALSE@
 GCC_TRUE = @GCC_TRUE@
-HAVE_WINDOWS_H_FALSE = @HAVE_WINDOWS_H_FALSE@
-HAVE_WINDOWS_H_TRUE = @HAVE_WINDOWS_H_TRUE@
+GREP = @GREP@
 INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
@@ -1014,6 +1029,7 @@ MAKEINFO = @MAKEINFO@
 MINGW_FALSE = @MINGW_FALSE@
 MINGW_TRUE = @MINGW_TRUE@
 NANOSLEEP_LIBS = @NANOSLEEP_LIBS@
+NMEDIT = @NMEDIT@
 OBJEXT = @OBJEXT@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
@@ -1026,10 +1042,13 @@ PTHREAD_CC = @PTHREAD_CC@
 PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
 PTHREAD_LIBS = @PTHREAD_LIBS@
 RANLIB = @RANLIB@
+SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
 UNWIND_LIBS = @UNWIND_LIBS@
+USE_LIBTOOL_FALSE = @USE_LIBTOOL_FALSE@
+USE_LIBTOOL_TRUE = @USE_LIBTOOL_TRUE@
 VERSION = @VERSION@
 WITH_CPU_PROFILER_FALSE = @WITH_CPU_PROFILER_FALSE@
 WITH_CPU_PROFILER_TRUE = @WITH_CPU_PROFILER_TRUE@
@@ -1043,12 +1062,9 @@ WITH_STACK_TRACE_FALSE = @WITH_STACK_TRACE_FALSE@
 WITH_STACK_TRACE_TRUE = @WITH_STACK_TRACE_TRUE@
 X86_64_FALSE = @X86_64_FALSE@
 X86_64_TRUE = @X86_64_TRUE@
-ac_ct_AR = @ac_ct_AR@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
 ac_ct_F77 = @ac_ct_F77@
-ac_ct_RANLIB = @ac_ct_RANLIB@
-ac_ct_STRIP = @ac_ct_STRIP@
 acx_pthread_config = @acx_pthread_config@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
 am__fastdepCC_TRUE = @am__fastdepCC_TRUE@
@@ -1066,23 +1082,30 @@ build_cpu = @build_cpu@
 build_os = @build_os@
 build_vendor = @build_vendor@
 datadir = @datadir@
+datarootdir = @datarootdir@
+docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
+dvidir = @dvidir@
 exec_prefix = @exec_prefix@
 host = @host@
 host_alias = @host_alias@
 host_cpu = @host_cpu@
 host_os = @host_os@
 host_vendor = @host_vendor@
+htmldir = @htmldir@
 includedir = @includedir@
 infodir = @infodir@
 install_sh = @install_sh@
 libdir = @libdir@
 libexecdir = @libexecdir@
+localedir = @localedir@
 localstatedir = @localstatedir@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
+pdfdir = @pdfdir@
 prefix = @prefix@
 program_transform_name = @program_transform_name@
+psdir = @psdir@
 sbindir = @sbindir@
 sharedstatedir = @sharedstatedir@
 sysconfdir = @sysconfdir@
@@ -1097,8 +1120,9 @@ AM_CPPFLAGS = -I$(top_srcdir)/src $(am__append_1)
 # This is mostly based on configure options
 AM_CXXFLAGS = $(am__append_2) $(am__append_3) $(am__append_4)
 
-# This is to fix a solaris bug
-AM_LDFLAGS = $(LIBSTDCXX_LA_LINKER_FLAG)
+# The -no-undefined flag allows libtool to generate shared libraries for
+# Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
+AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
 @GCC_FALSE@NO_EXCEPTIONS = 
 
 # We know our low-level code cannot trigger an exception.  On some
@@ -1120,8 +1144,7 @@ googleincludedir = $(includedir)/google
 # We'll add to this later, on a library-by-library basis
 googleinclude_HEADERS = $(am__append_10) \
 	$(SG_TCMALLOC_MINIMAL_INCLUDES) $(am__append_20) \
-	$(am__append_37)
-docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
+	$(am__append_38)
 # This is for HTML and other documentation you want to install.
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
@@ -1160,12 +1183,12 @@ dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README \
 	doc/tcmalloc-opspersec.vs.size.5.threads.png \
 	doc/tcmalloc-opspersec.vs.size.8.threads.png doc/overview.dot \
 	doc/pageheap.dot doc/spanmap.dot doc/threadheap.dot \
-	$(am__append_35) $(am__append_36) $(am__append_42)
+	$(am__append_36) $(am__append_37) $(am__append_44)
 
 # The libraries (.so's) you want to install
 # We'll add to this later, on a library-by-library basis
 lib_LTLIBRARIES = libtcmalloc_minimal.la $(am__append_22) \
-	$(am__append_38)
+	$(am__append_39)
 # This is for 'convenience libraries' -- basically just a container for sources
 
 ### Making the library
@@ -1193,7 +1216,7 @@ WINDOWS_PROJECTS = google-perftools.sln \
 	vsprojects/realloc_unittest/realloc_unittest.vcproj \
 	vsprojects/stack_trace_table_test/stack_trace_table_test.vcproj \
 	vsprojects/thread_dealloc_unittest/thread_dealloc_unittest.vcproj \
-	$(am__append_25)
+	$(am__append_26)
 
 # unittests you want to run when people type 'make check'.
 # Note: tests cannot take any arguments!
@@ -1218,15 +1241,18 @@ TESTS = low_level_alloc_unittest $(am__append_9) $(am__append_12) \
 	packed_cache_test frag_unittest markidle_unittest \
 	malloc_extension_test $(am__append_19) pagemap_unittest \
 	realloc_unittest stack_trace_table_test \
-	thread_dealloc_unittest $(am__append_24) $(am__append_29) \
-	$(am__append_32) $(am__append_39)
+	thread_dealloc_unittest $(am__append_25) $(am__append_30) \
+	$(am__append_33) $(am__append_41)
 # TESTS_ENVIRONMENT sets environment variables for when you run unittest.
 # We always get "srcdir" set for free.
 # We'll add to this later, on a library-by-library basis.
-TESTS_ENVIRONMENT = $(am__append_14) $(am__append_26)
+TESTS_ENVIRONMENT = $(am__append_14) $(am__append_27)
 # All script tests should be added here
-noinst_SCRIPTS = $(am__append_17) $(am__append_27) $(am__append_30) \
-	$(am__append_33) $(am__append_40)
+noinst_SCRIPTS = $(am__append_17) $(am__append_28) $(am__append_31) \
+	$(am__append_34) $(am__append_42)
+
+# This is my own var, used for extra libraries I make that I need installed
+EXTRA_INSTALL = $(am__append_24) $(am__append_40)
 
 ### ------- library routines, in src/base
 
@@ -1276,7 +1302,12 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 # spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
 @MINGW_FALSE@LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
 @MINGW_TRUE@LIBSPINLOCK = libwindows.la libsysinfo.la liblogging.la
+@MINGW_FALSE@TCMALLOC_CC = src/tcmalloc.cc
+
+# patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
+@MINGW_TRUE@TCMALLOC_CC = 
 @MINGW_FALSE@MAYBE_THREADS_CC = src/maybe_threads.cc
+# windows has its own system for threads and system memory allocation.
 @MINGW_TRUE@MAYBE_THREADS_CC = 
 @MINGW_FALSE@SYSTEM_ALLOC_CC = src/system-alloc.cc
 @MINGW_TRUE@SYSTEM_ALLOC_CC = 
@@ -1363,8 +1394,6 @@ low_level_alloc_unittest_LDADD = $(LIBSPINLOCK)
 
 ### Documentation
 @WITH_STACK_TRACE_TRUE@dist_man_MANS = doc/pprof.1
-@WITH_STACK_TRACE_TRUE@nm_pdb_SOURCES = src/windows/nm-pdb.c
-@WITH_STACK_TRACE_TRUE@addr2line_pdb_SOURCES = src/windows/addr2line-pdb.c
 
 ### ------- tcmalloc_minimal (thread-caching malloc)
 
@@ -1420,7 +1449,7 @@ libtcmalloc_minimal_internal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
 
 libtcmalloc_minimal_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_minimal_internal_la_LIBADD = $(PTHREAD_LIBS) $(LIBSPINLOCK)
-libtcmalloc_minimal_la_SOURCES = src/tcmalloc.cc $(TCMALLOC_MINIMAL_INCLUDES)
+libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 
@@ -1576,7 +1605,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_SOURCES =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	src/tcmalloc.cc \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(TCMALLOC_CC) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(TCMALLOC_INCLUDES) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__append_23)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
@@ -1662,6 +1691,7 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 
 ### The header files we use.  We divide into categories based on directory
 @WITH_CPU_PROFILER_TRUE@S_CPU_PROFILER_INCLUDES = src/profiledata.h \
+@WITH_CPU_PROFILER_TRUE@                          src/profile-handler.h \
 @WITH_CPU_PROFILER_TRUE@                          src/getpc.h \
 @WITH_CPU_PROFILER_TRUE@                          src/base/basictypes.h \
 @WITH_CPU_PROFILER_TRUE@                          src/base/commandlineflags.h \
@@ -1677,12 +1707,13 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 
 @WITH_CPU_PROFILER_TRUE@CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES)
 @WITH_CPU_PROFILER_TRUE@libprofiler_la_SOURCES = src/profiler.cc \
+@WITH_CPU_PROFILER_TRUE@                         src/profile-handler.cc \
 @WITH_CPU_PROFILER_TRUE@                         src/profiledata.cc \
 @WITH_CPU_PROFILER_TRUE@                         $(CPU_PROFILER_INCLUDES)
 
 @WITH_CPU_PROFILER_TRUE@libprofiler_la_LIBADD = libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
-@WITH_CPU_PROFILER_TRUE@CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData)'
+@WITH_CPU_PROFILER_TRUE@CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData|ProfileHandler)'
 @WITH_CPU_PROFILER_TRUE@libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
@@ -1698,6 +1729,12 @@ ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_TRUE@                               src/base/basictypes.h
 
 @WITH_CPU_PROFILER_TRUE@profiledata_unittest_LDADD = $(LIBPROFILER)
+@WITH_CPU_PROFILER_TRUE@profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc \
+@WITH_CPU_PROFILER_TRUE@                                   src/profile-handler.h
+
+@WITH_CPU_PROFILER_TRUE@profile_handler_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
+@WITH_CPU_PROFILER_TRUE@profile_handler_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
+@WITH_CPU_PROFILER_TRUE@profile_handler_unittest_LDADD = $(LIBPROFILER) $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_TRUE@profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
 @WITH_CPU_PROFILER_TRUE@PROFILER_UNITTEST_INCLUDES = src/config_for_unittests.h \
 @WITH_CPU_PROFILER_TRUE@                             src/google/profiler.h
@@ -1923,6 +1960,9 @@ packed_cache_test$(EXEEXT): $(packed_cache_test_OBJECTS) $(packed_cache_test_DEP
 pagemap_unittest$(EXEEXT): $(pagemap_unittest_OBJECTS) $(pagemap_unittest_DEPENDENCIES) 
 	@rm -f pagemap_unittest$(EXEEXT)
 	$(CXXLINK) $(pagemap_unittest_LDFLAGS) $(pagemap_unittest_OBJECTS) $(pagemap_unittest_LDADD) $(LIBS)
+profile_handler_unittest$(EXEEXT): $(profile_handler_unittest_OBJECTS) $(profile_handler_unittest_DEPENDENCIES) 
+	@rm -f profile_handler_unittest$(EXEEXT)
+	$(CXXLINK) $(profile_handler_unittest_LDFLAGS) $(profile_handler_unittest_OBJECTS) $(profile_handler_unittest_LDADD) $(LIBS)
 profiledata_unittest$(EXEEXT): $(profiledata_unittest_OBJECTS) $(profiledata_unittest_DEPENDENCIES) 
 	@rm -f profiledata_unittest$(EXEEXT)
 	$(CXXLINK) $(profiledata_unittest_LDFLAGS) $(profiledata_unittest_OBJECTS) $(profiledata_unittest_LDADD) $(LIBS)
@@ -2079,6 +2119,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/port.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/preamble_patcher.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/preamble_patcher_with_stub.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/profile-handler.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/profiledata.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/profiledata_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/profiler.Plo@am__quote@
@@ -2213,6 +2255,13 @@ profiler.lo: src/profiler.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/profiler.cc' object='profiler.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o profiler.lo `test -f 'src/profiler.cc' || echo '$(srcdir)/'`src/profiler.cc
+
+profile-handler.lo: src/profile-handler.cc
+@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT profile-handler.lo -MD -MP -MF "$(DEPDIR)/profile-handler.Tpo" -c -o profile-handler.lo `test -f 'src/profile-handler.cc' || echo '$(srcdir)/'`src/profile-handler.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/profile-handler.Tpo" "$(DEPDIR)/profile-handler.Plo"; else rm -f "$(DEPDIR)/profile-handler.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/profile-handler.cc' object='profile-handler.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o profile-handler.lo `test -f 'src/profile-handler.cc' || echo '$(srcdir)/'`src/profile-handler.cc
 
 profiledata.lo: src/profiledata.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT profiledata.lo -MD -MP -MF "$(DEPDIR)/profiledata.Tpo" -c -o profiledata.lo `test -f 'src/profiledata.cc' || echo '$(srcdir)/'`src/profiledata.cc; \
@@ -2801,6 +2850,20 @@ pagemap_unittest-pagemap_unittest.obj: src/tests/pagemap_unittest.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/pagemap_unittest.cc' object='pagemap_unittest-pagemap_unittest.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(pagemap_unittest_CXXFLAGS) $(CXXFLAGS) -c -o pagemap_unittest-pagemap_unittest.obj `if test -f 'src/tests/pagemap_unittest.cc'; then $(CYGPATH_W) 'src/tests/pagemap_unittest.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/pagemap_unittest.cc'; fi`
+
+profile_handler_unittest-profile-handler_unittest.o: src/tests/profile-handler_unittest.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(profile_handler_unittest_CXXFLAGS) $(CXXFLAGS) -MT profile_handler_unittest-profile-handler_unittest.o -MD -MP -MF "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Tpo" -c -o profile_handler_unittest-profile-handler_unittest.o `test -f 'src/tests/profile-handler_unittest.cc' || echo '$(srcdir)/'`src/tests/profile-handler_unittest.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Tpo" "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Po"; else rm -f "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/profile-handler_unittest.cc' object='profile_handler_unittest-profile-handler_unittest.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(profile_handler_unittest_CXXFLAGS) $(CXXFLAGS) -c -o profile_handler_unittest-profile-handler_unittest.o `test -f 'src/tests/profile-handler_unittest.cc' || echo '$(srcdir)/'`src/tests/profile-handler_unittest.cc
+
+profile_handler_unittest-profile-handler_unittest.obj: src/tests/profile-handler_unittest.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(profile_handler_unittest_CXXFLAGS) $(CXXFLAGS) -MT profile_handler_unittest-profile-handler_unittest.obj -MD -MP -MF "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Tpo" -c -o profile_handler_unittest-profile-handler_unittest.obj `if test -f 'src/tests/profile-handler_unittest.cc'; then $(CYGPATH_W) 'src/tests/profile-handler_unittest.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/profile-handler_unittest.cc'; fi`; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Tpo" "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Po"; else rm -f "$(DEPDIR)/profile_handler_unittest-profile-handler_unittest.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/profile-handler_unittest.cc' object='profile_handler_unittest-profile-handler_unittest.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(profile_handler_unittest_CXXFLAGS) $(CXXFLAGS) -c -o profile_handler_unittest-profile-handler_unittest.obj `if test -f 'src/tests/profile-handler_unittest.cc'; then $(CYGPATH_W) 'src/tests/profile-handler_unittest.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/profile-handler_unittest.cc'; fi`
 
 profiledata_unittest.o: src/tests/profiledata_unittest.cc
 @am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT profiledata_unittest.o -MD -MP -MF "$(DEPDIR)/profiledata_unittest.Tpo" -c -o profiledata_unittest.o `test -f 'src/tests/profiledata_unittest.cc' || echo '$(srcdir)/'`src/tests/profiledata_unittest.cc; \
@@ -3512,7 +3575,7 @@ check-am: all-am
 	$(MAKE) $(AM_MAKEFLAGS) check-TESTS
 check: check-am
 all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(SCRIPTS) $(MANS) $(DATA) \
-		$(HEADERS)
+		$(HEADERS) all-local
 install-binPROGRAMS: install-libLTLIBRARIES
 
 installdirs:
@@ -3546,8 +3609,8 @@ maintainer-clean-generic:
 clean: clean-am
 
 clean-am: clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool clean-noinstLTLIBRARIES clean-noinstPROGRAMS \
-	mostlyclean-am
+	clean-libtool clean-local clean-noinstLTLIBRARIES \
+	clean-noinstPROGRAMS mostlyclean-am
 
 distclean: distclean-am
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
@@ -3570,7 +3633,7 @@ install-data-am: install-dist_docDATA install-googleincludeHEADERS \
 	install-man
 
 install-exec-am: install-binPROGRAMS install-binSCRIPTS \
-	install-libLTLIBRARIES
+	install-exec-local install-libLTLIBRARIES
 
 install-info: install-info-am
 
@@ -3604,37 +3667,51 @@ uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS \
 
 uninstall-man: uninstall-man1
 
-.PHONY: CTAGS GTAGS all all-am am--refresh check check-TESTS check-am \
-	clean clean-binPROGRAMS clean-generic clean-libLTLIBRARIES \
-	clean-libtool clean-noinstLTLIBRARIES clean-noinstPROGRAMS \
-	ctags dist dist-all dist-bzip2 dist-gzip dist-hook dist-shar \
-	dist-tarZ dist-zip distcheck distclean distclean-compile \
+.PHONY: CTAGS GTAGS all all-am all-local am--refresh check check-TESTS \
+	check-am clean clean-binPROGRAMS clean-generic \
+	clean-libLTLIBRARIES clean-libtool clean-local \
+	clean-noinstLTLIBRARIES clean-noinstPROGRAMS ctags dist \
+	dist-all dist-bzip2 dist-gzip dist-hook dist-shar dist-tarZ \
+	dist-zip distcheck distclean distclean-compile \
 	distclean-generic distclean-hdr distclean-libtool \
 	distclean-tags distcleancheck distdir distuninstallcheck dvi \
 	dvi-am html html-am info info-am install install-am \
 	install-binPROGRAMS install-binSCRIPTS install-data \
 	install-data-am install-dist_docDATA install-exec \
-	install-exec-am install-googleincludeHEADERS install-info \
-	install-info-am install-libLTLIBRARIES install-man \
-	install-man1 install-strip installcheck installcheck-am \
-	installdirs maintainer-clean maintainer-clean-generic \
-	mostlyclean mostlyclean-compile mostlyclean-generic \
-	mostlyclean-libtool pdf pdf-am ps ps-am tags uninstall \
-	uninstall-am uninstall-binPROGRAMS uninstall-binSCRIPTS \
-	uninstall-dist_docDATA uninstall-googleincludeHEADERS \
-	uninstall-info-am uninstall-libLTLIBRARIES uninstall-man \
-	uninstall-man1
+	install-exec-am install-exec-local \
+	install-googleincludeHEADERS install-info install-info-am \
+	install-libLTLIBRARIES install-man install-man1 install-strip \
+	installcheck installcheck-am installdirs maintainer-clean \
+	maintainer-clean-generic mostlyclean mostlyclean-compile \
+	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
+	tags uninstall uninstall-am uninstall-binPROGRAMS \
+	uninstall-binSCRIPTS uninstall-dist_docDATA \
+	uninstall-googleincludeHEADERS uninstall-info-am \
+	uninstall-libLTLIBRARIES uninstall-man uninstall-man1
 
 @ENABLE_FRAME_POINTERS_FALSE@@X86_64_TRUE@  # TODO(csilvers): check if -fomit-frame-pointer might be in $(CXXFLAGS),
 @ENABLE_FRAME_POINTERS_FALSE@@X86_64_TRUE@  #                 before setting this.
 @WITH_STACK_TRACE_TRUE@pprof_unittest: $(top_srcdir)/src/pprof
 @WITH_STACK_TRACE_TRUE@	$(top_srcdir)/src/pprof -test
 # This script preloads libtcmalloc, and calls two other binaries as well
+# TODO(csilvers): replace by 'if ! cmp $^ $@ >/dev/null 2>&; then ...; fi'
 @MINGW_FALSE@maybe_threads_unittest.sh$(EXEEXT): $(top_srcdir)/$(maybe_threads_unittest_sh_SOURCES) \
 @MINGW_FALSE@                           $(LIBTCMALLOC_MINIMAL) \
 @MINGW_FALSE@                           low_level_alloc_unittest
 @MINGW_FALSE@	rm -f $@
 @MINGW_FALSE@	cp -p $(top_srcdir)/$(maybe_threads_unittest_sh_SOURCES) $@
+
+# We want a different libtcmalloc.a than the one libtool produces: we
+# want to use ld -r rather than ar.  Since all .o files in libtcmalloc
+# are used, 'ld -r' is a strict advantage over 'ar' -- in fact, with
+# the .a, the heap-profiler and heap-checker don't get linked in
+# (since they do work only in global constructors and destructors).
+# We just replace the .a with an 'ld-r-ized' version under libtool's
+# nose.  We use libtool to create a .o file (it uses ld -r to do that
+# when the input is a .a) and then rename it.
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc.o: libtcmalloc.la $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_DEPENDENCIES) $(libtcmalloc_la_LIBADD)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(CXXLINK) $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_LIBADD)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	cp -f "$@" .libs/libtcmalloc.a
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@sampling_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                           sampling_test
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	rm -f $@
@@ -3651,6 +3728,17 @@ uninstall-man: uninstall-man1
 @WITH_HEAP_CHECKER_TRUE@                                         heap-checker_unittest
 @WITH_HEAP_CHECKER_TRUE@	rm -f $@
 @WITH_HEAP_CHECKER_TRUE@	cp -p $(top_srcdir)/$(heap_checker_death_unittest_sh_SOURCES) $@
+
+# We want a different libprofiler.a than the one libtool produces: we
+# want to use ld -r rather than ar.  Since all .o files in libprofiler
+# are used, 'ld -r' is a strict advantage over 'ar' -- in fact, with
+# the .a, the library doesn't get linked in
+# (since it does work only in global constructors and destructors).
+# We just replace the .a with an 'ld-r-ized' version under libtool's
+# nose.
+@WITH_CPU_PROFILER_TRUE@libprofiler.o: libprofiler.la $(libprofiler_la_OBJECTS) $(libprofiler_la_DEPENDENCIES) $(libprofiler_la_LIBADD)
+@WITH_CPU_PROFILER_TRUE@	$(CXXLINK) $(libprofiler_la_OBJECTS) $(libprofiler_la_LIBADD)
+@WITH_CPU_PROFILER_TRUE@	cp -f "$@" .libs/libprofiler.a
 @WITH_CPU_PROFILER_TRUE@profiler_unittest.sh$(EXEEXT): $(top_srcdir)/$(profiler_unittest_sh_SOURCES) \
 @WITH_CPU_PROFILER_TRUE@                               profiler1_unittest profiler2_unittest \
 @WITH_CPU_PROFILER_TRUE@                               profiler3_unittest profiler4_unittest
@@ -3665,6 +3753,16 @@ deb: dist-gzip packages/deb.sh packages/deb/*
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
+
+# Luckily, this gets run before install-libLTLIBRARIES, so it gives
+# us a chance to replace the libtool version of the .a's with our own
+install-exec-local: $(EXTRA_INSTALL)
+
+# Do the replacing at normal build time as well
+all-local: $(EXTRA_INSTALL)
+
+clean-local:
+	rm -f libtcmalloc.o libprofiler.o
 
 # Windows wants write permission to .vcproj files and maybe even sln files.
 dist-hook:

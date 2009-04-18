@@ -64,7 +64,7 @@ int main(int argc, char** argv) {
     fprintf(stderr, "USAGE: %s <base of output files>\n", argv[0]);
     exit(1);
   }
-  for (int i = 0; i < 9000; i++) {
+  for (int i = 0; i < 8000; i++) {
     AllocateAllocate();
   }
 

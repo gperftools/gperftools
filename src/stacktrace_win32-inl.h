@@ -62,7 +62,7 @@ typedef USHORT NTAPI RtlCaptureStackBackTrace_Function(
 // to worry about someone else holding the loader's lock.
 static RtlCaptureStackBackTrace_Function* const RtlCaptureStackBackTrace_fn =
    (RtlCaptureStackBackTrace_Function*)
-   GetProcAddress(GetModuleHandle("ntdll.dll"), "RtlCaptureStackBackTrace");
+   GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlCaptureStackBackTrace");
 
 int GetStackTrace(void** result, int max_depth, int skip_count) {
   if (!RtlCaptureStackBackTrace_fn) {

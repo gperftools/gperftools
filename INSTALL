@@ -21,7 +21,7 @@ For that reason, if you use a 64-bit system, we strongly recommend you
 install libunwind before trying to configure or install google
 perftools.  libunwind can be found at
 
-   http://download.savannah.nongnu.org/releases/libunwind/libunwind-snap-070410.tar.gz
+   http://download.savannah.gnu.org/releases/libunwind/libunwind-0.99-beta.tar.gz
 
 Even if you already have libunwind installed, you should check the
 version.  Versions older than this will not work properly; too-new
@@ -60,7 +60,7 @@ stack unwinding on 64-bit systems, particularly x86-64.  See the
 "64-BIT ISSUES" section in README.
 
 If you encounter problems, try compiling perftools with './configure
---enable-frame-pointer'.  Note you will need to compile your
+--enable-frame-pointers'.  Note you will need to compile your
 application with frame pointers (via 'gcc -fno-omit-frame-pointer
 ...') in this case.
 
@@ -155,6 +155,14 @@ above, by linking in libtcmalloc_minimal.
    perftools will not be able to map addresses to functions.  Some
    unittests will fail as a result.
 
+   Finally, the new test introduced in perftools-1.2,
+   profile_handler_unittest, fails on FreeBSD.  It has something to do
+   with how the itimer works.  The cpu profiler test passes, so I
+   believe the functionality is correct and the issue is with the test
+   somehow.  If anybody is an expert on itimers and SIGPROF in
+   FreeBSD, and would like to debug this, I'd be glad to hear the
+   results!
+
    libtcmalloc.so successfully builds, and the "advanced" tcmalloc
    functionality all works except for the leak-checker, which has
    Linux-specific code:
@@ -218,10 +226,12 @@ above, by linking in libtcmalloc_minimal.
    there is a problem with exception-unwinding in cygwin (it can call
    malloc, which can call the exception-unwinding-setup code, which
    can lead to an infinite loop).  I've comitted a workaround to the
-   exception unwinding problem, but it only works in debug mode.  I
-   hope to have a more proper fix in a later release.  To configure
-   under cygwin, run
-      ./configure CXXFLAGS=-g && make
+   exception unwinding problem, but it only works in debug mode and
+   when statically linking in tcmalloc.  I hope to have a more proper
+   fix in a later release.  To configure under cygwin, run
+
+      ./configure --disable-shared CXXFLAGS=-g && make
+
    Most of cygwin will compile (cygwin doesn't allow weak symbols, so
    the heap-checker and a few other pieces of functionality will not
    compile).  'make' will compile those libraries and tests that can

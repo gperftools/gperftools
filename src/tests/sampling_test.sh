@@ -52,7 +52,15 @@ OUTDIR="/tmp/sampling_test_dir"
 # libtool is annoying, and puts the actual executable in a different
 # directory, replacing the seeming-executable with a shell script.
 # We use the error output of sampling_test to indicate its real location
-SAMPLING_TEST_BINARY=`"$SAMPLING_TEST" 2>&1 | awk '{print $2; exit;}'`
+SAMPLING_TEST_BINARY=`"$SAMPLING_TEST" 2>&1 | awk '/USAGE/ {print $2; exit;}'`
+
+# A kludge for cygwin.  Unfortunately, 'test -f' says that 'foo' exists
+# even when it doesn't, and only foo.exe exists.  Other unix utilities
+# (like nm) need you to say 'foo.exe'.  We use one such utility, cat, to
+# see what the *real* binary name is.
+if ! cat "$SAMPLING_TEST_BINARY" >/dev/null 2>&1; then
+  SAMPLING_TEST_BINARY="$SAMPLING_TEST_BINARY".exe
+fi
 
 die() {
     echo "FAILED"
@@ -66,20 +74,20 @@ rm -rf "$OUTDIR" || die "Unable to delete $OUTDIR"
 mkdir "$OUTDIR" || die "Unable to create $OUTDIR"
 
 # This puts the output into out.heap and out.growth.  It allocates
-# 9*10^7 bytes of memory, which is 85M.  Because we sample, the
+# 8*10^7 bytes of memory, which is 76M.  Because we sample, the
 # estimate may be a bit high or a bit low: we accept anything from
-# 70M to 99M.
+# 50M to 99M.
 "$SAMPLING_TEST" "$OUTDIR/out"
 
 echo -n "Testing heap output..."
 "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap" \
-   | grep '^ *[7-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
+   | grep '^ *[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
    || die `"$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap"`
 echo "OK"
 
 echo -n "Testing growth output..."
 "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth" \
-   | grep '^ *[7-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
+   | grep '^ *[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
    || die `"$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth"`
 echo "OK"
 

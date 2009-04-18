@@ -49,7 +49,9 @@
 
 #ifdef _WIN32
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN  /* We always want minimal includes */
+#endif
 #include <windows.h>
 #include <io.h>              /* because we so often use open/close/etc */
 #include <stdarg.h>          /* for va_list */

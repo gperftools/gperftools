@@ -124,9 +124,7 @@ DEFINE_string(heap_check,
               " or the empty string are the supported choices. "
               "(See HeapLeakChecker::InternalInitStart for details.)");
 
-DEFINE_bool(heap_check_report,
-            EnvToBool("HEAP_CHECK_REPORT", true),
-            "If overall heap check should report the found leaks via pprof");
+DEFINE_bool(heap_check_report, true, "Obsolete");
 
 DEFINE_bool(heap_check_before_constructors,
             true,
@@ -137,13 +135,7 @@ DEFINE_bool(heap_check_after_destructors,
             "If overall heap check is to end after global destructors "
             "or right after all REGISTER_HEAPCHECK_CLEANUP's");
 
-DEFINE_bool(heap_check_strict_check,
-            EnvToBool("HEAP_CHECK_STRICT_CHECK", true),
-            "If overall heap check is to be done "
-            "via HeapLeakChecker::*SameHeap "
-            "or HeapLeakChecker::*NoLeaks call");
-            // heap_check_strict_check == false
-            // is useful only when heap_check_before_constructors == false
+DEFINE_bool(heap_check_strict_check, true, "Obsolete");
 
 DEFINE_bool(heap_check_ignore_global_live,
             EnvToBool("HEAP_CHECK_IGNORE_GLOBAL_LIVE", true),
@@ -263,6 +255,9 @@ static const int heap_checker_info_level = 0;
 // heap_check_test_pointer_alignment flag guides if we try the value of 1.
 // The larger it can be, the lesser is the chance of missing real leaks.
 static const size_t kPointerSourceAlignment = sizeof(void*);
+
+// Cancel our InitialMallocHook_* if present.
+static void CancelInitialMallocHooks();  // defined below
 
 //----------------------------------------------------------------------
 // HeapLeakChecker's own memory allocator that is
@@ -573,11 +568,13 @@ enum StackDirection {
 
 // Determine which way the stack grows:
 
-static StackDirection ATTRIBUTE_NOINLINE GetStackDirection() {
-  if (__builtin_frame_address(0) > __builtin_frame_address(1))
-    return GROWS_TOWARDS_HIGH_ADDRESSES;
-  if (__builtin_frame_address(0) < __builtin_frame_address(1))
+static StackDirection ATTRIBUTE_NOINLINE GetStackDirection(
+    const uintptr_t *const ptr) {
+  uintptr_t x;
+  if (&x < ptr)
     return GROWS_TOWARDS_LOW_ADDRESSES;
+  if (ptr < &x)
+    return GROWS_TOWARDS_HIGH_ADDRESSES;
 
   RAW_CHECK(0, "");  // Couldn't determine the stack direction.
 
@@ -597,7 +594,7 @@ static void RegisterStackLocked(const void* top_ptr) {
 
   // make sure stack_direction is initialized
   if (stack_direction == UNKNOWN_DIRECTION) {
-    stack_direction = GetStackDirection();
+    stack_direction = GetStackDirection(&top);
   }
 
   // Find memory region with this stack
@@ -1454,7 +1451,7 @@ void HeapLeakChecker::UnIgnoreObject(const void* ptr) {
 //----------------------------------------------------------------------
 
 char* HeapLeakChecker::MakeProfileNameLocked() {
-  RAW_DCHECK(lock_.IsHeld(), "");
+  RAW_DCHECK(lock_->IsHeld(), "");
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
   const int len = profile_name_prefix->size() + strlen(name_) + 5 +
                   strlen(HeapProfileTable::kFileExt) + 1;
@@ -1596,13 +1593,22 @@ static void SuggestPprofCommand(const char* pprof_file_arg) {
           );
 }
 
-bool HeapLeakChecker::DoNoLeaks(CheckType check_type,
-                                CheckFullness fullness,
-                                ReportMode report_mode) {
+bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
   SpinLockHolder l(lock_);
   // The locking also helps us keep the messages
   // for the two checks close together.
   SpinLockHolder al(&alignment_checker_lock);
+
+  // thread-safe: protected by alignment_checker_lock
+  static bool have_disabled_hooks_for_symbolize = false;
+  // Once we've checked for leaks and symbolized the results once, it's
+  // not safe to do it again.  This is because in order to symbolize
+  // safely, we had to disable all the malloc hooks here, so we no
+  // longer can be confident we've collected all the data we need.
+  if (have_disabled_hooks_for_symbolize) {
+    RAW_LOG(FATAL, "Must not call heap leak checker manually after "
+            " program-exit's automatic check.");
+  }
 
   HeapProfileTable::Snapshot* leaks = NULL;
   char* pprof_file = NULL;
@@ -1709,7 +1715,20 @@ bool HeapLeakChecker::DoNoLeaks(CheckType check_type,
              int64(stats.allocs - stats.frees),
              int64(stats.alloc_size - stats.free_size));
   } else {
-    leaks->ReportLeaks(name_, pprof_file);
+    if (should_symbolize == SYMBOLIZE) {
+      // To turn addresses into symbols, we need to fork, which is a
+      // problem if both parent and child end up trying to call the
+      // same malloc-hooks we've set up, at the same time.  To avoid
+      // trouble, we turn off the hooks before symbolizing.  Note that
+      // this makes it unsafe to ever leak-report again!  Luckily, we
+      // typically only want to report once in a program's run, at the
+      // very end.
+      CancelInitialMallocHooks();
+      have_disabled_hooks_for_symbolize = true;
+      leaks->ReportLeaks(name_, pprof_file, true);  // true = should_symbolize
+    } else {
+      leaks->ReportLeaks(name_, pprof_file, false);
+    }
     if (FLAGS_heap_check_identify_leaks) {
       leaks->ReportIndividualObjects();
     }
@@ -1854,7 +1873,6 @@ static bool internal_init_start_has_run = false;
                                                    // (ignore more)
     FLAGS_heap_check_after_destructors = false;  // to after cleanup
                                                  // (most data is live)
-    FLAGS_heap_check_strict_check = false;  // < profile check (ignore more)
     FLAGS_heap_check_ignore_thread_live = true;  // ignore all live
     FLAGS_heap_check_ignore_global_live = true;  // ignore all live
   } else if (FLAGS_heap_check == "normal") {
@@ -1862,7 +1880,6 @@ static bool internal_init_start_has_run = false;
     FLAGS_heap_check_before_constructors = true;  // from no profile (fast)
     FLAGS_heap_check_after_destructors = false;  // to after cleanup
                                                  // (most data is live)
-    FLAGS_heap_check_strict_check = true;  // == profile check (fast)
     FLAGS_heap_check_ignore_thread_live = true;  // ignore all live
     FLAGS_heap_check_ignore_global_live = true;  // ignore all live
   } else if (FLAGS_heap_check == "strict") {
@@ -1871,7 +1888,6 @@ static bool internal_init_start_has_run = false;
     FLAGS_heap_check_before_constructors = true;  // from no profile (fast)
     FLAGS_heap_check_after_destructors = true;  // to after destructors
                                                 // (less data live)
-    FLAGS_heap_check_strict_check = true;  // == profile check (fast)
     FLAGS_heap_check_ignore_thread_live = true;  // ignore all live
     FLAGS_heap_check_ignore_global_live = true;  // ignore all live
   } else if (FLAGS_heap_check == "draconian") {
@@ -1879,7 +1895,6 @@ static bool internal_init_start_has_run = false;
     FLAGS_heap_check_before_constructors = true;  // from no profile (fast)
     FLAGS_heap_check_after_destructors = true;  // to after destructors
                                                 // (need them)
-    FLAGS_heap_check_strict_check = true;  // == profile check (fast)
     FLAGS_heap_check_ignore_thread_live = false;  // no live flood (stricter)
     FLAGS_heap_check_ignore_global_live = false;  // no live flood (stricter)
   } else if (FLAGS_heap_check == "as-is") {
@@ -1983,6 +1998,7 @@ bool HeapLeakChecker::DoMainHeapCheck() {
     RAW_DCHECK(heap_checker_pid == getpid(), "");
     do_main_heap_check = false;  // will do it now; no need to do it more
   }
+
   if (!NoGlobalLeaks()) {
     if (FLAGS_heap_check_identify_leaks) {
       RAW_LOG(FATAL, "Whole-program memory leaks found.");
@@ -2005,15 +2021,14 @@ bool HeapLeakChecker::NoGlobalLeaks() {
   // we never delete or change main_heap_checker once it's set:
   HeapLeakChecker* main_hc = GlobalChecker();
   if (main_hc) {
-    CheckType check_type = FLAGS_heap_check_strict_check ? SAME_HEAP : NO_LEAKS;
-    if (FLAGS_heap_check_before_constructors) check_type = SAME_HEAP;
-      // NO_LEAKS here just would make it slower in this case
-      // (we don't use the starting profile anyway)
-    CheckFullness fullness = check_type == NO_LEAKS ? USE_PPROF : USE_COUNTS;
-      // use pprof if it can help ignore false leaks
-    ReportMode report_mode = FLAGS_heap_check_report ? PPROF_REPORT : NO_REPORT;
     RAW_VLOG(1, "Checking for whole-program memory leaks");
-    return main_hc->DoNoLeaks(check_type, fullness, report_mode);
+    // The program is over, so it's safe to symbolize addresses (which
+    // requires a fork) because no serious work is expected to be done
+    // after this.  Symbolizing is really useful -- knowing what
+    // function has a leak is better than knowing just an address --
+    // and while we can only safely symbolize once in a program run,
+    // now is the time (after all, there's no "later" that would be better).
+    return main_hc->DoNoLeaks(SYMBOLIZE);
   }
   return true;
 }
@@ -2033,9 +2048,6 @@ void HeapLeakChecker::CancelGlobalCheck() {
 //----------------------------------------------------------------------
 
 static bool in_initial_malloc_hook = false;
-
-// Cancel our InitialMallocHook_* if present.
-static void CancelInitialMallocHooks();  // defined below
 
 #ifdef HAVE___ATTRIBUTE__   // we need __attribute__((weak)) for this to work
 #define INSTALLED_INITIAL_MALLOC_HOOKS

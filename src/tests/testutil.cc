@@ -99,7 +99,9 @@ extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int) {
 
 #elif defined(_WIN32)
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN  /* We always want minimal includes */
+#endif
 #include <windows.h>
 
 extern "C" {

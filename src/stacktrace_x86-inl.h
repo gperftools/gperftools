@@ -243,7 +243,7 @@ static void **NextStackFrame(void **old_sp, const void *uc) {
   // last two pages in the address space
   if ((uintptr_t)new_sp >= 0xffffe000) return NULL;
 #endif
-#if !defined(_WIN32)
+#ifdef HAVE_MMAP
   if (!STRICT_UNWINDING) {
     // Lax sanity checks cause a crash on AMD-based machines with
     // VDSO-enabled kernels.

@@ -208,14 +208,14 @@ inline void LOG_IF(int lvl, bool cond, const char* pat, ...) {
 // to allow even more low-level stuff in the future.
 // Like other "raw" routines, these functions are best effort, and
 // thus don't return error codes (except RawOpenForWriting()).
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 #include <windows.h>
 typedef HANDLE RawFD;
 const RawFD kIllegalRawFD = INVALID_HANDLE_VALUE;
 #else
 typedef int RawFD;
 const RawFD kIllegalRawFD = -1;   // what open returns if it fails
-#endif  // _WIN32
+#endif  // defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 
 RawFD RawOpenForWriting(const char* filename);   // uses default permissions
 void RawWrite(RawFD fd, const char* buf, size_t len);

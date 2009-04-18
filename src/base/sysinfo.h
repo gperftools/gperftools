@@ -39,7 +39,7 @@
 #include "config.h"
 
 #include <time.h>
-#if defined(_WIN32) || defined(__MINGW32__)
+#if (defined(_WIN32) || defined(__MINGW32__)) && (!defined(__CYGWIN__) && !defined(__CYGWIN32__))
 #include <windows.h>   // for DWORD
 #include <TlHelp32.h>  // for CreateToolhelp32Snapshot
 #endif
@@ -190,7 +190,7 @@ class ProcMapsIterator {
   char *etext_;       // end of text
   char *nextline_;    // start of next line
   char *ebuf_;        // end of buffer (1 char for a nul)
-#if defined(_WIN32) || defined(__MINGW32__)
+#if (defined(_WIN32) || defined(__MINGW32__)) && (!defined(__CYGWIN__) && !defined(__CYGWIN32__))
   HANDLE snapshot_;   // filehandle on dll info
   // In a change from the usual W-A pattern, there is no A variant of
   // MODULEENTRY32.  Tlhelp32.h #defines the W variant, but not the A.

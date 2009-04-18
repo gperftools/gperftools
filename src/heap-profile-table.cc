@@ -306,7 +306,7 @@ int HeapProfileTable::UnparseBucket(const Bucket& b,
   return buflen;
 }
 
-HeapProfileTable::Bucket** 
+HeapProfileTable::Bucket**
 HeapProfileTable::MakeSortedBucketList() const {
   Bucket** list =
     reinterpret_cast<Bucket**>(alloc_(sizeof(Bucket) * num_buckets_));
@@ -602,7 +602,8 @@ static bool Symbolize(void *pc, char *out, int out_size) {
 }
 
 void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
-                                             const char* filename) {
+                                             const char* filename,
+                                             bool should_symbolize) {
   // This is only used by the heap leak checker, but is intimately
   // tied to the allocation map that belongs in this module and is
   // therefore placed here.
@@ -644,7 +645,8 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
     for (int j = 0; j < e.bucket->depth; j++) {
       const void* pc = e.bucket->stack[j];
       const char* sym;
-      if (Symbolize(const_cast<void*>(pc), sym_buffer, sizeof(sym_buffer))) {
+      if (should_symbolize &&
+          Symbolize(const_cast<void*>(pc), sym_buffer, sizeof(sym_buffer))) {
         sym = sym_buffer;
       } else {
         sym = "";

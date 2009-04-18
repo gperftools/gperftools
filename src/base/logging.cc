@@ -39,7 +39,7 @@ DEFINE_int32(verbose, EnvToInt("PERFTOOLS_VERBOSE", 0),
              "--verbose == -4 means we log fatal errors only.");
 
 
-#ifdef _WIN32
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 
 // While windows does have a POSIX-compatible API
 // (_open/_write/_close), it acquires memory.  Using this lower-level
@@ -49,8 +49,8 @@ RawFD RawOpenForWriting(const char* filename) {
   // that ever becomes a problem then we ought to compute the absolute
   // path on its behalf (perhaps the ntdll/kernel function isn't aware
   // of the working directory?)
-  RawFD fd = CreateFile(filename, GENERIC_WRITE, 0, NULL,
-                        CREATE_ALWAYS, 0, NULL);
+  RawFD fd = CreateFileA(filename, GENERIC_WRITE, 0, NULL,
+                         CREATE_ALWAYS, 0, NULL);
   if (fd != kIllegalRawFD && GetLastError() == ERROR_ALREADY_EXISTS)
     SetEndOfFile(fd);    // truncate the existing file
   return fd;
@@ -71,7 +71,7 @@ void RawClose(RawFD handle) {
   CloseHandle(handle);
 }
 
-#else  // _WIN32
+#else  // _WIN32 || __CYGWIN__ || __CYGWIN32__
 
 #ifdef HAVE_SYS_TYPES_H
 #include <sys/types.h>
@@ -104,4 +104,4 @@ void RawClose(RawFD fd) {
   NO_INTR(close(fd));
 }
 
-#endif  // _WIN32
+#endif  // _WIN32 || __CYGWIN__ || __CYGWIN32__

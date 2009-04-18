@@ -407,9 +407,4 @@ inline Atomic64 Release_Load(volatile const Atomic64 *ptr) {
 }   // namespace base::subtle
 }   // namespace base
 
-// NOTE(vchen): The following is also deprecated.  New callers should use
-// the base::subtle namespace.
-inline void MemoryBarrier() {
-  base::subtle::MemoryBarrier();
-}
 #endif  // BASE_ATOMICOPS_INTERNALS_LINUXPPC_H_

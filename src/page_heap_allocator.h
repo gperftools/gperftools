@@ -63,7 +63,11 @@ class PageHeapAllocator {
       if (free_avail_ < kAlignedSize) {
         // Need more room
         free_area_ = reinterpret_cast<char*>(MetaDataAlloc(kAllocIncrement));
-        CHECK_CONDITION(free_area_ != NULL);
+        if (free_area_ == NULL) {
+          CRASH("FATAL ERROR: Out of memory trying to allocate internal "
+                "tcmalloc data (%d bytes, object-size %d)\n",
+                kAllocIncrement, static_cast<int>(sizeof(T)));
+        }
         free_avail_ = kAllocIncrement;
       }
       result = free_area_;

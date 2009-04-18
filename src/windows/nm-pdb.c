@@ -41,6 +41,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>   // for _strdup
 
 #include <windows.h>
 #include <dbghelp.h>

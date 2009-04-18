@@ -120,41 +120,22 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // has been called at least once).
   ~HeapLeakChecker();
 
-  // Return true iff the heap does not have more objects allocated
-  // w.r.t. its state at the time of our construction.
-  // This does full pprof heap change checking and reporting.
-  // To detect tricky leaks it depends on correct working pprof implementation
-  // referred by FLAGS_heap_profile_pprof.
-  // (By 'tricky leaks' we mean a change of heap state that e.g. for SameHeap
-  //  preserves the number of allocated objects and bytes
-  //  -- see TestHeapLeakCheckerTrick in heap-checker_unittest.cc --
-  //  and thus is not detected by BriefNoLeaks.)
-  // CAVEAT: pprof will do no checking over stripped binaries
-  // (our automatic test binaries are stripped)
-  // NOTE: All *NoLeaks() and *SameHeap() methods can be called many times
-  // to check for leaks at different end-points in program's execution.
-  bool NoLeaks() { return DoNoLeaks(NO_LEAKS, USE_PPROF, PPROF_REPORT); }
+  // These used to be different but are all the same now: they return
+  // true iff all memory allocated since this HeapLeakChecker object
+  // was constructor is still reachable from global state.
+  //
+  // Because we fork to convert addresses to symbol-names, and forking
+  // is not thread-safe, and we may be called in a threaded context,
+  // we do not try to symbolize addresses when called manually.
+  bool NoLeaks() { return DoNoLeaks(DO_NOT_SYMBOLIZE); }
 
-  // Return true iff the heap does not seem to have more objects allocated
-  // w.r.t. its state at the time of our construction
-  // by looking at the number of objects & bytes allocated.
-  // This also tries to do pprof reporting of detected leaks.
-  bool QuickNoLeaks() { return DoNoLeaks(NO_LEAKS, USE_COUNTS, PPROF_REPORT); }
-
-  // Return true iff the heap does not seem to have more objects allocated
-  // w.r.t. its state at the time of our construction
-  // by looking at the number of objects & bytes allocated.
-  // This does not try to use pprof at all.
-  bool BriefNoLeaks() { return DoNoLeaks(NO_LEAKS, USE_COUNTS, NO_REPORT); }
-
-  // These are similar to their *NoLeaks counterparts,
-  // but they in addition require no negative leaks,
-  // i.e. the state of the heap must be exactly the same
-  // as at the time of our construction.
-  bool SameHeap() { return DoNoLeaks(SAME_HEAP, USE_PPROF, PPROF_REPORT); }
-  bool QuickSameHeap()
-    { return DoNoLeaks(SAME_HEAP, USE_COUNTS, PPROF_REPORT); }
-  bool BriefSameHeap() { return DoNoLeaks(SAME_HEAP, USE_COUNTS, NO_REPORT); }
+  // These forms are obsolete; use NoLeaks() instead.
+  // TODO(csilvers): mark with ATTRIBUTE_DEPRECATED.
+  bool QuickNoLeaks()  { return NoLeaks(); }
+  bool BriefNoLeaks()  { return NoLeaks(); }
+  bool SameHeap()      { return NoLeaks(); }
+  bool QuickSameHeap() { return NoLeaks(); }
+  bool BriefSameHeap() { return NoLeaks(); }
 
   // Detailed information about the number of leaked bytes and objects
   // (both of these can be negative as well).
@@ -231,15 +212,10 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // Helper for constructors
   void Create(const char *name, bool make_start_snapshot);
 
-  // Types for DoNoLeaks and its helpers.
-  enum CheckType { SAME_HEAP, NO_LEAKS };
-  enum CheckFullness { USE_PPROF, USE_COUNTS };
-  enum ReportMode { PPROF_REPORT, NO_REPORT };
+  enum ShouldSymbolize { SYMBOLIZE, DO_NOT_SYMBOLIZE };
 
   // Helper for *NoLeaks and *SameHeap
-  bool DoNoLeaks(CheckType check_type,
-                 CheckFullness fullness,
-                 ReportMode report_mode);
+  bool DoNoLeaks(ShouldSymbolize should_symbolize);
 
   // These used to be public, but they are now deprecated.
   // Will remove entirely when all internal uses are fixed.

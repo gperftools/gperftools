@@ -95,8 +95,10 @@
 
 #if defined(NO_THREADS)
   typedef int MutexType;      // to keep a lock-count
-#elif defined(_WIN32) || defined(__CYGWIN32__) || defined(__CYGWIN64__)
-# define WIN32_LEAN_AND_MEAN  // We only need minimal includes
+#elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
+# ifndef WIN32_LEAN_AND_MEAN
+#   define WIN32_LEAN_AND_MEAN  // We only need minimal includes
+# endif
   // We need Windows NT or later for TryEnterCriticalSection().  If you
   // don't need that functionality, you can remove these _WIN32_WINNT
   // lines, and change TryLock() to assert(0) or something.
@@ -152,7 +154,7 @@ class Mutex {
   inline void SetIsSafe() { is_safe_ = true; }
 
   // Catch the error of writing Mutex when intending MutexLock.
-  Mutex(Mutex *ignored) {}
+  Mutex(Mutex* /*ignored*/) {}
   // Disallow "evil" constructors
   Mutex(const Mutex&);
   void operator=(const Mutex&);
@@ -180,7 +182,7 @@ bool Mutex::TryLock()      { if (mutex_) return false; Lock(); return true; }
 void Mutex::ReaderLock()   { assert(++mutex_ > 0); }
 void Mutex::ReaderUnlock() { assert(mutex_-- > 0); }
 
-#elif defined(_WIN32) || defined(__CYGWIN32__) || defined(__CYGWIN64__)
+#elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 
 Mutex::Mutex()             { InitializeCriticalSection(&mutex_); SetIsSafe(); }
 Mutex::~Mutex()            { DeleteCriticalSection(&mutex_); }
@@ -206,7 +208,8 @@ Mutex::~Mutex()            { SAFE_PTHREAD(pthread_rwlock_destroy); }
 void Mutex::Lock()         { SAFE_PTHREAD(pthread_rwlock_wrlock); }
 void Mutex::Unlock()       { SAFE_PTHREAD(pthread_rwlock_unlock); }
 bool Mutex::TryLock()      { return is_safe_ ?
-                                 pthread_rwlock_trywrlock(&mutex_) == 0 : true; }
+                                    pthread_rwlock_trywrlock(&mutex_) == 0 :
+                                    true; }
 void Mutex::ReaderLock()   { SAFE_PTHREAD(pthread_rwlock_rdlock); }
 void Mutex::ReaderUnlock() { SAFE_PTHREAD(pthread_rwlock_unlock); }
 #undef SAFE_PTHREAD

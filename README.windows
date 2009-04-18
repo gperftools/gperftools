@@ -51,6 +51,14 @@ Optimization (FPO) is enabled -- that is, in release mode.  The other
 features of perftools, such as the cpu-profiler and leak-checker, have
 not yet been ported to Windows at all.
 
+NOTE FOR WIN2K USERS: According to reports
+(http://code.google.com/p/google-perftools/issues/detail?id=127)
+the stack-tracing necessary for the heap-profiler does not work on
+Win2K.  The best workaround is, if you are building on a Win2k system
+is to add "/D NO_TCMALLOC_SAMPLES=" to your build, to turn off the
+stack-tracing.  You will not be able to use the heap-profiler if you
+do this.
+
 I have little experience with Windows programming, so there may be
 better ways to set this up than I've done!  If you run across any
 problems, please post to the google-perftools Google Group, or report

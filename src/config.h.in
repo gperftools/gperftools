@@ -150,9 +150,6 @@
 /* Define to 1 if you have the <unwind.h> header file. */
 #undef HAVE_UNWIND_H
 
-/* Define to 1 if you have the <windows.h> header file. */
-#undef HAVE_WINDOWS_H
-
 /* define if your compiler has __attribute__ */
 #undef HAVE___ATTRIBUTE__
 
@@ -164,6 +161,9 @@
 
 /* Define to 1 if int32_t is equivalent to intptr_t */
 #undef INT32_EQUALS_INTPTR
+
+/* Define to 1 if your C compiler doesn't accept -c and -o together. */
+#undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
 #undef PACKAGE

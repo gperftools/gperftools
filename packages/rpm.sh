@@ -47,7 +47,18 @@ mkdir "$RPM_BUILD_DIR"
 
 cp "$archive" "$RPM_SOURCE_DIR"
 
-rpmbuild -bb rpm/rpm.spec \
+# rpmbuild -- as far as I can tell -- asks the OS what CPU it has.
+# This may differ from what kind of binaries gcc produces.  dpkg
+# does a better job of this, so if we can run 'dpkg --print-architecture'
+# to get the build CPU, we use that in preference of the rpmbuild
+# default.
+target=`dpkg --print-architecture 2>/dev/null`   # "" if dpkg isn't found
+if [ -n "$target" ]
+then
+   target=" --target $target"
+fi
+
+rpmbuild -bb rpm/rpm.spec $target \
   --define "NAME $PACKAGE" \
   --define "VERSION $VERSION" \
   --define "_sourcedir $RPM_SOURCE_DIR" \
