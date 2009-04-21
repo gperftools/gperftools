@@ -30,7 +30,7 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
-#include "config.h"
+#include <config.h>
 
 // Disable the glibc prototype of mremap(), as older versions of the
 // system headers define this function with only four arguments,

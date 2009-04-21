@@ -30,7 +30,7 @@
 // ---
 // Sanjay Ghemawat <opensource@google.com>
 
-#include "config.h"
+#include <config.h>
 #include <stdio.h>
 #include <stdarg.h>
 #ifdef HAVE_UNISTD_H

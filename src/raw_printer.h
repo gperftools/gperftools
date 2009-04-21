@@ -42,7 +42,7 @@
 #ifndef BASE_RAW_PRINTER_H_
 #define BASE_RAW_PRINTER_H_
 
-#include "config.h"
+#include <config.h>
 #include "base/basictypes.h"
 
 namespace base {

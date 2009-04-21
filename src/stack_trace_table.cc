@@ -30,7 +30,7 @@
 // ---
 // Author: Andrew Fikes
 
-#include "config.h"
+#include <config.h>
 #include "base/spinlock.h"
 #include "common.h"
 #include "static_vars.h"

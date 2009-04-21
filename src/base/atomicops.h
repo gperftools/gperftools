@@ -66,7 +66,7 @@
 #ifndef THREAD_ATOMICOPS_H_
 #define THREAD_ATOMICOPS_H_
 
-#include "config.h"
+#include <config.h>
 #ifdef HAVE_STDINT_H
 #include <stdint.h>
 #endif

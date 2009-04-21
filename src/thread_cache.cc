@@ -30,7 +30,7 @@
 // ---
 // Author: Ken Ashcraft <opensource@google.com>
 
-#include "config.h"
+#include <config.h>
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
 #endif

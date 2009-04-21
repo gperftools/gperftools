@@ -31,7 +31,7 @@
  * Author: Sanjay Ghemawat
  */
 
-#include "config.h"
+#include <config.h>
 #include <time.h>       /* For nanosleep() */
 #include <sched.h>      /* For sched_yield() */
 #ifdef HAVE_UNISTD_H

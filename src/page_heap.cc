@@ -30,7 +30,7 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
-#include "config.h"
+#include <config.h>
 #include "page_heap.h"
 
 #include "static_vars.h"

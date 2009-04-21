@@ -33,7 +33,7 @@
 // Author: Maxim Lifantsev
 //
 
-#include "config.h"
+#include <config.h>
 
 #include <fcntl.h>    // for O_RDONLY (we use syscall to do actual reads)
 #include <string.h>

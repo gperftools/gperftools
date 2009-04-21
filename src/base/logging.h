@@ -35,7 +35,7 @@
 #ifndef _LOGGING_H_
 #define _LOGGING_H_
 
-#include "config.h"
+#include <config.h>
 #include <stdarg.h>
 #include <stdlib.h>
 #include <stdio.h>

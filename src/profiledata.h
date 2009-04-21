@@ -40,7 +40,7 @@
 #ifndef BASE_PROFILEDATA_H_
 #define BASE_PROFILEDATA_H_
 
-#include "config.h"
+#include <config.h>
 #include <time.h>   // for time_t
 #include <stdint.h>
 #include "base/basictypes.h"

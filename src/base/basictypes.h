@@ -30,7 +30,7 @@
 #ifndef _BASICTYPES_H_
 #define _BASICTYPES_H_
 
-#include "config.h"
+#include <config.h>
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>     // gets us PRId64, etc
 #endif

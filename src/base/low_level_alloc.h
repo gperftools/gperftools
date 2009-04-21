@@ -39,7 +39,7 @@
 // sparingly, and only when malloc() would introduce an unwanted
 // dependency, such as inside the heap-checker.
 
-#include "config.h"
+#include <config.h>
 #include <stddef.h>             // for size_t
 #include "base/basictypes.h"
 

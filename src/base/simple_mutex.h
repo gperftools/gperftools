@@ -91,7 +91,7 @@
 #ifndef GOOGLE_MUTEX_H_
 #define GOOGLE_MUTEX_H_
 
-#include "config.h"           // to figure out pthreads support
+#include <config.h>
 
 #if defined(NO_THREADS)
   typedef int MutexType;      // to keep a lock-count

@@ -34,7 +34,7 @@
 #ifndef BASE_MEMORY_REGION_MAP_H_
 #define BASE_MEMORY_REGION_MAP_H_
 
-#include "config.h"
+#include <config.h>
 
 #ifdef HAVE_PTHREAD
 #include <pthread.h>

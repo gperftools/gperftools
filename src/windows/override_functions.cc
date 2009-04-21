@@ -39,7 +39,7 @@
 // See also
 // http://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
 
-#include "config.h"
+#include <config.h>
 
 #ifndef _WIN32
 # error You should only be including this file in a windows environment!

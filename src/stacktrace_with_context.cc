@@ -41,7 +41,7 @@
 // may inline this code anyway. Let's hope they respect
 // ATTRIBUTE_NOINLINE.
 
-#include "config.h"
+#include <config.h>
 #include <google/stacktrace.h>
 #include "stacktrace_config.h"
 #include "base/basictypes.h"

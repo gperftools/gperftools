@@ -35,7 +35,7 @@
 #ifndef TCMALLOC_STATIC_VARS_H_
 #define TCMALLOC_STATIC_VARS_H_
 
-#include "config.h"
+#include <config.h>
 #include "base/spinlock.h"
 #include "central_freelist.h"
 #include "common.h"

@@ -33,7 +33,7 @@
 //
 // Collect profiling data.
 
-#include "config.h"
+#include <config.h>
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>

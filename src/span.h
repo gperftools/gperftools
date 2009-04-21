@@ -35,7 +35,7 @@
 #ifndef TCMALLOC_SPAN_H_
 #define TCMALLOC_SPAN_H_
 
-#include "config.h"
+#include <config.h>
 #include "common.h"
 
 namespace tcmalloc {

@@ -86,7 +86,7 @@
 // * allocation of a reasonably complicated struct
 //   goes from about 1100 ns to about 300 ns.
 
-#include "config.h"
+#include <config.h>
 #include <new>
 #include <stdio.h>
 #include <stddef.h>

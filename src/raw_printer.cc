@@ -30,7 +30,7 @@
 // ---
 // Author: sanjay@google.com (Sanjay Ghemawat)
 
-#include "config.h"
+#include <config.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include "raw_printer.h"

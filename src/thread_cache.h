@@ -33,7 +33,7 @@
 #ifndef TCMALLOC_THREAD_CACHE_H_
 #define TCMALLOC_THREAD_CACHE_H_
 
-#include "config.h"
+#include <config.h>
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
 #endif

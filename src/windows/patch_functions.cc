@@ -66,7 +66,7 @@
 # error You should only be including windows/patch_functions.cc in a windows environment!
 #endif
 
-#include "config.h"
+#include <config.h>
 
 #ifdef WIN32_OVERRIDE_ALLOCATORS
 #error This file is intended for patching allocators - use override_functions.cc instead.

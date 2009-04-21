@@ -55,7 +55,7 @@
 #ifndef BASE_VDSO_SUPPORT_H_
 #define BASE_VDSO_SUPPORT_H_
 
-#include "config.h"
+#include <config.h>
 
 // Maybe one day we can rewrite this file not to require the elf
 // symbol extensions in glibc, but for right now we need them.

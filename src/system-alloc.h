@@ -36,7 +36,7 @@
 #ifndef TCMALLOC_SYSTEM_ALLOC_H_
 #define TCMALLOC_SYSTEM_ALLOC_H_
 
-#include "config.h"
+#include <config.h>
 #include "internal_logging.h"
 
 // REQUIRES: "alignment" is a power of two or "0" to indicate default alignment

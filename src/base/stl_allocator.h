@@ -35,7 +35,7 @@
 #ifndef BASE_STL_ALLOCATOR_H_
 #define BASE_STL_ALLOCATOR_H_
 
-#include "config.h"
+#include <config.h>
 
 #include <limits>
 

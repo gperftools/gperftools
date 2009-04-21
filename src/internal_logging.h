@@ -35,7 +35,7 @@
 #ifndef TCMALLOC_INTERNAL_LOGGING_H_
 #define TCMALLOC_INTERNAL_LOGGING_H_
 
-#include "config.h"
+#include <config.h>
 #include <stdlib.h>   // for abort()
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>   // for write()
