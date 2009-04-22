@@ -103,8 +103,12 @@ enum { PTHREAD_ONCE_INIT = 0 };   // important that this be 0! for SpinLock
 extern pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  // in port.cc
 #define perftools_pthread_key_create(pkey, destr_fn)  \
   *(pkey) = PthreadKeyCreate(destr_fn)
-#define perftools_pthread_getspecific(key) \
-  TlsGetValue(key)
+inline void* perftools_pthread_getspecific(DWORD key) {
+  DWORD err = GetLastError();
+  void* rv = TlsGetValue(key);
+  if (err) SetLastError(err);
+  return rv;
+}
 #define perftools_pthread_setspecific(key, val) \
   TlsSetValue((key), (val))
 // NOTE: this is Win98 and later.  For Win95 we could use a CRITICAL_SECTION...
