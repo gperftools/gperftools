@@ -896,7 +896,7 @@ static SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
 inline void* cpp_alloc(size_t size, bool nothrow) {
   for (;;) {
     void* p = do_malloc(size);
-#if defined(PREANSINEW) || (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+#ifdef PREANSINEW
     return p;
 #else
     if (p == NULL) {  // allocation failed
@@ -910,6 +910,15 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
         nh = std::set_new_handler(0);
         (void) std::set_new_handler(nh);
       }
+#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+      if (nh) {
+        // Since exceptions are disabled, we don't really know if new_handler
+        // failed.  Assume it will abort if it fails.
+        (*nh)();
+        continue;
+      }
+      return 0;
+#else
       // If no new_handler is established, the allocation failed.
       if (!nh) {
         if (nothrow) return 0;
@@ -924,10 +933,11 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
         if (!nothrow) throw;
         return p;
       }
+#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
     } else {  // allocation success
       return p;
     }
-#endif
+#endif  // PREANSINEW
   }
 }
 
