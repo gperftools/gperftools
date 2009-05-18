@@ -67,7 +67,9 @@ class LOCKABLE SpinLock {
   }
 
   // Acquire this SpinLock.
-  inline void Lock() EXCLUSIVE_LOCK_FUNCTION() {
+  // TODO(csilvers): uncomment the annotation when we figure out how to
+  //                 support this macro with 0 args (see thread_annotations.h)
+  inline void Lock() /*EXCLUSIVE_LOCK_FUNCTION()*/ {
     if (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
       SlowLock();
     }
@@ -87,7 +89,9 @@ class LOCKABLE SpinLock {
   }
 
   // Release this SpinLock, which must be held by the calling thread.
-  inline void Unlock() UNLOCK_FUNCTION() {
+  // TODO(csilvers): uncomment the annotation when we figure out how to
+  //                 support this macro with 0 args (see thread_annotations.h)
+  inline void Unlock() /*UNLOCK_FUNCTION()*/ {
     // This is defined in mutex.cc.
     extern void SubmitSpinLockProfileData(const void *, int64);
 
@@ -144,7 +148,9 @@ class SCOPED_LOCKABLE SpinLockHolder {
       : lock_(l) {
     l->Lock();
   }
-  inline ~SpinLockHolder() UNLOCK_FUNCTION() { lock_->Unlock(); }
+  // TODO(csilvers): uncomment the annotation when we figure out how to
+  //                 support this macro with 0 args (see thread_annotations.h)
+  inline ~SpinLockHolder() /*UNLOCK_FUNCTION()*/ { lock_->Unlock(); }
 };
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
 #define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)

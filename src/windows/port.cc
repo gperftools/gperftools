@@ -42,6 +42,7 @@
 #include <windows.h>
 #include "port.h"
 #include "base/logging.h"
+#include "base/spinlock.h"
 #include "system-alloc.h"
 
 // -----------------------------------------------------------------------

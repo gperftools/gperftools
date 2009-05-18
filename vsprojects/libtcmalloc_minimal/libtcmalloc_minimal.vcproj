@@ -540,6 +540,23 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\src\base\spinlock.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows;..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows;..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath="..\..\src\base\sysinfo.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
@@ -619,6 +636,15 @@
 			</File>
 			<File
 				RelativePath="..\..\src\base\low_level_alloc.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\spinlock.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-x86-msvc.h">
 			</File>
 			<File
 				RelativePath="..\..\src\google\malloc_extension.h">

@@ -76,6 +76,7 @@
 #include <malloc.h>       // for _msize and _expand
 #include <tlhelp32.h>     // for CreateToolhelp32Snapshot()
 #include <base/logging.h>
+#include "base/spinlock.h"
 #include "google/malloc_hook.h"
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"

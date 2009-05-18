@@ -37,6 +37,9 @@
 
 #ifndef BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
 #define BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
+
+#include <stdio.h>
+#include <stdlib.h>
 #include "base/basictypes.h"  // For COMPILE_ASSERT
 
 typedef int32 Atomic32;
@@ -256,9 +259,6 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
 
 // TBD(vchen): The GNU assembly below must be converted to MSVC inline
 // assembly.
-
-#include <stdio.h>
-#include <stdlib.h>
 
 inline void NotImplementedFatalError(const char *function_name) {
   fprintf(stderr, "64-bit %s() not implemented on this platform\n",

@@ -130,6 +130,23 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\src\base\sysinfo.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath="..\..\src\base\logging.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
@@ -148,6 +165,23 @@
 			</File>
 			<File
 				RelativePath="..\..\src\base\low_level_alloc.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
+				RelativePath="..\..\src\base\spinlock.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool
@@ -260,10 +294,25 @@
 				RelativePath="..\..\src\base\commandlineflags.h">
 			</File>
 			<File
+				RelativePath="..\..\src\base\spinlock.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-x86-msvc.h">
+			</File>
+			<File
 				RelativePath="..\..\src\windows\config.h">
 			</File>
 			<File
 				RelativePath="..\..\src\config_for_unittests.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\cycleclock.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\dynamic_annotations.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\logging.h">

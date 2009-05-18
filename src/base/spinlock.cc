@@ -33,7 +33,9 @@
 
 #include <config.h>
 #include <time.h>       /* For nanosleep() */
+#ifdef HAVE_SCHED_H
 #include <sched.h>      /* For sched_yield() */
+#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>     /* For nanosleep() on Windows, read() */
 #endif
@@ -78,9 +80,13 @@ void SpinLock::SlowLock() {
     c--;
   }
 
+#ifdef HAVE_SCHED_H
   if (lockword_ == 1) {
     sched_yield();          // Spinning failed. Let's try to be gentle.
   }
+#else
+  sleep(0);                 // best we can do?  Useful on windows at least.
+#endif
 
   while (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
     // This code was adapted from the ptmalloc2 implementation of

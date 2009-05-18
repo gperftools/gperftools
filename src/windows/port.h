@@ -111,7 +111,7 @@ inline void* perftools_pthread_getspecific(DWORD key) {
 }
 #define perftools_pthread_setspecific(key, val) \
   TlsSetValue((key), (val))
-// NOTE: this is Win98 and later.  For Win95 we could use a CRITICAL_SECTION...
+// NOTE: this is Win2K and later.  For Win98 we could use a CRITICAL_SECTION...
 #define perftools_pthread_once(once, init)  do {                \
   if (InterlockedCompareExchange(once, 1, 0) == 0) (init)();    \
 } while (0)
@@ -122,11 +122,16 @@ inline void* perftools_pthread_getspecific(DWORD key) {
 // things we need to do before main()!  So this kind of TLS is safe for us.
 #define __thread __declspec(thread)
 
+// This code is obsolete, but I keep it around in case we are ever in
+// an environment where we can't or don't want to use google spinlocks
+// (from base/spinlock.{h,cc}).  In that case, uncommenting this out,
+// and removing spinlock.cc from the build, should be enough to revert
+// back to using native spinlocks.
+#if 0
 // Windows uses a spinlock internally for its mutexes, making our life easy!
 // However, the Windows spinlock must always be initialized, making life hard,
 // since we want LINKER_INITIALIZED.  We work around this by having the
 // linker initialize a bool to 0, and check that before accessing the mutex.
-// TODO(csilvers): figure out a faster way.
 // This replaces spinlock.{h,cc}, and all the stuff it depends on (atomicops)
 #ifdef __cplusplus
 class SpinLock {
@@ -134,7 +139,10 @@ class SpinLock {
   SpinLock() : initialize_token_(PTHREAD_ONCE_INIT) {}
   // Used for global SpinLock vars (see base/spinlock.h for more details).
   enum StaticInitializer { LINKER_INITIALIZED };
-  explicit SpinLock(StaticInitializer) : initialize_token_(PTHREAD_ONCE_INIT) {}
+  explicit SpinLock(StaticInitializer) : initialize_token_(PTHREAD_ONCE_INIT) {
+    perftools_pthread_once(&initialize_token_, InitializeMutex);
+  }
+
   // It's important SpinLock not have a destructor: otherwise we run
   // into problems when the main thread has exited, but other threads
   // are still running and try to access a main-thread spinlock.  This
@@ -144,6 +152,15 @@ class SpinLock {
   // perfectly fine.  But be aware of this for the future!
 
   void Lock() {
+    // You'd thionk this would be unnecessary, since we call
+    // InitializeMutex() in our constructor.  But sometimes Lock() can
+    // be called before our constructor is!  This can only happen in
+    // global constructors, when this is a global.  If we live in
+    // bar.cc, and some global constructor in foo.cc calls a routine
+    // in bar.cc that calls this->Lock(), then Lock() may well run
+    // before our global constructor does.  To protect against that,
+    // we do this check.  For SpinLock objects created after main()
+    // has started, this pthread_once call will always be a noop.
     perftools_pthread_once(&initialize_token_, InitializeMutex);
     EnterCriticalSection(&mutex_);
   }
@@ -172,7 +189,12 @@ class SpinLockHolder {  // Acquires a spinlock for as long as the scope lasts
   inline explicit SpinLockHolder(SpinLock* l) : lock_(l) { l->Lock(); }
   inline ~SpinLockHolder() { lock_->Unlock(); }
 };
-#endif
+#endif  // #ifdef __cplusplus
+
+// This keeps us from using base/spinlock.h's implementation of SpinLock.
+#define BASE_SPINLOCK_H_ 1
+
+#endif  // #if 0
 
 // This replaces testutil.{h,cc}
 extern PERFTOOLS_DLL_DECL void RunInThread(void (*fn)());
@@ -264,6 +286,14 @@ extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 #define random   rand
 #define sleep(t) Sleep(t * 1000)
 
+struct timespec {
+  int tv_sec;
+  int tv_nsec;
+};
+
+#define nanosleep(tm_ptr, ignored)  \
+  Sleep((tm_ptr)->tv_sec * 1000 + (tm_ptr)->tv_nsec / 1000000)
+
 #ifndef __MINGW32__
 #define strtoq   _strtoi64
 #define strtouq  _strtoui64
@@ -284,7 +314,6 @@ extern PERFTOOLS_DLL_DECL void PatchWindowsFunctions();
 // windows/port.h defines compatibility APIs for several .h files, which
 // we therefore shouldn't be #including directly.  This hack keeps us from
 // doing so.  TODO(csilvers): do something more principled.
-#define BASE_SPINLOCK_H_ 1
 #define GOOGLE_MAYBE_THREADS_H_ 1
 
 

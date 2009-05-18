@@ -19,15 +19,6 @@
  */
 #undef WIN32_OVERRIDE_ALLOCATORS
 
-/* the location of <hash_map> */
-#define HASH_MAP_H  <hash_map>
-
-/* the namespace of hash_map/hash_set */
-#define HASH_NAMESPACE  stdext
-
-/* the location of <hash_set> */
-#define HASH_SET_H  <hash_set>
-
 /* Define to 1 if your libc has a snprintf implementation */
 #undef HAVE_SNPRINTF
 
@@ -84,12 +75,6 @@
 
 /* Define to 1 if you have the <grp.h> header file. */
 #undef HAVE_GRP_H
-
-/* define if the compiler has hash_map */
-#define HAVE_HASH_MAP 1
-
-/* define if the compiler has hash_set */
-#define HAVE_HASH_SET 1
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
