@@ -110,6 +110,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <algorithm>
+#include <google/tcmalloc.h>
 #include "base/commandlineflags.h"
 #include "base/basictypes.h"               // gets us PRIu64
 #include "base/sysinfo.h"
@@ -177,6 +178,166 @@ DEFINE_int64(tcmalloc_large_alloc_report_threshold,
              "is very large and therefore you should see no extra "
              "logging unless the flag is overridden.  Set to 0 to "
              "disable reporting entirely.");
+
+
+// We already declared these functions in tcmalloc.h, but we have to
+// declare them again to give them an ATTRIBUTE_SECTION: we want to
+// put all callers of MallocHook::Invoke* in this module into
+// ATTRIBUTE_SECTION(google_malloc) section, so that
+// MallocHook::GetCallerStackTrace can function accurately.
+extern "C" {
+  void* tc_malloc(size_t size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_free(void* ptr) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_realloc(void* ptr, size_t size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_calloc(size_t nmemb, size_t size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_cfree(void* ptr) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+
+  void* tc_memalign(size_t __alignment, size_t __size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  int tc_posix_memalign(void** ptr, size_t align, size_t size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_valloc(size_t __size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_pvalloc(size_t __size) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+
+  void tc_malloc_stats(void) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  int tc_mallopt(int cmd, int value) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+#ifdef HAVE_STRUCT_MALLINFO    // struct mallinfo isn't defined on freebsd
+  struct mallinfo tc_mallinfo(void) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+#endif
+
+  void* tc_new(size_t size)
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_delete(void* p) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_newarray(size_t size)
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_deletearray(void* p) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+
+  // And the nothrow variants of these:
+  void* tc_new_nothrow(size_t size, const std::nothrow_t&) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+}
+
+// Override the libc functions to prefer our own instead.  This comes
+// first so code in tcmalloc.cc can use the overridden versions.  One
+// exception: in windows, by default, we patch our code into these
+// functions (via src/windows/patch_function.cc) rather than override
+// them.  In that case, we don't want to do this overriding here.
+#ifndef WIN32_DO_PATCHING
+
+#if defined(__GNUC__) && !defined(__MACH__)
+  // Potentially faster variants that use the gcc alias extension.
+  // Mach-O (Darwin) does not support weak aliases, hence the __MACH__ check.
+  // FreeBSD does support aliases, but apparently not correctly. :-(
+# define ALIAS(x) __attribute__ ((alias (x)))
+void* operator new(size_t size)                  ALIAS("tc_new");
+void operator delete(void* p) __THROW            ALIAS("tc_delete");
+void* operator new[](size_t size)                ALIAS("tc_newarray");
+void operator delete[](void* p) __THROW          ALIAS("tc_deletearray");
+void* operator new(size_t size, const std::nothrow_t&) __THROW
+                                                 ALIAS("tc_new_nothrow");
+void* operator new[](size_t size, const std::nothrow_t&) __THROW
+                                                 ALIAS("tc_newarray_nothrow");
+extern "C" {
+  void* malloc(size_t size) __THROW              ALIAS("tc_malloc");
+  void  free(void* ptr) __THROW                  ALIAS("tc_free");
+  void* realloc(void* ptr, size_t size) __THROW  ALIAS("tc_realloc");
+  void* calloc(size_t n, size_t size) __THROW    ALIAS("tc_calloc");
+  void  cfree(void* ptr) __THROW                 ALIAS("tc_cfree");
+  void* memalign(size_t align, size_t s) __THROW ALIAS("tc_memalign");
+  void* valloc(size_t size) __THROW              ALIAS("tc_valloc");
+  void* pvalloc(size_t size) __THROW             ALIAS("tc_pvalloc");
+  int posix_memalign(void** r, size_t a, size_t s) __THROW
+      ALIAS("tc_posix_memalign");
+  void malloc_stats(void) __THROW                ALIAS("tc_malloc_stats");
+  int mallopt(int cmd, int value) __THROW        ALIAS("tc_mallopt");
+#ifdef HAVE_STRUCT_MALLINFO
+  struct mallinfo mallinfo(void) __THROW         ALIAS("tc_mallinfo");
+#endif
+  // Some library routines on RedHat 9 allocate memory using malloc()
+  // and free it using __libc_free() (or vice-versa).  Since we provide
+  // our own implementations of malloc/free, we need to make sure that
+  // the __libc_XXX variants (defined as part of glibc) also point to
+  // the same implementations.
+# if defined(__GLIBC__)
+  void* __libc_malloc(size_t size)               ALIAS("tc_malloc");
+  void  __libc_free(void* ptr)                   ALIAS("tc_free");
+  void* __libc_realloc(void* ptr, size_t size)   ALIAS("tc_realloc");
+  void* __libc_calloc(size_t n, size_t size)     ALIAS("tc_calloc");
+  void  __libc_cfree(void* ptr)                  ALIAS("tc_cfree");
+  void* __libc_memalign(size_t align, size_t s)  ALIAS("tc_memalign");
+  void* __libc_valloc(size_t size)               ALIAS("tc_valloc");
+  void* __libc_pvalloc(size_t size)              ALIAS("tc_pvalloc");
+  int __posix_memalign(void** r, size_t a, size_t s) ALIAS("tc_posix_memalign");
+# define HAVE_ALIASED___LIBC 1
+# endif  // #if defined(__GLIBC__)
+}   // extern "C"
+# undef ALIAS
+#else
+// Portable wrappers
+void* operator new(size_t size)                  { return tc_new(size);       }
+void operator delete(void* p) __THROW            { tc_delete(p);              }
+void* operator new[](size_t size)                { return tc_newarray(size);  }
+void operator delete[](void* p) __THROW          { tc_deletearray(p);         }
+void* operator new(size_t size, const std::nothrow_t& nt) __THROW {
+  return tc_new_nothrow(size, nt);
+}
+void* operator new[](size_t size, const std::nothrow_t& nt) __THROW {
+  return tc_newarray_nothrow(size, nt);
+}
+extern "C" {
+  void* malloc(size_t s) __THROW                 { return tc_malloc(s);       }
+  void  free(void* p) __THROW                    { tc_free(p);                }
+  void* realloc(void* p, size_t s) __THROW       { return tc_realloc(p, s);   }
+  void* calloc(size_t n, size_t s) __THROW       { return tc_calloc(n, s);    }
+  void  cfree(void* p) __THROW                   { tc_cfree(p);               }
+  void* memalign(size_t a, size_t s) __THROW     { return tc_memalign(a, s);  }
+  void* valloc(size_t s) __THROW                 { return tc_valloc(s);       }
+  void* pvalloc(size_t s) __THROW                { return tc_pvalloc(s);      }
+  int posix_memalign(void** r, size_t a, size_t s) __THROW {
+    return tc_posix_memalign(r, a, s);
+  }
+  void malloc_stats(void) __THROW                { tc_malloc_stats();         }
+  int mallopt(int cmd, int v) __THROW            { return tc_mallopt(cmd, v); }
+#ifdef HAVE_STRUCT_MALLINFO
+  struct mallinfo mallinfo(void) __THROW         { return tc_mallinfo();      }
+#endif
+}  // extern C
+#endif  // #if defined(__GNUC__)
+
+#ifndef HAVE_ALIASED___LIBC
+extern "C" {
+  void* __libc_malloc(size_t size)               { return malloc(size);       }
+  void  __libc_free(void* ptr)                   { free(ptr);                 }
+  void* __libc_realloc(void* ptr, size_t size)   { return realloc(ptr, size); }
+  void* __libc_calloc(size_t n, size_t size)     { return calloc(n, size);    }
+  void  __libc_cfree(void* ptr)                  { cfree(ptr);                }
+  void* __libc_memalign(size_t align, size_t s)  { return memalign(align, s); }
+  void* __libc_valloc(size_t size)               { return valloc(size);       }
+  void* __libc_pvalloc(size_t size)              { return pvalloc(size);      }
+  int __posix_memalign(void** r, size_t a, size_t s) {
+    return posix_memalign(r, a, s);
+  }
+}   // extern "C"
+#endif  // #ifndef HAVE_ALIASED___LIBC
+
+#endif  // #ifndef WIN32_DO_PATCHING
+
+
+// ----------------------- IMPLEMENTATION -------------------------------
 
 // These routines are called by free(), realloc(), etc. if the pointer is
 // invalid.  This is a cheap (source-editing required) kind of exception
@@ -952,85 +1113,35 @@ size_t TCMallocImplementation::GetAllocatedSize(void* ptr) {
 // Exported routines
 //-------------------------------------------------------------------
 
-#ifndef WIN32_DO_PATCHING
-
 // CAVEAT: The code structure below ensures that MallocHook methods are always
 //         called from the stack frame of the invoked allocation function.
 //         heap-checker.cc depends on this to start a stack trace from
 //         the call to the (de)allocation function.
 
-// Put all callers of MallocHook::Invoke* in this module into
-// ATTRIBUTE_SECTION(google_malloc) section,
-// so that MallocHook::GetCallerStackTrace can function accurately:
-
-// NOTE: __THROW expands to 'throw()', which means 'never throws.'  Urgh.
-extern "C" {
-  void* malloc(size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  void free(void* ptr)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  void* realloc(void* ptr, size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  void* calloc(size_t nmemb, size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  void cfree(void* ptr)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-
-  void* memalign(size_t __alignment, size_t __size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  int posix_memalign(void** ptr, size_t align, size_t size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  void* valloc(size_t __size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-  void* pvalloc(size_t __size)
-      __THROW ATTRIBUTE_SECTION(google_malloc);
-}
-
-void* operator new(size_t size)
-    ATTRIBUTE_SECTION(google_malloc);
-void operator delete(void* p)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-void* operator new[](size_t size)
-    ATTRIBUTE_SECTION(google_malloc);
-void operator delete[](void* p)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-
-// And the nothrow variants of these:
-void* operator new(size_t size, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-void operator delete(void* p, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-void* operator new[](size_t size, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-void operator delete[](void* p, const std::nothrow_t&)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-
-static void *MemalignOverride(size_t align, size_t size, const void *caller)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-
-extern "C" void* malloc(size_t size) __THROW {
-  void* result = do_malloc(size);
+static int tc_new_mode = 0;  // See tc_set_new_mode().
+extern "C" void* tc_malloc(size_t size) __THROW {
+  void* result = (tc_new_mode ? cpp_alloc(size, false) : do_malloc(size));
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
 
-extern "C" void free(void* ptr) __THROW {
+extern "C" void tc_free(void* ptr) __THROW {
   MallocHook::InvokeDeleteHook(ptr);
   do_free(ptr);
 }
 
-extern "C" void* calloc(size_t n, size_t elem_size) __THROW {
+extern "C" void* tc_calloc(size_t n, size_t elem_size) __THROW {
   void* result = do_calloc(n, elem_size);
   MallocHook::InvokeNewHook(result, n * elem_size);
   return result;
 }
 
-extern "C" void cfree(void* ptr) __THROW {
+extern "C" void tc_cfree(void* ptr) __THROW {
   MallocHook::InvokeDeleteHook(ptr);
   do_free(ptr);
 }
 
-extern "C" void* realloc(void* old_ptr, size_t new_size) __THROW {
+extern "C" void* tc_realloc(void* old_ptr, size_t new_size) __THROW {
   if (old_ptr == NULL) {
     void* result = do_malloc(new_size);
     MallocHook::InvokeNewHook(result, new_size);
@@ -1044,7 +1155,7 @@ extern "C" void* realloc(void* old_ptr, size_t new_size) __THROW {
   return do_realloc(old_ptr, new_size);
 }
 
-void* operator new(size_t size) {
+extern "C" void* tc_new(size_t size) {
   void* p = cpp_alloc(size, false);
   // We keep this next instruction out of cpp_alloc for a reason: when
   // it's in, and new just calls cpp_alloc, the optimizer may fold the
@@ -1055,23 +1166,18 @@ void* operator new(size_t size) {
   return p;
 }
 
-void* operator new(size_t size, const std::nothrow_t&) __THROW {
+extern "C" void* tc_new_nothrow(size_t size, const std::nothrow_t&) __THROW {
   void* p = cpp_alloc(size, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
 
-void operator delete(void* p) __THROW {
+extern "C" void tc_delete(void* p) __THROW {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
 
-void operator delete(void* p, const std::nothrow_t&) __THROW {
-  MallocHook::InvokeDeleteHook(p);
-  do_free(p);
-}
-
-void* operator new[](size_t size) {
+extern "C" void* tc_newarray(size_t size) {
   void* p = cpp_alloc(size, false);
   // We keep this next instruction out of cpp_alloc for a reason: when
   // it's in, and new just calls cpp_alloc, the optimizer may fold the
@@ -1082,29 +1188,24 @@ void* operator new[](size_t size) {
   return p;
 }
 
-void* operator new[](size_t size, const std::nothrow_t&) __THROW {
+extern "C" void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW {
   void* p = cpp_alloc(size, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
 
-void operator delete[](void* p) __THROW {
+extern "C" void tc_deletearray(void* p) __THROW {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
 
-void operator delete[](void* p, const std::nothrow_t&) __THROW {
-  MallocHook::InvokeDeleteHook(p);
-  do_free(p);
-}
-
-extern "C" void* memalign(size_t align, size_t size) __THROW {
+extern "C" void* tc_memalign(size_t align, size_t size) __THROW {
   void* result = do_memalign(align, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
 
-extern "C" int posix_memalign(void** result_ptr, size_t align, size_t size)
+extern "C" int tc_posix_memalign(void** result_ptr, size_t align, size_t size)
     __THROW {
   if (((align % sizeof(void*)) != 0) ||
       ((align & (align - 1)) != 0) ||
@@ -1124,7 +1225,7 @@ extern "C" int posix_memalign(void** result_ptr, size_t align, size_t size)
 
 static size_t pagesize = 0;
 
-extern "C" void* valloc(size_t size) __THROW {
+extern "C" void* tc_valloc(size_t size) __THROW {
   // Allocate page-aligned object of length >= size bytes
   if (pagesize == 0) pagesize = getpagesize();
   void* result = do_memalign(pagesize, size);
@@ -1132,7 +1233,7 @@ extern "C" void* valloc(size_t size) __THROW {
   return result;
 }
 
-extern "C" void* pvalloc(size_t size) __THROW {
+extern "C" void* tc_pvalloc(size_t size) __THROW {
   // Round up size to a multiple of pagesize
   if (pagesize == 0) pagesize = getpagesize();
   size = (size + pagesize - 1) & ~(pagesize - 1);
@@ -1141,60 +1242,31 @@ extern "C" void* pvalloc(size_t size) __THROW {
   return result;
 }
 
-extern "C" void malloc_stats(void) {
+extern "C" void tc_malloc_stats(void) __THROW {
   do_malloc_stats();
 }
 
-extern "C" int mallopt(int cmd, int value) {
+extern "C" int tc_mallopt(int cmd, int value) __THROW {
   return do_mallopt(cmd, value);
 }
 
 #ifdef HAVE_STRUCT_MALLINFO
-extern "C" struct mallinfo mallinfo(void) {
+extern "C" struct mallinfo tc_mallinfo(void) __THROW {
   return do_mallinfo();
 }
 #endif
 
-//-------------------------------------------------------------------
-// Some library routines on RedHat 9 allocate memory using malloc()
-// and free it using __libc_free() (or vice-versa).  Since we provide
-// our own implementations of malloc/free, we need to make sure that
-// the __libc_XXX variants (defined as part of glibc) also point to
-// the same implementations.
-//-------------------------------------------------------------------
-
-#if defined(__GLIBC__)
-extern "C" {
-# if defined(__GNUC__) && !defined(__MACH__) && defined(HAVE___ATTRIBUTE__)
-  // Potentially faster variants that use the gcc alias extension.
-  // Mach-O (Darwin) does not support weak aliases, hence the __MACH__ check.
-# define ALIAS(x) __attribute__ ((weak, alias (x)))
-  void* __libc_malloc(size_t size)              ALIAS("malloc");
-  void  __libc_free(void* ptr)                  ALIAS("free");
-  void* __libc_realloc(void* ptr, size_t size)  ALIAS("realloc");
-  void* __libc_calloc(size_t n, size_t size)    ALIAS("calloc");
-  void  __libc_cfree(void* ptr)                 ALIAS("cfree");
-  void* __libc_memalign(size_t align, size_t s) ALIAS("memalign");
-  void* __libc_valloc(size_t size)              ALIAS("valloc");
-  void* __libc_pvalloc(size_t size)             ALIAS("pvalloc");
-  int __posix_memalign(void** r, size_t a, size_t s) ALIAS("posix_memalign");
-# undef ALIAS
-# else   /* not __GNUC__ */
-  // Portable wrappers
-  void* __libc_malloc(size_t size)              { return malloc(size);       }
-  void  __libc_free(void* ptr)                  { free(ptr);                 }
-  void* __libc_realloc(void* ptr, size_t size)  { return realloc(ptr, size); }
-  void* __libc_calloc(size_t n, size_t size)    { return calloc(n, size);    }
-  void  __libc_cfree(void* ptr)                 { cfree(ptr);                }
-  void* __libc_memalign(size_t align, size_t s) { return memalign(align, s); }
-  void* __libc_valloc(size_t size)              { return valloc(size);       }
-  void* __libc_pvalloc(size_t size)             { return pvalloc(size);      }
-  int __posix_memalign(void** r, size_t a, size_t s) {
-    return posix_memalign(r, a, s);
-  }
-# endif  /* __GNUC__ */
+// This function behaves similarly to MSVC's _set_new_mode.
+// If flag is 0 (default), calls to malloc will behave normally.
+// If flag is 1, calls to malloc will behave like calls to new,
+// and the std_new_handler will be invoked on failure.
+// Returns the previous mode.
+extern "C" int tc_set_new_mode(int flag) __THROW {
+  int old_mode = tc_new_mode;
+  tc_new_mode = flag;
+  return old_mode;
 }
-#endif   /* __GLIBC__ */
+
 
 // Override __libc_memalign in libc on linux boxes specially.
 // They have a bug in libc that causes them to (very rarely) allocate
@@ -1204,11 +1276,12 @@ extern "C" {
 // from the stack frame of the allocation function;
 // heap-checker handles this special case explicitly.
 static void *MemalignOverride(size_t align, size_t size, const void *caller)
+    __THROW ATTRIBUTE_SECTION(google_malloc);
+
+static void *MemalignOverride(size_t align, size_t size, const void *caller)
     __THROW {
   void* result = do_memalign(align, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
 void *(*__memalign_hook)(size_t, size_t, const void *) = MemalignOverride;
-
-#endif  // #ifndef WIN32_DO_PATCHING

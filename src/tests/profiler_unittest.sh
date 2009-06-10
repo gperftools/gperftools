@@ -106,7 +106,7 @@ VerifySimilar() {
   fi
 }
 
-# Takes a filenames representing a profile, with its executables,
+# Takes a filename representing a profile, with its executable,
 # and a multiplier, and verifies that the main-thread function takes
 # the same amount of time as the other-threads function (possibly scaled
 # by the given multiplier).  Figuring out the multiplier can be tricky,
@@ -121,15 +121,15 @@ VerifyAcrossThreads() {
   mult=$3
 
   mthread=`$PPROF $exec1 $prof1 | grep test_main_thread | awk '{print $1}'`
-  othread=`$PPROF $exec2 $prof2 | grep test_other_thread | awk '{print $1}'`
+  othread=`$PPROF $exec1 $prof1 | grep test_other_thread | awk '{print $1}'`
   if [ -z "$mthread" ] || [ -z "$othread" ] || \
      [ "$mthread" -le 0 -o "$othread" -le 0 ]
 #    || [ `expr $mthread \* $mult \* 3` -gt `expr $othread \* 10` -o \
 #         `expr $mthread \* $mult \* 10` -lt `expr $othread \* 3` ]
   then
     echo
-    echo ">>> profile on $exec1 vs $exec2 with multiplier $mult failed:"
-    echo "Actual times (in profiling units) were '$mthread1' vs. '$mthread2'"
+    echo ">>> profile on $exec1 (main vs thread) with multiplier $mult failed:"
+    echo "Actual times (in profiling units) were '$mthread' vs. '$othread'"
     echo
     RegisterFailure
   fi

@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "1.2";
+my $PPROF_VERSION = "1.3";
 
 # These are the object tools we use which can come from a
 # user-specified location using --tools, from the PPROF_TOOLS
@@ -536,8 +536,6 @@ sub Main() {
     $symbols = ExtractSymbols($libs, $pcs);
   }
 
-  my $calls = ExtractCalls($symbols, $profile);
-
   # Remove uniniteresting stack items
   $profile = RemoveUninterestingFrames($symbols, $profile);
 
@@ -550,6 +548,8 @@ sub Main() {
   if ($main::opt_ignore ne '') {
     $profile = IgnoreProfile($symbols, $profile, $main::opt_ignore);
   }
+
+  my $calls = ExtractCalls($symbols, $profile);
 
   # Reduce profiles to required output granularity, and also clean
   # each stack trace so a given entry exists at most once.
@@ -1765,9 +1765,25 @@ sub RemoveUninterestingFrames {
                       'malloc',
                       'free',
                       'memalign',
+		      'posix_memalign',
                       'pvalloc',
                       'valloc',
                       'realloc',
+		      'tc_calloc',
+                      'tc_cfree',
+                      'tc_malloc',
+                      'tc_free',
+                      'tc_memalign',
+		      'tc_posix_memalign',
+                      'tc_pvalloc',
+                      'tc_valloc',
+                      'tc_realloc',
+		      'tc_new',
+		      'tc_delete',
+		      'tc_newarray',
+		      'tc_deletearray',
+		      'tc_new_nothrow',
+		      'tc_newarray_nothrow',
 		      'do_malloc',
                       '::do_malloc',   # new name -- got moved to an unnamed ns
                       'DoSampledAllocation',

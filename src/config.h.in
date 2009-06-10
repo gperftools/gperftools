@@ -1,14 +1,5 @@
 /* src/config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* the location of <hash_map> */
-#undef HASH_MAP_H
-
-/* the namespace of hash_map/hash_set */
-#undef HASH_NAMESPACE
-
-/* the location of <hash_set> */
-#undef HASH_SET_H
-
 /* Define to 1 if compiler supports __builtin_stack_pointer */
 #undef HAVE_BUILTIN_STACK_POINTER
 
@@ -51,6 +42,9 @@
 /* Define to 1 if you have the <fcntl.h> header file. */
 #undef HAVE_FCNTL_H
 
+/* Define to 1 if you have the <features.h> header file. */
+#undef HAVE_FEATURES_H
+
 /* Define to 1 if you have the `geteuid' function. */
 #undef HAVE_GETEUID
 
@@ -62,12 +56,6 @@
 
 /* Define to 1 if you have the <grp.h> header file. */
 #undef HAVE_GRP_H
-
-/* define if the compiler has hash_map */
-#undef HAVE_HASH_MAP
-
-/* define if the compiler has hash_set */
-#undef HAVE_HASH_SET
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #undef HAVE_INTTYPES_H
@@ -101,6 +89,9 @@
 
 /* Define to 1 if you have the `sbrk' function. */
 #undef HAVE_SBRK
+
+/* Define to 1 if you have the <sched.h> header file. */
+#undef HAVE_SCHED_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
 #undef HAVE_STDINT_H

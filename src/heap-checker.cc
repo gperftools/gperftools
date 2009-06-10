@@ -194,16 +194,12 @@ DEFINE_int32(heap_check_delay_seconds, 0,
 
 DEFINE_string(heap_profile_pprof,
               EnvToString("PPROF_PATH", "pprof"),
-              "Path to pprof to call for full leak checking.");
+              "OBSOLETE; not used");
 
 DEFINE_string(heap_check_dump_directory,
               EnvToString("HEAP_CHECK_DUMP_DIRECTORY", "/tmp"),
               "Directory to put heap-checker leak dump information");
 
-// Copy of FLAGS_heap_profile_pprof.
-// Need this since DoNoLeaks can happen
-// after FLAGS_heap_profile_pprof is destroyed.
-static const string* flags_heap_profile_pprof = &FLAGS_heap_profile_pprof;
 
 //----------------------------------------------------------------------
 // HeapLeakChecker global data
@@ -1552,12 +1548,8 @@ static string invocation_path() { return "<your binary>"; }
 #endif
 
 // Prints commands that users can run to get more information
-// about the reported leaks.  We have to suggest extra commands
-// for programs run on borg/mrtest/blaze.
+// about the reported leaks.
 static void SuggestPprofCommand(const char* pprof_file_arg) {
-  // Copy argument since we may mutate it later
-  string pprof_file = pprof_file_arg;
-
   // Extra help information to print for the user when the test is
   // being run in a way where the straightforward pprof command will
   // not suffice.
@@ -1586,9 +1578,9 @@ static void SuggestPprofCommand(const char* pprof_file_arg) {
           "HEAP_CHECK_TEST_POINTER_ALIGNMENT=1 and/or with "
           "HEAP_CHECK_MAX_POINTER_OFFSET=-1\n",
           fetch_cmd.c_str(),
-          flags_heap_profile_pprof->c_str(),
+          "pprof",           // works as long as pprof is on your path
           invocation_path().c_str(),
-          pprof_file.c_str(),
+          pprof_file_arg,
           extra_help.c_str()
           );
 }
@@ -1724,6 +1716,10 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
       // typically only want to report once in a program's run, at the
       // very end.
       CancelInitialMallocHooks();
+      if (MallocHook::GetNewHook() == NewHook)
+        MallocHook::SetNewHook(NULL);
+      if (MallocHook::GetDeleteHook() == DeleteHook)
+        MallocHook::SetDeleteHook(NULL);
       have_disabled_hooks_for_symbolize = true;
       leaks->ReportLeaks(name_, pprof_file, true);  // true = should_symbolize
     } else {
@@ -2150,7 +2146,9 @@ void HeapLeakChecker::BeforeConstructorsLocked() {
 // static
 void HeapLeakChecker::TurnItselfOffLocked() {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-  FLAGS_heap_check = "";  // for users who test for it
+  // Set FLAGS_heap_check to "", for users who test for it
+  if (!FLAGS_heap_check.empty())  // be a noop in the common case
+    FLAGS_heap_check.clear();     // because clear() could allocate memory
   if (constructor_heap_profiling) {
     RAW_CHECK(heap_checker_on, "");
     RAW_VLOG(heap_checker_info_level, "Turning perftools heap leak checking off");
@@ -2159,8 +2157,7 @@ void HeapLeakChecker::TurnItselfOffLocked() {
     if (MallocHook::SetNewHook(NULL) != NewHook  ||
         MallocHook::SetDeleteHook(NULL) != DeleteHook) {
       RAW_LOG(FATAL, "Had our new/delete MallocHook-s replaced. "
-                     "Are you using another MallocHook client? "
-                     "Use --heap_check=\"\" to avoid this conflict.");
+                     "Are you using another MallocHook client?");
     }
     Allocator::DeleteAndNull(&heap_profile);
     // free our optional global data:

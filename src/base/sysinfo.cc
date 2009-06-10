@@ -107,6 +107,7 @@ const char* GetenvBeforeMain(const char* name) {
   // static is ok because this function should only be called before
   // main(), when we're single-threaded.
   static char envbuf[16<<10];
+#ifndef PLATFORM_WINDOWS
   if (*envbuf == '\0') {    // haven't read the environ yet
     int fd = safeopen("/proc/self/environ", O_RDONLY);
     // The -2 below guarantees the last two bytes of the buffer will be \0\0
@@ -131,6 +132,13 @@ const char* GetenvBeforeMain(const char* name) {
     p = endp + 1;
   }
   return NULL;                   // env var never found
+#else
+  // TODO(mbelshe) - repeated calls to this function will overwrite the
+  // contents of the static buffer.
+  if (!GetEnvironmentVariableA(name, envbuf, sizeof(envbuf)-1))
+    return NULL;
+  return envbuf;
+#endif
 }
 
 // This takes as an argument an environment-variable name (like
@@ -353,7 +361,11 @@ static void InitializeSystemInfo() {
     cpuinfo_cycles_per_second = (int64)data * (int64)(1000 * 1000); // was mhz
   else
     cpuinfo_cycles_per_second = EstimateCyclesPerSecond(500); // TODO <500?
-  // TODO(csilvers): also figure out cpuinfo_num_cpus
+
+  // Get the number of processors.
+  SYSTEM_INFO info;
+  GetSystemInfo(&info);
+  cpuinfo_num_cpus = info.dwNumberOfProcessors;
 
 #elif defined(__MACH__) && defined(__APPLE__)
   // returning "mach time units" per second. the current number of elapsed

@@ -75,6 +75,7 @@
 #include <windows.h>
 #include <malloc.h>       // for _msize and _expand
 #include <tlhelp32.h>     // for CreateToolhelp32Snapshot()
+#include <vector>
 #include <base/logging.h>
 #include "base/spinlock.h"
 #include "google/malloc_hook.h"
@@ -130,23 +131,37 @@ class LibcInfo {
   LibcInfo() {
     memset(this, 0, sizeof(*this));  // easiest way to initialize the array
   }
-  bool SameAs(MODULEENTRY32 me32) const {
-    return (module_base_address_ == me32.modBaseAddr &&
-            module_base_size_ == me32.modBaseSize);
+  bool SameAs(const LibcInfo& that) const {
+    return (module_base_address_ == that.module_base_address_ &&
+            module_base_size_ == that.module_base_size_);
   }
   bool patched() const { return module_name_[0] != '\0'; }
   const char* module_name() const { return module_name_; }
 
-  // This shouldn't have to be public, since only subclasses of
-  // LibcInfo need it, but it does.  Maybe something to do with
+  // These shouldn't have to be public, since only subclasses of
+  // LibcInfo need it, but they do.  Maybe something to do with
   // templates.  Shrug.
   GenericFnPtr windows_fn(int ifunction) const {
     return windows_fn_[ifunction];
   }
 
+  // Populates all the windows_fn_[] vars based on our module info.
+  // Returns false if windows_fn_ is all NULL's, because there's
+  // nothing to patch.  Also populates the me32 info.
+  bool PopulateWindowsFn(MODULEENTRY32 me32);
+
   static int num_patched_modules;
 
  protected:
+  void CopyFrom(const LibcInfo& that) {
+    if (this == &that)
+      return;
+    memcpy(this->windows_fn_, that.windows_fn_, sizeof(windows_fn_));
+    this->module_base_address_ = that.module_base_address_;
+    this->module_base_size_ = that.module_base_size_;
+    memcpy(this->module_name_, that.module_name_, sizeof(module_name_));
+  }
+
   enum {
     kMalloc, kFree, kRealloc, kCalloc,
     kNew, kNewArray, kDelete, kDeleteArray,
@@ -197,7 +212,9 @@ class LibcInfo {
 // of this var is a separate type.
 template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
  public:
-  bool Patch(MODULEENTRY32 me32);
+  // me_info should have had PopulateWindowsFn() called on it, so the
+  // module_* vars and windows_fn_ are set up.
+  bool Patch(const LibcInfo& me_info);
   void Unpatch();
 
  private:
@@ -389,8 +406,7 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   { "LoadLibraryExW", NULL, NULL, (GenericFnPtr)&Perftools_LoadLibraryExW },
 };
 
-template<int T>
-bool LibcInfoWithPatchFunctions<T>::Patch(MODULEENTRY32 me32) {
+bool LibcInfo::PopulateWindowsFn(MODULEENTRY32 me32) {
   module_base_address_ = me32.modBaseAddr;
   module_base_size_ = me32.modBaseSize;
   strcpy(module_name_, me32.szModule);
@@ -417,10 +433,8 @@ bool LibcInfoWithPatchFunctions<T>::Patch(MODULEENTRY32 me32) {
   // we find that, set one of the pointers to NULL so we don't double-
   // patch.  Same may happen with new and nothrow-new, or even new[]
   // and nothrow-new.  It's easiest just to check each fn-ptr against
-  // every other.  We also check each element is not already patched.
+  // every other.
   for (int i = 0; i < kNumFunctions; i++) {
-    if (windows_fn_[i] == perftools_fn_[i])     // already been patched
-      windows_fn_[i] = NULL;
     for (int j = i+1; j < kNumFunctions; j++) {
       if (windows_fn_[i] == windows_fn_[j]) {
         // We NULL the later one (j), so as to minimize the chances we
@@ -457,10 +471,14 @@ bool LibcInfoWithPatchFunctions<T>::Patch(MODULEENTRY32 me32) {
   // haven't needed to yet.
   CHECK(windows_fn_[kFree]);
   CHECK(windows_fn_[kRealloc]);
+  return true;
+}
 
-  // OK, now that we've stored windows_fn, do the patching!
+template<int T>
+bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
+  CopyFrom(me_info);   // copies the me32 and the windows_fn_ array
   for (int i = 0; i < kNumFunctions; i++) {
-    if (windows_fn_[i])
+    if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i])
       CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
                PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i],
                                       &origstub_fn_[i]));
@@ -509,10 +527,10 @@ void WindowsInfo::Unpatch() {
 }
 
   // You should hold the patch_all_modules_lock when calling this.
-void PatchOneModuleLocked(MODULEENTRY32 me32, bool still_loaded[]) {
+void PatchOneModuleLocked(const LibcInfo& me_info, bool still_loaded[]) {
   // First, check to see if we already have info on this module
   for (int i = 0; i < LibcInfo::num_patched_modules; i++) {
-    if (module_libcs[i]->SameAs(me32)) {
+    if (module_libcs[i]->SameAs(me_info)) {
       still_loaded[i] = true;
       return;
     }
@@ -522,14 +540,14 @@ void PatchOneModuleLocked(MODULEENTRY32 me32, bool still_loaded[]) {
   // can't use an array; instead, we have to use a switch statement.
   // Patch() returns false if there were no libc functions in the module.
   switch (LibcInfo::num_patched_modules) {
-    case 0: if (!libc1.Patch(me32)) return;  break;
-    case 1: if (!libc2.Patch(me32)) return;  break;
-    case 2: if (!libc3.Patch(me32)) return;  break;
-    case 3: if (!libc4.Patch(me32)) return;  break;
-    case 4: if (!libc5.Patch(me32)) return;  break;
-    case 5: if (!libc6.Patch(me32)) return;  break;
-    case 6: if (!libc7.Patch(me32)) return;  break;
-    case 7: if (!libc8.Patch(me32)) return;  break;
+    case 0: if (!libc1.Patch(me_info)) return;  break;
+    case 1: if (!libc2.Patch(me_info)) return;  break;
+    case 2: if (!libc3.Patch(me_info)) return;  break;
+    case 3: if (!libc4.Patch(me_info)) return;  break;
+    case 4: if (!libc5.Patch(me_info)) return;  break;
+    case 5: if (!libc6.Patch(me_info)) return;  break;
+    case 6: if (!libc7.Patch(me_info)) return;  break;
+    case 7: if (!libc8.Patch(me_info)) return;  break;
     default:
       printf("ERROR: Too many modules containing libc in this executable\n");
       CHECK_LE(LibcInfo::num_patched_modules,
@@ -547,7 +565,8 @@ void PatchMainExecutableLocked() {
   fake_me32.modBaseSize = 0;
   strcpy(fake_me32.szModule, "<executable>");
   fake_me32.hModule = NULL;
-  main_executable.Patch(fake_me32);
+  main_executable.PopulateWindowsFn(fake_me32);
+  main_executable.Patch(main_executable);
 }
 
 static SpinLock patch_all_modules_lock(SpinLock::LINKER_INITIALIZED);
@@ -557,18 +576,7 @@ static SpinLock patch_all_modules_lock(SpinLock::LINKER_INITIALIZED);
 // them in.  (We also check that every module we had patched in the
 // past is still loaded, and complain loudly if not.)
 void PatchAllModules() {
-  // This code isn't really thread-safe, but this is better than nothing.
-  SpinLockHolder h(&patch_all_modules_lock);
-
-  // We want to make sure every module we have patch-info about is
-  // still loaded.  Otherwise, there's danger that the module could
-  // later be reloaded at the same address, and we wouldn't repatch
-  // it.  This code isn't able to handle shrinking the number of libcs
-  // at present, but if it becomes necessary then I would recommend
-  // compacting the arrays and repatching as needed.  You must do all
-  // of this inside a FreeLibrary hook.
-  int old_num_libcs = LibcInfo::num_patched_modules;
-  bool still_loaded[sizeof(module_libcs)/sizeof(*module_libcs)] = {};
+  std::vector<LibcInfo*> modules;
 
   HANDLE hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
                                                 TH32CS_SNAPMODULE32,
@@ -578,26 +586,54 @@ void PatchAllModules() {
     me32.dwSize = sizeof(me32);
     if (Module32First(hModuleSnap, &me32)) {
       do {
-        PatchOneModuleLocked(me32, still_loaded);
+        LibcInfo* libc_info = new LibcInfo;
+        if (libc_info->PopulateWindowsFn(me32))
+          modules.push_back(libc_info);
+        else
+          delete libc_info;
       } while (Module32Next(hModuleSnap, &me32));
     }
     CloseHandle(hModuleSnap);
   }
 
-  // Check the still_loaded array, which was updated in PatchOneModule.
-  // If any old libc is not still loaded, scream bloody murder.
-  for (int i = 0; i < old_num_libcs; i++) {
-    if (!still_loaded[i]) {
-      fprintf(stderr, "%s:%d: FATAL ERROR: %s unloaded after I patched it.\n",
-              __FILE__, __LINE__, module_libcs[i]->module_name());
-      CHECK(false);
+  // Now do the actual patching.
+  {
+    SpinLockHolder h(&patch_all_modules_lock);
+    // We want to make sure every module we have patch-info about is
+    // still loaded.  Otherwise, there's danger that the module could
+    // later be reloaded at the same address, and we wouldn't repatch
+    // it.  This code isn't able to handle shrinking the number of libcs
+    // at present, but if it becomes necessary then I would recommend
+    // compacting the arrays and repatching as needed.  You must do all
+    // of this inside a FreeLibrary hook.
+    int old_num_libcs = LibcInfo::num_patched_modules;
+    bool still_loaded[sizeof(module_libcs)/sizeof(*module_libcs)] = {};
+
+    for (std::vector<LibcInfo*>::iterator it = modules.begin();
+         it != modules.end();  ++it) {
+      PatchOneModuleLocked(**it, still_loaded);  // updates num_patched_modules
     }
+
+    // Check the still_loaded array, which was updated in PatchOneModule.
+    // If any old libc is not still loaded, scream bloody murder.
+    for (int i = 0; i < old_num_libcs; i++) {
+      if (!still_loaded[i]) {
+        fprintf(stderr, "%s:%d: FATAL ERROR: %s unloaded after I patched it.\n",
+                __FILE__, __LINE__, module_libcs[i]->module_name());
+        CHECK(false);
+      }
+    }
+
+    // Now that we've dealt with the modules (dlls), update the main
+    // executable.  We do this last because PatchMainExecutableLocked
+    // wants to look at how other modules were patched.
+    PatchMainExecutableLocked();
   }
 
-  // Now that we've dealt with the modules (dlls), update the main
-  // executable.  We do this last because PatchMainExecutableLocked
-  // wants to look at how other modules were patched.
-  PatchMainExecutableLocked();
+  for (std::vector<LibcInfo*>::iterator it = modules.begin();
+       it != modules.end();  ++it) {
+    delete *it;
+  }
 }
 
 

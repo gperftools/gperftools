@@ -58,11 +58,24 @@ if MINGW
 TCMALLOC_FLAGS += -Wl,-u__tcmalloc
 endif MINGW
 
+# If we have objcopy, make malloc/free/etc weak symbols.  That way folks
+# can override our malloc if they want to (they can still use tc_malloc).
+if HAVE_OBJCOPY_WEAKEN
+WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree -W memalign -W posix_memalign -W valloc -W pvalloc -W malloc_stats -W mallopt -W mallinfo
+else
+WEAKEN = :
+endif !HAVE_OBJCOPY_WEAKEN
+
+LIBS_TO_WEAKEN =
+
 googleincludedir = $(includedir)/google
 # The .h files you want to install (that is, .h files that people
 # who install this package can include in their own applications.)
 # We'll add to this later, on a library-by-library basis
 googleinclude_HEADERS =
+# tcmalloc.h is a special case, because it's a .h.in file
+nodist_googleinclude_HEADERS = src/google/tcmalloc.h
+noinst_HEADERS = src/google/tcmalloc.h.in
 
 docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
 # This is for HTML and other documentation you want to install.
@@ -132,13 +145,13 @@ libsysinfo_la_SOURCES = src/base/sysinfo.cc \
                         $(SYSINFO_INCLUDES)
 libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS)
 
-# For MinGW, we use libwindows and not libspinlock.  For every other
-# unix system, we use libspinlock and don't need libwindows.  Luckily,
-# we need the windows.a library in exactly the same place we need
-# spinlock.a (pretty much everywhere), so we can use the same variable
-# name for each.  In addition, there is a bunch of functionality in
-# libwindows that obsoletes the need for other files like
-# system_alloc.cc.
+# For MinGW, we use also have to use libwindows Luckily, we need the
+# windows.a library in exactly the same place we need spinlock.a
+# (pretty much everywhere), so we can use the same variable name for
+# each.  We can also optimize the MinGW rule a bit by leaving out
+# files we know aren't used on windows, such as
+# atomicops-internals-x86.cc.  libwindows also obsoletes the need for
+# other files like system_alloc.cc.
 if MINGW
 WINDOWS_INCLUDES = src/windows/port.h \
                    src/windows/mingw.h \
@@ -154,7 +167,18 @@ libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
                         src/windows/patch_functions.cc \
                         src/windows/preamble_patcher.cc \
                         src/windows/preamble_patcher_with_stub.cc
-LIBSPINLOCK = libwindows.la libsysinfo.la liblogging.la
+
+SPINLOCK_INCLUDES = src/base/spinlock.h \
+                    src/base/atomicops.h \
+                    src/base/atomicops-internals-macosx.h \
+                    src/base/atomicops-internals-linuxppc.h \
+                    src/base/atomicops-internals-x86-msvc.h \
+                    src/base/atomicops-internals-x86.h
+noinst_LTLIBRARIES += libspinlock.la
+libspinlock_la_SOURCES = src/base/spinlock.cc \
+                         $(SPINLOCK_INCLUDES)
+
+LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
 
 # We also need to tell mingw that sysinfo.cc needs shlwapi.lib.
 # (We do this via a #pragma for msvc, but need to do it here for mingw).
@@ -206,7 +230,6 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
 low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES
 low_level_alloc_unittest_LDADD = $(LIBSPINLOCK)
 
-if !MINGW
 TESTS += atomicops_unittest
 ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
                               src/base/atomicops-internals-macosx.h \
@@ -216,7 +239,6 @@ ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
 atomicops_unittest_SOURCES = src/tests/atomicops_unittest.cc \
                              $(ATOMICOPS_UNITTEST_INCLUDES)
 atomicops_unittest_LDADD = $(LIBSPINLOCK)
-endif !MINGW
 
 
 ### ------- stack trace
@@ -243,7 +265,7 @@ libstacktrace_la_SOURCES = src/stacktrace.cc \
                            src/base/vdso_support.cc \
                            $(STACKTRACE_INCLUDES)
 libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)
-STACKTRACE_SYMBOLS = '(GetStackTrace|GetStackFrames|GetStackTraceWithContext|)GetStackFramesWithContext)'
+STACKTRACE_SYMBOLS = '(GetStackTrace|GetStackFrames|GetStackTraceWithContext|GetStackFramesWithContext)'
 libstacktrace_la_LDFLAGS = -export-symbols-regex $(STACKTRACE_SYMBOLS)
 
 ### Unittests
@@ -317,6 +339,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
 SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
                                src/google/malloc_hook_c.h \
                                src/google/malloc_extension.h \
+                               src/google/malloc_extension_c.h \
                                src/google/stacktrace.h
 TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES)
 googleinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
@@ -367,6 +390,8 @@ LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la libstacktrace.la
 else !MINGW
 LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 endif !MINGW
+
+LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 
 ### Unittests
 
@@ -481,8 +506,8 @@ malloc_extension_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 if !MINGW
 TESTS += memalign_unittest
 memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
-                            src/config_for_unittests.h \
                             src/tcmalloc.h \
+                            src/config_for_unittests.h \
                             src/tests/testutil.h src/tests/testutil.cc
 memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
@@ -645,22 +670,9 @@ libtcmalloc_la_SOURCES += src/base/thread_lister.c \
                           src/heap-checker-bcad.cc
 endif WITH_HEAP_CHECKER
 
-# We want a different libtcmalloc.a than the one libtool produces: we
-# want to use ld -r rather than ar.  Since all .o files in libtcmalloc
-# are used, 'ld -r' is a strict advantage over 'ar' -- in fact, with
-# the .a, the heap-profiler and heap-checker don't get linked in
-# (since they do work only in global constructors and destructors).
-# We just replace the .a with an 'ld-r-ized' version under libtool's
-# nose.  We use libtool to create a .o file (it uses ld -r to do that
-# when the input is a .a) and then rename it.
-libtcmalloc.o: libtcmalloc.la $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_DEPENDENCIES) $(libtcmalloc_la_LIBADD)
-	$(CXXLINK) $(libtcmalloc_la_OBJECTS) $(libtcmalloc_la_LIBADD)
-	cp -f "$@" .libs/libtcmalloc.a
-
-EXTRA_INSTALL += libtcmalloc.o 
-
 LIBTCMALLOC = libtcmalloc.la
 
+LIBS_TO_WEAKEN += libtcmalloc.la
 
 ### Unittests
 
@@ -837,21 +849,8 @@ libprofiler_la_SOURCES = src/profiler.cc \
                          $(CPU_PROFILER_INCLUDES)
 libprofiler_la_LIBADD = libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
-CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStop|ProfilerEnable|ProfilerDisable|ProfilerFlush|ProfilerRegisterThread|ProfileData|ProfileHandler)'
+CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
-
-# We want a different libprofiler.a than the one libtool produces: we
-# want to use ld -r rather than ar.  Since all .o files in libprofiler
-# are used, 'ld -r' is a strict advantage over 'ar' -- in fact, with
-# the .a, the library doesn't get linked in
-# (since it does work only in global constructors and destructors).
-# We just replace the .a with an 'ld-r-ized' version under libtool's
-# nose.
-libprofiler.o: libprofiler.la $(libprofiler_la_OBJECTS) $(libprofiler_la_DEPENDENCIES) $(libprofiler_la_LIBADD)
-	$(CXXLINK) $(libprofiler_la_OBJECTS) $(libprofiler_la_LIBADD)
-	cp -f "$@" .libs/libprofiler.a
-
-EXTRA_INSTALL += libprofiler.o
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
 # Basically it's to work around systems where --rpath doesn't work right.
@@ -925,7 +924,47 @@ dist_doc_DATA += doc/cpuprofile.html \
 
 endif WITH_CPU_PROFILER
 
+### ------- CPU profiler and heap checker, in one!
+
+# Ideally, folks who wanted to use both tcmalloc and libprofiler,
+# could just link them both into their application.  But while this
+# works fine for .so files, it does not for .a files.  The easiest way
+# around this -- and I've tried a bunch of the hard ways -- is to just
+# to create another set of libraries that has both functionality in it.
+
+if WITH_HEAP_PROFILER_OR_CHECKER
+if WITH_CPU_PROFILER
+
+lib_LTLIBRARIES += libtcmalloc_and_profiler.la
+libtcmalloc_and_profiler_la_SOURCES = $(libtcmalloc_la_SOURCES) $(libprofiler_la_SOURCES)
+libtcmalloc_and_profiler_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) $(libprofiler_la_CXXFLAGS)
+# TODO(csilvers): use -export-symbols-regex?
+libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS)
+# We don't include libprofiler_la_LIBADD here because all it adds is
+# libstacktrace.la, which we already get via libtcmalloc.  Trying to
+# specify it twice causes link-time duplicate-definition errors. :-(
+libtcmalloc_and_profiler_la_LIBADD = $(libtcmalloc_la_LIBADD)
+
+TESTS += tcmalloc_and_profiler_unittest
+tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_SOURCES)
+tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_CXXFLAGS)
+tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_LDFLAGS)
+tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
+
+LIBS_TO_WEAKEN += libtcmalloc_and_profiler.la
+
+endif WITH_CPU_PROFILER
+endif WITH_HEAP_PROFILER_OR_CHECKER
+
 ## ^^^^ END OF RULES TO MAKE YOUR LIBRARIES, BINARIES, AND UNITTESTS
+
+
+# Do the weakening on some exported libtcmalloc symbols.
+install-exec-local: all-local
+all-local: $(LIBS_TO_WEAKEN)
+	[ ! -f .libs/libtcmalloc_minimal.a ] || $(WEAKEN) .libs/libtcmalloc_minimal.a
+	[ ! -f .libs/libtcmalloc.a ] || $(WEAKEN) .libs/libtcmalloc.a
+	[ ! -f .libs/libtcmalloc_and_profiler.a ] || $(WEAKEN) .libs/libtcmalloc_and_profiler.a
 
 
 # This should always include $(TESTS), but may also include other
@@ -942,16 +981,6 @@ deb: dist-gzip packages/deb.sh packages/deb/*
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
 
-# Luckily, this gets run before install-libLTLIBRARIES, so it gives
-# us a chance to replace the libtool version of the .a's with our own
-install-exec-local: $(EXTRA_INSTALL)
-
-# Do the replacing at normal build time as well
-all-local: $(EXTRA_INSTALL)
-
-clean-local:
-	rm -f libtcmalloc.o libprofiler.o
-
 # Windows wants write permission to .vcproj files and maybe even sln files.
 dist-hook:
 	test -e "$(distdir)/vsprojects" \
@@ -959,6 +988,7 @@ dist-hook:
 
 EXTRA_DIST = packages/rpm.sh packages/rpm/rpm.spec packages/deb.sh packages/deb \
              $(SCRIPTS) libtool \
-             src/windows/get_mangled_names.cc \
-             src/windows/config.h $(WINDOWS_PROJECTS) \
+             src/windows/get_mangled_names.cc src/windows/override_functions.cc \
+             src/windows/config.h src/windows/google/tcmalloc.h \
+             $(WINDOWS_PROJECTS) \
              src/solaris/libstdc++.la

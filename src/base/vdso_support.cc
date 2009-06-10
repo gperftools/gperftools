@@ -114,6 +114,7 @@ const void *VDSOSupport::vdso_base_ = kInvalidBase;
 VDSOSupport::GetCpuFn VDSOSupport::getcpu_fn_ = &InitAndGetCPU;
 
 VDSOSupport::ElfMemImage::ElfMemImage(const void *base) {
+  CHECK(base != kInvalidBase);
   Init(base);
 }
 
@@ -300,18 +301,22 @@ void VDSOSupport::ElfMemImage::Init(const void *base) {
   }
 }
 
-VDSOSupport::VDSOSupport() : image_(vdso_base_) {
+VDSOSupport::VDSOSupport()
+    // If vdso_base_ is still set to kInvalidBase, we got here
+    // before VDSOSupport::Init has been called. Call it now.
+    : image_(vdso_base_ == kInvalidBase ? Init() : vdso_base_) {
 }
 
 // NOTE: we can't use GoogleOnceInit() below, because we can be
 // called by tcmalloc, and none of the *once* stuff may be functional yet.
 //
-// In addition, we hope that attribute constructor (which this function has)
-// causes this code to run before there are any threads.
+// In addition, we hope that the VDSOSupportHelper constructor
+// causes this code to run before there are any threads, and before
+// InitGoogle() has executed any chroot or setuid calls.
 //
 // Finally, even if there is a race here, it is harmless, because
 // the operation should be idempotent.
-void VDSOSupport::Init() {
+const void *VDSOSupport::Init() {
   if (vdso_base_ == kInvalidBase) {
     // Valgrind zaps AT_SYSINFO_EHDR and friends from the auxv[]
     // on stack, and so glibc works as if VDSO was not present.
@@ -320,14 +325,14 @@ void VDSOSupport::Init() {
     if (RunningOnValgrind()) {
       vdso_base_ = NULL;
       getcpu_fn_ = &GetCPUViaSyscall;
-      return;
+      return NULL;
     }
     int fd = open("/proc/self/auxv", O_RDONLY);
     if (fd == -1) {
       // Kernel too old to have a VDSO.
       vdso_base_ = NULL;
       getcpu_fn_ = &GetCPUViaSyscall;
-      return;
+      return NULL;
     }
     ElfW(auxv_t) aux;
     while (read(fd, &aux, sizeof(aux)) == sizeof(aux)) {
@@ -358,6 +363,7 @@ void VDSOSupport::Init() {
   // from assigning to getcpu_fn_ more than once.
   MemoryBarrier();
   getcpu_fn_ = fn;
+  return vdso_base_;
 }
 
 const void *VDSOSupport::SetBase(const void *base) {
@@ -504,6 +510,19 @@ int GetCPU(void) {
   int ret_code = (*VDSOSupport::getcpu_fn_)(&cpu, NULL, NULL);
   return ret_code == 0 ? cpu : ret_code;
 }
+
+// We need to make sure VDSOSupport::Init() is called before
+// the main() runs, since it might do something like setuid or
+// chroot.  If VDSOSupport
+// is used in any global constructor, this will happen, since
+// VDSOSupport's constructor calls Init.  But if not, we need to
+// ensure it here, with a global constructor of our own.  This
+// is an allowed exception to the normal rule against non-trivial
+// global constructors.
+static class VDSOInitHelper {
+ public:
+  VDSOInitHelper() { VDSOSupport::Init(); }
+} vdso_init_helper;
 }
 
 #endif  // HAVE_VDSO_SUPPORT

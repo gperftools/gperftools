@@ -116,6 +116,7 @@ void CheckStackTraceLeaf(void) {
     printf("Backtrace %d: expected: %p..%p  actual: %p ... ",
            i, expected_stack[i],
            reinterpret_cast<char*>(expected_stack[i]) + kMaxFnLen, stack[i]);
+    fflush(stdout);
     CheckRetAddrIsInFunction(stack[i], expected_stack[i]);
     printf("OK\n");
   }
@@ -124,11 +125,26 @@ void CheckStackTraceLeaf(void) {
 //-----------------------------------------------------------------------//
 
 /* Dummy functions to make the backtrace more interesting. */
-void CheckStackTrace4(int i) { for (int j = i; j >= 0; j--) CheckStackTraceLeaf(); }
-void CheckStackTrace3(int i) { for (int j = i; j >= 0; j--) CheckStackTrace4(j); }
-void CheckStackTrace2(int i) { for (int j = i; j >= 0; j--) CheckStackTrace3(j); }
-void CheckStackTrace1(int i) { for (int j = i; j >= 0; j--) CheckStackTrace2(j); }
-void CheckStackTrace(int i)  { for (int j = i; j >= 0; j--) CheckStackTrace1(j); }
+void ATTRIBUTE_NOINLINE CheckStackTrace4(int i) {
+  for (int j = i; j >= 0; j--)
+    CheckStackTraceLeaf();
+}
+void ATTRIBUTE_NOINLINE CheckStackTrace3(int i) {
+  for (int j = i; j >= 0; j--)
+    CheckStackTrace4(j);
+}
+void ATTRIBUTE_NOINLINE CheckStackTrace2(int i) {
+  for (int j = i; j >= 0; j--)
+    CheckStackTrace3(j);
+}
+void ATTRIBUTE_NOINLINE CheckStackTrace1(int i) {
+  for (int j = i; j >= 0; j--)
+    CheckStackTrace2(j);
+}
+void ATTRIBUTE_NOINLINE CheckStackTrace(int i) {
+  for (int j = i; j >= 0; j--)
+    CheckStackTrace1(j);
+}
 
 //-----------------------------------------------------------------------//
 

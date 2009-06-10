@@ -150,9 +150,9 @@ Test 60 0 "" "$EARLY_MSG" \
 # These invocations should fail with very high probability,
 # rather than return 0 or hang (1 == exit(1), 134 == abort(), 139 = SIGSEGV):
 
-Test 20 1 "Exiting .* because of .* leaks$" "" \
+Test 60 1 "Exiting .* because of .* leaks$" "" \
   HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 || exit 8
-Test 20 1 "Exiting .* because of .* leaks$" "" \
+Test 60 1 "Exiting .* because of .* leaks$" "" \
   HEAP_CHECKER_TEST_TEST_LOOP_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 || exit 9
 
 # Test that we produce a reasonable textual leak report.

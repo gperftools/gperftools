@@ -96,7 +96,8 @@ class ProfileHandler {
   // Unregisters a previously registered callback. Expects the token returned
   // by the corresponding RegisterCallback routine. Unregistering the last
   // callback disables the SIGPROF handler.
-  void UnregisterCallback(ProfileHandlerToken* token);
+  void UnregisterCallback(ProfileHandlerToken* token)
+      NO_THREAD_SAFETY_ANALYSIS;
 
   // Unregisters all the callbacks, stops the timer if shared, disables the
   // SIGPROF handler and clears the timer_sharing_ state.

@@ -55,6 +55,7 @@
 #ifndef BASE_DYNAMIC_ANNOTATIONS_H_
 #define BASE_DYNAMIC_ANNOTATIONS_H_
 
+#include "base/thread_annotations.h"
 
 // All the annotation macros are in effect only in debug mode.
 #ifndef NDEBUG
@@ -64,10 +65,38 @@
   // using conditional critical sections (Await/LockWhen) and when constructing
   // user-defined synchronization mechanisms.
   //
-  // The annotations ANNOTATE_CONDVAR_SIGNAL() and ANNOTATE_CONDVAR_WAIT() can
+  // The annotations ANNOTATE_HAPPENS_BEFORE() and ANNOTATE_HAPPENS_AFTER() can
   // be used to define happens-before arcs in user-defined synchronization
   // mechanisms:  the race detector will infer an arc from the former to the
   // latter when they share the same argument pointer.
+  //
+  // Example 1 (reference counting):
+  //
+  // void Unref() {
+  //   ANNOTATE_HAPPENS_BEFORE(&refcount_);
+  //   if (AtomicDecrementByOne(&refcount_) == 0) {
+  //     ANNOTATE_HAPPENS_AFTER(&refcount_);
+  //     delete this;
+  //   }
+  // }
+  //
+  // Example 2 (message queue):
+  //
+  // void MyQueue::Put(Type *e) {
+  //   MutexLock lock(&mu_);
+  //   ANNOTATE_HAPPENS_BEFORE(e);
+  //   PutElementIntoMyQueue(e);
+  // }
+  //
+  // Type *MyQueue::Get() {
+  //   MutexLock lock(&mu_);
+  //   Type *e = GetElementFromMyQueue();
+  //   ANNOTATE_HAPPENS_AFTER(e);
+  //   return e;
+  // }
+  //
+  // Note: when possible, please use the existing reference counting and message
+  // queue implementations instead of inventing new ones.
 
   // Report that wait on the condition variable at address "cv" has succeeded
   // and the lock at address "lock" is held.
@@ -76,21 +105,21 @@
 
   // Report that wait on the condition variable at "cv" has succeeded.  Variant
   // w/o lock.
-  // When used with user-defined synchronization mechanism at address "cv",
-  // indicates that a ANNOTATE_CONDVAR_SIGNAL(cv) "happened-before" this event.
   #define ANNOTATE_CONDVAR_WAIT(cv) \
     AnnotateCondVarWait(__FILE__, __LINE__, cv, NULL)
 
   // Report that we are about to signal on the condition variable at address
-  // "cv".  When used with user-defined synchronization mechanism at address
-  // "cv", indicates that a ANNOTATE_CONDVAR_WAIT(cv) "happened-after" this
-  // event.
+  // "cv".
   #define ANNOTATE_CONDVAR_SIGNAL(cv) \
     AnnotateCondVarSignal(__FILE__, __LINE__, cv)
 
   // Report that we are about to signal_all on the condition variable at "cv".
   #define ANNOTATE_CONDVAR_SIGNAL_ALL(cv) \
     AnnotateCondVarSignalAll(__FILE__, __LINE__, cv)
+
+  // Annotations for user-defined synchronization mechanisms.
+  #define ANNOTATE_HAPPENS_BEFORE(obj) ANNOTATE_CONDVAR_SIGNAL(obj)
+  #define ANNOTATE_HAPPENS_AFTER(obj)  ANNOTATE_CONDVAR_WAIT(obj)
 
   // Report that the bytes in the range [pointer, pointer+size) are about
   // to be published safely. The race checker will create a happens-before
@@ -124,7 +153,7 @@
   // Report that the producer-consumer queue (such as ProducerConsumerQueue) at
   // address "pcq" has been created.  The ANNOTATE_PCQ_* annotations
   // should be used only for FIFO queues.  For non-FIFO queues use
-  // ANNOTATE_CONDVAR_SIGNAL (for put) and ANNOTATE_CONDVAR_WAIT (for get).
+  // ANNOTATE_HAPPENS_BEFORE (for put) and ANNOTATE_HAPPENS_AFTER (for get).
   #define ANNOTATE_PCQ_CREATE(pcq) \
     AnnotatePCQCreate(__FILE__, __LINE__, pcq)
 
@@ -242,6 +271,8 @@
   #define ANNOTATE_CONDVAR_WAIT(cv) // empty
   #define ANNOTATE_CONDVAR_SIGNAL(cv) // empty
   #define ANNOTATE_CONDVAR_SIGNAL_ALL(cv) // empty
+  #define ANNOTATE_HAPPENS_BEFORE(obj) // empty
+  #define ANNOTATE_HAPPENS_AFTER(obj) // empty
   #define ANNOTATE_PUBLISH_MEMORY_RANGE(address, size) // empty
   #define ANNOTATE_PUBLISH_OBJECT(address) // empty
   #define ANNOTATE_PCQ_CREATE(pcq) // empty
@@ -324,7 +355,8 @@ extern "C" void AnnotateNoOp(const char *file, int line,
   // one can use
   //    ... = ANNOTATE_UNPROTECTED_READ(x);
   template <class T>
-  inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x) {
+  inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x)
+       NO_THREAD_SAFETY_ANALYSIS {
     ANNOTATE_IGNORE_READS_BEGIN();
     T res = x;
     ANNOTATE_IGNORE_READS_END();

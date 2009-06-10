@@ -82,6 +82,10 @@ extern "C" int _heap_init() {
 extern "C" void _heap_term() {
 }
 
+extern "C" int _set_new_mode(int flag) {
+  return tc_set_new_mode(flag);
+}
+
 #ifndef NDEBUG
 #undef malloc
 #undef free

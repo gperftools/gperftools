@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.2, opensource@google.com)
+AC_INIT(google-perftools, 1.3, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
@@ -68,6 +68,10 @@ AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
 # ranlib.  Nobody needs ranlib anymore, so it's safe to just disable it.
 RANLIB=":"
 
+# Check if we have an objcopy installed that supports -W
+AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
+AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, ["$OBJCOPY" -W malloc /bin/ls /dev/null])
+
 case $host_os in
   *mingw*)
     # Disabling fast install keeps libtool from creating wrapper scripts
@@ -97,11 +101,13 @@ AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
 AC_CHECK_TYPES([Elf32_Versym],,, [#include <elf.h>])   # for vdso_support.h
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
+AC_CHECK_HEADERS(features.h)    # for vdso_support.h
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
+AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
@@ -123,6 +129,12 @@ AC_CHECK_DECLS([cfree,
                [#define _XOPEN_SOURCE 600
                 #include <stdlib.h>
                 #include <malloc.h>])
+
+if test "$ac_cv_type_struct_mallinfo" = yes; then
+  AC_SUBST(ac_cv_have_struct_mallinfo, 1)   # google/tcmalloc.h needs this
+else
+  AC_SUBST(ac_cv_have_struct_mallinfo, 0)
+fi
 
 # We need to check for mmap.  cygwin supports mmap, but the autoconf
 # test doesn't work on cygwin:
@@ -260,9 +272,6 @@ ACX_PTHREAD
 # Find out what namespace 'normal' STL code lives in
 AC_CXX_STL_NAMESPACE
 
-# Figure out where hash_set lives, and what namespace hash code is in.
-AC_CXX_STL_HASH
-
 # Figure out where libc has program_invocation_name
 AC_PROGRAM_INVOCATION_NAME
 
@@ -306,5 +315,5 @@ AM_CONDITIONAL(WITH_STACK_TRACE, test "$enable_cpu_profiler" = yes -o \
                                       "$enable_heap_checker" = yes)
 
 # Write generated configuration file
-AC_CONFIG_FILES([Makefile])
+AC_CONFIG_FILES([Makefile src/google/tcmalloc.h])
 AC_OUTPUT

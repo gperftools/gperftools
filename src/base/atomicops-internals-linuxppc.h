@@ -51,7 +51,13 @@ static inline void _sync(void) {
 }
 
 static inline void _lwsync(void) {
+  // gcc defines __NO_LWSYNC__ when appropriate; see
+  //    http://gcc.gnu.org/ml/gcc-patches/2006-11/msg01238.html
+#ifdef __NO_LWSYNC__
+  __asm__ __volatile__("msync": : : "memory");
+#else
   __asm__ __volatile__("lwsync": : : "memory");
+#endif
 }
 
 static inline void _isync(void) {

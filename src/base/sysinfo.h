@@ -51,14 +51,19 @@
 #include "base/basictypes.h"
 #include "base/logging.h"   // for RawFD
 
-// This getenv prefers using /proc/self/environ to calling getenv().
-// It's intended to be used in routines that run before main(), when
-// the state required for getenv() may not be set up yet.  In particular,
-// errno isn't set up until relatively late (after the pthreads library
-// has a chance to make it threadsafe), and getenv() doesn't work until then.
-// Note that /proc only has the environment at the time the application was
-// started, so this routine ignores setenv() calls/etc.  Also note it only
-// reads the first 16K of the environment.
+// This getenv function is safe to call before the C runtime is initialized.
+// On Windows, it utilizes GetEnvironmentVariable() and on unix it uses
+// /proc/self/environ instead calling getenv().  It's intended to be used in
+// routines that run before main(), when the state required for getenv() may
+// not be set up yet.  In particular, errno isn't set up until relatively late
+// (after the pthreads library has a chance to make it threadsafe), and
+// getenv() doesn't work until then. 
+// On some platforms, this call will utilize the same, static buffer for
+// repeated GetenvBeforeMain() calls. Callers should not expect pointers from
+// this routine to be long lived.
+// Note that on unix, /proc only has the environment at the time the
+// application was started, so this routine ignores setenv() calls/etc.  Also
+// note it only reads the first 16K of the environment.
 extern const char* GetenvBeforeMain(const char* name);
 
 // This takes as an argument an environment-variable name (like

@@ -31,7 +31,12 @@
  * Author: Kostya Serebryany
  */
 
+#include <config.h>
+#include <stdlib.h>
+#include <string.h>
+
 #include "base/dynamic_annotations.h"
+#include "base/sysinfo.h"
 
 // Each function is empty and called (via a macro) only in debug mode.
 // The arguments are captured by dynamic tools at runtime.
@@ -84,6 +89,19 @@ extern "C" void AnnotateIgnoreWritesEnd(const char *file, int line){}
 extern "C" void AnnotateNoOp(const char *file, int line,
                              const volatile void *arg){}
 
+static int GetRunningOnValgrind() {
+  const char *running_on_valgrind_str = GetenvBeforeMain("RUNNING_ON_VALGRIND");
+  if (running_on_valgrind_str) {
+    return strcmp(running_on_valgrind_str, "0") != 0;
+  }
+  return 0;
+}
+
 // When running under valgrind, this function will be intercepted
 // and a non-zero value will be returned.
-extern "C" int RunningOnValgrind() { return 0; }
+// Some valgrind-based tools (e.g. callgrind) do not intercept functions,
+// so we also read environment variable.
+extern "C" int RunningOnValgrind() {
+  static int running_on_valgrind = GetRunningOnValgrind();
+  return running_on_valgrind;
+}

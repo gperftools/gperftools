@@ -37,7 +37,7 @@
 #include <sched.h>      /* For sched_yield() */
 #endif
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>     /* For nanosleep() on Windows, read() */
+#include <unistd.h>     /* For read() */
 #endif
 #include <fcntl.h>      /* for open(), O_RDONLY */
 #include <string.h>     /* for strncmp */
@@ -56,6 +56,40 @@ static int adaptive_spin_count = 0;
 const base::LinkerInitialized SpinLock::LINKER_INITIALIZED =
     base::LINKER_INITIALIZED;
 
+namespace {
+
+// OS-specific code
+#ifdef _WIN32
+
+#include <windows.h>   // for Sleep()
+
+static void WaitATick() {
+  Sleep(1);
+}
+static void SchedYield() {
+  Sleep(0);  // closest thing windows has to sched_yield()
+}
+
+#else
+
+static void WaitATick() {
+  int save_errno = errno;
+  struct timespec tm;
+  tm.tv_sec = 0;
+  tm.tv_nsec = 2000001;
+  nanosleep(&tm, NULL);
+  errno = save_errno;
+}
+static void SchedYield() {
+#ifdef HAVE_SCHED_H            // otherwise, yield is just a noop
+  int save_errno = errno;
+  sched_yield();
+  errno = save_errno;
+#endif
+}
+
+#endif
+
 struct SpinLock_InitHelper {
   SpinLock_InitHelper() {
     // On multi-cpu machines, spin for longer before yielding
@@ -71,8 +105,10 @@ struct SpinLock_InitHelper {
 // but nothing lock-intensive should be going on at that time.
 static SpinLock_InitHelper init_helper;
 
+}  // unnamed namespace
+
+
 void SpinLock::SlowLock() {
-  int saved_errno = errno; // save and restore errno for signal safety
   int c = adaptive_spin_count;
 
   // Spin a few times in the hope that the lock holder releases the lock
@@ -80,13 +116,9 @@ void SpinLock::SlowLock() {
     c--;
   }
 
-#ifdef HAVE_SCHED_H
   if (lockword_ == 1) {
-    sched_yield();          // Spinning failed. Let's try to be gentle.
+    SchedYield();          // Spinning failed. Let's try to be gentle.
   }
-#else
-  sleep(0);                 // best we can do?  Useful on windows at least.
-#endif
 
   while (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
     // This code was adapted from the ptmalloc2 implementation of
@@ -99,10 +131,6 @@ void SpinLock::SlowLock() {
     // from taking 30 seconds to 16 seconds.
 
     // Sleep for a few milliseconds
-    struct timespec tm;
-    tm.tv_sec = 0;
-    tm.tv_nsec = 2000001;
-    nanosleep(&tm, NULL);
+    WaitATick();
   }
-  errno = saved_errno;
 }
