@@ -48,7 +48,7 @@
 static int result = 0;
 static int g_iters = 0;   // argv[1]
 
-Mutex mutex;
+Mutex mutex(Mutex::LINKER_INITIALIZED);
 
 static void test_other_thread() {
 #ifndef NO_THREADS

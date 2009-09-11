@@ -87,6 +87,8 @@ int main(int argc, char** argv) {
   }
 
   for (int x = 0; x < FLAGS_iters; ++x) {
+    RAW_LOG(INFO, "Iteration %d/%d...\n", x, FLAGS_iters);
+
     // Permute pointers to get rid of allocation order issues
     random_shuffle(ptrs_and_sizes.begin(), ptrs_and_sizes.end());
 

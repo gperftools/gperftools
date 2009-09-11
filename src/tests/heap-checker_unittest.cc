@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -58,7 +58,9 @@
 // (see the comment in our .h file).
 
 #include "config_for_unittests.h"
-#include <sys/poll.h>
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
 #if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
 #elif defined HAVE_INTTYPES_H
@@ -537,6 +539,20 @@ static void TestHeapLeakCheckerDeathCountMore() {
               2);
   DeAllocHidden(&bar1);
   DeAllocHidden(&bar2);
+}
+
+static void TestHiddenPointer() {
+  int i;
+  void* foo = &i;
+  HiddenPointer<void> p(foo);
+  CHECK_EQ(foo, p.get());
+
+  // Confirm pointer doesn't appear to contain a byte sequence
+  // that == the pointer.  We don't really need to test that
+  // the xor trick itself works, as without it nothing in this
+  // test suite would work.  See the Hide/Unhide/*Hidden* set
+  // of helper methods.
+  CHECK_NE(foo, *reinterpret_cast<void**>(&p));
 }
 
 // simple tests that deallocate what they allocated
@@ -1304,7 +1320,6 @@ static int Pass() {
 int main(int argc, char** argv) {
   run_hidden_ptr = DoRunHidden;
   wipe_stack_ptr = DoWipeStack;
-  
   if (!HeapLeakChecker::IsActive()) {
     CHECK_EQ(FLAGS_heap_check, "");
     LOG(WARNING, "HeapLeakChecker got turned off; we won't test much...");
@@ -1376,6 +1391,8 @@ int main(int argc, char** argv) {
 
   HeapLeakChecker heap_check("all");
 
+  TestHiddenPointer();
+
   TestHeapLeakChecker();
   Pause();
   TestLeakButTotalsMatch();
@@ -1443,6 +1460,6 @@ int main(int argc, char** argv) {
   }
 
   CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
-  
+
   return Pass();
 }

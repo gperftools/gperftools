@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -51,8 +51,12 @@
 #ifndef BASE_HEAP_CHECKER_H_
 #define BASE_HEAP_CHECKER_H_
 
+#include "config.h"
+
 #include <sys/types.h>  // for size_t
+#ifdef HAVE_STDINT_H
 #include <stdint.h>     // for uintptr_t
+#endif
 #include <stdarg.h>     // for va_list
 #include <vector>
 
@@ -181,6 +185,10 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // at the time of this call, it is ignored;
   // but if it does, the object must not get deleted from the heap later on;
   // it must also be not already ignored at the time of this call.
+  //
+  // See also HiddenPointer, below, if you need to prevent a pointer from
+  // being traversed by the heap checker but do not wish to transitively
+  // whitelist objects referenced through it.
   static void IgnoreObject(const void* ptr);
 
   // Undo what an earlier IgnoreObject() call promised and asked to do.
@@ -363,6 +371,26 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   void operator=(const HeapLeakChecker&);
 };
 
+
+// Holds a pointer that will not be traversed by the heap checker.
+// Contrast with HeapLeakChecker::IgnoreObject(o), in which o and
+// all objects reachable from o are ignored by the heap checker.
+template <class T>
+class HiddenPointer {
+ public:
+  explicit HiddenPointer(T* t)
+      : masked_t_(reinterpret_cast<uintptr_t>(t) ^ kHideMask) {
+  }
+  // Returns unhidden pointer.  Be careful where you save the result.
+  T* get() const { return reinterpret_cast<T*>(masked_t_ ^ kHideMask); }
+
+ private:
+  // Arbitrary value, but not such that xor'ing with it is likely
+  // to map one valid pointer to another valid pointer:
+  static const uintptr_t kHideMask =
+      static_cast<uintptr_t>(0xF03A5F7BF03A5F7Bll);
+  uintptr_t masked_t_;
+};
 
 // A class that exists solely to run its destructor.  This class should not be
 // used directly, but instead by the REGISTER_HEAPCHECK_CLEANUP macro below.

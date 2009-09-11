@@ -106,6 +106,15 @@ const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
 #define PRIxPTR "lx"
 #endif
 
+// Also allow for printing of a pthread_t.
+#define GPRIuPTHREAD "lu"
+#define GPRIxPTHREAD "lx"
+#if defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__APPLE__)
+#define PRINTABLE_PTHREAD(pthreadt) reinterpret_cast<uintptr_t>(pthreadt)
+#else
+#define PRINTABLE_PTHREAD(pthreadt) pthreadt
+#endif
+
 // A macro to disallow the evil copy constructor and operator= functions
 // This should be used in the private: declarations for a class
 #define DISALLOW_EVIL_CONSTRUCTORS(TypeName)    \

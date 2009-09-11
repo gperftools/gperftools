@@ -125,7 +125,8 @@ SideStepError PreamblePatcher::RawPatchWithStubAndProtections(
   // MAX_PREAMBLE_STUB_SIZE bytes of target_function
   DWORD old_target_function_protect = 0;
   BOOL succeeded = ::VirtualProtect(reinterpret_cast<void*>(target_function),
-                                    MAX_PREAMBLE_STUB_SIZE, PAGE_READWRITE,
+                                    MAX_PREAMBLE_STUB_SIZE,
+                                    PAGE_EXECUTE_READWRITE,
                                     &old_target_function_protect);
   if (!succeeded) {
     SIDESTEP_ASSERT(false && "Failed to make page containing target function "
@@ -206,8 +207,8 @@ SideStepError PreamblePatcher::RawPatch(void* target_function,
   // Execution Prevention) which will cause an exception if code is executed
   // from a page on which you do not have read access.
   DWORD old_stub_protect = 0;
-  BOOL succeeded = VirtualProtect(preamble_stub, MAX_PREAMBLE_STUB_SIZE,
-                                  PAGE_EXECUTE_READWRITE, &old_stub_protect);
+  BOOL succeeded = ::VirtualProtect(preamble_stub, MAX_PREAMBLE_STUB_SIZE,
+                                    PAGE_EXECUTE_READWRITE, &old_stub_protect);
   if (!succeeded) {
     SIDESTEP_ASSERT(false &&
                     "Failed to make page preamble stub read-write-execute.");

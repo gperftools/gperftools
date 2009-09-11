@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -33,7 +33,7 @@
 // Author: Maxim Lifantsev
 //
 
-#include <config.h>
+#include "config.h"
 
 #include <fcntl.h>    // for O_RDONLY (we use syscall to do actual reads)
 #include <string.h>
@@ -47,7 +47,9 @@
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
 #endif
-#include <sys/poll.h>
+#ifdef HAVE_POLL_H
+#include <poll.h>
+#endif
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <assert.h>
@@ -1489,7 +1491,7 @@ void HeapLeakChecker::Create(const char *name, bool make_start_snapshot) {
     } else {
       RAW_LOG(WARNING, "Heap checker is not active, "
                        "hence checker \"%s\" will do nothing!", name);
-    RAW_LOG(WARNING, "To activate set the HEAPCHECK environment variable.\n");	
+    RAW_LOG(WARNING, "To activate set the HEAPCHECK environment variable.\n");
     }
   }
   if (name_ == NULL) {

@@ -28,6 +28,9 @@
 /* Define to 1 if you have the <conflict-signal.h> header file. */
 #undef HAVE_CONFLICT_SIGNAL_H
 
+/* Define to 1 if you have the <cygwin/signal.h> header file. */
+#undef HAVE_CYGWIN_SIGNAL_H
+
 /* Define to 1 if you have the declaration of `cfree', and to 0 if you don't.
    */
 #undef HAVE_DECL_CFREE
@@ -99,6 +102,9 @@
 
 /* define if the compiler implements namespaces */
 #define HAVE_NAMESPACES 1
+
+/* Define to 1 if you have the <poll.h> header file. */
+#undef HAVE_POLL_H
 
 /* define if libc has program_invocation_name */
 #undef HAVE_PROGRAM_INVOCATION_NAME
@@ -179,22 +185,22 @@
 #undef NO_MINUS_C_MINUS_O
 
 /* Name of package */
-#undef PACKAGE
+#define PACKAGE "google-perftools"
 
 /* Define to the address where bug reports for this package should be sent. */
-#undef PACKAGE_BUGREPORT
+#define PACKAGE_BUGREPORT "opensource@google.com"
 
 /* Define to the full name of this package. */
-#undef PACKAGE_NAME
+#define PACKAGE_NAME "google-perftools"
 
 /* Define to the full name and version of this package. */
-#undef PACKAGE_STRING
+#define PACKAGE_STRING "google-perftools 1.4"
 
 /* Define to the one symbol short name of this package. */
-#undef PACKAGE_TARNAME
+#define PACKAGE_TARNAME "google-perftools"
 
 /* Define to the version of this package. */
-#undef PACKAGE_VERSION
+#define PACKAGE_VERSION "1.4"
 
 /* How to access the PC from a struct ucontext */
 #undef PC_FROM_UCONTEXT
@@ -251,6 +257,9 @@
 #ifndef _WIN32_WINNT
 # define _WIN32_WINNT 0x0400
 #endif
+
+// We want to make sure not to ever try to #include heap-checker.h
+#define NO_HEAP_CHECK 1
 
 // TODO(csilvers): include windows/port.h in every relevant source file instead?
 #include "windows/port.h"

@@ -68,8 +68,6 @@ static const size_t kNumClasses = 61;
 // want this big to avoid locking the central free-list too often.  It
 // should not hurt to make this list somewhat big because the
 // scavenging code will shrink it down when its contents are not in use.
-static const int kMaxFreeListLength = 256;
-// Same as above but used when --tcmalloc_use_dynamic_thread_cache_sizes=true.
 static const int kMaxDynamicFreeListLength = 8192;
 
 static const Length kMaxValidPages = (~static_cast<Length>(0)) >> kPageShift;

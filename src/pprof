@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "1.3";
+my $PPROF_VERSION = "1.4";
 
 # These are the object tools we use which can come from a
 # user-specified location using --tools, from the PPROF_TOOLS
@@ -104,6 +104,8 @@ my $FILTEREDPROFILE_PAGE = "/pprof/filteredprofile(?:\\?.*)?";
 my $SYMBOL_PAGE = "/pprof/symbol";     # must support symbol lookup via POST
 my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 
+# default binary name
+my $UNKNOWN_BINARY = "(unknown)";
 
 # There is a pervasive dependency on the length (in hex characters,
 # i.e., nibbles) of an address, distinguishing between 32-bit and
@@ -120,6 +122,10 @@ sub usage_string {
 Usage:
 pprof [options] <program> <profiles>
    <profiles> is a space separated list of profile names.
+pprof [options] <symbolized-profiles>
+   <symbolized-profiles> is a list of profile files where each file contains
+   the necessary symbol mappings  as well as profile data (likely generated
+   with --raw).
 pprof [options] <profile>
    <profile> is a remote form.  Symbols are obtained from host:port$SYMBOL_PAGE
 
@@ -167,6 +173,7 @@ Output type:
    --ps                Generate Postcript to stdout
    --pdf               Generate PDF to stdout
    --gif               Generate GIF to stdout
+   --raw               Generate symbolized pprof data (useful with remote fetch)
 
 Heap-Profile Options:
    --inuse_space       Display in-use (mega)bytes [default]
@@ -219,6 +226,10 @@ pprof --disasm=getdir /bin/ls ls.prof
                        (Per-PC) annotated disassembly for getdir()
 pprof --text localhost:1234
                        Outputs one line per procedure for localhost:1234
+pprof --raw localhost:1234 > ./local.raw
+pprof --text ./local.raw
+                       Fetches a remote profile for later analysis and then
+                       analyzes it in text mode.
 EOF
 }
 
@@ -276,6 +287,7 @@ sub Init() {
   $main::opt_ps = 0;
   $main::opt_pdf = 0;
   $main::opt_gif = 0;
+  $main::opt_raw = 0;
 
   $main::opt_nodecount = 80;
   $main::opt_nodefraction = 0.005;
@@ -302,6 +314,9 @@ sub Init() {
   $main::opt_tools   = "";
   $main::opt_debug   = 0;
   $main::opt_test    = 0;
+
+  # These are undocumented flags used only by unittests.
+  $main::opt_test_stride = 0;
 
   # Are we using $SYMBOL_PAGE?
   $main::use_symbol_page = 0;
@@ -335,6 +350,7 @@ sub Init() {
              "ps!"            => \$main::opt_ps,
              "pdf!"           => \$main::opt_pdf,
              "gif!"           => \$main::opt_gif,
+             "raw!"           => \$main::opt_raw,
              "interactive!"   => \$main::opt_interactive,
              "nodecount=i"    => \$main::opt_nodecount,
              "nodefraction=f" => \$main::opt_nodefraction,
@@ -355,6 +371,8 @@ sub Init() {
              "tools=s"        => \$main::opt_tools,
              "test!"          => \$main::opt_test,
              "debug!"         => \$main::opt_debug,
+	     # Undocumented flags used only by unittests:
+	     "test_stride=i"  => \$main::opt_test_stride,
       ) || usage("Invalid option(s)");
 
   # Deal with the standard --help and --version
@@ -410,6 +428,7 @@ sub Init() {
       $main::opt_ps +
       $main::opt_pdf +
       $main::opt_gif +
+      $main::opt_raw +
       $main::opt_interactive +
       0;
   if ($modes > 1) {
@@ -436,9 +455,13 @@ sub Init() {
   # Remote profiling without a binary (using $SYMBOL_PAGE instead)
   if (IsProfileURL($ARGV[0])) {
     $main::use_symbol_page = 1;
+  } elsif (IsSymbolizedProfileFile($ARGV[0])) {
+    $main::use_symbolized_profile = 1;
+    $main::prog = $UNKNOWN_BINARY;  # will be set later from the profile file
   }
 
-  if ($main::use_symbol_page) {  # We don't need a binary!
+  if ($main::use_symbol_page || $main::use_symbolized_profile) {
+    # We don't need a binary!
     my %disabled = ('--lines' => $main::opt_lines,
                     '--disasm' => $main::opt_disasm);
     for my $option (keys %disabled) {
@@ -474,7 +497,7 @@ sub Init() {
     }
     CheckSymbolPage();
     $main::prog = FetchProgramName();
-  } else {
+  } elsif (!$main::use_symbolized_profile) {  # may not need objtools!
     ConfigureObjTools($main::prog)
   }
 
@@ -502,12 +525,16 @@ sub Main() {
 
   # Fetch all profile data
   FetchDynamicProfiles();
-    
+
+  # this will hold symbols that we read from the profile files
+  my $symbol_map = {};
+
   # Read one profile, pick the last item on the list
   my $data = ReadProfile($main::prog, pop(@main::profile_files));
   my $profile = $data->{profile};
   my $pcs = $data->{pcs};
   my $libs = $data->{libs};   # Info about main program and shared libraries
+  $symbol_map = MergeSymbols($symbol_map, $data->{symbols});
 
   # Add additional profiles, if available.
   if (scalar(@main::profile_files) > 0) {
@@ -515,6 +542,7 @@ sub Main() {
       my $data2 = ReadProfile($main::prog, $pname);
       $profile = AddProfile($profile, $data2->{profile});
       $pcs = AddPcs($pcs, $data2->{pcs});
+      $symbol_map = MergeSymbols($symbol_map, $data2->{symbols});
     }
   }
 
@@ -523,14 +551,17 @@ sub Main() {
     my $base = ReadProfile($main::prog, $main::opt_base);
     $profile = SubtractProfile($profile, $base->{profile});
     $pcs = AddPcs($pcs, $base->{pcs});
+    $symbol_map = MergeSymbols($symbol_map, $base->{symbols});
   }
 
   # Get total data in profile
   my $total = TotalProfile($profile);
 
   # Collect symbols
-  my $symbols = undef;
-  if ($main::use_symbol_page) {
+  my $symbols;
+  if ($main::use_symbolized_profile) {
+    $symbols = FetchSymbols($pcs, $symbol_map);
+  } elsif ($main::use_symbol_page) {
     $symbols = FetchSymbols($pcs);
   } else {
     $symbols = ExtractSymbols($libs, $pcs);
@@ -573,6 +604,8 @@ sub Main() {
         printf("Total: %s %s\n", Unparse($total), Units());
       }
       PrintText($symbols, $flat, $cumulative, $total, -1);
+    } elsif ($main::opt_raw) {
+      PrintSymbolizedProfile($symbols, $profile, $main::prog);
     } elsif ($main::opt_callgrind) {
       PrintCallgrind($calls);
     } else {
@@ -869,6 +902,73 @@ sub PsTempName {
   return "$main::tmpfile_ps" . "." . "$fnum" . ".ps";
 }
 
+# Print profile data in packed binary format (64-bit) to standard out
+sub PrintProfileData {
+  my $profile = shift;
+
+  # print header (64-bit style)
+  # (zero) (header-size) (version) (sample-period) (zero)
+  print pack('L*', 0, 0, 3, 0, 0, 0, 1, 0, 0, 0);
+
+  foreach my $k (keys(%{$profile})) {
+    my $count = $profile->{$k};
+    my @addrs = split(/\n/, $k);
+    if ($#addrs >= 0) {
+      my $depth = $#addrs + 1;
+      # int(foo / 2**32) is the only reliable way to get rid of bottom
+      # 32 bits on both 32- and 64-bit systems.
+      print pack('L*', $count & 0xFFFFFFFF, int($count / 2**32));
+      print pack('L*', $depth & 0xFFFFFFFF, int($depth / 2**32));
+
+      foreach my $full_addr (@addrs) {
+        my $addr = $full_addr;
+        $addr =~ s/0x0*//;  # strip off leading 0x, zeroes
+        if (length($addr) > 16) {
+          print STDERR "Invalid address in profile: $full_addr\n";
+          next;
+        }
+        my $low_addr = substr($addr, -8);       # get last 8 hex chars
+        my $high_addr = substr($addr, -16, 8);  # get up to 8 more hex chars
+        print pack('L*', hex('0x' . $low_addr), hex('0x' . $high_addr));
+      }
+    }
+  }
+}
+
+# Print symbols and profile data
+sub PrintSymbolizedProfile {
+  my $symbols = shift;
+  my $profile = shift;
+  my $prog = shift;
+
+  $SYMBOL_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $symbol_marker = $&;
+
+  print '--- ', $symbol_marker, "\n";
+  if (defined($prog)) {
+    print 'binary=', $prog, "\n";
+  }
+  while (my ($pc, $name) = each(%{$symbols})) {
+    my $fullname = $name->[2];
+    print '0x', $pc, ' ', $fullname, "\n";
+  }
+  print '---', "\n";
+
+  if (defined($main::collected_profile)) {
+    # if used with remote fetch, simply dump the collected profile to output.
+    open(SRC, "<$main::collected_profile");
+    while (<SRC>) {
+      print $_;
+    }
+  } else {
+    # dump a cpu-format profile to standard out
+    $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+    my $profile_marker = $&;
+    print '--- ', $profile_marker, "\n";
+    PrintProfileData($profile);
+  }
+}
+
 # Print text output
 sub PrintText {
   my $symbols = shift;
@@ -882,7 +982,7 @@ sub PrintText {
 
   my $running_sum = 0;
   my $lines = 0;
-  foreach my $k (sort { GetEntry($s,$b) <=> GetEntry($s, $a) }
+  foreach my $k (sort { GetEntry($s, $b) <=> GetEntry($s, $a) || $a cmp $b }
                  keys(%{$cumulative})) {
     my $f = GetEntry($flat, $k);
     my $c = GetEntry($cumulative, $k);
@@ -1396,7 +1496,8 @@ sub PrintDot {
 
   # Find nodes to include
   my @list = (sort { abs(GetEntry($cumulative, $b)) <=>
-                     abs(GetEntry($cumulative, $a)) }
+                     abs(GetEntry($cumulative, $a))
+		     || $a cmp $b }
               keys(%{$cumulative}));
   my $last = $nodecount - 1;
   if ($last > $#list) {
@@ -1972,6 +2073,24 @@ sub AddProfile {
   return $R;
 }
 
+# Merges symbol maps
+sub MergeSymbols {
+  my $A = shift;
+  my $B = shift;
+
+  my $R = {};
+  foreach my $k (keys(%{$A})) {
+    $R->{$k} = $A->{$k};
+  }
+  if (defined($B)) {
+    foreach my $k (keys(%{$B})) {
+      $R->{$k} = $B->{$k};
+    }
+  }
+  return $R;
+}
+
+
 # Add A to B
 sub AddPcs {
   my $A = shift;
@@ -2052,6 +2171,23 @@ sub AddEntries {
   AddEntry($profile, (join "\n", @k), $count);
 }
 
+sub IsSymbolizedProfileFile {
+  my $file_name = shift;
+
+  if (!(-e $file_name) || !(-r $file_name)) {
+    return 0;
+  }
+
+  $SYMBOL_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $symbol_marker = $&;
+  # Check if the file contains a symbol-section marker.
+  open(TFILE, "<$file_name");
+  my @lines = <TFILE>;
+  my $result = grep(/^--- *$symbol_marker/, @lines);
+  close(TFILE);
+  return $result > 0;
+}
+
 ##### Code to profile a server dynamically #####
 
 sub CheckSymbolPage {
@@ -2130,35 +2266,72 @@ sub ResolveRedirectionForCurl {
   return $url;
 }
 
-# Fetch symbols from $SYMBOL_PAGE for all PC values found in profile
-sub FetchSymbols {
-  my $pcset = shift;
-
-  my %seen = ();
-  my @pcs = grep { !$seen{$_}++ } keys(%$pcset);  # uniq
-  my $post_data = join("+", sort((map {"0x" . "$_"} @pcs)));
-  open(POSTFILE, ">$main::tmpfile_sym");
-  print POSTFILE $post_data;
-  close(POSTFILE);
-
-  my $url = SymbolPageURL();
-  # Here we use curl for sending data via POST since old
-  # wget doesn't have --post-file option.
-  $url = ResolveRedirectionForCurl($url);
-  my $command_line = "$CURL -sd '\@$main::tmpfile_sym' '$url'";
-  # We use c++filt in case $SYMBOL_PAGE gives us mangled symbols.
-  my $cppfilt = $obj_tool_map{"c++filt"};
-  open(SYMBOL, "$command_line | $cppfilt |") or error($command_line);
-
-  my %map;
-  while (<SYMBOL>) {
+# Reads a symbol map from the file handle name given as $1, returning
+# the resulting symbol map.  Also processes variables relating to symbols.
+# Currently, the only variable processed is 'binary=<value>' which updates
+# $main::prog to have the correct program name.
+sub ReadSymbols {
+  my $in = shift;
+  my $map = {};
+  while (<$in>) {
     s/\r//g;         # turn windows-looking lines into unix-looking lines
     # Removes all the leading zeroes from the symbols, see comment below.
     if (m/^0x0*([0-9a-f]+)\s+(.+)/) {
-      $map{$1} = $2;
+      $map->{$1} = $2;
+    } elsif (m/^---/) {
+      last;
+    } elsif (m/^([a-z][^=]*)=(.*)$/ ) {
+      my ($variable, $value) = ($1, $2);
+      for ($variable, $value) {
+        s/^\s+//;
+        s/\s+$//;
+      }
+      if ($variable eq "binary") {
+        if ($main::prog ne $UNKNOWN_BINARY && $main::prog ne $value) {
+          printf STDERR ("Warning: Mismatched binary name '%s', using '%s'.\n",
+                         $main::prog, $value);
+        }
+        $main::prog = $value;
+      } else {
+        printf STDERR ("Ignoring unknown variable in symbols list: " .
+            "'%s' = '%s'\n", $variable, $value);
+      }
     }
   }
-  close(SYMBOL);
+  return $map;
+}
+
+# Fetches and processes symbols to prepare them for use in the profile output
+# code.  If the optional 'symbol_map' arg is not given, fetches symbols from
+# $SYMBOL_PAGE for all PC values found in profile.  Otherwise, the raw symbols
+# are assumed to have already been fetched into 'symbol_map' and are simply
+# extracted and processed.
+sub FetchSymbols {
+  my $pcset = shift;
+  my $symbol_map = shift;
+
+
+  my %seen = ();
+  my @pcs = grep { !$seen{$_}++ } keys(%$pcset);  # uniq
+
+  if (!defined($symbol_map)) {
+    my $post_data = join("+", sort((map {"0x" . "$_"} @pcs)));
+
+    open(POSTFILE, ">$main::tmpfile_sym");
+    print POSTFILE $post_data;
+    close(POSTFILE);
+ 
+    my $url = SymbolPageURL();
+    # Here we use curl for sending data via POST since old
+    # wget doesn't have --post-file option.
+    $url = ResolveRedirectionForCurl($url);
+    my $command_line = "$CURL -sd '\@$main::tmpfile_sym' '$url'";
+    # We use c++filt in case $SYMBOL_PAGE gives us mangled symbols.
+    my $cppfilt = $obj_tool_map{"c++filt"};
+    open(SYMBOL, "$command_line | $cppfilt |") or error($command_line);
+    $symbol_map = ReadSymbols(*SYMBOL{IO});
+    close(SYMBOL);
+  }
 
   my $symbols = {};
   foreach my $pc (@pcs) {
@@ -2170,8 +2343,8 @@ sub FetchSymbols {
     # /symbol, the symbols match and are retrievable from the map.
     my $shortpc = $pc;
     $shortpc =~ s/^0*//;
-    if (defined($map{$shortpc})) {
-      $fullname = $map{$shortpc};
+    if (defined($symbol_map->{$shortpc})) {
+      $fullname = $symbol_map->{$shortpc};
     } else {
       $fullname = "0x" . $pc;  # Just use addresses
     }
@@ -2316,6 +2489,60 @@ sub TryCollectProfile {
 
 ##### Parsing code #####
 
+# Provide a small streaming-read module to handle very large
+# cpu-profile files.  Stream in chunks along a sliding window.
+BEGIN {
+  package CpuProfileStream;
+
+  sub new {
+    my ($class, $file) = @_;
+    my $self = { file      => $file,
+                 base      => 0,
+                 stride    => 512 * 1024,     # must be a multiple of |long|
+                 slots     => []
+    };
+    bless $self, $class;
+    # Let unittests adjust the stride
+    if ($main::opt_test_stride > 0) {
+      $self->{stride} = $main::opt_test_stride;
+    }
+    $self->overflow();
+    return $self;
+  }
+
+  # Load more data when we access slots->get(X) which is not yet in memory.
+  sub overflow {
+    my ($self) = @_;
+    my $slots = $self->{slots};
+    $self->{base} += $#$slots + 1;   # skip over data we're replacing
+    my $str;
+    read($self->{file}, $str, $self->{stride});
+    @$slots = unpack("L*", $str);
+  }
+
+  # Access the i-th long in the file (logically), or -1 at EOF.
+  sub get {
+    my ($self, $idx) = @_;
+    my $slots = $self->{slots};
+    while ($#$slots >= 0) {
+      if ($idx < $self->{base}) {
+	# The only time we expect a reference to $slots[$i - something]
+	# after referencing $slots[$i] is reading the very first header.
+	# Since $stride > |header|, that shouldn't cause any lookback
+	# errors.  And everything after the header is sequential.
+	print STDERR "Unexpected look-back reading CPU profile";
+	return -1;   # shrug, don't know what better to return
+      } elsif ($idx > $self->{base} + $#$slots) {
+	$self->overflow();
+      } else {
+	return $slots->[$idx - $self->{base}];
+      }
+    }
+    # If we get here, $slots is [], which means we've reached EOF
+    return -1;  # unique since slots is supposed to hold unsigned numbers
+  }
+}
+
 # Parse profile generated by common/profiler.cc and return a reference
 # to a map:
 #      $result->{version}     Version number of profile file
@@ -2327,52 +2554,96 @@ sub ReadProfile {
   my $prog = shift;
   my $fname = shift;
 
+  if (IsSymbolizedProfileFile($fname) && !$main::use_symbolized_profile) {
+    # we have both a binary and symbolized profiles, abort
+    usage("Symbolized profile '$fname' cannot be used with a binary arg.  " .
+          "Try again without passing '$prog'.");
+  }
+
   $main::profile_type = '';
 
-  # Look at first line to see if it is a heap or a CPU profile
-  open(PROFILE, "<$fname") || error("$fname: $!\n");
-  binmode PROFILE;      # New perls do UTF-8 processing
-  my $header = <PROFILE>;
-  $header =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
   $CONTENTION_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
   my $contention_marker = $&;
-  $GROWTH_PAGE  =~ m,[^/]+$,;
+  $GROWTH_PAGE  =~ m,[^/]+$,;    # matches everything after the last slash
   my $growth_marker = $&;
+  $SYMBOL_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $symbol_marker = $&;
+  $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $profile_marker = $&;
+
+  # Look at first line to see if it is a heap or a CPU profile.
+  # CPU profile may start with no header at all, and just binary data
+  # (starting with \0\0\0\0) -- in that case, don't try to read the
+  # whole firstline, since it may be gigabytes(!) of data.
+  open(PROFILE, "<$fname") || error("$fname: $!\n");
+  binmode PROFILE;      # New perls do UTF-8 processing
+  my $firstchar = "";
+  my $header = "";
+  read(PROFILE, $firstchar, 1);
+  seek(PROFILE, -1, 1);          # unread the firstchar
+  if ($firstchar ne "\0") {
+    $header = <PROFILE>;
+    $header =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
+  }
+
+  my $symbols;
+  if ($header =~ m/^--- *$symbol_marker/o) {
+    # read the symbol section of the symbolized profile file
+    $symbols = ReadSymbols(*PROFILE{IO});
+
+    # read the next line to get the header for the remaining profile
+    $header = "";
+    read(PROFILE, $firstchar, 1);
+    seek(PROFILE, -1, 1);          # unread the firstchar
+    if ($firstchar ne "\0") {
+      $header = <PROFILE>;
+      $header =~ s/\r//g;
+    }
+  }
+
+  my $result;
+
   if ($header =~ m/^heap profile:.*$growth_marker/o) {
     $main::profile_type = 'growth';
-    return ReadHeapProfile($prog, $fname, $header);
+    $result =  ReadHeapProfile($prog, $fname, $header);
   } elsif ($header =~ m/^heap profile:/) {
     $main::profile_type = 'heap';
-    return ReadHeapProfile($prog, $fname, $header);
+    $result =  ReadHeapProfile($prog, $fname, $header);
   } elsif ($header =~ m/^--- *$contention_marker/o) {
     $main::profile_type = 'contention';
-    return ReadSynchProfile($prog, $fname);
+    $result = ReadSynchProfile($prog, $fname);
   } elsif ($header =~ m/^--- *Stacks:/) {
     print STDERR
       "Old format contention profile: mistakenly reports " .
       "condition variable signals as lock contentions.\n";
     $main::profile_type = 'contention';
-    return ReadSynchProfile($prog, $fname);
-  } else {
-    # Need to unread the line we just read
+    $result = ReadSynchProfile($prog, $fname);
+  } elsif ($header =~ m/^--- *$profile_marker/) {
+    # the binary cpu profile data starts immediately after this line
     $main::profile_type = 'cpu';
-    close(PROFILE);
-    open(PROFILE, "<$fname") || error("$fname: $!\n");
-    binmode PROFILE;    # New perls do UTF-8 processing
-    return ReadCPUProfile($prog, $fname);
+    $result = ReadCPUProfile($prog, $fname);
+  } else {
+    if (defined($symbols)) {
+      # a symbolized profile contains a format we don't recognize, bail out
+      error("$fname: Cannot recognize profile section after symbols.\n");
+    }
+    # no ascii header present -- must be a CPU profile
+    $main::profile_type = 'cpu';
+    $result = ReadCPUProfile($prog, $fname);
   }
+
+  # if we got symbols along with the profile, return those as well
+  if (defined($symbols)) {
+    $result->{symbols} = $symbols;
+  }
+
+  return $result;
 }
 
 # CPU profile reader
 sub ReadCPUProfile {
   my $prog = shift;
   my $fname = shift;
-
-  # Read entire profile into a string
-  my $str;
-  my $nbytes = read(PROFILE, $str, (stat PROFILE)[7]);   # read entire file
-  close(PROFILE);
-
   my $version;
   my $period;
   my $i;
@@ -2383,8 +2654,7 @@ sub ReadCPUProfile {
   # L! cannot be used because with a native 64-bit build, it will cause
   # 1) a valid 64-bit profile to use the 32-bit codepath, and
   # 2) a valid 32-bit profile to be unrecognized.
-
-  my @slots = unpack("L*", $str);
+  my $slots = CpuProfileStream->new(*PROFILE);
 
   # Read header.  The current header version is a 5-element structure
   # containing:
@@ -2402,21 +2672,21 @@ sub ReadCPUProfile {
   #   32-bit:  0 3 0 100 0
   #   64-bit:  0 0  3 0  0 0  100 0  0 0
   #
-  if ($#slots < 4 || $slots[0] != 0 ) {
+  if ($slots->get(0) != 0 ) {
     error("$fname: not a profile file, or old format profile file\n");
   }
-  if ($slots[1] >= 3) {
+  if ($slots->get(1) >= 3) {
     # Normal 32-bit header:
-    $version = $slots[2];
-    $period = $slots[3];
-    $i = 2 + $slots[1];
+    $version = $slots->get(2);
+    $period = $slots->get(3);
+    $i = 2 + $slots->get(1);
     $address_length = 8;
 
     # Parse profile
-    while ($i <= $#slots) {
-      my $n = $slots[$i++];
-      my $d = $slots[$i++];
-      if ($slots[$i] == 0) {
+    while ($slots->get($i) != -1) {
+      my $n = $slots->get($i++);
+      my $d = $slots->get($i++);
+      if ($slots->get($i) == 0) {
         # End of profile data marker
         $i += $d;
         last;
@@ -2425,7 +2695,7 @@ sub ReadCPUProfile {
       # Make key out of the stack entries
       my @k = ();
       for (my $j = 0; $j < $d; $j++) {
-        my $pc = sprintf("%08x", $slots[$i+$j]);
+        my $pc = sprintf("%08x", $slots->get($i+$j));
         $pcs->{$pc} = 1;
         push @k, $pc;
       }
@@ -2437,28 +2707,31 @@ sub ReadCPUProfile {
   # Normal 64-bit header:  All entries are doubled in size.  The first
   # word (little-endian) should contain the real value, the second should
   # be zero.
-  } elsif ($#slots < 9 || $slots[1] != 0 || $slots[2] < 3 || $slots[3] != 0
-        || $slots[5] != 0 || $slots[7] != 0) {
-      error("$fname: not a profile file, or old format profile file\n");
+  } elsif ($slots->get(1) != 0 ||
+	   $slots->get(2) < 3 ||
+	   $slots->get(3) != 0 ||
+	   $slots->get(5) != 0 ||
+	   $slots->get(7) != 0) {
+    error("$fname: not a profile file, or old format profile file\n");
   } else {
-    $version = $slots[4];
-    $period = $slots[6];
-    $i = 4 + 2 * $slots[2];
+    $version = $slots->get(4);
+    $period = $slots->get(6);
+    $i = 4 + 2 * $slots->get(2);
     $address_length = 16;
 
     # Parse profile
-    while ($i <= $#slots) {
-      my $n = $slots[$i++];
-      my $nhi = $slots[$i++];
+    while ($slots->get($i) != -1) {
+      my $n = $slots->get($i++);
+      my $nhi = $slots->get($i++);
       # Huge counts may coerce to floating point, keeping scale, not precision
       if ($nhi != 0) { $n += $nhi*(2**32); }
-      my $d = $slots[$i++];
-      if ($slots[$i++] != 0) {
+      my $d = $slots->get($i++);
+      if ($slots->get($i++) != 0) {
         my $addr = sprintf("%o", 4 * $i);
         print STDERR "At index $i ($addr):\n";
         error("$fname: stack trace depth >= 2**32\n");
       }
-      if ($slots[$i] == 0 && $slots[$i+1] == 0) {
+      if ($slots->get($i) == 0 && $slots->get($i+1) == 0) {
         # End of profile data marker
         $i += 2 * $d;
         last;
@@ -2467,8 +2740,11 @@ sub ReadCPUProfile {
       # Make key out of the stack entries
       my @k = ();
       for (my $j = $d; $j--; ) {
-        my $pclo = $slots[$i++];
-        my $pchi = $slots[$i++];
+        my $pclo = $slots->get($i++);
+        my $pchi = $slots->get($i++);
+        if ($pclo == -1 || $pchi == -1) {
+          error("$fname: Unexpected EOF when reading stack of depth $d\n");
+        }
         my $pc = sprintf("%08x%08x", $pchi, $pclo);
         $pcs->{$pc} = 1;
         push @k, $pc;
@@ -2478,7 +2754,10 @@ sub ReadCPUProfile {
   }
 
   # Parse map
-  my $map = substr($str, $i * 4);
+  my $map = '';
+  seek(PROFILE, $i * 4, 0);
+  read(PROFILE, $map, (stat PROFILE)[7]);
+  close(PROFILE);
 
   my $r = {};
   $r->{version} = $version;
@@ -2730,7 +3009,7 @@ sub ReadSynchProfile {
         s/^\s+//;
         s/\s+$//;
       }
-      if($variable eq "cycles/second") {
+      if ($variable eq "cycles/second") {
         $cyclespernanosec = $value / 1e9;
         $seen_clockrate = 1;
       } elsif ($variable eq "sampling period") {
@@ -2903,7 +3182,7 @@ sub ParseTextSectionHeaderFromOtool {
     } elsif ($line =~ /segname (\w+)/) {
       $segname = $1;
     } elsif (!($cmd eq "LC_SEGMENT" &&
-	       $sectname eq "__text" && 
+	       $sectname eq "__text" &&
 	       $segname eq "__TEXT")) {
       next;
     } elsif ($line =~ /\baddr 0x([0-9a-fA-F]+)/) {
@@ -2935,7 +3214,7 @@ sub ParseTextSectionHeader {
   # obj_tool_map("otool") is only defined if we're in a Mach-O environment
   if (defined($obj_tool_map{"otool"})) {
     my $r = ParseTextSectionHeaderFromOtool(@_);
-    if (defined($r)){ 
+    if (defined($r)){
       return $r;
     }
   }

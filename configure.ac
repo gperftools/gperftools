@@ -4,13 +4,22 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.3, opensource@google.com)
+AC_INIT(google-perftools, 1.4, opensource@google.com)
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
 AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-zip])
 AM_CONFIG_HEADER(src/config.h)
+
+# Export the version information (for tc_version and friends)
+TC_VERSION_MAJOR=`expr "$PACKAGE_VERSION" : '\([[0-9]]*\)'`
+TC_VERSION_MINOR=`expr "$PACKAGE_VERSION" : '[[^.]]*\.\([[0-9]]*\)'`
+TC_VERSION_PATCH=`expr "$PACKAGE_VERSION" : '[[^.0-9]]*\([[^0-9]]*\)$'`
+AC_SUBST(TC_VERSION_MAJOR)
+AC_SUBST(TC_VERSION_MINOR)
+AC_SUBST(TC_VERSION_PATCH)
+AC_SUBST(PACKAGE_STRING)
 
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
@@ -20,10 +29,12 @@ AM_CONFIG_HEADER(src/config.h)
 default_enable_cpu_profiler=yes
 default_enable_heap_profiler=yes
 default_enable_heap_checker=yes
+default_enable_debugalloc=yes
 default_enable_minimal=no
 need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
-   *-mingw*) default_enable_minimal=yes; need_nanosleep=no;;
+   *-mingw*) default_enable_minimal=yes; default_enable_debugalloc=no;
+             need_nanosleep=no;;
    *-cygwin*) default_enable_heap_checker=no; default_enable_cpu_profiler=no;;
    *-freebsd*) default_enable_heap_checker=no;;
    *-darwin*) default_enable_heap_checker=no;;
@@ -44,9 +55,14 @@ AC_ARG_ENABLE([heap-checker],
                               [do not build the heap checker])],
               [],
               [enable_heap_checker="$default_enable_heap_checker"])
+AC_ARG_ENABLE([debugalloc],
+              [AS_HELP_STRING([--disable-debugalloc],
+                              [do not build versions of libs with debugalloc])],
+              [],
+              [enable_debugalloc="$default_enable_debugalloc"])
 AC_ARG_ENABLE([minimal],
               [AS_HELP_STRING([--enable-minimal],
-                              [build only tcmalloc-minimal])],
+                              [build only tcmalloc-minimal (and maybe tcmalloc-minimal-debug)])],
               [],
               [enable_minimal="$default_enable_minimal"])
 if test "$enable_minimal" = yes; then
@@ -62,11 +78,6 @@ AC_PROG_CPP
 AC_PROG_CXX
 AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
 AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
-
-# We work behind libtool's back, replacing 'ar' by 'ld -r' in some
-# situations.  The only issue is that 'ld -r' output doesn't support
-# ranlib.  Nobody needs ranlib anymore, so it's safe to just disable it.
-RANLIB=":"
 
 # Check if we have an objcopy installed that supports -W
 AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
@@ -109,12 +120,14 @@ AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
-AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms
+AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
+AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms?
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
 AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
 AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(sys/socket.h)  # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(sys/wait.h)    # optional; for forking out to symbolizer
+AC_CHECK_HEADERS(poll.h)        # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
@@ -167,36 +180,8 @@ AC_TRY_COMPILE([#include <stdint.h>],
 # bother if we're not doing cpu-profiling.
 # [*] means that we've not actually tested one of these systems
 if test "$enable_cpu_profiler" = yes; then
-  AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
-  pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32+64 bit)
-  pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
-  pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
-  pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
-  pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
-  pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
-  pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [*])
-  pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386, <=10.4)
-  pc_fields="$pc_fields uc_mcontext->__ss.__eip"      # OS X (i386, >=10.5)
-  pc_fields="$pc_fields uc_mcontext->ss.rip"          # OS X (x86_64)
-  pc_fields="$pc_fields uc_mcontext->__ss.__rip"      # OS X (x86_64>=10.5 [*])
-  pc_fields="$pc_fields uc_mcontext->ss.srr0"         # OS X (ppc, ppc64 [*])
-  pc_fields="$pc_fields uc_mcontext->__ss.__srr0"     # OS X (ppc>=10.5 [*])
-  pc_field_found=false
-  for pc_field in $pc_fields; do
-    if ! $pc_field_found; then
-      AC_TRY_COMPILE([#define _GNU_SOURCE 1
-                      #include <ucontext.h>],
-                     [ucontext_t u; return u.$pc_field == 0;],
-                     AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
-                                        How to access the PC from a struct ucontext)
-                     AC_MSG_RESULT([$pc_field])
-    		 pc_field_found=true)
-    fi
-  done
-  if ! $pc_field_found; then
-    AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
-    enable_cpu_profiler=no
-  fi
+  AC_PC_FROM_UCONTEXT(AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
+                      enable_cpu_profiler=no)
 fi
 
 # We want to link in libunwind if it exists
@@ -305,6 +290,7 @@ AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
 AM_CONDITIONAL(WITH_CPU_PROFILER, test "$enable_cpu_profiler" = yes)
 AM_CONDITIONAL(WITH_HEAP_PROFILER, test "$enable_heap_profiler" = yes)
 AM_CONDITIONAL(WITH_HEAP_CHECKER, test "$enable_heap_checker" = yes)
+AM_CONDITIONAL(WITH_DEBUGALLOC, test "$enable_debugalloc" = yes)
 # We make tcmalloc.so if either heap-profiler or heap-checker is asked for.
 AM_CONDITIONAL(WITH_HEAP_PROFILER_OR_CHECKER,
                test "$enable_heap_profiler" = yes -o \

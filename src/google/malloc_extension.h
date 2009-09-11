@@ -160,6 +160,13 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // Most malloc implementations ignore this routine.
   virtual void MarkThreadIdle();
 
+  // Mark the current thread as "busy".  This routine should be
+  // called after MarkThreadIdle() if the thread will now do more
+  // work.  If this method is not called, performance may suffer.
+  //
+  // Most malloc implementations ignore this routine.
+  virtual void MarkThreadBusy();
+
   // Try to free memory back to the operating system for reuse.  Only
   // use this extension if the application has recently freed a lot of
   // memory, and does not anticipate using it again for a long time --
@@ -185,9 +192,11 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // always return SIZE.)
   virtual size_t GetEstimatedAllocatedSize(size_t size);
 
-  // Returns the actual number of bytes reserved by tcmalloc for the
-  // pointer p.  This number may be equal to or greater than
-  // the number of bytes requested when p was allocated.
+  // Returns the actual number N of bytes reserved by tcmalloc for the
+  // pointer p.  The client is allowed to use the range of bytes
+  // [p, p+N) in any way it wishes (i.e. N is the "usable size" of this
+  // allocation).  This number may be equal to or greater than the number
+  // of bytes requested when p was allocated.
   // p must have been allocated by this malloc implementation,
   // must not be an interior pointer -- that is, must be exactly
   // the pointer returned to by malloc() et al., not some offset

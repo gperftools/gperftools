@@ -98,12 +98,10 @@ class LOCKABLE SpinLock {
     int64 wait_timestamp = static_cast<uint32>(lockword_);
     ANNOTATE_RWLOCK_RELEASED(this, 1);
     Release_Store(&lockword_, 0);
-    // Collect contention profile info if this lock was contended.
-    // The lockword_ value indicates when the waiter started waiting
     if (wait_timestamp != 1) {
-      // Subtract one from wait_timestamp as antidote to "now |= 1;"
-      // in SlowLock().
-      SubmitSpinLockProfileData(this, wait_timestamp - 1);
+      // Collect contentionz profile info, and speed the wakeup of any waiter.
+      // The lockword_ value indicates when the waiter started waiting.
+      SlowUnlock(wait_timestamp);
     }
   }
 
@@ -131,9 +129,10 @@ class LOCKABLE SpinLock {
   // Lock-state:  0 means unlocked; 1 means locked with no waiters; values
   // greater than 1 indicate locked with waiters, where the value is the time
   // the first waiter started waiting and is used for contention profiling.
-  volatile AtomicWord lockword_;
+  volatile Atomic32 lockword_;
 
   void SlowLock();
+  void SlowUnlock(int64 wait_timestamp);
 
   DISALLOW_EVIL_CONSTRUCTORS(SpinLock);
 };

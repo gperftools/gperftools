@@ -55,15 +55,14 @@
 extern "C" {
 #endif
 
-bool PERFTOOLS_DLL_DECL MallocExtension_VerifyAllMemory();
-bool PERFTOOLS_DLL_DECL MallocExtension_VerifyAllMemory();
-bool PERFTOOLS_DLL_DECL MallocExtension_VerifyNewMemory(void* p);
-bool PERFTOOLS_DLL_DECL MallocExtension_VerifyArrayNewMemory(void* p);
-bool PERFTOOLS_DLL_DECL MallocExtension_VerifyMallocMemory(void* p);
-bool PERFTOOLS_DLL_DECL MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
+PERFTOOLS_DLL_DECL bool MallocExtension_VerifyAllMemory();
+PERFTOOLS_DLL_DECL bool MallocExtension_VerifyNewMemory(void* p);
+PERFTOOLS_DLL_DECL bool MallocExtension_VerifyArrayNewMemory(void* p);
+PERFTOOLS_DLL_DECL bool MallocExtension_VerifyMallocMemory(void* p);
+PERFTOOLS_DLL_DECL bool MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
                                        int histogram[kMallocHistogramSize]);
 
-void PERFTOOLS_DLL_DECL MallocExtension_GetStats(char* buffer, int buffer_length);
+PERFTOOLS_DLL_DECL void MallocExtension_GetStats(char* buffer, int buffer_length);
 
 /* TODO(csilvers): write a C version of these routines, that perhaps
  * takes a function ptr and a void *.
@@ -71,12 +70,13 @@ void PERFTOOLS_DLL_DECL MallocExtension_GetStats(char* buffer, int buffer_length
 /* void MallocExtension_GetHeapSample(string* result); */
 /* void MallocExtension_GetHeapGrowthStacks(string* result); */
 
-bool PERFTOOLS_DLL_DECL MallocExtension_GetNumericProperty(const char* property, size_t* value);
-bool PERFTOOLS_DLL_DECL MallocExtension_SetNumericProperty(const char* property, size_t value);
-void PERFTOOLS_DLL_DECL MallocExtension_MarkThreadIdle();
-void PERFTOOLS_DLL_DECL MallocExtension_ReleaseFreeMemory();
-size_t PERFTOOLS_DLL_DECL MallocExtension_GetEstimatedAllocatedSize(size_t size);
-size_t PERFTOOLS_DLL_DECL MallocExtension_GetAllocatedSize(void* p);
+PERFTOOLS_DLL_DECL bool MallocExtension_GetNumericProperty(const char* property, size_t* value);
+PERFTOOLS_DLL_DECL bool MallocExtension_SetNumericProperty(const char* property, size_t value);
+PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadIdle();
+PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy();
+PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory();
+PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
+PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(void* p);
 
 #ifdef __cplusplus
 }   // extern "C"

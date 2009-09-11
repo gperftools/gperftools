@@ -83,12 +83,12 @@ class TCMalloc_PageMap1 {
 
   void PreallocateMoreMemory() {}
 
-  // REQUIRES "k" is in range "[0,2^BITS-1]".
-  // REQUIRES "k" has been ensured before.
-  //
-  // Return the current value for KEY.  Returns "Value()" if not
-  // yet set.
+  // Return the current value for KEY.  Returns NULL if not yet set,
+  // or if k is out of range.
   void* get(Number k) const {
+    if ((k >> BITS) > 0) {
+      return NULL;
+    }
     return array_[k];
   }
 
@@ -129,9 +129,11 @@ class TCMalloc_PageMap2 {
   }
 
   void* get(Number k) const {
-    ASSERT(k >> BITS == 0);
     const Number i1 = k >> LEAF_BITS;
     const Number i2 = k & (LEAF_LENGTH-1);
+    if ((k >> BITS) > 0 || root_[i1] == NULL) {
+      return NULL;
+    }
     return root_[i1]->values[i2];
   }
 
@@ -212,10 +214,13 @@ class TCMalloc_PageMap3 {
   }
 
   void* get(Number k) const {
-    ASSERT(k >> BITS == 0);
     const Number i1 = k >> (LEAF_BITS + INTERIOR_BITS);
     const Number i2 = (k >> LEAF_BITS) & (INTERIOR_LENGTH-1);
     const Number i3 = k & (LEAF_LENGTH-1);
+    if ((k >> BITS) > 0 ||
+        root_->ptrs[i1] == NULL || root_->ptrs[i1]->ptrs[i2] == NULL) {
+      return NULL;
+    }
     return reinterpret_cast<Leaf*>(root_->ptrs[i1]->ptrs[i2])->values[i3];
   }
 

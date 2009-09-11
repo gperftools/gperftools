@@ -110,7 +110,8 @@ class PageHeap {
   // REQUIRES: span->sizeclass == 0
   Span* Split(Span* span, Length n);
 
-  // Return the descriptor for the specified page.
+  // Return the descriptor for the specified page.  Returns NULL if
+  // this PageID was not allocated previously.
   inline Span* GetDescriptor(PageID p) const {
     return reinterpret_cast<Span*>(pagemap_.get(p));
   }

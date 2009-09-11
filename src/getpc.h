@@ -55,8 +55,11 @@
 //#define _XOPEN_SOURCE 500
 
 #include <string.h>         // for memcmp
-#ifdef HAVE_UCONTEXT_H
+#if defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>       // for ucontext_t (and also mcontext_t)
+#elif defined(HAVE_CYGWIN_SIGNAL_H)
+#include <cygwin/signal.h>
+typedef ucontext ucontext_t;
 #endif
 
 
@@ -158,7 +161,9 @@ inline void* GetPC(const ucontext_t& signal_ucontext) {
 //    http://msdn2.microsoft.com/en-us/library/ms680650.aspx
 
 #include "base/logging.h"   // for RAW_LOG
+#ifndef HAVE_CYGWIN_SIGNAL_H
 typedef int ucontext_t;
+#endif
 
 inline void* GetPC(const struct ucontext_t& signal_ucontext) {
   RAW_LOG(ERROR, "GetPC is not yet implemented on Windows\n");

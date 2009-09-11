@@ -63,6 +63,8 @@ static void Permute(vector<intptr_t>* elements) {
 // Test specified map type
 template <class Type>
 void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
+  RAW_LOG(INFO, "Running test with %d iterations...\n", limit);
+
   { // Test sequential ensure/assignment
     Type map(malloc);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {

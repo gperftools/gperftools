@@ -38,9 +38,12 @@
 //   AC_RWLOCK
 // The latter is defined in ../autoconf.
 //
-// This class is meant to be internal-only, so it's defined in the
-// global namespace.  If you want to expose it, you'll want to move
-// it to the Google namespace.
+// This class is meant to be internal-only and should be wrapped by an
+// internal namespace.  Before you use this module, please give the
+// name of your internal namespace for this module.  Or, if you want
+// to expose it, you'll want to move it to the Google namespace.  We
+// cannot put this class in global namespace because there can be some
+// problems when we have multiple versions of Mutex in each shared object.
 //
 // NOTE: TryLock() is broken for NO_THREADS mode, at least in NDEBUG
 //       mode.
@@ -87,6 +90,16 @@
 // colon-initializer) and set it to true via a function that always
 // evaluates to true, but that the compiler can't know always
 // evaluates to true.  This should be good enough.
+//
+// A related issue is code that could try to access the mutex
+// after it's been destroyed in the global destructors (because
+// the Mutex global destructor runs before some other global
+// destructor, that tries to acquire the mutex).  The way we
+// deal with this is by taking a constructor arg that global
+// mutexes should pass in, that causes the destructor to do no
+// work.  We still depend on the compiler not doing anything
+// weird to a Mutex's memory after it is destroyed, but for a
+// static global variable, that's pretty safe.
 
 #ifndef GOOGLE_MUTEX_H_
 #define GOOGLE_MUTEX_H_
@@ -124,10 +137,26 @@
 # error Need to implement mutex.h for your architecture, or #define NO_THREADS
 #endif
 
+#include <assert.h>
+#include <stdlib.h>      // for abort()
+
+#define MUTEX_NAMESPACE perftools_mutex_namespace
+
+namespace MUTEX_NAMESPACE {
+
 class Mutex {
  public:
-  // Create a Mutex that is not held by anybody.
+  // This is used for the single-arg constructor
+  enum LinkerInitialized { LINKER_INITIALIZED };
+
+  // Create a Mutex that is not held by anybody.  This constructor is
+  // typically used for Mutexes allocated on the heap or the stack.
   inline Mutex();
+  // This constructor should be used for global, static Mutex objects.
+  // It inhibits work being done by the destructor, which makes it
+  // safer for code that tries to acqiure this mutex in their global
+  // destructor.
+  inline Mutex(LinkerInitialized);
 
   // Destructor
   inline ~Mutex();
@@ -150,6 +179,8 @@ class Mutex {
   // when we tell it to, and never makes assumptions is_safe_ is
   // always true.  volatile is the most reliable way to do that.
   volatile bool is_safe_;
+  // This indicates which constructor was called.
+  bool destroy_;
 
   inline void SetIsSafe() { is_safe_ = true; }
 
@@ -172,9 +203,9 @@ class Mutex {
 // In debug mode, we assert these invariants, while in non-debug mode
 // we do nothing, for efficiency.  That's why everything is in an
 // assert.
-#include <assert.h>
 
 Mutex::Mutex() : mutex_(0) { }
+Mutex::Mutex(Mutex::LinkerInitialized) : mutex_(0) { }
 Mutex::~Mutex()            { assert(mutex_ == 0); }
 void Mutex::Lock()         { assert(--mutex_ == -1); }
 void Mutex::Unlock()       { assert(mutex_++ == -1); }
@@ -184,8 +215,15 @@ void Mutex::ReaderUnlock() { assert(mutex_-- > 0); }
 
 #elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 
-Mutex::Mutex()             { InitializeCriticalSection(&mutex_); SetIsSafe(); }
-Mutex::~Mutex()            { DeleteCriticalSection(&mutex_); }
+Mutex::Mutex() : destroy_(true) {
+  InitializeCriticalSection(&mutex_);
+  SetIsSafe();
+}
+Mutex::Mutex(LinkerInitialized) : destroy_(false) {
+  InitializeCriticalSection(&mutex_);
+  SetIsSafe();
+}
+Mutex::~Mutex()            { if (destroy_) DeleteCriticalSection(&mutex_); }
 void Mutex::Lock()         { if (is_safe_) EnterCriticalSection(&mutex_); }
 void Mutex::Unlock()       { if (is_safe_) LeaveCriticalSection(&mutex_); }
 bool Mutex::TryLock()      { return is_safe_ ?
@@ -195,37 +233,42 @@ void Mutex::ReaderUnlock() { Unlock(); }
 
 #elif defined(HAVE_PTHREAD) && defined(HAVE_RWLOCK)
 
-#include <stdlib.h>      // for abort()
 #define SAFE_PTHREAD(fncall)  do {   /* run fncall if is_safe_ is true */  \
   if (is_safe_ && fncall(&mutex_) != 0) abort();                           \
 } while (0)
 
-Mutex::Mutex() {
+Mutex::Mutex() : destroy_(true) {
   SetIsSafe();
   if (is_safe_ && pthread_rwlock_init(&mutex_, NULL) != 0) abort();
 }
-Mutex::~Mutex()            { SAFE_PTHREAD(pthread_rwlock_destroy); }
+Mutex::Mutex(Mutex::LinkerInitialized) : destroy_(false) {
+  SetIsSafe();
+  if (is_safe_ && pthread_rwlock_init(&mutex_, NULL) != 0) abort();
+}
+Mutex::~Mutex()       { if (destroy_) SAFE_PTHREAD(pthread_rwlock_destroy); }
 void Mutex::Lock()         { SAFE_PTHREAD(pthread_rwlock_wrlock); }
 void Mutex::Unlock()       { SAFE_PTHREAD(pthread_rwlock_unlock); }
 bool Mutex::TryLock()      { return is_safe_ ?
-                                    pthread_rwlock_trywrlock(&mutex_) == 0 :
-                                    true; }
+                               pthread_rwlock_trywrlock(&mutex_) == 0 : true; }
 void Mutex::ReaderLock()   { SAFE_PTHREAD(pthread_rwlock_rdlock); }
 void Mutex::ReaderUnlock() { SAFE_PTHREAD(pthread_rwlock_unlock); }
 #undef SAFE_PTHREAD
 
 #elif defined(HAVE_PTHREAD)
 
-#include <stdlib.h>      // for abort()
 #define SAFE_PTHREAD(fncall)  do {   /* run fncall if is_safe_ is true */  \
   if (is_safe_ && fncall(&mutex_) != 0) abort();                           \
 } while (0)
 
-Mutex::Mutex()             {
+Mutex::Mutex() : destroy_(true) {
   SetIsSafe();
   if (is_safe_ && pthread_mutex_init(&mutex_, NULL) != 0) abort();
 }
-Mutex::~Mutex()            { SAFE_PTHREAD(pthread_mutex_destroy); }
+Mutex::Mutex(Mutex::LinkerInitialized) : destroy_(false) {
+  SetIsSafe();
+  if (is_safe_ && pthread_mutex_init(&mutex_, NULL) != 0) abort();
+}
+Mutex::~Mutex()       { if (destroy_) SAFE_PTHREAD(pthread_mutex_destroy); }
 void Mutex::Lock()         { SAFE_PTHREAD(pthread_mutex_lock); }
 void Mutex::Unlock()       { SAFE_PTHREAD(pthread_mutex_unlock); }
 bool Mutex::TryLock()      { return is_safe_ ?
@@ -278,5 +321,11 @@ class WriterMutexLock {
 #define MutexLock(x) COMPILE_ASSERT(0, mutex_lock_decl_missing_var_name)
 #define ReaderMutexLock(x) COMPILE_ASSERT(0, rmutex_lock_decl_missing_var_name)
 #define WriterMutexLock(x) COMPILE_ASSERT(0, wmutex_lock_decl_missing_var_name)
+
+}  // namespace MUTEX_NAMESPACE
+
+using namespace MUTEX_NAMESPACE;
+
+#undef MUTEX_NAMESPACE
 
 #endif  /* #define GOOGLE_SIMPLE_MUTEX_H_ */

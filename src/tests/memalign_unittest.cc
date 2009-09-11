@@ -170,13 +170,19 @@ int main(int argc, char** argv) {
     CHECK(posix_memalign(&ptr, sizeof(void*)+1, 1) == EINVAL);
     CHECK(posix_memalign(&ptr, 4097, 1) == EINVAL);
 
+    // Grab some memory so that the big allocation below will definitely fail.
+    void* p_small = malloc(4*1048576);
+    CHECK(p_small != NULL);
+
     // Make sure overflow is returned as ENOMEM
-    for (size_t s = 0; ; s += (10 << 20)) {
-      int r = posix_memalign(&ptr, 1024, s);
-      if (r == ENOMEM) break;
-      CHECK(r == 0);
-      free(ptr);
+    const size_t zero = 0;
+    static const size_t kMinusNTimes = 10;
+    for ( size_t i = 1; i < kMinusNTimes; ++i ) {
+      int r = posix_memalign(&ptr, 1024, zero - i);
+      CHECK(r == ENOMEM);
     }
+
+    free(p_small);
   }
 
   const int pagesize = getpagesize();
@@ -185,8 +191,8 @@ int main(int argc, char** argv) {
     for (int s = 0; s != -1; s = NextSize(s)) {
       void* p = valloc(s);
       CheckAlignment(p, pagesize);
-      Fill(p, pagesize, 'v');
-      CHECK(Valid(p, pagesize, 'v'));
+      Fill(p, s, 'v');
+      CHECK(Valid(p, s, 'v'));
       free(p);
     }
   }
@@ -201,12 +207,6 @@ int main(int argc, char** argv) {
       CHECK(Valid(p, alloc_needed, 'x'));
       free(p);
     }
-
-    // should be safe to write upto a page in pvalloc(0) region
-    void* p = pvalloc(0);
-    Fill(p, pagesize, 'y');
-    CHECK(Valid(p, pagesize, 'y'));
-    free(p);
   }
 
   printf("PASS\n");

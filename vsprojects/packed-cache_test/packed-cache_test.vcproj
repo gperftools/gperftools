@@ -25,7 +25,6 @@
 				RuntimeLibrary="5"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="TRUE"
 				DebugInformationFormat="4"/>
 			<Tool
 				Name="VCCustomBuildTool"/>
@@ -33,6 +32,7 @@
 				Name="VCLinkerTool"
 				OutputFile="$(OutDir)/packed-cache_test.exe"
 				LinkIncremental="2"
+                                ForceSymbolReferences="__tcmalloc"
 				GenerateDebugInformation="TRUE"
 				ProgramDatabaseFile="$(OutDir)/packed-cache_test.pdb"
 				SubSystem="1"
@@ -70,7 +70,6 @@
 				RuntimeLibrary="4"
 				UsePrecompiledHeader="0"
 				WarningLevel="3"
-				Detect64BitPortabilityProblems="TRUE"
 				DebugInformationFormat="3"/>
 			<Tool
 				Name="VCCustomBuildTool"/>
@@ -78,6 +77,7 @@
 				Name="VCLinkerTool"
 				OutputFile="$(OutDir)/packed-cache_test.exe"
 				LinkIncremental="1"
+                                ForceSymbolReferences="__tcmalloc"
 				GenerateDebugInformation="TRUE"
 				SubSystem="1"
 				OptimizeReferences="2"
@@ -113,92 +113,7 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
-				RelativePath="..\..\src\base\logging.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\src\base\spinlock.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\src\base\dynamic_annotations.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\src\base\sysinfo.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
 				RelativePath="..\..\src\tests\packed-cache_test.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\src\windows\port.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool

@@ -456,21 +456,23 @@ multi-threaded case).</p>
 <p>You can more finely control the behavior of the tcmalloc via
 environment variables.</p>
 
+<p>Generally useful flags:</p>
+
 <table frame=box rules=sides cellpadding=5 width=100%>
 
 <tr valign=top>
   <td><code>TCMALLOC_SAMPLE_PARAMETER</code></td>
   <td>default: 524288</td>
   <td>
-    The approximate gap between sampling actions.  That is, we take
-    one sample approximately every
-    <code>tcmalloc_sample_parameter</code> bytes of allocation.
+    The approximate gap between sampling actions.  That is, we
+    take one sample approximately once every
+    <code>tcmalloc_sample_parmeter</code> bytes of allocation.
   </td>
 </tr>
 
 <tr valign=top>
   <td><code>TCMALLOC_RELEASE_RATE</code></td>
-  <td>default: 1</td>
+  <td>default: 1.0</td>
   <td>
     Rate at which we release unused memory to the system, via
     <code>madvise(MADV_DONTNEED)</code>, on systems that support
@@ -512,6 +514,31 @@ environment variables.</p>
   </td>
 </tr>
 
+</table>
+
+<p>Advanced "tweaking" flags, that control more precisely how tcmalloc
+tries to allocate memory from the kernel.</p>
+
+<table frame=box rules=sides cellpadding=5 width=100%>
+
+<tr valign=top>
+  <td><code>TCMALLOC_SKIP_MMAP</code></td>
+  <td>default: false</td>
+  <td>
+     If true, do not try to use <code>mmap</code> to obtain memory
+     from the kernel.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_SKIP_SBRK</code></td>
+  <td>default: false</td>
+  <td>
+     If true, do not try to use <code>sbrk</code> to obtain memory
+     from the kernel.
+  </td>
+</tr>
+
 <tr valign=top>
   <td><code>TCMALLOC_DEVMEM_START</code></td>
   <td>default: 0</td>
@@ -540,13 +567,39 @@ environment variables.</p>
 </tr>
 
 <tr valign=top>
-  <td><code>TCMALLOC_SKIP_MMAP</code></td>
-  <td>default: false</td>
+  <td><code>TCMALLOC_MEMFS_MALLOC_PATH</code></td>
+  <td>default: ""</td>
   <td>
-     If true, do not try to use <code>mmap</code> to obtain memory
-     from the kernel.
+     If set, specify a path where hugetlbfs or tmpfs is mounted.
+     This may allow for speedier allocations.
   </td>
 </tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_MEMFS_LIMIT_MB</code></td>
+  <td>default: 0</td>
+  <td>
+     Limit total memfs allocation size to specified number of MB.
+     0 means "no limit".
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_MEMFS_ABORT_ON_FAIL</code></td>
+  <td>default: false</td>
+  <td>
+     If true, abort() whenever memfs_malloc fails to satisfy an allocation.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_MEMFS_IGNORE_MMAP_FAIL</code></td>
+  <td>default: false</td>
+  <td>
+     If true, ignore failures from mmap.
+  </td>
+</tr>
+
 
 </table>
 

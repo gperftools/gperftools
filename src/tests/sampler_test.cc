@@ -468,7 +468,6 @@ void OldSampler::Init(uint32_t seed) {
 
 // A cut-down version of the old PickNextSampleRoutine
 void OldSampler::PickNextSample(size_t k) {
-  // Copied from "base/synchronization.cc" (written by Mike Burrows)
   // Make next "random" number
   // x^32+x^22+x^2+x^1+1 is a primitive polynomial for random numbers
   static const uint32_t kPoly = (1 << 22) | (1 << 2) | (1 << 1) | (1 << 0);

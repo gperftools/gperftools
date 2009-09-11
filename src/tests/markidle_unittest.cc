@@ -31,6 +31,7 @@
 // Author: Sanjay Ghemawat
 //
 // MallocExtension::MarkThreadIdle() testing
+#include <stdio.h>
 
 #include "config_for_unittests.h"
 #include "base/logging.h"

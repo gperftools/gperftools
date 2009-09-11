@@ -14,15 +14,6 @@
 #include "base/simple_mutex.h"
 
 // Some helpful macros for the test class
-#define EXPECT_TRUE(cond)  CHECK(cond)
-#define EXPECT_FALSE(cond) CHECK(!(cond))
-#define EXPECT_EQ(a, b)    CHECK_EQ(a, b)
-#define EXPECT_NE(a, b)    CHECK_NE(a, b)
-#define EXPECT_GT(a, b)    CHECK_GT(a, b)
-#define EXPECT_LT(a, b)    CHECK_LT(a, b)
-#define EXPECT_GE(a, b)    CHECK_GE(a, b)
-#define EXPECT_LE(a, b)    CHECK_LE(a, b)
-#define EXPECT_STREQ(a, b) CHECK(strcmp(a, b) == 0)
 #define TEST_F(cls, fn)    void cls :: fn()
 
 namespace {

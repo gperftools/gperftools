@@ -53,6 +53,19 @@ using base::subtle::MemoryBarrier;
 #define AT_SYSINFO_EHDR 33
 #endif
 
+// From binutils/include/elf/common.h (this doesn't appear to be documented
+// anywhere else).
+//
+//   /* This flag appears in a Versym structure.  It means that the symbol
+//      is hidden, and is only visible with an explicit version number.
+//      This is a GNU extension.  */
+//   #define VERSYM_HIDDEN           0x8000
+//
+//   /* This is the mask for the rest of the Versym information.  */
+//   #define VERSYM_VERSION          0x7fff
+
+#define VERSYM_VERSION 0x7fff
+
 namespace base {
 
 namespace {
@@ -119,26 +132,21 @@ VDSOSupport::ElfMemImage::ElfMemImage(const void *base) {
 }
 
 int VDSOSupport::ElfMemImage::GetNumSymbols() const {
-  if (!dynsym_) {
+  if (!hash_) {
     return 0;
   }
-  return dynsym_->sh_size / dynsym_->sh_entsize;
+  // See http://www.caldera.com/developers/gabi/latest/ch5.dynamic.html#hash
+  return hash_[1];
 }
 
 const ElfW(Sym) *VDSOSupport::ElfMemImage::GetDynsym(int index) const {
   CHECK_LT(index, GetNumSymbols());
-  return GetTableElement<ElfW(Sym)>(ehdr_,
-                                    dynsym_->sh_offset,
-                                    dynsym_->sh_entsize,
-                                    index);
+  return dynsym_ + index;
 }
 
 const ElfW(Versym) *VDSOSupport::ElfMemImage::GetVersym(int index) const {
   CHECK_LT(index, GetNumSymbols());
-  return GetTableElement<ElfW(Versym)>(ehdr_,
-                                       versym_->sh_offset,
-                                       versym_->sh_entsize,
-                                       index);
+  return versym_ + index;
 }
 
 const ElfW(Phdr) *VDSOSupport::ElfMemImage::GetPhdr(int index) const {
@@ -149,24 +157,9 @@ const ElfW(Phdr) *VDSOSupport::ElfMemImage::GetPhdr(int index) const {
                                      index);
 }
 
-const ElfW(Shdr) *VDSOSupport::ElfMemImage::GetSection(int index) const {
-  CHECK_LT(index, ehdr_->e_shnum);
-  return GetTableElement<ElfW(Shdr)>(ehdr_,
-                                     ehdr_->e_shoff,
-                                     ehdr_->e_shentsize,
-                                     index);
-}
-
-const char *VDSOSupport::ElfMemImage::GetSectionData(
-    const ElfW(Shdr) *section,
-    ElfW(Word) offset) const {
-  CHECK_LT(offset, section->sh_size);
-  return GetTableElement<char>(ehdr_, section->sh_offset, 1, offset);
-}
-
 const char *VDSOSupport::ElfMemImage::GetDynstr(ElfW(Word) offset) const {
-  CHECK_LT(offset, dynstr_->sh_size);
-  return GetTableElement<char>(ehdr_, dynstr_->sh_offset, 1, offset);
+  CHECK_LT(offset, strsize_);
+  return dynstr_ + offset;
 }
 
 const void *VDSOSupport::ElfMemImage::GetSymAddr(const ElfW(Sym) *sym) const {
@@ -179,14 +172,14 @@ const void *VDSOSupport::ElfMemImage::GetSymAddr(const ElfW(Sym) *sym) const {
 }
 
 const ElfW(Verdef) *VDSOSupport::ElfMemImage::GetVerdef(int index) const {
-  size_t offset = 0;
-  const ElfW(Verdef) *version_definition =
-      GetTableElement<ElfW(Verdef)>(ehdr_, verdef_->sh_offset, 1, offset);
+  CHECK_LE(index, verdefnum_);
+  const ElfW(Verdef) *version_definition = verdef_;
   while (version_definition->vd_ndx < index && version_definition->vd_next) {
-    offset += version_definition->vd_next;
-    CHECK_LT(offset, verdef_->sh_size);
+    const char *const version_definition_as_char =
+        reinterpret_cast<const char *>(version_definition);
     version_definition =
-        GetTableElement<ElfW(Verdef)>(ehdr_, verdef_->sh_offset, 1, offset);
+        reinterpret_cast<const ElfW(Verdef) *>(version_definition_as_char +
+                                               version_definition->vd_next);
   }
   return version_definition->vd_ndx == index ? version_definition : NULL;
 }
@@ -197,7 +190,8 @@ const ElfW(Verdaux) *VDSOSupport::ElfMemImage::GetVerdefAux(
 }
 
 const char *VDSOSupport::ElfMemImage::GetVerstr(ElfW(Word) offset) const {
-  return GetSectionData(GetSection(verdef_->sh_link), offset);
+  CHECK_LT(offset, strsize_);
+  return dynstr_ + offset;
 }
 
 void VDSOSupport::ElfMemImage::Init(const void *base) {
@@ -206,15 +200,19 @@ void VDSOSupport::ElfMemImage::Init(const void *base) {
   dynstr_    = NULL;
   versym_    = NULL;
   verdef_    = NULL;
+  hash_      = NULL;
+  strsize_   = 0;
+  verdefnum_ = 0;
   link_base_ = ~0L;  // Sentinel: PT_LOAD .p_vaddr can't possibly be this.
   if (!base) {
     return;
   }
-  if (memcmp(base, ELFMAG, SELFMAG)) {
+  const char *const base_as_char = reinterpret_cast<const char *>(base);
+  if (base_as_char[EI_MAG0] != ELFMAG0 || base_as_char[EI_MAG1] != ELFMAG1 ||
+      base_as_char[EI_MAG2] != ELFMAG2 || base_as_char[EI_MAG3] != ELFMAG3) {
     RAW_DCHECK(false, "no ELF magic"); // at %p", base);
     return;
   }
-  const char *const base_as_char = reinterpret_cast<const char *>(base);
   int elf_class = base_as_char[EI_CLASS];
   if (elf_class != CurrentElfClass::kElfClass) {
     DCHECK_EQ(elf_class, CurrentElfClass::kElfClass);
@@ -242,59 +240,86 @@ void VDSOSupport::ElfMemImage::Init(const void *base) {
   }
 
   ehdr_ = reinterpret_cast<const ElfW(Ehdr) *>(base);
+  const ElfW(Phdr) *dynamic_program_header = NULL;
   for (int i = 0; i < ehdr_->e_phnum; ++i) {
     const ElfW(Phdr) *const program_header = GetPhdr(i);
-    if (program_header->p_type == PT_LOAD) {
-      link_base_ = program_header->p_vaddr;
-      break;
+    switch (program_header->p_type) {
+      case PT_LOAD:
+        if (link_base_ == ~0L) {
+          link_base_ = program_header->p_vaddr;
+        }
+        break;
+      case PT_DYNAMIC:
+        dynamic_program_header = program_header;
+        break;
     }
   }
-  if (link_base_ == ~0L) {
-    // Didn't find a PT_LOAD.
-    RAW_DCHECK(false, "no PT_LOADs in VDSO");
+  if (link_base_ == ~0L || !dynamic_program_header) {
+    RAW_DCHECK(~0L != link_base_, "no PT_LOADs in VDSO");
+    RAW_DCHECK(dynamic_program_header, "no PT_DYNAMIC in VDSO");
     // Mark this image as not present. Can not recur infinitely.
     Init(0);
     return;
   }
-  for (int i = 0; i < ehdr_->e_shnum; ++i) {
-    const ElfW(Shdr) *section = GetSection(i);
-    switch (section->sh_type) {
-      case SHT_DYNSYM: {
-        dynsym_ = section;
-        break;
+  ptrdiff_t relocation =
+      base_as_char - reinterpret_cast<const char *>(link_base_);
+  ElfW(Dyn) *dynamic_entry =
+      reinterpret_cast<ElfW(Dyn) *>(dynamic_program_header->p_vaddr +
+                                    relocation);
+  for (; dynamic_entry->d_tag != DT_NULL; ++dynamic_entry) {
+    ElfW(Xword) value = dynamic_entry->d_un.d_val;
+    if (link_base_ == 0) {
+      // A complication: in the real VDSO, dynamic entries are not relocated
+      // (it wasn't loaded by a dynamic loader). But when testing with a
+      // "fake" dlopen()ed vdso library, the loader relocates some (but
+      // not all!) of them before we get here.
+      // Since real VDSO is never linked at address 0, and "fake" vdso
+      // library always is, we know we are dealing with the "fake" one here.
+      if (dynamic_entry->d_tag == DT_VERDEF) {
+        // The only dynamic entry (of the ones we care about) libc-2.3.6
+        // loader doesn't relocate.
+        value += relocation;
       }
-      case SHT_STRTAB: {
-        const char *const section_name =
-            GetSectionData(GetSection(ehdr_->e_shstrndx), section->sh_name);
-        if (strcmp(".dynstr", section_name) == 0) {
-          dynstr_ = section;
-          break;
-        }
+    } else {
+      // Real VDSO. Everything needs to be relocated.
+      value += relocation;
+    }
+    switch (dynamic_entry->d_tag) {
+      case DT_HASH:
+        hash_ = reinterpret_cast<ElfW(Word) *>(value);
         break;
-      }
-      case SHT_GNU_versym: {
-        versym_ = section;
+      case DT_SYMTAB:
+        dynsym_ = reinterpret_cast<ElfW(Sym) *>(value);
         break;
-      }
-      case SHT_GNU_verdef: {
-        verdef_ = section;
+      case DT_STRTAB:
+        dynstr_ = reinterpret_cast<const char *>(value);
         break;
-      }
-      default: {
-        // Unrecognized sections explicitly ignored.
+      case DT_VERSYM:
+        versym_ = reinterpret_cast<ElfW(Versym) *>(value);
         break;
-      }
+      case DT_VERDEF:
+        verdef_ = reinterpret_cast<ElfW(Verdef) *>(value);
+        break;
+      case DT_VERDEFNUM:
+        verdefnum_ = dynamic_entry->d_un.d_val;
+        break;
+      case DT_STRSZ:
+        strsize_ = dynamic_entry->d_un.d_val;
+        break;
+      default:
+        // Unrecognized entries explicitly ignored.
+        break;
     }
   }
-  if (!dynsym_ || !dynstr_ || !versym_ || !verdef_ ||
-      ((dynsym_->sh_size / dynsym_->sh_entsize) !=
-       (versym_->sh_size / versym_->sh_entsize))) {
-    RAW_DCHECK(dynsym_, "invalid VDSO (no dynsym)");
-    RAW_DCHECK(dynstr_, "invalid VDSO (no dynstr)");
-    RAW_DCHECK(versym_, "invalid VDSO (no versym)");
-    RAW_DCHECK(verdef_, "invalid VDSO (no verdef)");
-    DCHECK_EQ(dynsym_->sh_size / dynsym_->sh_entsize,
-              versym_->sh_size / versym_->sh_entsize);
+  if (!hash_ || !dynsym_ || !dynstr_ || !versym_ ||
+      !verdef_ || !verdefnum_ || !strsize_) {
+    RAW_DCHECK(hash_, "invalid VDSO (no DT_HASH)");
+    RAW_DCHECK(dynsym_, "invalid VDSO (no DT_SYMTAB)");
+    RAW_DCHECK(dynstr_, "invalid VDSO (no DT_STRTAB)");
+    RAW_DCHECK(versym_, "invalid VDSO (no DT_VERSYM)");
+    RAW_DCHECK(verdef_, "invalid VDSO (no DT_VERDEF)");
+    RAW_DCHECK(verdefnum_, "invalid VDSO (no DT_VERDEFNUM)");
+    RAW_DCHECK(strsize_, "invalid VDSO (no DT_STRSZ)");
     // Mark this image as not present. Can not recur infinitely.
     Init(0);
     return;
@@ -467,9 +492,16 @@ void VDSOSupport::SymbolIterator::Update(int increment) {
   const ElfW(Versym) *version_symbol = image->GetVersym(index_);
   CHECK(symbol && version_symbol);
   const char *const symbol_name = image->GetDynstr(symbol->st_name);
-  const ElfW(Versym) version_index = version_symbol[0];
-  const ElfW(Verdef) *version_definition = image->GetVerdef(version_index);
+  const ElfW(Versym) version_index = version_symbol[0] & VERSYM_VERSION;
+  const ElfW(Verdef) *version_definition = NULL;
   const char *version_name = "";
+  if (symbol->st_shndx == SHN_UNDEF) {
+    // Undefined symbols reference DT_VERNEED, not DT_VERDEF, and
+    // version_index could well be greater than verdefnum_, so calling
+    // GetVerdef(version_index) may trigger assertion.
+  } else {
+    version_definition = image->GetVerdef(version_index);
+  }
   if (version_definition) {
     // I am expecting 1 or 2 auxiliary entries: 1 for the version itself,
     // optional 2nd if the version has a parent.

@@ -402,7 +402,7 @@ static int saved_regions_count = 0;
 // be caused by a InsertRegionLocked call).
 // Region has no constructor, so that c-tor execution does not interfere
 // with the any-time use of the static memory behind saved_regions.
-static MemoryRegionMap::Region saved_regions[10];
+static MemoryRegionMap::Region saved_regions[20];
 
 inline void MemoryRegionMap::HandleSavedRegionsLocked(
               void (*insert_func)(const Region& region)) {
@@ -486,10 +486,38 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
   Lock();
   if (regions_ == NULL) {  // We must have just unset the hooks,
                            // but this thread was already inside the hook.
+    if (recursive_insert) {
+      // First remove the removed region from saved_regions, if it's
+      // there, to prevent overrunning saved_regions in recursive
+      // map/unmap call sequences.
+      uintptr_t start_addr = reinterpret_cast<uintptr_t>(start);
+      uintptr_t end_addr = start_addr + size;
+      int put_pos = 0;
+      int old_count = saved_regions_count;
+      for (int i = 0; i < old_count; ++i, ++put_pos) {
+        Region& r = saved_regions[i];
+        if (r.start_addr == start_addr && r.end_addr == end_addr) {
+          // An exact match, so it's safe to remove.
+          --saved_regions_count;
+          --put_pos;
+          RAW_VLOG(2, ("Insta-Removing saved region %p..%p; "
+                       "now have %d saved regions"),
+                   reinterpret_cast<void*>(start_addr),
+                   reinterpret_cast<void*>(end_addr),
+                   saved_regions_count);
+        } else {
+          if (put_pos < i) {
+            saved_regions[put_pos] = saved_regions[i];
+          }
+        }
+      }
+    }
     Unlock();
     return;
   }
-  HandleSavedRegionsLocked(&InsertRegionLocked);
+  if (!recursive_insert) {
+    HandleSavedRegionsLocked(&InsertRegionLocked);
+  }
     // first handle adding saved regions if any
   uintptr_t start_addr = reinterpret_cast<uintptr_t>(start);
   uintptr_t end_addr = start_addr + size;

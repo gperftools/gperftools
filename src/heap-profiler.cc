@@ -227,9 +227,9 @@ static char* DoGetHeapProfileLocked(char* buf, int buflen) {
 
 extern "C" char* GetHeapProfile() {
   // Use normal malloc: we return the profile to the user to free it:
+  char* buffer = reinterpret_cast<char*>(malloc(kProfileBufferSize));
   SpinLockHolder l(&heap_lock);
-  return DoGetHeapProfileLocked(
-      reinterpret_cast<char*>(malloc(kProfileBufferSize)), kProfileBufferSize);
+  return DoGetHeapProfileLocked(buffer, kProfileBufferSize);
 }
 
 // defined below

@@ -6,6 +6,9 @@
 /* Define to 1 if you have the <conflict-signal.h> header file. */
 #undef HAVE_CONFLICT_SIGNAL_H
 
+/* Define to 1 if you have the <cygwin/signal.h> header file. */
+#undef HAVE_CYGWIN_SIGNAL_H
+
 /* Define to 1 if you have the declaration of `cfree', and to 0 if you don't.
    */
 #undef HAVE_DECL_CFREE
@@ -77,6 +80,9 @@
 
 /* define if the compiler implements namespaces */
 #undef HAVE_NAMESPACES
+
+/* Define to 1 if you have the <poll.h> header file. */
+#undef HAVE_POLL_H
 
 /* define if libc has program_invocation_name */
 #undef HAVE_PROGRAM_INVOCATION_NAME

@@ -47,13 +47,13 @@
 #include "base/basictypes.h"
 
 #if !defined(STACKTRACE_SKIP_CONTEXT_ROUTINES)
-ATTRIBUTE_NOINLINE
+ATTRIBUTE_NOINLINE PERFTOOLS_DLL_DECL
 int GetStackFramesWithContext(void** pcs, int* sizes, int max_depth,
                               int skip_count, const void * /* uc */) {
   return GetStackFrames(pcs, sizes, max_depth, skip_count + 1);
 }
 
-ATTRIBUTE_NOINLINE
+ATTRIBUTE_NOINLINE PERFTOOLS_DLL_DECL
 int GetStackTraceWithContext(void** result, int max_depth,
                              int skip_count, const void * /* uc */) {
   return GetStackTrace(result, max_depth, skip_count + 1);

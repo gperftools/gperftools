@@ -28,8 +28,6 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * ---
- * Author: Mike Burrows
- *
  * This module gets enough CPU information to optimize the
  * atomicops module on x86.
  */

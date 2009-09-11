@@ -43,6 +43,7 @@
 #include <string.h>     /* for strncmp */
 #include <errno.h>
 #include "base/spinlock.h"
+#include "base/cycleclock.h"
 #include "base/sysinfo.h"   /* for NumCPUs() */
 
 // We can do contention-profiling of SpinLocks, but the code is in
@@ -56,40 +57,23 @@ static int adaptive_spin_count = 0;
 const base::LinkerInitialized SpinLock::LINKER_INITIALIZED =
     base::LINKER_INITIALIZED;
 
-namespace {
-
-// OS-specific code
-#ifdef _WIN32
-
-#include <windows.h>   // for Sleep()
-
-static void WaitATick() {
-  Sleep(1);
-}
-static void SchedYield() {
-  Sleep(0);  // closest thing windows has to sched_yield()
-}
-
+// The OS-specific header included below must provide two calls:
+// Wait until *w becomes zero, atomically set it to 1 and return.
+//    static void SpinLockWait(volatile Atomic32 *w);
+// 
+// Hint that a thread waiting in SpinLockWait() could now make progress.  May
+// do nothing.  This call may not read or write *w; it must use only the
+// address.
+//    static void SpinLockWake(volatile Atomic32 *w);
+#if defined(_WIN32)
+#include "base/spinlock_win32-inl.h"
+#elif defined(__linux__)
+#include "base/spinlock_linux-inl.h"
 #else
-
-static void WaitATick() {
-  int save_errno = errno;
-  struct timespec tm;
-  tm.tv_sec = 0;
-  tm.tv_nsec = 2000001;
-  nanosleep(&tm, NULL);
-  errno = save_errno;
-}
-static void SchedYield() {
-#ifdef HAVE_SCHED_H            // otherwise, yield is just a noop
-  int save_errno = errno;
-  sched_yield();
-  errno = save_errno;
-#endif
-}
-
+#include "base/spinlock_posix-inl.h"
 #endif
 
+namespace {
 struct SpinLock_InitHelper {
   SpinLock_InitHelper() {
     // On multi-cpu machines, spin for longer before yielding
@@ -117,20 +101,26 @@ void SpinLock::SlowLock() {
   }
 
   if (lockword_ == 1) {
-    SchedYield();          // Spinning failed. Let's try to be gentle.
+    int32 now = (CycleClock::Now() >> PROFILE_TIMESTAMP_SHIFT);
+    // Don't loose the lock: make absolutely sure "now" is not zero
+    now |= 1;
+    // Atomically replace the value of lockword_ with "now" if
+    // lockword_ is 1, thereby remembering the first timestamp to
+    // be recorded.
+    base::subtle::NoBarrier_CompareAndSwap(&lockword_, 1, now);
+    // base::subtle::NoBarrier_CompareAndSwap() returns:
+    //   0: the lock is/was available; nothing stored
+    //   1: our timestamp was stored
+    //   > 1: an older timestamp is already in lockword_; nothing stored
   }
 
-  while (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
-    // This code was adapted from the ptmalloc2 implementation of
-    // spinlocks which would sched_yield() upto 50 times before
-    // sleeping once for a few milliseconds.  Mike Burrows suggested
-    // just doing one sched_yield() outside the loop and always
-    // sleeping after that.  This change helped a great deal on the
-    // performance of spinlocks under high contention.  A test program
-    // with 10 threads on a dual Xeon (four virtual processors) went
-    // from taking 30 seconds to 16 seconds.
+  SpinLockWait(&lockword_);  // wait until lock acquired; OS specific
+}
 
-    // Sleep for a few milliseconds
-    WaitATick();
-  }
+void SpinLock::SlowUnlock(int64 wait_timestamp) {
+  SpinLockWake(&lockword_);  // wake waiter if necessary; OS specific 
+
+  // Collect contentionz profile info.  Subtract one from wait_timestamp as
+  // antidote to "now |= 1;" in SlowLock().
+  SubmitSpinLockProfileData(this, wait_timestamp - 1);
 }

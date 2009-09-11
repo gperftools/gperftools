@@ -96,6 +96,27 @@ static void TestHeapProfilerStartStopIsRunning() {
   }
 }
 
+static void TestDumpHeapProfiler() {
+  // If you run this with whole-program heap-profiling on, than
+  // IsHeapProfilerRunning should return true.
+  if (!IsHeapProfilerRunning()) {
+    const char* tmpdir = getenv("TMPDIR");
+    if (tmpdir == NULL)
+      tmpdir = "/tmp";
+    mkdir(tmpdir, 0755);     // if necessary
+    HeapProfilerStart((string(tmpdir) + "/dump").c_str());
+    CHECK(IsHeapProfilerRunning());
+
+    Allocate(0, 40, 100);
+    Deallocate(0, 40);
+
+    char* output = GetHeapProfile();
+    free(output);
+    HeapProfilerStop();
+  }
+}
+
+
 int main(int argc, char** argv) {
   if (argc > 2 || (argc == 2 && argv[1][0] == '-')) {
     printf("USAGE: %s [number of children to fork]\n", argv[0]);
@@ -107,6 +128,7 @@ int main(int argc, char** argv) {
   }
 
   TestHeapProfilerStartStopIsRunning();
+  TestDumpHeapProfiler();
 
   Allocate(0, 40, 100);
   Deallocate(0, 40);

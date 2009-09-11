@@ -49,6 +49,7 @@
 // This code is inspired by a patch from David Vitek:
 //   http://code.google.com/p/google-perftools/issues/detail?id=83
 
+#include "config.h"
 #include <windows.h>    // for GetProcAddress and GetModuleHandle
 #include <assert.h>
 
@@ -64,7 +65,8 @@ static RtlCaptureStackBackTrace_Function* const RtlCaptureStackBackTrace_fn =
    (RtlCaptureStackBackTrace_Function*)
    GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlCaptureStackBackTrace");
 
-int GetStackTrace(void** result, int max_depth, int skip_count) {
+PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
+                                     int skip_count) {
   if (!RtlCaptureStackBackTrace_fn) {
     // TODO(csilvers): should we log an error here?
     return 0;     // can't find a stacktrace with no function to call
@@ -73,10 +75,10 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
                                           result, 0);
 }
 
-int GetStackFrames(void** /* pcs */,
-                   int* /* sizes */,
-                   int /* max_depth */,
-                   int /* skip_count */) {
+PERFTOOLS_DLL_DECL int GetStackFrames(void** /* pcs */,
+                                      int* /* sizes */,
+                                      int /* max_depth */,
+                                      int /* skip_count */) {
   assert(0 == "Not yet implemented");
   return 0;
 }

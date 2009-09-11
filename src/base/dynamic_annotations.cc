@@ -59,6 +59,9 @@ extern "C" void AnnotateCondVarSignalAll(const char *file, int line,
 extern "C" void AnnotatePublishMemoryRange(const char *file, int line,
                                            const volatile void *address,
                                            long size){}
+extern "C" void AnnotateUnpublishMemoryRange(const char *file, int line,
+                                           const volatile void *address,
+                                           long size){}
 extern "C" void AnnotatePCQCreate(const char *file, int line,
                                   const volatile void *pcq){}
 extern "C" void AnnotatePCQDestroy(const char *file, int line,

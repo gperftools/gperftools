@@ -136,6 +136,10 @@ VerifyMemFunction Allocate "$HEAPPROFILE"_*.1448.heap "$HEAPPROFILE"_*.1548.heap
 VerifyOutputContains "62 MB allocated"
 VerifyOutputContains "62 MB freed"
 
+# Now try running without --heap_profile specified, to allow
+# testing of the HeapProfileStart/Stop functionality.
+$HEAP_PROFILER >"$TEST_TMPDIR/output2" 2>&1
+
 rm -rf $TMPDIR      # clean up
 
 if [ $num_failures = 0 ]; then

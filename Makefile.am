@@ -60,8 +60,19 @@ endif MINGW
 
 # If we have objcopy, make malloc/free/etc weak symbols.  That way folks
 # can override our malloc if they want to (they can still use tc_malloc).
+# Note: the weird-looking symbols are the c++ memory functions:
+# (in order) new, new(nothrow), new[], new[](nothrow), delete, delete[]
+# In theory this will break if mangling changes, but that seems pretty
+# unlikely at this point.  Just in case, I throw in versions with an
+# extra underscore as well, which may help on OS X.
 if HAVE_OBJCOPY_WEAKEN
-WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree -W memalign -W posix_memalign -W valloc -W pvalloc -W malloc_stats -W mallopt -W mallinfo
+WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree \
+         -W memalign -W posix_memalign -W valloc -W pvalloc \
+         -W malloc_stats -W mallopt -W mallinfo \
+         -W _Znwm -W _ZnwmRKSt9nothrow_t -W _Znam -W _ZnamRKSt9nothrow_t \
+         -W _ZdlPv -W _ZdaPv \
+         -W __Znwm -W __ZnwmRKSt9nothrow_t -W __Znam -W __ZnamRKSt9nothrow_t \
+         -W __ZdlPv -W __ZdaPv
 else
 WEAKEN = :
 endif !HAVE_OBJCOPY_WEAKEN
@@ -169,7 +180,9 @@ libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
                         src/windows/preamble_patcher_with_stub.cc
 
 SPINLOCK_INCLUDES = src/base/spinlock.h \
-                    src/base/atomicops.h \
+                    src/base/spinlock_win32-inl.h \
+                    src/base/spinlock_linux-inl.h \
+                    src/base/spinlock_posix-inl.h \
                     src/base/atomicops-internals-macosx.h \
                     src/base/atomicops-internals-linuxppc.h \
                     src/base/atomicops-internals-x86-msvc.h \
@@ -331,6 +344,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/page_heap_allocator.h \
                               src/span.h \
                               src/static_vars.h \
+                              src/symbolize.h \
                               src/thread_cache.h \
                               src/stack_trace_table.h \
                               src/base/thread_annotations.h \
@@ -361,6 +375,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           src/span.cc \
                                           src/stack_trace_table.cc \
                                           src/static_vars.cc \
+                                          src/symbolize.cc \
                                           src/thread_cache.cc \
                                           src/malloc_hook.cc \
                                           src/malloc_extension.cc \
@@ -368,6 +383,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           $(TCMALLOC_MINIMAL_INCLUDES)
 # We #define NO_TCMALLOC_SAMPLES, since sampling is turned off for _minimal.
 libtcmalloc_minimal_internal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
+                                           -DNO_HEAP_CHECK \
                                            $(PTHREAD_CFLAGS) -DNDEBUG \
                                            $(AM_CXXFLAGS) $(NO_EXCEPTIONS)
 libtcmalloc_minimal_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
@@ -472,9 +488,10 @@ endif !MINGW
 
 TESTS += packed_cache_test
 WINDOWS_PROJECTS += vsprojects/packed-cache_test/packed-cache_test.vcproj
-packed_cache_test_SOURCES = src/tests/packed-cache_test.cc \
-                            src/packed-cache-inl.h \
-                            src/base/logging.h
+packed_cache_test_SOURCES = src/tests/packed-cache_test.cc
+packed_cache_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+packed_cache_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+packed_cache_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 TESTS += frag_unittest
 WINDOWS_PROJECTS += vsprojects/frag_unittest/frag_unittest.vcproj
@@ -611,6 +628,69 @@ dist_doc_DATA += doc/overview.dot \
                  doc/spanmap.dot \
                  doc/threadheap.dot
 
+
+### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
+
+# Like tcmalloc.cc, debugallocation.cc needs exceptions to fulfill its
+# API.  Luckily, we can reuse everything else from tcmalloc_minimal.
+
+if WITH_DEBUGALLOC
+
+lib_LTLIBRARIES += libtcmalloc_minimal_debug.la
+libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc \
+                                       $(TCMALLOC_MINIMAL_INCLUDES)
+libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS) \
+                                        -DTCMALLOC_FOR_DEBUGALLOCATION
+libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS)
+libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
+
+LIBS_TO_WEAKEN += libtcmalloc_minimal_debug.la
+
+### Unittests
+
+TESTS += tcmalloc_minimal_debug_unittest
+tcmalloc_minimal_debug_unittest_SOURCES = $(tcmalloc_minimal_unittest_SOURCES)
+tcmalloc_minimal_debug_unittest_CXXFLAGS = $(tcmalloc_minimal_unittest_CXXFLAGS) \
+                                           -DDEBUGALLOCATION
+tcmalloc_minimal_debug_unittest_LDFLAGS = $(tcmalloc_minimal_unittest_LDFLAGS)
+tcmalloc_minimal_debug_unittest_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+
+TESTS += malloc_extension_debug_test
+malloc_extension_debug_test_SOURCES = $(malloc_extension_test_SOURCES)
+malloc_extension_debug_test_CXXFLAGS = $(malloc_extension_test_CXXFLAGS)
+malloc_extension_debug_test_LDFLAGS = $(malloc_extension_test_LDFLAGS)
+malloc_extension_debug_test_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+
+TESTS += memalign_debug_unittest
+memalign_debug_unittest_SOURCES = $(memalign_unittest_SOURCES)
+memalign_debug_unittest_CXXFLAGS = $(memalign_unittest_CXXFLAGS)
+memalign_debug_unittest_LDFLAGS = $(memalign_unittest_LDFLAGS)
+memalign_debug_unittest_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+
+TESTS += realloc_debug_unittest
+realloc_debug_unittest_SOURCES = $(realloc_unittest_SOURCES)
+realloc_debug_unittest_CXXFLAGS = $(realloc_unittest_CXXFLAGS)
+realloc_debug_unittest_LDFLAGS = $(realloc_unittest_LDFLAGS)
+realloc_debug_unittest_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+
+TESTS += debugallocation_test.sh$(EXEEXT)
+debugallocation_test_sh_SOURCES = src/tests/debugallocation_test.sh
+noinst_SCRIPTS += $(debugallocation_test_sh_SOURCES)
+debugallocation_test.sh$(EXEEXT): $(top_srcdir)/$(debugallocation_test_sh_SOURCES) \
+                                  debugallocation_test
+	rm -f $@
+	cp -p $(top_srcdir)/$(debugallocation_test_sh_SOURCES) $@
+
+# This is the sub-program used by debugallocation_test.sh
+noinst_PROGRAMS += debugallocation_test
+debugallocation_test_SOURCES = src/tests/debugallocation_test.cc
+debugallocation_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+debugallocation_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+debugallocation_test_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+
+endif WITH_DEBUGALLOC
+
+
 ### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
 
 if WITH_HEAP_PROFILER_OR_CHECKER
@@ -664,11 +744,16 @@ if WITH_HEAP_CHECKER
 # (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
 # but that's ok; the internal/external distinction is only useful for
 # cygwin, and cygwin doesn't use HEAP_CHECKER anyway.)
-libtcmalloc_la_SOURCES += src/base/thread_lister.c \
-                          src/base/linuxthreads.cc \
-                          src/heap-checker.cc \
-                          src/heap-checker-bcad.cc
-endif WITH_HEAP_CHECKER
+HEAP_CHECKER_SOURCES = src/base/thread_lister.c \
+                       src/base/linuxthreads.cc \
+                       src/heap-checker.cc \
+                       src/heap-checker-bcad.cc
+libtcmalloc_la_SOURCES += $(HEAP_CHECKER_SOURCES)
+else !WITH_HEAP_CHECKER
+HEAP_CHECKER_SOURCES =
+libtcmalloc_internal_la_CXXFLAGS += -DNO_HEAP_CHECK
+libtcmalloc_la_CXXFLAGS += -DNO_HEAP_CHECK
+endif !WITH_HEAP_CHECKER
 
 LIBTCMALLOC = libtcmalloc.la
 
@@ -739,7 +824,7 @@ sampling_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
 	rm -f $@
 	cp -p $(top_srcdir)/$(sampling_test_sh_SOURCES) $@
 
-# This is the sub-program using by sampling_test.sh
+# This is the sub-program used by sampling_test.sh
 # The -g is so pprof can get symbol information.
 noinst_PROGRAMS += sampling_test
 SAMPLING_TEST_INCLUDES = src/config_for_unittests.h \
@@ -818,6 +903,93 @@ endif WITH_HEAP_PROFILER
 if WITH_HEAP_CHECKER
 dist_doc_DATA += doc/heap_checker.html
 endif WITH_HEAP_CHECKER
+
+
+### ------- tcmalloc with debugallocation
+
+if WITH_DEBUGALLOC
+if WITH_HEAP_PROFILER_OR_CHECKER
+
+lib_LTLIBRARIES += libtcmalloc_debug.la
+libtcmalloc_debug_la_SOURCES = src/debugallocation.cc $(HEAP_CHECKER_SOURCES) \
+                               $(TCMALLOC_INCLUDES)
+libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) \
+                                -DTCMALLOC_FOR_DEBUGALLOCATION
+libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS)
+libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
+
+LIBS_TO_WEAKEN += libtcmalloc_debug.la
+
+### Unittests
+
+TESTS += tcmalloc_debug_unittest
+tcmalloc_debug_unittest_SOURCES = $(tcmalloc_unittest_SOURCES)
+tcmalloc_debug_unittest_CXXFLAGS = $(tcmalloc_unittest_CXXFLAGS) \
+                                   -DDEBUGALLOCATION
+tcmalloc_debug_unittest_LDFLAGS = $(tcmalloc_unittest_LDFLAGS)
+tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
+
+TESTS += sampler_debug_test
+sampler_debug_test_SOURCES = $(sampler_test_SOURCES)
+sampler_debug_test_CXXFLAGS = $(samples_test_CXXFLAGS)
+sampler_debug_test_LDFLAGS = $(sampler_test_LDFLAGS)
+sampler_debug_test_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS) -lm
+
+TESTS += sampling_debug_test.sh$(EXEEXT)
+sampling_debug_test_sh_SOURCES = src/tests/sampling_test.sh
+sampling_debug_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
+                                 sampling_debug_test
+	rm -f $@
+	cp -p $(top_srcdir)/$(sampling_test_sh_SOURCES) $@
+
+# This is the sub-program using by sampling_debug_test.sh
+# The -g is so pprof can get symbol information.
+noinst_PROGRAMS += sampling_debug_test
+sampling_debug_test_SOURCES = $(sampling_test_SOURCES)
+sampling_debug_test_CXXFLAGS = $(sampling_test_CXXFLAGS)
+sampling_debug_test_LDFLAGS = $(sampling_test_LDFLAGS)
+sampling_debug_test_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
+
+endif WITH_HEAP_PROFILER_OR_CHECKER
+
+if WITH_HEAP_PROFILER
+
+TESTS += heap-profiler_debug_unittest.sh$(EXEEXT)
+heap_profiler_debug_unittest_sh_SOURCES = src/tests/heap-profiler_unittest.sh
+heap-profiler_debug_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) \
+                                    heap-profiler_debug_unittest
+	rm -f $@
+	cp -p $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) $@
+
+# These are sub-programs used by heap-profiler_debug_unittest.sh
+noinst_PROGRAMS += heap-profiler_debug_unittest
+heap_profiler_debug_unittest_SOURCES = $(heap_profiler_unittest_SOURCES)
+heap_profiler_debug_unittest_CXXFLAGS = $(heap_profiler_unittest_CXXFLAGS)
+heap_profiler_debug_unittest_LDFLAGS = $(heap_profiler_unittest_LDFLAGS)
+heap_profiler_debug_unittest_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
+
+endif WITH_HEAP_PROFILER
+
+if WITH_HEAP_CHECKER
+
+TESTS += heap-checker_debug_unittest.sh$(EXEEXT)
+heap_checker_debug_unittest_sh_SOURCES = src/tests/heap-checker_unittest.sh
+heap-checker_debug_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_checker_unittest_sh_SOURCES) \
+                                   heap-checker_debug_unittest
+	rm -f $@
+	cp -p $(top_srcdir)/$(heap_checker_unittest_sh_SOURCES) $@
+
+# These are sub-programs used by heap-checker_debug_unittest.sh
+noinst_PROGRAMS += heap-checker_debug_unittest
+heap_checker_debug_unittest_SOURCES = $(heap_checker_unittest_SOURCES)
+heap_checker_debug_unittest_CXXFLAGS = $(heap_checker_unittest_CXXFLAGS)
+heap_checker_debug_unittest_LDFLAGS = $(heap_checker_unittest_LDFLAGS)
+# tcmalloc has to be specified last!
+heap_checker_debug_unittest_LDADD = $(PTHREAD_LIBS) liblogging.la \
+                                    libtcmalloc_debug.la
+
+endif WITH_HEAP_CHECKER
+endif WITH_DEBUGALLOC
 
 
 ### ------- CPU profiler
@@ -924,6 +1096,7 @@ dist_doc_DATA += doc/cpuprofile.html \
 
 endif WITH_CPU_PROFILER
 
+
 ### ------- CPU profiler and heap checker, in one!
 
 # Ideally, folks who wanted to use both tcmalloc and libprofiler,
@@ -962,9 +1135,7 @@ endif WITH_HEAP_PROFILER_OR_CHECKER
 # Do the weakening on some exported libtcmalloc symbols.
 install-exec-local: all-local
 all-local: $(LIBS_TO_WEAKEN)
-	[ ! -f .libs/libtcmalloc_minimal.a ] || $(WEAKEN) .libs/libtcmalloc_minimal.a
-	[ ! -f .libs/libtcmalloc.a ] || $(WEAKEN) .libs/libtcmalloc.a
-	[ ! -f .libs/libtcmalloc_and_profiler.a ] || $(WEAKEN) .libs/libtcmalloc_and_profiler.a
+	for la in $(LIBS_TO_WEAKEN); do lib=".libs/`basename $$la .la`.a"; [ ! -f "$$lib" ] || $(WEAKEN) "$$lib"; done
 
 
 # This should always include $(TESTS), but may also include other

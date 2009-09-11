@@ -26,9 +26,6 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * ---
- * Author: Mike Burrows
  */
 
 // Implementation of atomic operations for Mac OS X.  This file should not
@@ -310,7 +307,11 @@ inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
                        "emms\n\t"              // Reset FP registers
                        : "=m" (*ptr)
                        : "m" (value)
-                       : "memory", "%mm0");
+                       : // mark the FP stack and mmx registers as clobbered
+                         "st", "st(1)", "st(2)", "st(3)", "st(4)",
+                         "st(5)", "st(6)", "st(7)", "mm0", "mm1",
+                         "mm2", "mm3", "mm4", "mm5", "mm6", "mm7");
+
 }
 
 inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
@@ -320,7 +321,11 @@ inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
                        "emms\n\t"            // Reset FP registers
                        : "=m" (value)
                        : "m" (*ptr)
-                       : "memory", "%mm0");
+                       : // mark the FP stack and mmx registers as clobbered
+                         "st", "st(1)", "st(2)", "st(3)", "st(4)",
+                         "st(5)", "st(6)", "st(7)", "mm0", "mm1",
+                         "mm2", "mm3", "mm4", "mm5", "mm6", "mm7");
+
   return value;
 }
 #endif

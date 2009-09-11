@@ -433,6 +433,10 @@ static inline void* do_mmap64(void *start, size_t length,
 // Put all callers of MallocHook::Invoke* in this module into
 // malloc_hook section,
 // so that MallocHook::GetCallerStackTrace can function accurately:
+
+// Make sure mmap doesn't get #define'd away by <sys/mman.h>
+#undef mmap
+
 extern "C" {
   void* mmap64(void *start, size_t length, int prot, int flags,
                int fd, __off64_t offset  ) __THROW
@@ -457,6 +461,8 @@ extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
   return result;
 }
 
+#if !defined(__USE_FILE_OFFSET64) || !defined(__REDIRECT_NTH)
+
 extern "C" void* mmap(void *start, size_t length, int prot, int flags,
                       int fd, off_t offset) __THROW {
   MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
@@ -465,6 +471,8 @@ extern "C" void* mmap(void *start, size_t length, int prot, int flags,
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
 }
+
+#endif
 
 extern "C" int munmap(void* start, size_t length) __THROW {
   MallocHook::InvokeMunmapHook(start, length);

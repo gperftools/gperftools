@@ -121,15 +121,6 @@ class ThreadCache {
     return overall_thread_cache_size_;
   }
 
-  // Turn on/off dynamic sizing of the thread caches and the freelists
-  // within those thread caches.  When off, threads will equally share
-  // the overall_thread_cache_size() and the freelists will have a
-  // max_length() of kMaxFreeListLength.  When on, threads will compete
-  // for allocation of overall_thread_cache_size() and the max_length()
-  // of each freelist will change based on the usage pattern.
-  // REQUIRES: Static::pageheap lock is held.
-  static void set_use_dynamic_thread_cache_size(bool use_dynamic);
-
  private:
   class FreeList {
    private:
@@ -168,19 +159,13 @@ class ThreadCache {
 
     // Return the maximum length of the list.
     size_t max_length() const {
-      if (use_dynamic_cache_size_) {
-        return max_length_;
-      } else {
-        return kMaxFreeListLength;
-      }
+      return max_length_;
     }
 
     // Set the maximum length of the list.  If 'new_max' > length(), the
     // client is responsible for removing objects from the list.
     void set_max_length(size_t new_max) {
-      if (use_dynamic_cache_size_) {
-        max_length_ = new_max;
-      }
+      max_length_ = new_max;
     }
 
     // Return the number of times that length() has gone over max_length().
@@ -301,14 +286,8 @@ class ThreadCache {
   // Global per-thread cache size.  Writes are protected by
   // Static::pageheap_lock.  Reads are done without any locking, which should be
   // fine as long as size_t can be written atomically and we don't place
-  // invariants between this variable and other pieces of state.  See
-  // use_dynamic_cache_size_ below.
+  // invariants between this variable and other pieces of state.
   static volatile size_t per_thread_cache_size_;
-
-  // If true, threads use a dynamic max_size_ and dynamic freelist lengths.
-  // If false, threads each get a max_size_ equal to per_thread_cache_size_,
-  // and the freelist lengths are statically sized.
-  static volatile bool use_dynamic_cache_size_;
 
   // Represents overall_thread_cache_size_ minus the sum of max_size_
   // across all ThreadCaches.  Protected by Static::pageheap_lock.

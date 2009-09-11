@@ -361,7 +361,10 @@ inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
                        "emms\n\t"            // Empty mmx state/Reset FP regs
                        : "=m" (*ptr)
                        : "m" (value)
-                       : "memory", "%mm0");
+                       : // mark the FP stack and mmx registers as clobbered
+			 "st", "st(1)", "st(2)", "st(3)", "st(4)",
+                         "st(5)", "st(6)", "st(7)", "mm0", "mm1",
+                         "mm2", "mm3", "mm4", "mm5", "mm6", "mm7");
 }
 
 inline void Acquire_Store(volatile Atomic64* ptr, Atomic64 value) {
@@ -381,7 +384,10 @@ inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
                        "emms\n\t"            // Empty mmx state/Reset FP regs
                        : "=m" (value)
                        : "m" (*ptr)
-                       : "%mm0");            // Do not mark mem as clobbered
+                       : // mark the FP stack and mmx registers as clobbered
+                         "st", "st(1)", "st(2)", "st(3)", "st(4)",
+                         "st(5)", "st(6)", "st(7)", "mm0", "mm1",
+                         "mm2", "mm3", "mm4", "mm5", "mm6", "mm7");
   return value;
 }
 

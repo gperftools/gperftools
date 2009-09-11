@@ -45,6 +45,13 @@
 //     d. Free an object
 //   Also, at the end of every step, object(s) are freed to maintain
 //   the memory upper-bound.
+//
+// If this test is compiled with -DDEBUGALLOCATION, then we don't
+// run some tests that test the inner workings of tcmalloc and
+// break on debugallocation: that certain allocations are aligned
+// in a certain way (even though no standard requires it), and that
+// realloc() tries to minimize copying (which debug allocators don't
+// care about).
 
 #include "config_for_unittests.h"
 // Complicated ordering requirements.  tcmalloc.h defines (indirectly)
@@ -82,6 +89,7 @@
 #include "base/simple_mutex.h"
 #include "google/malloc_hook.h"
 #include "google/malloc_extension.h"
+#include "google/tcmalloc.h"
 #include "thread_cache.h"
 #include "tests/testutil.h"
 
@@ -511,6 +519,7 @@ static void TestHugeAllocations(AllocatorState* rnd) {
   }
   // Asking for memory sizes near signed/unsigned boundary (kMaxSignedSize)
   // might work or not, depending on the amount of virtual memory.
+#ifndef DEBUGALLOCATION    // debug allocation takes forever for huge allocs
   for (size_t i = 0; i < 100; i++) {
     void* p = NULL;
     p = rnd->alloc(kMaxSignedSize + i);
@@ -518,6 +527,7 @@ static void TestHugeAllocations(AllocatorState* rnd) {
     p = rnd->alloc(kMaxSignedSize - i);
     if (p) free(p);
   }
+#endif
 
   // Check that ReleaseFreeMemory has no visible effect (aka, does not
   // crash the test):
@@ -544,6 +554,7 @@ static void TestCalloc(size_t n, size_t s, bool ok) {
 // This makes sure that reallocing a small number of bytes in either
 // direction doesn't cause us to allocate new memory.
 static void TestRealloc() {
+#ifndef DEBUGALLOCATION  // debug alloc doesn't try to minimize reallocs
   int start_sizes[] = { 100, 1000, 10000, 100000 };
   int deltas[] = { 1, -2, 4, -8, 16, -32, 64, -128 };
 
@@ -562,6 +573,7 @@ static void TestRealloc() {
     }
     free(p);
   }
+#endif
 }
 
 static void TestNewHandler() throw (std::bad_alloc) {
@@ -701,9 +713,11 @@ static void TestAlignmentForSize(int size) {
     CHECK((p % sizeof(double)) == 0);
 
     // Must have 16-byte alignment for large enough objects
+#ifndef DEBUGALLOCATION    // debug allocation doesn't need to align like this
     if (size >= 16) {
       CHECK((p % 16) == 0);
     }
+#endif
   }
   for (int i = 0; i < kNum; i++) {
     free(ptrs[i]);
@@ -964,12 +978,14 @@ static int RunAllTests(int argc, char** argv) {
   TestHugeAllocations(&rnd);
 
   // Check that large allocations fail with NULL instead of crashing
+#ifndef DEBUGALLOCATION    // debug allocation takes forever for huge allocs
   fprintf(LOGSTREAM, "Testing out of memory\n");
   for (int s = 0; ; s += (10<<20)) {
     void* large_object = rnd.alloc(s);
     if (large_object == NULL) break;
     free(large_object);
   }
+#endif
 
   TestHugeThreadCache();
 
@@ -982,6 +998,17 @@ using testing::RunAllTests;
 
 int main(int argc, char** argv) {
   RunAllTests(argc, argv);
+
+  // Test tc_version()
+  fprintf(LOGSTREAM, "Testing tc_version()\n");
+  int major;
+  int minor;
+  const char* patch;
+  char mmp[64];
+  const char* human_version = tc_version(&major, &minor, &patch);
+  snprintf(mmp, sizeof(mmp), "%d.%d%s", major, minor, patch);
+  CHECK(!strcmp(PACKAGE_STRING, human_version));
+  CHECK(!strcmp(PACKAGE_VERSION, mmp));
 
   fprintf(LOGSTREAM, "PASS\n");
 }

@@ -58,21 +58,17 @@ int SizeMap::NumMoveSize(size_t size) {
   // Use approx 64k transfers between thread and central caches.
   int num = static_cast<int>(64.0 * 1024.0 / size);
   if (num < 2) num = 2;
-  // Clamp well below kMaxFreeListLength to avoid ping pong between central
-  // and thread caches.
-  if (num > static_cast<int>(0.8 * kMaxFreeListLength))
-    num = static_cast<int>(0.8 * kMaxFreeListLength);
 
-  // Also, avoid bringing in too many objects into small object free
-  // lists.  There are lots of such lists, and if we allow each one to
-  // fetch too many at a time, we end up having to scavenge too often
-  // (especially when there are lots of threads and each thread gets a
-  // small allowance for its thread cache).  This fixes a problem seen
-  // in the 20060502 bigtable release by both Andrew Fikes and Ben
-  // Darnell.
-  //
-  // TODO: Make thread cache free list sizes dynamic so that we do not
-  // have to equally divide a fixed resource amongst lots of threads.
+  // Avoid bringing too many objects into small object free lists.
+  // If this value is too large:
+  // - We waste memory with extra objects sitting in the thread caches.
+  // - The central freelist holds its lock for too long while
+  //   building a linked list of objects, slowing down the allocations
+  //   of other threads.
+  // If this value is too small:
+  // - We go to the central freelist too often and we have to acquire
+  //   its lock each time.
+  // This value strikes a balance between the constraints above.
   if (num > 32) num = 32;
 
   return num;

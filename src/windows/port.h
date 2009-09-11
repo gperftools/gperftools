@@ -1,10 +1,10 @@
 /* Copyright (c) 2007, Google Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
  *     * Neither the name of Google Inc. nor the names of its
  * contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -54,6 +54,7 @@
 #endif
 #include <windows.h>
 #include <io.h>              /* because we so often use open/close/etc */
+#include <process.h>         /* for _getpid */
 #include <stdarg.h>          /* for va_list */
 #include <stdio.h>           /* need this to override stdio's (v)snprintf */
 
@@ -99,6 +100,7 @@ enum { PTHREAD_ONCE_INIT = 0 };   // important that this be 0! for SpinLock
 #define pthread_self  GetCurrentThreadId
 #define pthread_equal(pthread_t_1, pthread_t_2)  ((pthread_t_1)==(pthread_t_2))
 
+#ifdef __cplusplus
 // This replaces maybe_threads.{h,cc}
 extern pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  // in port.cc
 #define perftools_pthread_key_create(pkey, destr_fn)  \
@@ -115,6 +117,7 @@ inline void* perftools_pthread_getspecific(DWORD key) {
 #define perftools_pthread_once(once, init)  do {                \
   if (InterlockedCompareExchange(once, 1, 0) == 0) (init)();    \
 } while (0)
+#endif  // __cplusplus
 #endif  // HAVE_PTHREAD
 
 // __declspec(thread) isn't usable in a dll opened via LoadLibrary().
@@ -277,6 +280,15 @@ enum { STDIN_FILENO = 0, STDOUT_FILENO = 1, STDERR_FILENO = 2 };
 // ----------------------------------- SYSTEM/PROCESS
 typedef int pid_t;
 #define getpid  _getpid
+#define getppid() (0)
+
+// Handle case when poll is used to simulate sleep.
+#define poll(r, w, t) \
+  do {                \
+    assert(r == 0);   \
+    assert(w == 0);   \
+    Sleep(t);         \
+  } while(0)
 
 extern PERFTOOLS_DLL_DECL int getpagesize();   // in port.cc
 

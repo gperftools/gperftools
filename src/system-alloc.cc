@@ -150,6 +150,10 @@ bool RegisterSystemAllocator(SysAllocator *a, int priority) {
 
 void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
+#ifndef HAVE_SBRK
+  failed_ = true;
+  return NULL;
+#else
   // Check if we should use sbrk allocation.
   // FLAGS_malloc_skip_sbrk starts out as false (its uninitialized
   // state) and eventually gets initialized to the specified value.  Note
@@ -216,6 +220,7 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
     ptr += alignment - (ptr & (alignment-1));
   }
   return reinterpret_cast<void*>(ptr);
+#endif  // HAVE_SBRK
 }
 
 void SbrkSysAllocator::DumpStats(TCMalloc_Printer* printer) {

@@ -26,9 +26,6 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * ---
- * Author: Mike Burrows
  */
 
 // A test for low_level_alloc.cc
@@ -78,7 +75,7 @@ static bool using_low_level_alloc = false;
 // before being freed.  At the end of the run,
 // all remaining allocated blocks are freed.
 // If use_new_arena is true, use a fresh arena, and then delete it.
-// If call_malloc_hook is true and user_arena is true, 
+// If call_malloc_hook is true and user_arena is true,
 // allocations and deallocations are reported via the MallocHook
 // interface.
 static void Test(bool use_new_arena, bool call_malloc_hook, int n) {
@@ -93,6 +90,11 @@ static void Test(bool use_new_arena, bool call_malloc_hook, int n) {
     arena = LowLevelAlloc::NewArena(flags, LowLevelAlloc::DefaultArena());
   }
   for (int i = 0; i != n; i++) {
+    if (i != 0 && i % 10000 == 0) {
+      printf(".");
+      fflush(stdout);
+    }
+
     switch(rand() & 1) {      // toss a coin
     case 0:     // coin came up heads: add a block
       using_low_level_alloc = true;
@@ -195,7 +197,7 @@ int main(int argc, char *argv[]) {
       CHECK_EQ(frees, 0);
     }
   }
-  printf("PASS\n");
+  printf("\nPASS\n");
   CHECK_EQ(MallocHook::SetNewHook(old_alloc_hook), AllocHook);
   CHECK_EQ(MallocHook::SetDeleteHook(old_free_hook), FreeHook);
   return 0;

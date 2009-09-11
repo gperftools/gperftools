@@ -45,6 +45,9 @@
 #include <string>
 #include "base/dynamic_annotations.h"
 #include "base/sysinfo.h"    // for FillProcSelfMaps
+#ifndef NO_HEAP_CHECK
+#include "google/heap-checker.h"
+#endif
 #include "google/malloc_extension.h"
 #include "maybe_threads.h"
 
@@ -136,6 +139,10 @@ void MallocExtension::MarkThreadIdle() {
   // Default implementation does nothing
 }
 
+void MallocExtension::MarkThreadBusy() {
+  // Default implementation does nothing
+}
+
 void MallocExtension::ReleaseFreeMemory() {
   // Default implementation does nothing
 }
@@ -156,17 +163,16 @@ size_t MallocExtension::GetAllocatedSize(void* p) {
   return 0;
 }
 
-// The current malloc extension object.  We also keep a pointer to
-// the default implementation so that the heap-leak checker does not
-// complain about a memory leak.
+// The current malloc extension object.
 
 static pthread_once_t module_init = PTHREAD_ONCE_INIT;
-static MallocExtension* default_instance = NULL;
 static MallocExtension* current_instance = NULL;
 
 static void InitModule() {
-  default_instance = new MallocExtension;
-  current_instance = default_instance;
+  current_instance = new MallocExtension;
+#ifndef NO_HEAP_CHECK
+  HeapLeakChecker::IgnoreObject(current_instance);
+#endif
 }
 
 MallocExtension* MallocExtension::instance() {
@@ -317,6 +323,7 @@ C_SHIM(SetNumericProperty, bool,
        (const char* property, size_t value), (property, value));
 
 C_SHIM(MarkThreadIdle, void, (), ());
+C_SHIM(MarkThreadBusy, void, (), ());
 C_SHIM(ReleaseFreeMemory, void, (), ());
 C_SHIM(GetEstimatedAllocatedSize, size_t, (size_t size), (size));
 C_SHIM(GetAllocatedSize, size_t, (void* p), (p));

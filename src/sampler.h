@@ -159,8 +159,8 @@ inline uint64_t Sampler::NextRandom(uint64_t rnd) {
 // Adapted from //util/math/fastmath.[h|cc] by Noam Shazeer
 // This mimics the VeryFastLog2 code in those files
 inline double Sampler::FastLog2(const double & d) {
-  assert(d>0);
-  assert(sizeof(d) == sizeof(uint64_t));
+  ASSERT(d>0);
+  COMPILE_ASSERT(sizeof(d) == sizeof(uint64_t), DoubleMustBe64Bits);
   uint64_t x;
   memcpy(&x, &d, sizeof(x));   // we depend on the compiler inlining this
   const uint32_t x_high = x >> 32;

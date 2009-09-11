@@ -118,23 +118,23 @@ class VDSOSupport {
     void                 Init(const void *base);
     bool                 IsPresent() const { return ehdr_ != NULL; }
     const ElfW(Phdr)*    GetPhdr(int index) const;
-    const ElfW(Shdr)*    GetSection(int index) const;
     const ElfW(Sym)*     GetDynsym(int index) const;
     const ElfW(Versym)*  GetVersym(int index) const;
     const ElfW(Verdef)*  GetVerdef(int index) const;
     const ElfW(Verdaux)* GetVerdefAux(const ElfW(Verdef) *verdef) const;
-    const char*          GetSectionData(const ElfW(Shdr) *,
-                                        ElfW(Word) offset) const;
     const char*          GetDynstr(ElfW(Word) offset) const;
     const void*          GetSymAddr(const ElfW(Sym) *sym) const;
     const char*          GetVerstr(ElfW(Word) offset) const;
     int                  GetNumSymbols() const;
    private:
     const ElfW(Ehdr) *ehdr_;
-    const ElfW(Shdr) *dynsym_;
-    const ElfW(Shdr) *dynstr_;
-    const ElfW(Shdr) *versym_;
-    const ElfW(Shdr) *verdef_;
+    const ElfW(Sym) *dynsym_;
+    const ElfW(Versym) *versym_;
+    const ElfW(Verdef) *verdef_;
+    const ElfW(Word) *hash_;
+    const char *dynstr_;
+    size_t strsize_;
+    size_t verdefnum_;
     ElfW(Addr) link_base_;     // Link-time base (p_vaddr of first PT_LOAD).
   };
 

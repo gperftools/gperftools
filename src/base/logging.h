@@ -42,7 +42,7 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for write()
 #endif
-#include <string.h>    // for strlen()
+#include <string.h>    // for strlen(), strcmp()
 #include <assert.h>
 #include <errno.h>     // for errno
 #include "base/commandlineflags.h"
@@ -135,6 +135,18 @@ enum { DEBUG_MODE = 1 };
 #define CHECK_LT(val1, val2) CHECK_OP(< , val1, val2)
 #define CHECK_GE(val1, val2) CHECK_OP(>=, val1, val2)
 #define CHECK_GT(val1, val2) CHECK_OP(> , val1, val2)
+
+// A synonym for CHECK_* that is used in some unittests.
+#define EXPECT_EQ(val1, val2) CHECK_EQ(val1, val2)
+#define EXPECT_NE(val1, val2) CHECK_NE(val1, val2)
+#define EXPECT_LE(val1, val2) CHECK_LE(val1, val2)
+#define EXPECT_LT(val1, val2) CHECK_LT(val1, val2)
+#define EXPECT_GE(val1, val2) CHECK_GE(val1, val2)
+#define EXPECT_GT(val1, val2) CHECK_GT(val1, val2)
+// As are these variants.
+#define EXPECT_TRUE(cond)     CHECK(cond)
+#define EXPECT_FALSE(cond)    CHECK(!(cond))
+#define EXPECT_STREQ(a, b)    CHECK(strcmp(a, b) == 0)
 
 // Used for (libc) functions that return -1 and set errno
 #define CHECK_ERR(invocation)  PCHECK((invocation) != -1)

@@ -1,3 +1,29 @@
+Thu Sep 10 13:51:15 2009  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.4 release
+	* Add debugallocation library, to catch memory leaks, stomping, etc
+	* Add --raw mode to allow for delayed processing of pprof files
+	* Use less memory when reading CPU profiles
+	* New environment variables to control kernel-allocs (sbrk, memfs, etc)
+	* Add MarkThreadBusy(): performance improvement
+	* Remove static thread-cache-size code; all is dynamic now
+	* Add new HiddenPointer class to heap checker
+	* BUGFIX: pvalloc(0) allocates now (found by new debugalloc library)
+	* BUGFIX: valloc test (not implementation) no longer overruns memory
+	* BUGFIX: GetHeapProfile no longer deadlocks
+	* BUGFIX: Support unmapping memory regions before main
+	* BUGFIX: Fix some malloc-stats formatting
+	* BUGFIX: Don't crash as often when freeing libc-allocated memory
+	* BUGFIX: Deal better with incorrect PPROF_PATH when symbolizing
+	* BUGFIX: weaken new/delete/etc in addition to malloc/free/etc
+	* BUGFIX: Fix return value of GetAllocatedSize
+	* PORTING: Fix mmap-#define problem on some 64-bit systems
+	* PORTING: Call ranlib again (some OS X versions need it)
+	* PORTING: Fix a leak when building with LLVM
+	* PORTING: Remove some unneeded bash-ishs from testing scripts
+	* WINDOWS: Support library unloading as well as loading
+	* WINDOWS/BUGFIX: Set page to 'xrw' instead of 'rw' when patching
+	
 Tue Jun  9 18:19:06 2009  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.3 release

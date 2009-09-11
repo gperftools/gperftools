@@ -281,32 +281,33 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
 
 #if !(defined(__CYGWIN__) || defined(__CYGWIN32__))
 
-extern "C" void ProfilerRegisterThread() {
+extern "C" PERFTOOLS_DLL_DECL void ProfilerRegisterThread() {
   ProfileHandlerRegisterThread();
 }
 
-extern "C" void ProfilerFlush() {
+extern "C" PERFTOOLS_DLL_DECL void ProfilerFlush() {
   CpuProfiler::instance_.FlushTable();
 }
 
-extern "C" int ProfilingIsEnabledForAllThreads() {
+extern "C" PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads() {
   return CpuProfiler::instance_.Enabled();
 }
 
-extern "C" int ProfilerStart(const char* fname) {
+extern "C" PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname) {
   return CpuProfiler::instance_.Start(fname, NULL);
 }
 
-extern "C" int ProfilerStartWithOptions(const char *fname,
-                                         const ProfilerOptions *options) {
+extern "C" PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(
+    const char *fname, const ProfilerOptions *options) {
   return CpuProfiler::instance_.Start(fname, options);
 }
 
-extern "C" void ProfilerStop() {
+extern "C" PERFTOOLS_DLL_DECL void ProfilerStop() {
   CpuProfiler::instance_.Stop();
 }
 
-extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
+extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(
+    ProfilerState* state) {
   CpuProfiler::instance_.GetCurrentState(state);
 }
 
@@ -332,5 +333,5 @@ extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
 #endif  // OS_CYGWIN
 
 // DEPRECATED routines
-extern "C" void ProfilerEnable() { }
-extern "C" void ProfilerDisable() { }
+extern "C" PERFTOOLS_DLL_DECL void ProfilerEnable() { }
+extern "C" PERFTOOLS_DLL_DECL void ProfilerDisable() { }

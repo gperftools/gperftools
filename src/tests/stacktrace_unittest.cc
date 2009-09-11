@@ -37,65 +37,84 @@
 #include "base/logging.h"
 #include <google/stacktrace.h>
 
+namespace {
 
 // Obtain a backtrace, verify that the expected callers are present in the
 // backtrace, and maybe print the backtrace to stdout.
 
-//-----------------------------------------------------------------------//
-void CheckStackTraceLeaf();
-void CheckStackTrace4(int i);
-void CheckStackTrace3(int i);
-void CheckStackTrace2(int i);
-void CheckStackTrace1(int i);
-void CheckStackTrace(int i);
-//-----------------------------------------------------------------------//
-
 // The sequence of functions whose return addresses we expect to see in the
 // backtrace.
 const int BACKTRACE_STEPS = 6;
-void * expected_stack[BACKTRACE_STEPS] = {
-  (void *) &CheckStackTraceLeaf,
-  (void *) &CheckStackTrace4,
-  (void *) &CheckStackTrace3,
-  (void *) &CheckStackTrace2,
-  (void *) &CheckStackTrace1,
-  (void *) &CheckStackTrace,
+
+struct AddressRange {
+  const void *start, *end;
 };
 
-// Depending on the architecture/compiler/libraries, (not sure which)
-// the current function may or may not appear in the backtrace.
-// For gcc-2:
-//
-// stack[0] is ret addr within CheckStackTrace4
-// stack[1] is ret addr within CheckStackTrace3
-// stack[2] is ret addr within CheckStackTrace2
-// stack[3] is ret addr within CheckStackTrace1
-// stack[4] is ret addr within CheckStackTrace
-//
-// For gcc3-k8:
-//
-// stack[0] is ret addr within CheckStackTraceLeaf
-// stack[1] is ret addr within CheckStackTrace4
-// ...
-// stack[5] is ret addr within CheckStackTrace
+// Expected function [start,end] range.
+AddressRange expected_range[BACKTRACE_STEPS];
+
+#if __GNUC__
+// Using GCC extension: address of a label can be taken with '&&label'.
+// Start should be a label somewhere before recursive call, end somewhere
+// after it.
+#define INIT_ADDRESS_RANGE(fn, start_label, end_label, prange)           \
+  do {                                                                   \
+    (prange)->start = &&start_label;                                     \
+    (prange)->end = &&end_label;                                         \
+    CHECK_LT((prange)->start, (prange)->end);                            \
+  } while (0)
+// This macro expands into "unmovable" code (opaque to GCC), and that
+// prevents GCC from moving a_label up or down in the code.
+// Without it, there is no code following the 'end' label, and GCC
+// (4.3.1, 4.4.0) thinks it safe to assign &&end an address that is before
+// the recursive call.
+#define DECLARE_ADDRESS_LABEL(a_label)                                   \
+  a_label: do { __asm__ __volatile__(""); } while (0)
+// Gcc 4.4.0 may split function into multiple chunks, and the chunk
+// performing recursive call may end up later in the code then the return
+// instruction (this actually happens with FDO).
+// Adjust function range from __builtin_return_address.
+#define ADJUST_ADDRESS_RANGE_FROM_RA(prange)                             \
+  do {                                                                   \
+    void *ra = __builtin_return_address(0);                              \
+    CHECK_LT((prange)->start, ra);                                       \
+    if (ra > (prange)->end) {                                            \
+      printf("Adjusting range from %p..%p to %p..%p\n",                  \
+             (prange)->start, (prange)->end,                             \
+             (prange)->start, ra);                                       \
+      (prange)->end = ra;                                                \
+    }                                                                    \
+  } while (0)
+#else
+// Assume the Check* functions below are not longer than 256 bytes.
+#define INIT_ADDRESS_RANGE(fn, start_label, end_label, prange)           \
+  do {                                                                   \
+    (prange)->start = reinterpret_cast<const void *>(&fn);               \
+    (prange)->end = reinterpret_cast<const char *>(&fn) + 256;           \
+  } while (0)
+#define DECLARE_ADDRESS_LABEL(a_label) do { } while (0)
+#define ADJUST_ADDRESS_RANGE_FROM_RA(prange) do { } while (0)
+#endif  // __GNUC__
 
 //-----------------------------------------------------------------------//
 
-const int kMaxFnLen = 0x40; // assume relevant functions are only this long
-
-void CheckRetAddrIsInFunction( void * ret_addr, void * function_start_addr)
+void CheckRetAddrIsInFunction(void *ret_addr, const AddressRange &range)
 {
-  CHECK_GE(ret_addr, function_start_addr);
-  CHECK_LE(ret_addr, (void *) ((char *) function_start_addr + kMaxFnLen));
+  CHECK_GE(ret_addr, range.start);
+  CHECK_LE(ret_addr, range.end);
 }
 
 //-----------------------------------------------------------------------//
 
-void CheckStackTraceLeaf(void) {
+void ATTRIBUTE_NOINLINE CheckStackTrace(int);
+void ATTRIBUTE_NOINLINE CheckStackTraceLeaf(void) {
   const int STACK_LEN = 10;
   void *stack[STACK_LEN];
   int size;
 
+  ADJUST_ADDRESS_RANGE_FROM_RA(&expected_range[1]);
+  INIT_ADDRESS_RANGE(CheckStackTraceLeaf, start, end, &expected_range[0]);
+  DECLARE_ADDRESS_LABEL(start);
   size = GetStackTrace(stack, STACK_LEN, 0);
   printf("Obtained %d stack frames.\n", size);
   CHECK_GE(size, 1);
@@ -114,44 +133,62 @@ void CheckStackTraceLeaf(void) {
 
   for (int i = 0; i < BACKTRACE_STEPS; i++) {
     printf("Backtrace %d: expected: %p..%p  actual: %p ... ",
-           i, expected_stack[i],
-           reinterpret_cast<char*>(expected_stack[i]) + kMaxFnLen, stack[i]);
+           i, expected_range[i].start, expected_range[i].end, stack[i]);
     fflush(stdout);
-    CheckRetAddrIsInFunction(stack[i], expected_stack[i]);
+    CheckRetAddrIsInFunction(stack[i], expected_range[i]);
     printf("OK\n");
   }
+  DECLARE_ADDRESS_LABEL(end);
 }
 
 //-----------------------------------------------------------------------//
 
 /* Dummy functions to make the backtrace more interesting. */
 void ATTRIBUTE_NOINLINE CheckStackTrace4(int i) {
+  ADJUST_ADDRESS_RANGE_FROM_RA(&expected_range[2]);
+  INIT_ADDRESS_RANGE(CheckStackTrace4, start, end, &expected_range[1]);
+  DECLARE_ADDRESS_LABEL(start);
   for (int j = i; j >= 0; j--)
     CheckStackTraceLeaf();
+  DECLARE_ADDRESS_LABEL(end);
 }
 void ATTRIBUTE_NOINLINE CheckStackTrace3(int i) {
+  ADJUST_ADDRESS_RANGE_FROM_RA(&expected_range[3]);
+  INIT_ADDRESS_RANGE(CheckStackTrace3, start, end, &expected_range[2]);
+  DECLARE_ADDRESS_LABEL(start);
   for (int j = i; j >= 0; j--)
     CheckStackTrace4(j);
+  DECLARE_ADDRESS_LABEL(end);
 }
 void ATTRIBUTE_NOINLINE CheckStackTrace2(int i) {
+  ADJUST_ADDRESS_RANGE_FROM_RA(&expected_range[4]);
+  INIT_ADDRESS_RANGE(CheckStackTrace2, start, end, &expected_range[3]);
+  DECLARE_ADDRESS_LABEL(start);
   for (int j = i; j >= 0; j--)
     CheckStackTrace3(j);
+  DECLARE_ADDRESS_LABEL(end);
 }
 void ATTRIBUTE_NOINLINE CheckStackTrace1(int i) {
+  ADJUST_ADDRESS_RANGE_FROM_RA(&expected_range[5]);
+  INIT_ADDRESS_RANGE(CheckStackTrace1, start, end, &expected_range[4]);
+  DECLARE_ADDRESS_LABEL(start);
   for (int j = i; j >= 0; j--)
     CheckStackTrace2(j);
+  DECLARE_ADDRESS_LABEL(end);
 }
 void ATTRIBUTE_NOINLINE CheckStackTrace(int i) {
+  INIT_ADDRESS_RANGE(CheckStackTrace, start, end, &expected_range[5]);
+  DECLARE_ADDRESS_LABEL(start);
   for (int j = i; j >= 0; j--)
     CheckStackTrace1(j);
+  DECLARE_ADDRESS_LABEL(end);
 }
 
+}  // namespace
 //-----------------------------------------------------------------------//
 
 int main(int argc, char ** argv) {
-  
   CheckStackTrace(0);
-  
   printf("PASS\n");
   return 0;
 }

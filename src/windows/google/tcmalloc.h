@@ -35,6 +35,12 @@
 #ifndef TCMALLOC_TCMALLOC_H_
 #define TCMALLOC_TCMALLOC_H_
 
+// Define the version number so folks can check against it
+#define TC_VERSION_MAJOR  1
+#define TC_VERSION_MINOR  4
+#define TC_VERSION_PATCH  ""
+#define TC_VERSION_STRING "google-perftools 1.4"
+
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
 // optimization tool, but we may need to use it to match glibc prototypes.
@@ -42,37 +48,57 @@
 # define __THROW   /* __THROW is just an optimization, so ok to make it "" */
 #endif
 
+
 #include <stdlib.h>   // for struct mallinfo, if it's defined
+
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef _WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
 
 #ifdef __cplusplus
 #include <new>  // for nothrow_t
 extern "C" {
 #endif
-  void* tc_malloc(size_t size) __THROW;
-  void tc_free(void* ptr) __THROW;
-  void* tc_realloc(void* ptr, size_t size) __THROW;
-  void* tc_calloc(size_t nmemb, size_t size) __THROW;
-  void tc_cfree(void* ptr) __THROW;
+  // Returns a human-readable version string.  If major, minor,
+  // and/or patch are not NULL, they are set to the major version,
+  // minor version, and patch-code (a string, usually "").
+  PERFTOOLS_DLL_DECL const char* tc_version(int* major, int* minor,
+                                            const char** patch) __THROW;
 
-  void* tc_memalign(size_t __alignment, size_t __size) __THROW;
-  int tc_posix_memalign(void** ptr, size_t align, size_t size) __THROW;
-  void* tc_valloc(size_t __size) __THROW;
-  void* tc_pvalloc(size_t __size) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) __THROW;
+  PERFTOOLS_DLL_DECL void tc_free(void* ptr) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_calloc(size_t nmemb, size_t size) __THROW;
+  PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) __THROW;
 
-  void tc_malloc_stats(void) __THROW;
-  int tc_mallopt(int cmd, int value) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_memalign(size_t __alignment,
+                                       size_t __size) __THROW;
+  PERFTOOLS_DLL_DECL int tc_posix_memalign(void** ptr,
+                                           size_t align, size_t size) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_valloc(size_t __size) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t __size) __THROW;
+
+  PERFTOOLS_DLL_DECL void tc_malloc_stats(void) __THROW;
+  PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) __THROW;
 #if 0
-  struct mallinfo tc_mallinfo(void) __THROW;
+  PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW;
 #endif
 
 #ifdef __cplusplus
-  void* tc_new(size_t size);
-  void tc_delete(void* p) __THROW;
-  void* tc_newarray(size_t size);
-  void tc_deletearray(void* p) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_new(size_t size);
+  PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
+  PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW;
 
-  void* tc_new_nothrow(size_t size, const std::nothrow_t&) __THROW;
-  void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size,
+                                          const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
+                                               const std::nothrow_t&) __THROW;
 }
 #endif
 
