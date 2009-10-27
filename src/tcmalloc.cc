@@ -230,6 +230,12 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW
       ATTRIBUTE_SECTION(google_malloc);
+  // Surprisingly, compilers use a nothrow-delete internally.  See, eg:
+  //   http://www.dinkumware.com/manuals/?manual=compleat&page=new.html
+  void tc_delete_nothrow(void* ptr, const std::nothrow_t&) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
 }  // extern "C"
 #endif  // #ifndef _WIN32
 
@@ -254,6 +260,10 @@ void* operator new(size_t size, const std::nothrow_t&) __THROW
                                                  ALIAS("tc_new_nothrow");
 void* operator new[](size_t size, const std::nothrow_t&) __THROW
                                                  ALIAS("tc_newarray_nothrow");
+void operator delete(void* size, const std::nothrow_t&) __THROW
+                                                 ALIAS("tc_delete_nothrow");
+void operator delete[](void* size, const std::nothrow_t&) __THROW
+                                                 ALIAS("tc_deletearray_nothrow");
 extern "C" {
   void* malloc(size_t size) __THROW              ALIAS("tc_malloc");
   void  free(void* ptr) __THROW                  ALIAS("tc_free");
@@ -282,6 +292,12 @@ void* operator new(size_t size, const std::nothrow_t& nt) __THROW {
 }
 void* operator new[](size_t size, const std::nothrow_t& nt) __THROW {
   return tc_newarray_nothrow(size, nt);
+}
+void operator delete(void* ptr, const std::nothrow_t& nt) __THROW {
+  return tc_delete_nothrow(ptr, nt);
+}
+void operator delete[](void* ptr, const std::nothrow_t& nt) __THROW {
+  return tc_deletearray_nothrow(ptr, nt);
 }
 extern "C" {
   void* malloc(size_t s) __THROW                 { return tc_malloc(s);       }
@@ -1204,6 +1220,14 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW {
   do_free(p);
 }
 
+// Compilers define and use this (via ::operator delete(ptr, nothrow)).
+// But it's really the same as normal delete, so we just do the same thing.
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(
+    void* p, const std::nothrow_t&) __THROW {
+  MallocHook::InvokeDeleteHook(p);
+  do_free(p);
+}
+
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
   void* p = cpp_alloc(size, false);
   // We keep this next instruction out of cpp_alloc for a reason: when
@@ -1223,6 +1247,12 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW {
+  MallocHook::InvokeDeleteHook(p);
+  do_free(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(
+    void* p, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }

@@ -543,9 +543,22 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
   RAW_LOG(ERROR, "The %d largest leaks:", to_report);
 
   // Print
-  char sym_buffer[1024];
+  SymbolMap symbolization_table;
+  int num_symbols = 0;
+  for (int i = 0; i < to_report; i++) {
+    const Entry& e = entries[i];
+    for (int j = 0; j < e.bucket->depth; j++) {
+      const void* pc = e.bucket->stack[j];
+      symbolization_table[reinterpret_cast<uintptr_t>(pc)] = "";
+      num_symbols++;
+    }
+  }
   static const int kBufSize = 2<<10;
   char buffer[kBufSize];
+  int sym_buffer_len = kSymbolSize * num_symbols;
+  char *sym_buffer = new char[sym_buffer_len];
+  if (should_symbolize)
+    Symbolize(sym_buffer, sym_buffer_len, &symbolization_table);
   for (int i = 0; i < to_report; i++) {
     const Entry& e = entries[i];
     base::RawPrinter printer(buffer, kBufSize);
@@ -553,17 +566,13 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
                    e.bytes, e.count);
     for (int j = 0; j < e.bucket->depth; j++) {
       const void* pc = e.bucket->stack[j];
-      const char* sym;
-      if (should_symbolize &&
-          Symbolize(const_cast<void*>(pc), sym_buffer, sizeof(sym_buffer))) {
-        sym = sym_buffer;
-      } else {
-        sym = "";
-      }
-      printer.Printf("\t@ %p %s\n", pc, sym);
+      printer.Printf("\t@ %p %s\n",
+                     pc, symbolization_table[reinterpret_cast<uintptr_t>(pc)]);
     }
     RAW_LOG(ERROR, "%s", buffer);
   }
+  delete[] sym_buffer;
+
   if (to_report < n) {
     RAW_LOG(ERROR, "Skipping leaks numbered %d..%d",
             to_report, n-1);

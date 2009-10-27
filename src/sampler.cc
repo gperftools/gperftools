@@ -49,7 +49,7 @@ DEFINE_int64(tcmalloc_sample_parameter, 0,
 #else
 DEFINE_int64(tcmalloc_sample_parameter,
              EnvToInt64("TCMALLOC_SAMPLE_PARAMETER", 1<<19),
-             "The approximate gap in bytes between sampling actions."
+             "The approximate gap in bytes between sampling actions. "
              "This must be between 1 and 1<<58.");
 // Note: there are other places in this file where the number 19 occurs.
 #endif

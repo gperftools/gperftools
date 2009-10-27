@@ -65,14 +65,14 @@ DEFINE_string(symbolize_pprof,
 // a more-permanent copy that won't ever get destroyed.
 static string* g_pprof_path = new string(FLAGS_symbolize_pprof);
 
-// It would be much more efficient to call Symbolize on a bunch of pc's
-// at once, rather than calling one at a time, but this way it's simpler
-// to code, and efficiency probably isn't a top concern when reporting
-// found leaks at program-exit time.
+// Updates symbolization_table with the pointers to symbol names corresponding
+// to its keys. The symbol names are stored in out, which is allocated and
+// freed by the caller of this routine.
 // Note that the forking/etc is not thread-safe or re-entrant.  That's
 // ok for the purpose we need -- reporting leaks detected by heap-checker
 // -- but be careful if you decide to use this routine for other purposes.
-extern "C" bool Symbolize(void *pc, char *out, int out_size) {
+extern bool Symbolize(char *out, int out_size,
+                      SymbolMap *symbolization_table) {
 #if !defined(HAVE_UNISTD_H)  || !defined(HAVE_SYS_SOCKET_H) || !defined(HAVE_SYS_WAIT_H)
   return false;
 #elif !defined(HAVE_PROGRAM_INVOCATION_NAME)
@@ -129,12 +129,20 @@ extern "C" bool Symbolize(void *pc, char *out, int out_size) {
       }
 #endif
       DumpProcSelfMaps(child_in[1]);  // what pprof expects on stdin
+
       char pcstr[64];                 // enough for a single address
-      snprintf(pcstr, sizeof(pcstr),  // pprof expects format to be 0xXXXXXX...
-               "0x%" PRIxPTR "\n", reinterpret_cast<uintptr_t>(pc));
-      write(child_in[1], pcstr, strlen(pcstr));
+      for (SymbolMap::const_iterator iter = symbolization_table->begin();
+           iter != symbolization_table->end(); ++iter) {
+        snprintf(pcstr, sizeof(pcstr),  // pprof expects format to be 0xXXXXXX
+                 "0x%" PRIxPTR "\n", iter->first);
+        // TODO(glider): the number of write()s can be reduced by using
+        // snprintf() here.
+        write(child_in[1], pcstr, strlen(pcstr));
+      }
       close(child_in[1]);             // that's all we need to write
+
       int total_bytes_read = 0;
+      memset(out, '\0', out_size);
       while (1) {
         int bytes_read = read(child_out[1], out + total_bytes_read,
                               out_size - total_bytes_read);
@@ -150,10 +158,23 @@ extern "C" bool Symbolize(void *pc, char *out, int out_size) {
         }
       }
       // We have successfully read the output of pprof into out.  Make sure
-      // we got the full symbol (we can tell because it ends with a \n).
+      // the last symbol is full (we can tell because it ends with a \n).
+      // TODO(glider): even when the last symbol is full, the list of symbols
+      // may be incomplete. We should check for that and return the number of
+      // symbols we actually get from pprof.
       if (total_bytes_read == 0 || out[total_bytes_read - 1] != '\n')
         return false;
-      out[total_bytes_read - 1] = '\0';  // remove the trailing newline
+      // make the symbolization_table values point to the output vector
+      SymbolMap::iterator fill = symbolization_table->begin();
+      char *current_name = out;
+      for (int i = 0; i < total_bytes_read; i++) {
+        if (out[i] == '\n') {
+          fill->second = current_name;
+          out[i] = '\0';
+          current_name = out + i + 1;
+          fill++;
+        }
+      }
       return true;
     }
   }

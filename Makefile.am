@@ -474,6 +474,9 @@ ADDRESSMAP_UNITTEST_INCLUDES = src/addressmap-inl.h \
                                $(LOGGING_INCLUDES)
 addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc \
                               $(ADDRESSMAP_UNITTEST_INCLUDES)
+if MINGW
+addressmap_unittest_SOURCES += src/windows/port.h src/windows/port.cc
+endif MINGW
 addressmap_unittest_CXXFLAGS = -g $(AM_CXXFLAGS)
 addressmap_unittest_LDADD = liblogging.la
 
@@ -519,6 +522,18 @@ malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc \
 malloc_extension_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_extension_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_extension_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+
+TESTS += malloc_extension_c_test
+malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.c \
+                                  src/google/malloc_extension.h \
+                                  src/google/malloc_extension_c.h
+malloc_extension_c_test_CFLAGS = $(PTHREAD_CFLAGS) $(AM_CFLAGS)
+# -ansi here is just to help ensure the code is bog-standard C.
+if GCC
+malloc_extension_c_test_CFLAGS += -ansi
+endif GCC
+malloc_extension_c_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 if !MINGW
 TESTS += memalign_unittest
@@ -566,29 +581,6 @@ thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
 thread_dealloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
-
-# performance/unittests originally from ptmalloc2
-# Commented out for now because they don't compile on all systems.
-# However, you can still make/run by hand like so:
-#    make ptmalloc_unittest1 ptmalloc_unittest2
-#    ./ptmalloc_unittest1; ./ptmalloc_unittest2
-##TESTS += ptmalloc_unittest1 ptmalloc_unittest2
-EXTRA_PROGRAMS = ptmalloc_unittest1 ptmalloc_unittest2
-PTMALLOC_UNITTEST_INCLUDES = src/tests/ptmalloc/t-test.h \
-                             src/tests/ptmalloc/thread-m.h \
-                             src/tests/ptmalloc/lran2.h \
-                             src/tests/ptmalloc/thread-st.h \
-                             src/tests/ptmalloc/malloc-machine.h
-ptmalloc_unittest1_SOURCES = src/tests/ptmalloc/t-test1.c \
-                             $(PTMALLOC_UNITTEST_INCLUDES)
-ptmalloc_unittest1_CFLAGS = $(PTHREAD_CFLAGS) -DUSE_PTHREADS
-ptmalloc_unittest1_LDFLAGS = $(PTHREAD_CFLAGS)
-ptmalloc_unittest1_LDADD = $(PTHREAD_LIBS)
-ptmalloc_unittest2_SOURCES = src/tests/ptmalloc/t-test2.c \
-                             $(PTMALLOC_UNITTEST_INCLUDES)
-ptmalloc_unittest2_CFLAGS = $(PTHREAD_CFLAGS) -DUSE_PTHREADS
-ptmalloc_unittest2_LDFLAGS = $(PTHREAD_CFLAGS)
-ptmalloc_unittest2_LDADD = $(PTHREAD_LIBS)
 
 ### Documentation
 dist_doc_DATA += doc/tcmalloc.html \

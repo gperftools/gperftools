@@ -37,8 +37,10 @@
 
 #define FUTEX_WAIT 0
 #define FUTEX_WAKE 1
+#define FUTEX_PRIVATE_FLAG 128
 
 static bool have_futex;
+static int futex_private_flag = FUTEX_PRIVATE_FLAG;
 
 namespace {
 static struct InitModule {
@@ -48,6 +50,10 @@ static struct InitModule {
     // that's the same size as the lockword_ in SpinLock.
     have_futex = (sizeof (Atomic32) == sizeof (int) && 
                   sys_futex(&x, FUTEX_WAKE, 1, 0) >= 0);
+    if (have_futex &&
+        sys_futex(&x, FUTEX_WAKE | futex_private_flag, 1, 0) < 0) {
+      futex_private_flag = 0;
+    }
   }
 } init_module;
 }  // anonymous namespace
@@ -62,7 +68,8 @@ static void SpinLockWait(volatile Atomic32 *w) {
                             // clock tick
     while ((value = base::subtle::Acquire_CompareAndSwap(w, 0, 1)) != 0) {
       sys_futex(reinterpret_cast<int *>(const_cast<Atomic32 *>(w)),
-          FUTEX_WAIT, value, reinterpret_cast<struct kernel_timespec *>(&tm));
+          FUTEX_WAIT | futex_private_flag,
+          value, reinterpret_cast<struct kernel_timespec *>(&tm));
     }
   } else {
     tm.tv_nsec = 2000001;       // above 2ms so linux 2.4 doesn't spin
@@ -79,6 +86,6 @@ static void SpinLockWait(volatile Atomic32 *w) {
 static void SpinLockWake(volatile Atomic32 *w) {
   if (have_futex) {
     sys_futex(reinterpret_cast<int *>(const_cast<Atomic32 *>(w)),
-              FUTEX_WAKE, 1, 0);
+              FUTEX_WAKE | futex_private_flag, 1, 0);
   }
 }

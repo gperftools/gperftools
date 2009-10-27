@@ -186,21 +186,31 @@ void PageHeap::Delete(Span* span) {
   ASSERT(span->length > 0);
   ASSERT(GetDescriptor(span->start) == span);
   ASSERT(GetDescriptor(span->start + span->length - 1) == span);
+  const Length n = span->length;
   span->sizeclass = 0;
   span->sample = 0;
+  span->location = Span::ON_NORMAL_FREELIST;
+  Event(span, 'D', span->length);
+  AddToFreeList(span);
+  free_pages_ += n;
+  IncrementalScavenge(n);
+  ASSERT(Check());
+}
+
+void PageHeap::AddToFreeList(Span* span) {
+  ASSERT(span->location != Span::IN_USE);
 
   // Coalesce -- we guarantee that "p" != 0, so no bounds checking
   // necessary.  We do not bother resetting the stale pagemap
   // entries for the pieces we are merging together because we only
   // care about the pagemap entries for the boundaries.
   //
-  // Note that the spans we merge into "span" may come out of
-  // a "returned" list.  For simplicity, we move these into the
-  // "normal" list of the appropriate size class.
+  // Note that only similar spans are merged together.  For example,
+  // we do not coalesce "returned" spans with "normal" spans.
   const PageID p = span->start;
   const Length n = span->length;
   Span* prev = GetDescriptor(p-1);
-  if (prev != NULL && prev->location != Span::IN_USE) {
+  if (prev != NULL && prev->location == span->location) {
     // Merge preceding span into this span
     ASSERT(prev->start + prev->length == p);
     const Length len = prev->length;
@@ -212,7 +222,7 @@ void PageHeap::Delete(Span* span) {
     Event(span, 'L', len);
   }
   Span* next = GetDescriptor(p+n);
-  if (next != NULL && next->location != Span::IN_USE) {
+  if (next != NULL && next->location == span->location) {
     // Merge next span into this span
     ASSERT(next->start == p+n);
     const Length len = next->length;
@@ -223,17 +233,12 @@ void PageHeap::Delete(Span* span) {
     Event(span, 'R', len);
   }
 
-  Event(span, 'D', span->length);
-  span->location = Span::ON_NORMAL_FREELIST;
-  if (span->length < kMaxPages) {
-    DLL_Prepend(&free_[span->length].normal, span);
+  SpanList* list = (span->length < kMaxPages) ? &free_[span->length] : &large_;
+  if (span->location == Span::ON_NORMAL_FREELIST) {
+    DLL_Prepend(&list->normal, span);
   } else {
-    DLL_Prepend(&large_.normal, span);
+    DLL_Prepend(&list->returned, span);
   }
-  free_pages_ += n;
-
-  IncrementalScavenge(n);
-  ASSERT(Check());
 }
 
 void PageHeap::IncrementalScavenge(Length n) {
@@ -267,16 +272,17 @@ void PageHeap::IncrementalScavenge(Length n) {
       Span* s = slist->normal.prev;
       ASSERT(s->location == Span::ON_NORMAL_FREELIST);
       DLL_Remove(s);
+      const Length n = s->length;
       TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
                              static_cast<size_t>(s->length << kPageShift));
       s->location = Span::ON_RETURNED_FREELIST;
-      DLL_Prepend(&slist->returned, s);
+      AddToFreeList(s);
 
       // Compute how long to wait until we return memory.
       // FLAGS_tcmalloc_release_rate==1 means wait for 1000 pages
       // after releasing one page.
       const double mult = 1000.0 / rate;
-      double wait = mult * static_cast<double>(s->length);
+      double wait = mult * static_cast<double>(n);
       if (wait > kMaxReleaseDelay) {
         // Avoid overflow and bound to reasonable range
         wait = kMaxReleaseDelay;
@@ -458,25 +464,25 @@ bool PageHeap::CheckList(Span* list, Length min_pages, Length max_pages,
   return true;
 }
 
-static void ReleaseFreeList(Span* list, Span* returned) {
+void PageHeap::ReleaseFreeList(Span* list) {
   // Walk backwards through list so that when we push these
   // spans on the "returned" list, we preserve the order.
   while (!DLL_IsEmpty(list)) {
     Span* s = list->prev;
     DLL_Remove(s);
-    DLL_Prepend(returned, s);
     ASSERT(s->location == Span::ON_NORMAL_FREELIST);
     s->location = Span::ON_RETURNED_FREELIST;
     TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
                            static_cast<size_t>(s->length << kPageShift));
+    AddToFreeList(s);  // Coalesces if possible
   }
 }
 
 void PageHeap::ReleaseFreePages() {
   for (Length s = 0; s < kMaxPages; s++) {
-    ReleaseFreeList(&free_[s].normal, &free_[s].returned);
+    ReleaseFreeList(&free_[s].normal);
   }
-  ReleaseFreeList(&large_.normal, &large_.returned);
+  ReleaseFreeList(&large_.normal);
   ASSERT(Check());
 }
 

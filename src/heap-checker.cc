@@ -1578,7 +1578,11 @@ static void SuggestPprofCommand(const char* pprof_file_arg) {
           "If you are still puzzled about why the leaks are "
           "there, try rerunning this program with "
           "HEAP_CHECK_TEST_POINTER_ALIGNMENT=1 and/or with "
-          "HEAP_CHECK_MAX_POINTER_OFFSET=-1\n",
+          "HEAP_CHECK_MAX_POINTER_OFFSET=-1\n"
+          "If the leak report occurs in a small fraction of runs, "
+          "try running with TCMALLOC_MAX_FREE_QUEUE_SIZE of few hundred MB "
+          "or with TCMALLOC_RECLAIM_MEMORY=false, "  // only works for debugalloc
+          "it might help find leaks more repeatably\n",
           fetch_cmd.c_str(),
           "pprof",           // works as long as pprof is on your path
           invocation_path().c_str(),
@@ -1717,11 +1721,16 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
       // this makes it unsafe to ever leak-report again!  Luckily, we
       // typically only want to report once in a program's run, at the
       // very end.
-      CancelInitialMallocHooks();
       if (MallocHook::GetNewHook() == NewHook)
         MallocHook::SetNewHook(NULL);
       if (MallocHook::GetDeleteHook() == DeleteHook)
         MallocHook::SetDeleteHook(NULL);
+      MemoryRegionMap::Shutdown();
+      // Make sure all the hooks really got unset:
+      RAW_CHECK(MallocHook::GetNewHook() == NULL, "");
+      RAW_CHECK(MallocHook::GetDeleteHook() == NULL, "");
+      RAW_CHECK(MallocHook::GetMmapHook() == NULL, "");
+      RAW_CHECK(MallocHook::GetSbrkHook() == NULL, "");
       have_disabled_hooks_for_symbolize = true;
       leaks->ReportLeaks(name_, pprof_file, true);  // true = should_symbolize
     } else {
@@ -1979,6 +1988,21 @@ static bool internal_init_start_has_run = false;
     RAW_CHECK(heap_checker_on  &&  constructor_heap_profiling,
               "Leak checking is expected to be fully turned on now");
   }
+
+  // For binaries built in debug mode, this will set release queue of
+  // debugallocation.cc to 100M to make it less likely for real leaks to
+  // be hidden due to reuse of heap memory object addresses.
+  // Running a test with --malloc_reclaim_memory=0 would help find leaks even
+  // better, but the test might run out of memory as a result.
+  // The scenario is that a heap object at address X is allocated and freed,
+  // but some other data-structure still retains a pointer to X.
+  // Then the same heap memory is used for another object, which is leaked,
+  // but the leak is not noticed due to the pointer to the original object at X.
+  // TODO(csilvers): support this in some manner.
+#if 0
+  SetCommandLineOptionWithMode("max_free_queue_size", "104857600",  // 100M
+                               SET_FLAG_IF_DEFAULT);
+#endif
 }
 
 // We want this to run early as well, but not so early as

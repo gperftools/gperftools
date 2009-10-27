@@ -123,7 +123,7 @@ bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total,
                                        int histogram[kMallocHistogramSize]) {
   *blocks = 0;
   *total = 0;
-  memset(histogram, 0, sizeof(histogram));
+  memset(histogram, 0, sizeof(*histogram) * kMallocHistogramSize);
   return true;
 }
 
@@ -307,23 +307,23 @@ void MallocExtension::GetHeapGrowthStacks(MallocExtensionWriter* writer) {
     return MallocExtension::instance()->fn arglist;     \
   }
 
-C_SHIM(VerifyAllMemory, bool, (), ());
-C_SHIM(VerifyNewMemory, bool, (void* p), (p));
-C_SHIM(VerifyArrayNewMemory, bool, (void* p), (p));
-C_SHIM(VerifyMallocMemory, bool, (void* p), (p));
-C_SHIM(MallocMemoryStats, bool,
+C_SHIM(VerifyAllMemory, int, (void), ());
+C_SHIM(VerifyNewMemory, int, (void* p), (p));
+C_SHIM(VerifyArrayNewMemory, int, (void* p), (p));
+C_SHIM(VerifyMallocMemory, int, (void* p), (p));
+C_SHIM(MallocMemoryStats, int,
        (int* blocks, size_t* total, int histogram[kMallocHistogramSize]),
        (blocks, total, histogram));
 
 C_SHIM(GetStats, void,
        (char* buffer, int buffer_length), (buffer, buffer_length));
-C_SHIM(GetNumericProperty, bool,
+C_SHIM(GetNumericProperty, int,
        (const char* property, size_t* value), (property, value));
-C_SHIM(SetNumericProperty, bool,
+C_SHIM(SetNumericProperty, int,
        (const char* property, size_t value), (property, value));
 
-C_SHIM(MarkThreadIdle, void, (), ());
-C_SHIM(MarkThreadBusy, void, (), ());
-C_SHIM(ReleaseFreeMemory, void, (), ());
+C_SHIM(MarkThreadIdle, void, (void), ());
+C_SHIM(MarkThreadBusy, void, (void), ());
+C_SHIM(ReleaseFreeMemory, void, (void), ());
 C_SHIM(GetEstimatedAllocatedSize, size_t, (size_t size), (size));
 C_SHIM(GetAllocatedSize, size_t, (void* p), (p));

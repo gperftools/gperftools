@@ -120,6 +120,7 @@ AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
+AC_CHECK_HEADERS(sys/ucontext.h)         # ucontext on OS X 10.6 (at least)
 AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms?
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)

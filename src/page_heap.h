@@ -133,7 +133,7 @@ class PageHeap {
   bool CheckList(Span* list, Length min_pages, Length max_pages,
                  int freelist);  // ON_NORMAL_FREELIST or ON_RETURNED_FREELIST
 
-  // Release all pages on the free list for reuse by the OS:
+  // Release all free pages in this heap for reuse by the OS:
   void ReleaseFreePages();
 
   // Return 0 if we have no information, or else the correct sizeclass for p.
@@ -211,9 +211,17 @@ class PageHeap {
   // span of exactly the specified length.  Else, returns NULL.
   Span* AllocLarge(Length n);
 
+  // Coalesce span with neighboring spans if possible.  Add the
+  // resulting span to the appropriate free list.
+  void AddToFreeList(Span* span);
+
   // Incrementally release some memory to the system.
   // IncrementalScavenge(n) is called whenever n pages are freed.
   void IncrementalScavenge(Length n);
+
+  // Release all pages in the specified free list for reuse by the OS
+  // REQURES: list must be a "normal" list (i.e., not "returned")
+  void ReleaseFreeList(Span* list);
 
   // Number of pages to deallocate before doing more scavenging
   int64_t scavenge_counter_;

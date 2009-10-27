@@ -386,6 +386,25 @@ static void DeAllocHidden(void** ptr) {
   Use(ptr);
 }
 
+void PreventHeapReclaiming(size_t size) {
+#ifdef NDEBUG
+  if (true) {
+    static void** no_reclaim_list = NULL;
+    CHECK(size >= sizeof(void*));
+    // We can't use malloc_reclaim_memory flag in opt mode as debugallocation.cc
+    // is not used. Instead we allocate a bunch of heap objects that are
+    // of the same size as what we are going to leak to ensure that the object
+    // we are about to leak is not at the same address as some old allocated
+    // and freed object that might still have pointers leading to it.
+    for (int i = 0; i < 100; ++i) {
+      void** p = reinterpret_cast<void**>(new(initialized) char[size]);
+      p[0] = no_reclaim_list;
+      no_reclaim_list = p;
+    }
+  }
+#endif
+}
+
 static bool RunSilent(HeapLeakChecker* check,
                       bool (HeapLeakChecker::* func)()) {
   // By default, don't print the 'we detected a leak' message in the
@@ -438,6 +457,7 @@ static void TestHeapLeakCheckerDeathSimple() {
 }
 
 static void MakeDeathLoop(void** arr1, void** arr2) {
+  PreventHeapReclaiming(2 * sizeof(void*));
   void** a1 = new(initialized) void*[2];
   void** a2 = new(initialized) void*[2];
   a1[1] = reinterpret_cast<void*>(a2);
@@ -1310,6 +1330,13 @@ extern void VerifyHeapProfileTableStackGet() {
 
 // ========================================================================= //
 
+static void MakeALeak(void** arr) {
+  PreventHeapReclaiming(10 * sizeof(int));
+  void* a = new(initialized) int[10];
+  Hide(&a);
+  *arr = a;
+}
+
 // Helper to do 'return 0;' inside main(): insted we do 'return Pass();'
 static int Pass() {
   fprintf(stdout, "PASS\n");
@@ -1352,7 +1379,8 @@ int main(int argc, char** argv) {
   CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
 
   if (FLAGS_test_leak) {
-    void* arr = AllocHidden(10 * sizeof(int));
+    void* arr;
+    RunHidden(NewCallback(MakeALeak, &arr));
     Use(&arr);
     LogHidden("Leaking", arr);
     if (FLAGS_test_cancel_global_check)  HeapLeakChecker::CancelGlobalCheck();

@@ -42,7 +42,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-// Annoying stuff for windows -- makes sure clients can import these functions
+/* Annoying stuff for windows -- makes sure clients can import these fns */
 #ifndef PERFTOOLS_DLL_DECL
 # ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
@@ -55,13 +55,14 @@
 extern "C" {
 #endif
 
-PERFTOOLS_DLL_DECL bool MallocExtension_VerifyAllMemory();
-PERFTOOLS_DLL_DECL bool MallocExtension_VerifyNewMemory(void* p);
-PERFTOOLS_DLL_DECL bool MallocExtension_VerifyArrayNewMemory(void* p);
-PERFTOOLS_DLL_DECL bool MallocExtension_VerifyMallocMemory(void* p);
-PERFTOOLS_DLL_DECL bool MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
-                                       int histogram[kMallocHistogramSize]);
+#define kMallocExtensionHistogramSize 64
 
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyAllMemory(void);
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyNewMemory(void* p);
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyArrayNewMemory(void* p);
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyMallocMemory(void* p);
+PERFTOOLS_DLL_DECL int MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
+                                      int histogram[kMallocExtensionHistogramSize]);
 PERFTOOLS_DLL_DECL void MallocExtension_GetStats(char* buffer, int buffer_length);
 
 /* TODO(csilvers): write a C version of these routines, that perhaps
@@ -70,11 +71,11 @@ PERFTOOLS_DLL_DECL void MallocExtension_GetStats(char* buffer, int buffer_length
 /* void MallocExtension_GetHeapSample(string* result); */
 /* void MallocExtension_GetHeapGrowthStacks(string* result); */
 
-PERFTOOLS_DLL_DECL bool MallocExtension_GetNumericProperty(const char* property, size_t* value);
-PERFTOOLS_DLL_DECL bool MallocExtension_SetNumericProperty(const char* property, size_t value);
-PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadIdle();
-PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy();
-PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory();
+PERFTOOLS_DLL_DECL int MallocExtension_GetNumericProperty(const char* property, size_t* value);
+PERFTOOLS_DLL_DECL int MallocExtension_SetNumericProperty(const char* property, size_t value);
+PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadIdle(void);
+PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy(void);
+PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory(void);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(void* p);
 

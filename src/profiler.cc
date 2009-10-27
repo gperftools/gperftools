@@ -43,8 +43,13 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>  // for getpid()
 #endif
-#ifdef HAVE_UCONTEXT_H
+#if defined(HAVE_SYS_UCONTEXT_H)
+#include <sys/ucontext.h>
+#elif defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>
+#elif defined(HAVE_CYGWIN_SIGNAL_H)
+#include <cygwin/signal.h>
+typedef ucontext ucontext_t;
 #else
 typedef int ucontext_t;   // just to quiet the compiler, mostly
 #endif

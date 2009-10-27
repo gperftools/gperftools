@@ -6,7 +6,7 @@
 
 <BODY>
 
-<h1><code>pprof</code> and Remote Servers</h2>
+<h1><code>pprof</code> and Remote Servers</h1>
 
 <p>In mid-2006, we added an experimental facility to <A
 HREF="cpu_profiler.html">pprof</A>, the tool that analyzes CPU and
@@ -48,6 +48,7 @@ http://myhost:80                       # retrieves a CPU profile (the default)
 http://myhost:8080/                    # retrieves a CPU profile (the default)
 myhost:8088/pprof/growth               # "http://" is optional, but port is not
 http://myhost:80/myservice/pprof/heap  # /pprof/heap just has to come at the end
+http://myhost:80/pprof/pmuprofile      # CPU profile using performance counters
 </pre></blockquote>
 
 <h2> <code><b>/pprof/heap</b></code> </h2>
@@ -139,6 +140,26 @@ should have lines of text somewhat like this:</p>
 01016000-01017000 rw-p 00015000 03:01 59314      /lib/ld-2.2.2.so
 </pre>
 
+<h2> <code><b>/pprof/pmuprofile</b></code> </h2>
+
+<code>pprof</code> asks for a url of the form
+<code>/pprof/pmuprofile?event=hw_event:unit_mask&period=nnn&seconds=xxx</code> 
+to get cpu-profiling information.  The actual url is controlled via the variable
+<code>PMUPROFILE_PAGE</code> in the <code>pprof</code> script, so you can
+change it if you'd like.</p> 
+
+<p>
+This is similar to pprof, but is meant to be used with your CPU's hardware 
+performance counters. The server could be implemented on top of a library 
+such as <a href="http://perfmon2.sourceforge.net/">
+<code>libpfm</code></a>. It should collect a sample every nnn occurences 
+of the event and stop the sampling after xxx seconds. Much of the code 
+for <code>/pprof/profile</code> can be reused for this purpose.
+</p>
+
+<p>The server side routines (the equivalent of
+ProfilerStart/ProfilerStart) are not available as part of perftools,
+so this URL is unlikely to be that useful.</p>
 
 <h2> <code><b>/pprof/contention</b></code> </h2>
 

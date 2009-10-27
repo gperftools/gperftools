@@ -44,8 +44,13 @@
 
 #include <stdlib.h>   // for NULL
 #include <assert.h>
-#if HAVE_UCONTEXT_H
+#if defined(HAVE_SYS_UCONTEXT_H)
+#include <sys/ucontext.h>
+#elif defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>  // for ucontext_t
+#elif defined(HAVE_CYGWIN_SIGNAL_H)
+#include <cygwin/signal.h>
+typedef ucontext ucontext_t;
 #endif
 #ifdef HAVE_STDINT_H
 #include <stdint.h>   // for uintptr_t

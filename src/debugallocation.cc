@@ -655,18 +655,26 @@ class MallocBlock {
       TracePrintf(STDERR_FILENO, "Deleted by thread %p\n",
                   reinterpret_cast<void*>(
                       PRINTABLE_PTHREAD(queue_entry.deleter_threadid)));
-      char sym[1000];
-      for (int i = 0; i < queue_entry.num_deleter_pcs; i++) {
-        char* pc = reinterpret_cast<char*>(queue_entry.deleter_pcs[i]);
+
+      SymbolMap symbolization_table;
+      const int num_symbols = queue_entry.num_deleter_pcs;  // short alias name
+      for (int i = 0; i < num_symbols; i++) {
         // Symbolizes the previous address of pc because pc may be in the
         // next function.  This may happen when the function ends with
         // a call to a function annotated noreturn (e.g. CHECK).
-        if (FLAGS_symbolize_stacktrace && Symbolize(pc-1, sym, sizeof(sym))) {
-          // sym has been computed
-        } else {
-          sym[0] = '\0';
-        }
-        TracePrintf(STDERR_FILENO, "    @ %p %s\n", pc, sym);
+        uintptr_t pc =
+            reinterpret_cast<uintptr_t>(queue_entry.deleter_pcs[i]) - 1;
+        symbolization_table[pc] = "";
+      }
+      int sym_buffer_len = kSymbolSize * num_symbols;
+      char *sym_buffer = new char[sym_buffer_len];
+      if (FLAGS_symbolize_stacktrace)
+        Symbolize(sym_buffer, sym_buffer_len, &symbolization_table);
+      for (int i = 0; i < num_symbols; i++) {
+        uintptr_t pc =
+            reinterpret_cast<uintptr_t>(queue_entry.deleter_pcs[i]) - 1;
+        TracePrintf(STDERR_FILENO, "    @ %p %s\n",
+                    pc, symbolization_table[pc]);
       }
     } else {
       RAW_LOG(ERROR,
@@ -997,11 +1005,15 @@ void* operator new(size_t size, const std::nothrow_t&) __THROW
   ATTRIBUTE_SECTION(google_malloc);
 void operator delete(void* p) __THROW
   ATTRIBUTE_SECTION(google_malloc);
+void operator delete(void* p, const std::nothrow_t&) __THROW
+  ATTRIBUTE_SECTION(google_malloc);
 void* operator new[](size_t size)
   ATTRIBUTE_SECTION(google_malloc);
 void* operator new[](size_t size, const std::nothrow_t&) __THROW
   ATTRIBUTE_SECTION(google_malloc);
 void operator delete[](void* p) __THROW
+  ATTRIBUTE_SECTION(google_malloc);
+void operator delete[](void* p, const std::nothrow_t&) __THROW
   ATTRIBUTE_SECTION(google_malloc);
 
 extern "C" void* malloc(size_t size) __THROW {
@@ -1236,6 +1248,12 @@ void operator delete(void* ptr) __THROW {
   DebugDeallocate(ptr, MallocBlock::kNewType);
 }
 
+// Compilers use this, though I can't see how it differs from normal delete.
+void operator delete(void* ptr, const std::nothrow_t&) __THROW {
+  MallocHook::InvokeDeleteHook(ptr);
+  DebugDeallocate(ptr, MallocBlock::kNewType);
+}
+
 // ========================================================================= //
 
 // Alloc/free stuff for debug operator new[] & friends
@@ -1256,6 +1274,12 @@ void* operator new[](size_t size, const std::nothrow_t&) __THROW {
 }
 
 void operator delete[](void* ptr) __THROW {
+  MallocHook::InvokeDeleteHook(ptr);
+  DebugDeallocate(ptr, MallocBlock::kArrayNewType);
+}
+
+// Compilers use this, though I can't see how it differs from normal delete.
+void operator delete[](void* ptr, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kArrayNewType);
 }

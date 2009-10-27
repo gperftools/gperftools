@@ -83,6 +83,7 @@
 #endif
 #include <assert.h>
 #include <vector>
+#include <algorithm>
 #include <string>
 #include <new>
 #include "base/logging.h"
@@ -801,6 +802,18 @@ static int RunAllTests(int argc, char** argv) {
     free(p2);
   }
 
+  // This code stresses some of the memory allocation via STL.
+  // In particular, it calls operator delete(void*, nothrow_t).
+  fprintf(LOGSTREAM, "Testing STL use\n");
+  {
+    std::vector<int> v;
+    v.push_back(1);
+    v.push_back(2);
+    v.push_back(3);
+    v.push_back(0);
+    std::stable_sort(v.begin(), v.end());
+  }
+
   // Test each of the memory-allocation functions once, just as a sanity-check
   fprintf(LOGSTREAM, "Sanity-testing all the memory allocation functions\n");
   {
@@ -850,6 +863,28 @@ static int RunAllTests(int argc, char** argv) {
     p2 = new char[100];
     VerifyNewHookWasCalled();
     delete[] p2;
+    VerifyDeleteHookWasCalled();
+
+    p2 = new(std::nothrow) char;
+    VerifyNewHookWasCalled();
+    delete p2;
+    VerifyDeleteHookWasCalled();
+
+    p2 = new(std::nothrow) char[100];
+    VerifyNewHookWasCalled();
+    delete[] p2;
+    VerifyDeleteHookWasCalled();
+
+    // Another way of calling operator new
+    p2 = static_cast<char*>(::operator new(100));
+    VerifyNewHookWasCalled();
+    ::operator delete(p2);
+    VerifyDeleteHookWasCalled();
+
+    // Try to call nothrow's delete too.  Compilers use this.
+    p2 = static_cast<char*>(::operator new(100, std::nothrow));
+    VerifyNewHookWasCalled();
+    ::operator delete(p2, std::nothrow);
     VerifyDeleteHookWasCalled();
 
     // Test mmap too: both anonymous mmap and mmap of a file

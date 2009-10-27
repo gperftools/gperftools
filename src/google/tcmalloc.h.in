@@ -98,6 +98,10 @@ extern "C" {
                                           const std::nothrow_t&) __THROW;
   PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
                                                const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p,
+                                            const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
+                                                 const std::nothrow_t&) __THROW;
 }
 #endif
 

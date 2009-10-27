@@ -156,7 +156,7 @@ Test 60 1 "Exiting .* because of .* leaks$" "" \
   HEAP_CHECKER_TEST_TEST_LOOP_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 || exit 9
 
 # Test that we produce a reasonable textual leak report.
-Test 60 1 "DoAllocHidden" "" \
+Test 60 1 "MakeALeak" "" \
           HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECK_TEST_NO_THREADS=1 \
   || exit 10
 

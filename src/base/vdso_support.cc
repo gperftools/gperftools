@@ -266,15 +266,24 @@ void VDSOSupport::ElfMemImage::Init(const void *base) {
   ElfW(Dyn) *dynamic_entry =
       reinterpret_cast<ElfW(Dyn) *>(dynamic_program_header->p_vaddr +
                                     relocation);
+  bool fake_vdso = false;  // Assume we are dealing with the real VDSO.
+  for (ElfW(Dyn) *de = dynamic_entry; de->d_tag != DT_NULL; ++de) {
+    ElfW(Sxword) tag = de->d_tag;
+    if (tag == DT_PLTGOT || tag == DT_RELA || tag == DT_JMPREL ||
+        tag == DT_NEEDED || tag == DT_RPATH || tag == DT_VERNEED ||
+        tag == DT_INIT || tag == DT_FINI) {
+      /* Real vdso can not reasonably have any of the above entries.  */
+      fake_vdso = true;
+      break;
+    }
+  }
   for (; dynamic_entry->d_tag != DT_NULL; ++dynamic_entry) {
     ElfW(Xword) value = dynamic_entry->d_un.d_val;
-    if (link_base_ == 0) {
+    if (fake_vdso) {
       // A complication: in the real VDSO, dynamic entries are not relocated
       // (it wasn't loaded by a dynamic loader). But when testing with a
       // "fake" dlopen()ed vdso library, the loader relocates some (but
       // not all!) of them before we get here.
-      // Since real VDSO is never linked at address 0, and "fake" vdso
-      // library always is, we know we are dealing with the "fake" one here.
       if (dynamic_entry->d_tag == DT_VERDEF) {
         // The only dynamic entry (of the ones we care about) libc-2.3.6
         // loader doesn't relocate.

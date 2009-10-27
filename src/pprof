@@ -97,6 +97,8 @@ my $CURL = "curl";
 # These are the web pages that servers need to support for dynamic profiles
 my $HEAP_PAGE = "/pprof/heap";
 my $PROFILE_PAGE = "/pprof/profile";   # must support cgi-param "?seconds=#"
+my $PMUPROFILE_PAGE = "/pprof/pmuprofile(?:\\?.*)?"; # must support cgi-param
+                                                # ?seconds=#&event=x&period=n
 my $GROWTH_PAGE = "/pprof/growth";
 my $CONTENTION_PAGE = "/pprof/contention";
 my $WALL_PAGE = "/pprof/wall(?:\\?.*)?";  # accepts options like namefilter
@@ -133,8 +135,9 @@ pprof [options] <profile>
    /path/to/profile        - a path to a profile file
    host:port[/<service>]   - a location of a service to get profile from
 
-   The /<service> can be $HEAP_PAGE, $PROFILE_PAGE, $GROWTH_PAGE,
-   $CONTENTION_PAGE, $WALL_PAGE, or $FILTEREDPROFILE_PAGE.
+   The /<service> can be $HEAP_PAGE, $PROFILE_PAGE, /pprof/pmuprofile,
+                         $GROWTH_PAGE, $CONTENTION_PAGE, /pprof/wall,
+                         or /pprof/filteredprofile.
    For instance: "pprof http://myserver.com:80$HEAP_PAGE".
    If /<service> is omitted, the service defaults to $PROFILE_PAGE (cpu profiling).
 pprof --symbols <program>
@@ -2218,7 +2221,7 @@ sub IsProfileURL {
 sub ParseProfileURL {
   my $profile_name = shift;
   if (defined($profile_name) &&
-      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|\@\d+)(|/|.*($PROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|$FILTEREDPROFILE_PAGE))$,o) {
+      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|\@\d+)(|/|.*($PROFILE_PAGE|$PMUPROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|$FILTEREDPROFILE_PAGE))$,o) {
     # $6 is $PROFILE_PAGE/$HEAP_PAGE/etc.  $5 is *everything* after
     # the hostname, as long as that everything is the empty string,
     # a slash, or something ending in $PROFILE_PAGE/$HEAP_PAGE/etc.
@@ -2387,9 +2390,19 @@ sub FetchDynamicProfile {
 
     my $url;
     my $wget_timeout;
-    if ($path eq $PROFILE_PAGE) {
-      $url = sprintf("http://$host:$port$PROFILE_PAGE?seconds=%d",
-                     $main::opt_seconds);
+    if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)) {
+      if ($path =~ m/$PROFILE_PAGE/) {
+        $url = sprintf("http://$host:$port$PROFILE_PAGE?seconds=%d",
+            $main::opt_seconds);
+      } else {
+        if ($profile_name =~ m/[?]/) {
+          $profile_name .= "&"
+        } else {
+          $profile_name .= "?"
+        }
+        $url = sprintf("http://$profile_name" . "seconds=%d",
+            $main::opt_seconds);
+      }
       $wget_timeout = sprintf("--timeout=%d",
                               int($main::opt_seconds * 1.01 + 60));
     } else {
@@ -2415,8 +2428,8 @@ sub FetchDynamicProfile {
     }
 
     my $cmd = "$WGET $wget_timeout -q -O $tmp_profile '$url'";
-    if ($path eq $PROFILE_PAGE) {
-      print STDERR "Gathering CPU profile from $host:$port for $main::opt_seconds seconds to\n  ${real_profile}\n";
+    if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)){
+      print STDERR "Gathering CPU profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
         print STDERR "Be patient...\n";
       }
@@ -3181,7 +3194,7 @@ sub ParseTextSectionHeaderFromOtool {
       $sectname = $1;
     } elsif ($line =~ /segname (\w+)/) {
       $segname = $1;
-    } elsif (!($cmd eq "LC_SEGMENT" &&
+    } elsif (!(($cmd eq "LC_SEGMENT" || $cmd eq "LC_SEGMENT_64") &&
 	       $sectname eq "__text" &&
 	       $segname eq "__TEXT")) {
       next;
@@ -3243,7 +3256,7 @@ sub ParseLibraries {
     my $finish;
     my $offset;
     my $lib;
-    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.(so|dll|dylib)(\.\d+)*\w*)/i) {
+    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.(so|dll|dylib)((\.\d+)+\w*)?)$/i) {
       # Full line from /proc/self/maps.  Example:
       #   40000000-40015000 r-xp 00000000 03:01 12845071   /lib/ld-2.3.2.so
       $start = HexExtend($1);

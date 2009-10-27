@@ -33,6 +33,18 @@
 #ifndef TCMALLOC_SYMBOLIZE_H_
 #define TCMALLOC_SYMBOLIZE_H_
 
-extern "C" bool Symbolize(void *pc, char *out, int out_size);
+#include <map>
+
+using std::map;
+
+// An average size of memory allocated for a stack trace symbol.
+static const int kSymbolSize = 1024;
+
+// TODO(glider): it's better to make SymbolMap a class that encapsulates the
+// address operations and has the Symbolize() method.
+typedef map<uintptr_t, char*> SymbolMap;
+
+extern bool Symbolize(char *out, int out_size,
+                      SymbolMap *symbolization_table);
 
 #endif  // TCMALLOC_SYMBOLIZE_H_
