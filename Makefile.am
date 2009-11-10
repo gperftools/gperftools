@@ -37,8 +37,11 @@ else !GCC
 NO_EXCEPTIONS =
 endif !GCC
 
-# These are x86-specific, having to do with frame-pointers
-if X86_64
+# These are x86-specific, having to do with frame-pointers.  In
+# particular, some x86_64 systems do not insert frame pointers by
+# default (all i386 systems that I know of, do.  I don't know about
+# non-x86 chips).  We need to tell perftools what to do about that.
+if X86_64_AND_NO_FP_BY_DEFAULT
 if ENABLE_FRAME_POINTERS
 AM_CXXFLAGS += -fno-omit-frame-pointer
 else
@@ -46,7 +49,7 @@ else
   #                 before setting this.
 AM_CXXFLAGS += -DNO_FRAME_POINTER
 endif !ENABLE_FRAME_POINTERS
-endif X86_64
+endif X86_64_AND_NO_FP_BY_DEFAULT
 
 # For windows systems (at least, mingw), we need to tell all our
 # tests to link in libtcmalloc using -u.  This is because libtcmalloc
@@ -450,9 +453,11 @@ tcmalloc_minimal_large_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 # This tests it works to LD_PRELOAD libtcmalloc (tests maybe_threads.cc)
 # In theory this should work under mingw, but mingw has trouble running
 # shell scripts that end in .exe.  And it doesn't seem to build shared
-# libraries anyway (so can't be LD_PRELOADed).
+# libraries anyway (so can't be LD_PRELOADed) -- in fact, anybody who
+# chooses not to build shared libraries won't be able to run this test.
 # TODO(csilvers): figure out how to nix ".exe" or otherwise work under mingw
 if !MINGW
+if !ENABLE_STATIC
 TESTS += maybe_threads_unittest.sh$(EXEEXT)
 maybe_threads_unittest_sh_SOURCES = src/tests/maybe_threads_unittest.sh
 noinst_SCRIPTS += $(maybe_threads_unittest_sh_SOURCES)
@@ -463,6 +468,7 @@ maybe_threads_unittest.sh$(EXEEXT): $(top_srcdir)/$(maybe_threads_unittest_sh_SO
                            low_level_alloc_unittest
 	rm -f $@
 	cp -p $(top_srcdir)/$(maybe_threads_unittest_sh_SOURCES) $@
+endif !ENABLE_STATIC
 endif !MINGW
 
 # These all tests components of tcmalloc_minimal
@@ -545,6 +551,17 @@ memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 memalign_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 endif !MINGW
+
+TESTS += page_heap_test
+WINDOWS_PROJECTS += vsprojects/page_heap_test/page_heap_test.vcproj
+page_heap_test_SOURCES = src/tests/page_heap_test.cc \
+                         src/config_for_unittests.h \
+                         src/base/logging.h \
+                         src/common.h \
+                         src/page_heap.h
+page_heap_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+page_heap_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+page_heap_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 TESTS += pagemap_unittest
 WINDOWS_PROJECTS += vsprojects/pagemap_unittest/pagemap_unittest.vcproj

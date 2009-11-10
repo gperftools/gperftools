@@ -46,17 +46,8 @@
 #ifndef BASE_STACKTRACE_CONFIG_H_
 #define BASE_STACKTRACE_CONFIG_H_
 
-// First, the i386 case.
-#if defined(__i386__) && __GNUC__ >= 2
-# if !defined(NO_FRAME_POINTER)
-#   define STACKTRACE_INL_HEADER "stacktrace_x86-inl.h"
-#   define STACKTRACE_SKIP_CONTEXT_ROUTINES 1
-# else
-#   define STACKTRACE_INL_HEADER "stacktrace_generic-inl.h"
-# endif
-
-// Now, the x86_64 case.
-#elif defined(__x86_64__) && __GNUC__ >= 2
+// First, the i386 and x86_64 case.
+#if (defined(__i386__) || defined(__x86_64__)) && __GNUC__ >= 2
 # if !defined(NO_FRAME_POINTER)
 #   define STACKTRACE_INL_HEADER "stacktrace_x86-inl.h"
 #   define STACKTRACE_SKIP_CONTEXT_ROUTINES 1

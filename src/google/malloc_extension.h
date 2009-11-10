@@ -42,6 +42,13 @@
 #define BASE_MALLOC_EXTENSION_H_
 
 #include <stddef.h>
+// I can't #include config.h in this public API file, but I should
+// really use configure (and make malloc_extension.h a .in file) to
+// figure out if the system has stdint.h or not.  But I'm lazy, so
+// for now I'm assuming it's a problem only with MSVC.
+#ifndef _MSC_VER
+#include <stdint.h>
+#endif
 #include <string>
 
 // Annoying stuff for windows -- makes sure clients can import these functions
@@ -57,6 +64,10 @@ static const int kMallocHistogramSize = 64;
 
 // One day, we could support other types of writers (perhaps for C?)
 typedef std::string MallocExtensionWriter;
+
+namespace base {
+struct MallocRange;
+}
 
 // The default implementations of the following routines do nothing.
 // All implementations should be thread-safe; the current one
@@ -99,6 +110,14 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // be passed to "pprof".
   virtual void GetHeapGrowthStacks(MallocExtensionWriter* writer);
 
+  // Invokes func(arg, range) for every controlled memory
+  // range.  *range is filled in with information about the range.
+  //
+  // This is a best-effort interface useful only for performance
+  // analysis.  The implementation may not call func at all.
+  typedef void (RangeFunction)(void*, const base::MallocRange*);
+  virtual void Ranges(void* arg, RangeFunction func);
+
   // -------------------------------------------------------------------
   // Control operations for getting and setting malloc implementation
   // specific parameters.  Some currently useful properties:
@@ -127,12 +146,20 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   //      This property is not writable.
   //
   // "tcmalloc.slack_bytes"
-  //      Number of bytes allocated from system, but not currently
-  //      in use by malloced objects.  I.e., bytes available for
-  //      allocation without needing more bytes from system.
+  //      Number of bytes allocated from system, but not currently in
+  //      use by malloced objects.  I.e., bytes available for
+  //      allocation without needing more bytes from system.  It is
+  //      the sum of pageheap_free_bytes and pageheap_unmapped_bytes.
   //      This property is not writable.
   //
-  // TODO: Add more properties as necessary
+  // "tcmalloc.pageheap_free_bytes"
+  //      Number of bytes in free, mapped pages in pageheap
+  //      This property is not writable.
+  //
+  // "tcmalloc.pageheap_unmapped_bytes"
+  //      Number of bytes in free, unmapped pages in pageheap
+  //      This property is not writable.
+  //
   // -------------------------------------------------------------------
 
   // Get the named "property"'s value.  Returns true if the property
@@ -167,12 +194,14 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // Most malloc implementations ignore this routine.
   virtual void MarkThreadBusy();
 
-  // Try to free memory back to the operating system for reuse.  Only
-  // use this extension if the application has recently freed a lot of
-  // memory, and does not anticipate using it again for a long time --
-  // to get this memory back may require faulting pages back in by the
-  // OS, and that may be slow.  (Currently only implemented in
-  // tcmalloc.)
+  // Try to release num_bytes of free memory back to the operating
+  // system for reuse.  Use this extension with caution -- to get this
+  // memory back may require faulting pages back in by the OS, and
+  // that may be slow.  (Currently only implemented in tcmalloc.)
+  // A negative values for num_bytes results in a noop.
+  virtual void ReleaseToSystem(ssize_t num_bytes);
+
+  // Same as ReleaseToSystem() but release as much memory as possible.
   virtual void ReleaseFreeMemory();
 
   // Sets the rate at which we release unused memory to the system.
@@ -238,5 +267,30 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // in the address space size.
   virtual void** ReadHeapGrowthStackTraces();
 };
+
+namespace base {
+
+// Information passed per range.  More fields may be added later.
+struct MallocRange {
+  enum Type {
+    INUSE,                // Application is using this range
+    FREE,                 // Range is currently free
+    UNMAPPED,             // Backing physical memory has been returned to the OS
+    UNKNOWN,
+    // More enum values may be added in the future
+  };
+
+  uintptr_t address;    // Address of range
+  size_t length;        // Byte length of range
+  Type type;            // Type of this range
+  double fraction;      // Fraction of range that is being used (0 if !INUSE)
+
+  // Perhaps add the following:
+  // - stack trace if this range was sampled
+  // - heap growth stack trace if applicable to this range
+  // - age when allocated (for inuse) or freed (if not in use)
+};
+
+} // namespace base
 
 #endif  // BASE_MALLOC_EXTENSION_H_

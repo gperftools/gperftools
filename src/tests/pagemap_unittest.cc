@@ -113,6 +113,53 @@ void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
   }
 }
 
+// REQUIRES: BITS==10, i.e., valid range is [0,1023].
+// Representations for different types will end up being:
+//    PageMap1: array[1024]
+//    PageMap2: array[32][32]
+//    PageMap3: array[16][16][4]
+template <class Type>
+void TestNext(const char* name) {
+  RAW_LOG(ERROR, "Running NextTest %s\n", name);
+  Type map(malloc);
+  char a, b, c, d, e;
+
+  // When map is empty
+  CHECK(map.Next(0) == NULL);
+  CHECK(map.Next(5) == NULL);
+  CHECK(map.Next(1<<30) == NULL);
+
+  // Add a single value
+  map.Ensure(40, 1);
+  map.set(40, &a);
+  CHECK(map.Next(0) == &a);
+  CHECK(map.Next(39) == &a);
+  CHECK(map.Next(40) == &a);
+  CHECK(map.Next(41) == NULL);
+  CHECK(map.Next(1<<30) == NULL);
+
+  // Add a few values
+  map.Ensure(41, 1);
+  map.Ensure(100, 3);
+  map.set(41, &b);
+  map.set(100, &c);
+  map.set(101, &d);
+  map.set(102, &e);
+  CHECK(map.Next(0) == &a);
+  CHECK(map.Next(39) == &a);
+  CHECK(map.Next(40) == &a);
+  CHECK(map.Next(41) == &b);
+  CHECK(map.Next(42) == &c);
+  CHECK(map.Next(63) == &c);
+  CHECK(map.Next(64) == &c);
+  CHECK(map.Next(65) == &c);
+  CHECK(map.Next(99) == &c);
+  CHECK(map.Next(100) == &c);
+  CHECK(map.Next(101) == &d);
+  CHECK(map.Next(102) == &e);
+  CHECK(map.Next(103) == NULL);
+}
+
 int main(int argc, char** argv) {
   TestMap< TCMalloc_PageMap1<10> > (100, true);
   TestMap< TCMalloc_PageMap1<10> > (1 << 10, false);
@@ -120,6 +167,10 @@ int main(int argc, char** argv) {
   TestMap< TCMalloc_PageMap2<20> > (1 << 20, false);
   TestMap< TCMalloc_PageMap3<20> > (100, true);
   TestMap< TCMalloc_PageMap3<20> > (1 << 20, false);
+
+  TestNext< TCMalloc_PageMap1<10> >("PageMap1");
+  TestNext< TCMalloc_PageMap2<10> >("PageMap2");
+  TestNext< TCMalloc_PageMap3<10> >("PageMap3");
 
   printf("PASS\n");
   return 0;

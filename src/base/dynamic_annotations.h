@@ -203,9 +203,16 @@
     } while (0)
 
   // Instruct the tool to create a happens-before arc between mu->Unlock() and
-  // mu->Lock().  This annotation may slow down the race detector; normally it
-  // is used only when it would be difficult to annotate each of the mutex's
-  // critical sections individually using the annotations above.
+  // mu->Lock(). This annotation may slow down the race detector and hide real
+  // races. Normally it is used only when it would be difficult to annotate each
+  // of the mutex's critical sections individually using the annotations above.
+  // This annotation makes sense only for hybrid race detectors. For pure
+  // happens-before detectors this is a no-op. For more details see
+  // http://code.google.com/p/data-race-test/wiki/PureHappensBeforeVsHybrid .
+  #define ANNOTATE_PURE_HAPPENS_BEFORE_MUTEX(mu) \
+    AnnotateMutexIsUsedAsCondVar(__FILE__, __LINE__, mu)
+
+  // Deprecated. Use ANNOTATE_PURE_HAPPENS_BEFORE_MUTEX.
   #define ANNOTATE_MUTEX_IS_USED_AS_CONDVAR(mu) \
     AnnotateMutexIsUsedAsCondVar(__FILE__, __LINE__, mu)
 
@@ -357,6 +364,7 @@
   #define ANNOTATE_NEW_MEMORY(address, size) // empty
   #define ANNOTATE_EXPECT_RACE(address, description) // empty
   #define ANNOTATE_BENIGN_RACE(address, description) // empty
+  #define ANNOTATE_PURE_HAPPENS_BEFORE_MUTEX(mu) // empty
   #define ANNOTATE_MUTEX_IS_USED_AS_CONDVAR(mu) // empty
   #define ANNOTATE_TRACE_MEMORY(arg) // empty
   #define ANNOTATE_THREAD_NAME(name) // empty

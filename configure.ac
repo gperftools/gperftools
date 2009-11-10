@@ -181,9 +181,12 @@ AC_TRY_COMPILE([#include <stdint.h>],
 # bother if we're not doing cpu-profiling.
 # [*] means that we've not actually tested one of these systems
 if test "$enable_cpu_profiler" = yes; then
-  AC_PC_FROM_UCONTEXT(AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
+  AC_PC_FROM_UCONTEXT(AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...);
                       enable_cpu_profiler=no)
 fi
+
+# Some tests test the behavior of .so files, and only make sense for dynamic.
+AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 
 # We want to link in libunwind if it exists
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)
@@ -195,10 +198,24 @@ AC_ARG_ENABLE(frame_pointers,
               AS_HELP_STRING([--enable-frame-pointers],
                              [On x86_64 systems, compile with -fno-omit-frame-pointer (see INSTALL)]),
 	      , enable_frame_pointers=no)
+AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
+
+# Some x86_64 systems do not insert frame pointers by default (all
+# i386 systems that I know of, do.  I don't know about non-x86 chips).
+# We want to see if the current system is one of those.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __x86_64__ == 1 ? 0 : 1])],
                   [is_x86_64=yes], [is_x86_64=no])
-AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
-AM_CONDITIONAL(X86_64, test "$is_x86_64" = yes)
+OLD_CFLAGS="$CFLAGS"
+CFLAGS="$CFLAGS -S -O2 -o fp.s"
+# This test will always fail because we don't name our output file properly.
+# We do our own determination of success/failure in the grep, below.
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([int f(int x) {return x;}], [return f(0);])],
+                  [:], [:])
+AM_CONDITIONAL(X86_64_AND_NO_FP_BY_DEFAULT,
+               test "$is_x86_64" = yes && ! grep 'mov.*rsp.*rbp' fp.s >/dev/null 2>&1)
+rm fp.s
+CFLAGS="$OLD_CFLAGS"
+
 
 # Defines PRIuS
 AC_COMPILER_CHARACTERISTICS

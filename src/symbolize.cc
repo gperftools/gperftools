@@ -166,7 +166,7 @@ extern bool Symbolize(char *out, int out_size,
         return false;
       // make the symbolization_table values point to the output vector
       SymbolMap::iterator fill = symbolization_table->begin();
-      char *current_name = out;
+      const char *current_name = out;
       for (int i = 0; i < total_bytes_read; i++) {
         if (out[i] == '\n') {
           fill->second = current_name;

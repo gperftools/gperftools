@@ -143,8 +143,12 @@ void MallocExtension::MarkThreadBusy() {
   // Default implementation does nothing
 }
 
-void MallocExtension::ReleaseFreeMemory() {
+void MallocExtension::ReleaseToSystem(ssize_t num_bytes) {
   // Default implementation does nothing
+}
+
+void MallocExtension::ReleaseFreeMemory() {
+  ReleaseToSystem(LONG_MAX);
 }
 
 void MallocExtension::SetMemoryReleaseRate(double rate) {
@@ -300,6 +304,10 @@ void MallocExtension::GetHeapGrowthStacks(MallocExtensionWriter* writer) {
   DumpAddressMap(writer);
 }
 
+void MallocExtension::Ranges(void* arg, RangeFunction func) {
+  // No callbacks by default
+}
+
 // These are C shims that work on the current instance.
 
 #define C_SHIM(fn, retval, paramlist, arglist)          \
@@ -325,5 +333,6 @@ C_SHIM(SetNumericProperty, int,
 C_SHIM(MarkThreadIdle, void, (void), ());
 C_SHIM(MarkThreadBusy, void, (void), ());
 C_SHIM(ReleaseFreeMemory, void, (void), ());
+C_SHIM(ReleaseToSystem, void, (ssize_t num_bytes), (num_bytes));
 C_SHIM(GetEstimatedAllocatedSize, size_t, (size_t size), (size));
 C_SHIM(GetAllocatedSize, size_t, (void* p), (p));

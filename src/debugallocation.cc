@@ -674,7 +674,7 @@ class MallocBlock {
         uintptr_t pc =
             reinterpret_cast<uintptr_t>(queue_entry.deleter_pcs[i]) - 1;
         TracePrintf(STDERR_FILENO, "    @ %p %s\n",
-                    pc, symbolization_table[pc]);
+                    reinterpret_cast<void*>(pc), symbolization_table[pc]);
       }
     } else {
       RAW_LOG(ERROR,

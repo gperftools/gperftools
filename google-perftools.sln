@@ -46,6 +46,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "pagemap_unittest", "vsproje
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "page_heap_test", "vsprojects\page_heap_test\page_heap_test.vcproj", "{9765198D-5305-4AB0-9A21-A0CD8201EB2B}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
+	EndProjectSection
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "realloc_unittest", "vsprojects\realloc_unittest\realloc_unittest.vcproj", "{4765198D-5305-4AB0-9A21-A0CD8201EB2A}"
 	ProjectSection(ProjectDependencies) = postProject
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}

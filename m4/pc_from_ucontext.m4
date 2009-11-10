@@ -6,8 +6,13 @@
 # OpenBSD doesn't have ucontext.h, but we can get PC from ucontext_t
 # by using signal.h.
 
+# The first argument of AC_PC_FROM_UCONTEXT will be invoked when we
+# cannot find a way to obtain PC from ucontext.
+
 AC_DEFUN([AC_PC_FROM_UCONTEXT],
-  [AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
+  [AC_CHECK_HEADERS(ucontext.h)
+   AC_CHECK_HEADERS(sys/ucontext.h)       # ucontext on OS X 10.6 (at least)
+   AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
    pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32 + 64 bit)
    pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
    pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
@@ -28,13 +33,23 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_field_found=false
    for pc_field in $pc_fields; do
      if ! $pc_field_found; then
-       AC_TRY_COMPILE([#define _GNU_SOURCE 1
-                       #include <ucontext.h>],
-                      [ucontext_t u; return u.$pc_field == 0;],
-                      AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
-                                         How to access the PC from a struct ucontext)
-                      AC_MSG_RESULT([$pc_field])
-                      pc_field_found=true)
+       if test "x$ac_cv_header_sys_ucontext_h" = xyes; then
+         AC_TRY_COMPILE([#define _GNU_SOURCE 1
+                         #include <sys/ucontext.h>],
+                        [ucontext_t u; return u.$pc_field == 0;],
+                        AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                           How to access the PC from a struct ucontext)
+                        AC_MSG_RESULT([$pc_field])
+                        pc_field_found=true)
+       else
+         AC_TRY_COMPILE([#define _GNU_SOURCE 1
+                         #include <ucontext.h>],
+                        [ucontext_t u; return u.$pc_field == 0;],
+                        AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                           How to access the PC from a struct ucontext)
+                        AC_MSG_RESULT([$pc_field])
+                        pc_field_found=true)
+       fi
      fi
    done
    if ! $pc_field_found; then
@@ -52,5 +67,5 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
      done
    fi
    if ! $pc_field_found; then
-     AC_MSG_WARN(Could not find the PC.  Will not output failed addresses...)
+     [$1]
    fi])

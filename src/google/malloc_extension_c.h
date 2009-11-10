@@ -75,6 +75,7 @@ PERFTOOLS_DLL_DECL int MallocExtension_GetNumericProperty(const char* property, 
 PERFTOOLS_DLL_DECL int MallocExtension_SetNumericProperty(const char* property, size_t value);
 PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadIdle(void);
 PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy(void);
+PERFTOOLS_DLL_DECL void MallocExtension_ReleaseToSystem(ssize_t num_bytes);
 PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory(void);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(void* p);

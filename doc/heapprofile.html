@@ -108,10 +108,15 @@ environment variables.</p>
   <td><code>HEAP_PROFILE_MMAP</code></td>
   <td>default: false</td>
   <td>
-    Profile <code>mmap</code>, <code>mremap</code>, and <code>sbrk</code>
-    calls in addition to
-    <code>malloc</code>, <code>calloc</code>, <code>realloc</code>,
-    and <code>new</code>.
+    Profile <code>mmap</code>, <code>mremap</code> and <code>sbrk</code>
+    calls in addition
+    to <code>malloc</code>, <code>calloc</code>, <code>realloc</code>,
+    and <code>new</code>.  <b>NOTE:</b> this causes the profiler to
+    profile calls internal to tcmalloc, since tcmalloc and friends use
+    mmap and sbrk internally for allocations.  One partial solution is
+    to filter these allocations out when running <code>pprof</code>,
+    with something like
+    <code>pprof --ignore='DoAllocWithArena|SbrkSysAllocator::Alloc|MmapSysAllocator::Alloc</code>.
   </td>
 </tr>
 

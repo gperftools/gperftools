@@ -108,6 +108,7 @@ void TestMallocExtension(void) {
   }
   MallocExtension_MarkThreadIdle();
   MallocExtension_MarkThreadBusy();
+  MallocExtension_ReleaseToSystem(1);
   MallocExtension_ReleaseFreeMemory();
   if (MallocExtension_GetEstimatedAllocatedSize(10) < 10) {
     FAIL("GetEstimatedAllocatedSize returned a bad value (too small)");

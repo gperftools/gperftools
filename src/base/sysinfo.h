@@ -209,9 +209,13 @@ class ProcMapsIterator {
 #elif defined(__MACH__)
   int current_image_; // dll's are called "images" in macos parlance
   int current_load_cmd_;   // the segment of this dll we're examining
+#elif defined(__sun__)     // Solaris
+  int fd_;
+  char current_filename_[PATH_MAX];
 #else
   int fd_;            // filehandle on /proc/*/maps
 #endif
+  pid_t pid_;
   char flags_[10];
   Buffer* dynamic_buffer_;  // dynamically-allocated Buffer
   bool using_maps_backing_; // true if we are looking at maps_backing instead of maps.

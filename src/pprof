@@ -92,6 +92,7 @@ my $GV = "gv";
 my $PS2PDF = "ps2pdf";
 # These are used for dynamic profiles
 my $WGET = "wget";
+my $WGET_FLAGS = "--no-http-keep-alive";   # only supported by some wgets
 my $CURL = "curl";
 
 # These are the web pages that servers need to support for dynamic profiles
@@ -116,6 +117,11 @@ my $address_length = 16;
 
 # A list of paths to search for shared object files
 my @prefix_list = ();
+
+# Special routine name that should not have any symbols.
+# Used as separator to parse "addr2line -i" output.
+my $sep_symbol = '_fini';
+my $sep_address = undef;
 
 ##### Argument parsing #####
 
@@ -503,6 +509,20 @@ sub Init() {
   } elsif (!$main::use_symbolized_profile) {  # may not need objtools!
     ConfigureObjTools($main::prog)
   }
+
+  # Check what flags our commandline utilities support
+  if (open(TFILE, "$WGET $WGET_FLAGS -V 2>&1 |")) {
+    my @lines = <TFILE>;
+    if (grep(/unrecognized/, @lines) > 0) {
+      # grep found 'unrecognized' token from WGET, clear WGET flags
+      $WGET_FLAGS = "";
+    }
+    close(TFILE);
+  }
+  # TODO(csilvers): check all the other binaries and objtools to see
+  # if they are installed and what flags they support, and store that
+  # in a data structure here, rather than scattering these tests about.
+  # Then, ideally, rewrite code to use wget OR curl OR GET or ...
 
   # Break the opt_list_prefix into the prefix_list array
   @prefix_list = split (',', $main::opt_lib_prefix);
@@ -952,22 +972,31 @@ sub PrintSymbolizedProfile {
     print 'binary=', $prog, "\n";
   }
   while (my ($pc, $name) = each(%{$symbols})) {
-    my $fullname = $name->[2];
-    print '0x', $pc, ' ', $fullname, "\n";
+    my $sep = ' ';
+    print '0x', $pc;
+    # We have a list of function names, which include the inlined
+    # calls.  They are separated (and terminated) by --, which is
+    # illegal in function names.
+    for (my $j = 2; $j <= $#{$name}; $j += 3) {
+      print $sep, $name->[$j];
+      $sep = '--';
+    }
+    print "\n";
   }
   print '---', "\n";
 
+  $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $profile_marker = $&;
+  print '--- ', $profile_marker, "\n";
   if (defined($main::collected_profile)) {
     # if used with remote fetch, simply dump the collected profile to output.
     open(SRC, "<$main::collected_profile");
     while (<SRC>) {
       print $_;
     }
+    close(SRC);
   } else {
     # dump a cpu-format profile to standard out
-    $PROFILE_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
-    my $profile_marker = $&;
-    print '--- ', $profile_marker, "\n";
     PrintProfileData($profile);
   }
 }
@@ -1069,9 +1098,9 @@ sub PrintDisassembly {
 }
 
 # Return reference to array of tuples of the form:
-#       [address, filename, linenumber, instruction]
+#       [start_address, filename, linenumber, instruction, limit_address]
 # E.g.,
-#       ["0x806c43d", "/foo/bar.cc", 131, "ret"]
+#       ["0x806c43d", "/foo/bar.cc", 131, "ret", "0x806c440"]
 sub Disassemble {
   my $prog = shift;
   my $offset = shift;
@@ -1086,6 +1115,7 @@ sub Disassemble {
   my @result = ();
   my $filename = "";
   my $linenumber = -1;
+  my $last = ["", "", "", ""];
   while (<OBJDUMP>) {
     s/\r//g;         # turn windows-looking lines into unix-looking lines
     chop;
@@ -1098,7 +1128,9 @@ sub Disassemble {
       # Disassembly line -- zero-extend address to full length
       my $addr = HexExtend($1);
       my $k = AddressAdd($addr, $offset);
-      push(@result, [$k, $filename, $linenumber, $2]);
+      $last->[4] = $k;   # Store ending address for previous instruction
+      $last = [$k, $filename, $linenumber, $2, $end_addr];
+      push(@result, $last);
     }
   }
   close(OBJDUMP);
@@ -1274,8 +1306,13 @@ sub PrintSource {
   my $total1 = 0;       # Total flat counts
   my $total2 = 0;       # Total cumulative counts
   foreach my $e (@instructions) {
-    my $c1 = GetEntry($flat, $e->[0]);
-    my $c2 = GetEntry($cumulative, $e->[0]);
+    # Add up counts for all address that fall inside this instruction
+    my $c1 = 0;
+    my $c2 = 0;
+    for (my $a = $e->[0]; $a lt $e->[4]; $a = AddressInc($a)) {
+      $c1 += GetEntry($flat, $a);
+      $c2 += GetEntry($cumulative, $a);
+    }
     $running1 += $c1;
     $running2 += $c2;
     $total1 += $c1;
@@ -1386,8 +1423,13 @@ sub PrintDisassembledFunction {
   my $flat_total = 0;
   my $cum_total = 0;
   foreach my $e (@instructions) {
-    my $c1 = GetEntry($flat, $e->[0]);
-    my $c2 = GetEntry($cumulative, $e->[0]);
+    # Add up counts for all address that fall inside this instruction
+    my $c1 = 0;
+    my $c2 = 0;
+    for (my $a = $e->[0]; $a lt $e->[4]; $a = AddressInc($a)) {
+      $c1 += GetEntry($flat, $a);
+      $c2 += GetEntry($cumulative, $a);
+    }
     push(@flat_count, $c1);
     push(@cum_count, $c2);
     $flat_total += $c1;
@@ -1615,10 +1657,10 @@ sub PrintDot {
   foreach my $k (keys(%{$raw})) {
     # TODO: omit low %age edges
     $n = $raw->{$k};
-    my @addrs = split(/\n/, $k);
-    for (my $i = 1; $i <= $#addrs; $i++) {
-      my $src = OutputKey($symbols, $addrs[$i]);
-      my $dst = OutputKey($symbols, $addrs[$i-1]);
+    my @translated = TranslateStack($symbols, $k);
+    for (my $i = 1; $i <= $#translated; $i++) {
+      my $src = $translated[$i];
+      my $dst = $translated[$i-1];
       #next if ($src eq $dst);  # Avoid self-edges?
       if (exists($node{$src}) && exists($node{$dst})) {
         my $edge_label = "$src\001$dst";
@@ -1648,14 +1690,18 @@ sub PrintDot {
       if ($edgeweight > 100000) { $edgeweight = 100000; }
       $edgeweight = int($edgeweight);
 
+      my $style = sprintf("setlinewidth(%f)", $w);
+      if ($x[1] =~ m/\(inline\)/) {
+        $style .= ",dashed";
+      }
+
       # Use a slightly squashed function of the edge count as the weight
-      printf DOT ("N%s -> N%s [label=%s, weight=%d, " .
-                  "style=\"setlinewidth(%f)\"];\n",
+      printf DOT ("N%s -> N%s [label=%s, weight=%d, style=\"%s\"];\n",
                   $node{$x[0]},
                   $node{$x[1]},
                   Unparse($n),
                   $edgeweight,
-                  $w);
+                  $style);
     }
   }
 
@@ -1665,42 +1711,74 @@ sub PrintDot {
   return 1;
 }
 
-# Generate the key under which a given address should be counted
-# based on the user-specified output granularity.
-sub OutputKey {
+# Translate a stack of addresses into a stack of symbols
+sub TranslateStack {
   my $symbols = shift;
-  my $a = shift;
+  my $k = shift;
 
-  # Skip large addresses since they sometimes show up as fake entries on RH9
-  if (length($a) > 8) {
-    if ($a gt "7fffffffffffffff") { return ''; }
+  my @addrs = split(/\n/, $k);
+  my @result = ();
+  for (my $i = 0; $i <= $#addrs; $i++) {
+    my $a = $addrs[$i];
+
+    # Skip large addresses since they sometimes show up as fake entries on RH9
+    if (length($a) > 8 && $a gt "7fffffffffffffff") {
+      next;
+    }
+
+    if ($main::opt_disasm || $main::opt_list) {
+      # We want just the address for the key
+      push(@result, $a);
+      next;
+    }
+
+    my $symlist = $symbols->{$a};
+    if (!defined($symlist)) {
+      $symlist = [$a, "", $a];
+    }
+
+    # We can have a sequence of symbols for a particular entry
+    # (more than one symbol in the case of inlining).  Callers
+    # come before callees in symlist, so walk backwards since
+    # the translated stack should contain callees before callers.
+    for (my $j = $#{$symlist}; $j >= 2; $j -= 3) {
+      my $func = $symlist->[$j-2];
+      my $fileline = $symlist->[$j-1];
+      my $fullfunc = $symlist->[$j];
+      if ($j > 2) {
+        $func = "$func (inline)";
+      }
+      if ($main::opt_addresses) {
+        push(@result, "$a $func $fileline");
+      } elsif ($main::opt_lines) {
+        if ($func eq '??' && $fileline eq '??:0') {
+          push(@result, "$a");
+        } else {
+          push(@result, "$func $fileline");
+        }
+      } elsif ($main::opt_functions) {
+        if ($func eq '??') {
+          push(@result, "$a");
+        } else {
+          push(@result, $func);
+        }
+      } elsif ($main::opt_files) {
+        if ($fileline eq '??:0' || $fileline eq '') {
+          push(@result, "$a");
+        } else {
+          my $f = $fileline;
+          $f =~ s/:\d+$//;
+          push(@result, $f);
+        }
+      } else {
+        push(@result, $a);
+        last;  # Do not print inlined info
+      }
+    }
   }
 
-  # Extract symbolic info for address
-  my $func = $a;
-  my $fullfunc = $a;
-  my $fileline = "";
-  if (exists($symbols->{$a})) {
-    $func = $symbols->{$a}->[0];
-    $fullfunc = $symbols->{$a}->[2];
-    $fileline = $symbols->{$a}->[1];
-  }
-
-  if ($main::opt_disasm || $main::opt_list) {
-    return $a;   # We want just the address for the key
-  } elsif ($main::opt_addresses) {
-    return "$a $func $fileline";
-  } elsif ($main::opt_lines) {
-    return "$func $fileline";
-  } elsif ($main::opt_functions) {
-    return $func;
-  } elsif ($main::opt_files) {
-    my $f = ($fileline eq '') ? $a : $fileline;
-    $f =~ s/:\d+$//;
-    return $f;
-  } else {
-    return $a;
-  }
+  # print join(",", @addrs), " => ", join(",", @result), "\n";
+  return @result;
 }
 
 # Generate percent string for a number and a total
@@ -1978,23 +2056,36 @@ sub ReduceProfile {
   my $result = {};
   foreach my $k (keys(%{$profile})) {
     my $count = $profile->{$k};
-    my @addrs = split(/\n/, $k);
+    my @translated = TranslateStack($symbols, $k);
     my @path = ();
     my %seen = ();
     $seen{''} = 1;      # So that empty keys are skipped
-    foreach my $a (@addrs) {
+    foreach my $e (@translated) {
       # To avoid double-counting due to recursion, skip a stack-trace
       # entry if it has already been seen
-      my $key = OutputKey($symbols, $a);
-      if (!$seen{$key}) {
-	$seen{$key} = 1;
-	push(@path, $key);
+      if (!$seen{$e}) {
+	$seen{$e} = 1;
+	push(@path, $e);
       }
     }
     my $reduced_path = join("\n", @path);
     AddEntry($result, $reduced_path, $count);
   }
   return $result;
+}
+
+# Does the specified symbol array match the regexp?
+sub SymbolMatches {
+  my $sym = shift;
+  my $re = shift;
+  if (defined($sym)) {
+    for (my $i = 0; $i < $#{$sym}; $i += 3) {
+      if ($sym->[$i] =~ m/$re/ || $sym->[$i+1] =~ m/$re/) {
+        return 1;
+      }
+    }
+  }
+  return 0;
 }
 
 # Focus only on paths involving specified regexps
@@ -2008,10 +2099,7 @@ sub FocusProfile {
     my @addrs = split(/\n/, $k);
     foreach my $a (@addrs) {
       # Reply if it matches either the address/shortname/fileline
-      if (($a =~ m/$focus/) ||
-          (exists($symbols->{$a}) &&
-           (($symbols->{$a}->[0] =~ m/$focus/) ||
-            ($symbols->{$a}->[1] =~ m/$focus/)))) {
+      if (($a =~ m/$focus/) || SymbolMatches($symbols->{$a}, $focus)) {
         AddEntry($result, $k, $count);
         last;
       }
@@ -2032,10 +2120,7 @@ sub IgnoreProfile {
     my $matched = 0;
     foreach my $a (@addrs) {
       # Reply if it matches either the address/shortname/fileline
-      if (($a =~ m/$ignore/) ||
-          (exists($symbols->{$a}) &&
-           (($symbols->{$a}->[0] =~ m/$ignore/) ||
-            ($symbols->{$a}->[1] =~ m/$ignore/)))) {
+      if (($a =~ m/$ignore/) || SymbolMatches($symbols->{$a}, $ignore)) {
         $matched = 1;
         last;
       }
@@ -2195,7 +2280,7 @@ sub IsSymbolizedProfileFile {
 
 sub CheckSymbolPage {
   my $url = SymbolPageURL();
-  open(SYMBOL, "$WGET -qO- '$url' |");
+  open(SYMBOL, "$WGET $WGET_FLAGS -qO- '$url' |");
   my $line = <SYMBOL>;
   $line =~ s/\r//g;         # turn windows-looking lines into unix-looking lines
   close(SYMBOL);
@@ -2240,7 +2325,7 @@ sub SymbolPageURL {
 sub FetchProgramName() {
   my ($host, $port, $path) = ParseProfileURL($main::pfile_args[0]);
   my $url = "http://$host:$port$PROGRAM_NAME_PAGE";
-  my $command_line = "$WGET -qO- '$url'";
+  my $command_line = "$WGET $WGET_FLAGS -qO- '$url'";
   open(CMDLINE, "$command_line |") or error($command_line);
   my $cmdline = <CMDLINE>;
   $cmdline =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
@@ -2346,13 +2431,21 @@ sub FetchSymbols {
     # /symbol, the symbols match and are retrievable from the map.
     my $shortpc = $pc;
     $shortpc =~ s/^0*//;
+    # Each line may have a list of names, which includes the function
+    # and also other functions it has inlined.  They are separated
+    # (in PrintSymbolizedFile), by --, which is illegal in function names.
+    my $fullnames;
     if (defined($symbol_map->{$shortpc})) {
-      $fullname = $symbol_map->{$shortpc};
+      $fullnames = $symbol_map->{$shortpc};
     } else {
-      $fullname = "0x" . $pc;  # Just use addresses
+      $fullnames = "0x" . $pc;  # Just use addresses
     }
-    my $name = ShortFunctionName($fullname);
-    $symbols->{$pc} = [$name, "?", $fullname];
+    my $sym = [];
+    $symbols->{$pc} = $sym;
+    foreach my $fullname (split("--", $fullnames)) {
+      my $name = ShortFunctionName($fullname);
+      push(@{$sym}, $name, "?", $fullname);
+    }
   }
   return $symbols;
 }
@@ -2427,7 +2520,7 @@ sub FetchDynamicProfile {
       return $real_profile;
     }
 
-    my $cmd = "$WGET $wget_timeout -q -O $tmp_profile '$url'";
+    my $cmd = "$WGET $WGET_FLAGS $wget_timeout -q -O $tmp_profile '$url'";
     if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)){
       print STDERR "Gathering CPU profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
@@ -2752,12 +2845,26 @@ sub ReadCPUProfile {
 
       # Make key out of the stack entries
       my @k = ();
-      for (my $j = $d; $j--; ) {
+      for (my $j = 0; $j < $d; $j++) {
         my $pclo = $slots->get($i++);
         my $pchi = $slots->get($i++);
         if ($pclo == -1 || $pchi == -1) {
           error("$fname: Unexpected EOF when reading stack of depth $d\n");
         }
+
+	# Subtract one from caller pc so we map back to call instr.
+        # However, don't do this if we're reading a symbolized profile
+        # file, in which case the subtract-one was done when the file
+        # was written.
+        if ($j > 0 && !$main::use_symbolized_profile) {
+          if ($pclo == 0) {
+            $pchi--;
+            $pclo = 0xffffffff;
+          } else {
+            $pclo--;
+          }
+        }
+
         my $pc = sprintf("%08x%08x", $pchi, $pclo);
         $pcs->{$pc} = 1;
         push @k, $pc;
@@ -3516,87 +3623,111 @@ sub MapToSymbols {
   my $pclist = shift;
   my $symbols = shift;
 
+  my $debug = 0;
+
   # Ignore empty binaries
   if ($#{$pclist} < 0) { return; }
 
-  my $got_symbols = MapSymbolsWithNM($image, $offset, $pclist, $symbols);
-  if ($main::opt_interactive ||
-      $main::opt_addresses   ||
-      $main::opt_lines       ||
-      $main::opt_files       ||
-      $main::opt_list        ||
-      $main::opt_callgrind   ||
-      !$got_symbols) {
-    GetLineNumbers($image, $offset, $pclist, $symbols);
+  # Figure out the addr2line command to use
+  my $addr2line = $obj_tool_map{"addr2line"};
+  my $cmd = "$addr2line -f -C -e $image";
+  if (exists $obj_tool_map{"addr2line_pdb"}) {
+    $addr2line = $obj_tool_map{"addr2line_pdb"};
+    $cmd = "$addr2line --demangle -f -C -e $image";
   }
-}
 
-# The file $tmpfile_sym must already have been created before calling this.
-sub GetLineNumbersViaAddr2Line {
-  my $addr2line_command = shift;
-  my $pclist = shift;
-  my $symbols = shift;
+  # If "addr2line" isn't installed on the system at all, just use
+  # nm to get what info we can (function names, but not line numbers).
+  if (system("$addr2line --help >/dev/null 2>&1") != 0) {
+    MapSymbolsWithNM($image, $offset, $pclist, $symbols);
+    return;
+  }
 
-  open(SYMBOLS, "$addr2line_command <$main::tmpfile_sym |")
-    || error("$addr2line_command: $!\n");
-  my $count = 0;
+  # "addr2line -i" can produce a variable number of lines per input
+  # address, with no separator that allows us to tell when data for
+  # the next address starts.  So we find the address for a special
+  # symbol (_fini) and interleave this address between all real
+  # addresses passed to addr2line.  The name of this special symbol
+  # can then be used as a separator.
+  $sep_address = undef;  # May be filled in by MapSymbolsWithNM()
+  my $nm_symbols = {};
+  MapSymbolsWithNM($image, $offset, $pclist, $nm_symbols);
+  # TODO(csilvers): only add '-i' if addr2line supports it.
+  if (defined($sep_address)) {
+    # Only add " -i" to addr2line if the binary supports it.
+    # addr2line --help returns 0, but not if it sees an unknown flag first.
+    if (system("$cmd -i --help >/dev/null 2>&1") == 0) {
+      $cmd .= " -i";
+    } else {
+      $sep_address = undef;   # no need for sep_address if we don't support -i
+    }
+  }
+
+  # Make file with all PC values with intervening 'sep_address' so
+  # that we can reliably detect the end of inlined function list
+  open(ADDRESSES, ">$main::tmpfile_sym") || error("$main::tmpfile_sym: $!\n");
+  if ($debug) { print("---- $image ---\n"); }
+  for (my $i = 0; $i <= $#{$pclist}; $i++) {
+    # addr2line always reads hex addresses, and does not need '0x' prefix.
+    if ($debug) { printf("%s\n", $pclist->[$i]); }
+    printf ADDRESSES ("%s\n", AddressSub($pclist->[$i], $offset));
+    if (defined($sep_address)) {
+      printf ADDRESSES ("%s\n", $sep_address);
+    }
+  }
+  close(ADDRESSES);
+  if ($debug) {
+    print("----\n");
+    system("cat $main::tmpfile_sym");
+    print("----\n");
+    system("$cmd <$main::tmpfile_sym");
+    print("----\n");
+  }
+
+  open(SYMBOLS, "$cmd <$main::tmpfile_sym |") || error("$cmd: $!\n");
+  my $count = 0;   # Index in pclist
   while (<SYMBOLS>) {
+    # Read fullfunction and filelineinfo from next pair of lines
     s/\r?\n$//g;
     my $fullfunction = $_;
-
     $_ = <SYMBOLS>;
     s/\r?\n$//g;
     my $filelinenum = $_;
-    $filelinenum =~ s|\\|/|g;   # turn windows-style paths into unix-style paths
-    if (!$main::opt_list) {
-      $filelinenum =~ s|^.*/([^/]+:\d+)$|$1|;    # Remove directory name
+
+    if (defined($sep_address) && $fullfunction eq $sep_symbol) {
+      # Terminating marker for data for this address
+      $count++;
+      next;
     }
+
+    $filelinenum =~ s|\\|/|g; # turn windows-style paths into unix-style paths
 
     my $pcstr = $pclist->[$count];
-    if (defined($symbols->{$pcstr})) {
-      # Override just the line-number portion.  The function name portion
-      # is less buggy when computed using nm instead of addr2line.  But
-      # don't override if addr2line is giving ??'s and nm didn't.  (This
-      # may be seen mostly/entirely on cygwin's addr2line/nm.)
-      if (($filelinenum ne "??:0") || ($symbols->{$pcstr}->[1] eq "?")) {
-        $symbols->{$pcstr}->[1] = $filelinenum;
+    my $function = ShortFunctionName($fullfunction);
+    if ($fullfunction eq '??') {
+      # See if nm found a symbol
+      my $nms = $nm_symbols->{$pcstr};
+      if (defined($nms)) {
+        $function = $nms->[0];
+        $fullfunction = $nms->[2];
       }
-    } else {
-      my $function = ShortFunctionName($fullfunction);
-      $symbols->{$pcstr} = [$function, $filelinenum, $fullfunction];
     }
-    $count++;
+
+    # Prepend to accumulated symbols for pcstr
+    # (so that caller comes before callee)
+    my $sym = $symbols->{$pcstr};
+    if (!defined($sym)) {
+      $sym = [];
+      $symbols->{$pcstr} = $sym;
+    }
+    unshift(@{$sym}, $function, $filelinenum, $fullfunction);
+    if ($debug) { printf("%s => [%s]\n", $pcstr, join(" ", @{$sym})); }
+    if (!defined($sep_address)) {
+      # Inlining is off, se this entry ends immediately
+      $count++;
+    }
   }
   close(SYMBOLS);
-  return $count;
-}
-
-sub GetLineNumbers {
-  my $image = shift;
-  my $offset = shift;
-  my $pclist = shift;
-  my $symbols = shift;
-
-  # Make file with all PC values
-  open(ADDRESSES, ">$main::tmpfile_sym") || error("$main::tmpfile_sym: $!\n");
-  for (my $i = 0; $i <= $#{$pclist}; $i++) {
-    # addr2line always reads hex addresses, and does not need '0x' prefix.
-    printf ADDRESSES ("%s\n", AddressSub($pclist->[$i], $offset));
-  }
-  close(ADDRESSES);
-
-  # Pass to addr2line
-  my $addr2line = $obj_tool_map{"addr2line"};
-  my @addr2line_commands = ("$addr2line -f -C -e $image");
-  if (exists $obj_tool_map{"addr2line_pdb"}) {
-    my $addr2line_pdb = $obj_tool_map{"addr2line_pdb"};
-    push(@addr2line_commands, "$addr2line_pdb --demangle -f -C -e $image");
-  }
-  foreach my $addr2line_command (@addr2line_commands) {
-    if (GetLineNumbersViaAddr2Line("$addr2line_command", $pclist, $symbols)) {
-      last;
-    }
-  }
 }
 
 # Use nm to map the list of referenced PCs to symbols.  Return true iff we
@@ -3646,7 +3777,7 @@ sub MapSymbolsWithNM {
   }
   return 1;
 }
-
+ 
 sub ShortFunctionName {
   my $function = shift;
   while ($function =~ s/\([^()]*\)(\s*const)?//g) { }   # Argument types
@@ -3811,6 +3942,10 @@ sub GetProcedureBoundariesViaNm {
       } elsif ($start_val eq $last_start) {
 	# We're not the 'T' symbol at this address, so ignore us.
 	next;
+      }
+
+      if ($this_routine eq $sep_symbol) {
+        $sep_address = HexExtend($start_val);
       }
 
       # Tag this routine with the starting address in case the image

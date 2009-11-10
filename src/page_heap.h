@@ -34,6 +34,7 @@
 #define TCMALLOC_PAGE_HEAP_H_
 
 #include <config.h>
+#include <google/malloc_extension.h>
 #include "common.h"
 #include "packed-cache-inl.h"
 #include "pagemap.h"
@@ -119,13 +120,18 @@ class PageHeap {
   // Dump state to stderr
   void Dump(TCMalloc_Printer* out);
 
-  // Return number of bytes allocated from system
-  inline uint64_t SystemBytes() const { return system_bytes_; }
+  // If this page heap is managing a range with starting page # >= start,
+  // store info about the range in *r and return true.  Else return false.
+  bool GetNextRange(PageID start, base::MallocRange* r);
 
-  // Return number of free bytes in heap
-  uint64_t FreeBytes() const {
-    return (static_cast<uint64_t>(free_pages_) << kPageShift);
-  }
+  // Page heap statistics
+  struct Stats {
+    Stats() : system_bytes(0), free_bytes(0), unmapped_bytes(0) {}
+    uint64_t system_bytes;    // Total bytes allocated from system
+    uint64_t free_bytes;      // Total bytes on normal freelists
+    uint64_t unmapped_bytes;  // Total bytes on returned freelists
+  };
+  inline Stats stats() const { return stats_; }
 
   bool Check();
   // Like Check() but does some more comprehensive checking.
@@ -133,8 +139,13 @@ class PageHeap {
   bool CheckList(Span* list, Length min_pages, Length max_pages,
                  int freelist);  // ON_NORMAL_FREELIST or ON_RETURNED_FREELIST
 
-  // Release all free pages in this heap for reuse by the OS:
-  void ReleaseFreePages();
+  // Try to release at least num_pages for reuse by the OS.  Returns
+  // the actual number of pages released, which may be less than
+  // num_pages if there weren't enough pages to release. The result
+  // may also be larger than num_pages since page_heap might decide to
+  // release one large range instead of fragmenting it into two
+  // smaller released and unreleased ranges.
+  Length ReleaseAtLeastNPages(Length num_pages);
 
   // Return 0 if we have no information, or else the correct sizeclass for p.
   // Reads and writes to pagemap_cache_ do not require locking.
@@ -163,6 +174,15 @@ class PageHeap {
   // REQUIRED: kMaxPages >= kMinSystemAlloc;
   static const size_t kMaxPages = kMinSystemAlloc;
 
+  // Never delay scavenging for more than the following number of
+  // deallocated pages.  With 4K pages, this comes to 4GB of
+  // deallocation.
+  static const int kMaxReleaseDelay = 1 << 20;
+
+  // If there is nothing to release, wait for so many pages before
+  // scavenging again.  With 4K pages, this comes to 1GB of memory.
+  static const int kDefaultReleaseDelay = 1 << 18;
+
   // Pick the appropriate map and cache types based on pointer size
   typedef MapSelector<8*sizeof(uintptr_t)>::Type PageMap;
   typedef MapSelector<8*sizeof(uintptr_t)>::CacheType PageMapCache;
@@ -183,11 +203,8 @@ class PageHeap {
   // Array mapping from span length to a doubly linked list of free spans
   SpanList free_[kMaxPages];
 
-  // Number of pages kept in free lists
-  uintptr_t free_pages_;
-
-  // Bytes allocated from system
-  uint64_t system_bytes_;
+  // Statistics on system, free, and unmapped bytes
+  Stats stats_;
 
   bool GrowHeap(Length n);
 
@@ -211,23 +228,30 @@ class PageHeap {
   // span of exactly the specified length.  Else, returns NULL.
   Span* AllocLarge(Length n);
 
-  // Coalesce span with neighboring spans if possible.  Add the
-  // resulting span to the appropriate free list.
-  void AddToFreeList(Span* span);
+  // Coalesce span with neighboring spans if possible, prepend to
+  // appropriate free list, and adjust stats.
+  void MergeIntoFreeList(Span* span);
+
+  // Prepends span to appropriate free list, and adjusts stats.
+  void PrependToFreeList(Span* span);
+
+  // Removes span from its free list, and adjust stats.
+  void RemoveFromFreeList(Span* span);
 
   // Incrementally release some memory to the system.
   // IncrementalScavenge(n) is called whenever n pages are freed.
   void IncrementalScavenge(Length n);
 
-  // Release all pages in the specified free list for reuse by the OS
-  // REQURES: list must be a "normal" list (i.e., not "returned")
-  void ReleaseFreeList(Span* list);
+  // Release the last span on the normal portion of this list.
+  // Return the length of that span.
+  Length ReleaseLastNormalSpan(SpanList* slist);
+
 
   // Number of pages to deallocate before doing more scavenging
   int64_t scavenge_counter_;
 
-  // Index of last free list we scavenged
-  int scavenge_index_;
+  // Index of last free list where we released memory to the OS.
+  int release_index_;
 };
 
 }  // namespace tcmalloc

@@ -33,6 +33,10 @@
 #ifndef TCMALLOC_SYMBOLIZE_H_
 #define TCMALLOC_SYMBOLIZE_H_
 
+#include "config.h"
+#ifdef HAVE_STDINT_H
+#include <stdint.h>    // for uintptr_t
+#endif
 #include <map>
 
 using std::map;
@@ -42,7 +46,7 @@ static const int kSymbolSize = 1024;
 
 // TODO(glider): it's better to make SymbolMap a class that encapsulates the
 // address operations and has the Symbolize() method.
-typedef map<uintptr_t, char*> SymbolMap;
+typedef map<uintptr_t, const char*> SymbolMap;
 
 extern bool Symbolize(char *out, int out_size,
                       SymbolMap *symbolization_table);

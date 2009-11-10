@@ -51,10 +51,12 @@
 #ifndef BASE_HEAP_CHECKER_H_
 #define BASE_HEAP_CHECKER_H_
 
-#include "config.h"
-
 #include <sys/types.h>  // for size_t
-#ifdef HAVE_STDINT_H
+// I can't #include config.h in this public API file, but I should
+// really use configure (and make malloc_extension.h a .in file) to
+// figure out if the system has stdint.h or not.  But I'm lazy, so
+// for now I'm assuming it's a problem only with MSVC.
+#ifndef _MSC_VER
 #include <stdint.h>     // for uintptr_t
 #endif
 #include <stdarg.h>     // for va_list
