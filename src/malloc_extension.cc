@@ -143,12 +143,12 @@ void MallocExtension::MarkThreadBusy() {
   // Default implementation does nothing
 }
 
-void MallocExtension::ReleaseToSystem(ssize_t num_bytes) {
+void MallocExtension::ReleaseToSystem(size_t num_bytes) {
   // Default implementation does nothing
 }
 
 void MallocExtension::ReleaseFreeMemory() {
-  ReleaseToSystem(LONG_MAX);
+  ReleaseToSystem(static_cast<size_t>(-1));   // SIZE_T_MAX
 }
 
 void MallocExtension::SetMemoryReleaseRate(double rate) {
@@ -333,6 +333,6 @@ C_SHIM(SetNumericProperty, int,
 C_SHIM(MarkThreadIdle, void, (void), ());
 C_SHIM(MarkThreadBusy, void, (void), ());
 C_SHIM(ReleaseFreeMemory, void, (void), ());
-C_SHIM(ReleaseToSystem, void, (ssize_t num_bytes), (num_bytes));
+C_SHIM(ReleaseToSystem, void, (size_t num_bytes), (num_bytes));
 C_SHIM(GetEstimatedAllocatedSize, size_t, (size_t size), (size));
 C_SHIM(GetAllocatedSize, size_t, (void* p), (p));

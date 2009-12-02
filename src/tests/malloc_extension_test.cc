@@ -43,32 +43,32 @@ int main(int argc, char** argv) {
   void* a = malloc(1000);
 
   size_t cxx_bytes_used, c_bytes_used;
-  CHECK(MallocExtension::instance()->GetNumericProperty(
-            "generic.current_allocated_bytes", &cxx_bytes_used));
-  CHECK(MallocExtension_GetNumericProperty(
-            "generic.current_allocated_bytes", &c_bytes_used));
-  CHECK_GT(cxx_bytes_used, 1000);
-  CHECK_EQ(cxx_bytes_used, c_bytes_used);
+  ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty(
+      "generic.current_allocated_bytes", &cxx_bytes_used));
+  ASSERT_TRUE(MallocExtension_GetNumericProperty(
+      "generic.current_allocated_bytes", &c_bytes_used));
+  ASSERT_GT(cxx_bytes_used, 1000);
+  ASSERT_EQ(cxx_bytes_used, c_bytes_used);
 
-  CHECK(MallocExtension::instance()->VerifyAllMemory());
-  CHECK(MallocExtension_VerifyAllMemory());
+  ASSERT_TRUE(MallocExtension::instance()->VerifyAllMemory());
+  ASSERT_TRUE(MallocExtension_VerifyAllMemory());
 
-  CHECK_GE(MallocExtension::instance()->GetAllocatedSize(a), 1000);
+  ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(a), 1000);
   // This is just a sanity check.  If we allocated too much, tcmalloc is broken
-  CHECK_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
-  CHECK_GE(MallocExtension::instance()->GetEstimatedAllocatedSize(1000), 1000);
+  ASSERT_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
+  ASSERT_GE(MallocExtension::instance()->GetEstimatedAllocatedSize(1000), 1000);
 
   for (int i = 0; i < 10; ++i) {
     void *p = malloc(i);
-    CHECK_GE(MallocExtension::instance()->GetAllocatedSize(p),
+    ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(p),
              MallocExtension::instance()->GetEstimatedAllocatedSize(i));
     free(p);
   }
 
   // Check the c-shim version too.
-  CHECK_GE(MallocExtension_GetAllocatedSize(a), 1000);
-  CHECK_LE(MallocExtension_GetAllocatedSize(a), 5000);
-  CHECK_GE(MallocExtension_GetEstimatedAllocatedSize(1000), 1000);
+  ASSERT_GE(MallocExtension_GetAllocatedSize(a), 1000);
+  ASSERT_LE(MallocExtension_GetAllocatedSize(a), 5000);
+  ASSERT_GE(MallocExtension_GetEstimatedAllocatedSize(1000), 1000);
 
   free(a);
 

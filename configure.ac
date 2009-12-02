@@ -236,6 +236,15 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM(, [void *sp = __builtin_stack_pointer()])],
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
 
+# Check if __environ is available (for GetenvBeforeMain)
+AC_MSG_CHECKING([for __environ])
+AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],
+                                [char **env = __environ])],
+               [AC_DEFINE(HAVE___ENVIRON, 1,
+                          [Define to 1 if compiler supports __environ])
+                AC_MSG_RESULT([yes])],
+               [AC_MSG_RESULT([no])])
+
 # If we support __thread, that can speed up tcmalloc a bit.
 # Note, however, that our code tickles a bug in gcc < 4.1.2
 # involving TLS and -fPIC (which our libraries will use) on x86:

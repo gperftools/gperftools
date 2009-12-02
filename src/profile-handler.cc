@@ -89,18 +89,18 @@ class ProfileHandler {
   // Registers a callback routine to receive profile timer ticks. The returned
   // token is to be used when unregistering this callback and must not be
   // deleted by the caller. Registration of the first callback enables the
-  // SIGPROF handler.
+  // SIGPROF handler (or SIGALRM if using ITIMER_REAL).
   ProfileHandlerToken* RegisterCallback(ProfileHandlerCallback callback,
                                         void* callback_arg);
 
   // Unregisters a previously registered callback. Expects the token returned
   // by the corresponding RegisterCallback routine. Unregistering the last
-  // callback disables the SIGPROF handler.
+  // callback disables the SIGPROF handler (or SIGALRM if using ITIMER_REAL).
   void UnregisterCallback(ProfileHandlerToken* token)
       NO_THREAD_SAFETY_ANALYSIS;
 
   // Unregisters all the callbacks, stops the timer if shared, disables the
-  // SIGPROF handler and clears the timer_sharing_ state.
+  // SIGPROF (or SIGALRM) handler and clears the timer_sharing_ state.
   void Reset();
 
   // Gets the current state of profile handler.
@@ -127,11 +127,14 @@ class ProfileHandler {
   // Initializes the ProfileHandler singleton via GoogleOnceInit.
   static void Init();
 
-  // Counts the number of SIGPROF interrupts received.
+  // The number of SIGPROF (or SIGALRM for ITIMER_REAL) interrupts received.
   int64 interrupts_ GUARDED_BY(signal_lock_);
 
-  // SIGPROF interrupt frequency, read-only after construction.
+  // SIGPROF/SIGALRM interrupt frequency, read-only after construction.
   int32 frequency_;
+
+  // ITIMER_PROF (which uses SIGPROF), or ITIMER_REAL (which uses SIGALRM)
+  int timer_type_;
 
   // Counts the number of callbacks registered.
   int32 callback_count_ GUARDED_BY(control_lock_);
@@ -196,7 +199,7 @@ class ProfileHandler {
   // Disables (ignores) the timer interrupt signal.
   void DisableHandler() EXCLUSIVE_LOCKS_REQUIRED(control_lock_);
 
-  // SIGPROF handler. Iterate over and call all the registered callbacks.
+  // SIGPROF/SIGALRM handler. Iterate over and call all the registered callbacks.
   static void SignalHandler(int sig, siginfo_t* sinfo, void* ucontext);
 
   DISALLOW_EVIL_CONSTRUCTORS(ProfileHandler);
@@ -241,6 +244,9 @@ ProfileHandler::ProfileHandler()
       callback_count_(0),
       timer_sharing_(TIMERS_UNTOUCHED) {
   SpinLockHolder cl(&control_lock_);
+
+  timer_type_ = (getenv("CPUPROFILE_REALTIME") ? ITIMER_REAL : ITIMER_PROF);
+
   // Get frequency of interrupts (if specified)
   char junk;
   const char* fr = getenv("CPUPROFILE_FREQUENCY");
@@ -390,18 +396,18 @@ void ProfileHandler::StartTimer() {
   timer.it_interval.tv_sec = 0;
   timer.it_interval.tv_usec = 1000000 / frequency_;
   timer.it_value = timer.it_interval;
-  setitimer(ITIMER_PROF, &timer, 0);
+  setitimer(timer_type_, &timer, 0);
 }
 
 void ProfileHandler::StopTimer() {
   struct itimerval timer;
   memset(&timer, 0, sizeof timer);
-  setitimer(ITIMER_PROF, &timer, 0);
+  setitimer(timer_type_, &timer, 0);
 }
 
 bool ProfileHandler::IsTimerRunning() {
   struct itimerval current_timer;
-  RAW_CHECK(0 == getitimer(ITIMER_PROF, &current_timer), "getitimer");
+  RAW_CHECK(0 == getitimer(timer_type_, &current_timer), "getitimer");
   return (current_timer.it_value.tv_sec != 0 ||
           current_timer.it_value.tv_usec != 0);
 }
@@ -411,7 +417,8 @@ void ProfileHandler::EnableHandler() {
   sa.sa_sigaction = SignalHandler;
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
-  RAW_CHECK(sigaction(SIGPROF, &sa, NULL) == 0, "sigprof (enable)");
+  const int signal_number = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
+  RAW_CHECK(sigaction(signal_number, &sa, NULL) == 0, "sigprof (enable)");
 }
 
 void ProfileHandler::DisableHandler() {
@@ -419,7 +426,8 @@ void ProfileHandler::DisableHandler() {
   sa.sa_handler = SIG_IGN;
   sa.sa_flags = SA_RESTART;
   sigemptyset(&sa.sa_mask);
-  RAW_CHECK(sigaction(SIGPROF, &sa, NULL) == 0, "sigprof (disable)");
+  const int signal_number = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
+  RAW_CHECK(sigaction(signal_number, &sa, NULL) == 0, "sigprof (disable)");
 }
 
 void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {

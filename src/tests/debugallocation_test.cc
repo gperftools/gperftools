@@ -102,6 +102,28 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   }
 }
 
+TEST(DebugAllocationTest, DoubleFree) {
+  int* pint = new int;
+  delete pint;
+  IF_DEBUG_EXPECT_DEATH(delete pint, "has been already deallocated");
+}
+
+TEST(DebugAllocationTest, StompBefore) {
+  int* pint = new int;
+#ifndef NDEBUG   // don't stomp memory if we're not in a position to detect it
+  pint[-1] = 5;
+  IF_DEBUG_EXPECT_DEATH(delete pint, "a word before object");
+#endif
+}
+
+TEST(DebugAllocationTest, StompAfter) {
+  int* pint = new int;
+#ifndef NDEBUG   // don't stomp memory if we're not in a position to detect it
+  pint[1] = 5;
+  IF_DEBUG_EXPECT_DEATH(delete pint, "a word after object");
+#endif
+}
+
 TEST(DebugAllocationTest, FreeQueueTest) {
   // Verify that the allocator doesn't return blocks that were recently freed.
   int* x = new int;
@@ -203,6 +225,31 @@ TEST(DebugAllocationTest, GetAllocatedSizeTest) {
   EXPECT_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
   EXPECT_GE(MallocExtension::instance()->GetEstimatedAllocatedSize(1000), 1000);
   free(a);
+}
+
+TEST(DebugAllocationTest, HugeAlloc) {
+  const size_t kTooBig = ~static_cast<size_t>(0);
+  void* a = NULL;
+  char* b = NULL;
+
+#ifndef NDEBUG
+
+  a = malloc(kTooBig);
+  EXPECT_EQ(NULL, a);
+  b = NULL;
+  IF_DEBUG_EXPECT_DEATH(b = new char[kTooBig],
+                        "Unable to allocate.*new\\[\\] failed\\.");
+  EXPECT_EQ(NULL, b);
+
+  // kAlsoTooBig is small enough not to get caught by debugallocation's check,
+  // but will still fall through to tcmalloc's check.
+  const size_t kAlsoTooBig = kTooBig - 1024;
+
+  a = malloc(kAlsoTooBig);
+  EXPECT_EQ(NULL, a);
+  IF_DEBUG_EXPECT_DEATH(b = new char[kAlsoTooBig], "Unable to allocate.*new failed");
+  EXPECT_EQ(NULL, b);
+#endif
 }
 
 int main(int argc, char** argv) {

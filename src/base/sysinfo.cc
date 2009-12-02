@@ -100,11 +100,33 @@
 //    Some non-trivial getenv-related functions.
 // ----------------------------------------------------------------------
 
+// It's not safe to call getenv() in the malloc hooks, because they
+// might be called extremely early, before libc is done setting up
+// correctly.  In particular, the thread library may not be done
+// setting up errno.  So instead, we use the built-in __environ array
+// if it exists, and otherwise read /proc/self/environ directly, using
+// system calls to read the file, and thus avoid setting errno.
+// /proc/self/environ has a limit of how much data it exports (around
+// 8K), so it's not an ideal solution.
 const char* GetenvBeforeMain(const char* name) {
+#if defined(HAVE___ENVIRON)   // if we have it, it's declared in unistd.h
+  const int namelen = strlen(name);
+  for (char** p = __environ; *p; p++) {
+    if (!memcmp(*p, name, namelen) && (*p)[namelen] == '=')  // it's a match
+      return *p + namelen+1;                                 // point after =
+  }
+  return NULL;
+#elif defined(PLATFORM_WINDOWS)
+  // TODO(mbelshe) - repeated calls to this function will overwrite the
+  // contents of the static buffer.
+  static char envbuf[1024];  // enough to hold any envvar we care about
+  if (!GetEnvironmentVariableA(name, envbuf, sizeof(envbuf)-1))
+    return NULL;
+  return envbuf;
+#else
   // static is ok because this function should only be called before
   // main(), when we're single-threaded.
   static char envbuf[16<<10];
-#ifndef PLATFORM_WINDOWS
   if (*envbuf == '\0') {    // haven't read the environ yet
     int fd = safeopen("/proc/self/environ", O_RDONLY);
     // The -2 below guarantees the last two bytes of the buffer will be \0\0
@@ -129,12 +151,6 @@ const char* GetenvBeforeMain(const char* name) {
     p = endp + 1;
   }
   return NULL;                   // env var never found
-#else
-  // TODO(mbelshe) - repeated calls to this function will overwrite the
-  // contents of the static buffer.
-  if (!GetEnvironmentVariableA(name, envbuf, sizeof(envbuf)-1))
-    return NULL;
-  return envbuf;
 #endif
 }
 

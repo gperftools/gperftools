@@ -15,7 +15,7 @@ AC_DEFUN([AC_COMPILER_CHARACTERISTICS],
      AC_TYPES_COMPATIBLE(unsigned long long, size_t,
                          ac_cv_formatting_prius_prefix=ll; ac_cv_prius_defined=1
      )])
-   if test -z "$ac_cv_formatting_prius_defined"; then 
+   if test -z "$ac_cv_prius_defined"; then 
       ac_cv_formatting_prius_prefix=z;
    fi
    AC_DEFINE_UNQUOTED(PRIuS, "${ac_cv_formatting_prius_prefix}u", AC_PRIUS_COMMENT)

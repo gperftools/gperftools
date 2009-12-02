@@ -360,6 +360,8 @@ extern "C" {
 
 // ----------------------- IMPLEMENTATION -------------------------------
 
+static int tc_new_mode = 0;  // See tc_set_new_mode().
+
 // Routines such as free() and realloc() catch some erroneous pointers
 // passed to them, and invoke the below when they do.  (An erroneous pointer
 // won't be caught if it's within a valid span or a stale span for which
@@ -689,10 +691,7 @@ class TCMallocImplementation : public MallocExtension {
 
   virtual void MarkThreadBusy();  // Implemented below
 
-  virtual void ReleaseToSystem(ssize_t num_bytes) {
-    if (num_bytes <= 0) {
-      return;
-    }
+  virtual void ReleaseToSystem(size_t num_bytes) {
     SpinLockHolder h(Static::pageheap_lock());
     if (num_bytes <= extra_bytes_released_) {
       // We released too much on a prior call, so don't release any
@@ -860,6 +859,17 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
 
 namespace {
 
+inline void* cpp_alloc(size_t size, bool nothrow);
+inline void* do_malloc(size_t size);
+
+// TODO(willchan): Investigate whether or not lining this much is harmful to
+// performance.
+// This is equivalent to do_malloc() except when tc_new_mode is set to true.
+// Otherwise, it will run the std::new_handler if set.
+inline void* do_malloc_or_cpp_alloc(size_t size) {
+  return tc_new_mode ? cpp_alloc(size, true) : do_malloc(size);
+}
+
 // Helper for do_malloc().
 inline void* do_malloc_pages(Length num_pages) {
   Span *span;
@@ -910,7 +920,7 @@ inline void* do_calloc(size_t n, size_t elem_size) {
   const size_t size = n * elem_size;
   if (elem_size != 0 && size / elem_size != n) return NULL;
 
-  void* result = do_malloc(size);
+  void* result = do_malloc_or_cpp_alloc(size);
   if (result != NULL) {
     memset(result, 0, size);
   }
@@ -1019,11 +1029,11 @@ inline void* do_realloc_with_callback(
     void* new_ptr = NULL;
 
     if (new_size > old_size && new_size < lower_bound_to_grow) {
-      new_ptr = do_malloc(lower_bound_to_grow);
+      new_ptr = do_malloc_or_cpp_alloc(lower_bound_to_grow);
     }
     if (new_ptr == NULL) {
       // Either new_size is not a tiny increment, or last do_malloc failed.
-      new_ptr = do_malloc(new_size);
+      new_ptr = do_malloc_or_cpp_alloc(new_size);
     }
     if (new_ptr == NULL) {
       return NULL;
@@ -1241,9 +1251,8 @@ extern "C" PERFTOOLS_DLL_DECL const char* tc_version(
 //         heap-checker.cc depends on this to start a stack trace from
 //         the call to the (de)allocation function.
 
-static int tc_new_mode = 0;  // See tc_set_new_mode().
 extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) __THROW {
-  void* result = (tc_new_mode ? cpp_alloc(size, false) : do_malloc(size));
+  void* result = do_malloc_or_cpp_alloc(size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -1268,7 +1277,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) __THROW {
 extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
                                                size_t new_size) __THROW {
   if (old_ptr == NULL) {
-    void* result = do_malloc(new_size);
+    void* result = do_malloc_or_cpp_alloc(new_size);
     MallocHook::InvokeNewHook(result, new_size);
     return result;
   }

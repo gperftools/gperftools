@@ -241,10 +241,16 @@ VerifyIdentical p12 "$PROFILER1_REALNAME" p13 "" || RegisterFailure
     >"$TMPDIR/p15" 2>/dev/null || RegisterFailure
 VerifyIdentical p14 "$PROFILER3_REALNAME" p15 "" || RegisterFailure
 
+# Test using ITIMER_REAL instead of ITIMER_PROF.
+env CPUPROFILE_REALTIME=1 "$PROFILER3" 5 2 "$TMPDIR/p16" || RegisterFailure
+env CPUPROFILE_REALTIME=1 "$PROFILER3" 10 2 "$TMPDIR/p17" || RegisterFailure
+VerifySimilar p16 "$PROFILER3_REALNAME" p17 "$PROFILER3_REALNAME" 2
+
+
 # Make sure that when we have a process with a fork, the profiles don't
 # clobber each other
-CPUPROFILE="$TMPDIR/p6" "$PROFILER1" 1 -2 || RegisterFailure
-n=`ls $TMPDIR/p6* | wc -l`
+CPUPROFILE="$TMPDIR/pfork" "$PROFILER1" 1 -2 || RegisterFailure
+n=`ls $TMPDIR/pfork* | wc -l`
 if [ $n != 3 ]; then
   echo "FORK test FAILED: expected 3 profiles (for main + 2 children), found $n"
   num_failures=`expr $num_failures + 1`

@@ -152,18 +152,20 @@ extern "C" {
 // The do_* functions are defined in tcmalloc.cc,
 // which is included before this file
 // when TCMALLOC_FOR_DEBUGALLOCATION is defined.
-#define BASE_MALLOC    do_malloc
-#define BASE_FREE      do_free
-#define BASE_MALLOPT   do_mallopt
-#define BASE_MALLINFO  do_mallinfo
+#define BASE_MALLOC_NEW(size)  cpp_alloc(size, false)
+#define BASE_MALLOC      do_malloc_or_cpp_alloc
+#define BASE_FREE        do_free
+#define BASE_MALLOPT     do_mallopt
+#define BASE_MALLINFO    do_mallinfo
 
 #else
 
 // We are working on top of standard libc's malloc library
-#define BASE_MALLOC    __libc_malloc
-#define BASE_FREE      __libc_free
-#define BASE_MALLOPT   __libc_mallopt
-#define BASE_MALLINFO  __libc_mallinfo
+#define BASE_MALLOC_NEW  __libc_malloc
+#define BASE_MALLOC      __libc_malloc
+#define BASE_FREE        __libc_free
+#define BASE_MALLOPT     __libc_mallopt
+#define BASE_MALLINFO    __libc_mallinfo
 
 #endif
 
@@ -524,10 +526,14 @@ class MallocBlock {
       }
       b = (MallocBlock*) (p + (num_pages - 1) * pagesize - sz);
     } else {
-      b = (MallocBlock*) BASE_MALLOC(real_malloced_size(size));
+      b = (MallocBlock*) (type == kMallocType ?
+                          BASE_MALLOC(real_malloced_size(size)) :
+                          BASE_MALLOC_NEW(real_malloced_size(size)));
     }
 #else
-    b = (MallocBlock*) BASE_MALLOC(real_malloced_size(size));
+    b = (MallocBlock*) (type == kMallocType ?
+                        BASE_MALLOC(real_malloced_size(size)) :
+                        BASE_MALLOC_NEW(real_malloced_size(size)));
 #endif
 
     // It would be nice to output a diagnostic on allocation failure
@@ -656,25 +662,24 @@ class MallocBlock {
                   reinterpret_cast<void*>(
                       PRINTABLE_PTHREAD(queue_entry.deleter_threadid)));
 
-      SymbolMap symbolization_table;
+      SymbolTable symbolization_table;
       const int num_symbols = queue_entry.num_deleter_pcs;  // short alias name
       for (int i = 0; i < num_symbols; i++) {
         // Symbolizes the previous address of pc because pc may be in the
         // next function.  This may happen when the function ends with
         // a call to a function annotated noreturn (e.g. CHECK).
-        uintptr_t pc =
-            reinterpret_cast<uintptr_t>(queue_entry.deleter_pcs[i]) - 1;
-        symbolization_table[pc] = "";
+        char* pc =
+            reinterpret_cast<char*>(queue_entry.deleter_pcs[i]) - 1;
+        symbolization_table.Add(pc);
       }
-      int sym_buffer_len = kSymbolSize * num_symbols;
-      char *sym_buffer = new char[sym_buffer_len];
       if (FLAGS_symbolize_stacktrace)
-        Symbolize(sym_buffer, sym_buffer_len, &symbolization_table);
+        symbolization_table.Symbolize();
       for (int i = 0; i < num_symbols; i++) {
-        uintptr_t pc =
-            reinterpret_cast<uintptr_t>(queue_entry.deleter_pcs[i]) - 1;
-        TracePrintf(STDERR_FILENO, "    @ %p %s\n",
-                    reinterpret_cast<void*>(pc), symbolization_table[pc]);
+        char *pc =
+            reinterpret_cast<char*>(queue_entry.deleter_pcs[i]) - 1;
+        TracePrintf(STDERR_FILENO, "    @ %"PRIxPTR" %s\n",
+                    reinterpret_cast<uintptr_t>(pc),
+                    symbolization_table.GetSymbol(pc));
       }
     } else {
       RAW_LOG(ERROR,
@@ -696,6 +701,12 @@ class MallocBlock {
     // Find the header just before client's memory.
     MallocBlock *mb = reinterpret_cast<MallocBlock *>(
                 reinterpret_cast<char *>(p) - data_offset);
+    // If mb->alloc_type_ is kMagicDeletedInt, we're not an ok pointer.
+    if (mb->alloc_type_ == kMagicDeletedInt) {
+      RAW_LOG(FATAL, "memory allocation bug: object at %p has been already"
+                     " deallocated; or else a word before the object has been"
+                     " corrupted (memory stomping bug)", p);
+    }
     // If mb->offset_ is zero (common case), mb is the real header.  If
     // mb->offset_ is non-zero, this block was allocated by memalign, and
     // mb->offset_ is the distance backwards to the real header from mb,

@@ -161,8 +161,8 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
                       MAP_SHARED, hugetlb_fd_, hugetlb_base_);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
     if (!FLAGS_memfs_malloc_ignore_mmap_fail) {
-      TCMalloc_MESSAGE(__FILE__, __LINE__, "mmap failed: %s\n",
-                       strerror(errno));
+      TCMalloc_MESSAGE(__FILE__, __LINE__, "mmap of size %"PRIuS" failed: %s\n",
+                       size + extra, strerror(errno));
       failed_ = true;
       if (FLAGS_memfs_malloc_abort_on_fail) {
         CRASH("memfs_malloc_abort_on_fail is set\n");

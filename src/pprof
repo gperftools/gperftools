@@ -1968,6 +1968,7 @@ sub RemoveUninterestingFrames {
 		      'tc_newarray_nothrow',
 		      'do_malloc',
                       '::do_malloc',   # new name -- got moved to an unnamed ns
+                      '::do_malloc_or_cpp_alloc',
                       'DoSampledAllocation',
 		      'simple_alloc::allocate',
 		      '__malloc_alloc_template::allocate',

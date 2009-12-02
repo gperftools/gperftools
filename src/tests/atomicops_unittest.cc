@@ -60,50 +60,50 @@ static void TestAtomicIncrement() {
   s.count = 0;
   s.next_word = next_word_value;
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 1), 1);
-  CHECK_EQ(s.count, 1);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(1, base::subtle::NoBarrier_AtomicIncrement(&s.count, 1));
+  ASSERT_EQ(1, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 2), 3);
-  CHECK_EQ(s.count, 3);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(3, base::subtle::NoBarrier_AtomicIncrement(&s.count, 2));
+  ASSERT_EQ(3, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 3), 6);
-  CHECK_EQ(s.count, 6);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(6, base::subtle::NoBarrier_AtomicIncrement(&s.count, 3));
+  ASSERT_EQ(6, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -3), 3);
-  CHECK_EQ(s.count, 3);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(3, base::subtle::NoBarrier_AtomicIncrement(&s.count, -3));
+  ASSERT_EQ(3, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -2), 1);
-  CHECK_EQ(s.count, 1);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(1, base::subtle::NoBarrier_AtomicIncrement(&s.count, -2));
+  ASSERT_EQ(1, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -1), 0);
-  CHECK_EQ(s.count, 0);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(0, base::subtle::NoBarrier_AtomicIncrement(&s.count, -1));
+  ASSERT_EQ(0, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -1), -1);
-  CHECK_EQ(s.count, -1);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(-1, base::subtle::NoBarrier_AtomicIncrement(&s.count, -1));
+  ASSERT_EQ(-1, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, -4), -5);
-  CHECK_EQ(s.count, -5);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(-5, base::subtle::NoBarrier_AtomicIncrement(&s.count, -4));
+  ASSERT_EQ(-5, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 
-  CHECK_EQ(base::subtle::NoBarrier_AtomicIncrement(&s.count, 5), 0);
-  CHECK_EQ(s.count, 0);
-  CHECK_EQ(s.prev_word, prev_word_value);
-  CHECK_EQ(s.next_word, next_word_value);
+  ASSERT_EQ(0, base::subtle::NoBarrier_AtomicIncrement(&s.count, 5));
+  ASSERT_EQ(0, s.count);
+  ASSERT_EQ(prev_word_value, s.prev_word);
+  ASSERT_EQ(next_word_value, s.next_word);
 }
 
 
@@ -114,8 +114,8 @@ template <class AtomicType>
 static void TestCompareAndSwap() {
   AtomicType value = 0;
   AtomicType prev = base::subtle::NoBarrier_CompareAndSwap(&value, 0, 1);
-  CHECK_EQ(1, value);
-  CHECK_EQ(0, prev);
+  ASSERT_EQ(1, value);
+  ASSERT_EQ(0, prev);
 
   // Use test value that has non-zero bits in both halves, more for testing
   // 64-bit implementation on 32-bit platforms.
@@ -123,13 +123,13 @@ static void TestCompareAndSwap() {
                                  (NUM_BITS(AtomicType) - 2)) + 11;
   value = k_test_val;
   prev = base::subtle::NoBarrier_CompareAndSwap(&value, 0, 5);
-  CHECK_EQ(k_test_val, value);
-  CHECK_EQ(k_test_val, prev);
+  ASSERT_EQ(k_test_val, value);
+  ASSERT_EQ(k_test_val, prev);
 
   value = k_test_val;
   prev = base::subtle::NoBarrier_CompareAndSwap(&value, k_test_val, 5);
-  CHECK_EQ(5, value);
-  CHECK_EQ(k_test_val, prev);
+  ASSERT_EQ(5, value);
+  ASSERT_EQ(k_test_val, prev);
 }
 
 
@@ -137,8 +137,8 @@ template <class AtomicType>
 static void TestAtomicExchange() {
   AtomicType value = 0;
   AtomicType new_value = base::subtle::NoBarrier_AtomicExchange(&value, 1);
-  CHECK_EQ(1, value);
-  CHECK_EQ(0, new_value);
+  ASSERT_EQ(1, value);
+  ASSERT_EQ(0, new_value);
 
   // Use test value that has non-zero bits in both halves, more for testing
   // 64-bit implementation on 32-bit platforms.
@@ -146,13 +146,13 @@ static void TestAtomicExchange() {
                                  (NUM_BITS(AtomicType) - 2)) + 11;
   value = k_test_val;
   new_value = base::subtle::NoBarrier_AtomicExchange(&value, k_test_val);
-  CHECK_EQ(k_test_val, value);
-  CHECK_EQ(k_test_val, new_value);
+  ASSERT_EQ(k_test_val, value);
+  ASSERT_EQ(k_test_val, new_value);
 
   value = k_test_val;
   new_value = base::subtle::NoBarrier_AtomicExchange(&value, 5);
-  CHECK_EQ(5, value);
-  CHECK_EQ(k_test_val, new_value);
+  ASSERT_EQ(5, value);
+  ASSERT_EQ(k_test_val, new_value);
 }
 
 
@@ -163,11 +163,11 @@ static void TestAtomicIncrementBounds() {
   AtomicType test_val = GG_ULONGLONG(1) << (NUM_BITS(AtomicType) / 2);
   AtomicType value = test_val - 1;
   AtomicType new_value = base::subtle::NoBarrier_AtomicIncrement(&value, 1);
-  CHECK_EQ(test_val, value);
-  CHECK_EQ(value, new_value);
+  ASSERT_EQ(test_val, value);
+  ASSERT_EQ(value, new_value);
 
   base::subtle::NoBarrier_AtomicIncrement(&value, -1);
-  CHECK_EQ(test_val - 1, value);
+  ASSERT_EQ(test_val - 1, value);
 }
 
 // This is a simple sanity check that values are correct. Not testing
@@ -180,19 +180,19 @@ static void TestStore() {
   AtomicType value;
 
   base::subtle::NoBarrier_Store(&value, kVal1);
-  CHECK_EQ(kVal1, value);
+  ASSERT_EQ(kVal1, value);
   base::subtle::NoBarrier_Store(&value, kVal2);
-  CHECK_EQ(kVal2, value);
+  ASSERT_EQ(kVal2, value);
 
   base::subtle::Acquire_Store(&value, kVal1);
-  CHECK_EQ(kVal1, value);
+  ASSERT_EQ(kVal1, value);
   base::subtle::Acquire_Store(&value, kVal2);
-  CHECK_EQ(kVal2, value);
+  ASSERT_EQ(kVal2, value);
 
   base::subtle::Release_Store(&value, kVal1);
-  CHECK_EQ(kVal1, value);
+  ASSERT_EQ(kVal1, value);
   base::subtle::Release_Store(&value, kVal2);
-  CHECK_EQ(kVal2, value);
+  ASSERT_EQ(kVal2, value);
 }
 
 // This is a simple sanity check that values are correct. Not testing
@@ -205,19 +205,19 @@ static void TestLoad() {
   AtomicType value;
 
   value = kVal1;
-  CHECK_EQ(kVal1, base::subtle::NoBarrier_Load(&value));
+  ASSERT_EQ(kVal1, base::subtle::NoBarrier_Load(&value));
   value = kVal2;
-  CHECK_EQ(kVal2, base::subtle::NoBarrier_Load(&value));
+  ASSERT_EQ(kVal2, base::subtle::NoBarrier_Load(&value));
 
   value = kVal1;
-  CHECK_EQ(kVal1, base::subtle::Acquire_Load(&value));
+  ASSERT_EQ(kVal1, base::subtle::Acquire_Load(&value));
   value = kVal2;
-  CHECK_EQ(kVal2, base::subtle::Acquire_Load(&value));
+  ASSERT_EQ(kVal2, base::subtle::Acquire_Load(&value));
 
   value = kVal1;
-  CHECK_EQ(kVal1, base::subtle::Release_Load(&value));
+  ASSERT_EQ(kVal1, base::subtle::Release_Load(&value));
   value = kVal2;
-  CHECK_EQ(kVal2, base::subtle::Release_Load(&value));
+  ASSERT_EQ(kVal2, base::subtle::Release_Load(&value));
 }
 
 template <class AtomicType>

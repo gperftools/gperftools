@@ -65,30 +65,37 @@ DEFINE_string(symbolize_pprof,
 // a more-permanent copy that won't ever get destroyed.
 static string* g_pprof_path = new string(FLAGS_symbolize_pprof);
 
+void SymbolTable::Add(const void* addr) {
+  symbolization_table_[addr] = "";
+}
+
+const char* SymbolTable::GetSymbol(const void* addr) {
+  return symbolization_table_[addr];
+}
+
 // Updates symbolization_table with the pointers to symbol names corresponding
 // to its keys. The symbol names are stored in out, which is allocated and
 // freed by the caller of this routine.
 // Note that the forking/etc is not thread-safe or re-entrant.  That's
 // ok for the purpose we need -- reporting leaks detected by heap-checker
 // -- but be careful if you decide to use this routine for other purposes.
-extern bool Symbolize(char *out, int out_size,
-                      SymbolMap *symbolization_table) {
+int SymbolTable::Symbolize() {
 #if !defined(HAVE_UNISTD_H)  || !defined(HAVE_SYS_SOCKET_H) || !defined(HAVE_SYS_WAIT_H)
-  return false;
+  return 0;
 #elif !defined(HAVE_PROGRAM_INVOCATION_NAME)
-  return false;   // TODO(csilvers): get argv[0] somehow
+  return 0;   // TODO(csilvers): get argv[0] somehow
 #else
   // All this work is to do two-way communication.  ugh.
   extern char* program_invocation_name;  // gcc provides this
   int child_in[2];   // file descriptors
   int child_out[2];  // for now, we don't worry about child_err
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_in) == -1) {
-    return false;
+    return 0;
   }
   if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_out) == -1) {
     close(child_in[0]);
     close(child_in[1]);
-    return false;
+    return 0;
   }
   switch (fork()) {
     case -1: {  // error
@@ -96,7 +103,7 @@ extern bool Symbolize(char *out, int out_size,
       close(child_in[1]);
       close(child_out[0]);
       close(child_out[1]);
-      return false;
+      return 0;
     }
     case 0: {  // child
       close(child_in[1]);   // child uses the 0's, parent uses the 1's
@@ -125,30 +132,36 @@ extern bool Symbolize(char *out, int out_size,
       struct pollfd pfd = { child_in[1], POLLOUT, 0 };
       if (!poll(&pfd, 1, 0) || !(pfd.revents & POLLOUT) ||
           (pfd.revents & (POLLHUP|POLLERR))) {
-        return false;
+        return 0;
       }
 #endif
       DumpProcSelfMaps(child_in[1]);  // what pprof expects on stdin
 
-      char pcstr[64];                 // enough for a single address
-      for (SymbolMap::const_iterator iter = symbolization_table->begin();
-           iter != symbolization_table->end(); ++iter) {
-        snprintf(pcstr, sizeof(pcstr),  // pprof expects format to be 0xXXXXXX
-                 "0x%" PRIxPTR "\n", iter->first);
-        // TODO(glider): the number of write()s can be reduced by using
-        // snprintf() here.
-        write(child_in[1], pcstr, strlen(pcstr));
+      // Allocate 24 bytes = ("0x" + 8 bytes + "\n" + overhead) for each
+      // address to feed to pprof.
+      const int kOutBufSize = 24 * symbolization_table_.size();
+      char *pprof_buffer = new char[kOutBufSize];
+      int written = 0;
+      for (SymbolMap::const_iterator iter = symbolization_table_.begin();
+           iter != symbolization_table_.end(); ++iter) {
+        written += snprintf(pprof_buffer + written, kOutBufSize - written,
+                 // pprof expects format to be 0xXXXXXX
+                 "0x%"PRIxPTR"\n", reinterpret_cast<uintptr_t>(iter->first));
       }
+      write(child_in[1], pprof_buffer, strlen(pprof_buffer));
       close(child_in[1]);             // that's all we need to write
 
+      const int kSymbolBufferSize = kSymbolSize * symbolization_table_.size();
       int total_bytes_read = 0;
-      memset(out, '\0', out_size);
+      delete[] symbol_buffer_;
+      symbol_buffer_ = new char[kSymbolBufferSize];
+      memset(symbol_buffer_, '\0', kSymbolBufferSize);
       while (1) {
-        int bytes_read = read(child_out[1], out + total_bytes_read,
-                              out_size - total_bytes_read);
+        int bytes_read = read(child_out[1], symbol_buffer_ + total_bytes_read,
+                              kSymbolBufferSize - total_bytes_read);
         if (bytes_read < 0) {
           close(child_out[1]);
-          return false;
+          return 0;
         } else if (bytes_read == 0) {
           close(child_out[1]);
           wait(NULL);
@@ -159,25 +172,24 @@ extern bool Symbolize(char *out, int out_size,
       }
       // We have successfully read the output of pprof into out.  Make sure
       // the last symbol is full (we can tell because it ends with a \n).
-      // TODO(glider): even when the last symbol is full, the list of symbols
-      // may be incomplete. We should check for that and return the number of
-      // symbols we actually get from pprof.
-      if (total_bytes_read == 0 || out[total_bytes_read - 1] != '\n')
-        return false;
-      // make the symbolization_table values point to the output vector
-      SymbolMap::iterator fill = symbolization_table->begin();
-      const char *current_name = out;
+      if (total_bytes_read == 0 || symbol_buffer_[total_bytes_read - 1] != '\n')
+        return 0;
+      // make the symbolization_table_ values point to the output vector
+      SymbolMap::iterator fill = symbolization_table_.begin();
+      int num_symbols = 0;
+      const char *current_name = symbol_buffer_;
       for (int i = 0; i < total_bytes_read; i++) {
-        if (out[i] == '\n') {
+        if (symbol_buffer_[i] == '\n') {
           fill->second = current_name;
-          out[i] = '\0';
-          current_name = out + i + 1;
+          symbol_buffer_[i] = '\0';
+          current_name = symbol_buffer_ + i + 1;
           fill++;
+          num_symbols++;
         }
       }
-      return true;
+      return num_symbols;
     }
   }
-  return false;  // shouldn't be reachable
+  return 0;  // shouldn't be reachable
 #endif
 }

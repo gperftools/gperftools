@@ -20592,7 +20592,7 @@ rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
 fi
 { $as_echo "$as_me:${as_lineno-$LINENO}: result: $ac_cv_formatting_prius_prefix" >&5
 $as_echo "$ac_cv_formatting_prius_prefix" >&6; }
-   if test -z "$ac_cv_formatting_prius_defined"; then
+   if test -z "$ac_cv_prius_defined"; then
       ac_cv_formatting_prius_prefix=z;
    fi
 
@@ -20633,6 +20633,33 @@ _ACEOF
 if ac_fn_c_try_link "$LINENO"; then :
 
 $as_echo "#define HAVE_BUILTIN_STACK_POINTER 1" >>confdefs.h
+
+                { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
+$as_echo "yes" >&6; }
+else
+  { $as_echo "$as_me:${as_lineno-$LINENO}: result: no" >&5
+$as_echo "no" >&6; }
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+
+# Check if __environ is available (for GetenvBeforeMain)
+{ $as_echo "$as_me:${as_lineno-$LINENO}: checking for __environ" >&5
+$as_echo_n "checking for __environ... " >&6; }
+cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#include <unistd.h>
+int
+main ()
+{
+char **env = __environ
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+
+$as_echo "#define HAVE___ENVIRON 1" >>confdefs.h
 
                 { $as_echo "$as_me:${as_lineno-$LINENO}: result: yes" >&5
 $as_echo "yes" >&6; }

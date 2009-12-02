@@ -198,8 +198,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // system for reuse.  Use this extension with caution -- to get this
   // memory back may require faulting pages back in by the OS, and
   // that may be slow.  (Currently only implemented in tcmalloc.)
-  // A negative values for num_bytes results in a noop.
-  virtual void ReleaseToSystem(ssize_t num_bytes);
+  virtual void ReleaseToSystem(size_t num_bytes);
 
   // Same as ReleaseToSystem() but release as much memory as possible.
   virtual void ReleaseFreeMemory();

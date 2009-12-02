@@ -35,20 +35,48 @@
 
 #include "config.h"
 #ifdef HAVE_STDINT_H
-#include <stdint.h>    // for uintptr_t
+#include <stdint.h>  // for uintptr_t
 #endif
 #include <map>
 
 using std::map;
 
-// An average size of memory allocated for a stack trace symbol.
-static const int kSymbolSize = 1024;
+// SymbolTable encapsulates the address operations necessary for stack trace
+// symbolization. A common use-case is to Add() the addresses from one or
+// several stack traces to a table, call Symbolize() once and use GetSymbol()
+// to get the symbol names for pretty-printing the stack traces.
+class SymbolTable {
+ public:
+  SymbolTable()
+    : symbol_buffer_(NULL) {}
+  ~SymbolTable() {
+    delete[] symbol_buffer_;
+  }
 
-// TODO(glider): it's better to make SymbolMap a class that encapsulates the
-// address operations and has the Symbolize() method.
-typedef map<uintptr_t, const char*> SymbolMap;
+  // Adds an address to the table. This may overwrite a currently known symbol
+  // name, so Add() should not generally be called after Symbolize().
+  void Add(const void* addr);
 
-extern bool Symbolize(char *out, int out_size,
-                      SymbolMap *symbolization_table);
+  // Returns the symbol name for addr, if the given address was added before
+  // the last successful call to Symbolize(). Otherwise may return an empty
+  // c-string.
+  const char* GetSymbol(const void* addr);
+
+  // Obtains the symbol names for the addresses stored in the table and returns
+  // the number of addresses actually symbolized.
+  int Symbolize();
+
+ private:
+  typedef map<const void*, const char*> SymbolMap;
+
+  // An average size of memory allocated for a stack trace symbol.
+  static const int kSymbolSize = 1024;
+
+  // Map from addresses to symbol names.
+  SymbolMap symbolization_table_;
+
+  // Pointer to the buffer that stores the symbol names.
+  char *symbol_buffer_;
+};
 
 #endif  // TCMALLOC_SYMBOLIZE_H_

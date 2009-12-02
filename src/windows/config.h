@@ -175,6 +175,9 @@
 /* define if your compiler has __attribute__ */
 #undef HAVE___ATTRIBUTE__
 
+/* Define to 1 if compiler supports __environ */
+#undef HAVE___ENVIRON
+
 /* Define to 1 if the system has the type `__int64'. */
 #define HAVE___INT64 1
 

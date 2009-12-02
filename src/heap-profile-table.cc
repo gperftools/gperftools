@@ -82,6 +82,10 @@ DEFINE_bool(cleanup_old_heap_profiles,
             EnvToBool("HEAP_PROFILE_CLEANUP", true),
             "At initialization time, delete old heap profiles.");
 
+DEFINE_int32(heap_check_max_leaks,
+             EnvToInt("HEAP_CHECK_MAX_LEAKS", 20),
+             "The maximum number of leak reports to print.");
+
 //----------------------------------------------------------------------
 
 // header of the dumped heap profile
@@ -539,26 +543,23 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
 
   // Report a bounded number of leaks to keep the leak report from
   // growing too long.
-  const int to_report = (n > 20) ? 20 : n;
+  const int to_report =
+      (FLAGS_heap_check_max_leaks > 0 &&
+       n > FLAGS_heap_check_max_leaks) ? FLAGS_heap_check_max_leaks : n;
   RAW_LOG(ERROR, "The %d largest leaks:", to_report);
 
   // Print
-  SymbolMap symbolization_table;
-  int num_symbols = 0;
+  SymbolTable symbolization_table;
   for (int i = 0; i < to_report; i++) {
     const Entry& e = entries[i];
     for (int j = 0; j < e.bucket->depth; j++) {
-      const void* pc = e.bucket->stack[j];
-      symbolization_table[reinterpret_cast<uintptr_t>(pc)] = "";
-      num_symbols++;
+      symbolization_table.Add(e.bucket->stack[j]);
     }
   }
   static const int kBufSize = 2<<10;
   char buffer[kBufSize];
-  int sym_buffer_len = kSymbolSize * num_symbols;
-  char *sym_buffer = new char[sym_buffer_len];
   if (should_symbolize)
-    Symbolize(sym_buffer, sym_buffer_len, &symbolization_table);
+    symbolization_table.Symbolize();
   for (int i = 0; i < to_report; i++) {
     const Entry& e = entries[i];
     base::RawPrinter printer(buffer, kBufSize);
@@ -566,12 +567,11 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
                    e.bytes, e.count);
     for (int j = 0; j < e.bucket->depth; j++) {
       const void* pc = e.bucket->stack[j];
-      printer.Printf("\t@ %p %s\n",
-                     pc, symbolization_table[reinterpret_cast<uintptr_t>(pc)]);
+      printer.Printf("\t@ %"PRIxPTR" %s\n",
+          reinterpret_cast<uintptr_t>(pc), symbolization_table.GetSymbol(pc));
     }
     RAW_LOG(ERROR, "%s", buffer);
   }
-  delete[] sym_buffer;
 
   if (to_report < n) {
     RAW_LOG(ERROR, "Skipping leaks numbered %d..%d",

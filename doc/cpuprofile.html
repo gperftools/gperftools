@@ -86,6 +86,18 @@ environment variables.</p>
   </td>
 </tr>
 
+<tr valign=top>
+  <td><code>CPUPROFILE_REALTIME=1</code></td>
+  <td>default: [not set]</td>
+  <td>
+    If set to any value (including 0 or the empty string), use
+    ITIMER_REAL instead of ITIMER_PROF to gather profiles.  In
+    general, ITIMER_REAL is not as accurate as ITIMER_PROF, and also
+    interacts badly with use of alarm(), so prefer ITIMER_PROF unless
+    you have a reason prefer ITIMER_REAL.
+  </td>
+</tr>
+
 </table>
 
 

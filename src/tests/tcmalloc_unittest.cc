@@ -802,12 +802,14 @@ static void TestRanges() {
   CheckRangeCallback(b, base::MallocRange::FREE, MB);
 }
 
+#ifndef DEBUGALLOCATION
 static size_t GetUnmappedBytes() {
   size_t bytes;
   CHECK(MallocExtension::instance()->GetNumericProperty(
       "tcmalloc.pageheap_unmapped_bytes", &bytes));
   return bytes;
 }
+#endif
 
 static void TestReleaseToSystem() {
   // Debug allocation mode adds overhead to each allocation which
@@ -832,10 +834,6 @@ static void TestReleaseToSystem() {
   EXPECT_EQ(starting_bytes, GetUnmappedBytes());
 
   free(a);
-
-  // Negative numbers should be ignored.
-  MallocExtension::instance()->ReleaseToSystem(-5);
-  EXPECT_EQ(starting_bytes, GetUnmappedBytes());
 
   // The span to release should be 1MB.
   MallocExtension::instance()->ReleaseToSystem(MB/2);
@@ -869,6 +867,43 @@ static void TestReleaseToSystem() {
 
   FLAGS_tcmalloc_release_rate = old_tcmalloc_release_rate;
 #endif   // #ifndef DEBUGALLOCATION
+}
+
+bool g_no_memory = false;
+std::new_handler g_old_handler = NULL;
+static void OnNoMemory() {
+  g_no_memory = true;
+  std::set_new_handler(g_old_handler);
+}
+
+static void TestSetNewMode() {
+  int old_mode = tc_set_new_mode(1);
+
+  // DebugAllocation will try to catch huge allocations.  We need to avoid this
+  // by requesting a smaller malloc block, that still can't be satisfied.
+  const size_t kHugeRequest = kTooBig - 1024;
+
+  g_old_handler = std::set_new_handler(&OnNoMemory);
+  g_no_memory = false;
+  void* ret = malloc(kHugeRequest);
+  EXPECT_EQ(NULL, ret);
+  EXPECT_TRUE(g_no_memory);
+
+  g_old_handler = std::set_new_handler(&OnNoMemory);
+  g_no_memory = false;
+  ret = calloc(1, kHugeRequest);
+  EXPECT_EQ(NULL, ret);
+  EXPECT_TRUE(g_no_memory);
+
+  g_old_handler = std::set_new_handler(&OnNoMemory);
+  g_no_memory = false;
+  ret = realloc(NULL, kHugeRequest);
+  EXPECT_EQ(NULL, ret);
+  EXPECT_TRUE(g_no_memory);
+
+  g_no_memory = false;
+
+  tc_set_new_mode(old_mode);
 }
 
 static int RunAllTests(int argc, char** argv) {
@@ -1149,6 +1184,7 @@ static int RunAllTests(int argc, char** argv) {
   TestHugeThreadCache();
   TestRanges();
   TestReleaseToSystem();
+  TestSetNewMode();
 
   return 0;
 }

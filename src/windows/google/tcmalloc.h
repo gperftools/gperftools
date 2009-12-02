@@ -90,6 +90,7 @@ extern "C" {
 #endif
 
 #ifdef __cplusplus
+  PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW;
   PERFTOOLS_DLL_DECL void* tc_new(size_t size);
   PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW;
   PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
