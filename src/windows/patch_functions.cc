@@ -726,7 +726,7 @@ void UnpatchWindowsFunctions() {
 
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
-  void* result = do_malloc(size);
+  void* result = do_malloc_or_cpp_alloc(size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -745,7 +745,7 @@ template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
     void* old_ptr, size_t new_size) __THROW {
   if (old_ptr == NULL) {
-    void* result = do_malloc(new_size);
+    void* result = do_malloc_or_cpp_alloc(new_size);
     MallocHook::InvokeNewHook(result, new_size);
     return result;
   }
@@ -852,7 +852,7 @@ template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools__aligned_malloc(size_t size,
                                                                size_t alignment)
     __THROW {
-  void* result = do_memalign(alignment, size);
+  void* result = do_memalign_or_cpp_memalign(alignment, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }

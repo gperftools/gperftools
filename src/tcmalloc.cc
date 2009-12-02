@@ -870,6 +870,13 @@ inline void* do_malloc_or_cpp_alloc(size_t size) {
   return tc_new_mode ? cpp_alloc(size, true) : do_malloc(size);
 }
 
+void* cpp_memalign(size_t align, size_t size);
+void* do_memalign(size_t align, size_t size);
+
+inline void* do_memalign_or_cpp_memalign(size_t align, size_t size) {
+  return tc_new_mode ? cpp_memalign(align, size) : do_memalign(align, size);
+}
+
 // Helper for do_malloc().
 inline void* do_malloc_pages(Length num_pages) {
   Span *span;
@@ -1221,6 +1228,52 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
   }
 }
 
+void* cpp_memalign(size_t align, size_t size) {
+  for (;;) {
+    void* p = do_memalign(align, size);
+#ifdef PREANSINEW
+    return p;
+#else
+    if (p == NULL) {  // allocation failed
+      // Get the current new handler.  NB: this function is not
+      // thread-safe.  We make a feeble stab at making it so here, but
+      // this lock only protects against tcmalloc interfering with
+      // itself, not with other libraries calling set_new_handler.
+      std::new_handler nh;
+      {
+        SpinLockHolder h(&set_new_handler_lock);
+        nh = std::set_new_handler(0);
+        (void) std::set_new_handler(nh);
+      }
+#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+      if (nh) {
+        // Since exceptions are disabled, we don't really know if new_handler
+        // failed.  Assume it will abort if it fails.
+        (*nh)();
+        continue;
+      }
+      return 0;
+#else
+      // If no new_handler is established, the allocation failed.
+      if (!nh)
+        return 0;
+
+      // Otherwise, try the new_handler.  If it returns, retry the
+      // allocation.  If it throws std::bad_alloc, fail the allocation.
+      // if it throws something else, don't interfere.
+      try {
+        (*nh)();
+      } catch (const std::bad_alloc&) {
+        return p;
+      }
+#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+    } else {  // allocation success
+      return p;
+    }
+#endif  // PREANSINEW
+  }
+}
+
 }  // end unnamed namespace
 
 // As promised, the definition of this function, declared above.
@@ -1351,7 +1404,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align,
                                                 size_t size) __THROW {
-  void* result = do_memalign(align, size);
+  void* result = do_memalign_or_cpp_memalign(align, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -1364,7 +1417,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
     return EINVAL;
   }
 
-  void* result = do_memalign(align, size);
+  void* result = do_memalign_or_cpp_memalign(align, size);
   MallocHook::InvokeNewHook(result, size);
   if (result == NULL) {
     return ENOMEM;
@@ -1379,7 +1432,7 @@ static size_t pagesize = 0;
 extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) __THROW {
   // Allocate page-aligned object of length >= size bytes
   if (pagesize == 0) pagesize = getpagesize();
-  void* result = do_memalign(pagesize, size);
+  void* result = do_memalign_or_cpp_memalign(pagesize, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -1391,7 +1444,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) __THROW {
     size = pagesize;   // http://man.free4web.biz/man3/libmpatrol.3.html
   }
   size = (size + pagesize - 1) & ~(pagesize - 1);
-  void* result = do_memalign(pagesize, size);
+  void* result = do_memalign_or_cpp_memalign(pagesize, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -1435,7 +1488,7 @@ static void *MemalignOverride(size_t align, size_t size, const void *caller)
 
 static void *MemalignOverride(size_t align, size_t size, const void *caller)
     __THROW {
-  void* result = do_memalign(align, size);
+  void* result = do_memalign_or_cpp_memalign(align, size);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }

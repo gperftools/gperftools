@@ -901,7 +901,22 @@ static void TestSetNewMode() {
   EXPECT_EQ(NULL, ret);
   EXPECT_TRUE(g_no_memory);
 
+  // Not really important, but must be small enough such that kAlignment +
+  // kHugeRequest does not overflow.
+  const int kAlignment = 1 << 5;
+
+  g_old_handler = std::set_new_handler(&OnNoMemory);
   g_no_memory = false;
+  ret = memalign(kAlignment, kHugeRequest);
+  EXPECT_EQ(NULL, ret);
+  EXPECT_TRUE(g_no_memory);
+
+  g_old_handler = std::set_new_handler(&OnNoMemory);
+  g_no_memory = false;
+  EXPECT_EQ(ENOMEM,
+            posix_memalign(&ret, kAlignment, kHugeRequest));
+  EXPECT_EQ(NULL, ret);
+  EXPECT_TRUE(g_no_memory);
 
   tc_set_new_mode(old_mode);
 }
