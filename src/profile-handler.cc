@@ -202,7 +202,7 @@ class ProfileHandler {
   // SIGPROF/SIGALRM handler. Iterate over and call all the registered callbacks.
   static void SignalHandler(int sig, siginfo_t* sinfo, void* ucontext);
 
-  DISALLOW_EVIL_CONSTRUCTORS(ProfileHandler);
+  DISALLOW_COPY_AND_ASSIGN(ProfileHandler);
 };
 
 ProfileHandler* ProfileHandler::instance_ = NULL;
@@ -455,7 +455,7 @@ class ProfileHandlerInitializer {
   }
 
  private:
-  DISALLOW_EVIL_CONSTRUCTORS(ProfileHandlerInitializer);
+  DISALLOW_COPY_AND_ASSIGN(ProfileHandlerInitializer);
 };
 // ProfileHandlerInitializer singleton
 static ProfileHandlerInitializer profile_handler_initializer;

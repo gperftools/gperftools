@@ -326,7 +326,7 @@ class HeapProfileTable {
   // Map of all currently allocated objects we know about.
   AllocationMap* allocation_;
 
-  DISALLOW_EVIL_CONSTRUCTORS(HeapProfileTable);
+  DISALLOW_COPY_AND_ASSIGN(HeapProfileTable);
 };
 
 class HeapProfileTable::Snapshot {

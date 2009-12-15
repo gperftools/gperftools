@@ -1832,7 +1832,9 @@ static bool internal_init_start_has_run = false;
 //
 /*static*/ void HeapLeakChecker::InternalInitStart() {
   { SpinLockHolder l(&heap_checker_lock);
-    RAW_CHECK(!internal_init_start_has_run, "Only one call is expected");
+    RAW_CHECK(!internal_init_start_has_run,
+              "Heap-check constructor called twice.  Perhaps you both linked"
+              " in the heap checker, and also used LD_PRELOAD to load it?");
     internal_init_start_has_run = true;
 
     if (FLAGS_heap_check.empty()) {

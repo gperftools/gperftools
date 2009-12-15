@@ -111,6 +111,10 @@
 #ifndef TCMALLOC_PACKED_CACHE_INL_H_
 #define TCMALLOC_PACKED_CACHE_INL_H_
 
+#include "config.h"
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 #include "base/basictypes.h"  // for COMPILE_ASSERT
 #include "internal_logging.h"
 

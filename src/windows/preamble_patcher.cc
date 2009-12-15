@@ -316,7 +316,7 @@ SideStepError PreamblePatcher::Unpatch(void* target_function,
   // Stub is now useless so delete it.
   // [csilvers: Commented out for perftools because it causes big problems
   //  when we're unpatching malloc.  We just let this live on as a  leak.]
-  //delete original_function_stub;
+  //delete [] reinterpret_cast<unsigned char*>(original_function_stub);
 
   // Restore the protection of the first MAX_PREAMBLE_STUB_SIZE bytes of
   // target to what they were before we started goofing around.

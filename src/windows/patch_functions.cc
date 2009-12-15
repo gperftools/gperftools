@@ -494,10 +494,18 @@ template<int T>
 bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
   CopyFrom(me_info);   // copies the me32 and the windows_fn_ array
   for (int i = 0; i < kNumFunctions; i++) {
-    if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i])
+    if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i]) {
+      // if origstub_fn_ is not NULL, it's left around from a previous
+      // patch.  We need to set it to NULL for the new Patch call.
+      // Since we've patched Unpatch() not to delete origstub_fn_ (it
+      // causes problems in some contexts, though obviously not this
+      // one), we should delete it now, before setting it to NULL.
+      delete[] reinterpret_cast<char*>(origstub_fn_[i]);
+      origstub_fn_[i] = NULL;   // Patch() will fill this in
       CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
                PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i],
                                       &origstub_fn_[i]));
+    }
   }
   set_is_valid(true);
   return true;
@@ -526,6 +534,13 @@ void WindowsInfo::Patch() {
   for (int i = 0; i < kNumFunctions; i++) {
     function_info_[i].windows_fn = (GenericFnPtr)
         ::GetProcAddress(hkernel32, function_info_[i].name);
+    // If origstub_fn is not NULL, it's left around from a previous
+    // patch.  We need to set it to NULL for the new Patch call.
+    // Since we've patched Unpatch() not to delete origstub_fn_ (it
+    // causes problems in some contexts, though obviously not this
+    // one), we should delete it now, before setting it to NULL.
+    delete[] reinterpret_cast<char*>(function_info_[i].origstub_fn);
+    function_info_[i].origstub_fn = NULL;  // Patch() will fill this in
     CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
              PreamblePatcher::Patch(function_info_[i].windows_fn,
                                     function_info_[i].perftools_fn,
@@ -631,7 +646,7 @@ void PatchAllModules() {
     // First, delete the modules that are no longer loaded.  (We go first
     // so we can try to open up space for the new modules we need to load.)
     for (int i = 0; i < sizeof(module_libcs)/sizeof(*module_libcs); i++) {
-      if (!still_loaded[i]) {
+      if (!still_loaded[i] && module_libcs[i]->is_valid()) {
         // We could call Unpatch() here, but why bother?  The module
         // has gone away, so nobody is going to call into it anyway.
         module_libcs[i]->set_is_valid(false);

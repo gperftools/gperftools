@@ -118,7 +118,7 @@ class MemoryRegionMap {
     LockHolder() { Lock(); }
     ~LockHolder() { Unlock(); }
    private:
-    DISALLOW_EVIL_CONSTRUCTORS(LockHolder);
+    DISALLOW_COPY_AND_ASSIGN(LockHolder);
   };
 
   // A memory region that we know about through malloc_hook-s.
@@ -329,7 +329,7 @@ class MemoryRegionMap {
   // Assumes Lock() is held
   static void LogAllLocked();
 
-  DISALLOW_EVIL_CONSTRUCTORS(MemoryRegionMap);
+  DISALLOW_COPY_AND_ASSIGN(MemoryRegionMap);
 };
 
 #endif  // BASE_MEMORY_REGION_MAP_H_

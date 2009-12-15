@@ -101,6 +101,11 @@ void HugetlbSysAllocator::DumpStats(TCMalloc_Printer* printer) {
 void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
                                  size_t alignment) {
 
+  // don't go any further if we haven't opened the backing file
+  if (hugetlb_fd_ == -1) {
+    return NULL;
+  }
+
   // We don't respond to allocation requests smaller than big_page_size_ unless
   // the caller is willing to take more than they asked for.
   if (actual_size == NULL && size < big_page_size_) {

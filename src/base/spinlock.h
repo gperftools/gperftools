@@ -134,7 +134,7 @@ class LOCKABLE SpinLock {
   void SlowLock();
   void SlowUnlock(int64 wait_timestamp);
 
-  DISALLOW_EVIL_CONSTRUCTORS(SpinLock);
+  DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };
 
 // Corresponding locker object that arranges to acquire a spinlock for

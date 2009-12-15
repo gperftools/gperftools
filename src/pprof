@@ -2486,7 +2486,7 @@ sub FetchDynamicProfile {
     my $wget_timeout;
     if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)) {
       if ($path =~ m/$PROFILE_PAGE/) {
-        $url = sprintf("http://$host:$port$PROFILE_PAGE?seconds=%d",
+        $url = sprintf("http://$host:$port$path?seconds=%d",
             $main::opt_seconds);
       } else {
         if ($profile_name =~ m/[?]/) {
@@ -3364,7 +3364,7 @@ sub ParseLibraries {
     my $finish;
     my $offset;
     my $lib;
-    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.(so|dll|dylib)((\.\d+)+\w*)?)$/i) {
+    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.(so|dll|dylib|bundle)((\.\d+)+\w*)?)$/i) {
       # Full line from /proc/self/maps.  Example:
       #   40000000-40015000 r-xp 00000000 03:01 12845071   /lib/ld-2.3.2.so
       $start = HexExtend($1);
