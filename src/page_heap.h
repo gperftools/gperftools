@@ -40,6 +40,14 @@
 #include "pagemap.h"
 #include "span.h"
 
+// We need to dllexport PageHeap just for the unittest.  MSVC complains
+// that we don't dllexport the PageHeap members, but we don't need to
+// test those, so I just suppress this warning.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4251)
+#endif
+
 // This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
 // you're porting to a system where you really can't get a stacktrace.
 #ifdef NO_TCMALLOC_SAMPLES
@@ -81,7 +89,7 @@ template <> class MapSelector<32> {
 // contiguous runs of pages (called a "span").
 // -------------------------------------------------------------------------
 
-class PageHeap {
+class PERFTOOLS_DLL_DECL PageHeap {
  public:
   PageHeap();
 
@@ -255,5 +263,9 @@ class PageHeap {
 };
 
 }  // namespace tcmalloc
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 #endif  // TCMALLOC_PAGE_HEAP_H_

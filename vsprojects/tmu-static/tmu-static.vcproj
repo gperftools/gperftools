@@ -30,6 +30,7 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="Psapi.lib"
 				OutputFile="$(OutDir)/tcmalloc_minimal_unittest-static.exe"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
@@ -74,6 +75,7 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
+				AdditionalDependencies="Psapi.lib"
 				OutputFile="$(OutDir)/tcmalloc_minimal_unittest-static.exe"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"

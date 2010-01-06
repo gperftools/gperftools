@@ -43,7 +43,8 @@ project tcmalloc_minimal_unittest-static, which does this.  For this
 to work, you'll need to add "/D PERFTOOLS_DLL_DECL=" to the compile
 line of every perftools .cc file.  You do not need to depend on the
 tcmalloc symbol in this case (that is, you don't need to do either
-step 1 or step 2 from above).
+step 1 or step 2 from above).  However, you will need to add a
+dependency to Psapi.lib, which tcmalloc uses.
 
 The heap-profiler has had a preliminary port to Windows.  It has not
 been well tested, and probably does not work at all when Frame Pointer

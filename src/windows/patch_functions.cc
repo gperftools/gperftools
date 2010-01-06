@@ -72,9 +72,14 @@
 #error This file is intended for patching allocators - use override_functions.cc instead.
 #endif
 
+// Make sure we always use the 'old' names of the psapi functions.
+#ifndef PSAPI_VERSION
+#define PSAPI_VERSION 1
+#endif
+
 #include <windows.h>
 #include <malloc.h>       // for _msize and _expand
-#include <tlhelp32.h>     // for CreateToolhelp32Snapshot()
+#include <Psapi.h>        // for EnumProcessModules, GetModuleInformation, etc.
 #include <vector>
 #include <base/logging.h>
 #include "base/spinlock.h"
@@ -82,10 +87,10 @@
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"
 
-// MinGW doesn't seem to define this, perhaps some windowsen don't either.
-#ifndef TH32CS_SNAPMODULE32
-#define TH32CS_SNAPMODULE32  0
-#endif
+// The maximum number of modules we allow to be in one executable
+const int kMaxModules = 8182;
+// The maximum size of a module's basename
+const int kMaxModuleNameSize = 256;
 
 // These are hard-coded, unfortunately. :-( They are also probably
 // compiler specific.  See get_mangled_names.cc, in this directory,
@@ -117,6 +122,30 @@ typedef void (*GenericFnPtr)();
 
 using sidestep::PreamblePatcher;
 
+// This is a subset of MODDULEENTRY32, that we need for patching
+struct ModuleEntryCopy {
+  LPVOID  modBaseAddr;
+  DWORD   modBaseSize;
+  HMODULE hModule;
+  TCHAR   szModule[kMaxModuleNameSize];
+
+  ModuleEntryCopy() {
+    modBaseAddr = NULL;
+    modBaseSize = 0;
+    hModule = NULL;
+    strcpy(szModule, "<executable>");
+  }
+  ModuleEntryCopy(HANDLE hprocess, HMODULE hmodule, const MODULEINFO& mi) {
+    this->modBaseAddr = mi.lpBaseOfDll;
+    this->modBaseSize = mi.SizeOfImage;
+    this->hModule = hmodule;
+    // TODO(csilvers): we could make more efficient by calling this
+    // lazily (not until this->szModule is needed, which is often never).
+    GetModuleBaseNameA(hprocess, hmodule,
+                       this->szModule, sizeof(this->szModule));
+  }
+};
+
 // These functions are how we override the memory allocation
 // functions, just like tcmalloc.cc and malloc_hook.cc do.
 
@@ -136,7 +165,7 @@ class LibcInfo {
             module_base_address_ == that.module_base_address_ &&
             module_base_size_ == that.module_base_size_);
   }
-  bool SameAsME32(const MODULEENTRY32& me32) const {
+  bool SameAsME32(const ModuleEntryCopy& me32) const {
     return (is_valid() &&
             module_base_address_ == me32.modBaseAddr &&
             module_base_size_ == me32.modBaseSize);
@@ -157,7 +186,7 @@ class LibcInfo {
   // Populates all the windows_fn_[] vars based on our module info.
   // Returns false if windows_fn_ is all NULL's, because there's
   // nothing to patch.  Also populates the me32 info.
-  bool PopulateWindowsFn(const MODULEENTRY32& me32);
+  bool PopulateWindowsFn(const ModuleEntryCopy& me32);
 
  protected:
   void CopyFrom(const LibcInfo& that) {
@@ -207,7 +236,7 @@ class LibcInfo {
 
   const void *module_base_address_;
   size_t module_base_size_;
-  char module_name_[MAX_MODULE_NAME32 + 1];
+  char module_name_[kMaxModuleNameSize];
 };
 
 // Template trickiness: logically, a LibcInfo would include
@@ -327,7 +356,7 @@ static LibcInfoWithPatchFunctions<5> libc5;
 static LibcInfoWithPatchFunctions<6> libc6;
 static LibcInfoWithPatchFunctions<7> libc7;
 static LibcInfoWithPatchFunctions<8> libc8;
-static LibcInfo* module_libcs[] = {
+static LibcInfo* g_module_libcs[] = {
   &libc1, &libc2, &libc3, &libc4, &libc5, &libc6, &libc7, &libc8
 };
 static WindowsInfo main_executable_windows;
@@ -419,11 +448,7 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   { "FreeLibrary", NULL, NULL, (GenericFnPtr)&Perftools_FreeLibrary },
 };
 
-bool LibcInfo::PopulateWindowsFn(const MODULEENTRY32& me32) {
-  module_base_address_ = me32.modBaseAddr;
-  module_base_size_ = me32.modBaseSize;
-  strcpy(module_name_, me32.szModule);
-
+bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& me32) {
   // First, store the location of the function to patch before
   // patching it.  If none of these functions are found in the module,
   // then this module has no libc in it, and we just return false.
@@ -462,9 +487,9 @@ bool LibcInfo::PopulateWindowsFn(const MODULEENTRY32& me32) {
   // need to set our windows_fn to NULL, to avoid double-patching.
   for (int ifn = 0; ifn < kNumFunctions; ifn++) {
     for (int imod = 0;
-         imod < sizeof(module_libcs)/sizeof(*module_libcs);  imod++) {
-      if (module_libcs[imod]->is_valid() &&
-          this->windows_fn(ifn) == module_libcs[imod]->windows_fn(ifn)) {
+         imod < sizeof(g_module_libcs)/sizeof(*g_module_libcs);  imod++) {
+      if (g_module_libcs[imod]->is_valid() &&
+          this->windows_fn(ifn) == g_module_libcs[imod]->windows_fn(ifn)) {
         windows_fn_[ifn] = NULL;
       }
     }
@@ -487,6 +512,11 @@ bool LibcInfo::PopulateWindowsFn(const MODULEENTRY32& me32) {
   // haven't needed to yet.
   CHECK(windows_fn_[kFree]);
   CHECK(windows_fn_[kRealloc]);
+
+  // OK, we successfully patched.  Let's store our member information.
+  module_base_address_ = me32.modBaseAddr;
+  module_base_size_ = me32.modBaseSize;
+  strcpy(module_name_, me32.szModule);
   return true;
 }
 
@@ -562,10 +592,10 @@ void WindowsInfo::Unpatch() {
 // You should hold the patch_all_modules_lock when calling this.
 void PatchOneModuleLocked(const LibcInfo& me_info) {
   // Double-check we haven't seen this module before.
-  for (int i = 0; i < sizeof(module_libcs)/sizeof(*module_libcs); i++) {
-    if (module_libcs[i]->SameAs(me_info)) {
+  for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
+    if (g_module_libcs[i]->SameAs(me_info)) {
       fprintf(stderr, "%s:%d: FATAL ERROR: %s double-patched somehow.\n",
-              __FILE__, __LINE__, module_libcs[i]->module_name());
+              __FILE__, __LINE__, g_module_libcs[i]->module_name());
       CHECK(false);
     }
   }
@@ -573,8 +603,8 @@ void PatchOneModuleLocked(const LibcInfo& me_info) {
   // is where we're sad that each libcX has a different type, so we
   // can't use an array; instead, we have to use a switch statement.
   // Patch() returns false if there were no libc functions in the module.
-  for (int i = 0; i < sizeof(module_libcs)/sizeof(*module_libcs); i++) {
-    if (!module_libcs[i]->is_valid()) {   // found an empty spot to add!
+  for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
+    if (!g_module_libcs[i]->is_valid()) {   // found an empty spot to add!
       switch (i) {
         case 0: libc1.Patch(me_info); return;
         case 1: libc2.Patch(me_info); return;
@@ -593,11 +623,7 @@ void PatchOneModuleLocked(const LibcInfo& me_info) {
 void PatchMainExecutableLocked() {
   if (main_executable.patched())
     return;    // main executable has already been patched
-  MODULEENTRY32 fake_me32;   // we make a fake one to pass into Patch()
-  fake_me32.modBaseAddr = NULL;
-  fake_me32.modBaseSize = 0;
-  strcpy(fake_me32.szModule, "<executable>");
-  fake_me32.hModule = NULL;
+  ModuleEntryCopy fake_me32;   // we make a fake one to pass into Patch()
   main_executable.PopulateWindowsFn(fake_me32);
   main_executable.Patch(main_executable);
 }
@@ -609,65 +635,59 @@ static SpinLock patch_all_modules_lock(SpinLock::LINKER_INITIALIZED);
 // them in.  We also check that every module we had patched in the
 // past is still loaded, and update internal data structures if so.
 void PatchAllModules() {
-  std::vector<LibcInfo*> modules;
-  bool still_loaded[sizeof(module_libcs)/sizeof(*module_libcs)] = {};
+  std::vector<ModuleEntryCopy> modules;
 
-  HANDLE hModuleSnap = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE |
-                                                TH32CS_SNAPMODULE32,
-                                                GetCurrentProcessId());
-  if (hModuleSnap != INVALID_HANDLE_VALUE) {
-    MODULEENTRY32 me32;
-    me32.dwSize = sizeof(me32);
-    if (Module32First(hModuleSnap, &me32)) {
-      do {
-        bool module_already_loaded = false;
-        for (int i = 0; i < sizeof(module_libcs)/sizeof(*module_libcs); i++) {
-          if (module_libcs[i]->SameAsME32(me32)) {
-            still_loaded[i] = true;
-            module_already_loaded = true;
-            break;
-          }
-        }
-        if (!module_already_loaded) {
-          LibcInfo* libc_info = new LibcInfo;
-          if (libc_info->PopulateWindowsFn(me32))
-            modules.push_back(libc_info);
-          else                   // means module has no libc routines
-            delete libc_info;
-        }
-      } while (Module32Next(hModuleSnap, &me32));
+  const HANDLE hCurrentProcess = GetCurrentProcess();
+  MODULEINFO mi;
+  DWORD cbNeeded = 0;
+  HMODULE hModules[kMaxModules];  // max # of modules we support in one process
+  if (EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
+                         &cbNeeded)) {
+    for (int i = 0; i < cbNeeded / sizeof(*hModules); ++i) {
+      if (GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi)))
+        modules.push_back(ModuleEntryCopy(hCurrentProcess, hModules[i], mi));
     }
-    CloseHandle(hModuleSnap);
   }
 
-  // Now do the actual patching.
+  // Now do the actual patching and unpatching.
   {
     SpinLockHolder h(&patch_all_modules_lock);
-    // First, delete the modules that are no longer loaded.  (We go first
-    // so we can try to open up space for the new modules we need to load.)
-    for (int i = 0; i < sizeof(module_libcs)/sizeof(*module_libcs); i++) {
-      if (!still_loaded[i] && module_libcs[i]->is_valid()) {
+    for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
+      if (!g_module_libcs[i]->is_valid())
+        continue;
+      bool still_loaded = false;
+      for (std::vector<ModuleEntryCopy>::iterator it = modules.begin();
+           it != modules.end(); ++it) {
+        if (g_module_libcs[i]->SameAsME32(*it)) {
+          // Both g_module_libcs[i] and it are still valid.  Mark it by
+          // removing it from the vector; mark g_module_libcs[i] by
+          // setting a bool.
+          modules.erase(it);
+          still_loaded = true;
+          break;
+        }
+      }
+      if (!still_loaded) {
+        // Means g_module_libcs[i] is no longer loaded (no me32 matched).
         // We could call Unpatch() here, but why bother?  The module
         // has gone away, so nobody is going to call into it anyway.
-        module_libcs[i]->set_is_valid(false);
+        g_module_libcs[i]->set_is_valid(false);
       }
     }
 
-    // Now, add in new modules that we need to load.
-    for (std::vector<LibcInfo*>::iterator it = modules.begin();
-         it != modules.end();  ++it) {
-      PatchOneModuleLocked(**it);  // updates num_patched_modules
+    // We've handled all the g_module_libcs.  Now let's handle the rest
+    // of the me32's: those that haven't already been loaded.
+    for (std::vector<ModuleEntryCopy>::const_iterator it = modules.begin();
+         it != modules.end(); ++it) {
+      LibcInfo libc_info;
+      if (libc_info.PopulateWindowsFn(*it))  // true==module has libc routines
+        PatchOneModuleLocked(libc_info);     // updates num_patched_modules
     }
 
     // Now that we've dealt with the modules (dlls), update the main
     // executable.  We do this last because PatchMainExecutableLocked
     // wants to look at how other modules were patched.
     PatchMainExecutableLocked();
-  }
-
-  for (std::vector<LibcInfo*>::iterator it = modules.begin();
-       it != modules.end();  ++it) {
-    delete *it;
   }
 }
 
