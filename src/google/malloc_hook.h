@@ -191,6 +191,12 @@ class PERFTOOLS_DLL_DECL MallocHook {
                                         int skip_count) {
     return MallocHook_GetCallerStackTrace(result, max_depth, skip_count);
   }
+
+  // Unhooked versions of mmap() and munmap().   These should be used
+  // only by experts, since they bypass heapchecking, etc.
+  static void* UnhookedMMap(void *start, size_t length, int prot, int flags,
+                            int fd, off_t offset);
+  static int UnhookedMUnmap(void *start, size_t length);
 };
 
 #endif /* _MALLOC_HOOK_H_ */

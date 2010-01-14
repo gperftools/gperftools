@@ -762,9 +762,9 @@ TCMallocGuard::TCMallocGuard() {
     // patch the windows VirtualAlloc, etc.
     PatchWindowsFunctions();    // defined in windows/patch_functions.cc
 #endif
-    free(malloc(1));
+    tc_free(tc_malloc(1));
     ThreadCache::InitTSD();
-    free(malloc(1));
+    tc_free(tc_malloc(1));
     MallocExtension::Register(new TCMallocImplementation);
   }
 }

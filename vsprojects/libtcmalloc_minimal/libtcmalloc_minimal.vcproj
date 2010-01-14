@@ -30,7 +30,6 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="Psapi.lib"
 				OutputFile="$(OutDir)/libtcmalloc_minimal-debug.dll"
 				LinkIncremental="2"
 				GenerateDebugInformation="TRUE"
@@ -76,7 +75,6 @@
 				Name="VCCustomBuildTool"/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="Psapi.lib"
 				OutputFile="$(OutDir)/libtcmalloc_minimal.dll"
 				LinkIncremental="1"
 				GenerateDebugInformation="TRUE"

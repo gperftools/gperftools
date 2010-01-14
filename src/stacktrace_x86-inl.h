@@ -49,6 +49,11 @@
 #elif defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>  // for ucontext_t
 #elif defined(HAVE_CYGWIN_SIGNAL_H)
+// cygwin/signal.h has a buglet where it uses pthread_attr_t without
+// #including <pthread.h> itself.  So we have to do it.
+# ifdef HAVE_PTHREAD
+# include <pthread.h>
+# endif
 #include <cygwin/signal.h>
 typedef ucontext ucontext_t;
 #endif

@@ -423,7 +423,7 @@ static inline void* do_mmap64(void *start, size_t length,
   return result;
 }
 
-# endif
+# endif  // defined(__x86_64__)
 
 // We use do_mmap64 abstraction to put MallocHook::InvokeMmapHook
 // calls right into mmap and mmap64, so that the stack frames in the caller's
@@ -472,7 +472,7 @@ extern "C" void* mmap(void *start, size_t length, int prot, int flags,
   return result;
 }
 
-#endif
+#endif  // !defined(__USE_FILE_OFFSET64) || !defined(__REDIRECT_NTH)
 
 extern "C" int munmap(void* start, size_t length) __THROW {
   MallocHook::InvokeMunmapHook(start, length);
@@ -501,4 +501,26 @@ extern "C" void* sbrk(ptrdiff_t increment) __THROW {
   return result;
 }
 
-#endif
+/*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
+                                         int flags, int fd, off_t offset) {
+  return do_mmap64(start, length, prot, flags, fd, offset);
+}
+
+/*static*/int MallocHook::UnhookedMUnmap(void *start, size_t length) {
+  return sys_munmap(start, length);
+}
+
+#else   // defined(__linux) &&
+        // (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))
+
+/*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
+                                         int flags, int fd, off_t offset) {
+  return mmap(start, length, prot, flags, fd, offset);
+}
+
+/*static*/int MallocHook::UnhookedMUnmap(void *start, size_t length) {
+  return munmap(start, length);
+}
+
+#endif  // defined(__linux) &&
+        // (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))

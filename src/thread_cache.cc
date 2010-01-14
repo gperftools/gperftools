@@ -299,12 +299,6 @@ int ThreadCache::GetSamplePeriod() {
 }
 
 void ThreadCache::InitModule() {
-  // There is a slight potential race here because of double-checked
-  // locking idiom.  However, as long as the program does a small
-  // allocation before switching to multi-threaded mode, we will be
-  // fine.  We increase the chances of doing such a small allocation
-  // by doing one in the constructor of the module_enter_exit_hook
-  // object declared below.
   SpinLockHolder h(Static::pageheap_lock());
   if (!phinited) {
     Static::InitStaticVars();

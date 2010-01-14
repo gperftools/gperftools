@@ -62,10 +62,10 @@ if ! cat "$SAMPLING_TEST_BINARY" >/dev/null 2>&1; then
   SAMPLING_TEST_BINARY="$SAMPLING_TEST_BINARY".exe
 fi
 
-die() {
-    echo "FAILED"
-    echo "reason:"
-    echo "$@"
+die() {    # runs the command given as arguments, and then dies.
+    echo "FAILED.  Output from $@"
+    echo "----"
+    "$@"
     echo "----"
     exit 1
 }
@@ -79,16 +79,16 @@ mkdir "$OUTDIR" || die "Unable to create $OUTDIR"
 # 50M to 99M.
 "$SAMPLING_TEST" "$OUTDIR/out"
 
-echo -n "Testing heap output..."
+echo "Testing heap output..."
 "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap" \
    | grep '^ *[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
-   || die `"$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap"`
+   || die "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap"
 echo "OK"
 
-echo -n "Testing growth output..."
+echo "Testing growth output..."
 "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth" \
    | grep '^ *[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
-   || die `"$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth"`
+   || die "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth"
 echo "OK"
 
 echo "PASS"

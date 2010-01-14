@@ -1977,7 +1977,12 @@ sub RemoveUninterestingFrames {
                       '__builtin_vec_delete',
                       '__builtin_vec_new',
                       'operator new',
-                      'operator new[]') {
+                      'operator new[]',
+		      # These mark the beginning/end of our custom sections
+		      '__start_google_malloc',
+		      '__stop_google_malloc',
+		      '__start_malloc_hook',
+		      '__stop_malloc_hook') {
       $skip{$name} = 1;
       $skip{"_" . $name} = 1;   # Mach (OS X) adds a _ prefix to everything
     }

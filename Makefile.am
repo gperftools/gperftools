@@ -181,6 +181,8 @@ libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
                         src/windows/patch_functions.cc \
                         src/windows/preamble_patcher.cc \
                         src/windows/preamble_patcher_with_stub.cc
+# patch_functions.cc uses Psapi.lib.  MSVC has a #pragma for that, but not us.
+libwindows_la_LIBADD = -lPsapi
 
 SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/spinlock_win32-inl.h \
@@ -529,6 +531,12 @@ malloc_extension_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_extension_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_extension_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
+# This doesn't work with static linkage, because libtcmalloc.a isn't
+# happy with C linkage (it misses the stdc++ library).  Likewise with
+# mingw, which links foo.a even though it doesn't set ENABLE_STATIC.
+# TODO(csilvers): set enable_static=true in configure.ac:36?
+if !MINGW
+if !ENABLE_STATIC
 TESTS += malloc_extension_c_test
 malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.c \
                                   src/google/malloc_extension.h \
@@ -540,6 +548,8 @@ malloc_extension_c_test_CFLAGS += -ansi
 endif GCC
 malloc_extension_c_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+endif !ENABLE_STATIC
+endif !MINGW
 
 if !MINGW
 TESTS += memalign_unittest

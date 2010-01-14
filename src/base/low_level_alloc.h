@@ -72,14 +72,20 @@ class LowLevelAlloc {
   // meta_data_arena; the DefaultArena() can be passed for meta_data_arena.
   // These values may be ored into flags:
   enum {
-    // Calls to Alloc() and Free() will be reported
-    // via the MallocHook interface.
-    // The DefaultArena() has this flag on.
-    // NewArena(flags, DefaultArena()) w/o this bit in 'flags',
-    // on the other hand, will not cause any MallocHook
-    // calls even during the NewArena call itself
-    // (it will in fact use meta_data_arena different from DefaultArena()).
-    kCallMallocHook = 0x0001
+    // Report calls to Alloc() and Free() via the MallocHook interface.
+    // Set in the DefaultArena.
+    kCallMallocHook = 0x0001,
+
+    // Make calls to Alloc(), Free() be async-signal-safe.  Not set in
+    // DefaultArena().
+    kAsyncSignalSafe = 0x0002,
+
+    // When used with DefaultArena(), the NewArena() and DeleteArena() calls
+    // obey the flags given explicitly in the NewArena() call, even if those
+    // flags differ from the settings in DefaultArena().  So the call
+    // NewArena(kAsyncSignalSafe, DefaultArena()) is itself async-signal-safe,
+    // as well as generatating an arena that provides async-signal-safe
+    // Alloc/Free.
   };
   static Arena *NewArena(int32 flags, Arena *meta_data_arena);
 
