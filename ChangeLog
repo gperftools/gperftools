@@ -1,3 +1,34 @@
+Tue Jan 19 14:46:12 2010  Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.5 release
+	* Add tc_set_new_mode (willchan)
+	* Make memalign functions + realloc respect tc_set_new_mode (willchan)
+	* Add ReleaseToSystem(num_bytes) (kash)
+	* Handle zero-length symbols a bit better in pprof (csilvers)
+	* Prefer __environ to /proc/self/environ in cpu profiler (csilvers)
+	* Add HEAP_CHECK_MAX_LEAKS flag to control #leaks to report (glider)
+	* Add two new numeric pageheap properties to MallocExtension (fikes)
+	* Print alloc size when mmap fails (hakon)
+	* Add ITIMER_REAL support to cpu profiler (csilvers, nabeelmian)
+	* Speed up symbolizer in heap-checker reporting (glider)
+	* Speed up futexes with FUTEX_PRIVATE_FLAG (m3b)
+	* Speed up tcmalloc but doing better span coalescing (sanjay)
+	* Better support for different wget's and addr2maps in pprof (csilvres)
+	* Implement a nothrow version of delete and delete[] (csilvers)
+	* BUGFIX: fix a race on module_libcs[i] in windows patching (csilvers)
+	* BUGFIX: Fix debugallocation to call cpp_alloc for new (willchan)
+	* BUGFIX: A simple bugfix for --raw mode (mrabkin)
+	* BUGFIX: Fix C shims to actually be valid C (csilvers)
+	* BUGFIX: Fix recursively-unmapped-region accounting (ppluzhnikov)
+	* BUGFIX: better distinguish real and fake vdso (ppluzhnikov)
+	* WINDOWS: replace debugmodule with more reliable psai (andrey)
+	* PORTING: Add .bundle as another shared library extension (csilvers)
+	* PORTING: Fixed a typo bug in the ocnfigure PRIxx m4 macro (csilvers)
+	* PORTING: Augment sysinfo to work on 64-bit OS X (csilvers)
+	* PORTING: Use sys/ucontext.h to fix compiing on OS X 10.6 (csilvers)
+	* PORTING: Fix sysinfo libname reporting for solaris x86 (jeffrey)
+	* PORTING: Use libunwind for i386 when using --omitfp (ppluzhnikov)
+	
 Thu Sep 10 13:51:15 2009  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.4 release
