@@ -72,6 +72,11 @@
 #error This file is intended for patching allocators - use override_functions.cc instead.
 #endif
 
+// We use psapi.  Non-MSVC systems will have to link this in themselves.
+#ifdef _MSC_VER
+#pragma comment(lib, "Psapi.lib")
+#endif
+
 // Make sure we always use the 'old' names of the psapi functions.
 #ifndef PSAPI_VERSION
 #define PSAPI_VERSION 1
@@ -80,6 +85,8 @@
 #include <windows.h>
 #include <malloc.h>       // for _msize and _expand
 #include <Psapi.h>        // for EnumProcessModules, GetModuleInformation, etc.
+#include <set>
+#include <map>
 #include <vector>
 #include <base/logging.h>
 #include "base/spinlock.h"
@@ -122,29 +129,7 @@ typedef void (*GenericFnPtr)();
 
 using sidestep::PreamblePatcher;
 
-// This is a subset of MODDULEENTRY32, that we need for patching
-struct ModuleEntryCopy {
-  LPVOID  modBaseAddr;
-  DWORD   modBaseSize;
-  HMODULE hModule;
-  TCHAR   szModule[kMaxModuleNameSize];
-
-  ModuleEntryCopy() {
-    modBaseAddr = NULL;
-    modBaseSize = 0;
-    hModule = NULL;
-    strcpy(szModule, "<executable>");
-  }
-  ModuleEntryCopy(HANDLE hprocess, HMODULE hmodule, const MODULEINFO& mi) {
-    this->modBaseAddr = mi.lpBaseOfDll;
-    this->modBaseSize = mi.SizeOfImage;
-    this->hModule = hmodule;
-    // TODO(csilvers): we could make more efficient by calling this
-    // lazily (not until this->szModule is needed, which is often never).
-    GetModuleBaseNameA(hprocess, hmodule,
-                       this->szModule, sizeof(this->szModule));
-  }
-};
+struct ModuleEntryCopy;   // defined below
 
 // These functions are how we override the memory allocation
 // functions, just like tcmalloc.cc and malloc_hook.cc do.
@@ -160,33 +145,19 @@ class LibcInfo {
   LibcInfo() {
     memset(this, 0, sizeof(*this));  // easiest way to initialize the array
   }
-  bool SameAs(const LibcInfo& that) const {
-    return (is_valid() &&
-            module_base_address_ == that.module_base_address_ &&
-            module_base_size_ == that.module_base_size_);
-  }
-  bool SameAsME32(const ModuleEntryCopy& me32) const {
-    return (is_valid() &&
-            module_base_address_ == me32.modBaseAddr &&
-            module_base_size_ == me32.modBaseSize);
-  }
+  bool SameAs(const LibcInfo& that) const;
+  bool SameAsModuleEntry(const ModuleEntryCopy& module_entry) const;
+
   bool patched() const { return is_valid() && module_name_[0] != '\0'; }
   const char* module_name() const { return is_valid() ? module_name_ : ""; }
 
   void set_is_valid(bool b) { is_valid_ = b; }
 
-  // These shouldn't have to be public, since only subclasses of
-  // LibcInfo need it, but they do.  Maybe something to do with
-  // templates.  Shrug.
-  bool is_valid() const { return is_valid_; }
-  GenericFnPtr windows_fn(int ifunction) const {
-    return windows_fn_[ifunction];
-  }
-
   // Populates all the windows_fn_[] vars based on our module info.
   // Returns false if windows_fn_ is all NULL's, because there's
-  // nothing to patch.  Also populates the me32 info.
-  bool PopulateWindowsFn(const ModuleEntryCopy& me32);
+  // nothing to patch.  Also populates the rest of the module_entry
+  // info, such as the module's name.
+  bool PopulateWindowsFn(const ModuleEntryCopy& module_entry);
 
  protected:
   void CopyFrom(const LibcInfo& that) {
@@ -237,6 +208,24 @@ class LibcInfo {
   const void *module_base_address_;
   size_t module_base_size_;
   char module_name_[kMaxModuleNameSize];
+
+ public:
+  // These shouldn't have to be public, since only subclasses of
+  // LibcInfo need it, but they do.  Maybe something to do with
+  // templates.  Shrug.  I hide them down here so users won't see
+  // them. :-)  (OK, I also need to define ctrgProcAddress late.)
+  bool is_valid() const { return is_valid_; }
+  GenericFnPtr windows_fn(int ifunction) const {
+    return windows_fn_[ifunction];
+  }
+  // These three are needed by ModuleEntryCopy.
+  static const int ctrgProcAddress = kNumFunctions;
+  static GenericFnPtr static_fn(int ifunction) {
+    return static_fn_[ifunction];
+  }
+  static const char* const function_name(int ifunction) {
+    return function_name_[ifunction];
+  }
 };
 
 // Template trickiness: logically, a LibcInfo would include
@@ -294,6 +283,43 @@ template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
   // But they seem pretty obscure, and I'm fine not overriding them for now.
 };
 
+// This is a subset of MODDULEENTRY32, that we need for patching.
+struct ModuleEntryCopy {
+  LPVOID  modBaseAddr;
+  DWORD   modBaseSize;
+  HMODULE hModule;
+  TCHAR   szModule[kMaxModuleNameSize];
+  // This is not part of MODDULEENTRY32, but is needed to avoid making
+  // windows syscalls while we're holding patch_all_modules_lock (see
+  // lock-inversion comments at patch_all_modules_lock definition, below).
+  GenericFnPtr rgProcAddresses[LibcInfo::ctrgProcAddress];
+
+  ModuleEntryCopy() {
+    modBaseAddr = NULL;
+    modBaseSize = 0;
+    hModule = NULL;
+    strcpy(szModule, "<executable>");
+    for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
+      rgProcAddresses[i] = LibcInfo::static_fn(i);
+  }
+  ModuleEntryCopy(HANDLE hprocess, HMODULE hmodule, const MODULEINFO& mi) {
+    this->modBaseAddr = mi.lpBaseOfDll;
+    this->modBaseSize = mi.SizeOfImage;
+    this->hModule = hmodule;
+    // TODO(csilvers): we could make more efficient by calling these
+    // lazily (not until the vars are needed, which is often never).
+    // However, there's tricky business with calling windows functions
+    // inside the patch_all_modules_lock (see the lock inversion
+    // comments with the patch_all_modules_lock definition, below), so
+    // it's safest to do it all here, where no lock is needed.
+    ::GetModuleBaseNameA(hprocess, hmodule,
+                         this->szModule, sizeof(this->szModule));
+    for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
+      rgProcAddresses[i] =
+          (GenericFnPtr)::GetProcAddress(hModule, LibcInfo::function_name(i));
+  }
+};
+
 // This class is easier because there's only one of them.
 class WindowsInfo {
  public:
@@ -347,6 +373,11 @@ class WindowsInfo {
 // If you run out, just add a few more to the array.  You'll also need
 // to update the switch statement in PatchOneModule(), and the list in
 // UnpatchWindowsFunctions().
+// main_executable and main_executable_windows are two windows into
+// the same executable.  One is responsible for patching the libc
+// routines that live in the main executable (if any) to use tcmalloc;
+// the other is responsible for patching the windows routines like
+// HeapAlloc/etc to use tcmalloc.
 static LibcInfoWithPatchFunctions<0> main_executable;
 static LibcInfoWithPatchFunctions<1> libc1;
 static LibcInfoWithPatchFunctions<2> libc2;
@@ -448,20 +479,28 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   { "FreeLibrary", NULL, NULL, (GenericFnPtr)&Perftools_FreeLibrary },
 };
 
-bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& me32) {
+bool LibcInfo::SameAs(const LibcInfo& that) const {
+  return (is_valid() &&
+          module_base_address_ == that.module_base_address_ &&
+          module_base_size_ == that.module_base_size_);
+}
+
+bool LibcInfo::SameAsModuleEntry(const ModuleEntryCopy& module_entry) const {
+  return (is_valid() &&
+          module_base_address_ == module_entry.modBaseAddr &&
+          module_base_size_ == module_entry.modBaseSize);
+}
+
+bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   // First, store the location of the function to patch before
   // patching it.  If none of these functions are found in the module,
   // then this module has no libc in it, and we just return false.
   for (int i = 0; i < kNumFunctions; i++) {
     if (!function_name_[i])     // we can turn off patching by unsetting name
       continue;
-    GenericFnPtr fn = NULL;
-    if (me32.hModule == NULL) { // used for the main executable
-      // This is used only for a statically-linked-in libc.
-      fn = static_fn_[i];
-    } else {
-      fn = (GenericFnPtr)::GetProcAddress(me32.hModule, function_name_[i]);
-    }
+    // The ::GetProcAddress calls were done in the ModuleEntryCopy
+    // constructor, so we don't have to make any windows calls here.
+    const GenericFnPtr fn = module_entry.rgProcAddresses[i];
     if (fn) {
       windows_fn_[i] = PreamblePatcher::ResolveTarget(fn);
     }
@@ -514,15 +553,15 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& me32) {
   CHECK(windows_fn_[kRealloc]);
 
   // OK, we successfully patched.  Let's store our member information.
-  module_base_address_ = me32.modBaseAddr;
-  module_base_size_ = me32.modBaseSize;
-  strcpy(module_name_, me32.szModule);
+  module_base_address_ = module_entry.modBaseAddr;
+  module_base_size_ = module_entry.modBaseSize;
+  strcpy(module_name_, module_entry.szModule);
   return true;
 }
 
 template<int T>
 bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
-  CopyFrom(me_info);   // copies the me32 and the windows_fn_ array
+  CopyFrom(me_info);   // copies the module_entry and the windows_fn_ array
   for (int i = 0; i < kNumFunctions; i++) {
     if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i]) {
       // if origstub_fn_ is not NULL, it's left around from a previous
@@ -530,7 +569,10 @@ bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
       // Since we've patched Unpatch() not to delete origstub_fn_ (it
       // causes problems in some contexts, though obviously not this
       // one), we should delete it now, before setting it to NULL.
-      delete[] reinterpret_cast<char*>(origstub_fn_[i]);
+      // NOTE: casting from a function to a pointer is contra the C++
+      //       spec.  It's not safe on IA64, but is on i386.  We use
+      //       a C-style cast here to emphasize this is not legal C++.
+      delete[] (char*)(origstub_fn_[i]);
       origstub_fn_[i] = NULL;   // Patch() will fill this in
       CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
                PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i],
@@ -569,7 +611,10 @@ void WindowsInfo::Patch() {
     // Since we've patched Unpatch() not to delete origstub_fn_ (it
     // causes problems in some contexts, though obviously not this
     // one), we should delete it now, before setting it to NULL.
-    delete[] reinterpret_cast<char*>(function_info_[i].origstub_fn);
+    // NOTE: casting from a function to a pointer is contra the C++
+    //       spec.  It's not safe on IA64, but is on i386.  We use
+    //       a C-style cast here to emphasize this is not legal C++.
+    delete[] (char*)(function_info_[i].origstub_fn);
     function_info_[i].origstub_fn = NULL;  // Patch() will fill this in
     CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
              PreamblePatcher::Patch(function_info_[i].windows_fn,
@@ -594,7 +639,7 @@ void PatchOneModuleLocked(const LibcInfo& me_info) {
   // Double-check we haven't seen this module before.
   for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
     if (g_module_libcs[i]->SameAs(me_info)) {
-      fprintf(stderr, "%s:%d: FATAL ERROR: %s double-patched somehow.\n",
+      fprintf(stderr, "%s:%d: FATAL PERFTOOLS ERROR: %s double-patched somehow.\n",
               __FILE__, __LINE__, g_module_libcs[i]->module_name());
       CHECK(false);
     }
@@ -617,34 +662,53 @@ void PatchOneModuleLocked(const LibcInfo& me_info) {
       }
     }
   }
-  printf("ERROR: Too many modules containing libc in this executable\n");
+  printf("PERFTOOLS ERROR: Too many modules containing libc in this executable\n");
 }
 
 void PatchMainExecutableLocked() {
   if (main_executable.patched())
     return;    // main executable has already been patched
-  ModuleEntryCopy fake_me32;   // we make a fake one to pass into Patch()
-  main_executable.PopulateWindowsFn(fake_me32);
+  ModuleEntryCopy fake_module_entry;   // make a fake one to pass into Patch()
+  // No need to call PopulateModuleEntryProcAddresses on the main executable.
+  main_executable.PopulateWindowsFn(fake_module_entry);
   main_executable.Patch(main_executable);
 }
 
+// This lock is subject to a subtle and annoying lock inversion
+// problem: it may interact badly with unknown internal windows locks.
+// In particular, windows may be holding a lock when it calls
+// LoadLibraryExW and FreeLibrary, which we've patched.  We have those
+// routines call PatchAllModules, which acquires this lock.  If we
+// make windows system calls while holding this lock, those system
+// calls may need the internal windows locks that are being held in
+// the call to LoadLibraryExW, resulting in deadlock.  The solution is
+// to be very careful not to call *any* windows routines while holding
+// patch_all_modules_lock, inside PatchAllModules().
 static SpinLock patch_all_modules_lock(SpinLock::LINKER_INITIALIZED);
 
 // Iterates over all the modules currently loaded by the executable,
 // and makes sure they're all patched.  For ones that aren't, we patch
 // them in.  We also check that every module we had patched in the
 // past is still loaded, and update internal data structures if so.
-void PatchAllModules() {
+// We return true if this PatchAllModules did any work, false else.
+bool PatchAllModules() {
   std::vector<ModuleEntryCopy> modules;
+  bool made_changes = false;
 
   const HANDLE hCurrentProcess = GetCurrentProcess();
   MODULEINFO mi;
   DWORD cbNeeded = 0;
   HMODULE hModules[kMaxModules];  // max # of modules we support in one process
-  if (EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
-                         &cbNeeded)) {
+  if (::EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
+                           &cbNeeded)) {
     for (int i = 0; i < cbNeeded / sizeof(*hModules); ++i) {
-      if (GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi)))
+      if (i >= kMaxModules) {
+        printf("PERFTOOLS ERROR: Too many modules in this executable to try"
+               " to patch them all (if you need to, raise kMaxModules in"
+               " patch_functions.cc).\n");
+        break;
+      }
+      if (::GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi)))
         modules.push_back(ModuleEntryCopy(hCurrentProcess, hModules[i], mi));
     }
   }
@@ -658,7 +722,7 @@ void PatchAllModules() {
       bool still_loaded = false;
       for (std::vector<ModuleEntryCopy>::iterator it = modules.begin();
            it != modules.end(); ++it) {
-        if (g_module_libcs[i]->SameAsME32(*it)) {
+        if (g_module_libcs[i]->SameAsModuleEntry(*it)) {
           // Both g_module_libcs[i] and it are still valid.  Mark it by
           // removing it from the vector; mark g_module_libcs[i] by
           // setting a bool.
@@ -672,23 +736,30 @@ void PatchAllModules() {
         // We could call Unpatch() here, but why bother?  The module
         // has gone away, so nobody is going to call into it anyway.
         g_module_libcs[i]->set_is_valid(false);
+        made_changes = true;
       }
     }
 
     // We've handled all the g_module_libcs.  Now let's handle the rest
-    // of the me32's: those that haven't already been loaded.
+    // of the module-entries: those that haven't already been loaded.
     for (std::vector<ModuleEntryCopy>::const_iterator it = modules.begin();
          it != modules.end(); ++it) {
       LibcInfo libc_info;
-      if (libc_info.PopulateWindowsFn(*it))  // true==module has libc routines
-        PatchOneModuleLocked(libc_info);     // updates num_patched_modules
+      if (libc_info.PopulateWindowsFn(*it)) { // true==module has libc routines
+        PatchOneModuleLocked(libc_info);      // updates num_patched_modules
+        made_changes = true;
+      }
     }
 
     // Now that we've dealt with the modules (dlls), update the main
     // executable.  We do this last because PatchMainExecutableLocked
     // wants to look at how other modules were patched.
-    PatchMainExecutableLocked();
+    if (!main_executable.patched()) {
+      PatchMainExecutableLocked();
+      made_changes = true;
+    }
   }
+  return made_changes;
 }
 
 
@@ -697,6 +768,8 @@ void PatchAllModules() {
 // ---------------------------------------------------------------------
 // PatchWindowsFunctions()
 //    This is the function that is exposed to the outside world.
+//    It should be called before the program becomes multi-threaded,
+//    since main_executable_windows.Patch() is not thread-safe.
 // ---------------------------------------------------------------------
 
 void PatchWindowsFunctions() {
@@ -962,7 +1035,7 @@ HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName,
   HMODULE rv = ((HMODULE (WINAPI *)(LPCWSTR, HANDLE, DWORD))
                 function_info_[kLoadLibraryExW].origstub_fn)(
                     lpFileName, hFile, dwFlags);
-  PatchAllModules();   // this will patch any newly loaded libraries
+  PatchAllModules();
   return rv;
 }
 
