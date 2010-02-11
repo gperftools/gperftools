@@ -83,6 +83,7 @@
 #endif
 
 #include <windows.h>
+#include <stdio.h>
 #include <malloc.h>       // for _msize and _expand
 #include <Psapi.h>        // for EnumProcessModules, GetModuleInformation, etc.
 #include <set>
@@ -96,8 +97,6 @@
 
 // The maximum number of modules we allow to be in one executable
 const int kMaxModules = 8182;
-// The maximum size of a module's basename
-const int kMaxModuleNameSize = 256;
 
 // These are hard-coded, unfortunately. :-( They are also probably
 // compiler specific.  See get_mangled_names.cc, in this directory,
@@ -145,13 +144,15 @@ class LibcInfo {
   LibcInfo() {
     memset(this, 0, sizeof(*this));  // easiest way to initialize the array
   }
-  bool SameAs(const LibcInfo& that) const;
-  bool SameAsModuleEntry(const ModuleEntryCopy& module_entry) const;
 
-  bool patched() const { return is_valid() && module_name_[0] != '\0'; }
-  const char* module_name() const { return is_valid() ? module_name_ : ""; }
-
+  bool patched() const { return is_valid(); }
   void set_is_valid(bool b) { is_valid_ = b; }
+  // According to http://msdn.microsoft.com/en-us/library/ms684229(VS.85).aspx:
+  // "The load address of a module (lpBaseOfDll) is the same as the HMODULE
+  // value."
+  HMODULE hmodule() const {
+    return reinterpret_cast<HMODULE>(const_cast<void*>(module_base_address_));
+  }
 
   // Populates all the windows_fn_[] vars based on our module info.
   // Returns false if windows_fn_ is all NULL's, because there's
@@ -167,7 +168,6 @@ class LibcInfo {
     memcpy(this->windows_fn_, that.windows_fn_, sizeof(windows_fn_));
     this->module_base_address_ = that.module_base_address_;
     this->module_base_size_ = that.module_base_size_;
-    memcpy(this->module_name_, that.module_name_, sizeof(module_name_));
   }
 
   enum {
@@ -207,7 +207,6 @@ class LibcInfo {
 
   const void *module_base_address_;
   size_t module_base_size_;
-  char module_name_[kMaxModuleNameSize];
 
  public:
   // These shouldn't have to be public, since only subclasses of
@@ -285,10 +284,8 @@ template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
 
 // This is a subset of MODDULEENTRY32, that we need for patching.
 struct ModuleEntryCopy {
-  LPVOID  modBaseAddr;
+  LPVOID  modBaseAddr;     // the same as hmodule
   DWORD   modBaseSize;
-  HMODULE hModule;
-  TCHAR   szModule[kMaxModuleNameSize];
   // This is not part of MODDULEENTRY32, but is needed to avoid making
   // windows syscalls while we're holding patch_all_modules_lock (see
   // lock-inversion comments at patch_all_modules_lock definition, below).
@@ -297,26 +294,16 @@ struct ModuleEntryCopy {
   ModuleEntryCopy() {
     modBaseAddr = NULL;
     modBaseSize = 0;
-    hModule = NULL;
-    strcpy(szModule, "<executable>");
     for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
       rgProcAddresses[i] = LibcInfo::static_fn(i);
   }
-  ModuleEntryCopy(HANDLE hprocess, HMODULE hmodule, const MODULEINFO& mi) {
+  ModuleEntryCopy(const MODULEINFO& mi) {
     this->modBaseAddr = mi.lpBaseOfDll;
     this->modBaseSize = mi.SizeOfImage;
-    this->hModule = hmodule;
-    // TODO(csilvers): we could make more efficient by calling these
-    // lazily (not until the vars are needed, which is often never).
-    // However, there's tricky business with calling windows functions
-    // inside the patch_all_modules_lock (see the lock inversion
-    // comments with the patch_all_modules_lock definition, below), so
-    // it's safest to do it all here, where no lock is needed.
-    ::GetModuleBaseNameA(hprocess, hmodule,
-                         this->szModule, sizeof(this->szModule));
     for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
-      rgProcAddresses[i] =
-          (GenericFnPtr)::GetProcAddress(hModule, LibcInfo::function_name(i));
+      rgProcAddresses[i] = (GenericFnPtr)::GetProcAddress(
+          reinterpret_cast<const HMODULE>(mi.lpBaseOfDll),
+          LibcInfo::function_name(i));
   }
 };
 
@@ -479,18 +466,6 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   { "FreeLibrary", NULL, NULL, (GenericFnPtr)&Perftools_FreeLibrary },
 };
 
-bool LibcInfo::SameAs(const LibcInfo& that) const {
-  return (is_valid() &&
-          module_base_address_ == that.module_base_address_ &&
-          module_base_size_ == that.module_base_size_);
-}
-
-bool LibcInfo::SameAsModuleEntry(const ModuleEntryCopy& module_entry) const {
-  return (is_valid() &&
-          module_base_address_ == module_entry.modBaseAddr &&
-          module_base_size_ == module_entry.modBaseSize);
-}
-
 bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   // First, store the location of the function to patch before
   // patching it.  If none of these functions are found in the module,
@@ -552,10 +527,9 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   CHECK(windows_fn_[kFree]);
   CHECK(windows_fn_[kRealloc]);
 
-  // OK, we successfully patched.  Let's store our member information.
+  // OK, we successfully populated.  Let's store our member information.
   module_base_address_ = module_entry.modBaseAddr;
   module_base_size_ = module_entry.modBaseSize;
-  strcpy(module_name_, module_entry.szModule);
   return true;
 }
 
@@ -636,14 +610,6 @@ void WindowsInfo::Unpatch() {
 
 // You should hold the patch_all_modules_lock when calling this.
 void PatchOneModuleLocked(const LibcInfo& me_info) {
-  // Double-check we haven't seen this module before.
-  for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
-    if (g_module_libcs[i]->SameAs(me_info)) {
-      fprintf(stderr, "%s:%d: FATAL PERFTOOLS ERROR: %s double-patched somehow.\n",
-              __FILE__, __LINE__, g_module_libcs[i]->module_name());
-      CHECK(false);
-    }
-  }
   // If we don't already have info on this module, let's add it.  This
   // is where we're sad that each libcX has a different type, so we
   // can't use an array; instead, we have to use a switch statement.
@@ -686,52 +652,70 @@ void PatchMainExecutableLocked() {
 // patch_all_modules_lock, inside PatchAllModules().
 static SpinLock patch_all_modules_lock(SpinLock::LINKER_INITIALIZED);
 
+// last_loaded: The set of modules that were loaded the last time
+// PatchAllModules was called.  This is an optimization for only
+// looking at modules that were added or removed from the last call.
+static std::set<HMODULE> *g_last_loaded;
+
 // Iterates over all the modules currently loaded by the executable,
-// and makes sure they're all patched.  For ones that aren't, we patch
-// them in.  We also check that every module we had patched in the
-// past is still loaded, and update internal data structures if so.
-// We return true if this PatchAllModules did any work, false else.
+// according to windows, and makes sure they're all patched.  Most
+// modules will already be in loaded_modules, meaning we have already
+// loaded and either patched them or determined they did not need to
+// be patched.  Others will not, which means we need to patch them
+// (if necessary).  Finally, we have to go through the existing
+// g_module_libcs and see if any of those are *not* in the modules
+// currently loaded by the executable.  If so, we need to invalidate
+// them.  Returns true if we did any work (patching or invalidating),
+// false if we were a noop.  May update loaded_modules as well.
+// NOTE: you must hold the patch_all_modules_lock to access loaded_modules.
 bool PatchAllModules() {
   std::vector<ModuleEntryCopy> modules;
   bool made_changes = false;
 
   const HANDLE hCurrentProcess = GetCurrentProcess();
-  MODULEINFO mi;
-  DWORD cbNeeded = 0;
+  DWORD num_modules = 0;
   HMODULE hModules[kMaxModules];  // max # of modules we support in one process
-  if (::EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
-                           &cbNeeded)) {
-    for (int i = 0; i < cbNeeded / sizeof(*hModules); ++i) {
-      if (i >= kMaxModules) {
-        printf("PERFTOOLS ERROR: Too many modules in this executable to try"
-               " to patch them all (if you need to, raise kMaxModules in"
-               " patch_functions.cc).\n");
-        break;
-      }
-      if (::GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi)))
-        modules.push_back(ModuleEntryCopy(hCurrentProcess, hModules[i], mi));
-    }
+  if (!::EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
+                            &num_modules)) {
+    num_modules = 0;
+  }
+  // EnumProcessModules actually set the bytes written into hModules,
+  // so we need to divide to make num_modules actually be a module-count.
+  num_modules /= sizeof(*hModules);
+  if (num_modules >= kMaxModules) {
+    printf("PERFTOOLS ERROR: Too many modules in this executable to try"
+           " to patch them all (if you need to, raise kMaxModules in"
+           " patch_functions.cc).\n");
+    num_modules = kMaxModules;
   }
 
-  // Now do the actual patching and unpatching.
+  // Now we handle the unpatching of modules we have in g_module_libcs
+  // but that were not found in EnumProcessModules.  We need to
+  // invalidate them.  To speed that up, we store the EnumProcessModules
+  // output in a set.
+  // At the same time, we prepare for the adding of new modules, by
+  // removing from hModules all the modules we know we've already
+  // patched (or decided don't need to be patched).  At the end,
+  // hModules will hold only the modules that we need to consider patching.
+  std::set<HMODULE> currently_loaded_modules;
   {
     SpinLockHolder h(&patch_all_modules_lock);
-    for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
-      if (!g_module_libcs[i]->is_valid())
-        continue;
-      bool still_loaded = false;
-      for (std::vector<ModuleEntryCopy>::iterator it = modules.begin();
-           it != modules.end(); ++it) {
-        if (g_module_libcs[i]->SameAsModuleEntry(*it)) {
-          // Both g_module_libcs[i] and it are still valid.  Mark it by
-          // removing it from the vector; mark g_module_libcs[i] by
-          // setting a bool.
-          modules.erase(it);
-          still_loaded = true;
-          break;
-        }
+    if (!g_last_loaded)  g_last_loaded = new std::set<HMODULE>;
+    // At the end of this loop, currently_loaded_modules contains the
+    // full list of EnumProcessModules, and hModules just the ones we
+    // haven't handled yet.
+    for (int i = 0; i < num_modules; ) {
+      currently_loaded_modules.insert(hModules[i]);
+      if (g_last_loaded->count(hModules[i]) > 0) {
+        hModules[i] = hModules[--num_modules];  // replace element i with tail
+      } else {
+        i++;                                    // keep element i
       }
-      if (!still_loaded) {
+    }
+    // Now we do the unpatching/invalidation.
+    for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
+      if (g_module_libcs[i]->patched() &&
+          currently_loaded_modules.count(g_module_libcs[i]->hmodule()) == 0) {
         // Means g_module_libcs[i] is no longer loaded (no me32 matched).
         // We could call Unpatch() here, but why bother?  The module
         // has gone away, so nobody is going to call into it anyway.
@@ -739,14 +723,28 @@ bool PatchAllModules() {
         made_changes = true;
       }
     }
+    // Update the loaded module cache.
+    g_last_loaded->swap(currently_loaded_modules);
+  }
 
-    // We've handled all the g_module_libcs.  Now let's handle the rest
-    // of the module-entries: those that haven't already been loaded.
-    for (std::vector<ModuleEntryCopy>::const_iterator it = modules.begin();
+  // Now that we know what modules are new, let's get the info we'll
+  // need to patch them.  Note this *cannot* be done while holding the
+  // lock, since it needs to make windows calls (see the lock-inversion
+  // comments before the definition of patch_all_modules_lock).
+  MODULEINFO mi;
+  for (int i = 0; i < num_modules; i++) {
+    if (::GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi)))
+      modules.push_back(ModuleEntryCopy(mi));
+  }
+
+  // Now we can do the patching of new modules.
+  {
+    SpinLockHolder h(&patch_all_modules_lock);
+    for (std::vector<ModuleEntryCopy>::iterator it = modules.begin();
          it != modules.end(); ++it) {
       LibcInfo libc_info;
       if (libc_info.PopulateWindowsFn(*it)) { // true==module has libc routines
-        PatchOneModuleLocked(libc_info);      // updates num_patched_modules
+        PatchOneModuleLocked(libc_info);
         made_changes = true;
       }
     }
@@ -759,6 +757,10 @@ bool PatchAllModules() {
       made_changes = true;
     }
   }
+  // TODO(csilvers): for this to be reliable, we need to also take
+  // into account if we *would* have patched any modules had they not
+  // already been loaded.  (That is, made_changes should ignore
+  // g_last_loaded.)
   return made_changes;
 }
 
@@ -766,59 +768,9 @@ bool PatchAllModules() {
 }  // end unnamed namespace
 
 // ---------------------------------------------------------------------
-// PatchWindowsFunctions()
-//    This is the function that is exposed to the outside world.
-//    It should be called before the program becomes multi-threaded,
-//    since main_executable_windows.Patch() is not thread-safe.
-// ---------------------------------------------------------------------
-
-void PatchWindowsFunctions() {
-  // This does the libc patching in every module, and the main executable.
-  PatchAllModules();
-  main_executable_windows.Patch();
-}
-
-#if 0
-// It's possible to unpatch all the functions when we are exiting.
-
-// The idea is to handle properly windows-internal data that is
-// allocated before PatchWindowsFunctions is called.  If all
-// destruction happened in reverse order from construction, then we
-// could call UnpatchWindowsFunctions at just the right time, so that
-// that early-allocated data would be freed using the windows
-// allocation functions rather than tcmalloc.  The problem is that
-// windows allocates some structures lazily, so it would allocate them
-// late (using tcmalloc) and then try to deallocate them late as well.
-// So instead of unpatching, we just modify all the tcmalloc routines
-// so they call through to the libc rountines if the memory in
-// question doesn't seem to have been allocated with tcmalloc.  I keep
-// this unpatch code around for reference.
-
-void UnpatchWindowsFunctions() {
-  // We need to go back to the system malloc/etc at global destruct time,
-  // so objects that were constructed before tcmalloc, using the system
-  // malloc, can destroy themselves using the system free.  This depends
-  // on DLLs unloading in the reverse order in which they load!
-  //
-  // We also go back to the default HeapAlloc/etc, just for consistency.
-  // Who knows, it may help avoid weird bugs in some situations.
-  main_executable_windows.Unpatch();
-  main_executable.Unpatch();
-  if (libc1.is_valid()) libc1.Unpatch();
-  if (libc2.is_valid()) libc2.Unpatch();
-  if (libc3.is_valid()) libc3.Unpatch();
-  if (libc4.is_valid()) libc4.Unpatch();
-  if (libc5.is_valid()) libc5.Unpatch();
-  if (libc6.is_valid()) libc6.Unpatch();
-  if (libc7.is_valid()) libc7.Unpatch();
-  if (libc8.is_valid()) libc8.Unpatch();
-}
-#endif
-
-// ---------------------------------------------------------------------
-// Now that we've done all the patching machinery, let's end the file
-// by actually defining the functions we're patching in.  Mostly these
-// are simple wrappers around the do_* routines in tcmalloc.cc.
+// Now that we've done all the patching machinery, let's actually
+// define the functions we're patching in.  Mostly these are
+// simple wrappers around the do_* routines in tcmalloc.cc.
 //
 // In fact, we #include tcmalloc.cc to get at the tcmalloc internal
 // do_* functions, the better to write our own hook functions.
@@ -1029,19 +981,107 @@ BOOL WINAPI WindowsInfo::Perftools_UnmapViewOfFile(LPCVOID lpBaseAddress) {
               lpBaseAddress);
 }
 
+// g_load_map holds a copy of windows' refcount for how many times
+// each currently loaded module has been loaded and unloaded.  We use
+// it as an optimization when the same module is loaded more than
+// once: as long as the refcount stays above 1, we don't need to worry
+// about patching because it's already patched.  Likewise, we don't
+// need to unpatch until the refcount drops to 0.  load_map is
+// maintained in LoadLibraryExW and FreeLibrary, and only covers
+// modules explicitly loaded/freed via those interfaces.
+static std::map<HMODULE, int>* g_load_map = NULL;
+
 HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName,
                                                      HANDLE hFile,
                                                      DWORD dwFlags) {
-  HMODULE rv = ((HMODULE (WINAPI *)(LPCWSTR, HANDLE, DWORD))
-                function_info_[kLoadLibraryExW].origstub_fn)(
-                    lpFileName, hFile, dwFlags);
-  PatchAllModules();
-  return rv;
+  HMODULE rv;
+  // Check to see if the modules is already loaded, flag 0 gets a
+  // reference if it was loaded.  If it was loaded no need to call
+  // PatchAllModules, just increase the reference count to match
+  // what GetModuleHandleExW does internally inside windows.
+  if (::GetModuleHandleExW(0, lpFileName, &rv)) {
+    return rv;
+  } else {
+    // Not already loaded, so load it.
+    rv = ((HMODULE (WINAPI *)(LPCWSTR, HANDLE, DWORD))
+                  function_info_[kLoadLibraryExW].origstub_fn)(
+                      lpFileName, hFile, dwFlags);
+    // This will patch any newly loaded libraries, if patching needs
+    // to be done.
+    PatchAllModules();
+
+    return rv;
+  }
 }
 
 BOOL WINAPI WindowsInfo::Perftools_FreeLibrary(HMODULE hLibModule) {
   BOOL rv = ((BOOL (WINAPI *)(HMODULE))
              function_info_[kFreeLibrary].origstub_fn)(hLibModule);
+
+  // Check to see if the module is still loaded by passing the base
+  // address and seeing if it comes back with the same address.  If it
+  // is the same address it's still loaded, so the FreeLibrary() call
+  // was a noop, and there's no need to redo the patching.
+  HMODULE owner = NULL;
+  BOOL result = ::GetModuleHandleExW(
+      (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+       GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT),
+      (LPCWSTR)hLibModule,
+      &owner);
+  if (result && owner == hLibModule)
+    return rv;
+
   PatchAllModules();    // this will fix up the list of patched libraries
   return rv;
 }
+
+
+// ---------------------------------------------------------------------
+// PatchWindowsFunctions()
+//    This is the function that is exposed to the outside world.
+//    It should be called before the program becomes multi-threaded,
+//    since main_executable_windows.Patch() is not thread-safe.
+// ---------------------------------------------------------------------
+
+void PatchWindowsFunctions() {
+  // This does the libc patching in every module, and the main executable.
+  PatchAllModules();
+  main_executable_windows.Patch();
+}
+
+#if 0
+// It's possible to unpatch all the functions when we are exiting.
+
+// The idea is to handle properly windows-internal data that is
+// allocated before PatchWindowsFunctions is called.  If all
+// destruction happened in reverse order from construction, then we
+// could call UnpatchWindowsFunctions at just the right time, so that
+// that early-allocated data would be freed using the windows
+// allocation functions rather than tcmalloc.  The problem is that
+// windows allocates some structures lazily, so it would allocate them
+// late (using tcmalloc) and then try to deallocate them late as well.
+// So instead of unpatching, we just modify all the tcmalloc routines
+// so they call through to the libc rountines if the memory in
+// question doesn't seem to have been allocated with tcmalloc.  I keep
+// this unpatch code around for reference.
+
+void UnpatchWindowsFunctions() {
+  // We need to go back to the system malloc/etc at global destruct time,
+  // so objects that were constructed before tcmalloc, using the system
+  // malloc, can destroy themselves using the system free.  This depends
+  // on DLLs unloading in the reverse order in which they load!
+  //
+  // We also go back to the default HeapAlloc/etc, just for consistency.
+  // Who knows, it may help avoid weird bugs in some situations.
+  main_executable_windows.Unpatch();
+  main_executable.Unpatch();
+  if (libc1.is_valid()) libc1.Unpatch();
+  if (libc2.is_valid()) libc2.Unpatch();
+  if (libc3.is_valid()) libc3.Unpatch();
+  if (libc4.is_valid()) libc4.Unpatch();
+  if (libc5.is_valid()) libc5.Unpatch();
+  if (libc6.is_valid()) libc6.Unpatch();
+  if (libc7.is_valid()) libc7.Unpatch();
+  if (libc8.is_valid()) libc8.Unpatch();
+}
+#endif
