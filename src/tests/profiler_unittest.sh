@@ -206,28 +206,27 @@ CPUPROFILE="$TMPDIR/p5" "$PROFILER2" 50 || RegisterFailure
 CPUPROFILE="$TMPDIR/p6" "$PROFILER2" 100 || RegisterFailure
 VerifySimilar p5 "$PROFILER2_REALNAME" p6 "$PROFILER2_REALNAME" 2
 
-# When we compile with threads, things take a lot longer even when we only use 1
-CPUPROFILE="$TMPDIR/p5b" "$PROFILER3" 10 || RegisterFailure
-CPUPROFILE="$TMPDIR/p5c" "$PROFILER3" 20 || RegisterFailure
+CPUPROFILE="$TMPDIR/p5b" "$PROFILER3" 30 || RegisterFailure
+CPUPROFILE="$TMPDIR/p5c" "$PROFILER3" 60 || RegisterFailure
 VerifySimilar p5b "$PROFILER3_REALNAME" p5c "$PROFILER3_REALNAME" 2
 
 # Now try what happens when we use threads
-"$PROFILER3" 5 2 "$TMPDIR/p7" || RegisterFailure
-"$PROFILER3" 10 2 "$TMPDIR/p8" || RegisterFailure
+"$PROFILER3" 30 2 "$TMPDIR/p7" || RegisterFailure
+"$PROFILER3" 60 2 "$TMPDIR/p8" || RegisterFailure
 VerifySimilar p7 "$PROFILER3_REALNAME" p8 "$PROFILER3_REALNAME" 2
 
-"$PROFILER4" 5 2 "$TMPDIR/p9" || RegisterFailure
-"$PROFILER4" 10 2 "$TMPDIR/p10" || RegisterFailure
+"$PROFILER4" 30 2 "$TMPDIR/p9" || RegisterFailure
+"$PROFILER4" 60 2 "$TMPDIR/p10" || RegisterFailure
 VerifySimilar p9 "$PROFILER4_REALNAME" p10 "$PROFILER4_REALNAME" 2
 
 # More threads!
-"$PROFILER4" 2 3 "$TMPDIR/p9" || RegisterFailure
-"$PROFILER4" 4 3 "$TMPDIR/p10" || RegisterFailure
+"$PROFILER4" 25 3 "$TMPDIR/p9" || RegisterFailure
+"$PROFILER4" 50 3 "$TMPDIR/p10" || RegisterFailure
 VerifySimilar p9 "$PROFILER4_REALNAME" p10 "$PROFILER4_REALNAME" 2
 
 # Compare how much time the main thread takes compared to the other threads
 # Recall the main thread runs twice as long as the other threads, by design.
-"$PROFILER4" 2 4 "$TMPDIR/p11" || RegisterFailure
+"$PROFILER4" 20 4 "$TMPDIR/p11" || RegisterFailure
 VerifyAcrossThreads p11 "$PROFILER4_REALNAME" 2
 
 # Test symbol save and restore
@@ -236,14 +235,14 @@ VerifyAcrossThreads p11 "$PROFILER4_REALNAME" 2
     >"$TMPDIR/p13" 2>/dev/null || RegisterFailure
 VerifyIdentical p12 "$PROFILER1_REALNAME" p13 "" || RegisterFailure
 
-"$PROFILER3" 5 2 "$TMPDIR/p14" || RegisterFailure
+"$PROFILER3" 30 2 "$TMPDIR/p14" || RegisterFailure
 "$PPROF" $PPROF_FLAGS "$PROFILER3_REALNAME" "$TMPDIR/p14" --raw \
     >"$TMPDIR/p15" 2>/dev/null || RegisterFailure
 VerifyIdentical p14 "$PROFILER3_REALNAME" p15 "" || RegisterFailure
 
 # Test using ITIMER_REAL instead of ITIMER_PROF.
-env CPUPROFILE_REALTIME=1 "$PROFILER3" 5 2 "$TMPDIR/p16" || RegisterFailure
-env CPUPROFILE_REALTIME=1 "$PROFILER3" 10 2 "$TMPDIR/p17" || RegisterFailure
+env CPUPROFILE_REALTIME=1 "$PROFILER3" 30 2 "$TMPDIR/p16" || RegisterFailure
+env CPUPROFILE_REALTIME=1 "$PROFILER3" 60 2 "$TMPDIR/p17" || RegisterFailure
 VerifySimilar p16 "$PROFILER3_REALNAME" p17 "$PROFILER3_REALNAME" 2
 
 

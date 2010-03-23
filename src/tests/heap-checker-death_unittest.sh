@@ -139,13 +139,13 @@ EARLY_MSG="Starting tracking the heap$"
 
 Test 60 0 "$EARLY_MSG" "" \
   HEAPCHECK="" HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 \
-  PERFTOOLS_VERBOSE=1 || exit 5
+  PERFTOOLS_VERBOSE=10 || exit 5
 Test 60 0 "MemoryRegionMap Init$" "" \
   HEAPCHECK="" HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 \
-  PERFTOOLS_VERBOSE=2 || exit 6
+  PERFTOOLS_VERBOSE=11 || exit 6
 Test 60 0 "" "$EARLY_MSG" \
   HEAPCHECK="" HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 \
-  PERFTOOLS_VERBOSE=-2 || exit 7
+  PERFTOOLS_VERBOSE=-11 || exit 7
 
 # These invocations should fail with very high probability,
 # rather than return 0 or hang (1 == exit(1), 134 == abort(), 139 = SIGSEGV):
@@ -162,10 +162,10 @@ Test 60 1 "MakeALeak" "" \
 
 # Test that very early log messages are present and controllable:
 Test 60 1 "Starting tracking the heap$" "" \
-  HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 PERFTOOLS_VERBOSE=1 \
+  HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 PERFTOOLS_VERBOSE=10 \
   || exit 11
 Test 60 1 "" "Starting tracking the heap" \
-  HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 PERFTOOLS_VERBOSE=-1 \
+  HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 PERFTOOLS_VERBOSE=-10 \
   || exit 12
 
 cd /    # so we're not in TMPDIR when we delete it

@@ -61,7 +61,8 @@
 #endif
 
 #ifdef __cplusplus
-#include <new>  // for nothrow_t
+#include <new>          // for std::nothrow_t
+
 extern "C" {
 #endif
   // Returns a human-readable version string.  If major, minor,
@@ -92,16 +93,15 @@ extern "C" {
 #ifdef __cplusplus
   PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW;
   PERFTOOLS_DLL_DECL void* tc_new(size_t size);
-  PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW;
-  PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
-  PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW;
-
   PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size,
                                           const std::nothrow_t&) __THROW;
-  PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
-                                               const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW;
   PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p,
                                             const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
+  PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
+                                               const std::nothrow_t&) __THROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW;
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) __THROW;
 }

@@ -210,8 +210,9 @@ static const intptr_t kMagicUnallocated = ~kMagicAllocated;
 namespace {
   class ArenaLock {
    public:
-    explicit ArenaLock(LowLevelAlloc::Arena *arena) :
-        left_(false), mask_valid_(false), arena_(arena) {
+    explicit ArenaLock(LowLevelAlloc::Arena *arena)
+        EXCLUSIVE_LOCK_FUNCTION(arena->mu)
+        : left_(false), mask_valid_(false), arena_(arena) {
       if ((arena->flags & LowLevelAlloc::kAsyncSignalSafe) != 0) {
       // We've decided not to support async-signal-safe arena use until
       // there a demonstrated need.  Here's how one could do it though
@@ -228,7 +229,7 @@ namespace {
       this->arena_->mu.Lock();
     }
     ~ArenaLock() { RAW_CHECK(this->left_, "haven't left Arena region"); }
-    void Leave() {
+    void Leave() UNLOCK_FUNCTION(arena_->mu) {
       this->arena_->mu.Unlock();
 #if 0
       if (this->mask_valid_) {

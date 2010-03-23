@@ -1,3 +1,5 @@
+--- COMPILING
+
 This project has begun being ported to Windows.  A working solution
 file exists in this directory:
     google-perftools.sln
@@ -45,12 +47,25 @@ line of every perftools .cc file.  You do not need to depend on the
 tcmalloc symbol in this case (that is, you don't need to do either
 step 1 or step 2 from above).
 
+An alternative to all the above is to statically link your application
+with libc, and then replace its malloc with tcmalloc.  This allows you
+to just build and link your program normally; the tcmalloc support
+comes in a post-processing step.  This is more reliable than the above
+technique (which depends on run-time patching, which is inherently
+fragile), though more work to set up.  For details, see
+https://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
+
+
+--- THE HEAP-PROFILER
+
 The heap-profiler has had a preliminary port to Windows.  It has not
 been well tested, and probably does not work at all when Frame Pointer
 Optimization (FPO) is enabled -- that is, in release mode.  The other
 features of perftools, such as the cpu-profiler and leak-checker, have
 not yet been ported to Windows at all.
 
+
+--- ISSUES
 
 NOTE FOR WIN2K USERS: According to reports
 (http://code.google.com/p/google-perftools/issues/detail?id=127)
@@ -59,7 +74,6 @@ Win2K.  The best workaround is, if you are building on a Win2k system
 is to add "/D NO_TCMALLOC_SAMPLES=" to your build, to turn off the
 stack-tracing.  You will not be able to use the heap-profiler if you
 do this.
-
 
 NOTE ON _MSIZE and _RECALLOC: The tcmalloc version of _msize returns
 the size of the region tcmalloc allocated for you -- which is at least
@@ -82,4 +96,4 @@ them on the google-perftools Google Code site:
 
 -- craig
 
-Last modified: 18 November 2008
+Last modified: 3 February 2010

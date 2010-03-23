@@ -75,7 +75,14 @@ static int test_counter = 0;    // incremented every time the macro is called
 // This flag won't be compiled in in opt mode.
 DECLARE_int32(max_free_queue_size);
 
+// Test match as well as mismatch rules:
 TEST(DebugAllocationTest, DeallocMismatch) {
+  // malloc can be matched only by free
+  // new can be matched only by delete and delete(nothrow)
+  // new[] can be matched only by delete[] and delete[](nothrow)
+  // new(nothrow) can be matched only by delete and delete(nothrow)
+  // new(nothrow)[] can be matched only by delete[] and delete[](nothrow)
+
   // Allocate with malloc.
   {
     int* x = static_cast<int*>(malloc(sizeof(*x)));
@@ -88,17 +95,41 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   // Allocate with new.
   {
     int* x = new int;
+    int* y = new int;
     IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
     IF_DEBUG_EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
     delete x;
+    ::operator delete(y, std::nothrow);
   }
 
   // Allocate with new[].
   {
     int* x = new int[1];
+    int* y = new int[1];
     IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
     IF_DEBUG_EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
     delete [] x;
+    ::operator delete[](y, std::nothrow);
+  }
+
+  // Allocate with new(nothrow).
+  {
+    int* x = new(std::nothrow) int;
+    int* y = new(std::nothrow) int;
+    IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
+    IF_DEBUG_EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    delete x;
+    ::operator delete(y, std::nothrow);
+  }
+
+  // Allocate with new(nothrow)[].
+  {
+    int* x = new(std::nothrow) int[1];
+    int* y = new(std::nothrow) int[1];
+    IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
+    IF_DEBUG_EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
+    delete [] x;
+    ::operator delete[](y, std::nothrow);
   }
 }
 

@@ -143,10 +143,11 @@ dist_doc_DATA += doc/index.html doc/designstyle.css
 LOGGING_INCLUDES = src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/basictypes.h \
-                   src/base/dynamic_annotations.h
+                   src/base/dynamic_annotations.h \
+                   src/third_party/valgrind.h
 noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
-                        src/base/dynamic_annotations.cc \
+                        src/base/dynamic_annotations.c \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
@@ -279,7 +280,6 @@ googleinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
 ### Making the library
 noinst_LTLIBRARIES += libstacktrace.la
 libstacktrace_la_SOURCES = src/stacktrace.cc \
-                           src/stacktrace_with_context.cc \
                            src/base/vdso_support.cc \
                            $(STACKTRACE_INCLUDES)
 libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)

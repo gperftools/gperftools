@@ -32,6 +32,11 @@
 //
 // Produce stack trace using libunwind
 
+#ifndef BASE_STACKTRACE_LIBINWIND_INL_H_
+#define BASE_STACKTRACE_LIBINWIND_INL_H_
+// Note: this file is included into stacktrace.cc more than once.
+// Anything that should only be defined once should be here:
+
 // We only need local unwinder.
 #define UNW_LOCAL_ONLY
 
@@ -52,12 +57,30 @@ extern "C" {
 // cases, we return 0 to indicate the situation.
 static __thread int recursive;
 
-// If you change this function, also change GetStackFrames below.
-int GetStackTrace(void** result, int max_depth, int skip_count) {
+#endif  // BASE_STACKTRACE_LIBINWIND_INL_H_
+
+// Note: this part of the file is included several times.
+// Do not put globals below.
+
+// The following 4 functions are generated from the code below:
+//   GetStack{Trace,Frames}()
+//   GetStack{Trace,Frames}WithContext()
+//
+// These functions take the following args:
+//   void** result: the stack-trace, as an array
+//   int* sizes: the size of each stack frame, as an array
+//               (GetStackFrames* only)
+//   int max_depth: the size of the result (and sizes) array(s)
+//   int skip_count: how many stack pointers to skip before storing in result
+//   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
+int GET_STACK_TRACE_OR_FRAMES {
   void *ip;
   int n = 0;
   unw_cursor_t cursor;
   unw_context_t uc;
+#if IS_STACK_FRAMES
+  unw_word_t sp = 0, next_sp = 0;
+#endif
 
   if (recursive) {
     return 0;
@@ -67,90 +90,39 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   unw_getcontext(&uc);
   int ret = unw_init_local(&cursor, &uc);
   assert(ret >= 0);
-  skip_count++;         // Do not include the "GetStackTrace" frame
+  skip_count++;         // Do not include current frame
+
+  while (skip_count--) {
+    if (unw_step(&cursor) <= 0) {
+      goto out;
+    }
+#if IS_STACK_FRAMES
+    if (unw_get_reg(&cursor, UNW_REG_SP, &next_sp)) {
+      goto out;
+    }
+#endif
+  }
 
   while (n < max_depth) {
     if (unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip) < 0) {
       break;
     }
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      result[n++] = ip;
-    }
+#if IS_STACK_FRAMES
+    sizes[n] = 0;
+#endif
+    result[n++] = ip;
     if (unw_step(&cursor) <= 0) {
       break;
     }
-  }
-  --recursive;
-  return n;
-}
-
-// If you change this function, also change GetStackTrace above:
-//
-// This GetStackFrames routine shares a lot of code with GetStackTrace
-// above. This code could have been refactored into a common routine,
-// and then both GetStackTrace/GetStackFrames could call that routine.
-// There are two problems with that:
-//
-// (1) The performance of the refactored-code suffers substantially - the
-//     refactored needs to be able to record the stack trace when called
-//     from GetStackTrace, and both the stack trace and stack frame sizes,
-//     when called from GetStackFrames - this introduces enough new
-//     conditionals that GetStackTrace performance can degrade by as much
-//     as 50%.
-//
-// (2) Whether the refactored routine gets inlined into GetStackTrace and
-//     GetStackFrames depends on the compiler, and we can't guarantee the
-//     behavior either-way, even with "__attribute__ ((always_inline))"
-//     or "__attribute__ ((noinline))". But we need this guarantee or the
-//     frame counts may be off by one.
-//
-// Both (1) and (2) can be addressed without this code duplication, by
-// clever use of template functions, and by defining GetStackTrace and
-// GetStackFrames as macros that expand to these template functions.
-// However, this approach comes with its own set of problems - namely,
-// macros and  preprocessor trouble - for example,  if GetStackTrace
-// and/or GetStackFrames is ever defined as a member functions in some
-// class, we are in trouble.
-int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
-  void *ip;
-  int n = 0;
-  unw_cursor_t cursor;
-  unw_context_t uc;
-  unw_word_t sp = 0, next_sp = 0;
-
-  if (recursive) {
-    return 0;
-  }
-  ++recursive;
-
-  unw_getcontext(&uc);
-  RAW_CHECK(unw_init_local(&cursor, &uc) >= 0, "unw_init_local failed");
-  skip_count++;         // Do not include the "GetStackFrames" frame
-
-  while (skip_count--) {
-    if (unw_step(&cursor) <= 0 ||
-        unw_get_reg(&cursor, UNW_REG_SP, &next_sp) < 0) {
-      goto out;
-    }
-  }
-  while (n < max_depth) {
+#if IS_STACK_FRAMES
     sp = next_sp;
-    if (unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip) < 0)
-      break;
-    if (unw_step(&cursor) <= 0 ||
-        unw_get_reg(&cursor, UNW_REG_SP, &next_sp)) {
-      // We couldn't step any further (possibly because we reached _start).
-      // Provide the last good PC we've got, and get out.
-      sizes[n] = 0;
-      pcs[n++] = ip;
+    if (unw_get_reg(&cursor, UNW_REG_SP, &next_sp) , 0) {
       break;
     }
-    sizes[n] = next_sp - sp;
-    pcs[n++] = ip;
+    sizes[n - 1] = next_sp - sp;
+#endif
   }
- out:
+out:
   --recursive;
   return n;
 }

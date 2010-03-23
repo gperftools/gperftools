@@ -19797,42 +19797,6 @@ fi
 
 done
        # for being nice in our spinlock code
-for ac_header in ucontext.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "ucontext.h" "ac_cv_header_ucontext_h" "$ac_includes_default"
-if test "x$ac_cv_header_ucontext_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_UCONTEXT_H 1
-_ACEOF
-
-fi
-
-done
-    # for profiler.cc (cpu profiler)
-for ac_header in sys/ucontext.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "sys/ucontext.h" "ac_cv_header_sys_ucontext_h" "$ac_includes_default"
-if test "x$ac_cv_header_sys_ucontext_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_SYS_UCONTEXT_H 1
-_ACEOF
-
-fi
-
-done
-         # ucontext on OS X 10.6 (at least)
-for ac_header in cygwin/signal.h
-do :
-  ac_fn_c_check_header_mongrel "$LINENO" "cygwin/signal.h" "ac_cv_header_cygwin_signal_h" "$ac_includes_default"
-if test "x$ac_cv_header_cygwin_signal_h" = x""yes; then :
-  cat >>confdefs.h <<_ACEOF
-#define HAVE_CYGWIN_SIGNAL_H 1
-_ACEOF
-
-fi
-
-done
-        # ucontext on cywgin
 for ac_header in conflict-signal.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "conflict-signal.h" "ac_cv_header_conflict_signal_h" "$ac_includes_default"
@@ -19965,6 +19929,21 @@ fi
 
 done
          # for memalign_unittest.cc
+for ac_header in valgrind.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "valgrind.h" "ac_cv_header_valgrind_h" "$ac_includes_default"
+if test "x$ac_cv_header_valgrind_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_VALGRIND_H 1
+_ACEOF
+
+fi
+
+done
+    # we have a local copy if this isn't found
+# We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
+# AC_PC_FROM_UCONTEXT, below.
+
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 ac_fn_c_check_decl "$LINENO" "cfree" "ac_cv_have_decl_cfree" "#define _XOPEN_SOURCE 600
@@ -20283,7 +20262,15 @@ fi
 
 done
 
-   for ac_header in sys/ucontext.h
+   # Redhat 7 has <sys/ucontext.h>, but it barfs if we #include it directly
+   # (this was fixed in later redhats).  <ucontext.h> works fine, so use that.
+   if grep "Red Hat Linux release 7" /etc/redhat-release >/dev/null 2>&1; then
+
+$as_echo "#define HAVE_SYS_UCONTEXT_H 0" >>confdefs.h
+
+     ac_cv_header_sys_ucontext_h=no
+   else
+     for ac_header in sys/ucontext.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "sys/ucontext.h" "ac_cv_header_sys_ucontext_h" "$ac_includes_default"
 if test "x$ac_cv_header_sys_ucontext_h" = x""yes; then :
@@ -20295,6 +20282,19 @@ fi
 
 done
        # ucontext on OS X 10.6 (at least)
+   fi
+   for ac_header in cygwin/signal.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "cygwin/signal.h" "ac_cv_header_cygwin_signal_h" "$ac_includes_default"
+if test "x$ac_cv_header_cygwin_signal_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_CYGWIN_SIGNAL_H 1
+_ACEOF
+
+fi
+
+done
+        # ucontext on cywgin
    { $as_echo "$as_me:${as_lineno-$LINENO}: checking how to access the program counter from a struct ucontext" >&5
 $as_echo_n "checking how to access the program counter from a struct ucontext... " >&6; }
    pc_fields="           uc_mcontext.gregs[REG_PC]"  # Solaris x86 (32 + 64 bit)
@@ -20304,6 +20304,7 @@ $as_echo_n "checking how to access the program counter from a struct ucontext...
    pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[PT_NIP]" # Linux (ppc)
    pc_fields="$pc_fields uc_mcontext.gregs[R15]"     # Linux (arm old [untested])
    pc_fields="$pc_fields uc_mcontext.arm_pc"           # Linux (arm new [untested])
+   pc_fields="$pc_fields uc_mcontext.gp_regs[PT_NIP]"  # Suse SLES 11 (ppc64)
    pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
    pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
    pc_fields="$pc_fields uc_mcontext.__gregs[_REG_EIP]"  # NetBSD (i386)
@@ -20317,7 +20318,32 @@ $as_echo_n "checking how to access the program counter from a struct ucontext...
    pc_field_found=false
    for pc_field in $pc_fields; do
      if ! $pc_field_found; then
-       if test "x$ac_cv_header_sys_ucontext_h" = xyes; then
+       # Prefer sys/ucontext.h to ucontext.h, for OS X's sake.
+       if test "x$ac_cv_header_cygwin_signal_h" = xyes; then
+         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+#define _GNU_SOURCE 1
+                         #include <cygwin/signal.h>
+int
+main ()
+{
+ucontext_t u; return u.$pc_field == 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+
+cat >>confdefs.h <<_ACEOF
+#define PC_FROM_UCONTEXT $pc_field
+_ACEOF
+
+                        { $as_echo "$as_me:${as_lineno-$LINENO}: result: $pc_field" >&5
+$as_echo "$pc_field" >&6; }
+                        pc_field_found=true
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+       elif test "x$ac_cv_header_sys_ucontext_h" = xyes; then
          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #define _GNU_SOURCE 1
@@ -20341,11 +20367,34 @@ $as_echo "$pc_field" >&6; }
                         pc_field_found=true
 fi
 rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
-       else
+       elif test "x$ac_cv_header_ucontext_h" = xyes; then
          cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
 #define _GNU_SOURCE 1
                          #include <ucontext.h>
+int
+main ()
+{
+ucontext_t u; return u.$pc_field == 0;
+  ;
+  return 0;
+}
+_ACEOF
+if ac_fn_c_try_compile "$LINENO"; then :
+
+cat >>confdefs.h <<_ACEOF
+#define PC_FROM_UCONTEXT $pc_field
+_ACEOF
+
+                        { $as_echo "$as_me:${as_lineno-$LINENO}: result: $pc_field" >&5
+$as_echo "$pc_field" >&6; }
+                        pc_field_found=true
+fi
+rm -f core conftest.err conftest.$ac_objext conftest.$ac_ext
+       else     # hope some standard header gives it to us
+         cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+
 int
 main ()
 {
@@ -21499,6 +21548,15 @@ else
   MINGW_FALSE=
 fi
 
+
+# Redhat 7 (and below?) has sys/ucontext.h, but if you try to #include
+# it directly, the compiler gets upset.  So we pretend we don't have
+# it.
+if cat /etc/redhat-release 2>/dev/null | grep "Red Hat Linux release 7" >/dev/null 2>&1; then
+
+$as_echo "#define HAVE_SYS_UCONTEXT_H 0" >>confdefs.h
+
+fi
 
 # Export the --enable flags we set above.  We do this at the end so
 # other configure rules can enable or disable targets based on what

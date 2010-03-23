@@ -57,7 +57,45 @@
 #include "stacktrace_config.h"
 
 #if defined(STACKTRACE_INL_HEADER)
-# include STACKTRACE_INL_HEADER
+
+#define IS_STACK_FRAMES 0
+#define IS_WITH_CONTEXT 0
+#define GET_STACK_TRACE_OR_FRAMES \
+   GetStackTrace(void **result, int max_depth, int skip_count)
+#include STACKTRACE_INL_HEADER
+#undef IS_STACK_FRAMES
+#undef IS_WITH_CONTEXT
+#undef GET_STACK_TRACE_OR_FRAMES
+
+#define IS_STACK_FRAMES 1
+#define IS_WITH_CONTEXT 0
+#define GET_STACK_TRACE_OR_FRAMES \
+  GetStackFrames(void **result, int *sizes, int max_depth, int skip_count)
+#include STACKTRACE_INL_HEADER
+#undef IS_STACK_FRAMES
+#undef IS_WITH_CONTEXT
+#undef GET_STACK_TRACE_OR_FRAMES
+
+#define IS_STACK_FRAMES 0
+#define IS_WITH_CONTEXT 1
+#define GET_STACK_TRACE_OR_FRAMES \
+  GetStackTraceWithContext(void **result, int max_depth, \
+                           int skip_count, const void *ucp)
+#include STACKTRACE_INL_HEADER
+#undef IS_STACK_FRAMES
+#undef IS_WITH_CONTEXT
+#undef GET_STACK_TRACE_OR_FRAMES
+
+#define IS_STACK_FRAMES 1
+#define IS_WITH_CONTEXT 1
+#define GET_STACK_TRACE_OR_FRAMES \
+  GetStackFramesWithContext(void **result, int *sizes, int max_depth, \
+                            int skip_count, const void *ucp)
+#include STACKTRACE_INL_HEADER
+#undef IS_STACK_FRAMES
+#undef IS_WITH_CONTEXT
+#undef GET_STACK_TRACE_OR_FRAMES
+
 #elif 0
 // This is for the benefit of code analysis tools that may have
 // trouble with the computed #include above.

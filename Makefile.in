@@ -294,7 +294,8 @@ am__libprofiler_la_SOURCES_DIST = src/profiler.cc \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h src/base/dynamic_annotations.h \
-	src/google/profiler.h src/google/stacktrace.h
+	src/third_party/valgrind.h src/google/profiler.h \
+	src/google/stacktrace.h
 @WITH_CPU_PROFILER_TRUE@am__objects_2 = $(am__objects_1) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am__objects_3 = $(am__objects_2) \
@@ -328,16 +329,14 @@ libspinlock_la_OBJECTS = $(am_libspinlock_la_OBJECTS)
 @WITH_STACK_TRACE_TRUE@	$(am__DEPENDENCIES_1) \
 @WITH_STACK_TRACE_TRUE@	$(am__DEPENDENCIES_2)
 am__libstacktrace_la_SOURCES_DIST = src/stacktrace.cc \
-	src/stacktrace_with_context.cc src/base/vdso_support.cc \
-	src/stacktrace_config.h src/stacktrace_generic-inl.h \
-	src/stacktrace_libunwind-inl.h src/stacktrace_powerpc-inl.h \
-	src/stacktrace_x86_64-inl.h src/stacktrace_x86-inl.h \
-	src/stacktrace_win32-inl.h src/base/vdso_support.h \
-	src/google/stacktrace.h
+	src/base/vdso_support.cc src/stacktrace_config.h \
+	src/stacktrace_generic-inl.h src/stacktrace_libunwind-inl.h \
+	src/stacktrace_powerpc-inl.h src/stacktrace_x86_64-inl.h \
+	src/stacktrace_x86-inl.h src/stacktrace_win32-inl.h \
+	src/base/vdso_support.h src/google/stacktrace.h
 @WITH_STACK_TRACE_TRUE@am__objects_4 = $(am__objects_1) \
 @WITH_STACK_TRACE_TRUE@	$(am__objects_1)
 @WITH_STACK_TRACE_TRUE@am_libstacktrace_la_OBJECTS = stacktrace.lo \
-@WITH_STACK_TRACE_TRUE@	stacktrace_with_context.lo \
 @WITH_STACK_TRACE_TRUE@	vdso_support.lo $(am__objects_4)
 libstacktrace_la_OBJECTS = $(am_libstacktrace_la_OBJECTS)
 @WITH_STACK_TRACE_TRUE@am_libstacktrace_la_rpath =
@@ -364,17 +363,17 @@ am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/thread_cache.h src/stack_trace_table.h \
 	src/base/thread_annotations.h src/malloc_hook-inl.h \
 	src/maybe_threads.h src/base/logging.h \
-	src/base/dynamic_annotations.h src/addressmap-inl.h \
-	src/raw_printer.h src/base/elfcore.h src/base/googleinit.h \
-	src/base/linux_syscall_support.h src/base/linuxthreads.h \
-	src/base/stl_allocator.h src/base/sysinfo.h \
-	src/base/thread_lister.h src/heap-profile-table.h \
-	src/google/malloc_hook.h src/google/malloc_hook_c.h \
-	src/google/malloc_extension.h src/google/malloc_extension_c.h \
-	src/google/stacktrace.h src/google/heap-profiler.h \
-	src/google/heap-checker.h src/base/thread_lister.c \
-	src/base/linuxthreads.cc src/heap-checker.cc \
-	src/heap-checker-bcad.cc
+	src/base/dynamic_annotations.h src/third_party/valgrind.h \
+	src/addressmap-inl.h src/raw_printer.h src/base/elfcore.h \
+	src/base/googleinit.h src/base/linux_syscall_support.h \
+	src/base/linuxthreads.h src/base/stl_allocator.h \
+	src/base/sysinfo.h src/base/thread_lister.h \
+	src/heap-profile-table.h src/google/malloc_hook.h \
+	src/google/malloc_hook_c.h src/google/malloc_extension.h \
+	src/google/malloc_extension_c.h src/google/stacktrace.h \
+	src/google/heap-profiler.h src/google/heap-checker.h \
+	src/base/thread_lister.c src/base/linuxthreads.cc \
+	src/heap-checker.cc src/heap-checker-bcad.cc
 @MINGW_FALSE@am__objects_5 = libtcmalloc_la-tcmalloc.lo
 am__objects_6 = $(am__objects_1)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_7 = $(am__objects_6) \
@@ -414,17 +413,17 @@ am__libtcmalloc_and_profiler_la_SOURCES_DIST = src/tcmalloc.cc \
 	src/thread_cache.h src/stack_trace_table.h \
 	src/base/thread_annotations.h src/malloc_hook-inl.h \
 	src/maybe_threads.h src/base/logging.h \
-	src/base/dynamic_annotations.h src/addressmap-inl.h \
-	src/raw_printer.h src/base/elfcore.h src/base/googleinit.h \
-	src/base/linux_syscall_support.h src/base/linuxthreads.h \
-	src/base/stl_allocator.h src/base/sysinfo.h \
-	src/base/thread_lister.h src/heap-profile-table.h \
-	src/google/malloc_hook.h src/google/malloc_hook_c.h \
-	src/google/malloc_extension.h src/google/malloc_extension_c.h \
-	src/google/stacktrace.h src/google/heap-profiler.h \
-	src/google/heap-checker.h src/base/thread_lister.c \
-	src/base/linuxthreads.cc src/heap-checker.cc \
-	src/heap-checker-bcad.cc src/profiler.cc \
+	src/base/dynamic_annotations.h src/third_party/valgrind.h \
+	src/addressmap-inl.h src/raw_printer.h src/base/elfcore.h \
+	src/base/googleinit.h src/base/linux_syscall_support.h \
+	src/base/linuxthreads.h src/base/stl_allocator.h \
+	src/base/sysinfo.h src/base/thread_lister.h \
+	src/heap-profile-table.h src/google/malloc_hook.h \
+	src/google/malloc_hook_c.h src/google/malloc_extension.h \
+	src/google/malloc_extension_c.h src/google/stacktrace.h \
+	src/google/heap-profiler.h src/google/heap-checker.h \
+	src/base/thread_lister.c src/base/linuxthreads.cc \
+	src/heap-checker.cc src/heap-checker-bcad.cc src/profiler.cc \
 	src/profile-handler.cc src/profiledata.cc src/profiledata.h \
 	src/profile-handler.h src/getpc.h src/base/simple_mutex.h \
 	src/google/profiler.h
@@ -467,15 +466,15 @@ am__libtcmalloc_debug_la_SOURCES_DIST = src/debugallocation.cc \
 	src/thread_cache.h src/stack_trace_table.h \
 	src/base/thread_annotations.h src/malloc_hook-inl.h \
 	src/maybe_threads.h src/base/logging.h \
-	src/base/dynamic_annotations.h src/addressmap-inl.h \
-	src/raw_printer.h src/base/elfcore.h src/base/googleinit.h \
-	src/base/linux_syscall_support.h src/base/linuxthreads.h \
-	src/base/stl_allocator.h src/base/sysinfo.h \
-	src/base/thread_lister.h src/heap-profile-table.h \
-	src/google/malloc_hook.h src/google/malloc_hook_c.h \
-	src/google/malloc_extension.h src/google/malloc_extension_c.h \
-	src/google/stacktrace.h src/google/heap-profiler.h \
-	src/google/heap-checker.h
+	src/base/dynamic_annotations.h src/third_party/valgrind.h \
+	src/addressmap-inl.h src/raw_printer.h src/base/elfcore.h \
+	src/base/googleinit.h src/base/linux_syscall_support.h \
+	src/base/linuxthreads.h src/base/stl_allocator.h \
+	src/base/sysinfo.h src/base/thread_lister.h \
+	src/heap-profile-table.h src/google/malloc_hook.h \
+	src/google/malloc_hook_c.h src/google/malloc_extension.h \
+	src/google/malloc_extension_c.h src/google/stacktrace.h \
+	src/google/heap-profiler.h src/google/heap-checker.h
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_17 = thread_lister.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_debug_la-linuxthreads.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_debug_la-heap-checker.lo \
@@ -513,14 +512,15 @@ am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/google/malloc_hook_c.h src/google/malloc_extension.h \
 	src/google/malloc_extension_c.h src/google/stacktrace.h \
 	src/base/logging.h src/base/dynamic_annotations.h \
-	src/addressmap-inl.h src/raw_printer.h src/base/elfcore.h \
-	src/base/googleinit.h src/base/linux_syscall_support.h \
-	src/base/linuxthreads.h src/base/stl_allocator.h \
-	src/base/sysinfo.h src/base/thread_lister.h \
-	src/heap-profile-table.h src/google/heap-profiler.h \
-	src/google/heap-checker.h src/base/low_level_alloc.cc \
-	src/heap-profile-table.cc src/heap-profiler.cc \
-	src/raw_printer.cc src/memory_region_map.cc
+	src/third_party/valgrind.h src/addressmap-inl.h \
+	src/raw_printer.h src/base/elfcore.h src/base/googleinit.h \
+	src/base/linux_syscall_support.h src/base/linuxthreads.h \
+	src/base/stl_allocator.h src/base/sysinfo.h \
+	src/base/thread_lister.h src/heap-profile-table.h \
+	src/google/heap-profiler.h src/google/heap-checker.h \
+	src/base/low_level_alloc.cc src/heap-profile-table.cc \
+	src/heap-profiler.cc src/raw_printer.cc \
+	src/memory_region_map.cc
 @MINGW_FALSE@am__objects_18 = libtcmalloc_internal_la-system-alloc.lo
 @MINGW_FALSE@am__objects_19 =  \
 @MINGW_FALSE@	libtcmalloc_internal_la-maybe_threads.lo
@@ -728,7 +728,8 @@ am__addressmap_unittest_SOURCES_DIST =  \
 	src/tests/addressmap_unittest.cc src/addressmap-inl.h \
 	src/base/commandlineflags.h src/base/logging.h \
 	src/base/basictypes.h src/base/dynamic_annotations.h \
-	src/windows/port.h src/windows/port.cc
+	src/third_party/valgrind.h src/windows/port.h \
+	src/windows/port.cc
 @MINGW_TRUE@am__objects_25 = addressmap_unittest-port.$(OBJEXT)
 am_addressmap_unittest_OBJECTS =  \
 	addressmap_unittest-addressmap_unittest.$(OBJEXT) \
@@ -774,7 +775,7 @@ am__heap_checker_debug_unittest_SOURCES_DIST =  \
 	src/memory_region_map.h src/base/commandlineflags.h \
 	src/base/googleinit.h src/google/heap-checker.h \
 	src/base/logging.h src/base/basictypes.h \
-	src/base/dynamic_annotations.h
+	src/base/dynamic_annotations.h src/third_party/valgrind.h
 @WITH_HEAP_CHECKER_TRUE@am__objects_26 = $(am__objects_1)
 @WITH_HEAP_CHECKER_TRUE@am__objects_27 = heap_checker_debug_unittest-heap-checker_unittest.$(OBJEXT) \
 @WITH_HEAP_CHECKER_TRUE@	$(am__objects_26)
@@ -795,7 +796,7 @@ am__heap_checker_unittest_SOURCES_DIST =  \
 	src/memory_region_map.h src/base/commandlineflags.h \
 	src/base/googleinit.h src/google/heap-checker.h \
 	src/base/logging.h src/base/basictypes.h \
-	src/base/dynamic_annotations.h
+	src/base/dynamic_annotations.h src/third_party/valgrind.h
 @WITH_HEAP_CHECKER_TRUE@am_heap_checker_unittest_OBJECTS = heap_checker_unittest-heap-checker_unittest.$(OBJEXT) \
 @WITH_HEAP_CHECKER_TRUE@	$(am__objects_26)
 heap_checker_unittest_OBJECTS = $(am_heap_checker_unittest_OBJECTS)
@@ -853,7 +854,8 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h src/base/logging.h \
-	src/base/commandlineflags.h src/base/dynamic_annotations.h
+	src/base/commandlineflags.h src/base/dynamic_annotations.h \
+	src/third_party/valgrind.h
 am__objects_29 = $(am__objects_1) $(am__objects_1)
 am_low_level_alloc_unittest_OBJECTS =  \
 	low_level_alloc_unittest-low_level_alloc.$(OBJEXT) \
@@ -1077,7 +1079,7 @@ am__stacktrace_unittest_SOURCES_DIST =  \
 	src/stacktrace_x86-inl.h src/stacktrace_win32-inl.h \
 	src/base/vdso_support.h src/google/stacktrace.h \
 	src/base/logging.h src/base/basictypes.h \
-	src/base/dynamic_annotations.h
+	src/base/dynamic_annotations.h src/third_party/valgrind.h
 @WITH_STACK_TRACE_TRUE@am__objects_39 = $(am__objects_4) \
 @WITH_STACK_TRACE_TRUE@	$(am__objects_1)
 @WITH_STACK_TRACE_TRUE@am_stacktrace_unittest_OBJECTS =  \
@@ -1702,10 +1704,11 @@ EXTRA_INSTALL =
 LOGGING_INCLUDES = src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/basictypes.h \
-                   src/base/dynamic_annotations.h
+                   src/base/dynamic_annotations.h \
+                   src/third_party/valgrind.h
 
 liblogging_la_SOURCES = src/base/logging.cc \
-                        src/base/dynamic_annotations.cc \
+                        src/base/dynamic_annotations.c \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
@@ -1823,7 +1826,6 @@ atomicops_unittest_LDADD = $(LIBSPINLOCK)
 @WITH_STACK_TRACE_TRUE@SG_STACKTRACE_INCLUDES = src/google/stacktrace.h
 @WITH_STACK_TRACE_TRUE@STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 @WITH_STACK_TRACE_TRUE@libstacktrace_la_SOURCES = src/stacktrace.cc \
-@WITH_STACK_TRACE_TRUE@                           src/stacktrace_with_context.cc \
 @WITH_STACK_TRACE_TRUE@                           src/base/vdso_support.cc \
 @WITH_STACK_TRACE_TRUE@                           $(STACKTRACE_INCLUDES)
 
@@ -2787,7 +2789,6 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack_trace_table_test-stack_trace_table_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stacktrace.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stacktrace_unittest.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stacktrace_with_context.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sysinfo.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/system_alloc_unittest-system-alloc_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/tcmalloc_and_profiler_unittest-tcmalloc_unittest.Po@am__quote@
@@ -2829,6 +2830,13 @@ distclean-compile:
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	source='$<' object='$@' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCC_FALSE@	$(LTCOMPILE) -c -o $@ $<
+
+dynamic_annotations.lo: src/base/dynamic_annotations.c
+@am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT dynamic_annotations.lo -MD -MP -MF "$(DEPDIR)/dynamic_annotations.Tpo" -c -o dynamic_annotations.lo `test -f 'src/base/dynamic_annotations.c' || echo '$(srcdir)/'`src/base/dynamic_annotations.c; \
+@am__fastdepCC_TRUE@	then mv -f "$(DEPDIR)/dynamic_annotations.Tpo" "$(DEPDIR)/dynamic_annotations.Plo"; else rm -f "$(DEPDIR)/dynamic_annotations.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	source='src/base/dynamic_annotations.c' object='dynamic_annotations.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCC_FALSE@	DEPDIR=$(DEPDIR) $(CCDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCC_FALSE@	$(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -c -o dynamic_annotations.lo `test -f 'src/base/dynamic_annotations.c' || echo '$(srcdir)/'`src/base/dynamic_annotations.c
 
 thread_lister.lo: src/base/thread_lister.c
 @am__fastdepCC_TRUE@	if $(LIBTOOL) --tag=CC --mode=compile $(CC) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CFLAGS) $(CFLAGS) -MT thread_lister.lo -MD -MP -MF "$(DEPDIR)/thread_lister.Tpo" -c -o thread_lister.lo `test -f 'src/base/thread_lister.c' || echo '$(srcdir)/'`src/base/thread_lister.c; \
@@ -2879,13 +2887,6 @@ logging.lo: src/base/logging.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o logging.lo `test -f 'src/base/logging.cc' || echo '$(srcdir)/'`src/base/logging.cc
 
-dynamic_annotations.lo: src/base/dynamic_annotations.cc
-@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT dynamic_annotations.lo -MD -MP -MF "$(DEPDIR)/dynamic_annotations.Tpo" -c -o dynamic_annotations.lo `test -f 'src/base/dynamic_annotations.cc' || echo '$(srcdir)/'`src/base/dynamic_annotations.cc; \
-@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/dynamic_annotations.Tpo" "$(DEPDIR)/dynamic_annotations.Plo"; else rm -f "$(DEPDIR)/dynamic_annotations.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/dynamic_annotations.cc' object='dynamic_annotations.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o dynamic_annotations.lo `test -f 'src/base/dynamic_annotations.cc' || echo '$(srcdir)/'`src/base/dynamic_annotations.cc
-
 profiler.lo: src/profiler.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT profiler.lo -MD -MP -MF "$(DEPDIR)/profiler.Tpo" -c -o profiler.lo `test -f 'src/profiler.cc' || echo '$(srcdir)/'`src/profiler.cc; \
 @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/profiler.Tpo" "$(DEPDIR)/profiler.Plo"; else rm -f "$(DEPDIR)/profiler.Tpo"; exit 1; fi
@@ -2927,13 +2928,6 @@ stacktrace.lo: src/stacktrace.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/stacktrace.cc' object='stacktrace.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o stacktrace.lo `test -f 'src/stacktrace.cc' || echo '$(srcdir)/'`src/stacktrace.cc
-
-stacktrace_with_context.lo: src/stacktrace_with_context.cc
-@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT stacktrace_with_context.lo -MD -MP -MF "$(DEPDIR)/stacktrace_with_context.Tpo" -c -o stacktrace_with_context.lo `test -f 'src/stacktrace_with_context.cc' || echo '$(srcdir)/'`src/stacktrace_with_context.cc; \
-@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/stacktrace_with_context.Tpo" "$(DEPDIR)/stacktrace_with_context.Plo"; else rm -f "$(DEPDIR)/stacktrace_with_context.Tpo"; exit 1; fi
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/stacktrace_with_context.cc' object='stacktrace_with_context.lo' libtool=yes @AMDEPBACKSLASH@
-@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
-@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o stacktrace_with_context.lo `test -f 'src/stacktrace_with_context.cc' || echo '$(srcdir)/'`src/stacktrace_with_context.cc
 
 vdso_support.lo: src/base/vdso_support.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT vdso_support.lo -MD -MP -MF "$(DEPDIR)/vdso_support.Tpo" -c -o vdso_support.lo `test -f 'src/base/vdso_support.cc' || echo '$(srcdir)/'`src/base/vdso_support.cc; \

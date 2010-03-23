@@ -231,8 +231,9 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW
       ATTRIBUTE_SECTION(google_malloc);
-  // Surprisingly, compilers use a nothrow-delete internally.  See, eg:
-  //   http://www.dinkumware.com/manuals/?manual=compleat&page=new.html
+  // Surprisingly, standard C++ library implementations use a
+  // nothrow-delete internally.  See, eg:
+  // http://www.dinkumware.com/manuals/?manual=compleat&page=new.html
   void tc_delete_nothrow(void* ptr, const std::nothrow_t&) __THROW
       ATTRIBUTE_SECTION(google_malloc);
   void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) __THROW
@@ -253,9 +254,9 @@ extern "C" {
   // NOTE: we make many of these symbols weak, but do so in the makefile
   //       (via objcopy -W) and not here.  That ends up being more portable.
 # define ALIAS(x) __attribute__ ((alias (x)))
-void* operator new(size_t size)                  ALIAS("tc_new");
+void* operator new(size_t size) throw (std::bad_alloc) ALIAS("tc_new");
 void operator delete(void* p) __THROW            ALIAS("tc_delete");
-void* operator new[](size_t size)                ALIAS("tc_newarray");
+void* operator new[](size_t size) throw (std::bad_alloc) ALIAS("tc_newarray");
 void operator delete[](void* p) __THROW          ALIAS("tc_deletearray");
 void* operator new(size_t size, const std::nothrow_t&) __THROW
                                                  ALIAS("tc_new_nothrow");
@@ -264,7 +265,7 @@ void* operator new[](size_t size, const std::nothrow_t&) __THROW
 void operator delete(void* size, const std::nothrow_t&) __THROW
                                                  ALIAS("tc_delete_nothrow");
 void operator delete[](void* size, const std::nothrow_t&) __THROW
-                                                 ALIAS("tc_deletearray_nothrow");
+                                                ALIAS("tc_deletearray_nothrow");
 extern "C" {
   void* malloc(size_t size) __THROW              ALIAS("tc_malloc");
   void  free(void* ptr) __THROW                  ALIAS("tc_free");
@@ -765,7 +766,17 @@ TCMallocGuard::TCMallocGuard() {
     tc_free(tc_malloc(1));
     ThreadCache::InitTSD();
     tc_free(tc_malloc(1));
-    MallocExtension::Register(new TCMallocImplementation);
+    // Either we, or debugallocation.cc, or valgrind will control memory
+    // management.  We register our extension if we're the winner.
+#ifdef TCMALLOC_FOR_DEBUGALLOCATION
+    // Let debugallocation register its extension.
+#else
+    if (RunningOnValgrind()) {
+      // Let Valgrind uses its own malloc (so don't register our extension).
+    } else {
+      MallocExtension::Register(new TCMallocImplementation);
+    }
+#endif
   }
 }
 
@@ -1353,8 +1364,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_new(size_t size) {
   return p;
 }
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_new_nothrow(
-    size_t size, const std::nothrow_t&) __THROW {
+extern "C" PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size, const std::nothrow_t&) __THROW {
   void* p = cpp_alloc(size, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
@@ -1365,10 +1375,10 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW {
   do_free(p);
 }
 
-// Compilers define and use this (via ::operator delete(ptr, nothrow)).
+// Standard C++ library implementations define and use this
+// (via ::operator delete(ptr, nothrow)).
 // But it's really the same as normal delete, so we just do the same thing.
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(
-    void* p, const std::nothrow_t&) __THROW {
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
@@ -1384,8 +1394,8 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
   return p;
 }
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(
-    size_t size, const std::nothrow_t&) __THROW {
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&)
+    __THROW {
   void* p = cpp_alloc(size, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
@@ -1396,8 +1406,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW {
   do_free(p);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(
-    void* p, const std::nothrow_t&) __THROW {
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }

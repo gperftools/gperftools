@@ -11,7 +11,15 @@
 
 AC_DEFUN([AC_PC_FROM_UCONTEXT],
   [AC_CHECK_HEADERS(ucontext.h)
-   AC_CHECK_HEADERS(sys/ucontext.h)       # ucontext on OS X 10.6 (at least)
+   # Redhat 7 has <sys/ucontext.h>, but it barfs if we #include it directly
+   # (this was fixed in later redhats).  <ucontext.h> works fine, so use that.
+   if grep "Red Hat Linux release 7" /etc/redhat-release >/dev/null 2>&1; then
+     AC_DEFINE(HAVE_SYS_UCONTEXT_H, 0, [<sys/ucontext.h> is broken on redhat 7])
+     ac_cv_header_sys_ucontext_h=no
+   else
+     AC_CHECK_HEADERS(sys/ucontext.h)       # ucontext on OS X 10.6 (at least)
+   fi
+   AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
    AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
    pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32 + 64 bit)
    pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
@@ -20,6 +28,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
    pc_fields="$pc_fields uc_mcontext.gregs[[R15]]"     # Linux (arm old [untested])
    pc_fields="$pc_fields uc_mcontext.arm_pc"           # Linux (arm new [untested])
+   pc_fields="$pc_fields uc_mcontext.gp_regs[[PT_NIP]]"  # Suse SLES 11 (ppc64)
    pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
    pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
    pc_fields="$pc_fields uc_mcontext.__gregs[[_REG_EIP]]"  # NetBSD (i386)
@@ -33,7 +42,16 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_field_found=false
    for pc_field in $pc_fields; do
      if ! $pc_field_found; then
-       if test "x$ac_cv_header_sys_ucontext_h" = xyes; then
+       # Prefer sys/ucontext.h to ucontext.h, for OS X's sake.
+       if test "x$ac_cv_header_cygwin_signal_h" = xyes; then
+         AC_TRY_COMPILE([#define _GNU_SOURCE 1
+                         #include <cygwin/signal.h>],
+                        [ucontext_t u; return u.$pc_field == 0;],
+                        AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                           How to access the PC from a struct ucontext)
+                        AC_MSG_RESULT([$pc_field])
+                        pc_field_found=true)
+       elif test "x$ac_cv_header_sys_ucontext_h" = xyes; then
          AC_TRY_COMPILE([#define _GNU_SOURCE 1
                          #include <sys/ucontext.h>],
                         [ucontext_t u; return u.$pc_field == 0;],
@@ -41,9 +59,16 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
                                            How to access the PC from a struct ucontext)
                         AC_MSG_RESULT([$pc_field])
                         pc_field_found=true)
-       else
+       elif test "x$ac_cv_header_ucontext_h" = xyes; then
          AC_TRY_COMPILE([#define _GNU_SOURCE 1
                          #include <ucontext.h>],
+                        [ucontext_t u; return u.$pc_field == 0;],
+                        AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                           How to access the PC from a struct ucontext)
+                        AC_MSG_RESULT([$pc_field])
+                        pc_field_found=true)
+       else     # hope some standard header gives it to us
+         AC_TRY_COMPILE([],
                         [ucontext_t u; return u.$pc_field == 0;],
                         AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
                                            How to access the PC from a struct ucontext)

@@ -36,6 +36,11 @@
 //    http://www.linux-foundation.org/spec/ELF/ppc64/PPC-elf64abi-1.9.html#STACK
 // Linux has similar code: http://patchwork.ozlabs.org/linuxppc/patch?id=8882
 
+#ifndef BASE_STACKTRACE_POWERPC_INL_H_
+#define BASE_STACKTRACE_POWERPC_INL_H_
+// Note: this file is included into stacktrace.cc more than once.
+// Anything that should only be defined once should be here:
+
 #include <stdint.h>   // for uintptr_t
 #include <stdlib.h>   // for NULL
 #include <google/stacktrace.h>
@@ -71,9 +76,23 @@ static void **NextStackFrame(void **old_sp) {
 // This ensures that GetStackTrace stes up the Link Register properly.
 void StacktracePowerPCDummyFunction() __attribute__((noinline));
 void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
+#endif  // BASE_STACKTRACE_POWERPC_INL_H_
 
-// If you change this function, also change GetStackFrames below.
-int GetStackTrace(void** result, int max_depth, int skip_count) {
+// Note: this part of the file is included several times.
+// Do not put globals below.
+
+// The following 4 functions are generated from the code below:
+//   GetStack{Trace,Frames}()
+//   GetStack{Trace,Frames}WithContext()
+//
+// These functions take the following args:
+//   void** result: the stack-trace, as an array
+//   int* sizes: the size of each stack frame, as an array
+//               (GetStackFrames* only)
+//   int max_depth: the size of the result (and sizes) array(s)
+//   int skip_count: how many stack pointers to skip before storing in result
+//   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
+int GET_STACK_TRACE_OR_FRAMES {
   void **sp;
   // Apple OS X uses an old version of gnu as -- both Darwin 7.9.0 (Panther)
   // and Darwin 8.8.1 (Tiger) use as 1.38.  This means we have to use a
@@ -95,11 +114,29 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
   // This routine forces the compiler (at least gcc) to push it anyway.
   StacktracePowerPCDummyFunction();
 
+#if IS_STACK_FRAMES
+  // Note we do *not* increment skip_count here for the SYSV ABI.  If
+  // we did, the list of stack frames wouldn't properly match up with
+  // the list of return addresses.  Note this means the top pc entry
+  // is probably bogus for linux/ppc (and other SYSV-ABI systems).
+#else
   // The LR save area is used by the callee, so the top entry is bogus.
   skip_count++;
+#endif
 
   int n = 0;
   while (sp && n < max_depth) {
+#if IS_STACK_FRAMES
+    // The GetStackFrames routine is called when we are in some
+    // informational context (the failure signal handler for example).
+    // Use the non-strict unwinding rules to produce a stack trace
+    // that is as complete as possible (even if it contains a few bogus
+    // entries in some rare cases).
+    void **next_sp = NextStackFrame<false>(sp);
+#else
+    void **next_sp = NextStackFrame<true>(sp);
+#endif
+
     if (skip_count > 0) {
       skip_count--;
     } else {
@@ -120,85 +157,15 @@ int GetStackTrace(void** result, int max_depth, int skip_count) {
 #else
 #error Need to specify the PPC ABI for your archiecture.
 #endif
-    }
-    // Use strict unwinding rules.
-    sp = NextStackFrame<true>(sp);
-  }
-  return n;
-}
 
-// If you change this function, also change GetStackTrace above:
-//
-// This GetStackFrames routine shares a lot of code with GetStackTrace
-// above. This code could have been refactored into a common routine,
-// and then both GetStackTrace/GetStackFrames could call that routine.
-// There are two problems with that:
-//
-// (1) The performance of the refactored-code suffers substantially - the
-//     refactored needs to be able to record the stack trace when called
-//     from GetStackTrace, and both the stack trace and stack frame sizes,
-//     when called from GetStackFrames - this introduces enough new
-//     conditionals that GetStackTrace performance can degrade by as much
-//     as 50%.
-//
-// (2) Whether the refactored routine gets inlined into GetStackTrace and
-//     GetStackFrames depends on the compiler, and we can't guarantee the
-//     behavior either-way, even with "__attribute__ ((always_inline))"
-//     or "__attribute__ ((noinline))". But we need this guarantee or the
-//     frame counts may be off by one.
-//
-// Both (1) and (2) can be addressed without this code duplication, by
-// clever use of template functions, and by defining GetStackTrace and
-// GetStackFrames as macros that expand to these template functions.
-// However, this approach comes with its own set of problems - namely,
-// macros and  preprocessor trouble - for example,  if GetStackTrace
-// and/or GetStackFrames is ever defined as a member functions in some
-// class, we are in trouble.
-int GetStackFrames(void** pcs, int *sizes, int max_depth, int skip_count) {
-  void **sp;
-#ifdef __APPLE__
-  __asm__ volatile ("mr %0,r1" : "=r" (sp));
-#else
-  __asm__ volatile ("mr %0,1" : "=r" (sp));
-#endif
-
-  StacktracePowerPCDummyFunction();
-  // Note we do *not* increment skip_count here for the SYSV ABI.  If
-  // we did, the list of stack frames wouldn't properly match up with
-  // the list of return addresses.  Note this means the top pc entry
-  // is probably bogus for linux/ppc (and other SYSV-ABI systems).
-
-  int n = 0;
-  while (sp && n < max_depth) {
-    // The GetStackFrames routine is called when we are in some
-    // informational context (the failure signal handler for example).
-    // Use the non-strict unwinding rules to produce a stack trace
-    // that is as complete as possible (even if it contains a few bogus
-    // entries in some rare cases).
-    void **next_sp = NextStackFrame<false>(sp);
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-#if defined(_CALL_AIX) || defined(_CALL_DARWIN)
-      pcs[n++] = *(sp+2);
-#elif defined(_CALL_SYSV)
-      pcs[n++] = *(sp+1);
-#elif defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
-      // This check is in case the compiler doesn't define _CALL_AIX/etc.
-      pcs[n++] = *(sp+2);
-#elif defined(__linux)
-      // This check is in case the compiler doesn't define _CALL_SYSV.
-      pcs[n++] = *(sp+1);
-#else
-#error Need to specify the PPC ABI for your archiecture.
-#endif
+#if IS_STACK_FRAME
       if (next_sp > sp) {
         sizes[n] = (uintptr_t)next_sp - (uintptr_t)sp;
       } else {
         // A frame-size of 0 is used to indicate unknown frame size.
         sizes[n] = 0;
       }
-      n++;
+#endif
     }
     sp = next_sp;
   }

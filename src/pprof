@@ -89,6 +89,7 @@ my %obj_tool_map = (
 );
 my $DOT = "dot";          # leave non-absolute, since it may be in /usr/local
 my $GV = "gv";
+my $KCACHEGRIND = "kcachegrind";
 my $PS2PDF = "ps2pdf";
 # These are used for dynamic profiles
 my $WGET = "wget";
@@ -332,11 +333,11 @@ sub Init() {
 
   # Type of profile we are dealing with
   # Supported types:
-  #	cpu
-  #	heap
-  #	growth
-  #	contention
-  $main::profile_type = '';	# Empty type means "unknown"
+  #     cpu
+  #     heap
+  #     growth
+  #     contention
+  $main::profile_type = '';     # Empty type means "unknown"
 
   GetOptions("help!"          => \$main::opt_help,
              "version!"       => \$main::opt_version,
@@ -380,8 +381,8 @@ sub Init() {
              "tools=s"        => \$main::opt_tools,
              "test!"          => \$main::opt_test,
              "debug!"         => \$main::opt_debug,
-	     # Undocumented flags used only by unittests:
-	     "test_stride=i"  => \$main::opt_test_stride,
+             # Undocumented flags used only by unittests:
+             "test_stride=i"  => \$main::opt_test_stride,
       ) || usage("Invalid option(s)");
 
   # Deal with the standard --help and --version
@@ -634,7 +635,7 @@ sub Main() {
     } else {
       if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
         if ($main::opt_gv) {
-	  RunGV(PsTempName($main::next_tmpfile), "");
+          RunGV(PsTempName($main::next_tmpfile), "");
         }
       } else {
         exit(1);
@@ -667,7 +668,7 @@ sub ReadlineMightFail {
 
 sub RunGV {
   my $fname = shift;
-  my $bg = shift;	# "" or " &" if we should run in background
+  my $bg = shift;       # "" or " &" if we should run in background
   if (!system("$GV --version >/dev/null 2>&1")) {
     # Options using double dash are supported by this gv version.
     # Also, turn on noantialias to better handle bug in gv for
@@ -682,6 +683,13 @@ sub RunGV {
   }
 }
 
+sub RunKcachegrind {
+  my $fname = shift;
+  my $bg = shift;       # "" or " &" if we should run in background
+  print STDERR "Starting '$KCACHEGRIND " . $fname . $bg . "'\n";
+  system("$KCACHEGRIND " . $fname . $bg);
+}
+
 
 ##### Interactive helper routines #####
 
@@ -689,10 +697,11 @@ sub InteractiveMode {
   $| = 1;  # Make output unbuffered for interactive mode
   my ($orig_profile, $symbols, $libs, $total) = @_;
 
-  print "Welcome to pprof!  For help, type 'help'.\n";
+  print STDERR "Welcome to pprof!  For help, type 'help'.\n";
 
-  # Use ReadLine if it's installed.
-  if ( !ReadlineMightFail() &&
+  # Use ReadLine if it's installed and input comes from a console.
+  if ( -t STDIN &&
+       !ReadlineMightFail() &&
        defined(eval {require Term::ReadLine}) ) {
     my $term = new Term::ReadLine 'pprof';
     while ( defined ($_ = $term->readline('(pprof) '))) {
@@ -703,7 +712,7 @@ sub InteractiveMode {
     }
   } else {       # don't have readline
     while (1) {
-      print "(pprof) ";
+      print STDERR "(pprof) ";
       $_ = <STDIN>;
       last if ! defined $_ ;
       s/\r//g;         # turn windows-looking lines into unix-looking lines
@@ -727,7 +736,7 @@ sub InteractiveCommand {
   my($orig_profile, $symbols, $libs, $total, $command) = @_;
   $_ = $command;                # just to make future m//'s easier
   if (!defined($_)) {
-    print "\n";
+    print STDERR "\n";
     return 0;
   }
   if (m/^ *quit/) {
@@ -762,6 +771,23 @@ sub InteractiveCommand {
     my $cumulative = CumulativeProfile($reduced);
 
     PrintText($symbols, $flat, $cumulative, $total, $line_limit);
+    return 1;
+  }
+  if (m/^ *callgrind *([^ \n]*)/) {
+    $main::opt_callgrind = 1;
+
+    # Get derived profiles
+    my $calls = ExtractCalls($symbols, $orig_profile);
+    my $filename = $1;
+    if ( $1 eq '' ) {
+      $filename = CallgrindTempName($main::next_tmpfile);
+    }
+    PrintCallgrind($calls, $filename);
+    if ( $1 eq '' ) {
+      RunKcachegrind($filename, " & ");
+      $main::next_tmpfile++;
+    }
+
     return 1;
   }
   if (m/^ *list *(.+)/) {
@@ -856,7 +882,7 @@ sub ProcessProfile {
 }
 
 sub InteractiveHelpMessage {
-  print <<ENDOFHELP;
+  print STDERR <<ENDOFHELP;
 Interactive pprof mode
 
 Commands:
@@ -881,6 +907,10 @@ Commands:
   disasm [routine_regexp] [-ignore1] [-ignore2]
       Show disassembly of routines whose names match "routine_regexp",
       annotated with sample counts.
+
+  callgrind
+  callgrind [filename]
+      Generates callgrind file. If no filename is given, kcachegrind is called.
 
   help - This listing
   quit or ^D - End pprof
@@ -913,7 +943,7 @@ sub ParseInteractiveArgs {
     }
   }
   if ($ignore ne "") {
-    print "Ignoring samples in call stacks that match '$ignore'\n";
+    print STDERR "Ignoring samples in call stacks that match '$ignore'\n";
   }
   return ($focus, $ignore);
 }
@@ -923,6 +953,11 @@ sub ParseInteractiveArgs {
 sub PsTempName {
   my $fnum = shift;
   return "$main::tmpfile_ps" . "." . "$fnum" . ".ps";
+}
+
+sub CallgrindTempName {
+  my $fnum = shift;
+  return "$main::tmpfile_ps" . "." . "$fnum" . ".callgrind";
 }
 
 # Print profile data in packed binary format (64-bit) to standard out
@@ -1045,7 +1080,15 @@ sub PrintText {
 # Print the call graph in a way that's suiteable for callgrind.
 sub PrintCallgrind {
   my $calls = shift;
-  printf("events: Hits\n\n");
+  my $filename;
+  if ($main::opt_interactive) {
+    $filename = shift;
+    print STDERR "Writing callgrind file to '$filename'.\n"
+  } else {
+    $filename = "&STDOUT";
+  }
+  open(CG, ">".$filename );
+  printf CG ("events: Hits\n\n");
   foreach my $call ( map { $_->[0] }
                      sort { $a->[1] cmp $b ->[1] ||
                             $a->[2] <=> $b->[2] }
@@ -1057,13 +1100,15 @@ sub PrintCallgrind {
     my ( $caller_file, $caller_line, $caller_function,
          $callee_file, $callee_line, $callee_function ) =
        ( $1, $2, $3, $5, $6, $7 );
-    printf("fl=$caller_file\nfn=$caller_function\n");
+
+      
+    printf CG ("fl=$caller_file\nfn=$caller_function\n");
     if (defined $6) {
-      printf("cfl=$callee_file\n");
-      printf("cfn=$callee_function\n");
-      printf("calls=$count $callee_line\n");
+      printf CG ("cfl=$callee_file\n");
+      printf CG ("cfn=$callee_function\n");
+      printf CG ("calls=$count $callee_line\n");
     }
-    printf("$caller_line $count\n\n");
+    printf CG ("$caller_line $count\n\n");
   }
 }
 
@@ -1385,7 +1430,7 @@ sub SourceLine {
       return undef;
     }
     my $lines = [];
-    push(@{$lines}, "");	# So we can use 1-based line numbers as indices
+    push(@{$lines}, "");        # So we can use 1-based line numbers as indices
     while (<FILE>) {
       push(@{$lines}, $_);
     }
@@ -1477,8 +1522,8 @@ sub PrintDisassembledFunction {
     # Find run of instructions for this range of source lines
     my $first_inst = $i;
     while (($i <= $#instructions) &&
-	   ($instructions[$i]->[2] >= $first_line) &&
-	   ($instructions[$i]->[2] <= $last_line)) {
+           ($instructions[$i]->[2] >= $first_line) &&
+           ($instructions[$i]->[2] <= $last_line)) {
       $e = $instructions[$i];
       $flat_sum{$e->[2]} += $flat_count[$i];
       $cum_sum{$e->[2]} += $cum_count[$i];
@@ -1490,16 +1535,16 @@ sub PrintDisassembledFunction {
     for (my $l = $first_line; $l <= $last_line; $l++) {
       my $line = SourceLine($current_file, $l);
       if (!defined($line)) {
-	$line = "?\n";
+        $line = "?\n";
         next;
       } else {
         $line =~ s/^\s+//;
       }
       printf("%6s %6s %5d: %s",
-	     UnparseAlt($flat_sum{$l}),
-	     UnparseAlt($cum_sum{$l}),
-	     $l,
-	     $line);
+             UnparseAlt($flat_sum{$l}),
+             UnparseAlt($cum_sum{$l}),
+             $l,
+             $line);
     }
 
     # Print disassembly
@@ -1516,9 +1561,9 @@ sub PrintDisassembledFunction {
       while ($d =~ s/(\w+)<[^<>]*>/$1/g)  { }       # Remove template arguments
 
       printf("%6s %6s    %8s: %6s\n",
-	     UnparseAlt($flat_count[$x]),
-	     UnparseAlt($cum_count[$x]),
-	     $address,
+             UnparseAlt($flat_count[$x]),
+             UnparseAlt($cum_count[$x]),
+             $address,
              $d);
     }
   }
@@ -1542,7 +1587,7 @@ sub PrintDot {
   # Find nodes to include
   my @list = (sort { abs(GetEntry($cumulative, $b)) <=>
                      abs(GetEntry($cumulative, $a))
-		     || $a cmp $b }
+                     || $a cmp $b }
               keys(%{$cumulative}));
   my $last = $nodecount - 1;
   if ($last > $#list) {
@@ -1806,7 +1851,7 @@ sub Unparse {
       }
     }
   } elsif ($main::profile_type eq 'contention' && !$main::opt_contentions) {
-    return sprintf("%.3f", $num / 1e9);	# Convert nanoseconds to seconds
+    return sprintf("%.3f", $num / 1e9); # Convert nanoseconds to seconds
   } else {
     return sprintf("%d", $num);
   }
@@ -1947,42 +1992,42 @@ sub RemoveUninterestingFrames {
                       'malloc',
                       'free',
                       'memalign',
-		      'posix_memalign',
+                      'posix_memalign',
                       'pvalloc',
                       'valloc',
                       'realloc',
-		      'tc_calloc',
+                      'tc_calloc',
                       'tc_cfree',
                       'tc_malloc',
                       'tc_free',
                       'tc_memalign',
-		      'tc_posix_memalign',
+                      'tc_posix_memalign',
                       'tc_pvalloc',
                       'tc_valloc',
                       'tc_realloc',
-		      'tc_new',
-		      'tc_delete',
-		      'tc_newarray',
-		      'tc_deletearray',
-		      'tc_new_nothrow',
-		      'tc_newarray_nothrow',
-		      'do_malloc',
+                      'tc_new',
+                      'tc_delete',
+                      'tc_newarray',
+                      'tc_deletearray',
+                      'tc_new_nothrow',
+                      'tc_newarray_nothrow',
+                      'do_malloc',
                       '::do_malloc',   # new name -- got moved to an unnamed ns
                       '::do_malloc_or_cpp_alloc',
                       'DoSampledAllocation',
-		      'simple_alloc::allocate',
-		      '__malloc_alloc_template::allocate',
+                      'simple_alloc::allocate',
+                      '__malloc_alloc_template::allocate',
                       '__builtin_delete',
                       '__builtin_new',
                       '__builtin_vec_delete',
                       '__builtin_vec_new',
                       'operator new',
                       'operator new[]',
-		      # These mark the beginning/end of our custom sections
-		      '__start_google_malloc',
-		      '__stop_google_malloc',
-		      '__start_malloc_hook',
-		      '__stop_malloc_hook') {
+                      # These mark the beginning/end of our custom sections
+                      '__start_google_malloc',
+                      '__stop_google_malloc',
+                      '__start_malloc_hook',
+                      '__stop_malloc_hook') {
       $skip{$name} = 1;
       $skip{"_" . $name} = 1;   # Mach (OS X) adds a _ prefix to everything
     }
@@ -1999,11 +2044,11 @@ sub RemoveUninterestingFrames {
     # TODO(dpeng): this should not be necessary; it's taken
     # care of by the general 2nd-pc mechanism below.
     foreach my $name ('ProfileData::Add',           # historical
-		      'ProfileData::prof_handler',  # historical
-		      'CpuProfiler::prof_handler',
+                      'ProfileData::prof_handler',  # historical
+                      'CpuProfiler::prof_handler',
                       '__FRAME_END__',
-		      '__pthread_sighandler',
-		      '__restore') {
+                      '__pthread_sighandler',
+                      '__restore') {
       $skip{$name} = 1;
     }
   } else {
@@ -2042,10 +2087,10 @@ sub RemoveUninterestingFrames {
     my @path = ();
     foreach my $a (@addrs) {
       if (exists($symbols->{$a})) {
-	my $func = $symbols->{$a}->[0];
-	if ($skip{$func} || ($func =~ m/$skip_regexp/)) {
-	  next;
-	}
+        my $func = $symbols->{$a}->[0];
+        if ($skip{$func} || ($func =~ m/$skip_regexp/)) {
+          next;
+        }
       }
       push(@path, $a);
     }
@@ -2070,8 +2115,8 @@ sub ReduceProfile {
       # To avoid double-counting due to recursion, skip a stack-trace
       # entry if it has already been seen
       if (!$seen{$e}) {
-	$seen{$e} = 1;
-	push(@path, $e);
+        $seen{$e} = 1;
+        push(@path, $e);
       }
     }
     my $reduced_path = join("\n", @path);
@@ -2404,7 +2449,6 @@ sub FetchSymbols {
   my $pcset = shift;
   my $symbol_map = shift;
 
-
   my %seen = ();
   my @pcs = grep { !$seen{$_}++ } keys(%$pcset);  # uniq
 
@@ -2414,7 +2458,7 @@ sub FetchSymbols {
     open(POSTFILE, ">$main::tmpfile_sym");
     print POSTFILE $post_data;
     close(POSTFILE);
- 
+
     my $url = SymbolPageURL();
     # Here we use curl for sending data via POST since old
     # wget doesn't have --post-file option.
@@ -2517,7 +2561,7 @@ sub FetchDynamicProfile {
     my $profile_dir = $ENV{"PPROF_TMPDIR"} || ($ENV{HOME} . "/pprof");
     if (!(-d $profile_dir)) {
       mkdir($profile_dir)
-	  || die("Unable to create profile directory $profile_dir: $!\n");
+          || die("Unable to create profile directory $profile_dir: $!\n");
     }
     my $tmp_profile = "$profile_dir/.tmp.$profile_file";
     my $real_profile = "$profile_dir/$profile_file";
@@ -2603,22 +2647,69 @@ sub TryCollectProfile {
 
 # Provide a small streaming-read module to handle very large
 # cpu-profile files.  Stream in chunks along a sliding window.
+# Provides an interface to get one 'slot', correctly handling
+# endian-ness differences.  A slot is one 32-bit or 64-bit word
+# (depending on the input profile).  We tell endianness and bit-size
+# for the profile by looking at the first 8 bytes: in cpu profiles,
+# the second slot is always 3 (we'll accept anything that's not 0).
 BEGIN {
   package CpuProfileStream;
 
   sub new {
-    my ($class, $file) = @_;
-    my $self = { file      => $file,
-                 base      => 0,
-                 stride    => 512 * 1024,     # must be a multiple of |long|
-                 slots     => []
+    my ($class, $file, $fname) = @_;
+    my $self = { file        => $file,
+                 base        => 0,
+                 stride      => 512 * 1024,   # must be a multiple of bitsize/8
+                 slots       => [],
+                 unpack_code => "",           # N for big-endian, V for little
     };
     bless $self, $class;
     # Let unittests adjust the stride
     if ($main::opt_test_stride > 0) {
       $self->{stride} = $main::opt_test_stride;
     }
-    $self->overflow();
+    # Read the first two slots to figure out bitsize and endianness.
+    my $slots = $self->{slots};
+    my $str;
+    read($self->{file}, $str, 8);
+    # Set the global $address_length based on what we see here.
+    # 8 is 32-bit (8 hexadecimal chars); 16 is 64-bit (16 hexadecimal chars).
+    $address_length = ($str eq (chr(0)x8)) ? 16 : 8;
+    if ($address_length == 8) {
+      if (substr($str, 6, 2) eq chr(0)x2) {
+        $self->{unpack_code} = 'V';  # Little-endian.
+      } elsif (substr($str, 4, 2) eq chr(0)x2) {
+        $self->{unpack_code} = 'N';  # Big-endian
+      } else {
+        ::error("$fname: header size >= 2**16\n");
+      }
+      @$slots = unpack($self->{unpack_code} . "*", $str);
+    } else {
+      # If we're a 64-bit profile, make sure we're a 64-bit-capable
+      # perl.  Otherwise, each slot will be represented as a float
+      # instead of an int64, losing precision and making all the
+      # 64-bit addresses right.  We *could* try to handle this with
+      # software emulation of 64-bit ints, but that's added complexity
+      # for no clear benefit (yet).  We use 'Q' to test for 64-bit-ness;
+      # perl docs say it's only available on 64-bit perl systems.
+      my $has_q = 0;
+      eval { $has_q = pack("Q", "1") ? 1 : 1; };
+      if (!$has_q) {
+        ::error("$fname: need a 64-bit perl to process this 64-bit profile.\n");
+      }
+      read($self->{file}, $str, 8);
+      if (substr($str, 4, 4) eq chr(0)x4) {
+        # We'd love to use 'Q', but it's a) not universal, b) not endian-proof.
+        $self->{unpack_code} = 'V';  # Little-endian.
+      } elsif (substr($str, 0, 4) eq chr(0)x4) {
+        $self->{unpack_code} = 'N';  # Big-endian
+      } else {
+        ::error("$fname: header size >= 2**32\n");
+      }
+      my @pair = unpack($self->{unpack_code} . "*", $str);
+      # Since we know one of the pair is 0, it's fine to just add them.
+      @$slots = (0, $pair[0] + $pair[1]);
+    }
     return $self;
   }
 
@@ -2629,7 +2720,25 @@ BEGIN {
     $self->{base} += $#$slots + 1;   # skip over data we're replacing
     my $str;
     read($self->{file}, $str, $self->{stride});
-    @$slots = unpack("L*", $str);
+    if ($address_length == 8) {      # the 32-bit case
+      # This is the easy case: unpack provides 32-bit unpacking primitives.
+      @$slots = unpack($self->{unpack_code} . "*", $str);
+    } else {
+      # We need to unpack 32 bits at a time and combine.
+      my @b32_values = unpack($self->{unpack_code} . "*", $str);
+      my @b64_values = ();
+      for (my $i = 0; $i < $#b32_values; $i += 2) {
+        # TODO(csilvers): if this is a 32-bit perl, the math below
+        #    could end up in a too-large int, which perl will promote
+        #    to a double, losing necessary precision.  Deal with that.
+        if ($self->{unpack_code} eq 'V') {    # little-endian
+          push(@b64_values, $b32_values[$i] + $b32_values[$i+1] * (2**32));
+        } else {
+          push(@b64_values, $b32_values[$i] * (2**32) + $b32_values[$i+1]);
+        }
+      }
+      @$slots = @b64_values;
+    }
   }
 
   # Access the i-th long in the file (logically), or -1 at EOF.
@@ -2638,16 +2747,16 @@ BEGIN {
     my $slots = $self->{slots};
     while ($#$slots >= 0) {
       if ($idx < $self->{base}) {
-	# The only time we expect a reference to $slots[$i - something]
-	# after referencing $slots[$i] is reading the very first header.
-	# Since $stride > |header|, that shouldn't cause any lookback
-	# errors.  And everything after the header is sequential.
-	print STDERR "Unexpected look-back reading CPU profile";
-	return -1;   # shrug, don't know what better to return
+        # The only time we expect a reference to $slots[$i - something]
+        # after referencing $slots[$i] is reading the very first header.
+        # Since $stride > |header|, that shouldn't cause any lookback
+        # errors.  And everything after the header is sequential.
+        print STDERR "Unexpected look-back reading CPU profile";
+        return -1;   # shrug, don't know what better to return
       } elsif ($idx > $self->{base} + $#$slots) {
-	$self->overflow();
+        $self->overflow();
       } else {
-	return $slots->[$idx - $self->{base}];
+        return $slots->[$idx - $self->{base}];
       }
     }
     # If we get here, $slots is [], which means we've reached EOF
@@ -2752,6 +2861,33 @@ sub ReadProfile {
   return $result;
 }
 
+# Subtract one from caller pc so we map back to call instr.
+# However, don't do this if we're reading a symbolized profile
+# file, in which case the subtract-one was done when the file
+# was written.
+#
+# We apply the same logic to all readers, though ReadCPUProfile uses an
+# independent implementation.
+sub FixCallerAddresses {
+  my $stack = shift;
+  if ($main::use_symbolized_profile) {
+    return $stack;
+  } else {
+    $stack =~ /(\s)/;
+    my $delimiter = $1;
+    my @addrs = split(' ', $stack);
+    my @fixedaddrs;
+    $#fixedaddrs = $#addrs;
+    if ($#addrs >= 0) {
+      $fixedaddrs[0] = $addrs[0];
+    }
+    for (my $i = 1; $i <= $#addrs; $i++) {
+      $fixedaddrs[$i] = AddressSub($addrs[$i], "0x1");
+    }
+    return join $delimiter, @fixedaddrs;
+  }
+}
+
 # CPU profile reader
 sub ReadCPUProfile {
   my $prog = shift;
@@ -2763,10 +2899,7 @@ sub ReadCPUProfile {
   my $pcs = {};
 
   # Parse string into array of slots.
-  # L! cannot be used because with a native 64-bit build, it will cause
-  # 1) a valid 64-bit profile to use the 32-bit codepath, and
-  # 2) a valid 32-bit profile to be unrecognized.
-  my $slots = CpuProfileStream->new(*PROFILE);
+  my $slots = CpuProfileStream->new(*PROFILE, $fname);
 
   # Read header.  The current header version is a 5-element structure
   # containing:
@@ -2775,108 +2908,50 @@ sub ReadCPUProfile {
   #   2: format version (0)
   #   3: sampling period (usec)
   #   4: unused padding (always 0)
-  # The header words are 32-bit or 64-bit depending on the ABI of the program
-  # that generated the profile.  In the 64-bit case, since our x86-architecture
-  # machines are little-endian, the actual value of each of these elements is
-  # in the first 32-bit word, and the second is always zero.  The @slots array
-  # above was read as a sequence of 32-bit words in both cases, so we need to
-  # explicitly check for both cases.  A typical slot sequence for each is:
-  #   32-bit:  0 3 0 100 0
-  #   64-bit:  0 0  3 0  0 0  100 0  0 0
-  #
   if ($slots->get(0) != 0 ) {
     error("$fname: not a profile file, or old format profile file\n");
   }
-  if ($slots->get(1) >= 3) {
-    # Normal 32-bit header:
-    $version = $slots->get(2);
-    $period = $slots->get(3);
-    $i = 2 + $slots->get(1);
-    $address_length = 8;
+  $i = 2 + $slots->get(1);
+  $version = $slots->get(2);
+  $period = $slots->get(3);
+  # Do some sanity checking on these header values.
+  if ($version > (2**32) || $period > (2**32) || $i > (2**32) || $i < 5) {
+    error("$fname: not a profile file, or corrupted profile file\n");
+  }
 
-    # Parse profile
-    while ($slots->get($i) != -1) {
-      my $n = $slots->get($i++);
-      my $d = $slots->get($i++);
-      if ($slots->get($i) == 0) {
-        # End of profile data marker
-        $i += $d;
-        last;
-      }
-
-      # Make key out of the stack entries
-      my @k = ();
-      for (my $j = 0; $j < $d; $j++) {
-        my $pc = sprintf("%08x", $slots->get($i+$j));
-        $pcs->{$pc} = 1;
-        push @k, $pc;
-      }
-
-      AddEntry($profile, (join "\n", @k), $n);
+  # Parse profile
+  while ($slots->get($i) != -1) {
+    my $n = $slots->get($i++);
+    my $d = $slots->get($i++);
+    if ($d > (2**16)) {  # TODO(csilvers): what's a reasonable max-stack-depth?
+      my $addr = sprintf("0%o", $i * ($address_length == 8 ? 4 : 8));
+      print STDERR "At index $i (address $addr):\n";
+      error("$fname: stack trace depth >= 2**32\n");
+    }
+    if ($slots->get($i) == 0) {
+      # End of profile data marker
       $i += $d;
+      last;
     }
 
-  # Normal 64-bit header:  All entries are doubled in size.  The first
-  # word (little-endian) should contain the real value, the second should
-  # be zero.
-  } elsif ($slots->get(1) != 0 ||
-	   $slots->get(2) < 3 ||
-	   $slots->get(3) != 0 ||
-	   $slots->get(5) != 0 ||
-	   $slots->get(7) != 0) {
-    error("$fname: not a profile file, or old format profile file\n");
-  } else {
-    $version = $slots->get(4);
-    $period = $slots->get(6);
-    $i = 4 + 2 * $slots->get(2);
-    $address_length = 16;
-
-    # Parse profile
-    while ($slots->get($i) != -1) {
-      my $n = $slots->get($i++);
-      my $nhi = $slots->get($i++);
-      # Huge counts may coerce to floating point, keeping scale, not precision
-      if ($nhi != 0) { $n += $nhi*(2**32); }
-      my $d = $slots->get($i++);
-      if ($slots->get($i++) != 0) {
-        my $addr = sprintf("%o", 4 * $i);
-        print STDERR "At index $i ($addr):\n";
-        error("$fname: stack trace depth >= 2**32\n");
+    # Make key out of the stack entries
+    my @k = ();
+    for (my $j = 0; $j < $d; $j++) {
+      my $pc = $slots->get($i+$j);
+      # Subtract one from caller pc so we map back to call instr.
+      # However, don't do this if we're reading a symbolized profile
+      # file, in which case the subtract-one was done when the file
+      # was written.
+      if ($j > 0 && !$main::use_symbolized_profile) {
+        $pc--;
       }
-      if ($slots->get($i) == 0 && $slots->get($i+1) == 0) {
-        # End of profile data marker
-        $i += 2 * $d;
-        last;
-      }
-
-      # Make key out of the stack entries
-      my @k = ();
-      for (my $j = 0; $j < $d; $j++) {
-        my $pclo = $slots->get($i++);
-        my $pchi = $slots->get($i++);
-        if ($pclo == -1 || $pchi == -1) {
-          error("$fname: Unexpected EOF when reading stack of depth $d\n");
-        }
-
-	# Subtract one from caller pc so we map back to call instr.
-        # However, don't do this if we're reading a symbolized profile
-        # file, in which case the subtract-one was done when the file
-        # was written.
-        if ($j > 0 && !$main::use_symbolized_profile) {
-          if ($pclo == 0) {
-            $pchi--;
-            $pclo = 0xffffffff;
-          } else {
-            $pclo--;
-          }
-        }
-
-        my $pc = sprintf("%08x%08x", $pchi, $pclo);
-        $pcs->{$pc} = 1;
-        push @k, $pc;
-      }
-      AddEntry($profile, (join "\n", @k), $n);
+      $pc = sprintf("%0*x", $address_length, $pc);
+      $pcs->{$pc} = 1;
+      push @k, $pc;
     }
+
+    AddEntry($profile, (join "\n", @k), $n);
+    $i += $d;
   }
 
   # Parse map
@@ -2947,18 +3022,18 @@ sub ReadHeapProfile {
       # found for profiles generated locally, and the others for
       # remote profiles.
       if (($type eq "heapprofile") || ($type !~ /heap/) ) {
-	# No need to adjust for the sampling rate with heap-profiler-derived data
-	$sampling_algorithm = 0;
+        # No need to adjust for the sampling rate with heap-profiler-derived data
+        $sampling_algorithm = 0;
       } elsif ($type =~ /_v2/) {
-	$sampling_algorithm = 2;     # version 2 sampling
+        $sampling_algorithm = 2;     # version 2 sampling
         if (defined($sample_period) && ($sample_period ne '')) {
-	  $sample_adjustment = int($sample_period);
-	}
+          $sample_adjustment = int($sample_period);
+        }
       } else {
-	$sampling_algorithm = 1;     # version 1 sampling
+        $sampling_algorithm = 1;     # version 1 sampling
         if (defined($sample_period) && ($sample_period ne '')) {
-	  $sample_adjustment = int($sample_period)/2;
-	}
+          $sample_adjustment = int($sample_period)/2;
+        }
       }
     } else {
       # We detect whether or not this is a remote-heap profile by checking
@@ -2970,7 +3045,7 @@ sub ReadHeapProfile {
       my ($n1, $s1, $n2, $s2) = ($1, $2, $3, $4);
       if (($n1 == $n2) && ($s1 == $s2)) {
         # This is likely to be a remote-heap based sample profile
-	$sampling_algorithm = 1;
+        $sampling_algorithm = 1;
       }
     }
   }
@@ -2984,7 +3059,7 @@ sub ReadHeapProfile {
       print STDERR "Adjusting heap profiles for 1-in-128KB sampling rate\n";
     } else {
       printf STDERR ("Adjusting heap profiles for 1-in-%d sampling rate\n",
-		     $sample_adjustment);
+                     $sample_adjustment);
     }
     if ($sampling_algorithm > 1) {
       # We don't bother printing anything for the original version (version 1)
@@ -3001,7 +3076,7 @@ sub ReadHeapProfile {
     if (/^MAPPED_LIBRARIES:/) {
       # Read the /proc/self/maps data
       while (<PROFILE>) {
-	s/\r//g;         # turn windows-looking lines into unix-looking lines
+        s/\r//g;         # turn windows-looking lines into unix-looking lines
         $map .= $_;
       }
       last;
@@ -3011,7 +3086,7 @@ sub ReadHeapProfile {
       # Read /proc/self/maps data as formatted by DumpAddressMap()
       my $buildvar = "";
       while (<PROFILE>) {
-	s/\r//g;         # turn windows-looking lines into unix-looking lines
+        s/\r//g;         # turn windows-looking lines into unix-looking lines
         # Parse "build=<dir>" specification if supplied
         if (m/^\s*build=(.*)\n/) {
           $buildvar = $1;
@@ -3066,7 +3141,7 @@ sub ReadHeapProfile {
       }
 
       my @counts = ($n1, $s1, $n2, $s2);
-      AddEntries($profile, $pcs, $stack, $counts[$index]);
+      AddEntries($profile, $pcs, FixCallerAddresses($stack), $counts[$index]);
     }
   }
 
@@ -3086,7 +3161,7 @@ sub ReadSynchProfile {
   my $profile = {};
   my $pcs = {};
   my $sampling_period = 1;
-  my $cyclespernanosec = 2.8;	# Default assumption for old binaries
+  my $cyclespernanosec = 2.8;   # Default assumption for old binaries
   my $seen_clockrate = 0;
   my $line;
 
@@ -3112,7 +3187,7 @@ sub ReadSynchProfile {
       $count *= $sampling_period;
 
       my @values = ($cycles, $count, $cycles / $count);
-      AddEntries($profile, $pcs, $stack, $values[$index]);
+      AddEntries($profile, $pcs, FixCallerAddresses($stack), $values[$index]);
 
     } elsif ( $line =~ /^(slow release).*thread \d+  \@\s*(.*?)\s*$/ ||
               $line =~ /^\s*(\d+) \@\s*(.*?)\s*$/ ) {
@@ -3127,7 +3202,7 @@ sub ReadSynchProfile {
       # Adjust for sampling done by application
       $cycles *= $sampling_period;
 
-      AddEntries($profile, $pcs, $stack, $cycles);
+      AddEntries($profile, $pcs, FixCallerAddresses($stack), $cycles);
 
     } elsif ( $line =~ m/^([a-z][^=]*)=(.*)$/ ) {
       my ($variable, $value) = ($1,$2);
@@ -3308,8 +3383,8 @@ sub ParseTextSectionHeaderFromOtool {
     } elsif ($line =~ /segname (\w+)/) {
       $segname = $1;
     } elsif (!(($cmd eq "LC_SEGMENT" || $cmd eq "LC_SEGMENT_64") &&
-	       $sectname eq "__text" &&
-	       $segname eq "__TEXT")) {
+               $sectname eq "__text" &&
+               $segname eq "__TEXT")) {
       next;
     } elsif ($line =~ /\baddr 0x([0-9a-fA-F]+)/) {
       $vma = $1;
@@ -3369,7 +3444,7 @@ sub ParseLibraries {
     my $finish;
     my $offset;
     my $lib;
-    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.(so|dll|dylib|bundle)((\.\d+)+\w*)?)$/i) {
+    if ($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+\.(so|dll|dylib|bundle)((\.\d+)+\w*(\.\d+){0,3})?)$/i) {
       # Full line from /proc/self/maps.  Example:
       #   40000000-40015000 r-xp 00000000 03:01 12845071   /lib/ld-2.3.2.so
       $start = HexExtend($1);
@@ -3675,7 +3750,7 @@ sub MapToSymbols {
   if ($debug) { print("---- $image ---\n"); }
   for (my $i = 0; $i <= $#{$pclist}; $i++) {
     # addr2line always reads hex addresses, and does not need '0x' prefix.
-    if ($debug) { printf("%s\n", $pclist->[$i]); }
+    if ($debug) { printf STDERR ("%s\n", $pclist->[$i]); }
     printf ADDRESSES ("%s\n", AddressSub($pclist->[$i], $offset));
     if (defined($sep_address)) {
       printf ADDRESSES ("%s\n", $sep_address);
@@ -3727,7 +3802,7 @@ sub MapToSymbols {
       $symbols->{$pcstr} = $sym;
     }
     unshift(@{$sym}, $function, $filelinenum, $fullfunction);
-    if ($debug) { printf("%s => [%s]\n", $pcstr, join(" ", @{$sym})); }
+    if ($debug) { printf STDERR ("%s => [%s]\n", $pcstr, join(" ", @{$sym})); }
     if (!defined($sep_address)) {
       # Inlining is off, se this entry ends immediately
       $count++;
@@ -3783,7 +3858,7 @@ sub MapSymbolsWithNM {
   }
   return 1;
 }
- 
+
 sub ShortFunctionName {
   my $function = shift;
   while ($function =~ s/\([^()]*\)(\s*const)?//g) { }   # Argument types
@@ -3942,12 +4017,12 @@ sub GetProcedureBoundariesViaNm {
       # we'll just go ahead and process the first entry (which never
       # got touched in the queue), and ignore the others.
       if ($start_val eq $last_start && $type =~ /t/i) {
-	# We are the 'T' symbol at this address, replace previous symbol.
-	$routine = $this_routine;
-	next;
+        # We are the 'T' symbol at this address, replace previous symbol.
+        $routine = $this_routine;
+        next;
       } elsif ($start_val eq $last_start) {
-	# We're not the 'T' symbol at this address, so ignore us.
-	next;
+        # We're not the 'T' symbol at this address, so ignore us.
+        next;
       }
 
       if ($this_routine eq $sep_symbol) {
@@ -3962,7 +4037,7 @@ sub GetProcedureBoundariesViaNm {
 
       if (defined($routine) && $routine =~ m/$regexp/) {
         $symbol_table->{$routine} = [HexExtend($last_start),
-				     HexExtend($start_val)];
+                                     HexExtend($start_val)];
       }
       $last_start = $start_val;
       $routine = $this_routine;
@@ -3981,7 +4056,7 @@ sub GetProcedureBoundariesViaNm {
   # TODO(csilvers): do better here.
   if (defined($routine) && $routine =~ m/$regexp/) {
     $symbol_table->{$routine} = [HexExtend($last_start),
-				 HexExtend($last_start)];
+                                 HexExtend($last_start)];
   }
 
   return $symbol_table;
@@ -4029,9 +4104,9 @@ sub GetProcedureBoundaries {
   # -D to at least get *exported* symbols.  If we can't use --demangle,
   # we use c++filt instead, if it exists on this system.
   my @nm_commands = ("$nm -n $flatten_flag $demangle_flag" .
-		     " $image 2>/dev/null $cppfilt_flag",
-		     "$nm -D -n $flatten_flag $demangle_flag" .
-		     " $image 2>/dev/null $cppfilt_flag");
+                     " $image 2>/dev/null $cppfilt_flag",
+                     "$nm -D -n $flatten_flag $demangle_flag" .
+                     " $image 2>/dev/null $cppfilt_flag");
   # If the executable is an MS Windows PDB-format executable, we'll
   # have set up obj_tool_map("nm_pdb").  In this case, we actually
   # want to use both unix nm and windows-specific nm_pdb, since
@@ -4263,4 +4338,3 @@ sub RunUnitTests {
   }
   exit ($error_count);
 }
-

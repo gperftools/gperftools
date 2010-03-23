@@ -71,7 +71,8 @@ int getpagesize() {
   if (pagesize == 0) {
     SYSTEM_INFO system_info;
     GetSystemInfo(&system_info);
-    pagesize = system_info.dwPageSize;
+    pagesize = std::max(system_info.dwPageSize,
+                        system_info.dwAllocationGranularity);
   }
   return pagesize;
 }
@@ -186,15 +187,15 @@ pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
 // munmap's in the middle of the page, which is forbidden in windows.
 extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
                                   size_t alignment) {
-  // Safest is to make actual_size same as input-size.
-  if (actual_size) {
-    *actual_size = size;
-  }
-
   // Align on the pagesize boundary
   const int pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
   size = ((size + alignment - 1) / alignment) * alignment;
+
+  // Safest is to make actual_size same as input-size.
+  if (actual_size) {
+    *actual_size = size;
+  }
 
   // Ask for extra memory if alignment > pagesize
   size_t extra = 0;

@@ -119,9 +119,6 @@ AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
-AC_CHECK_HEADERS(ucontext.h)    # for profiler.cc (cpu profiler)
-AC_CHECK_HEADERS(sys/ucontext.h)         # ucontext on OS X 10.6 (at least)
-AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms?
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
 AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
@@ -133,6 +130,10 @@ AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(sys/resource.h)         # for memalign_unittest.cc
+AC_CHECK_HEADERS(valgrind.h)    # we have a local copy if this isn't found
+# We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
+# AC_PC_FROM_UCONTEXT, below.
+
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 AC_CHECK_DECLS([cfree,
@@ -310,6 +311,13 @@ AH_BOTTOM([
 #endif
 ])
 AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
+
+# Redhat 7 (and below?) has sys/ucontext.h, but if you try to #include
+# it directly, the compiler gets upset.  So we pretend we don't have
+# it.
+if cat /etc/redhat-release 2>/dev/null | grep "Red Hat Linux release 7" >/dev/null 2>&1; then
+AC_DEFINE(HAVE_SYS_UCONTEXT_H, 0, [<sys/ucontext.h> is broken on redhat 7])
+fi
 
 # Export the --enable flags we set above.  We do this at the end so
 # other configure rules can enable or disable targets based on what

@@ -31,17 +31,13 @@
 // Author: Sanjay Ghemawat
 //
 // Produce stack trace
-//
-// NOTE: there is code duplication between
-// GetStackTrace, GetStackTraceWithContext, GetStackFrames and
-// GetStackFramesWithContext. If you update one, update them all.
-//
-// There is no easy way to avoid this, because inlining
-// interferes with skip_count, and there is no portable
-// way to turn inlining off, or force it always on.
+
+#ifndef BASE_STACKTRACE_X86_INL_H_
+#define BASE_STACKTRACE_X86_INL_H_
+// Note: this file is included into stacktrace.cc more than once.
+// Anything that should only be defined once should be here:
 
 #include "config.h"
-
 #include <stdlib.h>   // for NULL
 #include <assert.h>
 #if defined(HAVE_SYS_UCONTEXT_H)
@@ -190,8 +186,8 @@ static void **NextStackFrame(void **old_sp, const void *uc) {
       const ucontext_t *ucv = static_cast<const ucontext_t *>(uc);
       // This kernel does not use frame pointer in its VDSO code,
       // and so %ebp is not suitable for unwinding.
-      const void **const reg_ebp =
-          reinterpret_cast<const void **>(ucv->uc_mcontext.gregs[REG_EBP]);
+      void **const reg_ebp =
+          reinterpret_cast<void **>(ucv->uc_mcontext.gregs[REG_EBP]);
       const unsigned char *const reg_eip =
           reinterpret_cast<unsigned char *>(ucv->uc_mcontext.gregs[REG_EIP]);
       if (new_sp == reg_ebp &&
@@ -269,209 +265,24 @@ static void **NextStackFrame(void **old_sp, const void *uc) {
   return new_sp;
 }
 
-// If you change this function, see NOTE at the top of file.
-// Same as above, but with signal ucontext_t pointer.
-int GetStackTraceWithContext(void** result,
-                             int max_depth,
-                             int skip_count,
-                             const void *uc) {
-  void **sp;
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
-  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
-  // It's always correct on llvm, and the techniques below aren't (in
-  // particular, llvm-gcc will make a copy of pcs, so it's not in sp[2]),
-  // so we also prefer __builtin_frame_address when running under llvm.
-  sp = reinterpret_cast<void**>(__builtin_frame_address(0));
-#elif defined(__i386__)
-  // Stack frame format:
-  //    sp[0]   pointer to previous frame
-  //    sp[1]   caller address
-  //    sp[2]   first argument
-  //    ...
-  // NOTE: This will break under llvm, since result is a copy and not in sp[2]
-  sp = (void **)&result - 2;
-#elif defined(__x86_64__)
-  unsigned long rbp;
-  // Move the value of the register %rbp into the local variable rbp.
-  // We need 'volatile' to prevent this instruction from getting moved
-  // around during optimization to before function prologue is done.
-  // An alternative way to achieve this
-  // would be (before this __asm__ instruction) to call Noop() defined as
-  //   static void Noop() __attribute__ ((noinline));  // prevent inlining
-  //   static void Noop() { asm(""); }  // prevent optimizing-away
-  __asm__ volatile ("mov %%rbp, %0" : "=r" (rbp));
-  // Arguments are passed in registers on x86-64, so we can't just
-  // offset from &result
-  sp = (void **) rbp;
-#else
-# error Using stacktrace_x86-inl.h on a non x86 architecture!
-#endif
+#endif  // BASE_STACKTRACE_X86_INL_H_
 
-  int n = 0;
-  while (sp && n < max_depth) {
-    if (*(sp+1) == reinterpret_cast<void *>(0)) {
-      // In 64-bit code, we often see a frame that
-      // points to itself and has a return address of 0.
-      break;
-    }
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      result[n++] = *(sp+1);
-    }
-    // Use strict unwinding rules.
-    sp = NextStackFrame<true, true>(sp, uc);
-  }
-  return n;
-}
+// Note: this part of the file is included several times.
+// Do not put globals below.
 
-int GetStackTrace(void** result, int max_depth, int skip_count) {
-  void **sp;
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
-  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
-  // It's always correct on llvm, and the techniques below aren't (in
-  // particular, llvm-gcc will make a copy of pcs, so it's not in sp[2]),
-  // so we also prefer __builtin_frame_address when running under llvm.
-  sp = reinterpret_cast<void**>(__builtin_frame_address(0));
-#elif defined(__i386__)
-  // Stack frame format:
-  //    sp[0]   pointer to previous frame
-  //    sp[1]   caller address
-  //    sp[2]   first argument
-  //    ...
-  // NOTE: This will break under llvm, since result is a copy and not in sp[2]
-  sp = (void **)&result - 2;
-#elif defined(__x86_64__)
-  unsigned long rbp;
-  // Move the value of the register %rbp into the local variable rbp.
-  // We need 'volatile' to prevent this instruction from getting moved
-  // around during optimization to before function prologue is done.
-  // An alternative way to achieve this
-  // would be (before this __asm__ instruction) to call Noop() defined as
-  //   static void Noop() __attribute__ ((noinline));  // prevent inlining
-  //   static void Noop() { asm(""); }  // prevent optimizing-away
-  __asm__ volatile ("mov %%rbp, %0" : "=r" (rbp));
-  // Arguments are passed in registers on x86-64, so we can't just
-  // offset from &result
-  sp = (void **) rbp;
-#else
-# error Using stacktrace_x86-inl.h on a non x86 architecture!
-#endif
-
-  int n = 0;
-  while (sp && n < max_depth) {
-    if (*(sp+1) == reinterpret_cast<void *>(0)) {
-      // In 64-bit code, we often see a frame that
-      // points to itself and has a return address of 0.
-      break;
-    }
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      result[n++] = *(sp+1);
-    }
-    // Use strict unwinding rules.
-    sp = NextStackFrame<true, false>(sp, NULL);
-  }
-  return n;
-}
-
-// If you change this function, see NOTE at the top of file.
+// The following 4 functions are generated from the code below:
+//   GetStack{Trace,Frames}()
+//   GetStack{Trace,Frames}WithContext()
 //
-// This GetStackFrames routine shares a lot of code with GetStackTrace
-// above. This code could have been refactored into a common routine,
-// and then both GetStackTrace/GetStackFrames could call that routine.
-// There are two problems with that:
-//
-// (1) The performance of the refactored-code suffers substantially - the
-//     refactored needs to be able to record the stack trace when called
-//     from GetStackTrace, and both the stack trace and stack frame sizes,
-//     when called from GetStackFrames - this introduces enough new
-//     conditionals that GetStackTrace performance can degrade by as much
-//     as 50%.
-//
-// (2) Whether the refactored routine gets inlined into GetStackTrace and
-//     GetStackFrames depends on the compiler, and we can't guarantee the
-//     behavior either-way, even with "__attribute__ ((always_inline))"
-//     or "__attribute__ ((noinline))". But we need this guarantee or the
-//     frame counts may be off by one.
-//
-// Both (1) and (2) can be addressed without this code duplication, by
-// clever use of template functions, and by defining GetStackTrace and
-// GetStackFrames as macros that expand to these template functions.
-// However, this approach comes with its own set of problems - namely,
-// macros and  preprocessor trouble - for example,  if GetStackTrace
-// and/or GetStackFrames is ever defined as a member functions in some
-// class, we are in trouble.
-int GetStackFrames(void** pcs, int* sizes, int max_depth, int skip_count) {
-  void **sp;
-#if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
-  // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
-  // It's always correct on llvm, and the techniques below aren't (in
-  // particular, llvm-gcc will make a copy of pcs, so it's not in sp[2]),
-  // so we also prefer __builtin_frame_address when running under llvm.
-  sp = reinterpret_cast<void**>(__builtin_frame_address(0));
-#elif defined(__i386__)
-  // Stack frame format:
-  //    sp[0]   pointer to previous frame
-  //    sp[1]   caller address
-  //    sp[2]   first argument
-  //    ...
-  sp = (void **)&pcs - 2;
-#elif defined(__x86_64__)
-  unsigned long rbp;
-  // Move the value of the register %rbp into the local variable rbp.
-  // We need 'volatile' to prevent this instruction from getting moved
-  // around during optimization to before function prologue is done.
-  // An alternative way to achieve this
-  // would be (before this __asm__ instruction) to call Noop() defined as
-  //   static void Noop() __attribute__ ((noinline));  // prevent inlining
-  //   static void Noop() { asm(""); }  // prevent optimizing-away
-  __asm__ volatile ("mov %%rbp, %0" : "=r" (rbp));
-  // Arguments are passed in registers on x86-64, so we can't just
-  // offset from &result
-  sp = (void **) rbp;
-#else
-# error Using stacktrace_x86-inl.h on a non x86 architecture!
-#endif
+// These functions take the following args:
+//   void** result: the stack-trace, as an array
+//   int* sizes: the size of each stack frame, as an array
+//               (GetStackFrames* only)
+//   int max_depth: the size of the result (and sizes) array(s)
+//   int skip_count: how many stack pointers to skip before storing in result
+//   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 
-  int n = 0;
-  while (sp && n < max_depth) {
-    if (*(sp+1) == reinterpret_cast<void *>(0)) {
-      // In 64-bit code, we often see a frame that
-      // points to itself and has a return address of 0.
-      break;
-    }
-    // The GetStackFrames routine is called when we are in some
-    // informational context (the failure signal handler for example).
-    // Use the non-strict unwinding rules to produce a stack trace
-    // that is as complete as possible (even if it contains a few bogus
-    // entries in some rare cases).
-    void **next_sp = NextStackFrame<false, false>(sp, NULL);
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      pcs[n] = *(sp+1);
-      if (next_sp > sp) {
-        sizes[n] = (uintptr_t)next_sp - (uintptr_t)sp;
-      } else {
-        // A frame-size of 0 is used to indicate unknown frame size.
-        sizes[n] = 0;
-      }
-      n++;
-    }
-    sp = next_sp;
-  }
-  return n;
-}
-
-// If you change this function, see NOTE at the top of file.
-// Same as above, but with signal ucontext_t pointer.
-int GetStackFramesWithContext(void** pcs,
-                              int* sizes,
-                              int max_depth,
-                              int skip_count,
-                              const void *uc) {
+int GET_STACK_TRACE_OR_FRAMES {
   void **sp;
 #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
   // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
@@ -511,22 +322,22 @@ int GetStackFramesWithContext(void** pcs,
       // points to itself and has a return address of 0.
       break;
     }
-    // The GetStackFrames routine is called when we are in some
-    // informational context (the failure signal handler for example).
-    // Use the non-strict unwinding rules to produce a stack trace
-    // that is as complete as possible (even if it contains a few bogus
-    // entries in some rare cases).
-    void **next_sp = NextStackFrame<false, true>(sp, uc);
+#if !IS_WITH_CONTEXT
+    const void *const ucp = NULL;
+#endif
+    void **next_sp = NextStackFrame<!IS_STACK_FRAMES, IS_WITH_CONTEXT>(sp, ucp);
     if (skip_count > 0) {
       skip_count--;
     } else {
-      pcs[n] = *(sp+1);
+      result[n] = *(sp+1);
+#if IS_STACK_FRAMES
       if (next_sp > sp) {
         sizes[n] = (uintptr_t)next_sp - (uintptr_t)sp;
       } else {
         // A frame-size of 0 is used to indicate unknown frame size.
         sizes[n] = 0;
       }
+#endif
       n++;
     }
     sp = next_sp;

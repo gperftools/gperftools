@@ -168,15 +168,15 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
   // a strict check here
   if (static_cast<ptrdiff_t>(size + alignment) < 0) return NULL;
 
-  // could theoretically return the "extra" bytes here, but this
-  // is simple and correct.
-  if (actual_size) {
-    *actual_size = size;
-  }
-
   // This doesn't overflow because TCMalloc_SystemAlloc has already
   // tested for overflow at the alignment boundary.
   size = ((size + alignment - 1) / alignment) * alignment;
+
+  // "actual_size" indicates that the bytes from the returned pointer
+  // p up to and including (p + actual_size - 1) have been allocated.
+  if (actual_size) {
+    *actual_size = size;
+  }
 
   // Check that we we're not asking for so much more memory that we'd
   // wrap around the end of the virtual address space.  (This seems
@@ -243,12 +243,6 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
     return NULL;
   }
 
-  // could theoretically return the "extra" bytes here, but this
-  // is simple and correct.
-  if (actual_size) {
-    *actual_size = size;
-  }
-
   // Enforce page alignment
   if (pagesize == 0) pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
@@ -257,6 +251,12 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
     return NULL;
   }
   size = aligned_size;
+
+  // "actual_size" indicates that the bytes from the returned pointer
+  // p up to and including (p + actual_size - 1) have been allocated.
+  if (actual_size) {
+    *actual_size = size;
+  }
 
   // Ask for extra memory if alignment > pagesize
   size_t extra = 0;
@@ -333,12 +333,6 @@ void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
     initialized = true;
   }
 
-  // could theoretically return the "extra" bytes here, but this
-  // is simple and correct.
-  if (actual_size) {
-    *actual_size = size;
-  }
-
   // Enforce page alignment
   if (pagesize == 0) pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
@@ -347,6 +341,12 @@ void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
     return NULL;
   }
   size = aligned_size;
+
+  // "actual_size" indicates that the bytes from the returned pointer
+  // p up to and including (p + actual_size - 1) have been allocated.
+  if (actual_size) {
+    *actual_size = size;
+  }
 
   // Ask for extra memory if alignment > pagesize
   size_t extra = 0;

@@ -52,8 +52,8 @@ class HeapProfileTable {
   // Extension to be used for heap pforile files.
   static const char kFileExt[];
 
-  // Longest stack trace we record.  Defined in the .cc file.
-  static const int kMaxStackDepth;
+  // Longest stack trace we record.
+  static const int kMaxStackDepth = 32;
 
   // data types ----------------------------
 

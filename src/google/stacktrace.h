@@ -49,23 +49,23 @@
 // Skips the most recent "skip_count" stack frames (also skips the
 // frame generated for the "GetStackFrames" routine itself), and then
 // records the pc values for up to the next "max_depth" frames in
-// "pcs", and the corresponding stack frame sizes in "sizes".  Returns
-// the number of values recorded in "pcs"/"sizes".
+// "result", and the corresponding stack frame sizes in "sizes".
+// Returns the number of values recorded in "result"/"sizes".
 //
 // Example:
 //      main() { foo(); }
 //      foo() { bar(); }
 //      bar() {
-//        void* pcs[10];
+//        void* result[10];
 //        int sizes[10];
-//        int depth = GetStackFrames(pcs, sizes, 10, 1);
+//        int depth = GetStackFrames(result, sizes, 10, 1);
 //      }
 //
 // The GetStackFrames call will skip the frame for "bar".  It will
 // return 2 and will produce pc values that map to the following
 // procedures:
-//      pcs[0]       foo
-//      pcs[1]       main
+//      result[0]       foo
+//      result[1]       main
 // (Actually, there may be a few more entries after "main" to account for
 // startup procedures.)
 // And corresponding stack frame sizes will also be recorded:
@@ -76,15 +76,15 @@
 // be identified.
 //
 // This routine may return fewer stack frame entries than are
-// available. Also note that "pcs" and "sizes" must both be non-NULL.
-extern PERFTOOLS_DLL_DECL int GetStackFrames(void** pcs, int* sizes, int max_depth,
+// available. Also note that "result" and "sizes" must both be non-NULL.
+extern PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
                           int skip_count);
 
 // Same as above, but to be used from a signal handler. The "uc" parameter
 // should be the pointer to ucontext_t which was passed as the 3rd parameter
 // to sa_sigaction signal handler. It may help the unwinder to get a
 // better stack trace under certain conditions. The "uc" may safely be NULL.
-extern PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** pcs, int* sizes, int max_depth,
+extern PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth,
                                      int skip_count, const void *uc);
 
 // This is similar to the GetStackFrames routine, except that it returns

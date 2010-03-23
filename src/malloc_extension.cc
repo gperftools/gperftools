@@ -187,7 +187,10 @@ MallocExtension* MallocExtension::instance() {
 void MallocExtension::Register(MallocExtension* implementation) {
   perftools_pthread_once(&module_init, InitModule);
   // When running under valgrind, our custom malloc is replaced with
-  // valgrind's one and malloc extensions will not work.
+  // valgrind's one and malloc extensions will not work.  (Note:
+  // callers should be responsible for checking that they are the
+  // malloc that is really being run, before calling Register.  This
+  // is just here as an extra sanity check.)
   if (!RunningOnValgrind()) {
     current_instance = implementation;
   }

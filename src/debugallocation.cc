@@ -1010,7 +1010,7 @@ static void *MemalignOverride(size_t align, size_t size,
                               const void *caller) __THROW
   ATTRIBUTE_SECTION(google_malloc);
 
-void* operator new(size_t size)
+void* operator new(size_t size) throw (std::bad_alloc)
   ATTRIBUTE_SECTION(google_malloc);
 void* operator new(size_t size, const std::nothrow_t&) __THROW
   ATTRIBUTE_SECTION(google_malloc);
@@ -1018,7 +1018,7 @@ void operator delete(void* p) __THROW
   ATTRIBUTE_SECTION(google_malloc);
 void operator delete(void* p, const std::nothrow_t&) __THROW
   ATTRIBUTE_SECTION(google_malloc);
-void* operator new[](size_t size)
+void* operator new[](size_t size) throw (std::bad_alloc)
   ATTRIBUTE_SECTION(google_malloc);
 void* operator new[](size_t size, const std::nothrow_t&) __THROW
   ATTRIBUTE_SECTION(google_malloc);
@@ -1176,12 +1176,12 @@ extern "C" void* pvalloc(size_t size) __THROW {
   return p;
 }
 
-extern "C" int mallopt(int cmd, int value) {
+extern "C" int mallopt(int cmd, int value) __THROW {
   return BASE_MALLOPT(cmd, value);
 }
 
 #ifdef HAVE_STRUCT_MALLINFO
-extern "C" struct mallinfo mallinfo(void) {
+extern "C" struct mallinfo mallinfo(void) __THROW {
   return BASE_MALLINFO();
 }
 #endif
@@ -1239,7 +1239,7 @@ inline void* cpp_debug_alloc(size_t size, int new_type, bool nothrow) {
   }
 }
 
-void* operator new(size_t size) {
+void* operator new(size_t size) throw (std::bad_alloc) {
   void* ptr = cpp_debug_alloc(size, MallocBlock::kNewType, false);
   MallocHook::InvokeNewHook(ptr, size);
   if (ptr == NULL) {
@@ -1259,7 +1259,8 @@ void operator delete(void* ptr) __THROW {
   DebugDeallocate(ptr, MallocBlock::kNewType);
 }
 
-// Compilers use this, though I can't see how it differs from normal delete.
+// Some STL implementations explicitly invoke this.
+// It is completely equivalent to a normal delete (delete never throws).
 void operator delete(void* ptr, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kNewType);
@@ -1269,7 +1270,7 @@ void operator delete(void* ptr, const std::nothrow_t&) __THROW {
 
 // Alloc/free stuff for debug operator new[] & friends
 
-void* operator new[](size_t size) {
+void* operator new[](size_t size) throw (std::bad_alloc) {
   void* ptr = cpp_debug_alloc(size, MallocBlock::kArrayNewType, false);
   MallocHook::InvokeNewHook(ptr, size);
   if (ptr == NULL) {
@@ -1289,7 +1290,8 @@ void operator delete[](void* ptr) __THROW {
   DebugDeallocate(ptr, MallocBlock::kArrayNewType);
 }
 
-// Compilers use this, though I can't see how it differs from normal delete.
+// Some STL implementations explicitly invoke this.
+// It is completely equivalent to a normal delete (delete never throws).
 void operator delete[](void* ptr, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kArrayNewType);
@@ -1359,17 +1361,22 @@ class DebugMallocImplementation : public ParentImplementation {
 static DebugMallocImplementation debug_malloc_implementation;
 
 REGISTER_MODULE_INITIALIZER(debugallocation, {
-  MallocExtension::Register(&debug_malloc_implementation);
-
-  // When the program exits, check all blocks still in the free queue for
-  // corruption.
-  atexit(DanglingWriteChecker);
+  // Either we or valgrind will control memory management.  We
+  // register our extension if we're the winner.
+  if (RunningOnValgrind()) {
+    // Let Valgrind uses its own malloc (so don't register our extension).
+  } else {
+    MallocExtension::Register(&debug_malloc_implementation);
+    // When the program exits, check all blocks still in the free
+    // queue for corruption.
+    atexit(DanglingWriteChecker);
+  }
 });
 
 #ifdef TCMALLOC_FOR_DEBUGALLOCATION
 
 // Redefine malloc_stats to use tcmalloc's implementation:
-extern "C" void malloc_stats(void) {
+extern "C" void malloc_stats(void) __THROW {
   do_malloc_stats();
 }
 
