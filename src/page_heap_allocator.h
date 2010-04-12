@@ -44,7 +44,7 @@ class PageHeapAllocator {
   // allocated and their constructors might not have run by the time some
   // other static variable tries to allocate memory.
   void Init() {
-    ASSERT(kAlignedSize <= kAllocIncrement);
+    ASSERT(sizeof(T) <= kAllocIncrement);
     inuse_ = 0;
     free_area_ = NULL;
     free_avail_ = 0;
@@ -60,8 +60,9 @@ class PageHeapAllocator {
       result = free_list_;
       free_list_ = *(reinterpret_cast<void**>(result));
     } else {
-      if (free_avail_ < kAlignedSize) {
-        // Need more room
+      if (free_avail_ < sizeof(T)) {
+        // Need more room. We assume that MetaDataAlloc returns
+        // suitably aligned memory.
         free_area_ = reinterpret_cast<char*>(MetaDataAlloc(kAllocIncrement));
         if (free_area_ == NULL) {
           CRASH("FATAL ERROR: Out of memory trying to allocate internal "
@@ -71,8 +72,8 @@ class PageHeapAllocator {
         free_avail_ = kAllocIncrement;
       }
       result = free_area_;
-      free_area_ += kAlignedSize;
-      free_avail_ -= kAlignedSize;
+      free_area_ += sizeof(T);
+      free_avail_ -= sizeof(T);
     }
     inuse_++;
     return reinterpret_cast<T*>(result);
@@ -89,10 +90,6 @@ class PageHeapAllocator {
  private:
   // How much to allocate from system at a time
   static const int kAllocIncrement = 128 << 10;
-
-  // Aligned size of T
-  static const size_t kAlignedSize
-  = (((sizeof(T) + kAlignment - 1) / kAlignment) * kAlignment);
 
   // Free area from which to carve new objects
   char* free_area_;

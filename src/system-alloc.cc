@@ -78,7 +78,7 @@ union MemoryAligner {
   void*  p;
   double d;
   size_t s;
-};
+} CACHELINE_ALIGNED;
 
 static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
 

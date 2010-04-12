@@ -308,6 +308,14 @@ class AssignAttributeStartEnd {
 
 #endif  // HAVE___ATTRIBUTE__ and __ELF__ or __MACH__
 
+#if defined(HAVE___ATTRIBUTE__) && (defined(__i386__) || defined(__x86_64__))
+# define CACHELINE_SIZE 64
+# define CACHELINE_ALIGNED __attribute__((aligned(CACHELINE_SIZE)))
+#else
+# define CACHELINE_ALIGNED
+#endif  // defined(HAVE___ATTRIBUTE__) && (__i386__ || __x86_64__)
+
+
 // The following enum should be used only as a constructor argument to indicate
 // that the variable has static storage class, and that the constructor should
 // do nothing to its state.  It indicates to the reader that it is legal to

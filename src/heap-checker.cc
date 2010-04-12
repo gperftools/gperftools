@@ -1623,7 +1623,7 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
   {
     // Heap activity in other threads is paused during this function
     // (i.e. until we got all profile difference info).
-    SpinLockHolder l(&heap_checker_lock);
+    SpinLockHolder hl(&heap_checker_lock);
     if (heap_checker_on == false) {
       if (name_ != NULL) {  // leak checking enabled when created the checker
         RAW_LOG(WARNING, "Heap leak checker got turned off after checker "
@@ -1759,7 +1759,7 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
     SuggestPprofCommand(pprof_file);
 
     {
-      SpinLockHolder l(&heap_checker_lock);
+      SpinLockHolder hl(&heap_checker_lock);
       heap_profile->ReleaseSnapshot(leaks);
       Allocator::Free(pprof_file);
     }

@@ -53,6 +53,7 @@
 #   define STACKTRACE_SKIP_CONTEXT_ROUTINES 1
 # elif defined(HAVE_LIBUNWIND_H)  // a proxy for having libunwind installed
 #   define STACKTRACE_INL_HEADER "stacktrace_libunwind-inl.h"
+#   define STACKTRACE_USES_LIBUNWIND 1
 # elif defined(__linux)
 #   error Cannnot calculate stack trace: need either libunwind or frame-pointers (see INSTALL file)
 # else

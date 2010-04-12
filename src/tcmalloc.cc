@@ -798,7 +798,25 @@ static TCMallocGuard module_enter_exit_hook;
 // Helpers for the exported routines below
 //-------------------------------------------------------------------
 
-static Span* DoSampledAllocation(size_t size) {
+static inline bool CheckCachedSizeClass(void *ptr) {
+  PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
+  size_t cached_value = Static::pageheap()->GetSizeClassIfCached(p);
+  return cached_value == 0 ||
+      cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
+}
+
+static inline void* CheckedMallocResult(void *result) {
+  ASSERT(result == NULL || CheckCachedSizeClass(result));
+  return result;
+}
+
+static inline void* SpanToMallocResult(Span *span) {
+  Static::pageheap()->CacheSizeClass(span->start, 0);
+  return
+      CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
+}
+
+static void* DoSampledAllocation(size_t size) {
   // Grab the stack trace outside the heap lock
   StackTrace tmp;
   tmp.depth = GetStackTrace(tmp.stack, tcmalloc::kMaxStackDepth, 1);
@@ -823,26 +841,7 @@ static Span* DoSampledAllocation(size_t size) {
   span->objects = stack;
   tcmalloc::DLL_Prepend(Static::sampled_objects(), span);
 
-  return span;
-}
-
-static inline bool CheckCachedSizeClass(void *ptr) {
-  PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cached_value = Static::pageheap()->GetSizeClassIfCached(p);
-  return cached_value == 0 ||
-      cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
-}
-
-static inline void* CheckedMallocResult(void *result)
-{
-  ASSERT(result == 0 || CheckCachedSizeClass(result));
-  return result;
-}
-
-static inline void* SpanToMallocResult(Span *span) {
-  Static::pageheap()->CacheSizeClass(span->start, 0);
-  return
-      CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
+  return SpanToMallocResult(span);
 }
 
 // Copy of FLAGS_tcmalloc_large_alloc_report_threshold with
@@ -888,24 +887,38 @@ inline void* do_memalign_or_cpp_memalign(size_t align, size_t size) {
   return tc_new_mode ? cpp_memalign(align, size) : do_memalign(align, size);
 }
 
+// Must be called with the page lock held.
+inline bool should_report_large(Length num_pages) {
+  const int64 threshold = large_alloc_threshold;
+  if (threshold > 0 && num_pages >= (threshold >> kPageShift)) {
+    // Increase the threshold by 1/8 every time we generate a report.
+    // We cap the threshold at 8GB to avoid overflow problems.
+    large_alloc_threshold = (threshold + threshold/8 < 8ll<<30
+                             ? threshold + threshold/8 : 8ll<<30);
+    return true;
+  }
+  return false;
+
 // Helper for do_malloc().
-inline void* do_malloc_pages(Length num_pages) {
-  Span *span;
-  bool report_large = false;
-  {
+inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
+  void* result;
+  bool report_large;
+
+  Length num_pages = tcmalloc::pages(size);
+  size = num_pages << kPageShift;
+
+  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
+    result = DoSampledAllocation(size);
+
     SpinLockHolder h(Static::pageheap_lock());
-    span = Static::pageheap()->New(num_pages);
-    const int64 threshold = large_alloc_threshold;
-    if (threshold > 0 && num_pages >= (threshold >> kPageShift)) {
-      // Increase the threshold by 1/8 every time we generate a report.
-      // We cap the threshold at 8GB to avoid overflow problems.
-      large_alloc_threshold = (threshold + threshold/8 < 8ll<<30
-                               ? threshold + threshold/8 : 8ll<<30);
-      report_large = true;
-    }
+    report_large = should_report_large(num_pages);
+  } else {
+    SpinLockHolder h(Static::pageheap_lock());
+    Span* span = Static::pageheap()->New(num_pages);
+    result = (span == NULL ? NULL : SpanToMallocResult(span));
+    report_large = should_report_large(num_pages);
   }
 
-  void* result = (span == NULL ? NULL : SpanToMallocResult(span));
   if (report_large) {
     ReportLargeAlloc(num_pages, result);
   }
@@ -917,17 +930,19 @@ inline void* do_malloc(size_t size) {
 
   // The following call forces module initialization
   ThreadCache* heap = ThreadCache::GetCache();
-  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
-    Span* span = DoSampledAllocation(size);
-    if (span != NULL) {
-      ret = SpanToMallocResult(span);
+  if (size <= kMaxSize) {
+    size_t cl = Static::sizemap()->SizeClass(size);
+    size = Static::sizemap()->class_to_size(cl);
+
+    if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
+      ret = DoSampledAllocation(size);
+    } else {
+      // The common case, and also the simplest.  This just pops the
+      // size-appropriate freelist, after replenishing it if it's empty.
+      ret = CheckedMallocResult(heap->Allocate(size, cl));
     }
-  } else if (size <= kMaxSize) {
-    // The common case, and also the simplest.  This just pops the
-    // size-appropriate freelist, after replenishing it if it's empty.
-    ret = CheckedMallocResult(heap->Allocate(size));
   } else {
-    ret = do_malloc_pages(tcmalloc::pages(size));
+    ret = do_malloc_pages(heap, size);
   }
   if (ret == NULL) errno = ENOMEM;
   return ret;
@@ -1108,8 +1123,8 @@ void* do_memalign(size_t align, size_t size) {
     }
     if (cl < kNumClasses) {
       ThreadCache* heap = ThreadCache::GetCache();
-      return CheckedMallocResult(heap->Allocate(
-                                     Static::sizemap()->class_to_size(cl)));
+      size = Static::sizemap()->class_to_size(cl);
+      return CheckedMallocResult(heap->Allocate(size, cl));
     }
   }
 

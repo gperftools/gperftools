@@ -92,9 +92,7 @@ my $GV = "gv";
 my $KCACHEGRIND = "kcachegrind";
 my $PS2PDF = "ps2pdf";
 # These are used for dynamic profiles
-my $WGET = "wget";
-my $WGET_FLAGS = "--no-http-keep-alive";   # only supported by some wgets
-my $CURL = "curl";
+my $URL_FETCHER = "curl -s";
 
 # These are the web pages that servers need to support for dynamic profiles
 my $HEAP_PAGE = "/pprof/heap";
@@ -176,12 +174,14 @@ Output type:
    --text              Generate text report
    --callgrind         Generate callgrind format to stdout
    --gv                Generate Postscript and display
+   --web               Generate SVG and display
    --list=<regexp>     Generate source listing of matching routines
    --disasm=<regexp>   Generate disassembly of matching routines
    --symbols           Print demangled symbol names found at given addresses
    --dot               Generate DOT file to stdout
    --ps                Generate Postcript to stdout
    --pdf               Generate PDF to stdout
+   --svg               Generate SVG to stdout
    --gif               Generate GIF to stdout
    --raw               Generate symbolized pprof data (useful with remote fetch)
 
@@ -224,6 +224,8 @@ pprof /bin/ls ls.prof
                        Enters "interactive" mode
 pprof --text /bin/ls ls.prof
                        Outputs one line per procedure
+pprof --web /bin/ls ls.prof
+                       Displays annotated call-graph in web browser
 pprof --gv /bin/ls ls.prof
                        Displays annotated call-graph via 'gv'
 pprof --gv --focus=Mutex /bin/ls ls.prof
@@ -234,6 +236,9 @@ pprof --list=getdir /bin/ls ls.prof
                        (Per-line) annotated source listing for getdir()
 pprof --disasm=getdir /bin/ls ls.prof
                        (Per-PC) annotated disassembly for getdir()
+
+pprof http://localhost:1234/
+                       Enters "interactive" mode
 pprof --text localhost:1234
                        Outputs one line per procedure for localhost:1234
 pprof --raw localhost:1234 > ./local.raw
@@ -293,10 +298,12 @@ sub Init() {
   $main::opt_disasm = "";
   $main::opt_symbols = 0;
   $main::opt_gv = 0;
+  $main::opt_web = 0;
   $main::opt_dot = 0;
   $main::opt_ps = 0;
   $main::opt_pdf = 0;
   $main::opt_gif = 0;
+  $main::opt_svg = 0;
   $main::opt_raw = 0;
 
   $main::opt_nodecount = 80;
@@ -331,6 +338,9 @@ sub Init() {
   # Are we using $SYMBOL_PAGE?
   $main::use_symbol_page = 0;
 
+  # Files returned by TempName.
+  %main::tempnames = ();
+
   # Type of profile we are dealing with
   # Supported types:
   #     cpu
@@ -356,9 +366,11 @@ sub Init() {
              "disasm=s"       => \$main::opt_disasm,
              "symbols!"       => \$main::opt_symbols,
              "gv!"            => \$main::opt_gv,
+             "web!"           => \$main::opt_web,
              "dot!"           => \$main::opt_dot,
              "ps!"            => \$main::opt_ps,
              "pdf!"           => \$main::opt_pdf,
+             "svg!"           => \$main::opt_svg,
              "gif!"           => \$main::opt_gif,
              "raw!"           => \$main::opt_raw,
              "interactive!"   => \$main::opt_interactive,
@@ -434,9 +446,11 @@ sub Init() {
       ($main::opt_disasm eq '' ? 0 : 1) +
       ($main::opt_symbols == 0 ? 0 : 1) +
       $main::opt_gv +
+      $main::opt_web +
       $main::opt_dot +
       $main::opt_ps +
       $main::opt_pdf +
+      $main::opt_svg +
       $main::opt_gif +
       $main::opt_raw +
       $main::opt_interactive +
@@ -510,20 +524,6 @@ sub Init() {
   } elsif (!$main::use_symbolized_profile) {  # may not need objtools!
     ConfigureObjTools($main::prog)
   }
-
-  # Check what flags our commandline utilities support
-  if (open(TFILE, "$WGET $WGET_FLAGS -V 2>&1 |")) {
-    my @lines = <TFILE>;
-    if (grep(/unrecognized/, @lines) > 0) {
-      # grep found 'unrecognized' token from WGET, clear WGET flags
-      $WGET_FLAGS = "";
-    }
-    close(TFILE);
-  }
-  # TODO(csilvers): check all the other binaries and objtools to see
-  # if they are installed and what flags they support, and store that
-  # in a data structure here, rather than scattering these tests about.
-  # Then, ideally, rewrite code to use wget OR curl OR GET or ...
 
   # Break the opt_list_prefix into the prefix_list array
   @prefix_list = split (',', $main::opt_lib_prefix);
@@ -635,9 +635,24 @@ sub Main() {
     } else {
       if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
         if ($main::opt_gv) {
-          RunGV(PsTempName($main::next_tmpfile), "");
+          RunGV(TempName($main::next_tmpfile, "ps"), "");
+        } elsif ($main::opt_web) {
+          my $tmp = TempName($main::next_tmpfile, "svg");
+          RunWeb($tmp);
+          # The command we run might hand the file name off
+          # to an already running browser instance and then exit.
+          # Normally, we'd remove $tmp on exit (right now),
+          # but fork a child to remove $tmp a little later, so that the
+          # browser has time to load it first.
+          delete $main::tempnames{$tmp};
+          if (fork() == 0) {
+            sleep 5;
+            unlink($tmp);
+            exit(0);
+          }
         }
       } else {
+        cleanup();
         exit(1);
       }
     }
@@ -681,6 +696,36 @@ sub RunGV {
     print STDERR "$GV -scale $main::opt_scale\n";
     system("$GV -scale $main::opt_scale " . $fname . $bg);
   }
+}
+
+sub RunWeb {
+  my $fname = shift;
+  print STDERR "Loading web page file:///$fname\n";
+
+  if (`uname` =~ /Darwin/) {
+    # OS X: open will use standard preference for SVG files.
+    system("/usr/bin/open", $fname);
+    return;
+  }
+
+  # Some kind of Unix; try generic symlinks, then specific browsers.
+  # (Stop once we find one.)
+  # Works best if the browser is already running.
+  my @alt = (
+    "/etc/alternatives/gnome-www-browser",
+    "/etc/alternatives/x-www-browser",
+    "google-chrome",
+    "firefox",
+  );
+  foreach my $b (@alt) {
+    if (-f $b) {
+      if (system($b, $fname) == 0) {
+        return;
+      }
+    }
+  }
+
+  print STDERR "Could not load web browser.\n";
 }
 
 sub RunKcachegrind {
@@ -739,10 +784,10 @@ sub InteractiveCommand {
     print STDERR "\n";
     return 0;
   }
-  if (m/^ *quit/) {
+  if (m/^\s*quit/) {
     return 0;
   }
-  if (m/^ *help/) {
+  if (m/^\s*help/) {
     InteractiveHelpMessage();
     return 1;
   }
@@ -754,7 +799,7 @@ sub InteractiveCommand {
   $main::opt_gv = 0;
   $main::opt_cum = 0;
 
-  if (m/^ *(text|top)(\d*) *(.*)/) {
+  if (m/^\s*(text|top)(\d*)\s*(.*)/) {
     $main::opt_text = 1;
 
     my $line_limit = ($2 ne "") ? int($2) : 10;
@@ -773,14 +818,14 @@ sub InteractiveCommand {
     PrintText($symbols, $flat, $cumulative, $total, $line_limit);
     return 1;
   }
-  if (m/^ *callgrind *([^ \n]*)/) {
+  if (m/^\s*callgrind\s*([^ \n]*)/) {
     $main::opt_callgrind = 1;
 
     # Get derived profiles
     my $calls = ExtractCalls($symbols, $orig_profile);
     my $filename = $1;
     if ( $1 eq '' ) {
-      $filename = CallgrindTempName($main::next_tmpfile);
+      $filename = TempName($main::next_tmpfile, "callgrind");
     }
     PrintCallgrind($calls, $filename);
     if ( $1 eq '' ) {
@@ -790,7 +835,7 @@ sub InteractiveCommand {
 
     return 1;
   }
-  if (m/^ *list *(.+)/) {
+  if (m/^\s*list\s*(.+)/) {
     $main::opt_list = 1;
 
     my $routine;
@@ -807,7 +852,7 @@ sub InteractiveCommand {
     PrintListing($libs, $flat, $cumulative, $routine);
     return 1;
   }
-  if (m/^ *disasm *(.+)/) {
+  if (m/^\s*disasm\s*(.+)/) {
     $main::opt_disasm = 1;
 
     my $routine;
@@ -825,12 +870,18 @@ sub InteractiveCommand {
     PrintDisassembly($libs, $flat, $cumulative, $routine, $total);
     return 1;
   }
-  if (m/^ *gv *(.*)/) {
-    $main::opt_gv = 1;
+  if (m/^\s*(gv|web)\s*(.*)/) {
+    $main::opt_gv = 0;
+    $main::opt_web = 0;
+    if ($1 eq "gv") {
+      $main::opt_gv = 1;
+    } elsif ($1 eq "web") {
+      $main::opt_web = 1;
+    }
 
     my $focus;
     my $ignore;
-    ($focus, $ignore) = ParseInteractiveArgs($1);
+    ($focus, $ignore) = ParseInteractiveArgs($2);
 
     # Process current profile to account for various settings
     my $profile = ProcessProfile($orig_profile, $symbols, $focus, $ignore);
@@ -841,11 +892,19 @@ sub InteractiveCommand {
     my $cumulative = CumulativeProfile($reduced);
 
     if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
-      RunGV(PsTempName($main::next_tmpfile), " &");
+      if ($main::opt_gv) {
+        RunGV(TempName($main::next_tmpfile, "ps"), " &");
+      } elsif ($main::opt_web) {
+        RunWeb(TempName($main::next_tmpfile, "svg"));
+      }
       $main::next_tmpfile++;
     }
     return 1;
   }
+  if (m/^\s*$/) {
+    return 1;
+  }
+  print STDERR "Unknown command: try 'help'.\n";
   return 1;
 }
 
@@ -893,6 +952,14 @@ Commands:
       "focus" argument, restricts the samples shown to just those where
       the "focus" regular expression matches a routine name on the stack
       trace.
+
+  web
+  web [focus] [-ignore1] [-ignore2]
+      Like GV, but displays profile in your web browser instead of using
+      Ghostview. Works best if your web browser is already running.
+      To change the browser that gets used:
+      On Linux, set the /etc/alternatives/gnome-www-browser symlink.
+      On OS X, change the Finder association for SVG files.
 
   list [routine_regexp] [-ignore1] [-ignore2]
       Show source listing of routines whose names match "routine_regexp"
@@ -950,14 +1017,12 @@ sub ParseInteractiveArgs {
 
 ##### Output code #####
 
-sub PsTempName {
+sub TempName {
   my $fnum = shift;
-  return "$main::tmpfile_ps" . "." . "$fnum" . ".ps";
-}
-
-sub CallgrindTempName {
-  my $fnum = shift;
-  return "$main::tmpfile_ps" . "." . "$fnum" . ".callgrind";
+  my $ext = shift;
+  my $file = "$main::tmpfile_ps.$fnum.$ext";
+  $main::tempnames{$file} = 1;
+  return $file;
 }
 
 # Print profile data in packed binary format (64-bit) to standard out
@@ -1599,7 +1664,6 @@ sub PrintDot {
   }
   if ($last < 0) {
     print STDERR "No nodes to print\n";
-    cleanup();
     return 0;
   }
 
@@ -1612,11 +1676,14 @@ sub PrintDot {
   # Open DOT output file
   my $output;
   if ($main::opt_gv) {
-    $output = "| $DOT -Tps2 >" . PsTempName($main::next_tmpfile);
+    $output = "| $DOT -Tps2 >" . TempName($main::next_tmpfile, "ps");
   } elsif ($main::opt_ps) {
     $output = "| $DOT -Tps2";
   } elsif ($main::opt_pdf) {
     $output = "| $DOT -Tps2 | $PS2PDF - -";
+  } elsif ($main::opt_web || $main::opt_svg) {
+    # We need to post-process the SVG, so write to a temporary file always.
+    $output = "| $DOT -Tsvg >" . TempName($main::next_tmpfile, "svg");
   } elsif ($main::opt_gif) {
     $output = "| $DOT -Tgif";
   } else {
@@ -1727,7 +1794,10 @@ sub PrintDot {
       my $fraction = abs($local_total ? (3 * ($n / $local_total)) : 0);
       if ($fraction > 1) { $fraction = 1; }
       my $w = $fraction * 2;
-      #if ($w < 1) { $w = 1; }
+      if ($w < 1 && ($main::opt_web || $main::opt_svg)) {
+        # SVG output treats line widths < 1 poorly.
+        $w = 1;
+      }
 
       # Dot sometimes segfaults if given edge weights that are too large, so
       # we cap the weights at a large value
@@ -1751,9 +1821,310 @@ sub PrintDot {
   }
 
   print DOT ("}\n");
-
   close(DOT);
+
+  if ($main::opt_web || $main::opt_svg) {
+    # Rewrite SVG to be more usable inside web browser.
+    RewriteSvg(TempName($main::next_tmpfile, "svg"));
+  }
+
   return 1;
+}
+
+sub RewriteSvg {
+  my $svgfile = shift;
+
+  open(SVG, $svgfile) || die "open temp svg: $!";
+  my @svg = <SVG>;
+  close(SVG);
+  unlink $svgfile;
+  my $svg = join('', @svg);
+
+  # Dot's SVG output is
+  #
+  #    <svg width="___" height="___"
+  #     viewBox="___" xmlns=...>
+  #    <g id="graph0" transform="...">
+  #    ...
+  #    </g>
+  #    </svg>
+  #
+  # Change it to
+  #
+  #    <svg width="100%" height="100%"
+  #     xmlns=...>
+  #    $svg_javascript
+  #    <g id="viewport" transform="translate(0,0)">
+  #    <g id="graph0" transform="...">
+  #    ...
+  #    </g>
+  #    </g>
+  #    </svg>
+
+  # Fix width, height; drop viewBox.
+  $svg =~ s/(?s)<svg width="[^"]+" height="[^"]+"(.*?)viewBox="[^"]+"/<svg width="100%" height="100%"$1/;
+
+  # Insert script, viewport <g> above first <g>
+  my $svg_javascript = SvgJavascript();
+  my $viewport = "<g id=\"viewport\" transform=\"translate(0,0)\">\n";
+  $svg =~ s/<g id="graph\d"/$svg_javascript$viewport$&/;
+
+  # Insert final </g> above </svg>.
+  $svg =~ s/(.*)(<\/svg>)/$1<\/g>$2/;
+  $svg =~ s/<g id="graph\d"(.*?)/<g id="viewport"$1/;
+
+  if ($main::opt_svg) {
+    # --svg: write to standard output.
+    print $svg;
+  } else {
+    # Write back to temporary file.
+    open(SVG, ">$svgfile") || die "open $svgfile: $!";
+    print SVG $svg;
+    close(SVG);
+  }
+}
+
+sub SvgJavascript {
+  return <<'EOF';
+<script type="text/ecmascript"><![CDATA[
+// SVGPan
+// http://www.cyberz.org/blog/2009/12/08/svgpan-a-javascript-svg-panzoomdrag-library/
+// Local modification: if(true || ...) below to force panning, never moving.
+
+/**
+ *  SVGPan library 1.2
+ * ====================
+ *
+ * Given an unique existing element with id "viewport", including the
+ * the library into any SVG adds the following capabilities:
+ *
+ *  - Mouse panning
+ *  - Mouse zooming (using the wheel)
+ *  - Object dargging
+ *
+ * Known issues:
+ *
+ *  - Zooming (while panning) on Safari has still some issues
+ *
+ * Releases:
+ *
+ * 1.2, Sat Mar 20 08:42:50 GMT 2010, Zeng Xiaohui
+ *	Fixed a bug with browser mouse handler interaction
+ *
+ * 1.1, Wed Feb  3 17:39:33 GMT 2010, Zeng Xiaohui
+ *	Updated the zoom code to support the mouse wheel on Safari/Chrome
+ *
+ * 1.0, Andrea Leofreddi
+ *	First release
+ *
+ * This code is licensed under the following BSD license:
+ *
+ * Copyright 2009-2010 Andrea Leofreddi <a.leofreddi@itcharm.com>. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without modification, are
+ * permitted provided that the following conditions are met:
+ *
+ *    1. Redistributions of source code must retain the above copyright notice, this list of
+ *       conditions and the following disclaimer.
+ *
+ *    2. Redistributions in binary form must reproduce the above copyright notice, this list
+ *       of conditions and the following disclaimer in the documentation and/or other materials
+ *       provided with the distribution.
+ *
+ * THIS SOFTWARE IS PROVIDED BY Andrea Leofreddi ``AS IS'' AND ANY EXPRESS OR IMPLIED
+ * WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
+ * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL Andrea Leofreddi OR
+ * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+ * CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+ * SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON
+ * ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+ * NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
+ * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ * The views and conclusions contained in the software and documentation are those of the
+ * authors and should not be interpreted as representing official policies, either expressed
+ * or implied, of Andrea Leofreddi.
+ */
+
+var root = document.documentElement;
+
+var state = 'none', stateTarget, stateOrigin, stateTf;
+
+setupHandlers(root);
+
+/**
+ * Register handlers
+ */
+function setupHandlers(root){
+	setAttributes(root, {
+		"onmouseup" : "add(evt)",
+		"onmousedown" : "handleMouseDown(evt)",
+		"onmousemove" : "handleMouseMove(evt)",
+		"onmouseup" : "handleMouseUp(evt)",
+		//"onmouseout" : "handleMouseUp(evt)", // Decomment this to stop the pan functionality when dragging out of the SVG element
+	});
+
+	if(navigator.userAgent.toLowerCase().indexOf('webkit') >= 0)
+		window.addEventListener('mousewheel', handleMouseWheel, false); // Chrome/Safari
+	else
+		window.addEventListener('DOMMouseScroll', handleMouseWheel, false); // Others
+
+	var g = svgDoc.getElementById("svg");
+	g.width = "100%";
+	g.height = "100%";
+}
+
+/**
+ * Instance an SVGPoint object with given event coordinates.
+ */
+function getEventPoint(evt) {
+	var p = root.createSVGPoint();
+
+	p.x = evt.clientX;
+	p.y = evt.clientY;
+
+	return p;
+}
+
+/**
+ * Sets the current transform matrix of an element.
+ */
+function setCTM(element, matrix) {
+	var s = "matrix(" + matrix.a + "," + matrix.b + "," + matrix.c + "," + matrix.d + "," + matrix.e + "," + matrix.f + ")";
+
+	element.setAttribute("transform", s);
+}
+
+/**
+ * Dumps a matrix to a string (useful for debug).
+ */
+function dumpMatrix(matrix) {
+	var s = "[ " + matrix.a + ", " + matrix.c + ", " + matrix.e + "\n  " + matrix.b + ", " + matrix.d + ", " + matrix.f + "\n  0, 0, 1 ]";
+
+	return s;
+}
+
+/**
+ * Sets attributes of an element.
+ */
+function setAttributes(element, attributes){
+	for (i in attributes)
+		element.setAttributeNS(null, i, attributes[i]);
+}
+
+/**
+ * Handle mouse move event.
+ */
+function handleMouseWheel(evt) {
+	if(evt.preventDefault)
+		evt.preventDefault();
+
+	evt.returnValue = false;
+
+	var svgDoc = evt.target.ownerDocument;
+
+	var delta;
+
+	if(evt.wheelDelta)
+		delta = evt.wheelDelta / 3600; // Chrome/Safari
+	else
+		delta = evt.detail / -90; // Mozilla
+
+	var z = 1 + delta; // Zoom factor: 0.9/1.1
+
+	var g = svgDoc.getElementById("viewport");
+
+	var p = getEventPoint(evt);
+
+	p = p.matrixTransform(g.getCTM().inverse());
+
+	// Compute new scale matrix in current mouse position
+	var k = root.createSVGMatrix().translate(p.x, p.y).scale(z).translate(-p.x, -p.y);
+
+        setCTM(g, g.getCTM().multiply(k));
+
+	stateTf = stateTf.multiply(k.inverse());
+}
+
+/**
+ * Handle mouse move event.
+ */
+function handleMouseMove(evt) {
+	if(evt.preventDefault)
+		evt.preventDefault();
+
+	evt.returnValue = false;
+
+	var svgDoc = evt.target.ownerDocument;
+
+	var g = svgDoc.getElementById("viewport");
+
+	if(state == 'pan') {
+		// Pan mode
+		var p = getEventPoint(evt).matrixTransform(stateTf);
+
+		setCTM(g, stateTf.inverse().translate(p.x - stateOrigin.x, p.y - stateOrigin.y));
+	} else if(state == 'move') {
+		// Move mode
+		var p = getEventPoint(evt).matrixTransform(g.getCTM().inverse());
+
+		setCTM(stateTarget, root.createSVGMatrix().translate(p.x - stateOrigin.x, p.y - stateOrigin.y).multiply(g.getCTM().inverse()).multiply(stateTarget.getCTM()));
+
+		stateOrigin = p;
+	}
+}
+
+/**
+ * Handle click event.
+ */
+function handleMouseDown(evt) {
+	if(evt.preventDefault)
+		evt.preventDefault();
+
+	evt.returnValue = false;
+
+	var svgDoc = evt.target.ownerDocument;
+
+	var g = svgDoc.getElementById("viewport");
+
+	if(true || evt.target.tagName == "svg") {
+		// Pan mode
+		state = 'pan';
+
+		stateTf = g.getCTM().inverse();
+
+		stateOrigin = getEventPoint(evt).matrixTransform(stateTf);
+	} else {
+		// Move mode
+		state = 'move';
+
+		stateTarget = evt.target;
+
+		stateTf = g.getCTM().inverse();
+
+		stateOrigin = getEventPoint(evt).matrixTransform(stateTf);
+	}
+}
+
+/**
+ * Handle mouse button release event.
+ */
+function handleMouseUp(evt) {
+	if(evt.preventDefault)
+		evt.preventDefault();
+
+	evt.returnValue = false;
+
+	var svgDoc = evt.target.ownerDocument;
+
+	if(state == 'pan' || state == 'move') {
+		// Quit pan mode
+		state = '';
+	}
+}
+
+]]></script>
+EOF
 }
 
 # Translate a stack of addresses into a stack of symbols
@@ -2310,28 +2681,11 @@ sub AddEntries {
   AddEntry($profile, (join "\n", @k), $count);
 }
 
-sub IsSymbolizedProfileFile {
-  my $file_name = shift;
-
-  if (!(-e $file_name) || !(-r $file_name)) {
-    return 0;
-  }
-
-  $SYMBOL_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
-  my $symbol_marker = $&;
-  # Check if the file contains a symbol-section marker.
-  open(TFILE, "<$file_name");
-  my @lines = <TFILE>;
-  my $result = grep(/^--- *$symbol_marker/, @lines);
-  close(TFILE);
-  return $result > 0;
-}
-
 ##### Code to profile a server dynamically #####
 
 sub CheckSymbolPage {
   my $url = SymbolPageURL();
-  open(SYMBOL, "$WGET $WGET_FLAGS -qO- '$url' |");
+  open(SYMBOL, "$URL_FETCHER '$url' |");
   my $line = <SYMBOL>;
   $line =~ s/\r//g;         # turn windows-looking lines into unix-looking lines
   close(SYMBOL);
@@ -2350,33 +2704,33 @@ sub CheckSymbolPage {
 
 sub IsProfileURL {
   my $profile_name = shift;
-  my ($host, $port, $path) = ParseProfileURL($profile_name);
+  my ($host, $port, $prefix, $path) = ParseProfileURL($profile_name);
   return defined($host) and defined($port) and defined($path);
 }
 
 sub ParseProfileURL {
   my $profile_name = shift;
   if (defined($profile_name) &&
-      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|\@\d+)(|/|.*($PROFILE_PAGE|$PMUPROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|$FILTEREDPROFILE_PAGE))$,o) {
-    # $6 is $PROFILE_PAGE/$HEAP_PAGE/etc.  $5 is *everything* after
+      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|\@\d+)(|/|(.*?)($PROFILE_PAGE|$PMUPROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|$FILTEREDPROFILE_PAGE))$,o) {
+    # $7 is $PROFILE_PAGE/$HEAP_PAGE/etc.  $5 is *everything* after
     # the hostname, as long as that everything is the empty string,
     # a slash, or something ending in $PROFILE_PAGE/$HEAP_PAGE/etc.
-    # So "$6 || $5" is $PROFILE_PAGE/etc if there, or else it's "/" or "".
-    return ($2, $3, $6 || $5);
+    # So "$7 || $5" is $PROFILE_PAGE/etc if there, or else it's "/" or "".
+    return ($2, $3, $6, $7 || $5);
   }
   return ();
 }
 
 # We fetch symbols from the first profile argument.
 sub SymbolPageURL {
-  my ($host, $port, $path) = ParseProfileURL($main::pfile_args[0]);
-  return "http://$host:$port$SYMBOL_PAGE";
+  my ($host, $port, $prefix, $path) = ParseProfileURL($main::pfile_args[0]);
+  return "http://$host:$port$prefix$SYMBOL_PAGE";
 }
 
 sub FetchProgramName() {
-  my ($host, $port, $path) = ParseProfileURL($main::pfile_args[0]);
-  my $url = "http://$host:$port$PROGRAM_NAME_PAGE";
-  my $command_line = "$WGET $WGET_FLAGS -qO- '$url'";
+  my ($host, $port, $prefix, $path) = ParseProfileURL($main::pfile_args[0]);
+  my $url = "http://$host:$port$prefix$PROGRAM_NAME_PAGE";
+  my $command_line = "$URL_FETCHER '$url'";
   open(CMDLINE, "$command_line |") or error($command_line);
   my $cmdline = <CMDLINE>;
   $cmdline =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
@@ -2393,7 +2747,7 @@ sub FetchProgramName() {
 # curl.  Redirection happens on borg hosts.
 sub ResolveRedirectionForCurl {
   my $url = shift;
-  my $command_line = "$CURL -s --head '$url'";
+  my $command_line = "$URL_FETCHER --head '$url'";
   open(CMDLINE, "$command_line |") or error($command_line);
   while (<CMDLINE>) {
     s/\r//g;         # turn windows-looking lines into unix-looking lines
@@ -2403,6 +2757,20 @@ sub ResolveRedirectionForCurl {
   }
   close(CMDLINE);
   return $url;
+}
+
+# Add a timeout flat to URL_FETCHER
+sub AddFetchTimeout {
+  my $fetcher = shift;
+  my $timeout = shift;
+  if (defined($timeout)) {
+    if ($fetcher =~ m/\bcurl -s/) {
+      $fetcher .= sprintf(" --max-time %d", $timeout);
+    } elsif ($fetcher =~ m/\brpcget\b/) {
+      $fetcher .= sprintf(" --deadline=%d", $timeout);
+    }
+  }
+  return $fetcher;
 }
 
 # Reads a symbol map from the file handle name given as $1, returning
@@ -2460,10 +2828,14 @@ sub FetchSymbols {
     close(POSTFILE);
 
     my $url = SymbolPageURL();
-    # Here we use curl for sending data via POST since old
-    # wget doesn't have --post-file option.
-    $url = ResolveRedirectionForCurl($url);
-    my $command_line = "$CURL -sd '\@$main::tmpfile_sym' '$url'";
+
+    my $command_line;
+    if ($URL_FETCHER =~ m/\bcurl -s/) {
+      $url = ResolveRedirectionForCurl($url);
+      $command_line = "$URL_FETCHER -d '\@$main::tmpfile_sym' '$url'";
+    } else {
+      $command_line = "$URL_FETCHER --post '$url' < '$main::tmpfile_sym'";
+    }
     # We use c++filt in case $SYMBOL_PAGE gives us mangled symbols.
     my $cppfilt = $obj_tool_map{"c++filt"};
     open(SYMBOL, "$command_line | $cppfilt |") or error($command_line);
@@ -2508,7 +2880,7 @@ sub BaseName {
 
 sub MakeProfileBaseName {
   my ($binary_name, $profile_name) = @_;
-  my ($host, $port, $path) = ParseProfileURL($profile_name);
+  my ($host, $port, $prefix, $path) = ParseProfileURL($profile_name);
   my $binary_shortname = BaseName($binary_name);
   return sprintf("%s.%s.%s-port%s",
                  $binary_shortname, $main::op_time, $host, $port);
@@ -2523,7 +2895,7 @@ sub FetchDynamicProfile {
   if (!IsProfileURL($profile_name)) {
     return $profile_name;
   } else {
-    my ($host, $port, $path) = ParseProfileURL($profile_name);
+    my ($host, $port, $prefix, $path) = ParseProfileURL($profile_name);
     if ($path eq "" || $path eq "/") {
       # Missing type specifier defaults to cpu-profile
       $path = $PROFILE_PAGE;
@@ -2532,10 +2904,10 @@ sub FetchDynamicProfile {
     my $profile_file = MakeProfileBaseName($binary_name, $profile_name);
 
     my $url;
-    my $wget_timeout;
+    my $fetch_timeout = undef;
     if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)) {
       if ($path =~ m/$PROFILE_PAGE/) {
-        $url = sprintf("http://$host:$port$path?seconds=%d",
+        $url = sprintf("http://$host:$port$prefix$path?seconds=%d",
             $main::opt_seconds);
       } else {
         if ($profile_name =~ m/[?]/) {
@@ -2546,16 +2918,14 @@ sub FetchDynamicProfile {
         $url = sprintf("http://$profile_name" . "seconds=%d",
             $main::opt_seconds);
       }
-      $wget_timeout = sprintf("--timeout=%d",
-                              int($main::opt_seconds * 1.01 + 60));
+      $fetch_timeout = $main::opt_seconds * 1.01 + 60;
     } else {
       # For non-CPU profiles, we add a type-extension to
       # the target profile file name.
       my $suffix = $path;
       $suffix =~ s,/,.,g;
       $profile_file .= "$suffix";
-      $url = "http://$host:$port$path";
-      $wget_timeout = "";
+      $url = "http://$host:$port$prefix$path";
     }
 
     my $profile_dir = $ENV{"PPROF_TMPDIR"} || ($ENV{HOME} . "/pprof");
@@ -2570,7 +2940,8 @@ sub FetchDynamicProfile {
       return $real_profile;
     }
 
-    my $cmd = "$WGET $WGET_FLAGS $wget_timeout -q -O $tmp_profile '$url'";
+    my $fetcher = AddFetchTimeout($URL_FETCHER, $fetch_timeout);
+    my $cmd = "$fetcher '$url' > '$tmp_profile'";
     if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)){
       print STDERR "Gathering CPU profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
@@ -2624,6 +2995,7 @@ sub FetchDynamicProfilesRecurse {
   } else {
     $position = 1 | ($position << 1);
     TryCollectProfile($maxlevel, $level, $position);
+    cleanup();
     exit(0);
   }
 }
@@ -2764,6 +3136,44 @@ BEGIN {
   }
 }
 
+# Return the next line from the profile file, assuming it's a text
+# line (which in this case means, doesn't start with a NUL byte).  If
+# it's not a text line, return "".  At EOF, return undef, like perl does.
+# Input file should be in binmode.
+sub ReadProfileLine {
+  local *PROFILE = shift;
+  my $firstchar = "";
+  my $line = "";
+  read(PROFILE, $firstchar, 1);
+  seek(PROFILE, -1, 1);          # unread the firstchar
+  if ($firstchar eq "\0") {
+    return "";
+  }
+  $line = <PROFILE>;
+  if (defined($line)) {
+    $line =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
+  }
+  return $line;
+}
+
+sub IsSymbolizedProfileFile {
+  my $file_name = shift;
+  if (!(-e $file_name) || !(-r $file_name)) {
+    return 0;
+  }
+  # Check if the file contains a symbol-section marker.
+  open(TFILE, "<$file_name");
+  binmode TFILE;
+  my $firstline = ReadProfileLine(*TFILE);
+  close(TFILE);
+  if (!$firstline) {
+    return 0;
+  }
+  $SYMBOL_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
+  my $symbol_marker = $&;
+  return $firstline =~ /^--- *$symbol_marker/;
+}
+
 # Parse profile generated by common/profiler.cc and return a reference
 # to a map:
 #      $result->{version}     Version number of profile file
@@ -2798,28 +3208,17 @@ sub ReadProfile {
   # whole firstline, since it may be gigabytes(!) of data.
   open(PROFILE, "<$fname") || error("$fname: $!\n");
   binmode PROFILE;      # New perls do UTF-8 processing
-  my $firstchar = "";
-  my $header = "";
-  read(PROFILE, $firstchar, 1);
-  seek(PROFILE, -1, 1);          # unread the firstchar
-  if ($firstchar ne "\0") {
-    $header = <PROFILE>;
-    $header =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
+  my $header = ReadProfileLine(*PROFILE);
+  if (!defined($header)) {   # means "at EOF"
+    error("Profile is empty.\n");
   }
 
   my $symbols;
   if ($header =~ m/^--- *$symbol_marker/o) {
-    # read the symbol section of the symbolized profile file
+    # Read the symbol section of the symbolized profile file.
     $symbols = ReadSymbols(*PROFILE{IO});
-
-    # read the next line to get the header for the remaining profile
-    $header = "";
-    read(PROFILE, $firstchar, 1);
-    seek(PROFILE, -1, 1);          # unread the firstchar
-    if ($firstchar ne "\0") {
-      $header = <PROFILE>;
-      $header =~ s/\r//g;
-    }
+    # Read the next line to get the header for the remaining profile.
+    $header = ReadProfileLine(*PROFILE) || "";
   }
 
   my $result;
@@ -3905,6 +4304,8 @@ sub ConfigureObjTools {
   if ($file_type =~ /Mach-O/) {
     # OS X uses otool to examine Mach-O files, rather than objdump.
     $obj_tool_map{"otool"} = "otool";
+    $obj_tool_map{"addr2line"} = "false";  # no addr2line
+    $obj_tool_map{"objdump"} = "false";  # no objdump
   }
 
   # Go fill in %obj_tool_map with the pathnames to use:
@@ -3951,9 +4352,8 @@ sub ConfigureTool {
 
 sub cleanup {
   unlink($main::tmpfile_sym);
-  for (my $i = 0; $i < $main::next_tmpfile; $i++) {
-    unlink(PsTempName($i));
-  }
+  unlink(keys %main::tempnames);
+
   # We leave any collected profiles in $HOME/pprof in case the user wants
   # to look at them later.  We print a message informing them of this.
   if ((scalar(@main::profile_files) > 0) &&
@@ -3996,7 +4396,7 @@ sub GetProcedureBoundariesViaNm {
   my $routine = "";
   while (<NM>) {
     s/\r//g;         # turn windows-looking lines into unix-looking lines
-    if (m/^([0-9a-f]+) (.) (..*)/) {
+    if (m/^\s*([0-9a-f]+) (.) (..*)/) {
       my $start_val = $1;
       my $type = $2;
       my $this_routine = $3;
@@ -4058,7 +4458,6 @@ sub GetProcedureBoundariesViaNm {
     $symbol_table->{$routine} = [HexExtend($last_start),
                                  HexExtend($last_start)];
   }
-
   return $symbol_table;
 }
 
@@ -4106,7 +4505,11 @@ sub GetProcedureBoundaries {
   my @nm_commands = ("$nm -n $flatten_flag $demangle_flag" .
                      " $image 2>/dev/null $cppfilt_flag",
                      "$nm -D -n $flatten_flag $demangle_flag" .
-                     " $image 2>/dev/null $cppfilt_flag");
+                     " $image 2>/dev/null $cppfilt_flag",
+                     # 6nm is for Go binaries
+		     "6nm $image 2>/dev/null | sort",
+                     );
+
   # If the executable is an MS Windows PDB-format executable, we'll
   # have set up obj_tool_map("nm_pdb").  In this case, we actually
   # want to use both unix nm and windows-specific nm_pdb, since

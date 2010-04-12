@@ -48,7 +48,11 @@
 // may optionally return more bytes than asked for (i.e. return an
 // entire "huge" page if a huge page allocator is in use).
 //
-// The returned pointer is a multiple of "alignment" if non-zero.
+// The returned pointer is a multiple of "alignment" if non-zero. The
+// returned pointer will always be aligned suitably for holding a
+// void*, double, or size_t. In addition, if this platform defines
+// CACHELINE_ALIGNED, the return pointer will always be cacheline
+// aligned.
 //
 // Returns NULL when out of memory.
 extern void* TCMalloc_SystemAlloc(size_t bytes, size_t *actual_bytes,
