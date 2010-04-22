@@ -63,7 +63,7 @@ extern "C" {
   int pthread_setspecific(pthread_key_t, const void*)
       __THROW ATTRIBUTE_WEAK;
   int pthread_once(pthread_once_t *, void (*)(void))
-      __THROW ATTRIBUTE_WEAK;
+      ATTRIBUTE_WEAK;
 }
 
 #define MAX_PERTHREAD_VALS 16

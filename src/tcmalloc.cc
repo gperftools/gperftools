@@ -898,6 +898,7 @@ inline bool should_report_large(Length num_pages) {
     return true;
   }
   return false;
+}
 
 // Helper for do_malloc().
 inline void* do_malloc_pages(ThreadCache* heap, size_t size) {

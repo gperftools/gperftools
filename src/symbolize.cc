@@ -87,16 +87,40 @@ int SymbolTable::Symbolize() {
 #else
   // All this work is to do two-way communication.  ugh.
   extern char* program_invocation_name;  // gcc provides this
-  int child_in[2];   // file descriptors
-  int child_out[2];  // for now, we don't worry about child_err
-  if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_in) == -1) {
-    return 0;
+  int *child_in = NULL;   // file descriptors
+  int *child_out = NULL;  // for now, we don't worry about child_err
+  int child_fds[5][2];    // socketpair may be called up to five times below
+
+  // The client program may close its stdin and/or stdout and/or stderr
+  // thus allowing socketpair to reuse file descriptors 0, 1 or 2.
+  // In this case the communication between the forked processes may be broken
+  // if either the parent or the child tries to close or duplicate these
+  // descriptors. The loop below produces two pairs of file descriptors, each
+  // greater than 2 (stderr).
+  for (int i = 0; i < 5; i++) {
+    if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_fds[i]) == -1) {
+      for (int j = 0; j < i; j++) {
+        close(child_fds[j][0]);
+        close(child_fds[j][1]);
+        return 0;
+      }
+    } else {
+      if ((child_fds[i][0] > 2) && (child_fds[i][1] > 2)) {
+        if (child_in == NULL) {
+          child_in = child_fds[i];
+        } else {
+          child_out = child_fds[i];
+          for (int j = 0; j < i; j++) {
+            if (child_fds[j] == child_in) continue;
+            close(child_fds[j][0]);
+            close(child_fds[j][1]);
+          }
+          break;
+        }
+      }
+    }
   }
-  if (socketpair(AF_UNIX, SOCK_STREAM, 0, child_out) == -1) {
-    close(child_in[0]);
-    close(child_in[1]);
-    return 0;
-  }
+
   switch (fork()) {
     case -1: {  // error
       close(child_in[0]);

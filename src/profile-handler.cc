@@ -215,11 +215,8 @@ const int32 ProfileHandler::kDefaultFrequency;
 // pthread_once won't be defined.  We declare it here, for that
 // case (with weak linkage) which will cause the non-definition to
 // resolve to NULL.  We can then check for NULL or not in Instance.
-#ifndef __THROW    // I guess we're not on a glibc system
-# define __THROW   // __THROW is just an optimization, so ok to make it ""
-#endif
 extern "C" int pthread_once(pthread_once_t *, void (*)(void))
-    __THROW ATTRIBUTE_WEAK;
+    ATTRIBUTE_WEAK;
 
 void ProfileHandler::Init() {
   instance_ = new ProfileHandler();
