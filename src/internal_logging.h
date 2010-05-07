@@ -119,7 +119,9 @@ do {                                                                     \
 #ifndef NDEBUG
 #define ASSERT(cond) CHECK_CONDITION(cond)
 #else
-#define ASSERT(cond) ((void) 0)
+#define ASSERT(cond)                            \
+  do {                                          \
+  } while (0 && (cond))
 #endif
 
 // Print into buffer

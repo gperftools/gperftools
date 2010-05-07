@@ -49,6 +49,11 @@
 // This code is inspired by a patch from David Vitek:
 //   http://code.google.com/p/google-perftools/issues/detail?id=83
 
+#ifndef BASE_STACKTRACE_WIN32_INL_H_
+#define BASE_STACKTRACE_WIN32_INL_H_
+// Note: this file is included into stacktrace.cc more than once.
+// Anything that should only be defined once should be here:
+
 #include "config.h"
 #include <windows.h>    // for GetProcAddress and GetModuleHandle
 #include <assert.h>
@@ -82,3 +87,5 @@ PERFTOOLS_DLL_DECL int GetStackFrames(void** /* pcs */,
   assert(0 == "Not yet implemented");
   return 0;
 }
+
+#endif  // BASE_STACKTRACE_WIN32_INL_H_

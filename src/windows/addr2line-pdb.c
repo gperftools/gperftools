@@ -48,6 +48,12 @@
 #define SEARCH_CAP (1024*1024)
 #define WEBSYM "SRV*c:\\websymbols*http://msdl.microsoft.com/download/symbols"
 
+void usage() {
+  fprintf(stderr, "usage: "
+          "addr2line-pdb [-f|--functions] [-C|--demangle] [-e filename]\n");
+  fprintf(stderr, "(Then list the hex addresses on stdin, one per line)\n");
+}
+
 int main(int argc, char *argv[]) {
   DWORD  error;
   HANDLE process;
@@ -74,10 +80,11 @@ int main(int argc, char *argv[]) {
       }
       filename = argv[i+1];
       i++;     /* to skip over filename too */
+    } else if (strcmp(argv[i], "--help") == 0) {
+      usage();
+      exit(0);
     } else {
-      fprintf(stderr, "usage: "
-              "addr2line-pdb [-f|--functions] [-C|--demangle] [-e filename]\n");
-      fprintf(stderr, "(Then list the hex addresses on stdin, one per line)\n");
+      usage();
       exit(1);
     }
   }

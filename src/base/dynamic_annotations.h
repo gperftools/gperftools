@@ -246,6 +246,12 @@
       ANNOTATE_IGNORE_READS_END();\
     }while(0)\
 
+  /* Enable (enable!=0) or disable (enable==0) race detection for all threads.
+     This annotation could be useful if you want to skip expensive race analysis
+     during some period of program execution, e.g. during initialization. */
+  #define ANNOTATE_ENABLE_RACE_DETECTION(enable) \
+    AnnotateEnableRaceDetection(__FILE__, __LINE__, enable)
+
   /* -------------------------------------------------------------
      Annotations useful for debugging. */
 
@@ -358,6 +364,7 @@
   #define ANNOTATE_IGNORE_WRITES_END() /* empty */
   #define ANNOTATE_IGNORE_READS_AND_WRITES_BEGIN() /* empty */
   #define ANNOTATE_IGNORE_READS_AND_WRITES_END() /* empty */
+  #define ANNOTATE_ENABLE_RACE_DETECTION(enable) /* empty */
   #define ANNOTATE_NO_OP(arg) /* empty */
   #define ANNOTATE_FLUSH_STATE() /* empty */
 
@@ -428,6 +435,7 @@ void AnnotateIgnoreReadsBegin(const char *file, int line);
 void AnnotateIgnoreReadsEnd(const char *file, int line);
 void AnnotateIgnoreWritesBegin(const char *file, int line);
 void AnnotateIgnoreWritesEnd(const char *file, int line);
+void AnnotateEnableRaceDetection(const char *file, int line, int enable);
 void AnnotateNoOp(const char *file, int line,
                   const volatile void *arg);
 void AnnotateFlushState(const char *file, int line);

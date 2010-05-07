@@ -67,11 +67,12 @@ for a given run of an executable:</p>
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>HeapProfilerStart()</code> and <code>HeapProfilerStop()</code>.
        (These functions are declared in <code>&lt;google/heap-profiler.h&gt;</code>.)
-       <code>HeapProfilerStart()</code> will take
-       the profile-filename-prefix as an argument.  You can then use
-       <code>HeapProfilerDump()</code> or
-       <code>GetHeapProfile()</code> to examine the profile.
-       In case it's useful, IsHeapProfilerRunning() will tell you
+       <code>HeapProfilerStart()</code> will take the
+       profile-filename-prefix as an argument.  Then, as often as
+       you'd like before calling <code>HeapProfilerStop()</code>, you
+       can use <code>HeapProfilerDump()</code> or
+       <code>GetHeapProfile()</code> to examine the profile.  In case
+       it's useful, <code>IsHeapProfilerRunning()</code> will tell you
        whether you've already called HeapProfilerStart() or not.</p>
 </ol>
 

@@ -798,22 +798,25 @@ static TCMallocGuard module_enter_exit_hook;
 // Helpers for the exported routines below
 //-------------------------------------------------------------------
 
-static inline bool CheckCachedSizeClass(void *ptr) {
-  PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cached_value = Static::pageheap()->GetSizeClassIfCached(p);
-  return cached_value == 0 ||
-      cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
-}
-
 static inline void* CheckedMallocResult(void *result) {
-  ASSERT(result == NULL || CheckCachedSizeClass(result));
+  Span* fetched_span;
+  size_t cl;
+
+  if (result != NULL) {
+    ASSERT(Static::pageheap()->GetSizeClassOrSpan(result, &cl, &fetched_span));
+  }
+
   return result;
 }
 
 static inline void* SpanToMallocResult(Span *span) {
-  Static::pageheap()->CacheSizeClass(span->start, 0);
-  return
-      CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
+  Span* fetched_span = NULL;
+  size_t cl = 0;
+  ASSERT(Static::pageheap()->GetSizeClassOrSpan(span->start_ptr(),
+                                                &cl, &fetched_span));
+  ASSERT(cl == kLargeSizeClass);
+  ASSERT(span == fetched_span);
+  return span->start_ptr();
 }
 
 static void* DoSampledAllocation(size_t size) {
@@ -824,7 +827,8 @@ static void* DoSampledAllocation(size_t size) {
 
   SpinLockHolder h(Static::pageheap_lock());
   // Allocate span
-  Span *span = Static::pageheap()->New(tcmalloc::pages(size == 0 ? 1 : size));
+  Span *span = Static::pageheap()->New(tcmalloc::pages(size == 0 ? 1 : size),
+                                       kLargeSizeClass, kPageSize);
   if (span == NULL) {
     return NULL;
   }
@@ -915,7 +919,7 @@ inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
     report_large = should_report_large(num_pages);
   } else {
     SpinLockHolder h(Static::pageheap_lock());
-    Span* span = Static::pageheap()->New(num_pages);
+    Span* span = Static::pageheap()->New(num_pages, kLargeSizeClass, kPageSize);
     result = (span == NULL ? NULL : SpanToMallocResult(span));
     report_large = should_report_large(num_pages);
   }
@@ -971,28 +975,22 @@ static inline ThreadCache* GetCacheIfPresent() {
 inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
   if (ptr == NULL) return;
   ASSERT(Static::pageheap() != NULL);  // Should not call free() before malloc()
-  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  Span* span = NULL;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
+  Span* span;
+  size_t cl;
 
-  if (cl == 0) {
-    span = Static::pageheap()->GetDescriptor(p);
-    if (!span) {
-      // span can be NULL because the pointer passed in is invalid
-      // (not something returned by malloc or friends), or because the
-      // pointer was allocated with some other allocator besides
-      // tcmalloc.  The latter can happen if tcmalloc is linked in via
-      // a dynamic library, but is not listed last on the link line.
-      // In that case, libraries after it on the link line will
-      // allocate with libc malloc, but free with tcmalloc's free.
-      (*invalid_free_fn)(ptr);  // Decide how to handle the bad free request
-      return;
-    }
-    cl = span->sizeclass;
-    Static::pageheap()->CacheSizeClass(p, cl);
+  if (!Static::pageheap()->GetSizeClassOrSpan(ptr, &cl, &span)) {
+    // result can be false because the pointer passed in is invalid
+    // (not something returned by malloc or friends), or because the
+    // pointer was allocated with some other allocator besides
+    // tcmalloc.  The latter can happen if tcmalloc is linked in via
+    // a dynamic library, but is not listed last on the link line.
+    // In that case, libraries after it on the link line will
+    // allocate with libc malloc, but free with tcmalloc's free.
+    (*invalid_free_fn)(ptr);  // Decide how to handle the bad free request
+    return;
   }
-  if (cl != 0) {
-    ASSERT(!Static::pageheap()->GetDescriptor(p)->sample);
+
+  if (cl != kLargeSizeClass) {
     ThreadCache* heap = GetCacheIfPresent();
     if (heap != NULL) {
       heap->Deallocate(ptr, cl);
@@ -1003,8 +1001,7 @@ inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
     }
   } else {
     SpinLockHolder h(Static::pageheap_lock());
-    ASSERT(reinterpret_cast<uintptr_t>(ptr) % kPageSize == 0);
-    ASSERT(span != NULL && span->start == p);
+    ASSERT(span != NULL && ptr == span->start_ptr());
     if (span->sample) {
       tcmalloc::DLL_Remove(span);
       Static::stacktrace_allocator()->Delete(
@@ -1024,20 +1021,17 @@ inline size_t GetSizeWithCallback(void* ptr,
                                   size_t (*invalid_getsize_fn)(void*)) {
   if (ptr == NULL)
     return 0;
-  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-  if (cl != 0) {
+
+  Span* span;
+  size_t cl;
+  if (!Static::pageheap()->GetSizeClassOrSpan(ptr, &cl, &span)) {
+    return (*invalid_getsize_fn)(ptr);
+  }
+
+  if (cl != kLargeSizeClass) {
     return Static::sizemap()->ByteSizeForClass(cl);
   } else {
-    Span *span = Static::pageheap()->GetDescriptor(p);
-    if (span == NULL) {  // means we do not own this memory
-      return (*invalid_getsize_fn)(ptr);
-    } else if (span->sizeclass != 0) {
-      Static::pageheap()->CacheSizeClass(p, span->sizeclass);
-      return Static::sizemap()->ByteSizeForClass(span->sizeclass);
-    } else {
-      return span->length << kPageShift;
-    }
+    return span->length << kPageShift;
   }
 }
 
@@ -1132,39 +1126,10 @@ void* do_memalign(size_t align, size_t size) {
   // We will allocate directly from the page heap
   SpinLockHolder h(Static::pageheap_lock());
 
-  if (align <= kPageSize) {
-    // Any page-level allocation will be fine
-    // TODO: We could put the rest of this page in the appropriate
-    // TODO: cache but it does not seem worth it.
-    Span* span = Static::pageheap()->New(tcmalloc::pages(size));
-    return span == NULL ? NULL : SpanToMallocResult(span);
-  }
-
-  // Allocate extra pages and carve off an aligned portion
-  const Length alloc = tcmalloc::pages(size + align);
-  Span* span = Static::pageheap()->New(alloc);
-  if (span == NULL) return NULL;
-
-  // Skip starting portion so that we end up aligned
-  Length skip = 0;
-  while ((((span->start+skip) << kPageShift) & (align - 1)) != 0) {
-    skip++;
-  }
-  ASSERT(skip < alloc);
-  if (skip > 0) {
-    Span* rest = Static::pageheap()->Split(span, skip);
-    Static::pageheap()->Delete(span);
-    span = rest;
-  }
-
-  // Skip trailing portion that we do not need to return
-  const Length needed = tcmalloc::pages(size);
-  ASSERT(span->length >= needed);
-  if (span->length > needed) {
-    Span* trailer = Static::pageheap()->Split(span, needed);
-    Static::pageheap()->Delete(trailer);
-  }
-  return SpanToMallocResult(span);
+  // Any page-level allocation will be fine
+  Span* span = Static::pageheap()->New(tcmalloc::pages(size),
+                                       kLargeSizeClass, align);
+  return span == NULL ? NULL : SpanToMallocResult(span);
 }
 
 // Helpers for use by exported routines below:

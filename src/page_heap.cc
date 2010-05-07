@@ -61,49 +61,64 @@ PageHeap::PageHeap()
   }
 }
 
-Span* PageHeap::New(Length n) {
+// Returns the minimum number of pages necessary to ensure that an
+// allocation of size n can be aligned to the given alignment.
+static Length AlignedAllocationSize(Length n, size_t alignment) {
+  ASSERT(alignment >= kPageSize);
+  return n + tcmalloc::pages(alignment - kPageSize);
+}
+
+Span* PageHeap::New(Length n, size_t sc, size_t align) {
   ASSERT(Check());
   ASSERT(n > 0);
 
+  if (align < kPageSize) {
+    align = kPageSize;
+  }
+
+  Length aligned_size = AlignedAllocationSize(n, align);
+
   // Find first size >= n that has a non-empty list
-  for (Length s = n; s < kMaxPages; s++) {
+  for (Length s = aligned_size; s < kMaxPages; s++) {
     Span* ll = &free_[s].normal;
     // If we're lucky, ll is non-empty, meaning it has a suitable span.
     if (!DLL_IsEmpty(ll)) {
       ASSERT(ll->next->location == Span::ON_NORMAL_FREELIST);
-      return Carve(ll->next, n);
+      return Carve(ll->next, n, sc, align);
     }
     // Alternatively, maybe there's a usable returned span.
     ll = &free_[s].returned;
     if (!DLL_IsEmpty(ll)) {
       ASSERT(ll->next->location == Span::ON_RETURNED_FREELIST);
-      return Carve(ll->next, n);
+      return Carve(ll->next, n, sc, align);
     }
     // Still no luck, so keep looking in larger classes.
   }
 
-  Span* result = AllocLarge(n);
+  Span* result = AllocLarge(n, sc, align);
   if (result != NULL) return result;
 
   // Grow the heap and try again
-  if (!GrowHeap(n)) {
+  if (!GrowHeap(aligned_size)) {
     ASSERT(Check());
     return NULL;
   }
 
-  return AllocLarge(n);
+  return AllocLarge(n, sc, align);
 }
 
-Span* PageHeap::AllocLarge(Length n) {
-  // find the best span (closest to n in size).
+Span* PageHeap::AllocLarge(Length n, size_t sc, size_t align) {
+  // Find the best span (closest to n in size).
   // The following loops implements address-ordered best-fit.
   Span *best = NULL;
+
+  Length aligned_size = AlignedAllocationSize(n, align);
 
   // Search through normal list
   for (Span* span = large_.normal.next;
        span != &large_.normal;
        span = span->next) {
-    if (span->length >= n) {
+    if (span->length >= aligned_size) {
       if ((best == NULL)
           || (span->length < best->length)
           || ((span->length == best->length) && (span->start < best->start))) {
@@ -117,7 +132,7 @@ Span* PageHeap::AllocLarge(Length n) {
   for (Span* span = large_.returned.next;
        span != &large_.returned;
        span = span->next) {
-    if (span->length >= n) {
+    if (span->length >= aligned_size) {
       if ((best == NULL)
           || (span->length < best->length)
           || ((span->length == best->length) && (span->start < best->start))) {
@@ -127,19 +142,18 @@ Span* PageHeap::AllocLarge(Length n) {
     }
   }
 
-  return best == NULL ? NULL : Carve(best, n);
+  return best == NULL ? NULL : Carve(best, n, sc, align);
 }
 
 Span* PageHeap::Split(Span* span, Length n) {
   ASSERT(0 < n);
   ASSERT(n < span->length);
-  ASSERT(span->location == Span::IN_USE);
-  ASSERT(span->sizeclass == 0);
+  ASSERT((span->location != Span::IN_USE) || span->sizeclass == 0);
   Event(span, 'T', n);
 
   const int extra = span->length - n;
   Span* leftover = NewSpan(span->start + n, extra);
-  ASSERT(leftover->location == Span::IN_USE);
+  leftover->location = span->location;
   Event(leftover, 'U', extra);
   RecordSpan(leftover);
   pagemap_.set(span->start + n - 1, span); // Update map from pageid to span
@@ -148,25 +162,44 @@ Span* PageHeap::Split(Span* span, Length n) {
   return leftover;
 }
 
-Span* PageHeap::Carve(Span* span, Length n) {
+Span* PageHeap::Carve(Span* span, Length n, size_t sc, size_t align) {
   ASSERT(n > 0);
   ASSERT(span->location != Span::IN_USE);
-  const int old_location = span->location;
+  ASSERT(align >= kPageSize);
+
+  Length align_pages = align >> kPageShift;
   RemoveFromFreeList(span);
-  span->location = Span::IN_USE;
-  Event(span, 'A', n);
+
+  if (span->start & (align_pages - 1)) {
+    Length skip_for_alignment = align_pages - (span->start & (align_pages - 1));
+    Span* aligned = Split(span, skip_for_alignment);
+    PrependToFreeList(span); // Skip coalescing - no candidates possible
+    span = aligned;
+  }
 
   const int extra = span->length - n;
   ASSERT(extra >= 0);
   if (extra > 0) {
-    Span* leftover = NewSpan(span->start + n, extra);
-    leftover->location = old_location;
-    Event(leftover, 'S', extra);
-    RecordSpan(leftover);
-    PrependToFreeList(leftover);  // Skip coalescing - no candidates possible
-    span->length = n;
-    pagemap_.set(span->start + n - 1, span);
+    Span* leftover = Split(span, n);
+    PrependToFreeList(leftover);
   }
+
+  span->location = Span::IN_USE;
+  span->sizeclass = sc;
+  Event(span, 'A', n);
+
+  // Cache sizeclass info eagerly.  Locking is not necessary.
+  // (Instead of being eager, we could just replace any stale info
+  // about this span, but that seems to be no better in practice.)
+  CacheSizeClass(span->start, sc);
+
+  if (sc != kLargeSizeClass) {
+    for (Length i = 1; i < n; i++) {
+      pagemap_.set(span->start + i, span);
+      CacheSizeClass(span->start + i, sc);
+    }
+  }
+
   ASSERT(Check());
   return span;
 }
@@ -316,18 +349,6 @@ Length PageHeap::ReleaseAtLeastNPages(Length num_pages) {
     }
   }
   return released_pages;
-}
-
-void PageHeap::RegisterSizeClass(Span* span, size_t sc) {
-  // Associate span object with all interior pages as well
-  ASSERT(span->location == Span::IN_USE);
-  ASSERT(GetDescriptor(span->start) == span);
-  ASSERT(GetDescriptor(span->start+span->length-1) == span);
-  Event(span, 'C', sc);
-  span->sizeclass = sc;
-  for (Length i = 1; i < span->length-1; i++) {
-    pagemap_.set(span->start+i, span);
-  }
 }
 
 static double MB(uint64_t bytes) {

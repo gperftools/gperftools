@@ -180,6 +180,10 @@ static void ShowSymbolInfo(HANDLE process, ULONG64 module_base) {
 #endif
 }
 
+void usage() {
+  fprintf(stderr, "usage: nm-pdb [-C|--demangle] <module or filename>\n");
+}
+
 int main(int argc, char *argv[]) {
   DWORD  error;
   HANDLE process;
@@ -195,12 +199,15 @@ int main(int argc, char *argv[]) {
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--demangle") == 0 || strcmp(argv[i], "-C") == 0) {
       symopts |= SYMOPT_UNDNAME;
+    } else if (strcmp(argv[i], "--help") == 0) {
+      usage();
+      exit(0);
     } else {
       break;
     }
   }
   if (i != argc - 1) {
-    fprintf(stderr, "usage: nm-pdb [-C|--demangle] <module or filename>\n");
+    usage();
     exit(1);
   }
   filename = argv[i];

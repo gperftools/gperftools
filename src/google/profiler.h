@@ -108,13 +108,15 @@ struct ProfilerOptions {
   void *filter_in_thread_arg;
 };
 
-/* Start profiling and write profile info into fname.
+/* Start profiling and write profile info into fname, discarding any
+ * existing profiling data in that file.
  *
  * This is equivalent to calling ProfilerStartWithOptions(fname, NULL).
  */
 PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname);
 
-/* Start profiling and write profile into fname.
+/* Start profiling and write profile into fname, discarding any
+ * existing profiling data in that file.
  *
  * The profiler is configured using the options given by 'options'.
  * Options which are not specified are given default values.

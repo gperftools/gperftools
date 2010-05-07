@@ -1377,9 +1377,9 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
           if (VLOG_IS_ON(15)) {
             // log call stacks to help debug how come something is not a leak
             HeapProfileTable::AllocInfo alloc;
-            bool r = heap_profile->FindAllocDetails(ptr, &alloc);
-            r = r;              // suppress compiler warning in non-debug mode
-            RAW_DCHECK(r, "");  // sanity
+            if (!heap_profile->FindAllocDetails(ptr, &alloc)) {
+              RAW_LOG(FATAL, "FindAllocDetails failed on ptr %p", ptr);
+            }
             RAW_LOG(INFO, "New live %p object's alloc stack:", ptr);
             for (int i = 0; i < alloc.stack_depth; ++i) {
               RAW_LOG(INFO, "  @ %p", alloc.call_stack[i]);

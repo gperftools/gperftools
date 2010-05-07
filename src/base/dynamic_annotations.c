@@ -105,12 +105,7 @@ void AnnotateBenignRace(const char *file, int line,
 void AnnotateBenignRaceSized(const char *file, int line,
                              const volatile void *mem,
                              long size,
-                             const char *description) {
-  long i;
-  for (i = 0; i < size; i++) {
-    AnnotateBenignRace(file, line, (char*)(mem) + i, description);
-  }
-}
+                             const char *description) {}
 void AnnotateMutexIsUsedAsCondVar(const char *file, int line,
                                   const volatile void *mu){}
 void AnnotateTraceMemory(const char *file, int line,
@@ -121,6 +116,7 @@ void AnnotateIgnoreReadsBegin(const char *file, int line){}
 void AnnotateIgnoreReadsEnd(const char *file, int line){}
 void AnnotateIgnoreWritesBegin(const char *file, int line){}
 void AnnotateIgnoreWritesEnd(const char *file, int line){}
+void AnnotateEnableRaceDetection(const char *file, int line, int enable){}
 void AnnotateNoOp(const char *file, int line,
                   const volatile void *arg){}
 void AnnotateFlushState(const char *file, int line){}

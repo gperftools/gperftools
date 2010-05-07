@@ -106,6 +106,12 @@ my $FILTEREDPROFILE_PAGE = "/pprof/filteredprofile(?:\\?.*)?";
 my $SYMBOL_PAGE = "/pprof/symbol";     # must support symbol lookup via POST
 my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 
+# These are the web pages that can be named on the command line.
+# All the alternatives must begin with /.
+my $PROFILES = "($HEAP_PAGE|$PROFILE_PAGE|$PMUPROFILE_PAGE|" .
+               "$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|" .
+               "$FILTEREDPROFILE_PAGE)";
+
 # default binary name
 my $UNKNOWN_BINARY = "(unknown)";
 
@@ -718,10 +724,8 @@ sub RunWeb {
     "firefox",
   );
   foreach my $b (@alt) {
-    if (-f $b) {
-      if (system($b, $fname) == 0) {
-        return;
-      }
+    if (system($b, $fname) == 0) {
+      return;
     }
   }
 
@@ -2704,32 +2708,44 @@ sub CheckSymbolPage {
 
 sub IsProfileURL {
   my $profile_name = shift;
-  my ($host, $port, $prefix, $path) = ParseProfileURL($profile_name);
-  return defined($host) and defined($port) and defined($path);
+  if (-f $profile_name) {
+    printf STDERR "Using local file $profile_name.\n";
+    return 0;
+  }
+  return 1;
 }
 
 sub ParseProfileURL {
   my $profile_name = shift;
-  if (defined($profile_name) &&
-      $profile_name =~ m,^(http://|)([^/:]+):(\d+)(|\@\d+)(|/|(.*?)($PROFILE_PAGE|$PMUPROFILE_PAGE|$HEAP_PAGE|$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|$FILTEREDPROFILE_PAGE))$,o) {
-    # $7 is $PROFILE_PAGE/$HEAP_PAGE/etc.  $5 is *everything* after
-    # the hostname, as long as that everything is the empty string,
-    # a slash, or something ending in $PROFILE_PAGE/$HEAP_PAGE/etc.
-    # So "$7 || $5" is $PROFILE_PAGE/etc if there, or else it's "/" or "".
-    return ($2, $3, $6, $7 || $5);
+
+  if (!defined($profile_name) || $profile_name eq "") {
+    return ();
   }
-  return ();
+
+  # Split profile URL - matches all non-empty strings, so no test.
+  $profile_name =~ m,^(https?://)?([^/]+)(.*?)(/|$PROFILES)?$,;
+
+  my $proto = $1 || "http://";
+  my $hostport = $2;
+  my $prefix = $3;
+  my $profile = $4 || "/";
+
+  my $host = $hostport;
+  $host =~ s/:.*//;
+
+  my $baseurl = "$proto$hostport$prefix";
+  return ($host, $baseurl, $profile);
 }
 
 # We fetch symbols from the first profile argument.
 sub SymbolPageURL {
-  my ($host, $port, $prefix, $path) = ParseProfileURL($main::pfile_args[0]);
-  return "http://$host:$port$prefix$SYMBOL_PAGE";
+  my ($host, $baseURL, $path) = ParseProfileURL($main::pfile_args[0]);
+  return "$baseURL$SYMBOL_PAGE";
 }
 
 sub FetchProgramName() {
-  my ($host, $port, $prefix, $path) = ParseProfileURL($main::pfile_args[0]);
-  my $url = "http://$host:$port$prefix$PROGRAM_NAME_PAGE";
+  my ($host, $baseURL, $path) = ParseProfileURL($main::pfile_args[0]);
+  my $url = "$baseURL$PROGRAM_NAME_PAGE";
   my $command_line = "$URL_FETCHER '$url'";
   open(CMDLINE, "$command_line |") or error($command_line);
   my $cmdline = <CMDLINE>;
@@ -2880,10 +2896,10 @@ sub BaseName {
 
 sub MakeProfileBaseName {
   my ($binary_name, $profile_name) = @_;
-  my ($host, $port, $prefix, $path) = ParseProfileURL($profile_name);
+  my ($host, $baseURL, $path) = ParseProfileURL($profile_name);
   my $binary_shortname = BaseName($binary_name);
-  return sprintf("%s.%s.%s-port%s",
-                 $binary_shortname, $main::op_time, $host, $port);
+  return sprintf("%s.%s.%s",
+                 $binary_shortname, $main::op_time, $host);
 }
 
 sub FetchDynamicProfile {
@@ -2895,7 +2911,7 @@ sub FetchDynamicProfile {
   if (!IsProfileURL($profile_name)) {
     return $profile_name;
   } else {
-    my ($host, $port, $prefix, $path) = ParseProfileURL($profile_name);
+    my ($host, $baseURL, $path) = ParseProfileURL($profile_name);
     if ($path eq "" || $path eq "/") {
       # Missing type specifier defaults to cpu-profile
       $path = $PROFILE_PAGE;
@@ -2903,33 +2919,26 @@ sub FetchDynamicProfile {
 
     my $profile_file = MakeProfileBaseName($binary_name, $profile_name);
 
-    my $url;
+    my $url = "$baseURL$path";
     my $fetch_timeout = undef;
-    if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)) {
-      if ($path =~ m/$PROFILE_PAGE/) {
-        $url = sprintf("http://$host:$port$prefix$path?seconds=%d",
-            $main::opt_seconds);
+    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE/) {
+      if ($path =~ m/[?]/) {
+        $url .= "&";
       } else {
-        if ($profile_name =~ m/[?]/) {
-          $profile_name .= "&"
-        } else {
-          $profile_name .= "?"
-        }
-        $url = sprintf("http://$profile_name" . "seconds=%d",
-            $main::opt_seconds);
+        $url .= "?";
       }
+      $url .= sprintf("seconds=%d", $main::opt_seconds);
       $fetch_timeout = $main::opt_seconds * 1.01 + 60;
     } else {
       # For non-CPU profiles, we add a type-extension to
       # the target profile file name.
       my $suffix = $path;
       $suffix =~ s,/,.,g;
-      $profile_file .= "$suffix";
-      $url = "http://$host:$port$prefix$path";
+      $profile_file .= $suffix;
     }
 
     my $profile_dir = $ENV{"PPROF_TMPDIR"} || ($ENV{HOME} . "/pprof");
-    if (!(-d $profile_dir)) {
+    if (! -d $profile_dir) {
       mkdir($profile_dir)
           || die("Unable to create profile directory $profile_dir: $!\n");
     }
@@ -2942,13 +2951,13 @@ sub FetchDynamicProfile {
 
     my $fetcher = AddFetchTimeout($URL_FETCHER, $fetch_timeout);
     my $cmd = "$fetcher '$url' > '$tmp_profile'";
-    if (($path =~ m/$PROFILE_PAGE/) || ($path =~ m/$PMUPROFILE_PAGE/)){
+    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE/){
       print STDERR "Gathering CPU profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
         print STDERR "Be patient...\n";
       }
     } else {
-      print STDERR "Fetching $path profile from $host:$port to\n  ${real_profile}\n";
+      print STDERR "Fetching $path profile from $url to\n  ${real_profile}\n";
     }
 
     (system($cmd) == 0) || error("Failed to get profile: $cmd: $!\n");

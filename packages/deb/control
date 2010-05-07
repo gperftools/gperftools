@@ -1,6 +1,6 @@
 Source: google-perftools
 Priority: optional
-Maintainer: Google Inc. <opensource@google.com>
+Maintainer: Google Inc. <google-perftools@googlegroups.com>
 Build-Depends: debhelper (>= 4.0.0), binutils
 Standards-Version: 3.6.1
 

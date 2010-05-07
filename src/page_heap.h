@@ -93,21 +93,49 @@ class PERFTOOLS_DLL_DECL PageHeap {
  public:
   PageHeap();
 
-  // Allocate a run of "n" pages.  Returns zero if out of memory.
-  // Caller should not pass "n == 0" -- instead, n should have
-  // been rounded up already.
-  Span* New(Length n);
+  // Allocate a run of "n" pages.  Returns NULL if out of memory.
+  // Caller should not pass "n == 0" -- instead, n should have been
+  // rounded up already.  The span will be used for allocating objects
+  // with the specifled sizeclass sc (sc must be zero for large
+  // objects). The first page of the span will be aligned to the value
+  // specified by align, which must be a power of two.
+  Span* New(Length n, size_t sc, size_t align);
 
   // Delete the span "[p, p+n-1]".
   // REQUIRES: span was returned by earlier call to New() and
   //           has not yet been deleted.
   void Delete(Span* span);
 
-  // Mark an allocated span as being used for small objects of the
-  // specified size-class.
-  // REQUIRES: span was returned by an earlier call to New()
-  //           and has not yet been deleted.
-  void RegisterSizeClass(Span* span, size_t sc);
+  // Gets either the size class of addr, if it is a small object, or it's span.
+  // Return:
+  // if addr is invalid:
+  //   leave *out_sc and *out_span unchanged and return false;
+  // if addr is valid and has a small size class:
+  //   *out_sc = the size class
+  //   *out_span = <undefined>
+  //   return true
+  // if addr is valid and has a large size class:
+  //   *out_sc = kLargeSizeClass
+  //   *out_span = the span pointer
+  //   return true
+  bool GetSizeClassOrSpan(void* addr, size_t* out_sc, Span** out_span) {
+    const PageID p = reinterpret_cast<uintptr_t>(addr) >> kPageShift;
+    size_t cl = GetSizeClassIfCached(p);
+    Span* span = NULL;
+
+    if (cl != kLargeSizeClass) {
+      ASSERT(cl == GetDescriptor(p)->sizeclass);
+    } else {
+      span = GetDescriptor(p);
+      if (!span) {
+        return false;
+      }
+      cl = span->sizeclass;
+    }
+    *out_span = span;
+    *out_sc = cl;
+    return true;
+  }
 
   // Split an allocated span into two spans: one of length "n" pages
   // followed by another span of length "span->length - n" pages.
@@ -115,14 +143,29 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Returns a pointer to the second span.
   //
   // REQUIRES: "0 < n < span->length"
-  // REQUIRES: span->location == IN_USE
-  // REQUIRES: span->sizeclass == 0
+  // REQUIRES: a) the span is free or b) sizeclass == 0
   Span* Split(Span* span, Length n);
 
   // Return the descriptor for the specified page.  Returns NULL if
   // this PageID was not allocated previously.
   inline Span* GetDescriptor(PageID p) const {
-    return reinterpret_cast<Span*>(pagemap_.get(p));
+    Span* ret = reinterpret_cast<Span*>(pagemap_.get(p));
+#ifndef NDEBUG
+    if (ret != NULL && ret->location == Span::IN_USE) {
+      size_t cl = GetSizeClassIfCached(p);
+      // Three cases:
+      //  - The object is not cached
+      //  - The object is cached correctly
+      //  - It is a large object and we're not looking at the first
+      //    page. This happens in coalescing.
+      ASSERT(cl == kLargeSizeClass || cl == ret->sizeclass ||
+             (ret->start != p && ret->sizeclass == kLargeSizeClass));
+      // If the object is sampled, it must have be kLargeSizeClass
+      ASSERT(ret->sizeclass == kLargeSizeClass || !ret->sample);
+    }
+#endif
+
+    return ret;
   }
 
   // Dump state to stderr
@@ -223,7 +266,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // length exactly "n" and mark it as non-free so it can be returned
   // to the client.  After all that, decrease free_pages_ by n and
   // return span.
-  Span* Carve(Span* span, Length n);
+  Span* Carve(Span* span, Length n, size_t sc, size_t align);
 
   void RecordSpan(Span* span) {
     pagemap_.set(span->start, span);
@@ -234,7 +277,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   // Allocate a large span of length == n.  If successful, returns a
   // span of exactly the specified length.  Else, returns NULL.
-  Span* AllocLarge(Length n);
+  Span* AllocLarge(Length n, size_t sc, size_t align);
 
   // Coalesce span with neighboring spans if possible, prepend to
   // appropriate free list, and adjust stats.

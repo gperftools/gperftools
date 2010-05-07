@@ -26,7 +26,7 @@ static void TestPageHeap_Stats() {
   CheckStats(ph, 0, 0, 0);
 
   // Allocate a span 's1'
-  tcmalloc::Span* s1 = ph->New(256);
+  tcmalloc::Span* s1 = ph->New(256, kLargeSizeClass, kPageSize);
   CheckStats(ph, 256, 0, 0);
 
   // Split span 's1' into 's1', 's2'.  Delete 's2'

@@ -42,8 +42,8 @@
 #include <fcntl.h>
 
 #include "base/atomicops.h"  // for MemoryBarrier
-#include "base/logging.h"
 #include "base/linux_syscall_support.h"
+#include "base/logging.h"
 #include "base/dynamic_annotations.h"
 #include "base/basictypes.h"  // for COMPILE_ASSERT
 
