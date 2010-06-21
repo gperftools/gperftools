@@ -231,7 +231,7 @@ class MemoryRegionMap {
     static void *Allocate(size_t n) {
       return LowLevelAlloc::AllocWithArena(n, arena_);
     }
-    static void Free(const void *p) {
+    static void Free(const void *p, size_t /* n */) {
       LowLevelAlloc::Free(const_cast<void*>(p));
     }
   };

@@ -21533,6 +21533,15 @@ _ACEOF
 $as_echo "#define PERFTOOLS_DLL_DECL /**/" >>confdefs.h
 
 
+# In theory, config.h files shouldn't need a header guard, but we do,
+# because we (maybe) #include windows/mingw.h from within config.h,
+# and it #includes other .h files.  These all have header guards, so
+# the end result is if config.h is #included twice, its #undefs get
+# evaluated twice, but all the ones in mingw.h/etc only get evaluated
+# once, potentially causing trouble.  c.f.
+#   http://code.google.com/p/google-perftools/issues/detail?id=246
+
+
 # MinGW uses autoconf, but also needs the windows shim routines
 # (since it doesn't have its own support for, say, pthreads).
 # This requires us to #include a special header file, and also to

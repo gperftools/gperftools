@@ -42,7 +42,8 @@ using std::min;
 using std::max;
 
 DEFINE_int64(tcmalloc_max_total_thread_cache_bytes,
-             EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES", 16<<20),
+             EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES",
+                        kDefaultOverallThreadCacheSize),
              "Bound on the total amount of bytes allocated to "
              "thread caches.  This bound is not strict, so it is possible "
              "for the cache to go over this bound in certain circumstances. ");

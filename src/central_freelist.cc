@@ -57,9 +57,22 @@ void CentralFreeList::ReleaseListToSpans(void* start) {
   }
 }
 
-void CentralFreeList::ReleaseToSpans(void* object) {
+// MapObjectToSpan should logically be part of ReleaseToSpans.  But
+// this triggers an optimization bug in gcc 4.5.0.  Moving to a
+// separate function, and making sure that function isn't inlined,
+// seems to fix the problem.  It also should be fixed for gcc 4.5.1.
+static
+#if __GNUC__ == 4 && __GNUC_MINOR__ == 5 && __GNUC_PATCHLEVEL__ == 0
+__attribute__ ((noinline))
+#endif
+Span* MapObjectToSpan(void* object) {
   const PageID p = reinterpret_cast<uintptr_t>(object) >> kPageShift;
   Span* span = Static::pageheap()->GetDescriptor(p);
+  return span;
+}
+
+void CentralFreeList::ReleaseToSpans(void* object) {
+  Span* span = MapObjectToSpan(object);
   ASSERT(span != NULL);
   ASSERT(span->refcount > 0);
 
@@ -266,7 +279,8 @@ void CentralFreeList::Populate() {
   Span* span;
   {
     SpinLockHolder h(Static::pageheap_lock());
-    span = Static::pageheap()->New(npages, size_class_, kPageSize);
+    span = Static::pageheap()->New(npages);
+    if (span) Static::pageheap()->RegisterSizeClass(span, size_class_);
   }
   if (span == NULL) {
     MESSAGE("tcmalloc: allocation failed", npages << kPageShift);
@@ -274,6 +288,12 @@ void CentralFreeList::Populate() {
     return;
   }
   ASSERT(span->length == npages);
+  // Cache sizeclass info eagerly.  Locking is not necessary.
+  // (Instead of being eager, we could just replace any stale info
+  // about this span, but that seems to be no better in practice.)
+  for (int i = 0; i < npages; i++) {
+    Static::pageheap()->CacheSizeClass(span->start + i, size_class_);
+  }
 
   // Split the block into pieces and add to the free-list
   // TODO: coloring of objects to avoid cache conflicts?

@@ -145,21 +145,22 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   //      Number of bytes used across all thread caches.
   //      This property is not writable.
   //
-  // "tcmalloc.slack_bytes"
-  //      Number of bytes allocated from system, but not currently in
-  //      use by malloced objects.  I.e., bytes available for
-  //      allocation without needing more bytes from system.  It is
-  //      the sum of pageheap_free_bytes and pageheap_unmapped_bytes.
-  //      This property is not writable.
-  //
   // "tcmalloc.pageheap_free_bytes"
-  //      Number of bytes in free, mapped pages in pageheap
-  //      This property is not writable.
+  //      Number of bytes in free, mapped pages in page heap.  These
+  //      bytes can be used to fulfill allocation requests.  They
+  //      always count towards virtual memory usage, and unless the
+  //      underlying memory is swapped out by the OS, they also count
+  //      towards physical memory usage.  This property is not writable.
   //
   // "tcmalloc.pageheap_unmapped_bytes"
-  //      Number of bytes in free, unmapped pages in pageheap
-  //      This property is not writable.
-  //
+  //        Number of bytes in free, unmapped pages in page heap.
+  //        These are bytes that have been released back to the OS,
+  //        possibly by one of the MallocExtension "Release" calls.
+  //        They can be used to fulfill allocation requests, but
+  //        typically incur a page fault.  They always count towards
+  //        virtual memory usage, and depending on the OS, typically
+  //        do not count towards physical memory usage.  This property
+  //        is not writable.
   // -------------------------------------------------------------------
 
   // Get the named "property"'s value.  Returns true if the property

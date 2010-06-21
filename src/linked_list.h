@@ -36,6 +36,8 @@
 #ifndef TCMALLOC_LINKED_LIST_H_
 #define TCMALLOC_LINKED_LIST_H_
 
+#include <stddef.h>
+
 namespace tcmalloc {
 
 inline void *SLL_Next(void *t) {

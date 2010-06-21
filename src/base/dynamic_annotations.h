@@ -457,6 +457,19 @@ void AnnotateFlushState(const char *file, int line);
  */
 int RunningOnValgrind(void);
 
+/* ValgrindSlowdown returns:
+    * 1.0, if (RunningOnValgrind() == 0)
+    * 50.0, if (RunningOnValgrind() != 0 && getenv("VALGRIND_SLOWDOWN") == NULL)
+    * atof(getenv("VALGRIND_SLOWDOWN")) otherwise
+   This function can be used to scale timeout values:
+   EXAMPLE:
+   for (;;) {
+     DoExpensiveBackgroundTask();
+     SleepForSeconds(5 * ValgrindSlowdown());
+   }
+ */
+double ValgrindSlowdown();
+
 #ifdef __cplusplus
 }
 #endif

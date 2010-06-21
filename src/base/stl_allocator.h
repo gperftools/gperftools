@@ -45,7 +45,7 @@
 // Generic allocator class for STL objects
 // that uses a given type-less allocator Alloc, which must provide:
 //   static void* Alloc::Allocate(size_t size);
-//   static void Alloc::Free(void* ptr);
+//   static void Alloc::Free(void* ptr, size_t size);
 //
 // STL_Allocator<T, MyAlloc> provides the same thread-safety
 // guarantees as MyAlloc.
@@ -82,7 +82,7 @@ class STL_Allocator {
     RAW_DCHECK((n * sizeof(T)) / sizeof(T) == n, "n is too big to allocate");
     return static_cast<T*>(Alloc::Allocate(n * sizeof(T)));
   }
-  void deallocate(pointer p, size_type /*n*/) { Alloc::Free(p); }
+  void deallocate(pointer p, size_type n) { Alloc::Free(p, n * sizeof(T)); }
 
   size_type max_size() const { return size_t(-1) / sizeof(T); }
 

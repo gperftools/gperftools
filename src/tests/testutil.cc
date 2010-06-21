@@ -80,7 +80,7 @@ struct FunctionAndId {
   int id;
 };
 
-#if defined(NO_THREADS) || !(defined(HAVE_PTHREADS) || defined(_WIN32))
+#if defined(NO_THREADS) || !(defined(HAVE_PTHREAD) || defined(_WIN32))
 
 extern "C" void RunThread(void (*fn)()) {
   (*fn)();

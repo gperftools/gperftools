@@ -63,9 +63,6 @@ inline bool KernelSupportsTLS() {
 
 class ThreadCache {
  public:
-  // Default bound on the total amount of thread caches.
-  static const size_t kDefaultOverallThreadCacheSize = 16 << 20;
-
   // All ThreadCache objects are kept in a linked list (for stats collection)
   ThreadCache* next_;
   ThreadCache* prev_;
@@ -212,19 +209,6 @@ class ThreadCache {
       if (length_ < lowater_) lowater_ = length_;
     }
   };
-
-  // The number of bytes one ThreadCache will steal from another when
-  // the first ThreadCache is forced to Scavenge(), delaying the
-  // next call to Scavenge for this thread.
-  static const size_t kStealAmount = 1 << 16;
-
-  // Lower and upper bounds on the per-thread cache sizes
-  static const size_t kMinThreadCacheSize = kMaxSize * 2; //kStealAmount;
-  static const size_t kMaxThreadCacheSize = 2 << 20;
-
-  // The number of times that a deallocation can cause a freelist to
-  // go over its max_length() before shrinking max_length().
-  static const int kMaxOverages = 3;
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.

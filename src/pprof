@@ -215,7 +215,7 @@ Call-graph Options:
                        (i.e. direct leak generators) more visible
 
 Miscellaneous:
-   --tools=<prefix>    Prefix for object tool pathnames
+   --tools=<prefix or binary:fullpath>[,...]   \$PATH for object tool pathnames
    --test              Run unit tests
    --help              This message
    --version           Version information
@@ -4331,18 +4331,27 @@ sub ConfigureTool {
   my $tool = shift;
   my $path;
 
-  if ($main::opt_tools ne "") {
-    # Use a prefix specified by the --tools option...
-    $path = $main::opt_tools . $tool;
-    if (!-x $path) {
-      error("No '$tool' found with prefix specified by --tools $main::opt_tools\n");
+  # --tools (or $PPROF_TOOLS) is a comma separated list, where each
+  # item is either a) a pathname prefix, or b) a map of the form
+  # <tool>:<path>.  First we look for an entry of type (b) for our
+  # tool.  If one is found, we use it.  Otherwise, we consider all the
+  # pathname prefixes in turn, until one yields an existing file.  If
+  # none does, we use a default path.
+  my $tools = $main::opt_tools || $ENV{"PPROF_TOOLS"} || "";
+  if ($tools =~ m/(,|^)\Q$tool\E:([^,]*)/) {
+    $path = $2;
+    # TODO(csilvers): sanity-check that $path exists?  Hard if it's relative.
+  } elsif ($tools) {
+    foreach my $prefix (split(',', $tools)) {
+      next if ($prefix =~ /:/);    # ignore "tool:fullpath" entries in the list
+      if (-x $prefix . $tool) {
+        $path = $prefix . $tool;
+        last;
+      }
     }
-  } elsif (exists $ENV{"PPROF_TOOLS"} &&
-           $ENV{"PPROF_TOOLS"} ne "") {
-    #... or specified with the PPROF_TOOLS environment variable...
-    $path = $ENV{"PPROF_TOOLS"} . $tool;
-    if (!-x $path) {
-      error("No '$tool' found with prefix specified by PPROF_TOOLS=$ENV{PPROF_TOOLS}\n");
+    if (!$path) {
+      error("No '$tool' found with prefix specified by " .
+            "--tools (or \$PPROF_TOOLS) '$tools'\n");
     }
   } else {
     # ... otherwise use the version that exists in the same directory as

@@ -44,13 +44,16 @@
 #endif
 #include <vector>
 #include "base/logging.h"
+#include "common.h"
 #include <google/malloc_extension.h>
 
 using std::vector;
 
 int main(int argc, char** argv) {
-  static const int kAllocSize = 36<<10; // Bigger than tcmalloc page size
-  static const int kTotalAlloc = 400 << 20; // Allocate 400MB in total
+  // Make kAllocSize larger than tcmalloc page size.
+  static const int kAllocSize = 9 << kPageShift;
+  // Allocate 400MB in total.
+  static const int kTotalAlloc = 400 << 20;
   static const int kAllocIterations = kTotalAlloc / kAllocSize;
 
   // Allocate lots of objects

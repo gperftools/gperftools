@@ -304,6 +304,9 @@ class HeapLeakChecker::Allocator {
     if (p) alloc_count_ -= 1;
     LowLevelAlloc::Free(p);
   }
+  static void Free(void* p, size_t /* n */) {
+    Free(p);
+  }
   // destruct, free, and make *p to be NULL
   template<typename T> static void DeleteAndNull(T** p) {
     (*p)->~T();

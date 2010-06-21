@@ -4,34 +4,6 @@ There are known issues with some perftools functionality on x86_64
 systems.  See 64-BIT ISSUES, below.
 
 
-CPU PROFILER
-------------
-See doc/cpu-profiler.html for information about how to use the CPU
-profiler and analyze its output.
-
-As a quick-start, do the following after installing this package:
-
-1) Link your executable with -lprofiler
-2) Run your executable with the CPUPROFILE environment var set:
-     $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
-3) Run pprof to analyze the CPU usage
-     $ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
-     $ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output
-
-There are other environment variables, besides CPUPROFILE, you can set
-to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
-
-The CPU profiler is available on all unix-based systems we've tested;
-see INSTALL for more details.  It is not currently available on Windows.
-
-NOTE: CPU profiling doesn't work after fork (unless you immediately
-      do an exec()-like call afterwards).  Furthermore, if you do
-      fork, and the child calls exit(), it may corrupt the profile
-      data.  You can use _exit() to work around this.  We hope to have
-      a fix for both problems in the next release of perftools
-      (hopefully perftools 1.2).
-
-
 TCMALLOC
 --------
 Just link in -ltcmalloc or -ltcmalloc_minimal to get the advantages of
@@ -41,6 +13,19 @@ environment variables you can use with tcmalloc, as well.
 tcmalloc functionality is available on all systems we've tested; see
 INSTALL for more details.  See README.windows for instructions on
 using tcmalloc on Windows.
+
+NOTE: When compiling with programs with gcc, that you plan to link
+with libtcmalloc, it's safest to pass in the flags
+
+ -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+
+when compiling.  gcc makes some optimizations assuming it is using its
+own, built-in malloc; that assumption obviously isn't true with
+tcmalloc.  In practice, we haven't seen any problems with this, but
+the expected risk is highest for users who register their own malloc
+hooks with tcmalloc (using google/malloc_hook.h).  The risk is lowest
+for folks who use tcmalloc_minimal (or, of course, who pass in the
+above flags :-) ).
 
 
 HEAP PROFILER
@@ -94,6 +79,34 @@ didn't compile.
 
 The heap checker is only available on Linux at this time; see INSTALL
 for more details.
+
+
+CPU PROFILER
+------------
+See doc/cpu-profiler.html for information about how to use the CPU
+profiler and analyze its output.
+
+As a quick-start, do the following after installing this package:
+
+1) Link your executable with -lprofiler
+2) Run your executable with the CPUPROFILE environment var set:
+     $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
+3) Run pprof to analyze the CPU usage
+     $ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
+     $ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output
+
+There are other environment variables, besides CPUPROFILE, you can set
+to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
+
+The CPU profiler is available on all unix-based systems we've tested;
+see INSTALL for more details.  It is not currently available on Windows.
+
+NOTE: CPU profiling doesn't work after fork (unless you immediately
+      do an exec()-like call afterwards).  Furthermore, if you do
+      fork, and the child calls exit(), it may corrupt the profile
+      data.  You can use _exit() to work around this.  We hope to have
+      a fix for both problems in the next release of perftools
+      (hopefully perftools 1.2).
 
 
 EVERYTHING IN ONE

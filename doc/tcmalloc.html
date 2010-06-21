@@ -462,11 +462,15 @@ environment variables.</p>
 
 <tr valign=top>
   <td><code>TCMALLOC_SAMPLE_PARAMETER</code></td>
-  <td>default: 524288</td>
+  <td>default: 0</td>
   <td>
     The approximate gap between sampling actions.  That is, we
     take one sample approximately once every
     <code>tcmalloc_sample_parmeter</code> bytes of allocation.
+    This sampled heap information is available via
+    <code>MallocExtension::GetHeapSample()</code> or
+    <code>MallocExtension::ReadStackTraces()</code>.  A reasonable
+    value is 524288.
   </td>
 </tr>
 
@@ -675,11 +679,33 @@ you can access them with a call like
 </tr>
 
 <tr valign=top>
+  <td><code>tcmalloc.pageheap_free_bytes</code></td>
+  <td>
+    Number of bytes in free, mapped pages in page heap.  These bytes
+    can be used to fulfill allocation requests.  They always count
+    towards virtual memory usage, and unless the underlying memory is
+    swapped out by the OS, they also count towards physical memory
+    usage.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>tcmalloc.pageheap_unmapped_bytes</code></td>
+  <td>
+    Number of bytes in free, unmapped pages in page heap.  These are
+    bytes that have been released back to the OS, possibly by one of
+    the MallocExtension "Release" calls.  They can be used to fulfill
+    allocation requests, but typically incur a page fault.  They
+    always count towards virtual memory usage, and depending on the
+    OS, typically do not count towards physical memory usage.
+  </td>
+</tr>
+
+<tr valign=top>
   <td><code>tcmalloc.slack_bytes</code></td>
   <td>
-    A measure of memory fragmentation (how much memory is reserved by
-    TCMalloc but unlikely to ever be able to serve an allocation
-    request).
+    Sum of pageheap_free_bytes and pageheap_unmapped_bytes.  Provided
+    for backwards compatibility only.  Do not use.
   </td>
 </tr>
 

@@ -154,7 +154,7 @@
 /* Define to 1 if you have the <sys/types.h> header file. */
 #define HAVE_SYS_TYPES_H 1
 
-/* Define to 1 if you have the <sys/ucontext.h> header file. */
+/* <sys/ucontext.h> is broken on redhat 7 */
 #undef HAVE_SYS_UCONTEXT_H
 
 /* Define to 1 if you have the <sys/wait.h> header file. */
@@ -171,6 +171,9 @@
 
 /* Define to 1 if you have the <unwind.h> header file. */
 #undef HAVE_UNWIND_H
+
+/* Define to 1 if you have the <valgrind.h> header file. */
+#undef HAVE_VALGRIND_H
 
 /* define if your compiler has __attribute__ */
 #undef HAVE___ATTRIBUTE__

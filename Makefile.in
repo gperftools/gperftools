@@ -46,8 +46,17 @@ build_triplet = @build@
 host_triplet = @host@
 @WITH_STACK_TRACE_FALSE@am__append_1 = -DNO_TCMALLOC_SAMPLES
 
-# These are good warnings to turn on by default,
-@GCC_TRUE@am__append_2 = -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare
+# These are good warnings to turn on by default.  We also tell gcc
+# that malloc, free, realloc, mmap, etc. are not builtins (these flags
+# are supported since gcc 3.1.1).  gcc doesn't think most of them are
+# builtins now in any case, but it's best to be explicit in case that
+# changes one day.  gcc ignores functions it doesn't understand.
+@GCC_TRUE@am__append_2 = -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare \
+@GCC_TRUE@               -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
+@GCC_TRUE@               -fno-builtin-calloc -fno-builtin-cfree \
+@GCC_TRUE@               -fno-builtin-memalign -fno-builtin-posix_memalign \
+@GCC_TRUE@               -fno-builtin-valloc -fno-builtin-pvalloc
+
 
 # These are x86-specific, having to do with frame-pointers.  In
 # particular, some x86_64 systems do not insert frame pointers by
@@ -152,11 +161,15 @@ bin_PROGRAMS =
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	raw_printer_test \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampler_test \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampling_test.sh$(EXEEXT)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_35 = vsprojects/sampler_test/sampler_test.vcproj
+
+# sampler_test and sampling_test both require sampling to be turned
+# on, which it's not by default.  Use the "standard" value of 2^19.
 
 # These unittests often need to run binaries.  They're in the current dir
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_36 = BINDIR=. \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_35 = TCMALLOC_SAMPLE_PARAMETER=524288 \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	BINDIR=. \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	TMPDIR=/tmp/perftools
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_36 = vsprojects/sampler_test/sampler_test.vcproj
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_37 = $(sampling_test_sh_SOURCES)
 
 # This is the sub-program used by sampling_test.sh
@@ -345,8 +358,8 @@ libsysinfo_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
 am_libsysinfo_la_OBJECTS = sysinfo.lo $(am__objects_1)
 libsysinfo_la_OBJECTS = $(am_libsysinfo_la_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_DEPENDENCIES =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal.la
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal.la \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
 am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
@@ -394,8 +407,8 @@ libtcmalloc_la_OBJECTS = $(am_libtcmalloc_la_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_la_rpath = -rpath \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(libdir)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_3 =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal.la
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal.la \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_and_profiler_la_DEPENDENCIES = $(am__DEPENDENCIES_3)
 am__libtcmalloc_and_profiler_la_SOURCES_DIST = src/tcmalloc.cc \
 	src/common.h src/internal_logging.h src/system-alloc.h \
@@ -486,8 +499,8 @@ libtcmalloc_debug_la_OBJECTS = $(am_libtcmalloc_debug_la_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_debug_la_rpath = -rpath \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(libdir)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_DEPENDENCIES =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libstacktrace.la
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libstacktrace.la \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
 am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/internal_logging.cc src/system-alloc.cc \
 	src/memfs_malloc.cc src/central_freelist.cc src/page_heap.cc \
@@ -550,8 +563,8 @@ am__objects_21 = libtcmalloc_internal_la-common.lo \
 libtcmalloc_internal_la_OBJECTS =  \
 	$(am_libtcmalloc_internal_la_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_internal_la_rpath =
-libtcmalloc_minimal_la_DEPENDENCIES = $(am__DEPENDENCIES_1) \
-	libtcmalloc_minimal_internal.la
+libtcmalloc_minimal_la_DEPENDENCIES = libtcmalloc_minimal_internal.la \
+	$(am__DEPENDENCIES_1)
 am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
@@ -574,8 +587,8 @@ am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 am_libtcmalloc_minimal_la_OBJECTS = $(am__objects_22) \
 	$(am__objects_20)
 libtcmalloc_minimal_la_OBJECTS = $(am_libtcmalloc_minimal_la_OBJECTS)
-am__DEPENDENCIES_4 = $(am__DEPENDENCIES_1) \
-	libtcmalloc_minimal_internal.la
+am__DEPENDENCIES_4 = libtcmalloc_minimal_internal.la \
+	$(am__DEPENDENCIES_1)
 @WITH_DEBUGALLOC_TRUE@libtcmalloc_minimal_debug_la_DEPENDENCIES =  \
 @WITH_DEBUGALLOC_TRUE@	$(am__DEPENDENCIES_4)
 am__libtcmalloc_minimal_debug_la_SOURCES_DIST =  \
@@ -782,9 +795,9 @@ am__heap_checker_debug_unittest_SOURCES_DIST =  \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@am_heap_checker_debug_unittest_OBJECTS = $(am__objects_27)
 heap_checker_debug_unittest_OBJECTS =  \
 	$(am_heap_checker_debug_unittest_OBJECTS)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_DEPENDENCIES = $(am__DEPENDENCIES_1) \
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_DEPENDENCIES = libtcmalloc_debug.la \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@	liblogging.la \
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@	libtcmalloc_debug.la
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
 am__heap_checker_debug_unittest_sh_SOURCES_DIST =  \
 	src/tests/heap-checker_unittest.sh
 am_heap_checker_debug_unittest_sh_OBJECTS =
@@ -803,8 +816,8 @@ heap_checker_unittest_OBJECTS = $(am_heap_checker_unittest_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_6 =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc.la
 @WITH_HEAP_CHECKER_TRUE@heap_checker_unittest_DEPENDENCIES =  \
-@WITH_HEAP_CHECKER_TRUE@	$(am__DEPENDENCIES_1) liblogging.la \
-@WITH_HEAP_CHECKER_TRUE@	$(am__DEPENDENCIES_6)
+@WITH_HEAP_CHECKER_TRUE@	$(am__DEPENDENCIES_6) liblogging.la \
+@WITH_HEAP_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
 am__heap_checker_unittest_sh_SOURCES_DIST =  \
 	src/tests/heap-checker_unittest.sh
 am_heap_checker_unittest_sh_OBJECTS =
@@ -1329,7 +1342,7 @@ man1dir = $(mandir)/man1
 NROFF = nroff
 MANS = $(dist_man_MANS)
 am__dist_doc_DATA_DIST = AUTHORS COPYING ChangeLog INSTALL NEWS README \
-	README.windows TODO doc/index.html doc/designstyle.css \
+	README_windows.txt TODO doc/index.html doc/designstyle.css \
 	doc/pprof_remote_servers.html doc/tcmalloc.html \
 	doc/overview.gif doc/pageheap.gif doc/spanmap.gif \
 	doc/threadheap.gif doc/t-test1.times.txt \
@@ -1597,7 +1610,7 @@ noinst_HEADERS = src/google/tcmalloc.h.in
 # one day we figure it out.  Regardless, installing the dot files isn't the
 # end of the world.
 dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README \
-	README.windows TODO doc/index.html doc/designstyle.css \
+	README_windows.txt TODO doc/index.html doc/designstyle.css \
 	$(am__append_12) doc/tcmalloc.html doc/overview.gif \
 	doc/pageheap.gif doc/spanmap.gif doc/threadheap.gif \
 	doc/t-test1.times.txt \
@@ -1658,7 +1671,7 @@ WINDOWS_PROJECTS = google-perftools.sln \
 	vsprojects/realloc_unittest/realloc_unittest.vcproj \
 	vsprojects/stack_trace_table_test/stack_trace_table_test.vcproj \
 	vsprojects/thread_dealloc_unittest/thread_dealloc_unittest.vcproj \
-	$(am__append_35)
+	$(am__append_36)
 
 # unittests you want to run when people type 'make check'.
 # Note: tests cannot take any arguments!
@@ -1690,7 +1703,7 @@ TESTS = low_level_alloc_unittest atomicops_unittest $(am__append_11) \
 # TESTS_ENVIRONMENT sets environment variables for when you run unittest.
 # We always get "srcdir" set for free.
 # We'll add to this later, on a library-by-library basis.
-TESTS_ENVIRONMENT = $(am__append_13) $(am__append_36)
+TESTS_ENVIRONMENT = $(am__append_13) $(am__append_35)
 # All script tests should be added here
 noinst_SCRIPTS = $(am__append_16) $(am__append_25) $(am__append_37) \
 	$(am__append_40) $(am__append_43) $(am__append_58)
@@ -1916,7 +1929,7 @@ libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
-libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) libtcmalloc_minimal_internal.la
+libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la $(PTHREAD_LIBS)
 @MINGW_FALSE@LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 
 # For windows, we're playing around with trying to do some stacktrace
@@ -1930,6 +1943,13 @@ tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 
 tcmalloc_minimal_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
 tcmalloc_minimal_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) \
                                   liblogging.la $(PTHREAD_LIBS)
 
@@ -2098,7 +2118,7 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(NO_EXCEPTIONS) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__append_31)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_SOURCES =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(TCMALLOC_CC) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(TCMALLOC_INCLUDES) \
@@ -2108,7 +2128,7 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(AM_CXXFLAGS) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__append_32)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) libtcmalloc_internal.la
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_LIBADD = libtcmalloc_internal.la $(PTHREAD_LIBS)
 @WITH_HEAP_CHECKER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@HEAP_CHECKER_SOURCES = 
 
 # heap-checker-bcad is last, in hopes its global ctor will run first.
@@ -2131,6 +2151,13 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                 src/tests/testutil.h src/tests/testutil.cc \
@@ -2141,6 +2168,13 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
 @WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               liblogging.la $(PTHREAD_LIBS)
 
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               libprofiler.la liblogging.la $(PTHREAD_LIBS)
 
@@ -2193,8 +2227,14 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 @WITH_HEAP_CHECKER_TRUE@heap_checker_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 @WITH_HEAP_CHECKER_TRUE@heap_checker_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-# tcmalloc has to be specified last!
-@WITH_HEAP_CHECKER_TRUE@heap_checker_unittest_LDADD = $(PTHREAD_LIBS) liblogging.la $(LIBTCMALLOC)
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
+@WITH_HEAP_CHECKER_TRUE@heap_checker_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_debug_la_SOURCES = src/debugallocation.cc $(HEAP_CHECKER_SOURCES) \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               $(TCMALLOC_INCLUDES)
 
@@ -2227,9 +2267,12 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_SOURCES = $(heap_checker_unittest_SOURCES)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_CXXFLAGS = $(heap_checker_unittest_CXXFLAGS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_LDFLAGS = $(heap_checker_unittest_LDFLAGS)
-# tcmalloc has to be specified last!
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_LDADD = $(PTHREAD_LIBS) liblogging.la \
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@                                    libtcmalloc_debug.la
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_LDADD = libtcmalloc_debug.la liblogging.la \
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@                                    $(PTHREAD_LIBS)
 
 
 ### ------- CPU profiler

@@ -17,9 +17,17 @@ endif !WITH_STACK_TRACE
 # This is mostly based on configure options
 AM_CXXFLAGS =
 
-# These are good warnings to turn on by default,
+# These are good warnings to turn on by default.  We also tell gcc
+# that malloc, free, realloc, mmap, etc. are not builtins (these flags
+# are supported since gcc 3.1.1).  gcc doesn't think most of them are
+# builtins now in any case, but it's best to be explicit in case that
+# changes one day.  gcc ignores functions it doesn't understand.
 if GCC
-AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare
+AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare \
+               -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
+               -fno-builtin-calloc -fno-builtin-cfree \
+               -fno-builtin-memalign -fno-builtin-posix_memalign \
+               -fno-builtin-valloc -fno-builtin-pvalloc
 endif GCC
 
 # The -no-undefined flag allows libtool to generate shared libraries for
@@ -96,7 +104,7 @@ docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README README.windows \
+dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README README_windows.txt \
                 TODO
 
 # The libraries (.so's) you want to install
@@ -400,7 +408,7 @@ libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
-libtcmalloc_minimal_la_LIBADD = $(PTHREAD_LIBS) libtcmalloc_minimal_internal.la
+libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la $(PTHREAD_LIBS)
 
 # For windows, we're playing around with trying to do some stacktrace
 # support even with libtcmalloc_minimal.  For everyone else, though,
@@ -442,6 +450,13 @@ tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                     $(TCMALLOC_UNITTEST_INCLUDES)
 tcmalloc_minimal_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
 tcmalloc_minimal_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) \
                                   liblogging.la $(PTHREAD_LIBS)
 
@@ -750,13 +765,13 @@ libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
 libtcmalloc_internal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG \
                                    $(AM_CXXFLAGS) $(NO_EXCEPTIONS)
 libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
-libtcmalloc_internal_la_LIBADD = $(PTHREAD_LIBS) libstacktrace.la
+libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 
 lib_LTLIBRARIES += libtcmalloc.la
 libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES)
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
-libtcmalloc_la_LIBADD = $(PTHREAD_LIBS) libtcmalloc_internal.la
+libtcmalloc_la_LIBADD = libtcmalloc_internal.la $(PTHREAD_LIBS)
 
 if WITH_HEAP_CHECKER
 # heap-checker-bcad is last, in hopes its global ctor will run first.
@@ -789,6 +804,13 @@ tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                             $(TCMALLOC_UNITTEST_INCLUDES)
 tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
 tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
 # This makes sure it's safe to link in both tcmalloc and
@@ -803,6 +825,13 @@ tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 tcmalloc_both_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_both_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 if WITH_CPU_PROFILER
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
 tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
                                libprofiler.la liblogging.la $(PTHREAD_LIBS)
 else
@@ -821,6 +850,10 @@ raw_printer_test_SOURCES = src/tests/raw_printer_test.cc
 raw_printer_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 raw_printer_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 raw_printer_test_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
+
+# sampler_test and sampling_test both require sampling to be turned
+# on, which it's not by default.  Use the "standard" value of 2^19.
+TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
 
 TESTS += sampler_test
 WINDOWS_PROJECTS += vsprojects/sampler_test/sampler_test.vcproj
@@ -909,8 +942,14 @@ heap_checker_unittest_SOURCES = src/tests/heap-checker_unittest.cc \
                                 $(HEAP_CHECKER_UNITTEST_INCLUDES)
 heap_checker_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 heap_checker_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-# tcmalloc has to be specified last!
-heap_checker_unittest_LDADD = $(PTHREAD_LIBS) liblogging.la $(LIBTCMALLOC)
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+# We also put pthreads after tcmalloc, because some pthread
+# implementations define their own malloc, and we need to go on the
+# first linkline to make sure our malloc 'wins'.
+heap_checker_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
 endif WITH_HEAP_CHECKER
 
@@ -1003,9 +1042,12 @@ noinst_PROGRAMS += heap-checker_debug_unittest
 heap_checker_debug_unittest_SOURCES = $(heap_checker_unittest_SOURCES)
 heap_checker_debug_unittest_CXXFLAGS = $(heap_checker_unittest_CXXFLAGS)
 heap_checker_debug_unittest_LDFLAGS = $(heap_checker_unittest_LDFLAGS)
-# tcmalloc has to be specified last!
-heap_checker_debug_unittest_LDADD = $(PTHREAD_LIBS) liblogging.la \
-                                    libtcmalloc_debug.la
+# We want libtcmalloc last on the link line, but due to a bug in
+# libtool involving convenience libs, they need to come last on the
+# link line in order to get dependency ordering right.  This is ok:
+# convenience libraries are .a's, so tcmalloc is still the last .so.
+heap_checker_debug_unittest_LDADD = libtcmalloc_debug.la liblogging.la \
+                                    $(PTHREAD_LIBS)
 
 endif WITH_HEAP_CHECKER
 endif WITH_DEBUGALLOC

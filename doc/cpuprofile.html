@@ -71,6 +71,11 @@ CPUPROFILE with the child's process id).</p>
 <p>For security reasons, CPU profiling will not write to a file -- and
 is thus not usable -- for setuid programs.</p>
 
+<p>See the include-file <code>google/profiler.h</code> for
+advanced-use functions, including <code>ProfilerFlush()</code> and
+<code>ProfilerStartWithOptions()</code>.</p>
+
+
 <H2>Modifying Runtime Behavior</H2>
 
 <p>You can more finely control the behavior of the CPU profiler via

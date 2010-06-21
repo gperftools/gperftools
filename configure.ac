@@ -301,6 +301,18 @@ AC_DEFINE(PERFTOOLS_DLL_DECL,,
 	   internally, to compile the DLL, and every DLL source file
 	   #includes "config.h" before anything else.])
 
+# In theory, config.h files shouldn't need a header guard, but we do,
+# because we (maybe) #include windows/mingw.h from within config.h,
+# and it #includes other .h files.  These all have header guards, so
+# the end result is if config.h is #included twice, its #undefs get
+# evaluated twice, but all the ones in mingw.h/etc only get evaluated
+# once, potentially causing trouble.  c.f.
+#   http://code.google.com/p/google-perftools/issues/detail?id=246
+AH_TOP([
+#ifndef GOOGLE_PERFTOOLS_CONFIG_H_
+#define GOOGLE_PERFTOOLS_CONFIG_H_
+])
+
 # MinGW uses autoconf, but also needs the windows shim routines
 # (since it doesn't have its own support for, say, pthreads).
 # This requires us to #include a special header file, and also to
@@ -309,6 +321,8 @@ AH_BOTTOM([
 #ifdef __MINGW32__
 #include "windows/mingw.h"
 #endif
+
+#endif  /* #ifndef GOOGLE_PERFTOOLS_CONFIG_H_ */
 ])
 AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
 
