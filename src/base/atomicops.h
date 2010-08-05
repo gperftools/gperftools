@@ -89,6 +89,8 @@
 // TODO(csilvers): match piii, not just __i386.  Also, match k8
 #if defined(__MACH__) && defined(__APPLE__)
 #include "base/atomicops-internals-macosx.h"
+#elif defined(__GNUC__) && defined(__ARM_ARCH_5T__)
+#include "base/atomicops-internals-arm-gcc.h"
 #elif defined(_MSC_VER) && defined(_M_IX86)
 #include "base/atomicops-internals-x86-msvc.h"
 #elif defined(__MINGW32__) && defined(__i386__)

@@ -53,6 +53,24 @@ static inline int LgFloor(size_t n) {
   return log;
 }
 
+int AlignmentForSize(size_t size) {
+  int alignment = kAlignment;
+  if (size >= 2048) {
+    // Cap alignment at 256 for large sizes.
+    alignment = 256;
+  } else if (size >= 128) {
+    // Space wasted due to alignment is at most 1/8, i.e., 12.5%.
+    alignment = (1 << LgFloor(size)) / 8;
+  } else if (size >= 16) {
+    // We need an alignment of at least 16 bytes to satisfy
+    // requirements for some SSE types.
+    alignment = 16;
+  }
+  CHECK_CONDITION(size < 16 || alignment >= 16);
+  CHECK_CONDITION((alignment & (alignment - 1)) == 0);
+  return alignment;
+}
+
 int SizeMap::NumMoveSize(size_t size) {
   if (size == 0) return 0;
   // Use approx 64k transfers between thread and central caches.
@@ -93,19 +111,7 @@ void SizeMap::Init() {
     int lg = LgFloor(size);
     if (lg > last_lg) {
       // Increase alignment every so often to reduce number of size classes.
-      if (size >= 2048) {
-        // Cap alignment at 256 for large sizes
-        alignment = 256;
-      } else if (size >= 128) {
-        // Space wasted due to alignment is at most 1/8, i.e., 12.5%.
-        alignment = size / 8;
-      } else if (size >= 16) {
-        // We need an alignment of at least 16 bytes to satisfy
-        // requirements for some SSE types.
-        alignment = 16;
-      }
-      CHECK_CONDITION(size < 16 || alignment >= 16);
-      CHECK_CONDITION((alignment & (alignment - 1)) == 0);
+      alignment = AlignmentForSize(size);
       last_lg = lg;
     }
     CHECK_CONDITION((size % alignment) == 0);

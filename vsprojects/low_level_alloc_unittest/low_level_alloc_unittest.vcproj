@@ -111,7 +111,7 @@
 			Filter="cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx"
 			UniqueIdentifier="{4FC737F1-C7A5-4376-A066-2A32D752A2FF}">
 			<File
-				RelativePath="..\..\src\base\dynamic_annotations.cc">
+				RelativePath="..\..\src\base\dynamic_annotations.c">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool
@@ -248,23 +248,6 @@
 			</File>
 			<File
 				RelativePath="..\..\src\stacktrace.cc">
-				<FileConfiguration
-					Name="Debug|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="3"/>
-				</FileConfiguration>
-				<FileConfiguration
-					Name="Release|Win32">
-					<Tool
-						Name="VCCLCompilerTool"
-						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
-						RuntimeLibrary="2"/>
-				</FileConfiguration>
-			</File>
-			<File
-				RelativePath="..\..\src\stacktrace_with_context.cc">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool

@@ -210,6 +210,7 @@ static char* DoGetHeapProfileLocked(char* buf, int buflen) {
   int bytes_written = 0;
   if (is_on) {
     HeapProfileTable::Stats const stats = heap_profile->total();
+    (void)stats;   // avoid an unused-variable warning in non-debug mode.
     AddRemoveMMapDataLocked(ADD);
     bytes_written = heap_profile->FillOrderedProfile(buf, buflen - 1);
     // FillOrderedProfile should not reduce the set of active mmap-ed regions,

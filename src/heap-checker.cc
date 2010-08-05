@@ -965,7 +965,8 @@ static enum {
     // specially via self_thread_stack, not here:
     if (thread_pids[i] == self_thread_pid) continue;
     RAW_VLOG(11, "Handling thread with pid %d", thread_pids[i]);
-#if defined(HAVE_LINUX_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
+#if (defined(__i386__) || defined(__x86_64)) && \
+    defined(HAVE_LINUX_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
     i386_regs thread_regs;
 #define sys_ptrace(r, p, a, d)  syscall(SYS_ptrace, (r), (p), (a), (d))
     // We use sys_ptrace to avoid thread locking
@@ -2091,12 +2092,11 @@ void HeapLeakChecker::CancelGlobalCheck() {
 // HeapLeakChecker global constructor/destructor ordering components
 //----------------------------------------------------------------------
 
-static bool in_initial_malloc_hook = false;
-
 #ifdef HAVE___ATTRIBUTE__   // we need __attribute__((weak)) for this to work
 #define INSTALLED_INITIAL_MALLOC_HOOKS
 
 void HeapLeakChecker_BeforeConstructors();  // below
+static bool in_initial_malloc_hook = false;
 
 // Helper for InitialMallocHook_* below
 static inline void InitHeapLeakCheckerFromMallocHook() {
@@ -2115,20 +2115,20 @@ static inline void InitHeapLeakCheckerFromMallocHook() {
 // These will owerwrite the weak definitions in malloc_hook.cc:
 
 // Important to have this to catch the first allocation call from the binary:
-extern void InitialMallocHook_New(const void* ptr, size_t size) {
+extern "C" void InitialMallocHook_New(const void* ptr, size_t size) {
   InitHeapLeakCheckerFromMallocHook();
   // record this first allocation as well (if we need to):
   MallocHook::InvokeNewHook(ptr, size);
 }
 
 // Important to have this to catch the first mmap call (say from tcmalloc):
-extern void InitialMallocHook_MMap(const void* result,
-                                   const void* start,
-                                   size_t size,
-                                   int protection,
-                                   int flags,
-                                   int fd,
-                                   off_t offset) {
+extern "C" void InitialMallocHook_MMap(const void* result,
+                                       const void* start,
+                                       size_t size,
+                                       int protection,
+                                       int flags,
+                                       int fd,
+                                       off_t offset) {
   InitHeapLeakCheckerFromMallocHook();
   // record this first mmap as well (if we need to):
   MallocHook::InvokeMmapHook(
@@ -2136,7 +2136,8 @@ extern void InitialMallocHook_MMap(const void* result,
 }
 
 // Important to have this to catch the first sbrk call (say from tcmalloc):
-extern void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment) {
+extern "C" void InitialMallocHook_Sbrk(const void* result,
+                                       ptrdiff_t increment) {
   InitHeapLeakCheckerFromMallocHook();
   // record this first sbrk as well (if we need to):
   MallocHook::InvokeSbrkHook(result, increment);

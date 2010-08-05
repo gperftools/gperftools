@@ -111,6 +111,10 @@ inline Length pages(size_t bytes) {
       ((bytes & (kPageSize - 1)) > 0 ? 1 : 0);
 }
 
+// For larger allocation sizes, we use larger memory alignments to
+// reduce the number of size classes.
+int AlignmentForSize(size_t size);
+
 // Size-class information + mapping
 class SizeMap {
  private:

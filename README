@@ -11,7 +11,7 @@ tcmalloc -- a replacement for malloc and new.  See below for some
 environment variables you can use with tcmalloc, as well.
 
 tcmalloc functionality is available on all systems we've tested; see
-INSTALL for more details.  See README.windows for instructions on
+INSTALL for more details.  See README_windows.txt for instructions on
 using tcmalloc on Windows.
 
 NOTE: When compiling with programs with gcc, that you plan to link
@@ -161,7 +161,7 @@ in its full generality only on those systems.  However, we've
 successfully ported much of the tcmalloc library to FreeBSD, Solaris
 x86, and Darwin (Mac OS X) x86 and ppc; and we've ported the basic
 functionality in tcmalloc_minimal to Windows.  See INSTALL for details.
-See README.windows for details on the Windows port.
+See README_windows.txt for details on the Windows port.
 
 
 PERFORMANCE
@@ -174,6 +174,11 @@ various malloc libraries on OpenLDAP.  The second compares tcmalloc to
 win32's malloc.
   http://www.highlandsun.com/hyc/malloc/
   http://gaiacrtn.free.fr/articles/win32perftools.html
+
+It's possible to build tcmalloc in a way that trades off faster
+performance (particularly for deletes) at the cost of more memory
+fragmentation (that is, more unusable memory on your system).  See the
+INSTALL file for details.
 
 
 OLD SYSTEM ISSUES

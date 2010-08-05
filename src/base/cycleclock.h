@@ -48,6 +48,8 @@
 #include "base/basictypes.h"   // make sure we get the def for int64
 #if defined(__MACH__) && defined(__APPLE__)
 #include <mach/mach_time.h>
+#elif defined(__ARM_ARCH_5T__)
+#include <sys/time.h>
 #endif
 
 // NOTE: only i386 and x86_64 have been well tested.
@@ -71,8 +73,7 @@ struct CycleClock {
     return mach_absolute_time();
 #elif defined(__i386__)
     int64 ret;
-    __asm__ volatile ("rdtsc"
-                      : "=A" (ret) );
+    __asm__ volatile ("rdtsc" : "=A" (ret) );
     return ret;
 #elif defined(__x86_64__) || defined(__amd64__)
     uint64 low, high;
@@ -82,11 +83,15 @@ struct CycleClock {
     // This returns a time-base, which is not always precisely a cycle-count.
     int64 tbl, tbu0, tbu1;
     asm("mftbu %0" : "=r" (tbu0));
-    asm("mftb  %0" : "=r" (tbl ));
+    asm("mftb  %0" : "=r" (tbl));
     asm("mftbu %0" : "=r" (tbu1));
     tbl &= -static_cast<int64>(tbu0 == tbu1);
     // high 32 bits in tbu1; low 32 bits in tbl  (tbu0 is garbage)
     return (tbu1 << 32) | tbl;
+#elif defined(__ARM_ARCH_5T__)
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return static_cast<uint64>(tv.tv_sec) * 1000000 + tv.tv_usec;
 #elif defined(__sparc__)
     int64 tick;
     asm(".byte 0x83, 0x41, 0x00, 0x00");

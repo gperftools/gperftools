@@ -27,7 +27,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
    pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
    pc_fields="$pc_fields uc_mcontext.gregs[[R15]]"     # Linux (arm old [untested])
-   pc_fields="$pc_fields uc_mcontext.arm_pc"           # Linux (arm new [untested])
+   pc_fields="$pc_fields uc_mcontext.arm_pc"           # Linux (arm arch 5)
    pc_fields="$pc_fields uc_mcontext.gp_regs[[PT_NIP]]"  # Suse SLES 11 (ppc64)
    pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
    pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])

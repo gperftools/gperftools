@@ -647,6 +647,11 @@ TEST(Sample, size_of_class) {
   LOG(INFO) << "Size of Sampler object is: " << sizeof(sampler);
 }
 
+// Make sure sampling is enabled, or the tests won't work right.
+DECLARE_int64(tcmalloc_sample_parameter);
+
 int main(int argc, char **argv) {
+  if (FLAGS_tcmalloc_sample_parameter == 0)
+    FLAGS_tcmalloc_sample_parameter = 524288;
   return RUN_ALL_TESTS();
 }

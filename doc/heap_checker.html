@@ -89,7 +89,7 @@ check:</p>
   <li> <code>draconian</code>
 </ol>
 
-<p>"Minimal" heap-checking starts as late as possible ina
+<p>"Minimal" heap-checking starts as late as possible in a
 initialization, meaning you can leak some memory in your
 initialization routines (that run before <code>main()</code>, say),
 and not trigger a leak message.  If you frequently (and purposefully)
@@ -162,19 +162,13 @@ cleanup code as active only when the heap-checker is turned on.</p>
 
 <h2><a name="explicit">Explicit (Partial-program) Heap Leak Checking</h2>
 
-<p>Instead of whole-program checking, you can check certain parts of
-your code to verify they do not have memory leaks.  There are two
-types of checks you can do.  The "no leak" check verifies that between
-two parts of a program, no memory is allocated without being freed; it
-checks that memory does not grow.  The stricter "same heap" check
-verifies that two parts of a program share the same heap profile; that
-is, that the memory does not grow <i>or shrink</i>, or change in any
-way.</p>
-
+<p>Instead of whole-program checking, you can check certain parts of your
+code to verify they do not have memory leaks.  This check verifies that
+between two parts of a program, no memory is allocated without being freed.</p>
 <p>To use this kind of checking code, bracket the code you want
 checked by creating a <code>HeapLeakChecker</code> object at the
-beginning of the code segment, and calling <code>*SameHeap()</code> or
-<code>*NoLeaks()</code> at the end.  These functions, and all others
+beginning of the code segment, and call
+<code>NoLeaks()</code> at the end.  These functions, and all others
 referred to in this file, are declared in
 <code>&lt;google/heap-checker.h&gt;</code>.
 </p>
@@ -184,30 +178,10 @@ referred to in this file, are declared in
   HeapLeakChecker heap_checker("test_foo");
   {
     code that exercises some foo functionality;
-    this code should preserve memory allocation state;
+    this code should not leak memory;
   }
-  if (!heap_checker.SameHeap()) assert(NULL == "heap memory leak");
+  if (!heap_checker.NoLeaks()) assert(NULL == "heap memory leak");
 </pre>
-
-<p>The various flavors of these functions -- <code>SameHeap()</code>,
-<code>QuickSameHeap()</code>, <code>BriefSameHeap()</code> -- trade
-off running time for accuracy: the faster routines might miss some
-legitimate leaks.  For instance, the briefest tests might be confused
-by code like this:</p>
-<pre>
-   void LeakTwentyBytes() {
-     char* a = malloc(20);
-     HeapLeakChecker heap_checker("test_malloc");
-     char* b = malloc(20);
-     free(a);
-     // This will pass: it totes up 20 bytes allocated and 20 bytes freed
-     assert(heap_checker.BriefNoLeaks());  // doesn't detect that b is leaked
-   }
-</pre>
-
-<p>(This is because <code>BriefSameHeap()</code> does not use <A
-HREF="#pprof">pprof</A>, which is slower but is better able to track
-allocations in tricky situations like the above.)</p>
 
 <p>Note that adding in the <code>HeapLeakChecker</code> object merely
 instruments the code for leak-checking.  To actually turn on this
@@ -300,28 +274,12 @@ checking.</p>
 <table frame=box rules=sides cellpadding=5 width=100%>
 
 <tr valign=top>
-  <td><code>HEAP_CHECK_REPORT</code></td>
-  <td>Default: true</td>
-  <td>
-    If true, use <code>pprof</code> to report more info about found leaks.
-  </td>
-</tr>
-
-<tr valign=top>
-  <td><code>HEAP_CHECK_STRICT_CHECK</code></td>
-  <td>Default: true</td>
-  <td>
-    If true, do the program-end check via <code>SameHeap()</code>;
-    if false, use <code>NoLeaks()</code>.
-  </td>
-</tr>
-
-<tr valign=top>
   <td><code>HEAP_CHECK_MAX_LEAKS</code></td>
   <td>Default: 20</td>
   <td>
-    The maximum number of leaks to be reported. If negative or zero, print all
-    the leaks found.
+    The maximum number of leaks to be printed to stderr (all leaks are still
+    emitted to file output for pprof to visualize). If negative or zero,
+    print all the leaks found.
   </td>
 </tr>
 
@@ -449,16 +407,15 @@ and then look closely at the generated leak report messages.
 <p>When a <code>HeapLeakChecker</code> object is constructed, it dumps
 a memory-usage profile named
 <code>&lt;prefix&gt;.&lt;name&gt;-beg.heap</code> to a temporary
-directory.  When <code>*NoLeaks()</code> or <code>*SameHeap()</code>
+directory.  When <code>NoLeaks()</code>
 is called (for whole-program checking, this happens automatically at
 program-exit), it dumps another profile, named
 <code>&lt;prefix&gt;.&lt;name&gt;-end.heap</code>.
 (<code>&lt;prefix&gt;</code> is typically determined automatically,
 and <code>&lt;name&gt;</code> is typically <code>argv[0]</code>.)  It
-then compares the two profiles.  If the second profile shows more
-memory use than the first (or, for <code>*SameHeap()</code> calls,
-any different pattern of memory use than the first), the
-<code>*NoLeaks()</code> or <code>*SameHeap()</code> function will
+then compares the two profiles.  If the second profile shows
+more memory use than the first, the
+<code>NoLeaks()</code> function will
 return false.  For "whole program" profiling, this will cause the
 executable to abort (via <code>exit(1)</code>).  In all cases, it will
 print a message on how to process the dumped profiles to locate
@@ -520,94 +477,20 @@ of explicit clean up code and other hassles when dealing with thread
 data.</p>
 
 
-<h3><A NAME="pprof">More Exact Checking via pprof</A></h3>
+<h3>Visualizing Leak with <code>pprof</code></h3>
 
-<p>The perftools profiling tool, <code>pprof</code>, is primarily
-intended for users to use interactively in order to explore heap and
-CPU usage.  However, the heap-checker can -- and, by default, does -
-call <code>pprof</code> internally, in order to improve its leak
-checking.</p>
-
-<p>In particular, the heap-checker calls <code>pprof</code> to utilize
-the full call-path for all allocations.  <code>pprof</code> uses this
-data to disambiguate allocations.  When the time comes to do a
-<code>SameHeap</code> or <code>NoLeaks</code> check, the heap-checker
-asks <code>pprof</code> to do this check on an
-allocation-by-allocation basis, rather than just by comparing global
-counts.</p>
-
-<p>Here's an example.  Consider the following function:</p>
-<pre>
-   void LeakTwentyBytes() {
-     char* a = malloc(20);
-     HeapLeakChecker heap_checker("test_malloc");
-     char* b = malloc(20);
-     free(a);
-     heap_checker.NoLeaks();
-   }
-</pre>
-
-<p>Without using pprof, the only thing we will do is count up the
-number of allocations and frees inside the leak-checked interval.
-Twenty bytes allocated, twenty bytes freed, and the code looks ok.</p>
-
-<p>With pprof, however, we can track the call-path for each
-allocation, and account for them separately.  In the example function
-above, there are two call-paths that end in an allocation, one that
-ends in "LeakTwentyBytes:line1" and one that ends in
-"LeakTwentyBytes:line3".</p>
-
-<p>Here's how the heap-checker works when it can use pprof in this
-way:</p>
-<ol>
-  <li> <b>Line 1:</b> Allocate 20 bytes, mark <code>a</code> as having
-       call-path "LeakTwentyBytes:line1", and update the count-map
-       <pre>count["LeakTwentyByte:line1"] += 20;</pre>
-  <li> <b>Line 2:</b> Dump the current <code>count</code> map to a file.
-  <li> <b>Line 3:</b> Allocate 20 bytes, mark <code>b</code> as having
-       call-path "LeakTwentyBytes:line3", and update the count-map:
-       <pre>count["LeakTwentyByte:line3"] += 20;</pre>
-  <li> <b>Line 4:</b> Look up <code>a</code> to find its call-path
-       (stored in line 1), and use that to update the count-map:
-       <pre>count["LeakTwentyByte:line1"] -= 20;</pre>          
-  <li> <b>Line 5:</b> Look at each bucket in the current count-map,
-       minus what was dumped in line 2.  Here's the diffs we'll have
-       in each bucket:
-       <pre>
-count["LeakTwentyByte:line1"] == -20;
-count["LeakTwentyByte:line3"] == 20;
-       </pre>
-       Since <i>at least one</i> bucket has a positive number, we
-       complain of a leak.  (Note if line 5 had been
-       <code>SameHeap</code> instead of <code>NoLeaks</code>, we would 
-       have complained if any bucket had had a <i>non-zero</i>
-       number.)
-</ol>
-
-<p>Note that one way to visualize the non-<code>pprof</code> mode is
-that we do the same thing as above, but always use "unknown" as the
-call-path.  That is, our count-map always only has one entry in it:
-<code>count["unknown"]</code>.  Looking at the example above shows how
-having only one entry in the map can lead to incorrect results.</p>
-
-<p>Here is when <code>pprof</code> is used by the heap-checker:</p>
-<ul>
-  <li> <code>NoLeaks()</code> and <code>SameHeap()</code> both use
-       <code>pprof</code>.
-  <li> <code>BriefNoLeaks()</code> and <code>BriefSameHeap()</code> do
-       not use <code>pprof</code>.
-  <li> <code>QuickNoLeaks</code> and <code>QuickSameHeap()</code> are
-       a kind of compromise: they do <i>not</i> use pprof for their
-       leak check, but if that check happens to find a leak anyway,
-       then they re-do the leak calculation using <code>pprof</code>.
-       This means they do not always find leaks, but when they do,
-       they will be as accurate as possible in their leak report.
-</ul>
+<p>
+The heap checker automatically prints basic leak info with stack traces of
+leaked objects' allocation sites, as well as a pprof command line that can be
+used to visualize the call-graph involved in these allocations.
+The latter can be much more useful for a human
+to see where/why the leaks happened, especially if the leaks are numerous.
+</p>
 
 <h3>Leak-checking and Threads</h3>
 
 <p>At the time of HeapLeakChecker's construction and during
-<code>*NoLeaks()</code>/<code>*SameHeap()</code> calls, we grab a lock
+<code>NoLeaks()</code> calls, we grab a lock
 and then pause all other threads so other threads do not interfere
 with recording or analyzing the state of the heap.</p>
 
@@ -635,7 +518,8 @@ depending on how the compiled code works with the stack:</p>
   int* foo = new int [20];
   HeapLeakChecker check("a_check");
   foo = NULL;
-  CHECK(check.NoLeaks());  // this might succeed
+  // May fail to trigger.
+  if (!heap_checker.NoLeaks()) assert(NULL == "heap memory leak");
 </pre>
 
 

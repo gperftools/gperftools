@@ -90,6 +90,13 @@ extern "C" {
   PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW;
 #endif
 
+  // This is an alias for MallocExtension::instance()->GetAllocatedSize().
+  // It is equivalent to
+  //    OS X: malloc_size()
+  //    glibc: malloc_usable_size()
+  //    Windows: _msize()
+  PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW;
+
 #ifdef __cplusplus
   PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW;
   PERFTOOLS_DLL_DECL void* tc_new(size_t size);

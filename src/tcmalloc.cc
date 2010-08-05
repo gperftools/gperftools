@@ -137,6 +137,7 @@
 #endif
 
 using std::max;
+using tcmalloc::AlignmentForSize;
 using tcmalloc::PageHeap;
 using tcmalloc::PageHeapAllocator;
 using tcmalloc::SizeMap;
@@ -212,7 +213,7 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   int tc_mallopt(int cmd, int value) __THROW
       ATTRIBUTE_SECTION(google_malloc);
-#ifdef HAVE_STRUCT_MALLINFO    // struct mallinfo isn't defined on freebsd
+#ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo tc_mallinfo(void) __THROW
       ATTRIBUTE_SECTION(google_malloc);
 #endif
@@ -237,6 +238,15 @@ extern "C" {
   void tc_delete_nothrow(void* ptr, const std::nothrow_t&) __THROW
       ATTRIBUTE_SECTION(google_malloc);
   void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) __THROW
+      ATTRIBUTE_SECTION(google_malloc);
+
+  // Some non-standard extensions that we support.
+
+  // This is equivalent to
+  //    OS X: malloc_size()
+  //    glibc: malloc_usable_size()
+  //    Windows: _msize()
+  size_t tc_malloc_size(void* p) __THROW
       ATTRIBUTE_SECTION(google_malloc);
 }  // extern "C"
 #endif  // #ifndef _WIN32
@@ -282,6 +292,8 @@ extern "C" {
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo mallinfo(void) __THROW         ALIAS("tc_mallinfo");
 #endif
+  size_t malloc_size(void* p) __THROW            ALIAS("tc_malloc_size");
+  size_t malloc_usable_size(void* p) __THROW     ALIAS("tc_malloc_size");
 }   // extern "C"
 #else  // #if defined(__GNUC__) && !defined(__MACH__)
 // Portable wrappers
@@ -318,6 +330,8 @@ extern "C" {
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo mallinfo(void) __THROW         { return tc_mallinfo();      }
 #endif
+  size_t malloc_size(void* p) __THROW            { return tc_malloc_size(p); }
+  size_t malloc_usable_size(void* p) __THROW     { return tc_malloc_size(p); }
 }  // extern "C"
 #endif  // #if defined(__GNUC__)
 
@@ -845,6 +859,8 @@ static void* DoSampledAllocation(size_t size) {
   return SpanToMallocResult(span);
 }
 
+namespace {
+
 // Copy of FLAGS_tcmalloc_large_alloc_report_threshold with
 // automatic increases factored in.
 static int64_t large_alloc_threshold =
@@ -867,8 +883,6 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
   printer.printf("\n");
   write(STDERR_FILENO, buffer, strlen(buffer));
 }
-
-namespace {
 
 inline void* cpp_alloc(size_t size, bool nothrow);
 inline void* do_malloc(size_t size);
@@ -1096,15 +1110,22 @@ inline void* do_realloc(void* old_ptr, size_t new_size) {
 
 // For use by exported routines below that want specific alignments
 //
-// Note: this code can be slow, and can significantly fragment memory.
-// The expectation is that memalign/posix_memalign/valloc/pvalloc will
-// not be invoked very often.  This requirement simplifies our
-// implementation and allows us to tune for expected allocation
-// patterns.
+// Note: this code can be slow for alignments > 16, and can
+// significantly fragment memory.  The expectation is that
+// memalign/posix_memalign/valloc/pvalloc will not be invoked very
+// often.  This requirement simplifies our implementation and allows
+// us to tune for expected allocation patterns.
 void* do_memalign(size_t align, size_t size) {
   ASSERT((align & (align - 1)) == 0);
   ASSERT(align > 0);
   if (size + align < size) return NULL;         // Overflow
+
+  // Fall back to malloc if we would already align this memory access properly.
+  if (align <= AlignmentForSize(size)) {
+    void* p = do_malloc(size);
+    ASSERT((reinterpret_cast<uintptr_t>(p) % align) == 0);
+    return p;
+  }
 
   if (Static::pageheap() == NULL) ThreadCache::InitModule();
 
@@ -1178,7 +1199,7 @@ inline int do_mallopt(int cmd, int value) {
   return 1;     // Indicates error
 }
 
-#ifdef HAVE_STRUCT_MALLINFO  // mallinfo isn't defined on freebsd, for instance
+#ifdef HAVE_STRUCT_MALLINFO
 inline struct mallinfo do_mallinfo() {
   TCMallocStats stats;
   ExtractStats(&stats, NULL);
@@ -1204,7 +1225,7 @@ inline struct mallinfo do_mallinfo() {
 
   return info;
 }
-#endif  // #ifndef HAVE_STRUCT_MALLINFO
+#endif  // HAVE_STRUCT_MALLINFO
 
 static SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
 
@@ -1488,6 +1509,10 @@ extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW {
   return do_mallinfo();
 }
 #endif
+
+extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
+  return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
+}
 
 // This function behaves similarly to MSVC's _set_new_mode.
 // If flag is 0 (default), calls to malloc will behave normally.

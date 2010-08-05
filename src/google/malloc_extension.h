@@ -219,6 +219,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // SIZE bytes may reserve more bytes, but will never reserve less.
   // (Currently only implemented in tcmalloc, other implementations
   // always return SIZE.)
+  // This is equivalent to malloc_good_size() in OS X.
   virtual size_t GetEstimatedAllocatedSize(size_t size);
 
   // Returns the actual number N of bytes reserved by tcmalloc for the
@@ -232,6 +233,8 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // from that -- and should not have been freed yet.  p may be NULL.
   // (Currently only implemented in tcmalloc; other implementations
   // will return 0.)
+  // This is equivalent to malloc_size() in OS X, malloc_usable_size()
+  // in glibc, and _msize() for windows.
   virtual size_t GetAllocatedSize(void* p);
 
   // The current malloc implementation.  Always non-NULL.

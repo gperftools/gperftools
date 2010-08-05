@@ -594,6 +594,10 @@ sub Main() {
   } elsif ($main::use_symbol_page) {
     $symbols = FetchSymbols($pcs);
   } else {
+    # TODO(csilvers): $libs uses the /proc/self/maps data from profile1,
+    # which may differ from the data from subsequent profiles, especially
+    # if they were run on different machines.  Use appropriate libs for
+    # each pc somehow.
     $symbols = ExtractSymbols($libs, $pcs);
   }
 
@@ -3043,6 +3047,7 @@ BEGIN {
                  stride      => 512 * 1024,   # must be a multiple of bitsize/8
                  slots       => [],
                  unpack_code => "",           # N for big-endian, V for little
+                 perl_is_64bit => 1,          # matters if profile is 64-bit
     };
     bless $self, $class;
     # Let unittests adjust the stride
@@ -3066,17 +3071,15 @@ BEGIN {
       }
       @$slots = unpack($self->{unpack_code} . "*", $str);
     } else {
-      # If we're a 64-bit profile, make sure we're a 64-bit-capable
+      # If we're a 64-bit profile, check if we're a 64-bit-capable
       # perl.  Otherwise, each slot will be represented as a float
       # instead of an int64, losing precision and making all the
-      # 64-bit addresses right.  We *could* try to handle this with
-      # software emulation of 64-bit ints, but that's added complexity
-      # for no clear benefit (yet).  We use 'Q' to test for 64-bit-ness;
-      # perl docs say it's only available on 64-bit perl systems.
+      # 64-bit addresses wrong.  We won't complain yet, but will
+      # later if we ever see a value that doesn't fit in 32 bits.
       my $has_q = 0;
       eval { $has_q = pack("Q", "1") ? 1 : 1; };
       if (!$has_q) {
-        ::error("$fname: need a 64-bit perl to process this 64-bit profile.\n");
+	$self->{perl_is_64bit} = 0;
       }
       read($self->{file}, $str, 8);
       if (substr($str, 4, 4) eq chr(0)x4) {
@@ -3112,11 +3115,17 @@ BEGIN {
         # TODO(csilvers): if this is a 32-bit perl, the math below
         #    could end up in a too-large int, which perl will promote
         #    to a double, losing necessary precision.  Deal with that.
-        if ($self->{unpack_code} eq 'V') {    # little-endian
-          push(@b64_values, $b32_values[$i] + $b32_values[$i+1] * (2**32));
-        } else {
-          push(@b64_values, $b32_values[$i] * (2**32) + $b32_values[$i+1]);
-        }
+	#    Right now, we just die.
+	my ($lo, $hi) = ($b32_values[$i], $b32_values[$i+1]);
+        if ($self->{unpack_code} eq 'N') {    # big-endian
+	  ($lo, $hi) = ($hi, $lo);
+	}
+	my $value = $lo + $hi * (2**32);
+	if (!$self->{perl_is_64bit} &&   # check value is exactly represented
+	    (($value % (2**32)) != $lo || int($value / (2**32)) != $hi)) {
+	  ::error("Need a 64-bit perl to process this 64-bit profile.\n");
+	}
+	push(@b64_values, $value);
       }
       @$slots = @b64_values;
     }
@@ -4341,7 +4350,7 @@ sub ConfigureTool {
   if ($tools =~ m/(,|^)\Q$tool\E:([^,]*)/) {
     $path = $2;
     # TODO(csilvers): sanity-check that $path exists?  Hard if it's relative.
-  } elsif ($tools) {
+  } elsif ($tools ne '') {
     foreach my $prefix (split(',', $tools)) {
       next if ($prefix =~ /:/);    # ignore "tool:fullpath" entries in the list
       if (-x $prefix . $tool) {

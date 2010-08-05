@@ -1,3 +1,31 @@
+=== 5 August 2010 ===
+
+I've just released perftools 1.6
+
+This version also has a large number of minor changes, including
+support for `malloc_usable_size()` as a glibc-compatible alias to
+`malloc_size()`, the addition of SVG-based output to `pprof`, and
+experimental support for tcmalloc large pages, which may speed up
+tcmalloc at the cost of greater memory use.  To use tcmalloc large
+pages, see the
+[http://google-perftools.googlecode.com/svn/tags/perftools-1.5/INSTALL
+INSTALL file]; for all changes, see the
+[http://google-perftools.googlecode.com/svn/tags/perftools-1.5/ChangeLog
+ChangeLog].
+
+OS X NOTE: improvements in the profiler unittest have turned up an OS
+X issue: in multithreaded programs, it seems that OS X often delivers
+the profiling signal (from sigitimer()) to the main thread, even when
+it's sleeping, rather than spawned threads that are doing actual work.
+If anyone knows details of how OS X handles SIGPROF events (from
+setitimer) in threaded programs, and has insight into this problem,
+please send mail to google-perftools@googlegroups.com.
+
+To see if you're affected by this, look for profiling time that pprof
+attributes to ___semwait_signal.  This is work being done in other
+threads, that is being attributed to sleeping-time in the main thread.
+
+
 === 20 January 2010 ===
 
 I've just released perftools 1.5

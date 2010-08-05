@@ -65,6 +65,26 @@ application with frame pointers (via 'gcc -fno-omit-frame-pointer
 ...') in this case.
 
 
+*** TCMALLOC LARGE PAGES: TRADING TIME FOR SPACE
+
+Internally, tcmalloc divides its memory into "pages."  The default
+page size is chosen to minimize memory use by reducing fragmentation.
+The cost is that keeping track of these pages can cost tcmalloc time.
+We've added a new, experimental flag to tcmalloc that enables a larger
+page size.  In general, this will increase the memory needs of
+applications using tcmalloc.  However, in many cases it will speed up
+the applications as well, particularly if they allocate and free a lot
+of memory.  We've seen average speedups of 3-5% on Google
+applications.
+
+This feature is still very experimental; it's not even a configure
+flag yet.  To build libtcmalloc with large pages, run
+
+   ./configure <normal flags> CXXFLAGS=-DTCMALLOC_LARGE_PAGES
+
+(or add -DTCMALLOC_LARGE_PAGES to your existing CXXFLAGS argument).
+
+
 *** NOTE FOR ___tls_get_addr ERROR
 
 When compiling perftools on some old systems, like RedHat 8, you may
@@ -191,6 +211,15 @@ above, by linking in libtcmalloc_minimal.
    successfully build are exactly the same as for FreeBSD.  See that
    section for a list of binaries and instructions on building them.
 
+   In addition, it appears OS X regularly fails profiler_unittest.sh
+   in the "thread" test (in addition to occassionally failing in the
+   "fork" test).  It looks like OS X often delivers the profiling
+   signal to the main thread, even when it's sleeping, rather than
+   spawned threads that are doing actual work.  If anyone knows
+   details of how OS X handles SIGPROF (via setitimer()) events with
+   threads, and has insight into this problem, please send mail to
+   google-perftools@googlegroups.com.
+
 ** Solaris 10 x86:
 
    I've only tested using the GNU C++ compiler, not the Sun C++
@@ -236,7 +265,10 @@ above, by linking in libtcmalloc_minimal.
    the heap-checker and a few other pieces of functionality will not
    compile).  'make' will compile those libraries and tests that can
    be compiled.  You can run 'make check' to make sure the basic
-   functionality is working.
+   functionality is working.  I've heard reports that some versions of
+   cygwin fail calls to pthread_join() with EINVAL, causing several
+   tests to fail.  If you have any insight into this, please mail
+   google-perftools@googlegroups.com.
 
    This Windows functionality is also available using MinGW and Msys,
    In this case, you can use the regular './configure && make'

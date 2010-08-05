@@ -1,3 +1,39 @@
+Thu Aug  5 12:48:03 PDT 2010
+
+	* google-perftools: version 1.6 release
+	* Add tc_malloc_usable_size for compatibility with glibc (csilvers)
+	* Override malloc_usable_size with tc_malloc_usable_size (csilvers)
+	* Default to no automatic heap sampling in tcmalloc (csilvers)
+	* Add -DTCMALLOC_LARGE_PAGES, a possibly faster tcmalloc (rus)
+	* Make some functions extern "C" to avoid false ODR warnings (jyasskin)
+	* pprof: Add SVG-based output (rsc)
+	* pprof: Extend pprof --tools to allow per-tool configs (csilvers)
+	* pprof: Improve support of 64-bit and big-endian profiles (csilvers)
+	* pprof: Add interactive callgrind suport (weidenri...)
+	* pprof: Improve address->function mapping a bit (dpeng)
+	* Better detection of when we're running under valgrind (csilvers)
+	* Better CPU-speed detection under valgrind (saito)
+	* Use, and recommend, -fno-builtin-malloc when compiling (csilvers)
+	* Avoid false-sharing of memory between caches (bmaurer)
+	* BUGFIX: Fix heap sampling to use correct alloc size (bmauer)
+	* BUGFIX: Avoid gcc 4.0.x bug by making hook-clearing atomic (csilvers)
+	* BUGFIX: Avoid gcc 4.5.x optimization bug (csilvers)
+	* BUGFIX: Work around deps-determining bug in libtool 1.5.26 (csilvers)
+	* BUGFIX: Fixed test to use HAVE_PTHREAD, not HAVE_PTHREADS (csilvers)
+	* BUGFIX: Fix tls callback behavior on windows when using wpo (wtc)
+	* BUGFIX: properly align allocation sizes on Windows (antonm)
+	* BUGFIX: Fix prototypes for tcmalloc/debugalloc wrt throw() (csilvers)
+	* DOC: Updated heap-checker doc to match reality better (fischman)
+	* DOC: Document ProfilerFlush, ProfilerStartWithOptions (csilvers)
+	* DOC: Update docs for heap-profiler functions (csilvers)
+	* DOC: Clean up documentation around tcmalloc.slack_bytes (fikes)
+	* DOC: Renamed README.windows to README_windows.txt (csilvers)
+	* DOC: Update the NEWS file to be non-empty (csilvers)
+	* PORTING: Fix windows addr2line and nm with proper rc code (csilvers)
+	* PORTING: Add CycleClock and atomicops support for arm 5 (sanek)
+	* PORTING: Improve PC finding on cygwin and redhat 7 (csilvers)
+	* PORTING: speed up function-patching under windows (csilvers)
+
 Tue Jan 19 14:46:12 2010  Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.5 release

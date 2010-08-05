@@ -64,7 +64,7 @@ class VDSOSupport {
   // Supports iteration over all dynamic symbols.
   class SymbolIterator {
    public:
-    friend struct VDSOSupport;
+    friend class VDSOSupport;
     const SymbolInfo *operator->() const;
     const SymbolInfo &operator*() const;
     SymbolIterator& operator++();

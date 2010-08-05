@@ -297,7 +297,7 @@ int GET_STACK_TRACE_OR_FRAMES {
   //    sp[2]   first argument
   //    ...
   // NOTE: This will break under llvm, since result is a copy and not in sp[2]
-  sp = (void **)&pcs - 2;
+  sp = (void **)&result - 2;
 #elif defined(__x86_64__)
   unsigned long rbp;
   // Move the value of the register %rbp into the local variable rbp.

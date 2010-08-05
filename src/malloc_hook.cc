@@ -66,8 +66,10 @@
 using std::copy;
 
 
-// Declarations of three default weak hook functions, that can be overridden by
-// linking-in a strong definition (as heap-checker.cc does)
+// Declarations of five default weak hook functions, that can be overridden by
+// linking-in a strong definition (as heap-checker.cc does).  These are extern
+// "C" so that they don't trigger gold's --detect-odr-violations warning, which
+// only looks at C++ symbols.
 //
 // These default hooks let some other library we link in
 // to define strong versions of InitialMallocHook_New, InitialMallocHook_MMap,
@@ -81,31 +83,35 @@ using std::copy;
 // weak symbols too early, at compile rather than link time.  By declaring it
 // (weak) here, then defining it below after its use, we can avoid the problem.
 //
-ATTRIBUTE_WEAK
-extern void InitialMallocHook_New(const void* ptr, size_t size);
+extern "C" {
 
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_PreMMap(const void* start,
-                                      size_t size,
-                                      int protection,
-                                      int flags,
-                                      int fd,
-                                      off_t offset);
+void InitialMallocHook_New(const void* ptr, size_t size);
 
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_MMap(const void* result,
-                                   const void* start,
-                                   size_t size,
-                                   int protection,
-                                   int flags,
-                                   int fd,
-                                   off_t offset);
+void InitialMallocHook_PreMMap(const void* start,
+                               size_t size,
+                               int protection,
+                               int flags,
+                               int fd,
+                               off_t offset);
 
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_PreSbrk(ptrdiff_t increment);
+void InitialMallocHook_MMap(const void* result,
+                            const void* start,
+                            size_t size,
+                            int protection,
+                            int flags,
+                            int fd,
+                            off_t offset);
 
 ATTRIBUTE_WEAK
-extern void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment);
+void InitialMallocHook_PreSbrk(ptrdiff_t increment);
+
+ATTRIBUTE_WEAK
+void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment);
+
+}  // extern "C"
 
 namespace base { namespace internal {
 template<typename PtrT>
@@ -121,6 +127,18 @@ PtrT AtomicPtr<PtrT>::Exchange(PtrT new_val) {
           reinterpret_cast<AtomicWord>(new_val))));
   base::subtle::MemoryBarrier();  // And acquire semantics.
   return old_val;
+}
+
+template<typename PtrT>
+PtrT AtomicPtr<PtrT>::CompareAndSwap(PtrT old_val, PtrT new_val) {
+  base::subtle::MemoryBarrier();  // Release semantics.
+  PtrT retval = reinterpret_cast<PtrT>(static_cast<AtomicWord>(
+      base::subtle::NoBarrier_CompareAndSwap(
+          &data_,
+          reinterpret_cast<AtomicWord>(old_val),
+          reinterpret_cast<AtomicWord>(new_val))));
+  base::subtle::MemoryBarrier();  // And acquire semantics.
+  return retval;
 }
 
 AtomicPtr<MallocHook::NewHook>    new_hook_ = {
@@ -215,8 +233,8 @@ MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook) {
 // TODO(csilvers): add support for removing a hook from the middle of a chain.
 
 void InitialMallocHook_New(const void* ptr, size_t size) {
-   if (MallocHook::GetNewHook() == &InitialMallocHook_New)
-     MallocHook::SetNewHook(NULL);
+  // Set new_hook to NULL iff its previous value was InitialMallocHook_New
+  new_hook_.CompareAndSwap(&InitialMallocHook_New, NULL);
 }
 
 void InitialMallocHook_PreMMap(const void* start,
@@ -225,8 +243,7 @@ void InitialMallocHook_PreMMap(const void* start,
                                int flags,
                                int fd,
                                off_t offset) {
-  if (MallocHook::GetPreMmapHook() == &InitialMallocHook_PreMMap)
-    MallocHook::SetPreMmapHook(NULL);
+  premmap_hook_.CompareAndSwap(&InitialMallocHook_PreMMap, NULL);
 }
 
 void InitialMallocHook_MMap(const void* result,
@@ -236,18 +253,15 @@ void InitialMallocHook_MMap(const void* result,
                             int flags,
                             int fd,
                             off_t offset) {
-  if (MallocHook::GetMmapHook() == &InitialMallocHook_MMap)
-    MallocHook::SetMmapHook(NULL);
+  mmap_hook_.CompareAndSwap(&InitialMallocHook_MMap, NULL);
 }
 
 void InitialMallocHook_PreSbrk(ptrdiff_t increment) {
-  if (MallocHook::GetPreSbrkHook() == &InitialMallocHook_PreSbrk)
-    MallocHook::SetPreSbrkHook(NULL);
+  presbrk_hook_.CompareAndSwap(&InitialMallocHook_PreSbrk, NULL);
 }
 
 void InitialMallocHook_Sbrk(const void* result, ptrdiff_t increment) {
-  if (MallocHook::GetSbrkHook() == &InitialMallocHook_Sbrk)
-    MallocHook::SetSbrkHook(NULL);
+  sbrk_hook_.CompareAndSwap(&InitialMallocHook_Sbrk, NULL);
 }
 
 DEFINE_ATTRIBUTE_SECTION_VARS(google_malloc);

@@ -139,24 +139,24 @@ static int GetRunningOnValgrind(void) {
 /* See the comments in dynamic_annotations.h */
 int RunningOnValgrind(void) {
   static volatile int running_on_valgrind = -1;
+  int local_running_on_valgrind = running_on_valgrind;
   /* C doesn't have thread-safe initialization of statics, and we
      don't want to depend on pthread_once here, so hack it. */
   ANNOTATE_BENIGN_RACE(&running_on_valgrind, "safe hack");
-  int local_running_on_valgrind = running_on_valgrind;
   if (local_running_on_valgrind == -1)
     running_on_valgrind = local_running_on_valgrind = GetRunningOnValgrind();
   return local_running_on_valgrind;
 }
 
 /* See the comments in dynamic_annotations.h */
-double ValgrindSlowdown() {
+double ValgrindSlowdown(void) {
+  /* Same initialization hack as in RunningOnValgrind(). */
+  static volatile double slowdown = 0.0;
+  double local_slowdown = slowdown;
+  ANNOTATE_BENIGN_RACE(&slowdown, "safe hack");
   if (RunningOnValgrind() == 0) {
     return 1.0;
   }
-  /* Same initialization hack as in RunningOnValgrind(). */
-  static volatile double slowdown = 0.0;
-  ANNOTATE_BENIGN_RACE(&slowdown, "safe hack");
-  int local_slowdown = slowdown;
   if (local_slowdown == 0.0) {
     char *env = getenv("VALGRIND_SLOWDOWN");
     slowdown = local_slowdown = env ? atof(env) : 50.0;

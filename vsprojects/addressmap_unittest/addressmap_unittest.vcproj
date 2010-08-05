@@ -128,7 +128,7 @@
 				</FileConfiguration>
 			</File>
 			<File
-				RelativePath="..\..\src\base\dynamic_annotations.cc">
+				RelativePath="..\..\src\base\dynamic_annotations.c">
 				<FileConfiguration
 					Name="Debug|Win32">
 					<Tool

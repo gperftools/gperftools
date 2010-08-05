@@ -56,6 +56,7 @@
 #endif
 #include "base/sysinfo.h"
 #include "base/commandlineflags.h"
+#include "base/dynamic_annotations.h"   // for RunningOnValgrind
 #include "base/logging.h"
 #include "base/cycleclock.h"
 
@@ -240,9 +241,15 @@ static void InitializeSystemInfo() {
   if (already_called)  return;
   already_called = true;
 
-  // I put in a never-called reference to EstimateCyclesPerSecond() here
-  // to silence the compiler for OS's that don't need it
-  if (0) EstimateCyclesPerSecond(0);
+  bool saw_mhz = false;
+
+  if (RunningOnValgrind()) {
+    // Valgrind may slow the progress of time artificially (--scale-time=N
+    // option). We thus can't rely on CPU Mhz info stored in /sys or /proc
+    // files. Thus, actually measure the cps.
+    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(100);
+    saw_mhz = true;
+  }
 
 #if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   char line[1024];
@@ -250,21 +257,23 @@ static void InitializeSystemInfo() {
 
   // If CPU scaling is in effect, we want to use the *maximum* frequency,
   // not whatever CPU speed some random processor happens to be using now.
-  bool saw_mhz = false;
-  const char* pname0 = "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
-  int fd0 = open(pname0, O_RDONLY);
-  if (fd0 != -1) {
-    memset(line, '\0', sizeof(line));
-    read(fd0, line, sizeof(line));
-    const int max_freq = strtol(line, &err, 10);
-    if (line[0] != '\0' && (*err == '\n' || *err == '\0')) {
-      // The value is in kHz.  For example, on a 2GHz machine, the file
-      // contains the value "2000000".  Historically this file contained no
-      // newline, but at some point the kernel started appending a newline.
-      cpuinfo_cycles_per_second = max_freq * 1000.0;
-      saw_mhz = true;
+  if (!saw_mhz) {
+    const char* pname0 =
+        "/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq";
+    int fd0 = open(pname0, O_RDONLY);
+    if (fd0 != -1) {
+      memset(line, '\0', sizeof(line));
+      read(fd0, line, sizeof(line));
+      const int max_freq = strtol(line, &err, 10);
+      if (line[0] != '\0' && (*err == '\n' || *err == '\0')) {
+        // The value is in kHz.  For example, on a 2GHz machine, the file
+        // contains the value "2000000".  Historically this file contained no
+        // newline, but at some point the kernel started appending a newline.
+        cpuinfo_cycles_per_second = max_freq * 1000.0;
+        saw_mhz = true;
+      }
+      close(fd0);
     }
-    close(fd0);
   }
 
   // Read /proc/cpuinfo for other values, and if there is no cpuinfo_max_freq.
@@ -272,7 +281,9 @@ static void InitializeSystemInfo() {
   int fd = open(pname, O_RDONLY);
   if (fd == -1) {
     perror(pname);
-    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+    if (!saw_mhz) {
+      cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+    }
     return;          // TODO: use generic tester instead?
   }
 

@@ -468,7 +468,7 @@ int RunningOnValgrind(void);
      SleepForSeconds(5 * ValgrindSlowdown());
    }
  */
-double ValgrindSlowdown();
+double ValgrindSlowdown(void);
 
 #ifdef __cplusplus
 }

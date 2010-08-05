@@ -126,6 +126,7 @@ using std::string;
 
 DECLARE_double(tcmalloc_release_rate);
 DECLARE_int32(max_free_queue_size);     // in debugallocation.cc
+DECLARE_int64(tcmalloc_sample_parameter);
 
 namespace testing {
 
@@ -559,6 +560,13 @@ static void TestCalloc(size_t n, size_t s, bool ok) {
 // direction doesn't cause us to allocate new memory.
 static void TestRealloc() {
 #ifndef DEBUGALLOCATION  // debug alloc doesn't try to minimize reallocs
+  // When sampling, we always allocate in units of page-size, which
+  // makes reallocs of small sizes do extra work (thus, failing these
+  // checks).  Since sampling is random, we turn off sampling to make
+  // sure that doesn't happen to us here.
+  const int64 old_sample_parameter = FLAGS_tcmalloc_sample_parameter;
+  FLAGS_tcmalloc_sample_parameter = 0;   // turn off sampling
+
   int start_sizes[] = { 100, 1000, 10000, 100000 };
   int deltas[] = { 1, -2, 4, -8, 16, -32, 64, -128 };
 
@@ -566,7 +574,7 @@ static void TestRealloc() {
     void* p = malloc(start_sizes[s]);
     CHECK(p);
     // The larger the start-size, the larger the non-reallocing delta.
-    for (int d = 0; d < s*2; ++d) {
+    for (int d = 0; d < (s+1) * 2; ++d) {
       void* new_p = realloc(p, start_sizes[s] + deltas[d]);
       CHECK(p == new_p);  // realloc should not allocate new memory
     }
@@ -577,6 +585,7 @@ static void TestRealloc() {
     }
     free(p);
   }
+  FLAGS_tcmalloc_sample_parameter = old_sample_parameter;
 #endif
 }
 
@@ -998,8 +1007,13 @@ static int RunAllTests(int argc, char** argv) {
 
     void* p1 = malloc(10);
     VerifyNewHookWasCalled();
+    // Also test the non-standard tc_malloc_size
+    size_t actual_p1_size = tc_malloc_size(p1);
+    CHECK_GE(actual_p1_size, 10);
+    CHECK_LT(actual_p1_size, 100000);   // a reasonable upper-bound, I think
     free(p1);
     VerifyDeleteHookWasCalled();
+
 
     p1 = calloc(10, 2);
     VerifyNewHookWasCalled();
