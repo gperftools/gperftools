@@ -59,7 +59,9 @@
 // ---------------------------------------------------------------------------
 static const int kMaxLevel = 30;
 
-namespace {
+// We put this class-only struct in a namespace to avoid polluting the
+// global namespace with this struct name (thus risking an ODR violation).
+namespace low_level_alloc_internal {
   // This struct describes one allocated block, or one free block.
   struct AllocList {
     struct Header {
@@ -79,6 +81,8 @@ namespace {
                                   // LLA_SkiplistLevels()
   };
 }
+using low_level_alloc_internal::AllocList;
+
 
 // ---------------------------------------------------------------------------
 // A trivial skiplist implementation.  This is used to keep the freelist

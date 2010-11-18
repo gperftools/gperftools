@@ -175,7 +175,7 @@ class LibcInfo {
     kNew, kNewArray, kDelete, kDeleteArray,
     kNewNothrow, kNewArrayNothrow, kDeleteNothrow, kDeleteArrayNothrow,
     // These are windows-only functions from malloc.h
-    k_Msize, k_Expand, k_Aligned_malloc, k_Aligned_free,
+    k_Msize, k_Expand,
     kNumFunctions
   };
 
@@ -274,12 +274,12 @@ template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
                                             const std::nothrow_t&) __THROW;
   static size_t Perftools__msize(void *ptr) __THROW;
   static void* Perftools__expand(void *ptr, size_t size) __THROW;
-  static void* Perftools__aligned_malloc(size_t size, size_t alignment) __THROW;
-  static void Perftools__aligned_free(void *ptr) __THROW;
   // malloc.h also defines these functions:
+  //   _aligned_malloc, _aligned_free,
   //   _recalloc, _aligned_offset_malloc, _aligned_realloc, _aligned_recalloc
   //   _aligned_offset_realloc, _aligned_offset_recalloc, _malloca, _freea
   // But they seem pretty obscure, and I'm fine not overriding them for now.
+  // It may be they all call into malloc/free anyway.
 };
 
 // This is a subset of MODDULEENTRY32, that we need for patching.
@@ -300,10 +300,19 @@ struct ModuleEntryCopy {
   ModuleEntryCopy(const MODULEINFO& mi) {
     this->modBaseAddr = mi.lpBaseOfDll;
     this->modBaseSize = mi.SizeOfImage;
-    for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
-      rgProcAddresses[i] = (GenericFnPtr)::GetProcAddress(
+    LPVOID modEndAddr = (char*)mi.lpBaseOfDll + mi.SizeOfImage;
+    for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++) {
+      FARPROC target = ::GetProcAddress(
           reinterpret_cast<const HMODULE>(mi.lpBaseOfDll),
           LibcInfo::function_name(i));
+      // Sometimes a DLL forwards a function to a function in another
+      // DLL.  We don't want to patch those forwarded functions --
+      // they'll get patched when the other DLL is processed.
+      if (target >= modBaseAddr && target < modEndAddr)
+        rgProcAddresses[i] = (GenericFnPtr)target;
+      else
+        rgProcAddresses[i] = (GenericFnPtr)NULL;
+    }
   }
 };
 
@@ -390,7 +399,7 @@ const char* const LibcInfo::function_name_[] = {
   NULL,  // kMangledNewArrayNothrow,
   NULL,  // kMangledDeleteNothrow,
   NULL,  // kMangledDeleteArrayNothrow,
-  "_msize", "_expand", "_aligned_malloc", "_aligned_free",
+  "_msize", "_expand",
 };
 
 // For mingw, I can't patch the new/delete here, because the
@@ -421,14 +430,6 @@ const GenericFnPtr LibcInfo::static_fn_[] = {
 #endif
   (GenericFnPtr)&::_msize,
   (GenericFnPtr)&::_expand,
-#ifdef PERFTOOLS_NO_ALIGNED_MALLOC   // for older versions of mingw
-  // _aligned_malloc isn't always available in mingw, so don't try to patch.
-  (GenericFnPtr)NULL,
-  (GenericFnPtr)NULL,
-#else
-  (GenericFnPtr)&::_aligned_malloc,
-  (GenericFnPtr)&::_aligned_free,
-#endif
 };
 
 template<int T> GenericFnPtr LibcInfoWithPatchFunctions<T>::origstub_fn_[] = {
@@ -451,8 +452,6 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   (GenericFnPtr)&Perftools_deletearray_nothrow,
   (GenericFnPtr)&Perftools__msize,
   (GenericFnPtr)&Perftools__expand,
-  (GenericFnPtr)&Perftools__aligned_malloc,
-  (GenericFnPtr)&Perftools__aligned_free,
 };
 
 /*static*/ WindowsInfo::FunctionInfo WindowsInfo::function_info_[] = {
@@ -906,21 +905,6 @@ template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools__expand(void *ptr,
                                                        size_t size) __THROW {
   return NULL;
-}
-
-template<int T>
-void* LibcInfoWithPatchFunctions<T>::Perftools__aligned_malloc(size_t size,
-                                                               size_t alignment)
-    __THROW {
-  void* result = do_memalign_or_cpp_memalign(alignment, size);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
-}
-
-template<int T>
-void LibcInfoWithPatchFunctions<T>::Perftools__aligned_free(void *ptr) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[k_Aligned_free]);
 }
 
 LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,

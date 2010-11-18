@@ -117,7 +117,6 @@
 
 #include "memory_region_map.h"
 
-#include "base/linux_syscall_support.h"
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
 #include "malloc_hook-inl.h"

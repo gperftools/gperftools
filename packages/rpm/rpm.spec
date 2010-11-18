@@ -73,3 +73,4 @@ rm -rf $RPM_BUILD_ROOT
 %{_libdir}/*.a
 %{_libdir}/*.la
 %{_libdir}/*.so
+%{_libdir}/pkgconfig/*.pc

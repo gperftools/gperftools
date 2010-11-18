@@ -83,6 +83,18 @@ extern "C" PERFTOOLS_DLL_DECL void* __sbrk(ptrdiff_t increment) {
   return NULL;
 }
 
+// We need to write to 'stderr' without having windows allocate memory.
+// The safest way is via a low-level call like WriteConsoleA().  But
+// even then we need to be sure to print in small bursts so as to not
+// require memory allocation.
+extern "C" PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len) {
+  // Looks like windows allocates for writes of >80 bytes
+  for (int i = 0; i < len; i += 80) {
+    write(STDERR_FILENO, buf + i, std::min(80, len - i));
+  }
+}
+
+
 // -----------------------------------------------------------------------
 // Threads code
 

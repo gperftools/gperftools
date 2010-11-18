@@ -111,7 +111,7 @@ class CpuProfiler {
   int           (*filter_)(void*);
   void*         filter_arg_;
 
-  // Opague token returned by the profile handler. To be used when calling
+  // Opaque token returned by the profile handler. To be used when calling
   // ProfileHandlerUnregisterCallback.
   ProfileHandlerToken* prof_handler_token_;
 

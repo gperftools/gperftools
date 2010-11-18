@@ -37,7 +37,7 @@ As a quick-start, do the following after installing this package:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPPROFILE environment var set:
-     $ HEAPROFILE=/tmp/heapprof <path/to/binary> [binary args]
+     $ HEAPPROFILE=/tmp/heapprof <path/to/binary> [binary args]
 3) Run pprof to analyze the heap usage
      $ pprof <path/to/binary> /tmp/heapprof.0045.heap  # run 'ls' to see options
      $ pprof --gv <path/to/binary> /tmp/heapprof.0045.heap

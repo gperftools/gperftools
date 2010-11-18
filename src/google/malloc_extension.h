@@ -50,6 +50,7 @@
 #include <stdint.h>
 #endif
 #include <string>
+#include <vector>
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
@@ -102,12 +103,17 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // that allocated these objects.  The format of the returned output
   // is equivalent to the output of the heap profiler and can
   // therefore be passed to "pprof".
+  // NOTE: by default, tcmalloc does not do any heap sampling, and this
+  //       function will always return an empty sample.  To get useful
+  //       data from GetHeapSample, you must also set the environment
+  //       variable TCMALLOC_SAMPLE_PARAMETER to a value such as 524288.
   virtual void GetHeapSample(MallocExtensionWriter* writer);
 
   // Outputs to "writer" the stack traces that caused growth in the
   // address space size.  The format of the returned output is
   // equivalent to the output of the heap profiler and can therefore
-  // be passed to "pprof".
+  // be passed to "pprof".  (This does not depend on, or require,
+  // TCMALLOC_SAMPLE_PARAMETER.)
   virtual void GetHeapGrowthStacks(MallocExtensionWriter* writer);
 
   // Invokes func(arg, range) for every controlled memory
@@ -243,6 +249,45 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // Change the malloc implementation.  Typically called by the
   // malloc implementation during initialization.
   static void Register(MallocExtension* implementation);
+
+  // Returns detailed information about malloc's freelists. For each list,
+  // return a FreeListInfo:
+  struct FreeListInfo {
+    size_t min_object_size;
+    size_t max_object_size;
+    size_t total_bytes_free;
+    const char* type;
+  };
+  // Each item in the vector refers to a different freelist. The lists
+  // are identified by the range of allocations that objects in the
+  // list can satisfy ([min_object_size, max_object_size]) and the
+  // type of freelist (see below). The current size of the list is
+  // returned in total_bytes_free (which count against a processes
+  // resident and virtual size).
+  //
+  // Currently supported types are:
+  //
+  // "tcmalloc.page{_unmapped}" - tcmalloc's page heap. An entry for each size
+  //          class in the page heap is returned. Bytes in "page_unmapped"
+  //          are no longer backed by physical memory and do not count against
+  //          the resident size of a process.
+  //
+  // "tcmalloc.large{_unmapped}" - tcmalloc's list of objects larger
+  //          than the largest page heap size class. Only one "large"
+  //          entry is returned. There is no upper-bound on the size
+  //          of objects in the large free list; this call returns
+  //          kint64max for max_object_size.  Bytes in
+  //          "large_unmapped" are no longer backed by physical memory
+  //          and do not count against the resident size of a process.
+  //
+  // "tcmalloc.central" - tcmalloc's central free-list. One entry per
+  //          size-class is returned. Never unmapped.
+  //
+  // "debug.free_queue" - free objects queued by the debug allocator
+  //                      and not returned to tcmalloc.
+  //
+  // "tcmalloc.thread" - tcmalloc's per-thread caches. Never unmapped.
+  virtual void GetFreeListSizes(std::vector<FreeListInfo>* v);
 
  protected:
   // Get a list of stack traces of sampled allocation points.  Returns

@@ -81,13 +81,13 @@ mkdir "$OUTDIR" || die "Unable to create $OUTDIR"
 
 echo "Testing heap output..."
 "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap" \
-   | grep '^ *[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
+   | grep '[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
    || die "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.heap"
 echo "OK"
 
 echo "Testing growth output..."
 "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth" \
-   | grep '^ *[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
+   | grep '[5-9][0-9]\.[0-9][ 0-9.%]*_*AllocateAllocate' >/dev/null \
    || die "$PPROF" --text "$SAMPLING_TEST_BINARY" "$OUTDIR/out.growth"
 echo "OK"
 

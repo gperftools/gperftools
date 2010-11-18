@@ -338,6 +338,35 @@ static double PagesToMB(uint64_t pages) {
   return (pages << kPageShift) / 1048576.0;
 }
 
+void PageHeap::GetClassSizes(int64 class_sizes_normal[kMaxPages],
+                             int64 class_sizes_returned[kMaxPages],
+                             int64* normal_pages_in_spans,
+                             int64* returned_pages_in_spans) {
+
+  for (int s = 0; s < kMaxPages; s++) {
+    if (class_sizes_normal != NULL) {
+      class_sizes_normal[s] = DLL_Length(&free_[s].normal);
+    }
+    if (class_sizes_returned != NULL) {
+      class_sizes_returned[s] = DLL_Length(&free_[s].returned);
+    }
+  }
+
+  if (normal_pages_in_spans != NULL) {
+    *normal_pages_in_spans = 0;
+    for (Span* s = large_.normal.next; s != &large_.normal; s = s->next) {
+      *normal_pages_in_spans += s->length;;
+    }
+  }
+
+  if (returned_pages_in_spans != NULL) {
+    *returned_pages_in_spans = 0;
+    for (Span* s = large_.returned.next; s != &large_.returned; s = s->next) {
+      *returned_pages_in_spans += s->length;
+    }
+  }
+}
+
 void PageHeap::Dump(TCMalloc_Printer* out) {
   int nonempty_sizes = 0;
   for (int s = 0; s < kMaxPages; s++) {

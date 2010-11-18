@@ -395,7 +395,7 @@ const void *VDSOSupport::Init() {
   }
   // Subtle: this code runs outside of any locks; prevent compiler
   // from assigning to getcpu_fn_ more than once.
-  MemoryBarrier();
+  base::subtle::MemoryBarrier();
   getcpu_fn_ = fn;
   return vdso_base_;
 }

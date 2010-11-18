@@ -45,6 +45,8 @@
 
 using std::string;
 
+extern "C" void* AllocateAllocate() ATTRIBUTE_NOINLINE;
+
 extern "C" void* AllocateAllocate() {
   // The VLOG's are mostly to discourage inlining
   VLOG(1, "Allocating some more");

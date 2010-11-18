@@ -140,6 +140,10 @@ class PERFTOOLS_DLL_DECL PageHeap {
     uint64_t unmapped_bytes;  // Total bytes on returned freelists
   };
   inline Stats stats() const { return stats_; }
+  void GetClassSizes(int64 class_sizes_normal[kMaxPages],
+                     int64 class_sizes_returned[kMaxPages],
+                     int64* normal_pages_in_spans,
+                     int64* returned_pages_in_spans);
 
   bool Check();
   // Like Check() but does some more comprehensive checking.
@@ -176,11 +180,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // should keep this value big because various incarnations of Linux
   // have small limits on the number of mmap() regions per
   // address-space.
-  static const int kMinSystemAlloc = 1 << (20 - kPageShift);
-
-  // For all span-lengths < kMaxPages we keep an exact-size list.
-  // REQUIRED: kMaxPages >= kMinSystemAlloc;
-  static const size_t kMaxPages = kMinSystemAlloc;
+  // REQUIRED: kMinSystemAlloc <= kMaxPages;
+  static const int kMinSystemAlloc = kMaxPages;
 
   // Never delay scavenging for more than the following number of
   // deallocated pages.  With 4K pages, this comes to 4GB of
@@ -192,8 +193,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   static const int kDefaultReleaseDelay = 1 << 18;
 
   // Pick the appropriate map and cache types based on pointer size
-  typedef MapSelector<8*sizeof(uintptr_t)>::Type PageMap;
-  typedef MapSelector<8*sizeof(uintptr_t)>::CacheType PageMapCache;
+  typedef MapSelector<kAddressBits>::Type PageMap;
+  typedef MapSelector<kAddressBits>::CacheType PageMapCache;
   PageMap pagemap_;
   mutable PageMapCache pagemap_cache_;
 

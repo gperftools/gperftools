@@ -277,6 +277,8 @@ enum { STDIN_FILENO = 0, STDOUT_FILENO = 1, STDERR_FILENO = 2 };
 #define O_RDONLY  _O_RDONLY
 #endif
 
+extern "C" PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len);
+
 // ----------------------------------- SYSTEM/PROCESS
 typedef int pid_t;
 #define getpid  _getpid

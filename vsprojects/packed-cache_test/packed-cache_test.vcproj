@@ -144,13 +144,37 @@
 				RelativePath="..\..\src\base\logging.h">
 			</File>
 			<File
-				RelativePath="..\..\src\base\spinlock.h">
+				RelativePath="..\..\src\base\atomicops-internals-arm-gcc.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-linuxppc.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-macosx.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-x86-msvc.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\atomicops-internals-x86.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\atomicops.h">
 			</File>
 			<File
-				RelativePath="..\..\src\base\atomicops-internals-x86-msvc.h">
+				RelativePath="..\..\src\base\spinlock.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\spinlock_internal.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\spinlock_linux-inl.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\spinlock_posix-inl.h">
+			</File>
+			<File
+				RelativePath="..\..\src\base\spinlock_win32-inl.h">
 			</File>
 			<File
 				RelativePath="..\..\src\base\cycleclock.h">

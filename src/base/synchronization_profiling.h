@@ -1,10 +1,10 @@
-/* Copyright (c) 2009, Google Inc.
+/* Copyright (c) 2010, Google Inc.
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  * notice, this list of conditions and the following disclaimer.
  *     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
  *     * Neither the name of Google Inc. nor the names of its
  * contributors may be used to endorse or promote products derived from
  * this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
  * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
  * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -28,35 +28,23 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * ---
- * This file is a Posix-specific part of spinlock_internal.cc
+ * Author: Chris Ruemmler
  */
 
-#include <config.h>
-#include <errno.h>
-#ifdef HAVE_SCHED_H
-#include <sched.h>      /* For sched_yield() */
-#endif
-#include <time.h>       /* For nanosleep() */
+#ifndef BASE_AUXILIARY_SYNCHRONIZATION_PROFILING_H_
+#define BASE_AUXILIARY_SYNCHRONIZATION_PROFILING_H_
+
+#include "base/basictypes.h"
 
 namespace base {
-namespace internal {
 
-void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
-  int save_errno = errno;
-  if (loop == 0) {
-  } else if (loop == 1) {
-    sched_yield();
-  } else {
-    struct timespec tm;
-    tm.tv_sec = 0;
-    tm.tv_nsec = 1000000;
-    nanosleep(&tm, NULL);
-  }
-  errno = save_errno;
+// We can do contention-profiling of SpinLocks, but the code is in
+// mutex.cc, which is not always linked in with spinlock.  Hence we
+// provide a weak definition, which are used if mutex.cc isn't linked in.
+
+// Submit the number of cycles the spinlock spent contending.
+ATTRIBUTE_WEAK extern void SubmitSpinLockProfileData(const void *, int64);
+extern void SubmitSpinLockProfileData(const void *contendedlock,
+                                      int64 wait_cycles) {}
 }
-
-void SpinLockWake(volatile Atomic32 *w, bool all) {
-}
-
-} // namespace internal
-} // namespace base
+#endif  // BASE_AUXILIARY_SYNCHRONIZATION_PROFILING_H_

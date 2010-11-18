@@ -46,6 +46,7 @@
 #include <sys/mman.h>
 #endif
 #include <errno.h>
+#include "common.h"
 #include "system-alloc.h"
 #include "internal_logging.h"
 #include "base/logging.h"
@@ -72,6 +73,24 @@ static const bool kDebugMode = false;
 #else
 static const bool kDebugMode = true;
 #endif
+
+// Anonymous namespace to avoid name conflicts on "CheckAddressBits".
+namespace {
+
+// Check that no bit is set at position ADDRESS_BITS or higher.
+template <int ADDRESS_BITS> bool CheckAddressBits(uintptr_t ptr) {
+  return (ptr >> ADDRESS_BITS) == 0;
+}
+
+// Specialize for the bit width of a pointer to avoid undefined shift.
+template <> bool CheckAddressBits<8 * sizeof(void*)>(uintptr_t ptr) {
+  return true;
+}
+
+}  // Anonymous namespace to avoid name conflicts on "CheckAddressBits".
+
+COMPILE_ASSERT(kAddressBits <= 8 * sizeof(void*),
+               address_bits_larger_than_pointer_size);
 
 // Structure for discovering alignment
 union MemoryAligner {
@@ -443,7 +462,16 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
       if (a == NULL) continue;
       if (a->usable_ && !a->failed_) {
         void* result = a->Alloc(size, actual_size, alignment);
-        if (result != NULL) return result;
+        if (result != NULL) {
+          if (actual_size) {
+            CheckAddressBits<kAddressBits>(
+                reinterpret_cast<uintptr_t>(result) + *actual_size - 1);
+          } else {
+            CheckAddressBits<kAddressBits>(
+                reinterpret_cast<uintptr_t>(result) + size - 1);
+          }
+          return result;
+        }
       }
     }
 

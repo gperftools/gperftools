@@ -342,7 +342,8 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   // any gaps.  Whew!
   int map_length = snprintf(buf, size, "%s", kProcSelfMapsHeader);
   if (map_length < 0 || map_length >= size) return 0;
-  map_length += FillProcSelfMaps(buf + map_length, size - map_length);
+  bool dummy;   // "wrote_all" -- did /proc/self/maps fit in its entirety?
+  map_length += FillProcSelfMaps(buf + map_length, size - map_length, &dummy);
   RAW_DCHECK(map_length <= size, "");
   char* const map_start = buf + size - map_length;      // move to end
   memmove(map_start, buf, map_length);

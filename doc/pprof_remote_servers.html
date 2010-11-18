@@ -58,13 +58,28 @@ get heap information.  The actual url is controlled via the variable
 <code>HEAP_PAGE</code> in the <code>pprof</code> script, so you
 can change it if you'd like.</p>
 
-<p>The server should respond by calling</p>
+<p>There are two ways to get this data.  The first is to call</p>
 <pre>
     MallocExtension::instance()->GetHeapSample(&output);
 </pre>
-<p>and sending <code>output</code> back as an HTTP response to
-<code>pprof</code>.  <code>MallocExtension</code> is defined in the
-header file <code>google/malloc_extension.h</code>.</p>
+<p>and have the server send <code>output</code> back as an HTTP
+response to <code>pprof</code>.  <code>MallocExtension</code> is
+defined in the header file <code>google/malloc_extension.h</code>.</p>
+
+<p>Note this will only only work if the binary is being run with
+sampling turned on (which is not the default).  To do this, set the
+environment variable <code>TCMALLOC_SAMPLE_PARAMETER</code> to a
+positive value, such as 524288, before running.</p>
+
+<p>The other way is to call <code>HeapProfileStart(filename)</code>
+(from <code>heap-profiler.h</code>), continue to do work, and then,
+some number of seconds later, call <code>GetHeapProfile()</code>
+(followed by <code>HeapProfilerStop()</code>).  The server can send
+the output of <code>GetHeapProfile</code> back as the HTTP response to
+pprof.  (Note you must <code>free()</code> this data after using it.)
+This is similar to how <A HREF="#profile">profile requests</A> are
+handled, below.  This technique does not require the application to
+run with sampling turned on.</p>
 
 <p>Here's an example of what the output should look like:</p>
 <pre>
@@ -84,7 +99,8 @@ heap profile:  14933: 791700132 [ 14933: 791700132] @ heap
   2942: 388629374 [  2942: 388629374] @ 0xa4b142 0x4006a0 0x400bed 0x5f0cfa 0x5f1744 0x607cee 0x5f4a5e 0x40080f 0x2aaaabad7afa
 [...]
 </pre>
-<p> pprof accepts both old and new heap profiles and automatically detects which one you are using.</p>
+<p>pprof accepts both old and new heap profiles and automatically
+detects which one you are using.</p>
 
 <h2> <code><b>/pprof/growth</b></code> </h2>
 
@@ -111,7 +127,7 @@ heap profile:    741: 812122112 [   741: 812122112] @ growth
 </pre>
 
 
-<h2> <code><b>/pprof/profile</b></code> </h2>
+<h2> <A NAME="profile"><code><b>/pprof/profile</b></code></A> </h2>
 
 <p><code>pprof</code> asks for the url
 <code>/pprof/profile?seconds=XX</code> to get cpu-profiling
@@ -194,10 +210,21 @@ map from hex addresses to variable names.  The actual url is
 controlled via the variable <code>SYMBOL_PAGE</code> in the
 <code>pprof</code> script, so you can change it if you'd like.</p>
 
-<p>This is perhaps the hardest request to write code for, because
-it must accept POST requests.  This means that after the HTTP headers,
-pprof will pass in a list of hex addresses connected by
-<code>+</code>, like so:</p>
+<p>When the server receives a GET request for
+<code>/pprof/symbol</code>, it should return a line formatted like
+so:</p>
+<pre>
+   num_symbols: ###
+</pre>
+<p>where <code>###</code> is the number of symbols found in the
+binary.  (For now, the only important distinction is whether the value
+is 0, which it is for executables that lack debug information, or
+not-0).</p>
+
+<p>This is perhaps the hardest request to write code for, because in
+addition to the GET request for this url, the server must accept POST
+requests.  This means that after the HTTP headers, pprof will pass in
+a list of hex addresses connected by <code>+</code>, like so:</p>
 <pre>
    curl -d '0x0824d061+0x0824d1cf' http://remote_host:80/pprof/symbol
 </pre>
@@ -216,10 +243,11 @@ stream, like so:</p>
 <p>The other reason this is the most difficult request to implement,
 is that the application will have to figure out for itself how to map
 from address to function name.  One possibility is to run <code>nm -C
--n &lt;program name&gt;</code> to get the mappings, either statically
-(say at program-compile time), or dynamically, by having the
-application call out to <code>nm</code> for every
-<code>pprof/symbol</code> call (presumably with some caching!).</p>
+-n &lt;program name&gt;</code> to get the mappings at
+program-compile-time.  Another, at least on Linux, is to call out to
+addr2line for every <code>pprof/symbol</code> call, for instance
+<code>addr2line -Cfse /proc/<getpid>/exe 0x12345678 0x876543210</code>
+(presumably with some caching!)</p>
 
 <p><code>pprof</code> itself does just this for local profiles (not
 ones that talk to remote servers); look at the subroutine

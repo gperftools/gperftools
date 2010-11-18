@@ -49,10 +49,13 @@
 
 // On some systems (like freebsd), we can't call write() at all in a
 // global constructor, perhaps because errno hasn't been set up.
+// (In windows, we can't call it because it might call malloc.)
 // Calling the write syscall is safer (it doesn't set errno), so we
 // prefer that.  Note we don't care about errno for logging: we just
 // do logging on a best-effort basis.
-#ifdef HAVE_SYS_SYSCALL_H
+#if defined(_MSC_VER)
+#define WRITE_TO_STDERR(buf, len) WriteToStderr(buf, len);  // in port.cc
+#elif defined(HAVE_SYS_SYSCALL_H)
 #include <sys/syscall.h>
 #define WRITE_TO_STDERR(buf, len) syscall(SYS_write, STDERR_FILENO, buf, len)
 #else

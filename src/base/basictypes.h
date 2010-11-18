@@ -109,7 +109,7 @@ const  int64 kint64min =  ( ((( int64) kint32min) << 32) | 0 );
 // Also allow for printing of a pthread_t.
 #define GPRIuPTHREAD "lu"
 #define GPRIxPTHREAD "lx"
-#if defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__APPLE__)
+#if defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__APPLE__) || defined(__FreeBSD__)
 #define PRINTABLE_PTHREAD(pthreadt) reinterpret_cast<uintptr_t>(pthreadt)
 #else
 #define PRINTABLE_PTHREAD(pthreadt) pthreadt

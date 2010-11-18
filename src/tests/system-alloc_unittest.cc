@@ -38,7 +38,9 @@
 #include <inttypes.h>           // another place uintptr_t might be defined
 #endif
 #include <sys/types.h>
+#include <algorithm>
 #include "base/logging.h"
+#include "common.h"
 #include "system-alloc.h"
 
 class ArraySysAllocator : public SysAllocator {
@@ -97,6 +99,18 @@ static void TestBasicInvoked() {
   // Make sure that our allocator was invoked.
   CHECK(a.invoked_);
 }
+
+#if 0  // could port this to various OSs, but won't bother for now
+TEST(AddressBits, CpuVirtualBits) {
+  // Check that kAddressBits is as least as large as either the number of bits
+  // in a pointer or as the number of virtual bits handled by the processor.
+  // To be effective this test must be run on each processor model.
+  const int kPointerBits = 8 * sizeof(void*);
+  const int kImplementedVirtualBits = NumImplementedVirtualBits();
+
+  CHECK_GE(kAddressBits, min(kImplementedVirtualBits, kPointerBits));
+}
+#endif
 
 int main(int argc, char** argv) {
   TestBasicInvoked();

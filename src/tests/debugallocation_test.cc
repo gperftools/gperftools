@@ -259,7 +259,10 @@ TEST(DebugAllocationTest, GetAllocatedSizeTest) {
 }
 
 TEST(DebugAllocationTest, HugeAlloc) {
-  const size_t kTooBig = ~static_cast<size_t>(0);
+  // This must not be a const variable so it doesn't form an
+  // integral-constant-expression which can be *statically* rejected by the
+  // compiler as too large for the allocation.
+  size_t kTooBig = ~static_cast<size_t>(0);
   void* a = NULL;
   char* b = NULL;
 
@@ -273,8 +276,9 @@ TEST(DebugAllocationTest, HugeAlloc) {
   EXPECT_EQ(NULL, b);
 
   // kAlsoTooBig is small enough not to get caught by debugallocation's check,
-  // but will still fall through to tcmalloc's check.
-  const size_t kAlsoTooBig = kTooBig - 1024;
+  // but will still fall through to tcmalloc's check. This must also be
+  // a non-const variable. See kTooBig for more details.
+  size_t kAlsoTooBig = kTooBig - 1024;
 
   a = malloc(kAlsoTooBig);
   EXPECT_EQ(NULL, a);

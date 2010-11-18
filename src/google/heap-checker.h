@@ -136,7 +136,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   bool NoLeaks() { return DoNoLeaks(DO_NOT_SYMBOLIZE); }
 
   // These forms are obsolete; use NoLeaks() instead.
-  // TODO(csilvers): mark with ATTRIBUTE_DEPRECATED.
+  // TODO(csilvers): mark as DEPRECATED.
   bool QuickNoLeaks()  { return NoLeaks(); }
   bool BriefNoLeaks()  { return NoLeaks(); }
   bool SameHeap()      { return NoLeaks(); }

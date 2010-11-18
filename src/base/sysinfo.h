@@ -226,7 +226,7 @@ class ProcMapsIterator {
 // Helper routines
 
 namespace tcmalloc {
-int FillProcSelfMaps(char buf[], int size);
+int FillProcSelfMaps(char buf[], int size, bool* wrote_all);
 void DumpProcSelfMaps(RawFD fd);
 }
 

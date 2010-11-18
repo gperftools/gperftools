@@ -28,11 +28,12 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * ---
- * This file is a Linux-specific part of spinlock.cc
+ * This file is a Linux-specific part of spinlock_internal.cc
  */
 
 #include <sched.h>
 #include <time.h>
+#include <limits.h>
 #include "base/linux_syscall_support.h"
 
 #define FUTEX_WAIT 0
@@ -48,7 +49,7 @@ static struct InitModule {
     int x = 0;
     // futexes are ints, so we can use them only when
     // that's the same size as the lockword_ in SpinLock.
-    have_futex = (sizeof (Atomic32) == sizeof (int) && 
+    have_futex = (sizeof (Atomic32) == sizeof (int) &&
                   sys_futex(&x, FUTEX_WAKE, 1, 0) >= 0);
     if (have_futex &&
         sys_futex(&x, FUTEX_WAKE | futex_private_flag, 1, 0) < 0) {
@@ -56,36 +57,41 @@ static struct InitModule {
     }
   }
 } init_module;
+
 }  // anonymous namespace
 
-static void SpinLockWait(volatile Atomic32 *w) {
-  int save_errno = errno;
-  struct timespec tm;
-  tm.tv_sec = 0;
-  if (have_futex) {
-    int value;
-    tm.tv_nsec = 1000000;   // 1ms; really we're trying to sleep for one kernel
-                            // clock tick
-    while ((value = base::subtle::Acquire_CompareAndSwap(w, 0, 1)) != 0) {
+
+namespace base {
+namespace internal {
+
+void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
+  if (loop != 0) {
+    int save_errno = errno;
+    struct timespec tm;
+    tm.tv_sec = 0;
+    if (have_futex) {
+      tm.tv_nsec = 1000000;   // 1ms; really we're trying to sleep for one
+                              // kernel clock tick
+    } else {
+      tm.tv_nsec = 2000001;   // above 2ms so linux 2.4 doesn't spin
+    }
+    if (have_futex) {
       sys_futex(reinterpret_cast<int *>(const_cast<Atomic32 *>(w)),
-          FUTEX_WAIT | futex_private_flag,
-          value, reinterpret_cast<struct kernel_timespec *>(&tm));
-    }
-  } else {
-    tm.tv_nsec = 2000001;       // above 2ms so linux 2.4 doesn't spin
-    if (base::subtle::NoBarrier_Load(w) != 0) {
-      sched_yield();
-    }
-    while (base::subtle::Acquire_CompareAndSwap(w, 0, 1) != 0) {
+                FUTEX_WAIT | futex_private_flag,
+                value, reinterpret_cast<struct kernel_timespec *>(&tm));
+    } else {
       nanosleep(&tm, NULL);
     }
+    errno = save_errno;
   }
-  errno = save_errno;
 }
 
-static void SpinLockWake(volatile Atomic32 *w) {
+void SpinLockWake(volatile Atomic32 *w, bool all) {
   if (have_futex) {
     sys_futex(reinterpret_cast<int *>(const_cast<Atomic32 *>(w)),
-              FUTEX_WAKE | futex_private_flag, 1, 0);
+              FUTEX_WAKE | futex_private_flag, all? INT_MAX : 1, 0);
   }
 }
+
+} // namespace internal
+} // namespace base

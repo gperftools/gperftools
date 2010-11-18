@@ -89,6 +89,7 @@ my %obj_tool_map = (
 );
 my $DOT = "dot";          # leave non-absolute, since it may be in /usr/local
 my $GV = "gv";
+my $EVINCE = "evince";    # could also be xpdf or perhaps acroread
 my $KCACHEGRIND = "kcachegrind";
 my $PS2PDF = "ps2pdf";
 # These are used for dynamic profiles
@@ -103,6 +104,7 @@ my $GROWTH_PAGE = "/pprof/growth";
 my $CONTENTION_PAGE = "/pprof/contention";
 my $WALL_PAGE = "/pprof/wall(?:\\?.*)?";  # accepts options like namefilter
 my $FILTEREDPROFILE_PAGE = "/pprof/filteredprofile(?:\\?.*)?";
+my $CENSUSPROFILE_PAGE = "/pprof/censusprofile";  # must support "?seconds=#"
 my $SYMBOL_PAGE = "/pprof/symbol";     # must support symbol lookup via POST
 my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 
@@ -110,7 +112,7 @@ my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 # All the alternatives must begin with /.
 my $PROFILES = "($HEAP_PAGE|$PROFILE_PAGE|$PMUPROFILE_PAGE|" .
                "$GROWTH_PAGE|$CONTENTION_PAGE|$WALL_PAGE|" .
-               "$FILTEREDPROFILE_PAGE)";
+               "$FILTEREDPROFILE_PAGE|$CENSUSPROFILE_PAGE)";
 
 # default binary name
 my $UNKNOWN_BINARY = "(unknown)";
@@ -148,7 +150,7 @@ pprof [options] <profile>
 
    The /<service> can be $HEAP_PAGE, $PROFILE_PAGE, /pprof/pmuprofile,
                          $GROWTH_PAGE, $CONTENTION_PAGE, /pprof/wall,
-                         or /pprof/filteredprofile.
+                         $CENSUSPROFILE_PAGE, or /pprof/filteredprofile.
    For instance: "pprof http://myserver.com:80$HEAP_PAGE".
    If /<service> is omitted, the service defaults to $PROFILE_PAGE (cpu profiling).
 pprof --symbols <program>
@@ -180,6 +182,7 @@ Output type:
    --text              Generate text report
    --callgrind         Generate callgrind format to stdout
    --gv                Generate Postscript and display
+   --evince            Generate PDF and display
    --web               Generate SVG and display
    --list=<regexp>     Generate source listing of matching routines
    --disasm=<regexp>   Generate disassembly of matching routines
@@ -304,6 +307,7 @@ sub Init() {
   $main::opt_disasm = "";
   $main::opt_symbols = 0;
   $main::opt_gv = 0;
+  $main::opt_evince = 0;
   $main::opt_web = 0;
   $main::opt_dot = 0;
   $main::opt_ps = 0;
@@ -372,6 +376,7 @@ sub Init() {
              "disasm=s"       => \$main::opt_disasm,
              "symbols!"       => \$main::opt_symbols,
              "gv!"            => \$main::opt_gv,
+             "evince!"        => \$main::opt_evince,
              "web!"           => \$main::opt_web,
              "dot!"           => \$main::opt_dot,
              "ps!"            => \$main::opt_ps,
@@ -452,6 +457,7 @@ sub Init() {
       ($main::opt_disasm eq '' ? 0 : 1) +
       ($main::opt_symbols == 0 ? 0 : 1) +
       $main::opt_gv +
+      $main::opt_evince +
       $main::opt_web +
       $main::opt_dot +
       $main::opt_ps +
@@ -646,6 +652,8 @@ sub Main() {
       if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
         if ($main::opt_gv) {
           RunGV(TempName($main::next_tmpfile, "ps"), "");
+        } elsif ($main::opt_evince) {
+	  RunEvince(TempName($main::next_tmpfile, "pdf"), "");
         } elsif ($main::opt_web) {
           my $tmp = TempName($main::next_tmpfile, "svg");
           RunWeb($tmp);
@@ -706,6 +714,12 @@ sub RunGV {
     print STDERR "$GV -scale $main::opt_scale\n";
     system("$GV -scale $main::opt_scale " . $fname . $bg);
   }
+}
+
+sub RunEvince {
+  my $fname = shift;
+  my $bg = shift;       # "" or " &" if we should run in background
+  system("$EVINCE " . $fname . $bg);
 }
 
 sub RunWeb {
@@ -805,6 +819,7 @@ sub InteractiveCommand {
   $main::opt_disasm = 0;
   $main::opt_list = 0;
   $main::opt_gv = 0;
+  $main::opt_evince = 0;
   $main::opt_cum = 0;
 
   if (m/^\s*(text|top)(\d*)\s*(.*)/) {
@@ -878,11 +893,14 @@ sub InteractiveCommand {
     PrintDisassembly($libs, $flat, $cumulative, $routine, $total);
     return 1;
   }
-  if (m/^\s*(gv|web)\s*(.*)/) {
+  if (m/^\s*(gv|web|evince)\s*(.*)/) {
     $main::opt_gv = 0;
+    $main::opt_evince = 0;
     $main::opt_web = 0;
     if ($1 eq "gv") {
       $main::opt_gv = 1;
+    } elsif ($1 eq "evince") {
+      $main::opt_evince = 1;
     } elsif ($1 eq "web") {
       $main::opt_web = 1;
     }
@@ -902,6 +920,8 @@ sub InteractiveCommand {
     if (PrintDot($main::prog, $symbols, $profile, $flat, $cumulative, $total)) {
       if ($main::opt_gv) {
         RunGV(TempName($main::next_tmpfile, "ps"), " &");
+      } elsif ($main::opt_evince) {
+        RunEvince(TempName($main::next_tmpfile, "pdf"), " &");
       } elsif ($main::opt_web) {
         RunWeb(TempName($main::next_tmpfile, "svg"));
       }
@@ -1685,6 +1705,8 @@ sub PrintDot {
   my $output;
   if ($main::opt_gv) {
     $output = "| $DOT -Tps2 >" . TempName($main::next_tmpfile, "ps");
+  } elsif ($main::opt_evince) {
+    $output = "| $DOT -Tps2 | $PS2PDF - " . TempName($main::next_tmpfile, "pdf");
   } elsif ($main::opt_ps) {
     $output = "| $DOT -Tps2";
   } elsif ($main::opt_pdf) {
@@ -2955,7 +2977,7 @@ sub FetchDynamicProfile {
 
     my $fetcher = AddFetchTimeout($URL_FETCHER, $fetch_timeout);
     my $cmd = "$fetcher '$url' > '$tmp_profile'";
-    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE/){
+    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE|$CENSUSPROFILE_PAGE/){
       print STDERR "Gathering CPU profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
         print STDERR "Be patient...\n";
@@ -3531,16 +3553,18 @@ sub ReadHeapProfile {
           # The sampling frequency is the rate of a Poisson process.
           # This means that the probability of sampling an allocation of
           # size X with sampling rate Y is 1 - exp(-X/Y)
-          my $ratio;
-          $ratio = (($s1*1.0)/$n1)/($sample_adjustment);
-          my $scale_factor;
-          $scale_factor = 1/(1 - exp(-$ratio));
-          $n1 *= $scale_factor;
-          $s1 *= $scale_factor;
-          $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
-          $scale_factor = 1/(1 - exp(-$ratio));
-          $n2 *= $scale_factor;
-          $s2 *= $scale_factor;
+	  if ($n1 != 0) {
+	    my $ratio = (($s1*1.0)/$n1)/($sample_adjustment);
+	    my $scale_factor = 1/(1 - exp(-$ratio));
+	    $n1 *= $scale_factor;
+	    $s1 *= $scale_factor;
+	  }
+	  if ($n2 != 0) {
+	    my $ratio = (($s2*1.0)/$n2)/($sample_adjustment);
+	    my $scale_factor = 1/(1 - exp(-$ratio));
+	    $n2 *= $scale_factor;
+	    $s2 *= $scale_factor;
+	  }
         } else {
           # Remote-heap version 1
           my $ratio;
@@ -4091,9 +4115,15 @@ sub ExtractSymbols {
 
   my $symbols = {};
 
-  # Map each PC value to the containing library
-  my %seen = ();
-  foreach my $lib (@{$libs}) {
+  # Map each PC value to the containing library.  To make this faster,
+  # we sort libraries by their starting pc value (highest first), and
+  # advance through the libraries as we advance the pc.  Sometimes the
+  # addresses of libraries may overlap with the addresses of the main
+  # binary, so to make sure the libraries 'win', we iterate over the
+  # libraries in reverse order (which assumes the binary doesn't start
+  # in the middle of a library, which seems a fair assumption).
+  my @pcs = (sort { $a cmp $b } keys(%{$pcset}));  # pcset is 0-extended strings
+  foreach my $lib (sort {$b->[1] cmp $a->[1]} @{$libs}) {
     my $libname = $lib->[0];
     my $start = $lib->[1];
     my $finish = $lib->[2];
@@ -4101,12 +4131,21 @@ sub ExtractSymbols {
 
     # Get list of pcs that belong in this library.
     my $contained = [];
-    foreach my $pc (keys(%{$pcset})) {
-      if (!$seen{$pc} && ($pc ge $start) && ($pc le $finish)) {
-        $seen{$pc} = 1;
-        push(@{$contained}, $pc);
-      }
+    my ($start_pc_index, $finish_pc_index);
+    # Find smallest finish_pc_index such that $finish < $pc[$finish_pc_index].
+    for ($finish_pc_index = $#pcs + 1; $finish_pc_index > 0;
+	 $finish_pc_index--) {
+      last if $pcs[$finish_pc_index - 1] le $finish;
     }
+    # Find smallest start_pc_index such that $start <= $pc[$start_pc_index].
+    for ($start_pc_index = $finish_pc_index; $start_pc_index > 0;
+	 $start_pc_index--) {
+      last if $pcs[$start_pc_index - 1] lt $start;
+    }
+    # This keeps PC values higher than $pc[$finish_pc_index] in @pcs,
+    # in case there are overlaps in libraries and the main binary.
+    @{$contained} = splice(@pcs, $start_pc_index,
+			   $finish_pc_index - $start_pc_index);
     # Map to symbols
     MapToSymbols($libname, AddressSub($start, $offset), $contained, $symbols);
   }

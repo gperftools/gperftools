@@ -5,9 +5,16 @@
 AC_PREREQ(2.57)
 
 AC_INIT(google-perftools, 1.6, opensource@google.com)
+TCMALLOC_SO_VERSION=0:1:0
+PROFILER_SO_VERSION=0:1:0
+
+AC_SUBST(TCMALLOC_SO_VERSION)
+AC_SUBST(PROFILER_SO_VERSION)
+
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
 AC_CONFIG_SRCDIR(README)
+AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-zip])
 AM_CONFIG_HEADER(src/config.h)

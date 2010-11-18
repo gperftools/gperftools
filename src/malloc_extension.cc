@@ -52,6 +52,7 @@
 #include "maybe_threads.h"
 
 using STL_NAMESPACE::string;
+using STL_NAMESPACE::vector;
 
 static void DumpAddressMap(string* result) {
   *result += "\nMAPPED_LIBRARIES:\n";
@@ -59,9 +60,11 @@ static void DumpAddressMap(string* result) {
   const size_t old_resultlen = result->size();
   for (int amap_size = 10240; amap_size < 10000000; amap_size *= 2) {
     result->resize(old_resultlen + amap_size);
+    bool wrote_all = false;
     const int bytes_written =
-        tcmalloc::FillProcSelfMaps(&((*result)[old_resultlen]), amap_size);
-    if (bytes_written < amap_size - 1) {   // we fit!
+        tcmalloc::FillProcSelfMaps(&((*result)[old_resultlen]), amap_size,
+                                   &wrote_all);
+    if (wrote_all) {   // we fit!
       (*result)[old_resultlen + bytes_written] = '\0';
       result->resize(old_resultlen + bytes_written);
       return;
@@ -165,6 +168,11 @@ size_t MallocExtension::GetEstimatedAllocatedSize(size_t size) {
 
 size_t MallocExtension::GetAllocatedSize(void* p) {
   return 0;
+}
+
+void MallocExtension::GetFreeListSizes(
+    vector<MallocExtension::FreeListInfo>* v) {
+  v->clear();
 }
 
 // The current malloc extension object.

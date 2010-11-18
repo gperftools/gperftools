@@ -28,20 +28,26 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  *
  * ---
- * This file is a Win32-specific part of spinlock.cc
+ * This file is a Win32-specific part of spinlock_internal.cc
  */
 
 
 #include <windows.h>
 
-static void SpinLockWait(volatile Atomic32 *w) {
-  if (base::subtle::NoBarrier_Load(w) != 0) {
+namespace base {
+namespace internal {
+
+void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
+  if (loop == 0) {
+  } else if (loop == 1) {
     Sleep(0);
-  }
-  while (base::subtle::Acquire_CompareAndSwap(w, 0, 1) != 0) {
+  } else {
     Sleep(1);
   }
 }
 
-static void SpinLockWake(volatile Atomic32 *w) {
+void SpinLockWake(volatile Atomic32 *w, bool all) {
 }
+
+} // namespace internal
+} // namespace base

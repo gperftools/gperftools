@@ -264,7 +264,9 @@ am__aclocal_m4_deps = $(top_srcdir)/m4/ac_have_attribute.m4 \
 	$(top_srcdir)/m4/acx_nanosleep.m4 \
 	$(top_srcdir)/m4/acx_pthread.m4 \
 	$(top_srcdir)/m4/compiler_characteristics.m4 \
-	$(top_srcdir)/m4/install_prefix.m4 \
+	$(top_srcdir)/m4/install_prefix.m4 $(top_srcdir)/m4/libtool.m4 \
+	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
+	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
 	$(top_srcdir)/m4/namespaces.m4 \
 	$(top_srcdir)/m4/pc_from_ucontext.m4 \
 	$(top_srcdir)/m4/program_invocation_name.m4 \
@@ -284,7 +286,8 @@ am__vpath_adj = case $$p in \
 am__strip_dir = `echo $$p | sed -e 's|^.*/||'`;
 am__installdirs = "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)" \
 	"$(DESTDIR)$(bindir)" "$(DESTDIR)$(man1dir)" \
-	"$(DESTDIR)$(docdir)" "$(DESTDIR)$(googleincludedir)" \
+	"$(DESTDIR)$(docdir)" "$(DESTDIR)$(pkgconfigdir)" \
+	"$(DESTDIR)$(googleincludedir)" \
 	"$(DESTDIR)$(googleincludedir)"
 libLTLIBRARIES_INSTALL = $(INSTALL)
 LTLIBRARIES = $(lib_LTLIBRARIES) $(noinst_LTLIBRARIES)
@@ -300,8 +303,8 @@ am__libprofiler_la_SOURCES_DIST = src/profiler.cc \
 	src/profile-handler.h src/getpc.h src/base/basictypes.h \
 	src/base/commandlineflags.h src/base/googleinit.h \
 	src/base/logging.h src/base/simple_mutex.h src/base/sysinfo.h \
-	src/base/spinlock.h src/base/atomicops.h \
-	src/base/atomicops-internals-macosx.h \
+	src/base/spinlock.h src/base/spinlock_internal.h \
+	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -321,16 +324,20 @@ libprofiler_la_OBJECTS = $(am_libprofiler_la_OBJECTS)
 am__DEPENDENCIES_1 =
 @MINGW_FALSE@libspinlock_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am__libspinlock_la_SOURCES_DIST = src/base/spinlock.cc \
+	src/base/spinlock_internal.cc \
 	src/base/atomicops-internals-x86.cc src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h
 @MINGW_FALSE@am_libspinlock_la_OBJECTS = spinlock.lo \
-@MINGW_FALSE@	atomicops-internals-x86.lo $(am__objects_1)
-@MINGW_TRUE@am_libspinlock_la_OBJECTS = spinlock.lo $(am__objects_1)
+@MINGW_FALSE@	spinlock_internal.lo atomicops-internals-x86.lo \
+@MINGW_FALSE@	$(am__objects_1)
+@MINGW_TRUE@am_libspinlock_la_OBJECTS = spinlock.lo \
+@MINGW_TRUE@	spinlock_internal.lo $(am__objects_1)
 libspinlock_la_OBJECTS = $(am_libspinlock_la_OBJECTS)
 @MINGW_FALSE@am_libspinlock_la_rpath =
 @MINGW_TRUE@am_libspinlock_la_rpath =
@@ -363,7 +370,8 @@ libsysinfo_la_OBJECTS = $(am_libsysinfo_la_OBJECTS)
 am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -413,7 +421,8 @@ libtcmalloc_la_OBJECTS = $(am_libtcmalloc_la_OBJECTS)
 am__libtcmalloc_and_profiler_la_SOURCES_DIST = src/tcmalloc.cc \
 	src/common.h src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -466,7 +475,8 @@ am__libtcmalloc_debug_la_SOURCES_DIST = src/debugallocation.cc \
 	src/heap-checker.cc src/heap-checker-bcad.cc src/common.h \
 	src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -509,7 +519,8 @@ am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/malloc_hook.cc src/malloc_extension.cc \
 	src/maybe_threads.cc src/common.h src/internal_logging.h \
 	src/system-alloc.h src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -568,7 +579,8 @@ libtcmalloc_minimal_la_DEPENDENCIES = libtcmalloc_minimal_internal.la \
 am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/internal_logging.h src/system-alloc.h \
 	src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -594,7 +606,8 @@ am__DEPENDENCIES_4 = libtcmalloc_minimal_internal.la \
 am__libtcmalloc_minimal_debug_la_SOURCES_DIST =  \
 	src/debugallocation.cc src/common.h src/internal_logging.h \
 	src/system-alloc.h src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -625,7 +638,8 @@ am__libtcmalloc_minimal_internal_la_SOURCES_DIST = src/common.cc \
 	src/malloc_hook.cc src/malloc_extension.cc \
 	src/maybe_threads.cc src/common.h src/internal_logging.h \
 	src/system-alloc.h src/packed-cache-inl.h src/base/spinlock.h \
-	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
+	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
@@ -860,7 +874,8 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/tests/low_level_alloc_unittest.cc \
 	src/base/low_level_alloc.h src/base/basictypes.h \
 	src/google/malloc_hook.h src/google/malloc_hook_c.h \
-	src/malloc_hook-inl.h src/base/spinlock.h src/base/atomicops.h \
+	src/malloc_hook-inl.h src/base/spinlock.h \
+	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
 	src/base/atomicops-internals-x86-msvc.h \
@@ -1374,7 +1389,8 @@ am__dist_doc_DATA_DIST = AUTHORS COPYING ChangeLog INSTALL NEWS README \
 	doc/pprof-test.gif doc/pprof-vsnprintf-big.gif \
 	doc/pprof-vsnprintf.gif
 dist_docDATA_INSTALL = $(INSTALL_DATA)
-DATA = $(dist_doc_DATA)
+pkgconfigDATA_INSTALL = $(INSTALL_DATA)
+DATA = $(dist_doc_DATA) $(pkgconfig_DATA)
 am__googleinclude_HEADERS_DIST = src/google/stacktrace.h \
 	src/google/malloc_hook.h src/google/malloc_hook_c.h \
 	src/google/malloc_extension.h src/google/malloc_extension_c.h \
@@ -1419,7 +1435,7 @@ CYGPATH_W = @CYGPATH_W@
 DEFS = @DEFS@
 DEPDIR = @DEPDIR@
 DSYMUTIL = @DSYMUTIL@
-ECHO = @ECHO@
+DUMPBIN = @DUMPBIN@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
 ECHO_T = @ECHO_T@
@@ -1429,8 +1445,7 @@ ENABLE_FRAME_POINTERS_TRUE = @ENABLE_FRAME_POINTERS_TRUE@
 ENABLE_STATIC_FALSE = @ENABLE_STATIC_FALSE@
 ENABLE_STATIC_TRUE = @ENABLE_STATIC_TRUE@
 EXEEXT = @EXEEXT@
-F77 = @F77@
-FFLAGS = @FFLAGS@
+FGREP = @FGREP@
 GCC_FALSE = @GCC_FALSE@
 GCC_TRUE = @GCC_TRUE@
 GREP = @GREP@
@@ -1440,21 +1455,27 @@ INSTALL_DATA = @INSTALL_DATA@
 INSTALL_PROGRAM = @INSTALL_PROGRAM@
 INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
+LD = @LD@
 LDFLAGS = @LDFLAGS@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBSTDCXX_LA_LINKER_FLAG = @LIBSTDCXX_LA_LINKER_FLAG@
 LIBTOOL = @LIBTOOL@
 LIBTOOL_DEPS = @LIBTOOL_DEPS@
+LIPO = @LIPO@
 LN_S = @LN_S@
 LTLIBOBJS = @LTLIBOBJS@
 MAKEINFO = @MAKEINFO@
 MINGW_FALSE = @MINGW_FALSE@
 MINGW_TRUE = @MINGW_TRUE@
 NANOSLEEP_LIBS = @NANOSLEEP_LIBS@
+NM = @NM@
 NMEDIT = @NMEDIT@
 OBJCOPY = @OBJCOPY@
+OBJDUMP = @OBJDUMP@
 OBJEXT = @OBJEXT@
+OTOOL = @OTOOL@
+OTOOL64 = @OTOOL64@
 PACKAGE = @PACKAGE@
 PACKAGE_BUGREPORT = @PACKAGE_BUGREPORT@
 PACKAGE_NAME = @PACKAGE_NAME@
@@ -1463,6 +1484,7 @@ PACKAGE_TARNAME = @PACKAGE_TARNAME@
 PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
+PROFILER_SO_VERSION = @PROFILER_SO_VERSION@
 PTHREAD_CC = @PTHREAD_CC@
 PTHREAD_CFLAGS = @PTHREAD_CFLAGS@
 PTHREAD_LIBS = @PTHREAD_LIBS@
@@ -1471,6 +1493,7 @@ SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
 STRIP = @STRIP@
+TCMALLOC_SO_VERSION = @TCMALLOC_SO_VERSION@
 TC_VERSION_MAJOR = @TC_VERSION_MAJOR@
 TC_VERSION_MINOR = @TC_VERSION_MINOR@
 TC_VERSION_PATCH = @TC_VERSION_PATCH@
@@ -1494,7 +1517,7 @@ X86_64_AND_NO_FP_BY_DEFAULT_FALSE = @X86_64_AND_NO_FP_BY_DEFAULT_FALSE@
 X86_64_AND_NO_FP_BY_DEFAULT_TRUE = @X86_64_AND_NO_FP_BY_DEFAULT_TRUE@
 ac_ct_CC = @ac_ct_CC@
 ac_ct_CXX = @ac_ct_CXX@
-ac_ct_F77 = @ac_ct_F77@
+ac_ct_DUMPBIN = @ac_ct_DUMPBIN@
 ac_cv_have_struct_mallinfo = @ac_cv_have_struct_mallinfo@
 acx_pthread_config = @acx_pthread_config@
 am__fastdepCC_FALSE = @am__fastdepCC_FALSE@
@@ -1530,6 +1553,7 @@ libdir = @libdir@
 libexecdir = @libexecdir@
 localedir = @localedir@
 localstatedir = @localstatedir@
+lt_ECHO = @lt_ECHO@
 mandir = @mandir@
 mkdir_p = @mkdir_p@
 oldincludedir = @oldincludedir@
@@ -1761,6 +1785,7 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 @MINGW_TRUE@libwindows_la_LIBADD = -lPsapi
 # spinlock is the only code that uses atomicops.
 @MINGW_FALSE@SPINLOCK_INCLUDES = src/base/spinlock.h \
+@MINGW_FALSE@                    src/base/spinlock_internal.h \
 @MINGW_FALSE@                    src/base/atomicops.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-macosx.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-linuxppc.h \
@@ -1768,6 +1793,7 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 @MINGW_FALSE@                    src/base/atomicops-internals-x86.h
 
 @MINGW_TRUE@SPINLOCK_INCLUDES = src/base/spinlock.h \
+@MINGW_TRUE@                    src/base/spinlock_internal.h \
 @MINGW_TRUE@                    src/base/spinlock_win32-inl.h \
 @MINGW_TRUE@                    src/base/spinlock_linux-inl.h \
 @MINGW_TRUE@                    src/base/spinlock_posix-inl.h \
@@ -1777,10 +1803,12 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 @MINGW_TRUE@                    src/base/atomicops-internals-x86.h
 
 @MINGW_FALSE@libspinlock_la_SOURCES = src/base/spinlock.cc \
+@MINGW_FALSE@                         src/base/spinlock_internal.cc \
 @MINGW_FALSE@                         src/base/atomicops-internals-x86.cc \
 @MINGW_FALSE@                         $(SPINLOCK_INCLUDES)
 
 @MINGW_TRUE@libspinlock_la_SOURCES = src/base/spinlock.cc \
+@MINGW_TRUE@                         src/base/spinlock_internal.cc \
 @MINGW_TRUE@                         $(SPINLOCK_INCLUDES)
 
 # spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
@@ -1928,7 +1956,8 @@ libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 
-libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
+# -version-info gets passed to libtool
+libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la $(PTHREAD_LIBS)
 @MINGW_FALSE@LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
 
@@ -2057,7 +2086,10 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_DEBUGALLOC_TRUE@libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS) \
 @WITH_DEBUGALLOC_TRUE@                                        -DTCMALLOC_FOR_DEBUGALLOCATION
 
-@WITH_DEBUGALLOC_TRUE@libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS)
+# version_info gets passed to libtool
+@WITH_DEBUGALLOC_TRUE@libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS) \
+@WITH_DEBUGALLOC_TRUE@                                       -version-info @TCMALLOC_SO_VERSION@
+
 @WITH_DEBUGALLOC_TRUE@libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
 @WITH_DEBUGALLOC_TRUE@tcmalloc_minimal_debug_unittest_SOURCES = $(tcmalloc_minimal_unittest_SOURCES)
 @WITH_DEBUGALLOC_TRUE@tcmalloc_minimal_debug_unittest_CXXFLAGS = $(tcmalloc_minimal_unittest_CXXFLAGS) \
@@ -2127,7 +2159,7 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(PTHREAD_CFLAGS) -DNDEBUG \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(AM_CXXFLAGS) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__append_32)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_la_LIBADD = libtcmalloc_internal.la $(PTHREAD_LIBS)
 @WITH_HEAP_CHECKER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@HEAP_CHECKER_SOURCES = 
 
@@ -2241,7 +2273,9 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                -DTCMALLOC_FOR_DEBUGALLOCATION
 
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS) \
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               -version-info @TCMALLOC_SO_VERSION@
+
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_debug_unittest_SOURCES = $(tcmalloc_unittest_SOURCES)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_debug_unittest_CXXFLAGS = $(tcmalloc_unittest_CXXFLAGS) \
@@ -2302,7 +2336,9 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_TRUE@libprofiler_la_LIBADD = libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
 @WITH_CPU_PROFILER_TRUE@CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler)'
-@WITH_CPU_PROFILER_TRUE@libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
+@WITH_CPU_PROFILER_TRUE@libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \
+@WITH_CPU_PROFILER_TRUE@                         -version-info @PROFILER_SO_VERSION@
+
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
 # Basically it's to work around systems where --rpath doesn't work right.
@@ -2351,8 +2387,12 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_TRUE@profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_and_profiler_la_SOURCES = $(libtcmalloc_la_SOURCES) $(libprofiler_la_SOURCES)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_and_profiler_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) $(libprofiler_la_CXXFLAGS)
+# Since this library is meant to be used as a .a, I don't worry as much
+# about .so versioning.  I just give the libtcmalloc version number.
 # TODO(csilvers): use -export-symbols-regex?
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS)
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS) \
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                      -version-info @TCMALLOC_SO_VERSION@
+
 # We don't include libprofiler_la_LIBADD here because all it adds is
 # libstacktrace.la, which we already get via libtcmalloc.  Trying to
 # specify it twice causes link-time duplicate-definition errors. :-(
@@ -2361,6 +2401,14 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_CXXFLAGS)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_LDFLAGS)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
+
+# http://linux.die.net/man/1/pkg-config, http://pkg-config.freedesktop.org/wiki
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = libtcmalloc.pc libtcmalloc_minimal.pc \
+                 libtcmalloc_debug.pc libtcmalloc_minimal_debug.pc \
+                 libprofiler.pc
+
+CLEANFILES = $(pkgconfig_DATA)
 EXTRA_DIST = packages/rpm.sh packages/rpm/rpm.spec packages/deb.sh packages/deb \
              $(SCRIPTS) libtool \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
@@ -2829,6 +2877,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sampling_debug_test-sampling_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/sampling_test-sampling_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spinlock.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/spinlock_internal.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stack_trace_table_test-stack_trace_table_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stacktrace.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/stacktrace_unittest.Po@am__quote@
@@ -2957,6 +3006,13 @@ spinlock.lo: src/base/spinlock.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/spinlock.cc' object='spinlock.lo' libtool=yes @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o spinlock.lo `test -f 'src/base/spinlock.cc' || echo '$(srcdir)/'`src/base/spinlock.cc
+
+spinlock_internal.lo: src/base/spinlock_internal.cc
+@am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT spinlock_internal.lo -MD -MP -MF "$(DEPDIR)/spinlock_internal.Tpo" -c -o spinlock_internal.lo `test -f 'src/base/spinlock_internal.cc' || echo '$(srcdir)/'`src/base/spinlock_internal.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/spinlock_internal.Tpo" "$(DEPDIR)/spinlock_internal.Plo"; else rm -f "$(DEPDIR)/spinlock_internal.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/base/spinlock_internal.cc' object='spinlock_internal.lo' libtool=yes @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o spinlock_internal.lo `test -f 'src/base/spinlock_internal.cc' || echo '$(srcdir)/'`src/base/spinlock_internal.cc
 
 atomicops-internals-x86.lo: src/base/atomicops-internals-x86.cc
 @am__fastdepCXX_TRUE@	if $(LIBTOOL) --tag=CXX --mode=compile $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -MT atomicops-internals-x86.lo -MD -MP -MF "$(DEPDIR)/atomicops-internals-x86.Tpo" -c -o atomicops-internals-x86.lo `test -f 'src/base/atomicops-internals-x86.cc' || echo '$(srcdir)/'`src/base/atomicops-internals-x86.cc; \
@@ -4310,6 +4366,23 @@ uninstall-dist_docDATA:
 	  echo " rm -f '$(DESTDIR)$(docdir)/$$f'"; \
 	  rm -f "$(DESTDIR)$(docdir)/$$f"; \
 	done
+install-pkgconfigDATA: $(pkgconfig_DATA)
+	@$(NORMAL_INSTALL)
+	test -z "$(pkgconfigdir)" || $(mkdir_p) "$(DESTDIR)$(pkgconfigdir)"
+	@list='$(pkgconfig_DATA)'; for p in $$list; do \
+	  if test -f "$$p"; then d=; else d="$(srcdir)/"; fi; \
+	  f=$(am__strip_dir) \
+	  echo " $(pkgconfigDATA_INSTALL) '$$d$$p' '$(DESTDIR)$(pkgconfigdir)/$$f'"; \
+	  $(pkgconfigDATA_INSTALL) "$$d$$p" "$(DESTDIR)$(pkgconfigdir)/$$f"; \
+	done
+
+uninstall-pkgconfigDATA:
+	@$(NORMAL_UNINSTALL)
+	@list='$(pkgconfig_DATA)'; for p in $$list; do \
+	  f=$(am__strip_dir) \
+	  echo " rm -f '$(DESTDIR)$(pkgconfigdir)/$$f'"; \
+	  rm -f "$(DESTDIR)$(pkgconfigdir)/$$f"; \
+	done
 install-googleincludeHEADERS: $(googleinclude_HEADERS)
 	@$(NORMAL_INSTALL)
 	test -z "$(googleincludedir)" || $(mkdir_p) "$(DESTDIR)$(googleincludedir)"
@@ -4606,7 +4679,7 @@ all-am: Makefile $(LTLIBRARIES) $(PROGRAMS) $(SCRIPTS) $(MANS) $(DATA) \
 install-binPROGRAMS: install-libLTLIBRARIES
 
 installdirs:
-	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)" "$(DESTDIR)$(man1dir)" "$(DESTDIR)$(docdir)" "$(DESTDIR)$(googleincludedir)" "$(DESTDIR)$(googleincludedir)"; do \
+	for dir in "$(DESTDIR)$(libdir)" "$(DESTDIR)$(bindir)" "$(DESTDIR)$(bindir)" "$(DESTDIR)$(man1dir)" "$(DESTDIR)$(docdir)" "$(DESTDIR)$(pkgconfigdir)" "$(DESTDIR)$(googleincludedir)" "$(DESTDIR)$(googleincludedir)"; do \
 	  test -z "$$dir" || $(mkdir_p) "$$dir"; \
 	done
 install: install-am
@@ -4626,6 +4699,7 @@ install-strip:
 mostlyclean-generic:
 
 clean-generic:
+	-test -z "$(CLEANFILES)" || rm -f $(CLEANFILES)
 
 distclean-generic:
 	-test -z "$(CONFIG_CLEAN_FILES)" || rm -f $(CONFIG_CLEAN_FILES)
@@ -4657,7 +4731,8 @@ info: info-am
 info-am:
 
 install-data-am: install-dist_docDATA install-googleincludeHEADERS \
-	install-man install-nodist_googleincludeHEADERS
+	install-man install-nodist_googleincludeHEADERS \
+	install-pkgconfigDATA
 
 install-exec-am: install-binPROGRAMS install-binSCRIPTS \
 	install-exec-local install-libLTLIBRARIES
@@ -4691,7 +4766,7 @@ ps-am:
 uninstall-am: uninstall-binPROGRAMS uninstall-binSCRIPTS \
 	uninstall-dist_docDATA uninstall-googleincludeHEADERS \
 	uninstall-info-am uninstall-libLTLIBRARIES uninstall-man \
-	uninstall-nodist_googleincludeHEADERS
+	uninstall-nodist_googleincludeHEADERS uninstall-pkgconfigDATA
 
 uninstall-man: uninstall-man1
 
@@ -4708,15 +4783,16 @@ uninstall-man: uninstall-man1
 	install-exec-am install-exec-local \
 	install-googleincludeHEADERS install-info install-info-am \
 	install-libLTLIBRARIES install-man install-man1 \
-	install-nodist_googleincludeHEADERS install-strip installcheck \
-	installcheck-am installdirs maintainer-clean \
-	maintainer-clean-generic mostlyclean mostlyclean-compile \
-	mostlyclean-generic mostlyclean-libtool pdf pdf-am ps ps-am \
-	tags uninstall uninstall-am uninstall-binPROGRAMS \
-	uninstall-binSCRIPTS uninstall-dist_docDATA \
-	uninstall-googleincludeHEADERS uninstall-info-am \
-	uninstall-libLTLIBRARIES uninstall-man uninstall-man1 \
-	uninstall-nodist_googleincludeHEADERS
+	install-nodist_googleincludeHEADERS install-pkgconfigDATA \
+	install-strip installcheck installcheck-am installdirs \
+	maintainer-clean maintainer-clean-generic mostlyclean \
+	mostlyclean-compile mostlyclean-generic mostlyclean-libtool \
+	pdf pdf-am ps ps-am tags uninstall uninstall-am \
+	uninstall-binPROGRAMS uninstall-binSCRIPTS \
+	uninstall-dist_docDATA uninstall-googleincludeHEADERS \
+	uninstall-info-am uninstall-libLTLIBRARIES uninstall-man \
+	uninstall-man1 uninstall-nodist_googleincludeHEADERS \
+	uninstall-pkgconfigDATA
 
 @ENABLE_FRAME_POINTERS_FALSE@@X86_64_AND_NO_FP_BY_DEFAULT_TRUE@  # TODO(csilvers): check if -fomit-frame-pointer might be in $(CXXFLAGS),
 @ENABLE_FRAME_POINTERS_FALSE@@X86_64_AND_NO_FP_BY_DEFAULT_TRUE@  #                 before setting this.
@@ -4777,6 +4853,38 @@ rpm: dist-gzip packages/rpm.sh packages/rpm/rpm.spec
 
 deb: dist-gzip packages/deb.sh packages/deb/*
 	@cd packages && ./deb.sh ${PACKAGE} ${VERSION}
+
+# I get the description and URL lines from the rpm spec. I use sed to
+# try to rewrite exec_prefix, libdir, and includedir in terms of
+# prefix, if possible.
+libtcmalloc.pc: Makefile packages/rpm/rpm.spec
+	echo 'prefix=$(prefix)' > "$@".tmp
+	echo 'exec_prefix='`echo '$(exec_prefix)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
+	echo 'libdir='`echo '$(libdir)' | sed 's@^$(exec_prefix)@$${exec_prefix}@'` >> "$@".tmp
+	echo 'includedir='`echo '$(includedir)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
+	echo '' >> "$@".tmp
+	echo 'Name: $(PACKAGE)' >> "$@".tmp
+	echo 'Version: $(VERSION)' >> "$@".tmp
+	-grep '^Summary:' packages/rpm/rpm.spec | sed s/^Summary:/Description:/ | head -n1 >> "$@".tmp
+	-grep '^URL: ' packages/rpm/rpm.spec >> "$@".tmp
+	echo 'Requires:' >> "$@".tmp
+	echo 'Libs: -L$${libdir} -ltcmalloc' >> "$@".tmp
+	echo 'Libs.private: $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)' >> "$@".tmp
+	echo 'Cflags: -I$${includedir}' >> "$@".tmp
+	mv -f "$@".tmp "$@"
+
+# The other versions are mostly the same.
+libtcmalloc_minimal.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal/ > "$@"
+
+libtcmalloc_debug.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_debug/ > "$@"
+
+libtcmalloc_minimal_debug.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal_debug/ > "$@"
+
+libprofiler.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-lprofiler/ > "$@"
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck

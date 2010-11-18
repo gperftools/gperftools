@@ -194,6 +194,7 @@ libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
 libwindows_la_LIBADD = -lPsapi
 
 SPINLOCK_INCLUDES = src/base/spinlock.h \
+                    src/base/spinlock_internal.h \
                     src/base/spinlock_win32-inl.h \
                     src/base/spinlock_linux-inl.h \
                     src/base/spinlock_posix-inl.h \
@@ -203,6 +204,7 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/atomicops-internals-x86.h
 noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
+                         src/base/spinlock_internal.cc \
                          $(SPINLOCK_INCLUDES)
 
 LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
@@ -219,6 +221,7 @@ SYSTEM_ALLOC_CC =
 else !MINGW
 # spinlock is the only code that uses atomicops.
 SPINLOCK_INCLUDES = src/base/spinlock.h \
+                    src/base/spinlock_internal.h \
                     src/base/atomicops.h \
                     src/base/atomicops-internals-macosx.h \
                     src/base/atomicops-internals-linuxppc.h \
@@ -227,6 +230,7 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
 
 noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
+                         src/base/spinlock_internal.cc \
                          src/base/atomicops-internals-x86.cc \
                          $(SPINLOCK_INCLUDES)
 libspinlock_la_LIBADD = $(NANOSLEEP_LIBS)
@@ -407,7 +411,8 @@ WINDOWS_PROJECTS += vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcproj
 libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
-libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS)
+# -version-info gets passed to libtool
+libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la $(PTHREAD_LIBS)
 
 # For windows, we're playing around with trying to do some stacktrace
@@ -675,7 +680,9 @@ libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc \
                                        $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS) \
                                         -DTCMALLOC_FOR_DEBUGALLOCATION
-libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS)
+# version_info gets passed to libtool
+libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS) \
+                                       -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
 
 LIBS_TO_WEAKEN += libtcmalloc_minimal_debug.la
@@ -770,7 +777,7 @@ libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 lib_LTLIBRARIES += libtcmalloc.la
 libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES)
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
-libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS)
+libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_la_LIBADD = libtcmalloc_internal.la $(PTHREAD_LIBS)
 
 if WITH_HEAP_CHECKER
@@ -973,7 +980,8 @@ libtcmalloc_debug_la_SOURCES = src/debugallocation.cc $(HEAP_CHECKER_SOURCES) \
                                $(TCMALLOC_INCLUDES)
 libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) \
                                 -DTCMALLOC_FOR_DEBUGALLOCATION
-libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS)
+libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS) \
+                               -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
 
 LIBS_TO_WEAKEN += libtcmalloc_debug.la
@@ -1083,7 +1091,8 @@ libprofiler_la_SOURCES = src/profiler.cc \
 libprofiler_la_LIBADD = libstacktrace.la
 # We have to include ProfileData for profiledata_unittest
 CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler)'
-libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS)
+libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \
+                         -version-info @PROFILER_SO_VERSION@
 
 # See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
 # Basically it's to work around systems where --rpath doesn't work right.
@@ -1172,8 +1181,11 @@ if WITH_CPU_PROFILER
 lib_LTLIBRARIES += libtcmalloc_and_profiler.la
 libtcmalloc_and_profiler_la_SOURCES = $(libtcmalloc_la_SOURCES) $(libprofiler_la_SOURCES)
 libtcmalloc_and_profiler_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) $(libprofiler_la_CXXFLAGS)
+# Since this library is meant to be used as a .a, I don't worry as much
+# about .so versioning.  I just give the libtcmalloc version number.
 # TODO(csilvers): use -export-symbols-regex?
-libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS)
+libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS) \
+                                      -version-info @TCMALLOC_SO_VERSION@
 # We don't include libprofiler_la_LIBADD here because all it adds is
 # libstacktrace.la, which we already get via libtcmalloc.  Trying to
 # specify it twice causes link-time duplicate-definition errors. :-(
@@ -1209,6 +1221,45 @@ rpm: dist-gzip packages/rpm.sh packages/rpm/rpm.spec
 
 deb: dist-gzip packages/deb.sh packages/deb/*
 	@cd packages && ./deb.sh ${PACKAGE} ${VERSION}
+
+# http://linux.die.net/man/1/pkg-config, http://pkg-config.freedesktop.org/wiki
+pkgconfigdir = $(libdir)/pkgconfig
+pkgconfig_DATA = libtcmalloc.pc libtcmalloc_minimal.pc \
+                 libtcmalloc_debug.pc libtcmalloc_minimal_debug.pc \
+                 libprofiler.pc
+CLEANFILES = $(pkgconfig_DATA)
+
+# I get the description and URL lines from the rpm spec. I use sed to
+# try to rewrite exec_prefix, libdir, and includedir in terms of
+# prefix, if possible.
+libtcmalloc.pc: Makefile packages/rpm/rpm.spec
+	echo 'prefix=$(prefix)' > "$@".tmp
+	echo 'exec_prefix='`echo '$(exec_prefix)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
+	echo 'libdir='`echo '$(libdir)' | sed 's@^$(exec_prefix)@$${exec_prefix}@'` >> "$@".tmp
+	echo 'includedir='`echo '$(includedir)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
+	echo '' >> "$@".tmp
+	echo 'Name: $(PACKAGE)' >> "$@".tmp
+	echo 'Version: $(VERSION)' >> "$@".tmp
+	-grep '^Summary:' packages/rpm/rpm.spec | sed s/^Summary:/Description:/ | head -n1 >> "$@".tmp
+	-grep '^URL: ' packages/rpm/rpm.spec >> "$@".tmp
+	echo 'Requires:' >> "$@".tmp
+	echo 'Libs: -L$${libdir} -ltcmalloc' >> "$@".tmp
+	echo 'Libs.private: $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)' >> "$@".tmp
+	echo 'Cflags: -I$${includedir}' >> "$@".tmp
+	mv -f "$@".tmp "$@"
+
+# The other versions are mostly the same.
+libtcmalloc_minimal.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal/ > "$@"
+
+libtcmalloc_debug.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_debug/ > "$@"
+
+libtcmalloc_minimal_debug.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal_debug/ > "$@"
+
+libprofiler.pc: libtcmalloc.pc
+	cat libtcmalloc.pc | sed s/-ltcmalloc/-lprofiler/ > "$@"
 
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck

@@ -46,7 +46,9 @@
 #define BASE_THREAD_ANNOTATIONS_H_
 
 
-#if defined(__GNUC__) && defined(__SUPPORT_TS_ANNOTATION__) && (!defined(SWIG))
+#if defined(__GNUC__) \
+  && (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 4)) \
+  && defined(__SUPPORT_TS_ANNOTATION__) && (!defined(SWIG))
 #define THREAD_ANNOTATION_ATTRIBUTE__(x)   __attribute__((x))
 #else
 #define THREAD_ANNOTATION_ATTRIBUTE__(x)   // no-op

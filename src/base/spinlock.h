@@ -44,14 +44,14 @@
 #define BASE_SPINLOCK_H_
 
 #include <config.h>
-#include "base/basictypes.h"
 #include "base/atomicops.h"
+#include "base/basictypes.h"
 #include "base/dynamic_annotations.h"
 #include "base/thread_annotations.h"
 
 class LOCKABLE SpinLock {
  public:
-  SpinLock() : lockword_(0) { }
+  SpinLock() : lockword_(kSpinLockFree) { }
 
   // Special constructor for use with static SpinLock objects.  E.g.,
   //
@@ -70,18 +70,21 @@ class LOCKABLE SpinLock {
   // TODO(csilvers): uncomment the annotation when we figure out how to
   //                 support this macro with 0 args (see thread_annotations.h)
   inline void Lock() /*EXCLUSIVE_LOCK_FUNCTION()*/ {
-    if (Acquire_CompareAndSwap(&lockword_, 0, 1) != 0) {
+    if (base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
+                                             kSpinLockHeld) != kSpinLockFree) {
       SlowLock();
     }
     ANNOTATE_RWLOCK_ACQUIRED(this, 1);
   }
 
-  // Acquire this SpinLock and return true if the acquisition can be
-  // done without blocking, else return false.  If this SpinLock is
-  // free at the time of the call, TryLock will return true with high
-  // probability.
+  // Try to acquire this SpinLock without blocking and return true if the
+  // acquisition was successful.  If the lock was not acquired, false is
+  // returned.  If this SpinLock is free at the time of the call, TryLock
+  // will return true with high probability.
   inline bool TryLock() EXCLUSIVE_TRYLOCK_FUNCTION(true) {
-    bool res = (Acquire_CompareAndSwap(&lockword_, 0, 1) == 0);
+    bool res =
+        (base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
+                                              kSpinLockHeld) == kSpinLockFree);
     if (res) {
       ANNOTATE_RWLOCK_ACQUIRED(this, 1);
     }
@@ -92,47 +95,37 @@ class LOCKABLE SpinLock {
   // TODO(csilvers): uncomment the annotation when we figure out how to
   //                 support this macro with 0 args (see thread_annotations.h)
   inline void Unlock() /*UNLOCK_FUNCTION()*/ {
-    // This is defined in mutex.cc.
-    extern void SubmitSpinLockProfileData(const void *, int64);
-
-    int64 wait_timestamp = static_cast<uint32>(lockword_);
+    uint64 wait_cycles =
+        static_cast<uint64>(base::subtle::NoBarrier_Load(&lockword_));
     ANNOTATE_RWLOCK_RELEASED(this, 1);
-    Release_Store(&lockword_, 0);
-    if (wait_timestamp != 1) {
+    base::subtle::Release_Store(&lockword_, kSpinLockFree);
+    if (wait_cycles != kSpinLockHeld) {
       // Collect contentionz profile info, and speed the wakeup of any waiter.
-      // The lockword_ value indicates when the waiter started waiting.
-      SlowUnlock(wait_timestamp);
+      // The wait_cycles value indicates how long this thread spent waiting
+      // for the lock.
+      SlowUnlock(wait_cycles);
     }
   }
 
-  // Report if we think the lock can be held by this thread.
-  // When the lock is truly held by the invoking thread
-  // we will always return true.
-  // Indended to be used as CHECK(lock.IsHeld());
+  // Determine if the lock is held.  When the lock is held by the invoking
+  // thread, true will always be returned. Intended to be used as
+  // CHECK(lock.IsHeld()).
   inline bool IsHeld() const {
-    return lockword_ != 0;
+    return base::subtle::NoBarrier_Load(&lockword_) != kSpinLockFree;
   }
-
-  // The timestamp for contention lock profiling must fit into 31 bits.
-  // as lockword_ is 32 bits and we loose an additional low-order bit due
-  // to the statement "now |= 1" in SlowLock().
-  // To select 31 bits from the 64-bit cycle counter, we shift right by
-  // PROFILE_TIMESTAMP_SHIFT = 7.
-  // Using these 31 bits, we reduce granularity of time measurement to
-  // 256 cycles, and will loose track of wait time for waits greater than
-  // 109 seconds on a 5 GHz machine, longer for faster clock cycles.
-  // Waits this long should be very rare.
-  enum { PROFILE_TIMESTAMP_SHIFT = 7 };
 
   static const base::LinkerInitialized LINKER_INITIALIZED;  // backwards compat
  private:
-  // Lock-state:  0 means unlocked; 1 means locked with no waiters; values
-  // greater than 1 indicate locked with waiters, where the value is the time
-  // the first waiter started waiting and is used for contention profiling.
+  enum { kSpinLockFree = 0 };
+  enum { kSpinLockHeld = 1 };
+  enum { kSpinLockSleeper = 2 };
+
   volatile Atomic32 lockword_;
 
   void SlowLock();
-  void SlowUnlock(int64 wait_timestamp);
+  void SlowUnlock(uint64 wait_cycles);
+  Atomic32 SpinLoop(int64 initial_wait_timestamp, Atomic32* wait_cycles);
+  inline int32 CalculateWaitCycles(int64 wait_start_time);
 
   DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };

@@ -100,17 +100,12 @@
 # define cfree free         // don't bother to try to test these obsolete fns
 # define valloc malloc
 # define pvalloc malloc
-# ifdef PERFTOOLS_NO_ALIGNED_MALLOC
-#   define _aligned_malloc(size, alignment) malloc(size)
-# else
-#   include <malloc.h>      // for _aligned_malloc
-# endif
-# define memalign(alignment, size) _aligned_malloc(size, alignment)
-// Assume if we fail, it's because of out-of-memory.
-// Note, this isn't a perfect analogue: we don't enforce constraints on "align"
+// I'd like to map posix_memalign to _aligned_malloc, but _aligned_malloc
+// must be paired with _aligned_free (not normal free), which is too
+// invasive a change to how we allocate memory here.  So just bail
 # include <errno.h>
-# define posix_memalign(pptr, align, size) \
-      ((*(pptr)=_aligned_malloc(size, align)) ? 0 : ENOMEM)
+# define memalign(alignment, size)         malloc(size)
+# define posix_memalign(pptr, align, size) ((*(pptr)=malloc(size)) ? 0 : ENOMEM)
 #endif
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
@@ -1032,6 +1027,14 @@ static int RunAllTests(int argc, char** argv) {
     VerifyNewHookWasCalled();
     free(p1);
     VerifyDeleteHookWasCalled();
+
+    // Windows has _aligned_malloc.  Let's test that that's captured too.
+#if (defined(_MSC_VER) || defined(__MINGW32__)) && !defined(PERFTOOLS_NO_ALIGNED_MALLOC)
+    p1 = _aligned_malloc(sizeof(p1) * 2, 64);
+    VerifyNewHookWasCalled();
+    _aligned_free(p1);
+    VerifyDeleteHookWasCalled();
+#endif
 
     p1 = valloc(60);
     VerifyNewHookWasCalled();

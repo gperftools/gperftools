@@ -77,6 +77,8 @@ static const size_t kPageSize   = 1 << kPageShift;
 static const size_t kMaxSize    = 8u * kPageSize;
 static const size_t kAlignment  = 8;
 static const size_t kLargeSizeClass = 0;
+// For all span-lengths < kMaxPages we keep an exact-size list.
+static const size_t kMaxPages = 1 << (20 - kPageShift);
 
 // Default bound on the total amount of thread caches.
 static const size_t kDefaultOverallThreadCacheSize = 8u * kMaxThreadCacheSize;
@@ -101,6 +103,17 @@ static const int kMaxOverages = 3;
 static const int kMaxDynamicFreeListLength = 8192;
 
 static const Length kMaxValidPages = (~static_cast<Length>(0)) >> kPageShift;
+
+#ifdef __x86_64__
+// All current and planned x86_64 processors only look at the lower 48 bits
+// in virtual to physical address translation.  The top 16 are thus unused.
+// TODO(rus): Under what operating systems can we increase it safely to 17?
+// This lets us use smaller page maps.  On first allocation, a 36-bit page map
+// uses only 96 KB instead of the 4.5 MB used by a 52-bit page map.
+static const int kAddressBits = 48;
+#else
+static const int kAddressBits = 8 * sizeof(void*);
+#endif
 
 namespace tcmalloc {
 

@@ -110,6 +110,7 @@
 #include <errno.h>
 #include <stdarg.h>
 #include <algorithm>
+#include <limits>
 #include <google/tcmalloc.h>
 #include "base/commandlineflags.h"
 #include "base/basictypes.h"               // gets us PRIu64
@@ -136,7 +137,9 @@
 # define WIN32_DO_PATCHING 1
 #endif
 
-using std::max;
+using STL_NAMESPACE::max;
+using STL_NAMESPACE::numeric_limits;
+using STL_NAMESPACE::vector;
 using tcmalloc::AlignmentForSize;
 using tcmalloc::PageHeap;
 using tcmalloc::PageHeapAllocator;
@@ -439,6 +442,52 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
 
   static const double MB = 1048576.0;
 
+  const uint64_t virtual_memory_used = (stats.pageheap.system_bytes
+                                        + stats.metadata_bytes);
+  const uint64_t physical_memory_used = (virtual_memory_used
+                                         - stats.pageheap.unmapped_bytes);
+  const uint64_t bytes_in_use_by_app = (physical_memory_used
+                                        - stats.metadata_bytes
+                                        - stats.pageheap.free_bytes
+                                        - stats.central_bytes
+                                        - stats.transfer_bytes
+                                        - stats.thread_bytes);
+
+  out->printf(
+      "------------------------------------------------\n"
+      "MALLOC:   %12" PRIu64 " (%7.1f MB) Bytes in use by application\n"
+      "MALLOC: + %12" PRIu64 " (%7.1f MB) Bytes in page heap freelist\n"
+      "MALLOC: + %12" PRIu64 " (%7.1f MB) Bytes in central cache freelist\n"
+      "MALLOC: + %12" PRIu64 " (%7.1f MB) Bytes in transfer cache freelist\n"
+      "MALLOC: + %12" PRIu64 " (%7.1f MB) Bytes in thread cache freelists\n"
+      "MALLOC: + %12" PRIu64 " (%7.1f MB) Bytes in malloc metadata\n"
+      "MALLOC:   ------------\n"
+      "MALLOC: = %12" PRIu64 " (%7.1f MB) Actual memory used (physical + swap)\n"
+      "MALLOC: + %12" PRIu64 " (%7.1f MB) Bytes released to OS (aka unmapped)\n"
+      "MALLOC:   ------------\n"
+      "MALLOC: = %12" PRIu64 " (%7.1f MB) Virtual address space used\n"
+      "MALLOC:\n"
+      "MALLOC:   %12" PRIu64 "              Spans in use\n"
+      "MALLOC:   %12" PRIu64 "              Thread heaps in use\n"
+      "MALLOC:   %12" PRIu64 "              Tcmalloc page size\n"
+      "------------------------------------------------\n"
+      "Call ReleaseFreeMemory() to release freelist memory to the OS"
+      " (via madvise()).\n"
+      "Bytes released to the OS take up virtual address space"
+      " but no physical memory.\n",
+      bytes_in_use_by_app, bytes_in_use_by_app / MB,
+      stats.pageheap.free_bytes, stats.pageheap.free_bytes / MB,
+      stats.central_bytes, stats.central_bytes / MB,
+      stats.transfer_bytes, stats.transfer_bytes / MB,
+      stats.thread_bytes, stats.thread_bytes / MB,
+      stats.metadata_bytes, stats.metadata_bytes / MB,
+      physical_memory_used, physical_memory_used / MB,
+      stats.pageheap.unmapped_bytes, stats.pageheap.unmapped_bytes / MB,
+      virtual_memory_used, virtual_memory_used / MB,
+      uint64_t(Static::span_allocator()->inuse()),
+      uint64_t(ThreadCache::HeapsInUse()),
+      uint64_t(kPageSize));
+
   if (level >= 2) {
     out->printf("------------------------------------------------\n");
     out->printf("Size class breakdown\n");
@@ -464,38 +513,6 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("------------------------------------------------\n");
     DumpSystemAllocatorStats(out);
   }
-
-  const uint64_t bytes_in_use = stats.pageheap.system_bytes
-                                - stats.pageheap.free_bytes
-                                - stats.pageheap.unmapped_bytes
-                                - stats.central_bytes
-                                - stats.transfer_bytes
-                                - stats.thread_bytes;
-
-  out->printf("------------------------------------------------\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Heap size\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Bytes in use by application\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Bytes free in page heap\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Bytes unmapped in page heap\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Bytes free in central cache\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Bytes free in transfer cache\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Bytes free in thread caches\n"
-              "MALLOC: %12" PRIu64 "              Spans in use\n"
-              "MALLOC: %12" PRIu64 "              Thread heaps in use\n"
-              "MALLOC: %12" PRIu64 " (%7.1f MB) Metadata allocated\n"
-              "MALLOC: %12" PRIu64 "              Tcmalloc page size\n"
-              "------------------------------------------------\n",
-              stats.pageheap.system_bytes, stats.pageheap.system_bytes / MB,
-              bytes_in_use, bytes_in_use / MB,
-              stats.pageheap.free_bytes, stats.pageheap.free_bytes / MB,
-              stats.pageheap.unmapped_bytes, stats.pageheap.unmapped_bytes / MB,
-              stats.central_bytes, stats.central_bytes / MB,
-              stats.transfer_bytes, stats.transfer_bytes / MB,
-              stats.thread_bytes, stats.thread_bytes / MB,
-              uint64_t(Static::span_allocator()->inuse()),
-              uint64_t(ThreadCache::HeapsInUse()),
-              stats.metadata_bytes, stats.metadata_bytes / MB,
-              uint64_t(kPageSize));
 }
 
 static void PrintStats(int level) {
@@ -607,6 +624,20 @@ class TCMallocImplementation : public MallocExtension {
     } else {
       DumpStats(&printer, 2);
     }
+  }
+
+  // We may print an extra, tcmalloc-specific warning message here.
+  virtual void GetHeapSample(MallocExtensionWriter* writer) {
+    if (FLAGS_tcmalloc_sample_parameter == 0) {
+      const char* const kWarningMsg =
+          "#\n# WARNING: This heap profile does not have any data in it,\n"
+          "# because the application was run with heap sampling turned off.\n"
+          "# To get useful data from from GetHeapSample(), you must first\n"
+          "# set the environment variable TCMALLOC_SAMPLE_PARAMETER to a\n"
+          "# positive sampling period, such as 524288.\n#\n";
+      writer->append(kWarningMsg, strlen(kWarningMsg));
+    }
+    MallocExtension::GetHeapSample(writer);
   }
 
   virtual void** ReadStackTraces(int* sample_period) {
@@ -753,6 +784,99 @@ class TCMallocImplementation : public MallocExtension {
   // unnamed namespace, we need to move the definition below it in the
   // file.
   virtual size_t GetAllocatedSize(void* ptr);
+
+  virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
+    static const char* kCentralCacheType = "tcmalloc.central";
+    static const char* kTransferCacheType = "tcmalloc.transfer";
+    static const char* kThreadCacheType = "tcmalloc.thread";
+    static const char* kPageHeapType = "tcmalloc.page";
+    static const char* kPageHeapUnmappedType = "tcmalloc.page_unmapped";
+    static const char* kLargeSpanType = "tcmalloc.large";
+    static const char* kLargeUnmappedSpanType = "tcmalloc.large_unmapped";
+
+    v->clear();
+
+    // central class information
+    int64 prev_class_size = 0;
+    for (int cl = 1; cl < kNumClasses; ++cl) {
+      size_t class_size = Static::sizemap()->ByteSizeForClass(cl);
+      MallocExtension::FreeListInfo i;
+      i.min_object_size = prev_class_size + 1;
+      i.max_object_size = class_size;
+      i.total_bytes_free =
+          Static::central_cache()[cl].length() * class_size;
+      i.type = kCentralCacheType;
+      v->push_back(i);
+
+      // transfer cache
+      i.total_bytes_free =
+          Static::central_cache()[cl].tc_length() * class_size;
+      i.type = kTransferCacheType;
+      v->push_back(i);
+
+      prev_class_size = Static::sizemap()->ByteSizeForClass(cl);
+    }
+
+    // Add stats from per-thread heaps
+    uint64_t class_count[kNumClasses];
+    memset(class_count, 0, sizeof(class_count));
+    {
+      SpinLockHolder h(Static::pageheap_lock());
+      uint64_t thread_bytes = 0;
+      ThreadCache::GetThreadStats(&thread_bytes, class_count);
+    }
+
+    prev_class_size = 0;
+    for (int cl = 1; cl < kNumClasses; ++cl) {
+      MallocExtension::FreeListInfo i;
+      i.min_object_size = prev_class_size + 1;
+      i.max_object_size = Static::sizemap()->ByteSizeForClass(cl);
+      i.total_bytes_free =
+          class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
+      i.type = kThreadCacheType;
+      v->push_back(i);
+    }
+
+    // append page heap info
+    int64 page_count_normal[kMaxPages];
+    int64 page_count_returned[kMaxPages];
+    int64 span_count_normal;
+    int64 span_count_returned;
+    {
+      SpinLockHolder h(Static::pageheap_lock());
+      Static::pageheap()->GetClassSizes(page_count_normal,
+                                        page_count_returned,
+                                        &span_count_normal,
+                                        &span_count_returned);
+    }
+
+    // spans: mapped
+    MallocExtension::FreeListInfo span_info;
+    span_info.type = kLargeSpanType;
+    span_info.max_object_size = (numeric_limits<size_t>::max)();
+    span_info.min_object_size = kMaxPages << kPageShift;
+    span_info.total_bytes_free = span_count_normal << kPageShift;
+    v->push_back(span_info);
+
+    // spans: unmapped
+    span_info.type = kLargeUnmappedSpanType;
+    span_info.total_bytes_free = span_count_returned << kPageShift;
+    v->push_back(span_info);
+
+    for (int s = 1; s < kMaxPages; s++) {
+      MallocExtension::FreeListInfo i;
+      i.max_object_size = (s << kPageShift);
+      i.min_object_size = ((s - 1) << kPageShift);
+
+      i.type = kPageHeapType;
+      i.total_bytes_free = (s << kPageShift) * page_count_normal[s];
+      v->push_back(i);
+
+      i.type = kPageHeapUnmappedType;
+      i.total_bytes_free = (s << kPageShift) * page_count_returned[s];
+      v->push_back(i);
+    }
+  }
 };
 
 // The constructor allocates an object to ensure that initialization

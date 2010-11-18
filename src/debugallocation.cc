@@ -497,7 +497,7 @@ class MallocBlock {
     // practical effect is that allocations are limited to 4Gb or so, even if
     // the address space could take more.
     static size_t max_size_t = ~0;
-    if (size < 0 || size > max_size_t - sizeof(MallocBlock)) {
+    if (size > max_size_t - sizeof(MallocBlock)) {
       RAW_LOG(ERROR, "Massive size passed to malloc: %"PRIuS"", size);
       return NULL;
     }
@@ -1356,6 +1356,20 @@ class DebugMallocImplementation : public ParentImplementation {
   virtual size_t GetEstimatedAllocatedSize(size_t size) {
     return size;
   }
+
+  virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
+    static const char* kDebugFreeQueue = "debug.free_queue";
+
+    ParentImplementation::GetFreeListSizes(v);
+
+    MallocExtension::FreeListInfo i;
+    i.type = kDebugFreeQueue;
+    i.min_object_size = 0;
+    i.max_object_size = numeric_limits<size_t>::max();
+    i.total_bytes_free = MallocBlock::FreeQueueSize();
+    v->push_back(i);
+  }
+
  };
 
 static DebugMallocImplementation debug_malloc_implementation;
