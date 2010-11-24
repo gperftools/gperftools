@@ -40,20 +40,32 @@
 #include <stddef.h>
 #include <sys/types.h>
 
+// Annoying stuff for windows -- makes sure clients can import these functions
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef _WIN32
+#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#   define PERFTOOLS_DLL_DECL
+# endif
+#endif
+
 /* Get the current stack trace.  Try to skip all routines up to and
  * and including the caller of MallocHook::Invoke*.
  * Use "skip_count" (similarly to GetStackTrace from stacktrace.h)
  * as a hint about how many routines to skip if better information
  * is not available.
  */
+PERFTOOLS_DLL_DECL
 int MallocHook_GetCallerStackTrace(void** result, int max_depth,
                                    int skip_count);
 
 
 typedef void (*MallocHook_NewHook)(const void* ptr, size_t size);
+PERFTOOLS_DLL_DECL
 MallocHook_NewHook MallocHook_SetNewHook(MallocHook_NewHook hook);
 
 typedef void (*MallocHook_DeleteHook)(const void* ptr);
+PERFTOOLS_DLL_DECL
 MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook);
 
 typedef void (*MallocHook_PreMmapHook)(const void *start,
@@ -62,6 +74,7 @@ typedef void (*MallocHook_PreMmapHook)(const void *start,
                                        int flags,
                                        int fd,
                                        off_t offset);
+PERFTOOLS_DLL_DECL
 MallocHook_PreMmapHook MallocHook_SetPreMmapHook(MallocHook_PreMmapHook hook);
 
 typedef void (*MallocHook_MmapHook)(const void* result,
@@ -71,9 +84,11 @@ typedef void (*MallocHook_MmapHook)(const void* result,
                                     int flags,
                                     int fd,
                                     off_t offset);
+PERFTOOLS_DLL_DECL
 MallocHook_MmapHook MallocHook_SetMmapHook(MallocHook_MmapHook hook);
 
 typedef void (*MallocHook_MunmapHook)(const void* ptr, size_t size);
+PERFTOOLS_DLL_DECL
 MallocHook_MunmapHook MallocHook_SetMunmapHook(MallocHook_MunmapHook hook);
 
 typedef void (*MallocHook_MremapHook)(const void* result,
@@ -82,12 +97,15 @@ typedef void (*MallocHook_MremapHook)(const void* result,
                                       size_t new_size,
                                       int flags,
                                       const void* new_addr);
+PERFTOOLS_DLL_DECL
 MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook);
 
 typedef void (*MallocHook_PreSbrkHook)(ptrdiff_t increment);
+PERFTOOLS_DLL_DECL
 MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook);
 
 typedef void (*MallocHook_SbrkHook)(const void* result, ptrdiff_t increment);
+PERFTOOLS_DLL_DECL
 MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook);
 
 #endif /* _MALLOC_HOOK_C_H_ */

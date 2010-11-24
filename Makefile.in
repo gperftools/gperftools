@@ -309,9 +309,11 @@ am__libprofiler_la_SOURCES_DIST = src/profiler.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/base/dynamic_annotations.h \
-	src/third_party/valgrind.h src/google/profiler.h \
-	src/google/stacktrace.h
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h \
+	src/base/dynamic_annotations.h src/third_party/valgrind.h \
+	src/google/profiler.h src/google/stacktrace.h
 @WITH_CPU_PROFILER_TRUE@am__objects_2 = $(am__objects_1) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am__objects_3 = $(am__objects_2) \
@@ -332,7 +334,9 @@ am__libspinlock_la_SOURCES_DIST = src/base/spinlock.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h
 @MINGW_FALSE@am_libspinlock_la_OBJECTS = spinlock.lo \
 @MINGW_FALSE@	spinlock_internal.lo atomicops-internals-x86.lo \
 @MINGW_FALSE@	$(am__objects_1)
@@ -376,7 +380,9 @@ am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -427,7 +433,9 @@ am__libtcmalloc_and_profiler_la_SOURCES_DIST = src/tcmalloc.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -481,7 +489,9 @@ am__libtcmalloc_debug_la_SOURCES_DIST = src/debugallocation.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -525,7 +535,9 @@ am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -585,7 +597,9 @@ am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -612,7 +626,9 @@ am__libtcmalloc_minimal_debug_la_SOURCES_DIST =  \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -644,7 +660,9 @@ am__libtcmalloc_minimal_internal_la_SOURCES_DIST = src/common.cc \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/tcmalloc_guard.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -881,7 +899,9 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/atomicops-internals-x86-msvc.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
-	src/base/spinlock_posix-inl.h src/base/logging.h \
+	src/base/spinlock_posix-inl.h \
+	src/base/synchronization_profiling.h \
+	src/base/atomicops-internals-arm-gcc.h src/base/logging.h \
 	src/base/commandlineflags.h src/base/dynamic_annotations.h \
 	src/third_party/valgrind.h
 am__objects_29 = $(am__objects_1) $(am__objects_1)
@@ -1797,8 +1817,10 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 @MINGW_TRUE@                    src/base/spinlock_win32-inl.h \
 @MINGW_TRUE@                    src/base/spinlock_linux-inl.h \
 @MINGW_TRUE@                    src/base/spinlock_posix-inl.h \
+@MINGW_TRUE@                    src/base/synchronization_profiling.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-macosx.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-linuxppc.h \
+@MINGW_TRUE@                    src/base/atomicops-internals-arm-gcc.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-x86-msvc.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-x86.h
 

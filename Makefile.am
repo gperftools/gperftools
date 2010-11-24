@@ -198,8 +198,10 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/spinlock_win32-inl.h \
                     src/base/spinlock_linux-inl.h \
                     src/base/spinlock_posix-inl.h \
+                    src/base/synchronization_profiling.h \
                     src/base/atomicops-internals-macosx.h \
                     src/base/atomicops-internals-linuxppc.h \
+                    src/base/atomicops-internals-arm-gcc.h \
                     src/base/atomicops-internals-x86-msvc.h \
                     src/base/atomicops-internals-x86.h
 noinst_LTLIBRARIES += libspinlock.la
