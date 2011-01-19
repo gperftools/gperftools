@@ -106,6 +106,32 @@ using std::max;
 using std::less;
 using std::char_traits;
 
+// If current process is being ptrace()d, 'TracerPid' in /proc/self/status
+// will be non-zero.
+static bool IsDebuggerAttached(void) {    // only works under linux, probably
+  // Since we could be called from FailureSignalHandler, avoid stdio
+  // which could have been corrupted.
+  // Limit stack usage as well.  Currently, TracerPid is at max offset 76
+  // (depending on length of argv[0]) into /proc/self/status.
+  char buf[100];
+  int fd = open("/proc/self/status", O_RDONLY);
+  if (fd == -1) {
+    return false;  // Can't tell for sure.
+  }
+  const int len = read(fd, buf, sizeof(buf));
+  bool rc = false;
+  if (len > 0) {
+    const char *const kTracerPid = "TracerPid:\t";
+    buf[len - 1] = '\0';
+    const char *p = strstr(buf, kTracerPid);
+    if (p != NULL) {
+      rc = (strncmp(p + strlen(kTracerPid), "0\n", 2) != 0);
+    }
+  }
+  close(fd);
+  return rc;
+}
+
 // This is the default if you don't link in -lprofiler
 extern "C" {
 ATTRIBUTE_WEAK PERFTOOLS_DLL_DECL bool ProfilingIsEnabledForAllThreads();
@@ -798,7 +824,7 @@ void HeapLeakChecker::DisableLibraryAllocsLocked(const char* library,
         // pthread_setspecific (which can be the only pointer to a heap object).
       IsLibraryNamed(library, "/libdl")  ||
         // library loaders leak some "system" heap that we don't care about
-      IsLibraryNamed(library, "/libcrypto")
+      IsLibraryNamed(library, "/libcrypto")  ||
         // Sometimes libcrypto of OpenSSH is compiled with -fomit-frame-pointer
         // (any library can be, of course, but this one often is because speed
         // is so important for making crypto usable).  We ignore all its
@@ -806,6 +832,10 @@ void HeapLeakChecker::DisableLibraryAllocsLocked(const char* library,
         // to ignore allocations done in files/symbols that match
         // "default_malloc_ex|default_realloc_ex"
         // but that doesn't work when the end-result binary is stripped.
+      IsLibraryNamed(library, "/libjvm")  ||
+        // JVM has a lot of leaks we don't care about.
+      IsLibraryNamed(library, "/libzip")
+        // The JVM leaks java.util.zip.Inflater after loading classes.
      ) {
     depth = 1;  // only disable allocation calls directly from the library code
   } else if (IsLibraryNamed(library, "/ld")
@@ -1637,6 +1667,13 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
       return true;
     }
 
+    // Update global_region_caller_ranges. They may need to change since
+    // e.g. initialization because shared libraries might have been loaded or
+    // unloaded.
+    Allocator::DeleteAndNullIfNot(&global_region_caller_ranges);
+    ProcMapsResult pm_result = UseProcMapsLocked(DISABLE_LIBRARY_ALLOCS);
+    RAW_CHECK(pm_result == PROC_MAPS_USED, "");
+
     // Keep track of number of internally allocated objects so we
     // can detect leaks in the heap-leak-checket itself
     const int initial_allocs = Allocator::alloc_count();
@@ -1867,25 +1904,11 @@ static bool internal_init_start_has_run = false;
   }
 
   // Changing this to false can be useful when debugging heap-checker itself:
-  if (!FLAGS_heap_check_run_under_gdb) {
-    // See if heap checker should turn itself off because we are
-    // running under gdb (to avoid conflicts over ptrace-ing rights):
-    char name_buf[15+15];
-    snprintf(name_buf, sizeof(name_buf),
-             "/proc/%d/cmdline", static_cast<int>(getppid()));
-    char cmdline[1024*8];  // /proc/*/cmdline is at most 4Kb anyway usually
-    int size = GetCommandLineFrom(name_buf, cmdline, sizeof(cmdline)-1);
-    cmdline[size] = '\0';
-    // look for "gdb" in the executable's name:
-    const char* last = strrchr(cmdline, '/');
-    if (last) last += 1;
-    else last = cmdline;
-    if (strncmp(last, "gdb", 3) == 0) {
-      RAW_LOG(WARNING, "We seem to be running under gdb; will turn itself off");
-      SpinLockHolder l(&heap_checker_lock);
-      TurnItselfOffLocked();
-      return;
-    }
+  if (!FLAGS_heap_check_run_under_gdb && IsDebuggerAttached()) {
+    RAW_LOG(WARNING, "Someone is ptrace()ing us; will turn itself off");
+    SpinLockHolder l(&heap_checker_lock);
+    TurnItselfOffLocked();
+    return;
   }
 
   { SpinLockHolder l(&heap_checker_lock);

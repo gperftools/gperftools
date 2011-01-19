@@ -2593,7 +2593,7 @@ struct kernel_statfs {
     LSS_INLINE _syscall6(void*, mmap2,             void*, s,
                          size_t,                   l, int,               p,
                          int,                      f, int,               d,
-                         __off64_t,                o)
+                         off_t,                    o)
 #endif
     LSS_INLINE _syscall3(int,   _sigaction,        int,   s,
                          const struct kernel_old_sigaction*,  a,

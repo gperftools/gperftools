@@ -273,12 +273,13 @@ class MallocBlock {
   // NOTE: tcmalloc.cc depends on the value of kMagicDeletedByte
   //       to work around a bug in the pthread library.
   static const int kMagicDeletedByte = 0xCD;
-  // An int (type of alloc_type_ below) in a deallocated storage
+  // A size_t (type of alloc_type_ below) in a deallocated storage
   // filled with kMagicDeletedByte.
-  static const int kMagicDeletedInt = 0xCDCDCDCD | ((0xCDCDCDCD << 16) << 16);
-    // Initializer works for 32 and 64 bit ints;
+  static const size_t kMagicDeletedSizeT =
+      0xCDCDCDCD | (((size_t)0xCDCDCDCD << 16) << 16);
+    // Initializer works for 32 and 64 bit size_ts;
     // "<< 16 << 16" is to fool gcc from issuing a warning
-    // when ints are 32 bits.
+    // when size_ts are 32 bits.
 
   // NOTE: on Linux, you can enable malloc debugging support in libc by
   // setting the environment variable MALLOC_CHECK_ to 1 before you
@@ -297,12 +298,17 @@ class MallocBlock {
  private:  // data layout
 
                     // The four fields size1_,offset_,magic1_,alloc_type_
-                    // should together occupy a multiple of 8 bytes.
+                    // should together occupy a multiple of 16 bytes. (At the
+                    // moment, sizeof(size_t) == 4 or 8 depending on piii vs
+                    // k8, and 4 of those sum to 16 or 32 bytes).
+                    // This, combined with BASE_MALLOC's alignment guarantees,
+                    // ensures that SSE types can be stored into the returned
+                    // block, at &size2_.
   size_t size1_;
   size_t offset_;   // normally 0 unless memaligned memory
                     // see comments in memalign() and FromRawPointer().
-  int magic1_;
-  int alloc_type_;
+  size_t magic1_;
+  size_t alloc_type_;
   // here comes the actual data (variable length)
   // ...
   // then come the size2_ and magic2_, or a full page of mprotect-ed memory
@@ -435,7 +441,7 @@ class MallocBlock {
                      "has been already deallocated (it was allocated with %s)",
                      data_addr(), AllocName(map_type & ~kDeallocatedTypeBit));
     }
-    if (alloc_type_ == kMagicDeletedInt) {
+    if (alloc_type_ == kMagicDeletedSizeT) {
       RAW_LOG(FATAL, "memory stomping bug: a word before object at %p "
                      "has been corrupted; or else the object has been already "
                      "deallocated and our memory map has been corrupted",
@@ -701,8 +707,8 @@ class MallocBlock {
     // Find the header just before client's memory.
     MallocBlock *mb = reinterpret_cast<MallocBlock *>(
                 reinterpret_cast<char *>(p) - data_offset);
-    // If mb->alloc_type_ is kMagicDeletedInt, we're not an ok pointer.
-    if (mb->alloc_type_ == kMagicDeletedInt) {
+    // If mb->alloc_type_ is kMagicDeletedSizeT, we're not an ok pointer.
+    if (mb->alloc_type_ == kMagicDeletedSizeT) {
       RAW_LOG(FATAL, "memory allocation bug: object at %p has been already"
                      " deallocated; or else a word before the object has been"
                      " corrupted (memory stomping bug)", p);

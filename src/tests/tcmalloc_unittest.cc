@@ -721,11 +721,9 @@ static void TestAlignmentForSize(int size) {
     CHECK((p % sizeof(double)) == 0);
 
     // Must have 16-byte alignment for large enough objects
-#ifndef DEBUGALLOCATION    // debug allocation doesn't need to align like this
     if (size >= 16) {
       CHECK((p % 16) == 0);
     }
-#endif
   }
   for (int i = 0; i < kNum; i++) {
     free(ptrs[i]);

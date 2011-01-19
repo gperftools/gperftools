@@ -127,13 +127,23 @@ static int GetRunningOnValgrind(void) {
 #ifdef RUNNING_ON_VALGRIND
   if (RUNNING_ON_VALGRIND) return 1;
 #endif
-  // TODO(csilvers): use GetenvBeforeMain() instead?  Will need to
-  //                 change it to be extern "C".
+#ifdef _MSC_VER
+  /* Visual Studio can complain about getenv, so use a windows equivalent. */
+  char value[100] = "1";    /* something that is not "0" */
+  int res = GetEnvironmentVariableA("RUNNING_ON_VALGRIND",
+                                    value, sizeof(value));
+  /* value will remain "1" if the called failed for some reason. */
+  return (res > 0 && strcmp(value, "0") != 0);
+#else
+  /* TODO(csilvers): use GetenvBeforeMain() instead?  Will need to
+   *                 change it to be extern "C".
+   */
   char *running_on_valgrind_str = getenv("RUNNING_ON_VALGRIND");
   if (running_on_valgrind_str) {
     return strcmp(running_on_valgrind_str, "0") != 0;
   }
   return 0;
+#endif
 }
 
 /* See the comments in dynamic_annotations.h */

@@ -2437,7 +2437,16 @@ sub RemoveUninterestingFrames {
     # old code out of the system.
     $skip_regexp = "TCMalloc|^tcmalloc::";
   } elsif ($main::profile_type eq 'contention') {
-    foreach my $vname ('Mutex::Unlock', 'Mutex::UnlockSlow') {
+    foreach my $vname ('base::RecordLockProfileData',
+                       'base::SubmitMutexProfileData',
+                       'base::SubmitSpinLockProfileData',
+                       'Mutex::Unlock',
+                       'Mutex::UnlockSlow',
+                       'Mutex::ReaderUnlock',
+                       'MutexLock::~MutexLock',
+                       'SpinLock::Unlock',
+                       'SpinLock::SlowUnlock',
+                       'SpinLockHolder::~SpinLockHolder') {
       $skip{$vname} = 1;
     }
   } elsif ($main::profile_type eq 'cpu') {
@@ -3176,24 +3185,47 @@ BEGIN {
   }
 }
 
-# Return the next line from the profile file, assuming it's a text
-# line (which in this case means, doesn't start with a NUL byte).  If
-# it's not a text line, return "".  At EOF, return undef, like perl does.
-# Input file should be in binmode.
-sub ReadProfileLine {
+# Reads the top, 'header' section of a profile, and returns the last
+# line of the header, commonly called a 'header line'.  The header
+# section of a profile consists of zero or more 'command' lines that
+# are instructions to pprof, which pprof executes when reading the
+# header.  All 'command' lines start with a %.  After the command
+# lines is the 'header line', which is a profile-specific line that
+# indicates what type of profile it is, and perhaps other global
+# information about the profile.  For instance, here's a header line
+# for a heap profile:
+#   heap profile:     53:    38236 [  5525:  1284029] @ heapprofile
+# For historical reasons, the CPU profile does not contain a text-
+# readable header line.  If the profile looks like a CPU profile,
+# this function returns "".  If no header line could be found, this
+# function returns undef.
+#
+# The following commands are recognized:
+#   %warn -- emit the rest of this line to stderr, prefixed by 'WARNING:'
+#
+# The input file should be in binmode.
+sub ReadProfileHeader {
   local *PROFILE = shift;
   my $firstchar = "";
   my $line = "";
   read(PROFILE, $firstchar, 1);
-  seek(PROFILE, -1, 1);          # unread the firstchar
-  if ($firstchar eq "\0") {
+  seek(PROFILE, -1, 1);                    # unread the firstchar
+  if ($firstchar !~ /[[:print:]]/) {       # is not a text character
     return "";
   }
-  $line = <PROFILE>;
-  if (defined($line)) {
+  while (defined($line = <PROFILE>)) {
     $line =~ s/\r//g;   # turn windows-looking lines into unix-looking lines
+    if ($line =~ /^%warn\s+(.*)/) {        # 'warn' command
+      # Note this matches both '%warn blah\n' and '%warn\n'.
+      print STDERR "WARNING: $1\n";        # print the rest of the line
+    } elsif ($line =~ /^%/) {
+      print STDERR "Ignoring unknown command from profile header: $line";
+    } else {
+      # End of commands, must be the header line.
+      return $line;
+    }
   }
-  return $line;
+  return undef;     # got to EOF without seeing a header line
 }
 
 sub IsSymbolizedProfileFile {
@@ -3204,7 +3236,7 @@ sub IsSymbolizedProfileFile {
   # Check if the file contains a symbol-section marker.
   open(TFILE, "<$file_name");
   binmode TFILE;
-  my $firstline = ReadProfileLine(*TFILE);
+  my $firstline = ReadProfileHeader(*TFILE);
   close(TFILE);
   if (!$firstline) {
     return 0;
@@ -3224,14 +3256,7 @@ sub IsSymbolizedProfileFile {
 sub ReadProfile {
   my $prog = shift;
   my $fname = shift;
-
-  if (IsSymbolizedProfileFile($fname) && !$main::use_symbolized_profile) {
-    # we have both a binary and symbolized profiles, abort
-    usage("Symbolized profile '$fname' cannot be used with a binary arg.  " .
-          "Try again without passing '$prog'.");
-  }
-
-  $main::profile_type = '';
+  my $result;            # return value
 
   $CONTENTION_PAGE =~ m,[^/]+$,;    # matches everything after the last slash
   my $contention_marker = $&;
@@ -3248,40 +3273,45 @@ sub ReadProfile {
   # whole firstline, since it may be gigabytes(!) of data.
   open(PROFILE, "<$fname") || error("$fname: $!\n");
   binmode PROFILE;      # New perls do UTF-8 processing
-  my $header = ReadProfileLine(*PROFILE);
+  my $header = ReadProfileHeader(*PROFILE);
   if (!defined($header)) {   # means "at EOF"
     error("Profile is empty.\n");
   }
 
   my $symbols;
   if ($header =~ m/^--- *$symbol_marker/o) {
+    # Verify that the user asked for a symbolized profile
+    if (!$main::use_symbolized_profile) {
+      # we have both a binary and symbolized profiles, abort
+      error("FATAL ERROR: Symbolized profile\n   $fname\ncannot be used with " .
+	    "a binary arg. Try again without passing\n   $prog\n");
+    }
     # Read the symbol section of the symbolized profile file.
     $symbols = ReadSymbols(*PROFILE{IO});
     # Read the next line to get the header for the remaining profile.
-    $header = ReadProfileLine(*PROFILE) || "";
+    $header = ReadProfileHeader(*PROFILE) || "";
   }
 
-  my $result;
-
+  $main::profile_type = '';
   if ($header =~ m/^heap profile:.*$growth_marker/o) {
     $main::profile_type = 'growth';
-    $result =  ReadHeapProfile($prog, $fname, $header);
+    $result =  ReadHeapProfile($prog, *PROFILE, $header);
   } elsif ($header =~ m/^heap profile:/) {
     $main::profile_type = 'heap';
-    $result =  ReadHeapProfile($prog, $fname, $header);
+    $result =  ReadHeapProfile($prog, *PROFILE, $header);
   } elsif ($header =~ m/^--- *$contention_marker/o) {
     $main::profile_type = 'contention';
-    $result = ReadSynchProfile($prog, $fname);
+    $result = ReadSynchProfile($prog, *PROFILE);
   } elsif ($header =~ m/^--- *Stacks:/) {
     print STDERR
       "Old format contention profile: mistakenly reports " .
       "condition variable signals as lock contentions.\n";
     $main::profile_type = 'contention';
-    $result = ReadSynchProfile($prog, $fname);
+    $result = ReadSynchProfile($prog, *PROFILE);
   } elsif ($header =~ m/^--- *$profile_marker/) {
     # the binary cpu profile data starts immediately after this line
     $main::profile_type = 'cpu';
-    $result = ReadCPUProfile($prog, $fname);
+    $result = ReadCPUProfile($prog, $fname, *PROFILE);
   } else {
     if (defined($symbols)) {
       # a symbolized profile contains a format we don't recognize, bail out
@@ -3289,8 +3319,10 @@ sub ReadProfile {
     }
     # no ascii header present -- must be a CPU profile
     $main::profile_type = 'cpu';
-    $result = ReadCPUProfile($prog, $fname);
+    $result = ReadCPUProfile($prog, $fname, *PROFILE);
   }
+
+  close(PROFILE);
 
   # if we got symbols along with the profile, return those as well
   if (defined($symbols)) {
@@ -3330,7 +3362,8 @@ sub FixCallerAddresses {
 # CPU profile reader
 sub ReadCPUProfile {
   my $prog = shift;
-  my $fname = shift;
+  my $fname = shift;       # just used for logging
+  local *PROFILE = shift;
   my $version;
   my $period;
   my $i;
@@ -3397,7 +3430,6 @@ sub ReadCPUProfile {
   my $map = '';
   seek(PROFILE, $i * 4, 0);
   read(PROFILE, $map, (stat PROFILE)[7]);
-  close(PROFILE);
 
   my $r = {};
   $r->{version} = $version;
@@ -3411,7 +3443,7 @@ sub ReadCPUProfile {
 
 sub ReadHeapProfile {
   my $prog = shift;
-  my $fname = shift;
+  local *PROFILE = shift;
   my $header = shift;
 
   my $index = 1;
@@ -3596,7 +3628,9 @@ sub ReadHeapProfile {
 }
 
 sub ReadSynchProfile {
-  my ($prog, $fname, $header) = @_;
+  my $prog = shift;
+  local *PROFILE = shift;
+  my $header = shift;
 
   my $map = '';
   my $profile = {};
@@ -3671,7 +3705,6 @@ sub ReadSynchProfile {
       $map .= $line;
     }
   }
-  close PROFILE;
 
   if (!$seen_clockrate) {
     printf STDERR ("No cycles/second entry in profile; Guessing %.1f GHz\n",

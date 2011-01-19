@@ -147,6 +147,10 @@ class VDSOSupport {
   //   kInvalidBase   => value hasn't been determined yet.
   //              0   => there is no VDSO.
   //           else   => vma of VDSO Elf{32,64}_Ehdr.
+  //
+  // When testing with mock VDSO, low bit is set.
+  // The low bit is always available because vdso_base_ is
+  // page-aligned.
   static const void *vdso_base_;
 
   // NOLINT on 'long' because these routines mimic kernel api.

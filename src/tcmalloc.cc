@@ -630,11 +630,13 @@ class TCMallocImplementation : public MallocExtension {
   virtual void GetHeapSample(MallocExtensionWriter* writer) {
     if (FLAGS_tcmalloc_sample_parameter == 0) {
       const char* const kWarningMsg =
-          "#\n# WARNING: This heap profile does not have any data in it,\n"
-          "# because the application was run with heap sampling turned off.\n"
-          "# To get useful data from from GetHeapSample(), you must first\n"
-          "# set the environment variable TCMALLOC_SAMPLE_PARAMETER to a\n"
-          "# positive sampling period, such as 524288.\n#\n";
+          "%warn\n"
+          "%warn This heap profile does not have any data in it, because\n"
+          "%warn the application was run with heap sampling turned off.\n"
+          "%warn To get useful data from GetHeapSample(), you must\n"
+          "%warn set the environment variable TCMALLOC_SAMPLE_PARAMETER to\n"
+          "%warn a positive sampling period, such as 524288.\n"
+          "%warn\n";
       writer->append(kWarningMsg, strlen(kWarningMsg));
     }
     MallocExtension::GetHeapSample(writer);

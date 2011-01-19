@@ -412,7 +412,8 @@ static inline void* do_mmap64(void *start, size_t length,
     }
 
     result = (void *)syscall(SYS_mmap2, 
-                             start, length, prot, flags, fd, offset / pagesize);
+                       start, length, prot, flags, fd,
+                       (off_t) (offset / pagesize));
     if (result != MAP_FAILED || errno != ENOSYS)  goto out;
 
     // We don't have mmap2() after all - don't bother trying it in future

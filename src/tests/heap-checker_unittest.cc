@@ -291,7 +291,8 @@ static void Use(T** foo) {
 
 // Arbitrary value, but not such that xor'ing with it is likely
 // to map one valid pointer to another valid pointer:
-static const uintptr_t kHideMask = 0xF03A5F7B;
+static const uintptr_t kHideMask =
+  static_cast<uintptr_t>(0xF03A5F7BF03A5F7BLL);
 
 // Helpers to hide a pointer from live data traversal.
 // We just xor the pointer so that (with high probability)

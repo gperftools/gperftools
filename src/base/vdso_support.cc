@@ -207,6 +207,10 @@ void VDSOSupport::ElfMemImage::Init(const void *base) {
   if (!base) {
     return;
   }
+  const intptr_t base_as_uintptr_t = reinterpret_cast<uintptr_t>(base);
+  // Fake VDSO has low bit set.
+  const bool fake_vdso = ((base_as_uintptr_t & 1) != 0);
+  base = reinterpret_cast<const void *>(base_as_uintptr_t & ~1);
   const char *const base_as_char = reinterpret_cast<const char *>(base);
   if (base_as_char[EI_MAG0] != ELFMAG0 || base_as_char[EI_MAG1] != ELFMAG1 ||
       base_as_char[EI_MAG2] != ELFMAG2 || base_as_char[EI_MAG3] != ELFMAG3) {
@@ -266,17 +270,6 @@ void VDSOSupport::ElfMemImage::Init(const void *base) {
   ElfW(Dyn) *dynamic_entry =
       reinterpret_cast<ElfW(Dyn) *>(dynamic_program_header->p_vaddr +
                                     relocation);
-  bool fake_vdso = false;  // Assume we are dealing with the real VDSO.
-  for (ElfW(Dyn) *de = dynamic_entry; de->d_tag != DT_NULL; ++de) {
-    ElfW(Sxword) tag = de->d_tag;
-    if (tag == DT_PLTGOT || tag == DT_RELA || tag == DT_JMPREL ||
-        tag == DT_NEEDED || tag == DT_RPATH || tag == DT_VERNEED ||
-        tag == DT_INIT || tag == DT_FINI) {
-      /* Real vdso can not reasonably have any of the above entries.  */
-      fake_vdso = true;
-      break;
-    }
-  }
   for (; dynamic_entry->d_tag != DT_NULL; ++dynamic_entry) {
     ElfW(Xword) value = dynamic_entry->d_un.d_val;
     if (fake_vdso) {
