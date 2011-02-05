@@ -47,29 +47,29 @@
 
 #include "base/basictypes.h"   // make sure we get the def for int64
 #if defined(__MACH__) && defined(__APPLE__)
-#include <mach/mach_time.h>
-#elif defined(__ARM_ARCH_5T__)
-#include <sys/time.h>
+# include <mach/mach_time.h>
+#elif defined(__ARM_ARCH_5T__) || defined(__ARM_ARCH_3__)
+# include <sys/time.h>
 #endif
 
 // NOTE: only i386 and x86_64 have been well tested.
 // PPC, sparc, alpha, and ia64 are based on
 //    http://peter.kuscsik.com/wordpress/?p=14
-// with modifications by m3b.  cf
+// with modifications by m3b.  See also
 //    https://setisvn.ssl.berkeley.edu/svn/lib/fftw-3.0.1/kernel/cycle.h
 struct CycleClock {
   // This should return the number of cycles since power-on.  Thread-safe.
   static inline int64 Now() {
 #if defined(__MACH__) && defined(__APPLE__)
-    // this goes at the top because we need ALL Macs, regardless
-    // of architecture, to return the number of "mach time units"
-    // that have passes since startup. See sysinfo.cc where
-    // InitializeSystemInfo() sets the supposed cpu clock frequency of macs
-    // to the number of mach time units per second, not actual
+    // this goes at the top because we need ALL Macs, regardless of
+    // architecture, to return the number of "mach time units" that
+    // have passed since startup.  See sysinfo.cc where
+    // InitializeSystemInfo() sets the supposed cpu clock frequency of
+    // macs to the number of mach time units per second, not actual
     // CPU clock frequency (which can change in the face of CPU
-    // frequency scaling).  also note that when the Mac sleeps,
-    // this counter pauses; it does not continue counting, nor resets
-    // to zero.
+    // frequency scaling).  Also note that when the Mac sleeps, this
+    // counter pauses; it does not continue counting, nor does it
+    // reset to zero.
     return mach_absolute_time();
 #elif defined(__i386__)
     int64 ret;
@@ -88,10 +88,6 @@ struct CycleClock {
     tbl &= -static_cast<int64>(tbu0 == tbu1);
     // high 32 bits in tbu1; low 32 bits in tbl  (tbu0 is garbage)
     return (tbu1 << 32) | tbl;
-#elif defined(__ARM_ARCH_5T__)
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return static_cast<uint64>(tv.tv_sec) * 1000000 + tv.tv_usec;
 #elif defined(__sparc__)
     int64 tick;
     asm(".byte 0x83, 0x41, 0x00, 0x00");
@@ -103,6 +99,17 @@ struct CycleClock {
     return itc;
 #elif defined(_MSC_VER) && defined(_M_IX86)
     _asm rdtsc
+
+// If none of the above cases trigger, we use a solution based on
+// a system call (gettimeofday or similar).  We do these in order
+// from fastest to slowest.  We do not have an '#else' catch-all
+// case here that just calls gettimeofday(); that system call is
+// slow, and this function is expected to be fast, so we don't want
+// to use it without an explicit decision that it's the only way.
+#elif defined(__ARM_ARCH_5T__) || defined(__ARM_ARCH_3__)
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return static_cast<uint64>(tv.tv_sec) * 1000000 + tv.tv_usec;
 #else
     // We could define __alpha here as well, but it only has a 32-bit
     // timer (good for like 4 seconds), which isn't very useful.

@@ -61,7 +61,7 @@ PageHeap::PageHeap()
   }
 }
 
-Span* PageHeap::New(Length n) {
+Span* PageHeap::SearchFreeAndLargeLists(Length n) {
   ASSERT(Check());
   ASSERT(n > 0);
 
@@ -79,19 +79,25 @@ Span* PageHeap::New(Length n) {
       ASSERT(ll->next->location == Span::ON_RETURNED_FREELIST);
       return Carve(ll->next, n);
     }
-    // Still no luck, so keep looking in larger classes.
   }
+  // No luck in free lists, our last chance is in a larger class.
+  return AllocLarge(n);  // May be NULL
+}
 
-  Span* result = AllocLarge(n);
-  if (result != NULL) return result;
+Span* PageHeap::New(Length n) {
+  ASSERT(Check());
+  ASSERT(n > 0);
 
-  // Grow the heap and try again
+  Span* result = SearchFreeAndLargeLists(n);
+  if (result != NULL)
+    return result;
+
+  // Grow the heap and try again.
   if (!GrowHeap(n)) {
     ASSERT(Check());
     return NULL;
   }
-
-  return AllocLarge(n);
+  return SearchFreeAndLargeLists(n);
 }
 
 Span* PageHeap::AllocLarge(Length n) {

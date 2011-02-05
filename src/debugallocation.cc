@@ -668,24 +668,24 @@ class MallocBlock {
                   reinterpret_cast<void*>(
                       PRINTABLE_PTHREAD(queue_entry.deleter_threadid)));
 
-      SymbolTable symbolization_table;
-      const int num_symbols = queue_entry.num_deleter_pcs;  // short alias name
-      for (int i = 0; i < num_symbols; i++) {
+      // We don't want to allocate or deallocate memory here, so we use
+      // placement-new.  It's ok that we don't destroy this, since we're
+      // just going to error-exit below anyway.  Union is for alignment.
+      union { void* alignment; char buf[sizeof(SymbolTable)]; } tablebuf;
+      SymbolTable* symbolization_table = new (tablebuf.buf) SymbolTable;
+      for (int i = 0; i < queue_entry.num_deleter_pcs; i++) {
         // Symbolizes the previous address of pc because pc may be in the
         // next function.  This may happen when the function ends with
         // a call to a function annotated noreturn (e.g. CHECK).
-        char* pc =
-            reinterpret_cast<char*>(queue_entry.deleter_pcs[i]) - 1;
-        symbolization_table.Add(pc);
+        char *pc = reinterpret_cast<char*>(queue_entry.deleter_pcs[i]);
+        symbolization_table->Add(pc - 1);
       }
       if (FLAGS_symbolize_stacktrace)
-        symbolization_table.Symbolize();
-      for (int i = 0; i < num_symbols; i++) {
-        char *pc =
-            reinterpret_cast<char*>(queue_entry.deleter_pcs[i]) - 1;
-        TracePrintf(STDERR_FILENO, "    @ %"PRIxPTR" %s\n",
-                    reinterpret_cast<uintptr_t>(pc),
-                    symbolization_table.GetSymbol(pc));
+        symbolization_table->Symbolize();
+      for (int i = 0; i < queue_entry.num_deleter_pcs; i++) {
+        char *pc = reinterpret_cast<char*>(queue_entry.deleter_pcs[i]);
+        TracePrintf(STDERR_FILENO, "    @ %p %s\n",
+                    pc, symbolization_table->GetSymbol(pc - 1));
       }
     } else {
       RAW_LOG(ERROR,

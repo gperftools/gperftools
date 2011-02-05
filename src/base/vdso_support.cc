@@ -40,6 +40,7 @@
 #ifdef HAVE_VDSO_SUPPORT     // defined in vdso_support.h
 
 #include <fcntl.h>
+#include <stddef.h>   // for ptrdiff_t
 
 #include "base/atomicops.h"  // for MemoryBarrier
 #include "base/linux_syscall_support.h"

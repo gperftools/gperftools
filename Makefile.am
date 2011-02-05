@@ -729,7 +729,7 @@ noinst_PROGRAMS += debugallocation_test
 debugallocation_test_SOURCES = src/tests/debugallocation_test.cc
 debugallocation_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 debugallocation_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-debugallocation_test_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+debugallocation_test_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
 
 endif WITH_DEBUGALLOC
 

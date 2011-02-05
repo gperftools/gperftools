@@ -109,11 +109,7 @@ using std::char_traits;
 // If current process is being ptrace()d, 'TracerPid' in /proc/self/status
 // will be non-zero.
 static bool IsDebuggerAttached(void) {    // only works under linux, probably
-  // Since we could be called from FailureSignalHandler, avoid stdio
-  // which could have been corrupted.
-  // Limit stack usage as well.  Currently, TracerPid is at max offset 76
-  // (depending on length of argv[0]) into /proc/self/status.
-  char buf[100];
+  char buf[256];   // TracerPid comes relatively earlier in status output
   int fd = open("/proc/self/status", O_RDONLY);
   if (fd == -1) {
     return false;  // Can't tell for sure.
@@ -189,12 +185,6 @@ DEFINE_bool(heap_check_test_pointer_alignment,
 // use 1 if any alignment is ok.
 // heap_check_test_pointer_alignment flag guides if we try the value of 1.
 // The larger it can be, the lesser is the chance of missing real leaks.
-//
-// sizeof(void)* is correct.  However gold (the new linker) has a bug where it
-// sometimes places global pointers on 4-byte boundaries, even when pointers
-// are 8 bytes long.  While we are fixing the linker, degrade to 4-byte
-// alignment on all targets.  http://b/1226481
-//
 static const size_t kPointerSourceAlignment = sizeof(void*);
 DEFINE_int32(heap_check_pointer_source_alignment,
 	     EnvToInt("HEAP_CHECK_POINTER_SOURCE_ALIGNMENT",
@@ -1874,9 +1864,6 @@ void HeapCleaner::RunHeapCleanups() {
   if (!FLAGS_heap_check_after_destructors) DoMainHeapCheck();
 }
 
-// defined below
-static int GetCommandLineFrom(const char* file, char* cmdline, int size);
-
 static bool internal_init_start_has_run = false;
 
 // Called exactly once, before main() (but hopefully just before).
@@ -2240,53 +2227,6 @@ void HeapLeakChecker::TurnItselfOffLocked() {
     MemoryRegionMap::Shutdown();
   }
   RAW_CHECK(!heap_checker_on, "");
-}
-
-// Read in the command line from 'file' into 'cmdline' and return the size read
-// 'size' is the space available in 'cmdline'.
-// We need this because we don't yet have argv/argc.
-// CAVEAT: 'file' (some /proc/*/cmdline) usually contains the command line
-// already truncated (to 4K on Linux).
-// Arguments in cmdline will be '\0'-terminated,
-// the first one will be the binary's name.
-static int GetCommandLineFrom(const char* file, char* cmdline, int size) {
-  // This routine is only used to check if we're running under gdb, so
-  // it's ok if this #if fails and the routine is a no-op.
-  //
-  // This function is called before memory allocation hooks are set up
-  // so we must not have any memory allocations in it.  We use syscall
-  // versions of open/read/close here because we don't trust the non-syscall
-  // versions: they might 'accidentally' cause a memory allocation.
-  // Here's a real-life problem scenario we had:
-  // 1) A program LD_PRELOADed a library called list_file_used.a
-  // 2) list_file_used intercepted open/read/close and called dlsym()
-  // 3) dlsym() called pthread_setspecific() which called malloc().
-  // This malloced memory is 'hidden' from the heap-checker.  By
-  // definition, this thread-local data is live, and everything it points
-  // to is live (not a memory leak) as well.  But because this memory
-  // was hidden from the heap-checker, everything it points to was
-  // taken to be orphaned, and therefore, a memory leak.
-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
-  // Use a win32 call to get the command line.
-  const char* command_line = ::GetCommandLine();
-  strncpy(cmdline, command_line, size);
-  cmdline[size - 1] = '\0';
-  return strlen(cmdline);
-#elif defined(HAVE_SYS_SYSCALL_H)
-  int fd = syscall(SYS_open, file, O_RDONLY);
-  int result = 0;
-  if (fd >= 0) {
-    ssize_t r;
-    while ((r = syscall(SYS_read, fd, cmdline + result, size)) > 0) {
-      result += r;
-      size -= r;
-    }
-    syscall(SYS_close, fd);
-  }
-  return result;
-#else
-  return 0;
-#endif
 }
 
 extern bool heap_leak_checker_bcad_variable;  // in heap-checker-bcad.cc

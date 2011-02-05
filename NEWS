@@ -1,3 +1,35 @@
+== 04 February 2011 ==
+
+I've just released perftools 1.7
+
+I apologize for the delay since the last release; so many great new
+patches and bugfixes kept coming in (and are still coming in; I also
+apologize to those folks who have to slip until the next release).  I
+picked this arbitrary time to make a cut.
+
+Among the many new features in this release is a multi-megabyte
+reduction in the amount of tcmalloc overhead uder x86_64, improved
+performance in the case of contention, and many many bugfixes,
+especially architecture-specific bugfixes.  See the
+[http://google-perftools.googlecode.com/svn/tags/perftools-1.7/ChangeLog ChangeLog]
+for full details.
+
+One architecture-specific change of note is added comments in the
+[http://google-perftools.googlecode.com/svn/tags/perftools-1.7/README README]
+for using tcmalloc under OS X.  I'm trying to get my head around the
+exact behavior of the OS X linker, and hope to have more improvements
+for the next release, but I hope these notes help folks who have been
+having trouble with tcmalloc on OS X.
+
+*Windows users*: I've heard reports that some unittests fail on
+Windows when compiled with MSVC 10 in Release mode.  All tests pass in
+Debug mode.  I've not heard of any problems with earlier versions of
+MSVC.  I don't know if this is a problem with the runtime patching (so
+the static patching discussed in README_windows.txt will still work),
+a problem with perftools more generally, or a bug in MSVC 10.  Anyone
+with windows expertise that can debug this, I'd be glad to hear from!
+
+
 === 5 August 2010 ===
 
 I've just released perftools 1.6
@@ -36,6 +68,7 @@ performance and improvements in portability.  It adds features like
 mimic the windows function of the same name.  Full details are in the
 [http://google-perftools.googlecode.com/svn/tags/perftools-1.5/ChangeLog
 ChangeLog].
+
 
 === 11 September 2009 ===
 

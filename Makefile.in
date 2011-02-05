@@ -790,7 +790,7 @@ am__debugallocation_test_SOURCES_DIST =  \
 @WITH_DEBUGALLOC_TRUE@am_debugallocation_test_OBJECTS = debugallocation_test-debugallocation_test.$(OBJEXT)
 debugallocation_test_OBJECTS = $(am_debugallocation_test_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@debugallocation_test_DEPENDENCIES =  \
-@WITH_DEBUGALLOC_TRUE@	libtcmalloc_minimal_debug.la \
+@WITH_DEBUGALLOC_TRUE@	libtcmalloc_debug.la \
 @WITH_DEBUGALLOC_TRUE@	$(am__DEPENDENCIES_1)
 am__debugallocation_test_sh_SOURCES_DIST =  \
 	src/tests/debugallocation_test.sh
@@ -2135,7 +2135,7 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_DEBUGALLOC_TRUE@debugallocation_test_SOURCES = src/tests/debugallocation_test.cc
 @WITH_DEBUGALLOC_TRUE@debugallocation_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 @WITH_DEBUGALLOC_TRUE@debugallocation_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-@WITH_DEBUGALLOC_TRUE@debugallocation_test_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+@WITH_DEBUGALLOC_TRUE@debugallocation_test_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
 
 ### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
 

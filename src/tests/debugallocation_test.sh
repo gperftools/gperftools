@@ -52,21 +52,38 @@ num_failures=0
 # Increments num_failures if the death test does not succeed.
 OneDeathTest() {
   "$DEBUGALLOCATION_TEST" "$1" 2>&1 | {
-    read regex_line
-    regex=`expr "$regex_line" : "Expected regex:\(.*\)"`
-    test -z "$regex" && echo "done"  # no regex line, not a death-case
-    grep "$regex" >/dev/null 2>&1    # pass the rest of the lines through grep
-  } || num_failures=`expr $num_failures + 1`
+    regex_line='dummy'
+    # Normally the regex_line is the first line of output, but not
+    # always (if tcmalloc itself does any logging to stderr).
+    while test -n "$regex_line"; do
+      read regex_line
+      regex=`expr "$regex_line" : "Expected regex:\(.*\)"`
+      test -n "$regex" && break   # found the regex line
+    done
+    test -z "$regex" && echo "done" || grep "$regex" 2>&1
+  }
 }
 
 death_test_num=0   # which death test to run
-while test -z `OneDeathTest "$death_test_num"`; do
-  echo "Done with death test $death_test_num"
+while /bin/true; do
+  echo -n "Running death test $death_test_num..."
+  output="`OneDeathTest $death_test_num`"
+  case $output in
+     # Empty string means grep didn't find anything.
+     "")      echo "FAILED"; num_failures=`expr $num_failures + 1`;;
+     "done"*) echo "done with death tests"; break;;
+     # Any other string means grep found something, like it ought to.
+     *)       echo "OK";;
+  esac
   death_test_num=`expr $death_test_num + 1`
 done
 
 # Test the non-death parts of the test too
-if ! "$DEBUGALLOCATION_TEST"; then
+echo -n "Running non-death tests..."
+if "$DEBUGALLOCATION_TEST"; then
+  echo "OK"
+else
+  echo "FAILED"
   num_failures=`expr $num_failures + 1`
 fi
 

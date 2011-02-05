@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "1.5";
+my $PPROF_VERSION = "1.7";
 
 # These are the object tools we use which can come from a
 # user-specified location using --tools, from the PPROF_TOOLS
@@ -211,6 +211,7 @@ Call-graph Options:
    --nodecount=<n>     Show at most so many nodes [default=80]
    --nodefraction=<f>  Hide nodes below <f>*total [default=.005]
    --edgefraction=<f>  Hide edges below <f>*total [default=.001]
+   --maxdegree=<n>     Max incoming/outgoing edges per node [default=8]
    --focus=<regexp>    Focus on nodes matching <regexp>
    --ignore=<regexp>   Ignore nodes matching <regexp>
    --scale=<n>         Set GV scaling [default=0]
@@ -319,6 +320,7 @@ sub Init() {
   $main::opt_nodecount = 80;
   $main::opt_nodefraction = 0.005;
   $main::opt_edgefraction = 0.001;
+  $main::opt_maxdegree = 8;
   $main::opt_focus = '';
   $main::opt_ignore = '';
   $main::opt_scale = 0;
@@ -388,6 +390,7 @@ sub Init() {
              "nodecount=i"    => \$main::opt_nodecount,
              "nodefraction=f" => \$main::opt_nodefraction,
              "edgefraction=f" => \$main::opt_edgefraction,
+             "maxdegree=i"    => \$main::opt_maxdegree,
              "focus=s"        => \$main::opt_focus,
              "ignore=s"       => \$main::opt_ignore,
              "scale=i"        => \$main::opt_scale,
@@ -1814,12 +1817,38 @@ sub PrintDot {
     }
   }
 
-  # Print edges
-  foreach my $e (keys(%edge)) {
+  # Print edges (process in order of decreasing counts)
+  my %indegree = ();   # Number of incoming edges added per node so far
+  my %outdegree = ();  # Number of outgoing edges added per node so far
+  foreach my $e (sort { $edge{$b} <=> $edge{$a} } keys(%edge)) {
     my @x = split(/\001/, $e);
     $n = $edge{$e};
 
-    if (abs($n) > $edgelimit) {
+    # Initialize degree of kept incoming and outgoing edges if necessary
+    my $src = $x[0];
+    my $dst = $x[1];
+    if (!exists($outdegree{$src})) { $outdegree{$src} = 0; }
+    if (!exists($indegree{$dst})) { $indegree{$dst} = 0; }
+
+    my $keep;
+    if ($indegree{$dst} == 0) {
+      # Keep edge if needed for reachability
+      $keep = 1;
+    } elsif (abs($n) <= $edgelimit) {
+      # Drop if we are below --edgefraction
+      $keep = 0;
+    } elsif ($outdegree{$src} >= $main::opt_maxdegree ||
+             $indegree{$dst} >= $main::opt_maxdegree) {
+      # Keep limited number of in/out edges per node
+      $keep = 0;
+    } else {
+      $keep = 1;
+    }
+
+    if ($keep) {
+      $outdegree{$src}++;
+      $indegree{$dst}++;
+
       # Compute line width based on edge count
       my $fraction = abs($local_total ? (3 * ($n / $local_total)) : 0);
       if ($fraction > 1) { $fraction = 1; }
@@ -2157,6 +2186,19 @@ function handleMouseUp(evt) {
 EOF
 }
 
+# Return a small number that identifies the argument.
+# Multiple calls with the same argument will return the same number.
+# Calls with different arguments will return different numbers.
+sub ShortIdFor {
+  my $key = shift;
+  my $id = $main::uniqueid{$key};
+  if (!defined($id)) {
+    $id = keys(%main::uniqueid) + 1;
+    $main::uniqueid{$key} = $id;
+  }
+  return $id;
+}
+
 # Translate a stack of addresses into a stack of symbols
 sub TranslateStack {
   my $symbols = shift;
@@ -2194,6 +2236,15 @@ sub TranslateStack {
       if ($j > 2) {
         $func = "$func (inline)";
       }
+
+      # Do not merge nodes corresponding to Callback::Run since that
+      # causes confusing cycles in dot display.  Instead, we synthesize
+      # a unique name for this frame per caller.
+      if ($func =~ m/Callback.*::Run$/) {
+        my $caller = ($i > 0) ? $addrs[$i-1] : 0;
+        $func = "Run#" . ShortIdFor($caller);
+      }
+
       if ($main::opt_addresses) {
         push(@result, "$a $func $fileline");
       } elsif ($main::opt_lines) {

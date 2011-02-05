@@ -72,30 +72,6 @@ int main(int argc, char** argv) {
   ASSERT_LE(MallocExtension_GetAllocatedSize(a), 5000);
   ASSERT_GE(MallocExtension_GetEstimatedAllocatedSize(1000), 1000);
 
-  // test invariant: size of freelist = heap_size - allocated_bytes
-  free(malloc(32000));
-  size_t heap_size = 0;
-  size_t allocated = 0;
-  ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty(
-      "generic.current_allocated_bytes", &allocated));
-  ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty(
-      "generic.heap_size", &heap_size));
-  vector<MallocExtension::FreeListInfo> info;
-  MallocExtension::instance()->GetFreeListSizes(&info);
-
-  ASSERT_GE(info.size(), 0);
-  int64 free_bytes = 0;
-  for (vector<MallocExtension::FreeListInfo>::const_iterator it = info.begin();
-       it != info.end();
-       ++it) {
-    free_bytes += it->total_bytes_free;
-  }
-
-  // don't expect an exact equality since the calls to query the heap
-  // themselves free and allocate memory
-  size_t error = abs((heap_size - allocated) - free_bytes);
-  ASSERT_LT(error, 0.15 * heap_size);
-
   free(a);
 
   printf("DONE\n");

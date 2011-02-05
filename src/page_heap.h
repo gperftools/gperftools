@@ -215,6 +215,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Statistics on system, free, and unmapped bytes
   Stats stats_;
 
+  Span* SearchFreeAndLargeLists(Length n);
+
   bool GrowHeap(Length n);
 
   // REQUIRES: span->length >= n
