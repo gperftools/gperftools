@@ -871,7 +871,10 @@ static void TestReleaseToSystem() {
 #endif   // #ifndef DEBUGALLOCATION
 }
 
-bool g_no_memory = false;
+// On MSVC10, in release mode, the optimizer convinces itself
+// g_no_memory is never changed (I guess it doesn't realize OnNoMemory
+// might be called).  Work around this by setting the var volatile.
+volatile bool g_no_memory = false;
 std::new_handler g_old_handler = NULL;
 static void OnNoMemory() {
   g_no_memory = true;
@@ -999,6 +1002,7 @@ static int RunAllTests(int argc, char** argv) {
     SetDeleteHook();   // ditto
 
     void* p1 = malloc(10);
+    CHECK(p1 != NULL);    // force use of this variable
     VerifyNewHookWasCalled();
     // Also test the non-standard tc_malloc_size
     size_t actual_p1_size = tc_malloc_size(p1);
@@ -1009,19 +1013,23 @@ static int RunAllTests(int argc, char** argv) {
 
 
     p1 = calloc(10, 2);
+    CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     p1 = realloc(p1, 30);
+    CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     VerifyDeleteHookWasCalled();
     cfree(p1);  // synonym for free
     VerifyDeleteHookWasCalled();
 
     CHECK_EQ(posix_memalign(&p1, sizeof(p1), 40), 0);
+    CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     free(p1);
     VerifyDeleteHookWasCalled();
 
     p1 = memalign(sizeof(p1) * 2, 50);
+    CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     free(p1);
     VerifyDeleteHookWasCalled();
@@ -1035,43 +1043,51 @@ static int RunAllTests(int argc, char** argv) {
 #endif
 
     p1 = valloc(60);
+    CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     free(p1);
     VerifyDeleteHookWasCalled();
 
     p1 = pvalloc(70);
+    CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     free(p1);
     VerifyDeleteHookWasCalled();
 
     char* p2 = new char;
+    CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     delete p2;
     VerifyDeleteHookWasCalled();
 
     p2 = new char[100];
+    CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     delete[] p2;
     VerifyDeleteHookWasCalled();
 
     p2 = new(std::nothrow) char;
+    CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     delete p2;
     VerifyDeleteHookWasCalled();
 
     p2 = new(std::nothrow) char[100];
+    CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     delete[] p2;
     VerifyDeleteHookWasCalled();
 
     // Another way of calling operator new
     p2 = static_cast<char*>(::operator new(100));
+    CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     ::operator delete(p2);
     VerifyDeleteHookWasCalled();
 
     // Try to call nothrow's delete too.  Compilers use this.
     p2 = static_cast<char*>(::operator new(100, std::nothrow));
+    CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     ::operator delete(p2, std::nothrow);
     VerifyDeleteHookWasCalled();
@@ -1087,8 +1103,10 @@ static int RunAllTests(int argc, char** argv) {
     int size = 8192*2;
     p1 = mmap(NULL, size, PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE,
               -1, 0);
+    CHECK(p1 != NULL);
     VerifyMmapHookWasCalled();
     p1 = mremap(p1, size, size/2, 0);
+    CHECK(p1 != NULL);
     VerifyMremapHookWasCalled();
     size /= 2;
     munmap(p1, size);
@@ -1097,6 +1115,7 @@ static int RunAllTests(int argc, char** argv) {
     int fd = open("/dev/zero", O_RDONLY);
     CHECK_GE(fd, 0);   // make sure the open succeeded
     p1 = mmap(NULL, 8192, PROT_READ, MAP_SHARED, fd, 0);
+    CHECK(p1 != NULL);
     VerifyMmapHookWasCalled();
     munmap(p1, 8192);
     VerifyMunmapHookWasCalled();
@@ -1115,11 +1134,14 @@ static int RunAllTests(int argc, char** argv) {
 #if defined(HAVE_SBRK) && defined(__linux) && \
        (defined(__i386__) || defined(__x86_64__))
     p1 = sbrk(8192);
+    CHECK(p1 != NULL);
     VerifySbrkHookWasCalled();
     p1 = sbrk(-8192);
+    CHECK(p1 != NULL);
     VerifySbrkHookWasCalled();
     // However, sbrk hook should *not* be called with sbrk(0)
     p1 = sbrk(0);
+    CHECK(p1 != NULL);
     CHECK_EQ(g_SbrkHook_calls, 0);
 #else   // this is just to quiet the compiler: make sure all fns are called
     IncrementCallsToSbrkHook();

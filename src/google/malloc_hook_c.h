@@ -40,13 +40,17 @@
 #include <stddef.h>
 #include <sys/types.h>
 
-// Annoying stuff for windows -- makes sure clients can import these functions
+/* Annoying stuff for windows; makes sure clients can import these functions */
 #ifndef PERFTOOLS_DLL_DECL
 # ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
 # else
 #   define PERFTOOLS_DLL_DECL
 # endif
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 /* Get the current stack trace.  Try to skip all routines up to and
@@ -107,5 +111,9 @@ MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook);
 typedef void (*MallocHook_SbrkHook)(const void* result, ptrdiff_t increment);
 PERFTOOLS_DLL_DECL
 MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook);
+
+#ifdef __cplusplus
+}   // extern "C"
+#endif
 
 #endif /* _MALLOC_HOOK_C_H_ */

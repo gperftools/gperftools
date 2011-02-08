@@ -1,4 +1,15 @@
-== 04 February 2011 ==
+== 7 February 2011 ==
+
+Thanks to endlessr..., who
+[http://code.google.com/p/google-perftools/issues/detail?id=307 identified]
+why some tests were failing under MSVC 10 in release mode.  It does not look
+like these failures point toward any problem with tcmalloc itself; rather, the
+problem is with the test, which made some assumptions that broke under the
+some aggressive optimizations used in MSVC 10.  I'll fix the test, but in
+the meantime, feel free to use perftools even when compiled under MSVC
+10.
+
+== 4 February 2011 ==
 
 I've just released perftools 1.7
 
