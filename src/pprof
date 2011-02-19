@@ -636,7 +636,7 @@ sub Main() {
   # Print
   if (!$main::opt_interactive) {
     if ($main::opt_disasm) {
-      PrintDisassembly($libs, $flat, $cumulative, $main::opt_disasm, $total);
+      PrintDisassembly($libs, $flat, $cumulative, $main::opt_disasm);
     } elsif ($main::opt_list) {
       PrintListing($libs, $flat, $cumulative, $main::opt_list);
     } elsif ($main::opt_text) {
@@ -646,7 +646,7 @@ sub Main() {
       if ($total != 0) {
         printf("Total: %s %s\n", Unparse($total), Units());
       }
-      PrintText($symbols, $flat, $cumulative, $total, -1);
+      PrintText($symbols, $flat, $cumulative, -1);
     } elsif ($main::opt_raw) {
       PrintSymbolizedProfile($symbols, $profile, $main::prog);
     } elsif ($main::opt_callgrind) {
@@ -841,7 +841,7 @@ sub InteractiveCommand {
     my $flat = FlatProfile($reduced);
     my $cumulative = CumulativeProfile($reduced);
 
-    PrintText($symbols, $flat, $cumulative, $total, $line_limit);
+    PrintText($symbols, $flat, $cumulative, $line_limit);
     return 1;
   }
   if (m/^\s*callgrind\s*([^ \n]*)/) {
@@ -893,7 +893,7 @@ sub InteractiveCommand {
     my $flat = FlatProfile($reduced);
     my $cumulative = CumulativeProfile($reduced);
 
-    PrintDisassembly($libs, $flat, $cumulative, $routine, $total);
+    PrintDisassembly($libs, $flat, $cumulative, $routine);
     return 1;
   }
   if (m/^\s*(gv|web|evince)\s*(.*)/) {
@@ -1137,8 +1137,9 @@ sub PrintText {
   my $symbols = shift;
   my $flat = shift;
   my $cumulative = shift;
-  my $total = shift;
   my $line_limit = shift;
+
+  my $total = TotalProfile($flat);
 
   # Which profile to sort by?
   my $s = $main::opt_cum ? $cumulative : $flat;
@@ -1214,7 +1215,8 @@ sub PrintDisassembly {
   my $flat = shift;
   my $cumulative = shift;
   my $disasm_opts = shift;
-  my $total = shift;
+
+  my $total = TotalProfile($flat);
 
   foreach my $lib (@{$libs}) {
     my $symbol_table = GetProcedureBoundaries($lib->[0], $disasm_opts);
@@ -1770,7 +1772,7 @@ sub PrintDot {
     if ($f != $c) {
       $extra = sprintf("\\rof %s (%s)",
                        Unparse($c),
-                       Percent($c, $overall_total));
+                       Percent($c, $local_total));
     }
     my $style = "";
     if ($main::opt_heapcheck) {
@@ -1789,7 +1791,7 @@ sub PrintDot {
                 $node{$a},
                 $sym,
                 Unparse($f),
-                Percent($f, $overall_total),
+                Percent($f, $local_total),
                 $extra,
                 $fs,
                 $style,

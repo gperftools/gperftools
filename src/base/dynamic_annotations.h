@@ -387,7 +387,7 @@
 #undef ANNOTALYSIS_STATIC_INLINE
 #define ANNOTALYSIS_STATIC_INLINE static inline
 #undef ANNOTALYSIS_SEMICOLON_OR_EMPTY_BODY
-#define ANNOTALYSIS_SEMICOLON_OR_EMPTY_BODY {}
+#define ANNOTALYSIS_SEMICOLON_OR_EMPTY_BODY { (void)file; (void)line; }
 #endif
 #define ANNOTALYSIS_IGNORE_READS_BEGIN   __attribute__ ((ignore_reads_begin))
 #define ANNOTALYSIS_IGNORE_READS_END     __attribute__ ((ignore_reads_end))
