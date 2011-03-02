@@ -94,7 +94,7 @@ extern "C" {
   //    OS X: malloc_size()
   //    glibc: malloc_usable_size()
   //    Windows: _msize()
-  size_t tc_malloc_size(void* ptr) __THROW;
+  PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW;
 
 #ifdef __cplusplus
   PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW;

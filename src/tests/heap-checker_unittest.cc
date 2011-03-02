@@ -76,11 +76,6 @@
 #include <sys/mman.h>
 #endif
 #include <fcntl.h>              // for open(), close()
-// FreeBSD has malloc.h, but complains if you use it
-#if defined(HAVE_MALLOC_H) && !defined(__FreeBSD__)
-#include <malloc.h>
-#endif
-
 #ifdef HAVE_EXECINFO_H
 #include <execinfo.h>           // backtrace
 #endif
@@ -684,7 +679,7 @@ static void ScopedDisabledLeaks() {
   HeapLeakChecker::Disabler disabler;
   AllocHidden(3 * sizeof(int));
   TransLeaks();
-  malloc(10);  // Direct leak
+  (void)malloc(10);  // Direct leak
 }
 
 // have different disabled leaks

@@ -231,6 +231,8 @@ static int64 EstimateCyclesPerSecond(const int estimate_time_ms) {
   return guess;
 }
 
+// ReadIntFromFile is only called on linux and cygwin platforms.
+#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 // Helper function for reading an int from a file. Returns true if successful
 // and the memory location pointed to by value is set to the value read.
 static bool ReadIntFromFile(const char *file, int *value) {
@@ -250,6 +252,7 @@ static bool ReadIntFromFile(const char *file, int *value) {
   }
   return ret;
 }
+#endif
 
 // WARNING: logging calls back to InitializeSystemInfo() so it must
 // not invoke any logging code.  Also, InitializeSystemInfo() can be
@@ -491,7 +494,7 @@ static void ConstructFilename(const char* spec, pid_t pid,
                               char* buf, int buf_size) {
   CHECK_LT(snprintf(buf, buf_size,
                     spec,
-                    pid ? pid : getpid()), buf_size);
+                    static_cast<int>(pid ? pid : getpid())), buf_size);
 }
 #endif
 
@@ -804,7 +807,8 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
                Buffer::kBufSize);
     } else {
       CHECK_LT(snprintf(object_path.buf_, Buffer::kBufSize,
-                        "/proc/%d/path/%s", pid_, mapinfo->pr_mapname),
+                        "/proc/%d/path/%s",
+                        static_cast<int>(pid_), mapinfo->pr_mapname),
                Buffer::kBufSize);
     }
     ssize_t len = readlink(object_path.buf_, current_filename_, PATH_MAX);

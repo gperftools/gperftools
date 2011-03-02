@@ -123,6 +123,8 @@ AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
+AC_CHECK_HEADERS(sys/malloc.h)  # where some versions of OS X put malloc.h
+AC_CHECK_HEADERS(malloc/malloc.h)  # another place OS X puts malloc.h (?)
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
@@ -359,5 +361,5 @@ AM_CONDITIONAL(WITH_STACK_TRACE, test "$enable_cpu_profiler" = yes -o \
                                       "$enable_heap_checker" = yes)
 
 # Write generated configuration file
-AC_CONFIG_FILES([Makefile src/google/tcmalloc.h])
+AC_CONFIG_FILES([Makefile src/google/tcmalloc.h src/windows/google/tcmalloc.h])
 AC_OUTPUT

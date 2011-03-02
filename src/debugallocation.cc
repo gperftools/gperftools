@@ -31,8 +31,16 @@
 // Author: Urs Holzle <opensource@google.com>
 
 #include "config.h"
-#ifdef HAVE_MALLOC_H
-#include <malloc.h>
+// We only need malloc.h for struct mallinfo.
+#ifdef HAVE_STRUCT_MALLINFO
+// Malloc can be in several places on older versions of OS X.
+# if defined(HAVE_MALLOC_H)
+# include <malloc.h>
+# elif defined(HAVE_SYS_MALLOC_H)
+# include <sys/malloc.h>
+# elif defined(HAVE_MALLOC_MALLOC_H)
+# include <malloc/malloc.h>
+# endif
 #endif
 #include <pthread.h>
 #include <stdio.h>
@@ -127,6 +135,23 @@ static void TracePrintf(int fd, const char *fmt, ...)
   __attribute__ ((__format__ (__printf__, 2, 3)));
 
 //
+// Define the malloc/free/mallopt/mallinfo implementations
+// we will be working on top of:
+#ifdef TCMALLOC_FOR_DEBUGALLOCATION
+
+// The do_* functions are defined in tcmalloc/tcmalloc.cc,
+// which is included before this file
+// when TCMALLOC_FOR_DEBUGALLOCATION is defined
+#define BASE_MALLOC_NEW(size)    cpp_alloc(size, false)
+#define BASE_MALLOC        do_malloc
+#define BASE_FREE          do_free
+#define BASE_MALLOC_STATS  do_malloc_stats
+#define BASE_MALLOPT       do_mallopt
+#define BASE_MALLINFO      do_mallinfo
+#define BASE_MALLOC_SIZE(ptr) GetSizeWithCallback(ptr, &InvalidGetAllocatedSize)
+
+#else
+
 // GNU has some weird "weak aliasing" thing that permits us to define our
 // own malloc(), free(), and realloc() which can use the normal versions of
 // of themselves by calling __libc_malloc(), __libc_free(), and
@@ -141,32 +166,21 @@ extern "C" {
 #ifdef HAVE_STRUCT_MALLINFO
   extern struct mallinfo __libc_mallinfo(void);
 #endif
+  static void noop_malloc_stats(void) {}
 }
 
-// Define the malloc/free/mallopt/mallinfo implementations
-// we will be working on top of.
-// TODO(csilvers): provide debugallocation on top of libc alloc,
-//                 so this #ifdef might sometimes be false.
-#ifdef TCMALLOC_FOR_DEBUGALLOCATION
-
-// The do_* functions are defined in tcmalloc.cc,
-// which is included before this file
-// when TCMALLOC_FOR_DEBUGALLOCATION is defined.
-#define BASE_MALLOC_NEW(size)  cpp_alloc(size, false)
-#define BASE_MALLOC      do_malloc_or_cpp_alloc
-#define BASE_FREE        do_free
-#define BASE_MALLOPT     do_mallopt
-#define BASE_MALLINFO    do_mallinfo
-
-#else
-
 // We are working on top of standard libc's malloc library
-#define BASE_MALLOC_NEW  __libc_malloc
-#define BASE_MALLOC      __libc_malloc
-#define BASE_FREE        __libc_free
-#define BASE_MALLOPT     __libc_mallopt
-#define BASE_MALLINFO    __libc_mallinfo
-
+#define BASE_MALLOC_NEW    __libc_malloc
+#define BASE_MALLOC        __libc_malloc
+#define BASE_FREE          __libc_free
+#define BASE_MALLOC_STATS  noop_malloc_stats
+#define BASE_MALLOPT       __libc_mallopt
+#ifdef HAVE_STRUCT_MALLINFO
+#define BASE_MALLINFO      __libc_mallinfo
+#endif
+// This is malloc_size() on OS X, malloc_usable_size() on libc,
+// _msize() on windows.  Rather than trying to pick, we just bail.
+#define BASE_MALLOC_SIZE(ptr) 0   // TODO(csilvers): do better
 #endif
 
 // ========================================================================= //
@@ -190,7 +204,7 @@ class FreeQueue {
     return (q_front_ + 1) % kFreeQueueSize == q_back_;
   }
 
-  void Push(QueueEntry block) {
+  void Push(const QueueEntry& block) {
     q_[q_front_] = block;
     q_front_ = (q_front_ + 1) % kFreeQueueSize;
   }
@@ -982,329 +996,6 @@ static inline void DebugDeallocate(void* ptr, int type) {
 
 // ========================================================================= //
 
-// Alloc/free stuff for debug hooks for malloc & friends
-
-// CAVEAT: The code structure below ensures that MallocHook methods are always
-//         called from the stack frame of the invoked allocation function.
-//         heap-checker.cc depends on this to start a stack trace from
-//         the call to the (de)allocation function.
-
-// Put all callers of MallocHook::Invoke* in this module into
-// ATTRIBUTE_SECTION(google_malloc) section,
-// so that MallocHook::GetCallerStackTrace can function accurately:
-
-extern "C" {
-  void* malloc(size_t size) __THROW ATTRIBUTE_SECTION(google_malloc);
-  void free(void* ptr) __THROW ATTRIBUTE_SECTION(google_malloc);
-  void* realloc(void* ptr, size_t size) __THROW
-    ATTRIBUTE_SECTION(google_malloc);
-  void* calloc(size_t nmemb, size_t size) __THROW
-    ATTRIBUTE_SECTION(google_malloc);
-  void cfree(void* ptr) __THROW ATTRIBUTE_SECTION(google_malloc);
-
-  void* memalign(size_t __alignment, size_t __size) __THROW
-    ATTRIBUTE_SECTION(google_malloc);
-  int posix_memalign(void** ptr, size_t align, size_t size) __THROW
-    ATTRIBUTE_SECTION(google_malloc);
-  void* valloc(size_t __size) __THROW
-    ATTRIBUTE_SECTION(google_malloc);
-  void* pvalloc(size_t __size) __THROW
-    ATTRIBUTE_SECTION(google_malloc);
-}
-
-static void *MemalignOverride(size_t align, size_t size,
-                              const void *caller) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-
-void* operator new(size_t size) throw (std::bad_alloc)
-  ATTRIBUTE_SECTION(google_malloc);
-void* operator new(size_t size, const std::nothrow_t&) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-void operator delete(void* p) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-void operator delete(void* p, const std::nothrow_t&) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-void* operator new[](size_t size) throw (std::bad_alloc)
-  ATTRIBUTE_SECTION(google_malloc);
-void* operator new[](size_t size, const std::nothrow_t&) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-void operator delete[](void* p) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-void operator delete[](void* p, const std::nothrow_t&) __THROW
-  ATTRIBUTE_SECTION(google_malloc);
-
-extern "C" void* malloc(size_t size) __THROW {
-  void* ptr = DebugAllocate(size, MallocBlock::kMallocType);
-  MallocHook::InvokeNewHook(ptr, size);
-  return ptr;
-}
-
-extern "C" void free(void* ptr) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType);
-}
-
-extern "C" void* realloc(void* ptr, size_t size) __THROW {
-  if (ptr == NULL) {
-    ptr = DebugAllocate(size, MallocBlock::kMallocType);
-    MallocHook::InvokeNewHook(ptr, size);
-    return ptr;
-  }
-  if (size == 0) {
-    MallocHook::InvokeDeleteHook(ptr);
-    DebugDeallocate(ptr, MallocBlock::kMallocType);
-    return NULL;
-  }
-  MallocBlock* old = MallocBlock::FromRawPointer(ptr);
-  old->Check(MallocBlock::kMallocType);
-  MallocBlock* p = MallocBlock::Allocate(size, MallocBlock::kMallocType);
-
-  // If realloc fails we are to leave the old block untouched and
-  // return null
-  if (p == NULL)  return NULL;
-
-  memcpy(p->data_addr(), old->data_addr(),
-         (old->data_size() < size) ? old->data_size() : size);
-  MallocHook::InvokeDeleteHook(ptr);
-  MallocHook::InvokeNewHook(p->data_addr(), size);
-  DebugDeallocate(ptr, MallocBlock::kMallocType);
-  MALLOC_TRACE("realloc", p->data_size(), p->data_addr());
-  return p->data_addr();
-}
-
-extern "C" void* calloc(size_t count, size_t size) __THROW {
-  // Overflow check
-  const size_t total_size = count * size;
-  if (size != 0 && total_size / size != count) return NULL;
-
-  void* block = DebugAllocate(total_size, MallocBlock::kMallocType);
-  MallocHook::InvokeNewHook(block, total_size);
-  if (block)  memset(block, 0, total_size);
-  return block;
-}
-
-extern "C" void cfree(void* ptr) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType);
-}
-
-// Round "value" up to next "alignment" boundary.
-// Requires that "alignment" be a power of two.
-static intptr_t RoundUp(intptr_t value, intptr_t alignment) {
-  return (value + alignment - 1) & ~(alignment - 1);
-}
-
-static void *do_debug_memalign(size_t alignment, size_t size) {
-  // Allocate >= size bytes aligned on "alignment" boundary
-  // "alignment" is a power of two.
-  void *p = 0;
-  RAW_CHECK((alignment & (alignment-1)) == 0, "must be power of two");
-  const size_t data_offset = MallocBlock::data_offset();
-  // Allocate "alignment-1" extra bytes to ensure alignment is possible, and
-  // a further data_offset bytes for an additional fake header.
-  size_t extra_bytes = data_offset + alignment - 1;
-  if (size + extra_bytes < size) return NULL;         // Overflow
-  p = DebugAllocate(size + extra_bytes, MallocBlock::kMallocType);
-  if (p != 0) {
-    intptr_t orig_p = reinterpret_cast<intptr_t>(p);
-    // Leave data_offset bytes for fake header, and round up to meet
-    // alignment.
-    p = reinterpret_cast<void *>(RoundUp(orig_p + data_offset, alignment));
-    // Create a fake header block with an offset_ that points back to the
-    // real header.  FromRawPointer uses this value.
-    MallocBlock *fake_hdr = reinterpret_cast<MallocBlock *>(
-                reinterpret_cast<char *>(p) - data_offset);
-    // offset_ is distance between real and fake headers.
-    // p is now end of fake header (beginning of client area),
-    // and orig_p is the end of the real header, so offset_
-    // is their difference.
-    fake_hdr->set_offset(reinterpret_cast<intptr_t>(p) - orig_p);
-  }
-  return p;
-}
-
-// Override __libc_memalign in libc on linux boxes.
-// They have a bug in libc that causes them (very rarely) to allocate
-// with __libc_memalign() yet deallocate with free().
-// This function is an exception to the rule of calling MallocHook method
-// from the stack frame of the allocation function;
-// heap-checker handles this special case explicitly.
-static void *MemalignOverride(size_t align, size_t size,
-                              const void *caller) __THROW {
-  void *p = do_debug_memalign(align, size);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
-}
-void *(*__memalign_hook)(size_t, size_t, const void *) = MemalignOverride;
-
-extern "C" void* memalign(size_t align, size_t size) __THROW {
-  void *p = do_debug_memalign(align, size);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
-}
-
-// Implementation taken from tcmalloc/tcmalloc.cc
-extern "C" int posix_memalign(void** result_ptr,
-                              size_t align, size_t size) __THROW {
-  if (((align % sizeof(void*)) != 0) ||
-      ((align & (align - 1)) != 0) ||
-      (align == 0)) {
-    return EINVAL;
-  }
-
-  void* result = do_debug_memalign(align, size);
-  MallocHook::InvokeNewHook(result, size);
-  if (result == NULL) {
-    return ENOMEM;
-  } else {
-    *result_ptr = result;
-    return 0;
-  }
-}
-
-extern "C" void* valloc(size_t size) __THROW {
-  // Allocate >= size bytes starting on a page boundary
-  void *p = do_debug_memalign(getpagesize(), size);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
-}
-
-extern "C" void* pvalloc(size_t size) __THROW {
-  // Round size up to a multiple of pages
-  // then allocate memory on a page boundary
-  int pagesize = getpagesize();
-  size = RoundUp(size, pagesize);
-  if (size == 0) {     // pvalloc(0) should allocate one page, according to
-    size = pagesize;   // http://man.free4web.biz/man3/libmpatrol.3.html
-  }
-  void *p = do_debug_memalign(pagesize, size);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
-}
-
-extern "C" int mallopt(int cmd, int value) __THROW {
-  return BASE_MALLOPT(cmd, value);
-}
-
-#ifdef HAVE_STRUCT_MALLINFO
-extern "C" struct mallinfo mallinfo(void) __THROW {
-  return BASE_MALLINFO();
-}
-#endif
-
-// ========================================================================= //
-
-// Alloc/free stuff for debug operator new & friends
-
-// This is mostly the same a cpp_alloc in tcmalloc.cc.
-inline void* cpp_debug_alloc(size_t size, int new_type, bool nothrow) {
-  for (;;) {
-    void* p = DebugAllocate(size, new_type);
-#ifdef PREANSINEW
-    return p;
-#else
-    if (p == NULL) {  // allocation failed
-      // Get the current new handler.  NB: this function is not
-      // thread-safe.  We make a feeble stab at making it so here, but
-      // this lock only protects against tcmalloc interfering with
-      // itself, not with other libraries calling set_new_handler.
-      std::new_handler nh;
-      {
-        SpinLockHolder h(&set_new_handler_lock);
-        nh = std::set_new_handler(0);
-        (void) std::set_new_handler(nh);
-      }
-#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-      if (nh) {
-        // Since exceptions are disabled, we don't really know if new_handler
-        // failed.  Assume it will abort if it fails.
-        (*nh)();
-        continue;
-      }
-      return 0;
-#else
-      // If no new_handler is established, the allocation failed.
-      if (!nh) {
-        if (nothrow) return 0;
-        throw std::bad_alloc();
-      }
-      // Otherwise, try the new_handler.  If it returns, retry the
-      // allocation.  If it throws std::bad_alloc, fail the allocation.
-      // if it throws something else, don't interfere.
-      try {
-        (*nh)();
-      } catch (const std::bad_alloc&) {
-        if (!nothrow) throw;
-        return p;
-      }
-#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-    } else {  // allocation success
-      return p;
-    }
-#endif  // PREANSINEW
-  }
-}
-
-void* operator new(size_t size) throw (std::bad_alloc) {
-  void* ptr = cpp_debug_alloc(size, MallocBlock::kNewType, false);
-  MallocHook::InvokeNewHook(ptr, size);
-  if (ptr == NULL) {
-    RAW_LOG(FATAL, "Unable to allocate %"PRIuS" bytes: new failed.", size);
-  }
-  return ptr;
-}
-
-void* operator new(size_t size, const std::nothrow_t&) __THROW {
-  void* ptr = cpp_debug_alloc(size, MallocBlock::kNewType, true);
-  MallocHook::InvokeNewHook(ptr, size);
-  return ptr;
-}
-
-void operator delete(void* ptr) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kNewType);
-}
-
-// Some STL implementations explicitly invoke this.
-// It is completely equivalent to a normal delete (delete never throws).
-void operator delete(void* ptr, const std::nothrow_t&) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kNewType);
-}
-
-// ========================================================================= //
-
-// Alloc/free stuff for debug operator new[] & friends
-
-void* operator new[](size_t size) throw (std::bad_alloc) {
-  void* ptr = cpp_debug_alloc(size, MallocBlock::kArrayNewType, false);
-  MallocHook::InvokeNewHook(ptr, size);
-  if (ptr == NULL) {
-    RAW_LOG(FATAL, "Unable to allocate %"PRIuS" bytes: new[] failed.", size);
-  }
-  return ptr;
-}
-
-void* operator new[](size_t size, const std::nothrow_t&) __THROW {
-  void* ptr = cpp_debug_alloc(size, MallocBlock::kArrayNewType, true);
-  MallocHook::InvokeNewHook(ptr, size);
-  return ptr;
-}
-
-void operator delete[](void* ptr) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kArrayNewType);
-}
-
-// Some STL implementations explicitly invoke this.
-// It is completely equivalent to a normal delete (delete never throws).
-void operator delete[](void* ptr, const std::nothrow_t&) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kArrayNewType);
-}
-
-// ========================================================================= //
-
 // The following functions may be called via MallocExtension::instance()
 // for memory verification and statistics.
 #ifdef TCMALLOC_FOR_DEBUGALLOCATION
@@ -1393,37 +1084,342 @@ REGISTER_MODULE_INITIALIZER(debugallocation, {
   }
 });
 
-#ifdef TCMALLOC_FOR_DEBUGALLOCATION
+// ========================================================================= //
 
-// Redefine malloc_stats to use tcmalloc's implementation:
-extern "C" void malloc_stats(void) __THROW {
-  do_malloc_stats();
-}
-
-// Some library routines on RedHat 9 allocate memory using malloc()
-// and free it using __libc_free() (or vice-versa).  Since we provide
-// our own implementations of malloc/free using tcmalloc.cc,
-// we need to make sure that the __libc_XXX variants
-// also point to the same implementations.
-//
-// Note: this might not override __libc_XXX calls withing libc itself,
-// but it can be important for other libraries that mention these functions
-// or when this code is LD_PRELOAD-ed.
-// TODO: In case these __libc_* definitions do not actually matter,
-// they should go away from here and from tcmalloc/tcmalloc.cc.
-//
-extern "C" {
-  void* __libc_malloc(size_t size)              { return malloc(size);       }
-  void  __libc_free(void* ptr)                  { free(ptr);                 }
-  void* __libc_realloc(void* ptr, size_t size)  { return realloc(ptr, size); }
-  void* __libc_calloc(size_t n, size_t size)    { return calloc(n, size);    }
-  void  __libc_cfree(void* ptr)                 { cfree(ptr);                }
-  void* __libc_memalign(size_t align, size_t s) { return memalign(align, s); }
-  void* __libc_valloc(size_t size)              { return valloc(size);       }
-  void* __libc_pvalloc(size_t size)             { return pvalloc(size);      }
-  int __posix_memalign(void** r, size_t a, size_t s) {
-    return posix_memalign(r, a, s);
+// This is mostly the same a cpp_alloc in tcmalloc.cc.
+// TODO(csilvers): write a wrapper for new-handler so we don't have to
+// copy this code so much.
+inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
+  for (;;) {
+    void* p = DebugAllocate(size, new_type);
+#ifdef PREANSINEW
+    return p;
+#else
+    if (p == NULL) {  // allocation failed
+      // Get the current new handler.  NB: this function is not
+      // thread-safe.  We make a feeble stab at making it so here, but
+      // this lock only protects against tcmalloc interfering with
+      // itself, not with other libraries calling set_new_handler.
+      std::new_handler nh;
+      {
+        SpinLockHolder h(&set_new_handler_lock);
+        nh = std::set_new_handler(0);
+        (void) std::set_new_handler(nh);
+      }
+#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+      if (nh) {
+        // Since exceptions are disabled, we don't really know if new_handler
+        // failed.  Assume it will abort if it fails.
+        (*nh)();
+        continue;
+      }
+      return 0;
+#else
+      // If no new_handler is established, the allocation failed.
+      if (!nh) {
+        if (nothrow) return 0;
+        throw std::bad_alloc();
+      }
+      // Otherwise, try the new_handler.  If it returns, retry the
+      // allocation.  If it throws std::bad_alloc, fail the allocation.
+      // if it throws something else, don't interfere.
+      try {
+        (*nh)();
+      } catch (const std::bad_alloc&) {
+        if (!nothrow) throw;
+        return p;
+      }
+#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+    } else {  // allocation success
+      return p;
+    }
+#endif  // PREANSINEW
   }
 }
 
-#endif  // #ifdef TCMALLOC_FOR_DEBUGALLOCATION
+inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
+  return tc_new_mode ? debug_cpp_alloc(size, MallocBlock::kMallocType, true)
+                     : DebugAllocate(size, MallocBlock::kMallocType);
+}
+
+// Exported routines
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) __THROW {
+  void* ptr = do_debug_malloc_or_debug_cpp_alloc(size);
+  MallocHook::InvokeNewHook(ptr, size);
+  return ptr;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_free(void* ptr) __THROW {
+  MallocHook::InvokeDeleteHook(ptr);
+  DebugDeallocate(ptr, MallocBlock::kMallocType);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) __THROW {
+  // Overflow check
+  const size_t total_size = count * size;
+  if (size != 0 && total_size / size != count) return NULL;
+
+  void* block = do_debug_malloc_or_debug_cpp_alloc(total_size);
+  MallocHook::InvokeNewHook(block, total_size);
+  if (block)  memset(block, 0, total_size);
+  return block;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) __THROW {
+  MallocHook::InvokeDeleteHook(ptr);
+  DebugDeallocate(ptr, MallocBlock::kMallocType);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) __THROW {
+  if (ptr == NULL) {
+    ptr = do_debug_malloc_or_debug_cpp_alloc(size);
+    MallocHook::InvokeNewHook(ptr, size);
+    return ptr;
+  }
+  if (size == 0) {
+    MallocHook::InvokeDeleteHook(ptr);
+    DebugDeallocate(ptr, MallocBlock::kMallocType);
+    return NULL;
+  }
+  MallocBlock* old = MallocBlock::FromRawPointer(ptr);
+  old->Check(MallocBlock::kMallocType);
+  MallocBlock* p = MallocBlock::Allocate(size, MallocBlock::kMallocType);
+
+  // If realloc fails we are to leave the old block untouched and
+  // return null
+  if (p == NULL)  return NULL;
+
+  memcpy(p->data_addr(), old->data_addr(),
+         (old->data_size() < size) ? old->data_size() : size);
+  MallocHook::InvokeDeleteHook(ptr);
+  MallocHook::InvokeNewHook(p->data_addr(), size);
+  DebugDeallocate(ptr, MallocBlock::kMallocType);
+  MALLOC_TRACE("realloc", p->data_size(), p->data_addr());
+  return p->data_addr();
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_new(size_t size) {
+  void* ptr = debug_cpp_alloc(size, MallocBlock::kNewType, false);
+  MallocHook::InvokeNewHook(ptr, size);
+  if (ptr == NULL) {
+    RAW_LOG(FATAL, "Unable to allocate %"PRIuS" bytes: new failed.", size);
+  }
+  return ptr;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size, const std::nothrow_t&) __THROW {
+  void* ptr = debug_cpp_alloc(size, MallocBlock::kNewType, true);
+  MallocHook::InvokeNewHook(ptr, size);
+  return ptr;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW {
+  MallocHook::InvokeDeleteHook(p);
+  DebugDeallocate(p, MallocBlock::kNewType);
+}
+
+// Some STL implementations explicitly invoke this.
+// It is completely equivalent to a normal delete (delete never throws).
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) __THROW {
+  MallocHook::InvokeDeleteHook(p);
+  DebugDeallocate(p, MallocBlock::kNewType);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
+  void* ptr = debug_cpp_alloc(size, MallocBlock::kArrayNewType, false);
+  MallocHook::InvokeNewHook(ptr, size);
+  if (ptr == NULL) {
+    RAW_LOG(FATAL, "Unable to allocate %"PRIuS" bytes: new[] failed.", size);
+  }
+  return ptr;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&)
+    __THROW {
+  void* ptr = debug_cpp_alloc(size, MallocBlock::kArrayNewType, true);
+  MallocHook::InvokeNewHook(ptr, size);
+  return ptr;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW {
+  MallocHook::InvokeDeleteHook(p);
+  DebugDeallocate(p, MallocBlock::kArrayNewType);
+}
+
+// Some STL implementations explicitly invoke this.
+// It is completely equivalent to a normal delete (delete never throws).
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
+  MallocHook::InvokeDeleteHook(p);
+  DebugDeallocate(p, MallocBlock::kArrayNewType);
+}
+
+// Round "value" up to next "alignment" boundary.
+// Requires that "alignment" be a power of two.
+static intptr_t RoundUp(intptr_t value, intptr_t alignment) {
+  return (value + alignment - 1) & ~(alignment - 1);
+}
+
+// This is mostly the same as do_memalign in tcmalloc.cc.
+static void *do_debug_memalign(size_t alignment, size_t size) {
+  // Allocate >= size bytes aligned on "alignment" boundary
+  // "alignment" is a power of two.
+  void *p = 0;
+  RAW_CHECK((alignment & (alignment-1)) == 0, "must be power of two");
+  const size_t data_offset = MallocBlock::data_offset();
+  // Allocate "alignment-1" extra bytes to ensure alignment is possible, and
+  // a further data_offset bytes for an additional fake header.
+  size_t extra_bytes = data_offset + alignment - 1;
+  if (size + extra_bytes < size) return NULL;         // Overflow
+  p = DebugAllocate(size + extra_bytes, MallocBlock::kMallocType);
+  if (p != 0) {
+    intptr_t orig_p = reinterpret_cast<intptr_t>(p);
+    // Leave data_offset bytes for fake header, and round up to meet
+    // alignment.
+    p = reinterpret_cast<void *>(RoundUp(orig_p + data_offset, alignment));
+    // Create a fake header block with an offset_ that points back to the
+    // real header.  FromRawPointer uses this value.
+    MallocBlock *fake_hdr = reinterpret_cast<MallocBlock *>(
+                reinterpret_cast<char *>(p) - data_offset);
+    // offset_ is distance between real and fake headers.
+    // p is now end of fake header (beginning of client area),
+    // and orig_p is the end of the real header, so offset_
+    // is their difference.
+    fake_hdr->set_offset(reinterpret_cast<intptr_t>(p) - orig_p);
+  }
+  return p;
+}
+
+// This is mostly the same as cpp_memalign in tcmalloc.cc.
+static void* debug_cpp_memalign(size_t align, size_t size) {
+  for (;;) {
+    void* p = do_debug_memalign(align, size);
+#ifdef PREANSINEW
+    return p;
+#else
+    if (p == NULL) {  // allocation failed
+      // Get the current new handler.  NB: this function is not
+      // thread-safe.  We make a feeble stab at making it so here, but
+      // this lock only protects against tcmalloc interfering with
+      // itself, not with other libraries calling set_new_handler.
+      std::new_handler nh;
+      {
+        SpinLockHolder h(&set_new_handler_lock);
+        nh = std::set_new_handler(0);
+        (void) std::set_new_handler(nh);
+      }
+#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+      if (nh) {
+        // Since exceptions are disabled, we don't really know if new_handler
+        // failed.  Assume it will abort if it fails.
+        (*nh)();
+        continue;
+      }
+      return 0;
+#else
+      // If no new_handler is established, the allocation failed.
+      if (!nh)
+        return 0;
+
+      // Otherwise, try the new_handler.  If it returns, retry the
+      // allocation.  If it throws std::bad_alloc, fail the allocation.
+      // if it throws something else, don't interfere.
+      try {
+        (*nh)();
+      } catch (const std::bad_alloc&) {
+        return p;
+      }
+#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+    } else {  // allocation success
+      return p;
+    }
+#endif  // PREANSINEW
+  }
+}
+
+inline void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
+                                                     size_t size) {
+  return tc_new_mode ? debug_cpp_memalign(align, size)
+                     : do_debug_memalign(align, size);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align, size_t size) __THROW {
+  void *p = do_debug_memalign_or_debug_cpp_memalign(align, size);
+  MallocHook::InvokeNewHook(p, size);
+  return p;
+}
+
+// Implementation taken from tcmalloc/tcmalloc.cc
+extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t align, size_t size)
+    __THROW {
+  if (((align % sizeof(void*)) != 0) ||
+      ((align & (align - 1)) != 0) ||
+      (align == 0)) {
+    return EINVAL;
+  }
+
+  void* result = do_debug_memalign_or_debug_cpp_memalign(align, size);
+  MallocHook::InvokeNewHook(result, size);
+  if (result == NULL) {
+    return ENOMEM;
+  } else {
+    *result_ptr = result;
+    return 0;
+  }
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) __THROW {
+  // Allocate >= size bytes starting on a page boundary
+  void *p = do_debug_memalign_or_debug_cpp_memalign(getpagesize(), size);
+  MallocHook::InvokeNewHook(p, size);
+  return p;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) __THROW {
+  // Round size up to a multiple of pages
+  // then allocate memory on a page boundary
+  int pagesize = getpagesize();
+  size = RoundUp(size, pagesize);
+  if (size == 0) {     // pvalloc(0) should allocate one page, according to
+    size = pagesize;   // http://man.free4web.biz/man3/libmpatrol.3.html
+  }
+  void *p = do_debug_memalign_or_debug_cpp_memalign(pagesize, size);
+  MallocHook::InvokeNewHook(p, size);
+  return p;
+}
+
+// malloc_stats just falls through to the base implementation.
+extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) __THROW {
+  BASE_MALLOC_STATS();
+}
+
+extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) __THROW {
+  return BASE_MALLOPT(cmd, value);
+}
+
+#ifdef HAVE_STRUCT_MALLINFO
+extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW {
+  return BASE_MALLINFO();
+}
+#endif
+
+extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
+  return BASE_MALLOC_SIZE(ptr);
+}
+
+// Override __libc_memalign in libc on linux boxes.
+// They have a bug in libc that causes them (very rarely) to allocate
+// with __libc_memalign() yet deallocate with free().
+// This function is an exception to the rule of calling MallocHook method
+// from the stack frame of the allocation function;
+// heap-checker handles this special case explicitly.
+static void *MemalignOverride(size_t align, size_t size, const void *caller)
+    __THROW ATTRIBUTE_SECTION(google_malloc);
+
+static void *MemalignOverride(size_t align, size_t size, const void *caller)
+    __THROW {
+  void *p = do_debug_memalign_or_debug_cpp_memalign(align, size);
+  MallocHook::InvokeNewHook(p, size);
+  return p;
+}
+void *(*__memalign_hook)(size_t, size_t, const void *) = MemalignOverride;

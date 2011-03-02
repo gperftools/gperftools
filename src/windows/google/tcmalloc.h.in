@@ -29,17 +29,11 @@
  *
  * ---
  * Author: Sanjay Ghemawat <opensource@google.com>
- *         .h file by Craig Silverstein <opensource@google.com>
+ *         .h.in file by Craig Silverstein <opensource@google.com>
  */
 
 #ifndef TCMALLOC_TCMALLOC_H_
 #define TCMALLOC_TCMALLOC_H_
-
-// Define the version number so folks can check against it
-#define TC_VERSION_MAJOR  1
-#define TC_VERSION_MINOR  4
-#define TC_VERSION_PATCH  ""
-#define TC_VERSION_STRING "google-perftools 1.4"
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
@@ -48,6 +42,11 @@
 # define __THROW   /* __THROW is just an optimization, so ok to make it "" */
 #endif
 
+// Define the version number so folks can check against it
+#define TC_VERSION_MAJOR  @TC_VERSION_MAJOR@
+#define TC_VERSION_MINOR  @TC_VERSION_MINOR@
+#define TC_VERSION_PATCH  "@TC_VERSION_PATCH@"
+#define TC_VERSION_STRING "google-perftools @TC_VERSION_MAJOR@.@TC_VERSION_MINOR@@TC_VERSION_PATCH@"
 
 #include <stdlib.h>   // for struct mallinfo, if it's defined
 

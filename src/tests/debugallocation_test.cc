@@ -220,7 +220,7 @@ TEST(DebugAllocationTest, StackTraceWithDanglingWriteAtExitTest) {
   *x = 1;
   // verify that we also get a stack trace when we have a dangling write.
   // The " @ " is part of the stack trace output.
-  IF_DEBUG_EXPECT_DEATH(exit(0), " @ .* main");
+  IF_DEBUG_EXPECT_DEATH(exit(0), " @ .*main");
   *x = old_x_value;  // restore x so that the test can exit successfully.
 }
 

@@ -15004,6 +15004,30 @@ fi
 
 done
       # some systems define stuff there, others not
+for ac_header in sys/malloc.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "sys/malloc.h" "ac_cv_header_sys_malloc_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_malloc_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SYS_MALLOC_H 1
+_ACEOF
+
+fi
+
+done
+  # where some versions of OS X put malloc.h
+for ac_header in malloc/malloc.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "malloc/malloc.h" "ac_cv_header_malloc_malloc_h" "$ac_includes_default"
+if test "x$ac_cv_header_malloc_malloc_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_MALLOC_MALLOC_H 1
+_ACEOF
+
+fi
+
+done
+  # another place OS X puts malloc.h (?)
 for ac_header in glob.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "glob.h" "ac_cv_header_glob_h" "$ac_includes_default"
@@ -16996,7 +17020,7 @@ fi
 
 
 # Write generated configuration file
-ac_config_files="$ac_config_files Makefile src/google/tcmalloc.h"
+ac_config_files="$ac_config_files Makefile src/google/tcmalloc.h src/windows/google/tcmalloc.h"
 
 cat >confcache <<\_ACEOF
 # This file is a shell script that caches the results of configure
@@ -18115,6 +18139,7 @@ do
     "libtool") CONFIG_COMMANDS="$CONFIG_COMMANDS libtool" ;;
     "Makefile") CONFIG_FILES="$CONFIG_FILES Makefile" ;;
     "src/google/tcmalloc.h") CONFIG_FILES="$CONFIG_FILES src/google/tcmalloc.h" ;;
+    "src/windows/google/tcmalloc.h") CONFIG_FILES="$CONFIG_FILES src/windows/google/tcmalloc.h" ;;
 
   *) as_fn_error "invalid argument: \`$ac_config_target'" "$LINENO" 5;;
   esac

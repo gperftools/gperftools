@@ -897,10 +897,19 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
       // do things in this loop.
       continue;
     }
-    // Determine if any shared libraries are present.
-    if (inode != 0 && strstr(filename, "lib") && strstr(filename, ".so")) {
+    // Determine if any shared libraries are present.  This is the same
+    // list of extensions as is found in pprof.
+    if (strstr(filename, ".dll")) {   // for windows, which doesn't have inodes
       saw_shared_lib = true;
+    } else if (inode != 0) {          // ignore fake files
+      if ((strstr(filename, "lib") && strstr(filename, ".so")) ||
+          // not all .dylib filenames start with lib. .dylib is big enough
+          // that we are unlikely to get false matches just checking that.
+          strstr(filename, ".dylib") || strstr(filename, ".bundle")) {
+        saw_shared_lib = true;
+      }
     }
+
     switch (proc_maps_task) {
       case DISABLE_LIBRARY_ALLOCS:
         // All lines starting like
@@ -1885,6 +1894,11 @@ static bool internal_init_start_has_run = false;
 
     if (FLAGS_heap_check.empty()) {
       // turns out we do not need checking in the end; can stop profiling
+      TurnItselfOffLocked();
+      return;
+    } else if (RunningOnValgrind()) {
+      // There is no point in trying -- we'll just fail.
+      RAW_LOG(WARNING, "Can't run under Valgrind; will turn itself off");
       TurnItselfOffLocked();
       return;
     }

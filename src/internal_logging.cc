@@ -39,6 +39,7 @@
 #include <string.h>
 #include <google/malloc_extension.h>
 #include "internal_logging.h"
+#include "base/logging.h"   // for perftools_vsnprintf
 
 static const int kLogBufSize = 800;
 
@@ -50,7 +51,7 @@ void TCMalloc_MESSAGE(const char* filename,
   if (n < kLogBufSize) {
     va_list ap;
     va_start(ap, format);
-    vsnprintf(buf + n, kLogBufSize - n, format, ap);
+    perftools_vsnprintf(buf + n, kLogBufSize - n, format, ap);
     va_end(ap);
   }
   write(STDERR_FILENO, buf, strlen(buf));
@@ -66,7 +67,7 @@ static void TCMalloc_CRASH_internal(bool dump_stats,
   char buf[kLogBufSize];
   const int n = snprintf(buf, sizeof(buf), "%s:%d] ", filename, line_number);
   if (n < kLogBufSize) {
-    vsnprintf(buf + n, kLogBufSize - n, format, ap);
+    perftools_vsnprintf(buf + n, kLogBufSize - n, format, ap);
   }
   write(STDERR_FILENO, buf, strlen(buf));
   if (dump_stats) {
@@ -99,7 +100,7 @@ void TCMalloc_Printer::printf(const char* format, ...) {
   if (left_ > 0) {
     va_list ap;
     va_start(ap, format);
-    const int r = vsnprintf(buf_, left_, format, ap);
+    const int r = perftools_vsnprintf(buf_, left_, format, ap);
     va_end(ap);
     if (r < 0) {
       // Perhaps an old glibc that returns -1 on truncation?

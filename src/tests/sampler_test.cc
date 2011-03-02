@@ -87,7 +87,7 @@ static std::string StringPrintf(const char* format, ...) {
   char buf[256];   // should be big enough for all logging
   va_list ap;
   va_start(ap, format);
-  vsnprintf(buf, sizeof(buf), format, ap);
+  perftools_vsnprintf(buf, sizeof(buf), format, ap);
   va_end(ap);
   return buf;
 }

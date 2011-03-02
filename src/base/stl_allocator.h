@@ -40,7 +40,6 @@
 #include <stddef.h>   // for ptrdiff_t
 #include <limits>
 
-#include "base/basictypes.h"
 #include "base/logging.h"
 
 // Generic allocator class for STL objects

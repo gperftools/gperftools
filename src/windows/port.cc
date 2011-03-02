@@ -49,24 +49,6 @@
 // -----------------------------------------------------------------------
 // Basic libraries
 
-// These call the windows _vsnprintf, but always NUL-terminate.
-int safe_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
-  if (size == 0)        // not even room for a \0?
-    return -1;          // not what C99 says to do, but what windows does
-  str[size-1] = '\0';
-  return _vsnprintf(str, size-1, format, ap);
-}
-
-#ifndef HAVE_SNPRINTF
-int snprintf(char *str, size_t size, const char *format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  const int r = vsnprintf(str, size, format, ap);
-  va_end(ap);
-  return r;
-}
-#endif
-
 int getpagesize() {
   static int pagesize = 0;
   if (pagesize == 0) {
@@ -98,6 +80,7 @@ extern "C" PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len) {
 // -----------------------------------------------------------------------
 // Threads code
 
+// Declared (not extern "C") in thread_cache.h
 bool CheckIfKernelSupportsTLS() {
   // TODO(csilvers): return true (all win's since win95, at least, support this)
   return false;
@@ -186,7 +169,7 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD dwReason, PVOID pv) {
 
 #endif  // #ifdef _MSC_VER
 
-pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
+extern "C" pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
   // Semantics are: we create a new key, and then promise to call
   // destr_fn with TlsGetValue(key) when the thread is destroyed
   // (as long as TlsGetValue(key) is not NULL).
@@ -198,6 +181,30 @@ pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
     destr_fn_info.key_for_destr_fn_arg = key;
   }
   return key;
+}
+
+// NOTE: this is Win2K and later.  For Win98 we could use a CRITICAL_SECTION...
+extern "C" int perftools_pthread_once(pthread_once_t *once_control,
+                                      void (*init_routine)(void)) {
+  // Try for a fast path first. Note: this should be an acquire semantics read.
+  // It is on x86 and x64, where Windows runs.
+  if (*once_control != 1) {
+    while (true) {
+      switch (InterlockedCompareExchange(once_control, 2, 0)) {
+        case 0:
+          init_routine();
+          InterlockedExchange(once_control, 1);
+          return 0;
+        case 1:
+          // The initializer has already been executed
+          return 0;
+        default:
+          // The initializer is being processed by another thread
+          SwitchToThread();
+      }
+    }
+  }
+  return 0;
 }
 
 

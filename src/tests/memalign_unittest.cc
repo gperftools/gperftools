@@ -57,8 +57,13 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>        // for getpagesize()
 #endif
-#ifdef HAVE_MALLOC_H
-#include <malloc.h>
+// Malloc can be in several places on older versions of OS X.
+#if defined(HAVE_MALLOC_H)
+#include <malloc.h>        // for memalign() and valloc()
+#elif defined(HAVE_SYS_MALLOC_H)
+#include <sys/malloc.h>
+#elif defined(HAVE_MALLOC_MALLOC_H)
+#include <malloc/malloc.h>
 #endif
 #include "base/basictypes.h"
 #include "base/logging.h"

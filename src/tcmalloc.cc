@@ -97,8 +97,16 @@
 #else
 #include <sys/types.h>
 #endif
-#if defined(HAVE_MALLOC_H) && defined(HAVE_STRUCT_MALLINFO)
-#include <malloc.h>                        // for struct mallinfo
+// We only need malloc.h for struct mallinfo.
+#ifdef HAVE_STRUCT_MALLINFO
+// Malloc can be in several places on older versions of OS X.
+# if defined(HAVE_MALLOC_H)
+# include <malloc.h>
+# elif defined(HAVE_SYS_MALLOC_H)
+# include <sys/malloc.h>
+# elif defined(HAVE_MALLOC_MALLOC_H)
+# include <malloc/malloc.h>
+# endif
 #endif
 #include <string.h>
 #ifdef HAVE_PTHREAD
@@ -259,7 +267,7 @@ extern "C" {
 // exception: in windows, by default, we patch our code into these
 // functions (via src/windows/patch_function.cc) rather than override
 // them.  In that case, we don't want to do this overriding here.
-#if !defined(WIN32_DO_PATCHING) && !defined(TCMALLOC_FOR_DEBUGALLOCATION)
+#if !defined(WIN32_DO_PATCHING)
 
 #if defined(__GNUC__) && !defined(__MACH__)
   // Potentially faster variants that use the gcc alias extension.
@@ -373,7 +381,7 @@ extern "C" {
 
 #undef ALIAS
 
-#endif  // #ifndef(WIN32_DO_PATCHING) && ndef(TCMALLOC_FOR_DEBUGALLOCATION)
+#endif  // #ifndef(WIN32_DO_PATCHING)
 
 
 // ----------------------- IMPLEMENTATION -------------------------------
@@ -1474,6 +1482,19 @@ extern "C" PERFTOOLS_DLL_DECL const char* tc_version(
   return TC_VERSION_STRING;
 }
 
+// This function behaves similarly to MSVC's _set_new_mode.
+// If flag is 0 (default), calls to malloc will behave normally.
+// If flag is 1, calls to malloc will behave like calls to new,
+// and the std_new_handler will be invoked on failure.
+// Returns the previous mode.
+extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW {
+  int old_mode = tc_new_mode;
+  tc_new_mode = flag;
+  return old_mode;
+}
+
+#ifndef TCMALLOC_FOR_DEBUGALLOCATION  // debugallocation.cc defines its own
+
 // CAVEAT: The code structure below ensures that MallocHook methods are always
 //         called from the stack frame of the invoked allocation function.
 //         heap-checker.cc depends on this to start a stack trace from
@@ -1640,17 +1661,6 @@ extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
   return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
 }
 
-// This function behaves similarly to MSVC's _set_new_mode.
-// If flag is 0 (default), calls to malloc will behave normally.
-// If flag is 1, calls to malloc will behave like calls to new,
-// and the std_new_handler will be invoked on failure.
-// Returns the previous mode.
-extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW {
-  int old_mode = tc_new_mode;
-  tc_new_mode = flag;
-  return old_mode;
-}
-
 
 // Override __libc_memalign in libc on linux boxes specially.
 // They have a bug in libc that causes them to (very rarely) allocate
@@ -1659,7 +1669,6 @@ extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) __THROW {
 // This function is an exception to the rule of calling MallocHook method
 // from the stack frame of the allocation function;
 // heap-checker handles this special case explicitly.
-#ifndef TCMALLOC_FOR_DEBUGALLOCATION
 static void *MemalignOverride(size_t align, size_t size, const void *caller)
     __THROW ATTRIBUTE_SECTION(google_malloc);
 
@@ -1670,4 +1679,5 @@ static void *MemalignOverride(size_t align, size_t size, const void *caller)
   return result;
 }
 void *(*__memalign_hook)(size_t, size_t, const void *) = MemalignOverride;
+
 #endif  // #ifndef TCMALLOC_FOR_DEBUGALLOCATION

@@ -1,10 +1,10 @@
-// Copyright (c) 2008, Google Inc.
+// Copyright (c) 2011, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -26,46 +26,54 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Author: Alexander Levitskiy
+//
+// Generalizes the plethora of ARM flavors available to an easier to manage set
+// Defs reference is at https://wiki.edubuntu.org/ARM/Thumb2PortingHowto
 
-// ---
-// Author: sanjay@google.com (Sanjay Ghemawat)
+#ifndef ARM_INSTRUCTION_SET_SELECT_H_
+#define ARM_INSTRUCTION_SET_SELECT_H_
 
-#include <config.h>
-#include <stdarg.h>
-#include <stdio.h>
-#include "raw_printer.h"
-#include "base/logging.h"
+#if defined(__ARM_ARCH_7__) || \
+    defined(__ARM_ARCH_7R__) || \
+    defined(__ARM_ARCH_7A__)
+# define ARMV7 1
+#endif
 
-namespace base {
+#if defined(ARMV7) || \
+    defined(__ARM_ARCH_6__) || \
+    defined(__ARM_ARCH_6J__) || \
+    defined(__ARM_ARCH_6K__) || \
+    defined(__ARM_ARCH_6Z__) || \
+    defined(__ARM_ARCH_6T2__) || \
+    defined(__ARM_ARCH_6ZK__)
+# define ARMV6 1
+#endif
 
-RawPrinter::RawPrinter(char* buf, int length)
-    : base_(buf),
-      ptr_(buf),
-      limit_(buf + length - 1) {
-  RAW_DCHECK(length > 0, "");
-  *ptr_ = '\0';
-  *limit_ = '\0';
-}
+#if defined(ARMV6) || \
+    defined(__ARM_ARCH_5T__) || \
+    defined(__ARM_ARCH_5E__) || \
+    defined(__ARM_ARCH_5TE__) || \
+    defined(__ARM_ARCH_5TEJ__)
+# define ARMV5 1
+#endif
 
-void RawPrinter::Printf(const char* format, ...) {
-  if (limit_ > ptr_) {
-    va_list ap;
-    va_start(ap, format);
-    int avail = limit_ - ptr_;
-    // We pass avail+1 to vsnprintf() since that routine needs room
-    // to store the trailing \0.
-    const int r = perftools_vsnprintf(ptr_, avail+1, format, ap);
-    va_end(ap);
-    if (r < 0) {
-      // Perhaps an old glibc that returns -1 on truncation?
-      ptr_ = limit_;
-    } else if (r > avail) {
-      // Truncation
-      ptr_ = limit_;
-    } else {
-      ptr_ += r;
-    }
-  }
-}
+#if defined(ARMV5) || \
+    defined(__ARM_ARCH_4__) || \
+    defined(__ARM_ARCH_4T__)
+# define ARMV4 1
+#endif
 
-}
+#if defined(ARMV4) || \
+    defined(__ARM_ARCH_3__) || \
+    defined(__ARM_ARCH_3M__)
+# define ARMV3 1
+#endif
+
+#if defined(ARMV3) || \
+    defined(__ARM_ARCH_2__)
+# define ARMV2 1
+#endif
+
+#endif  // ARM_INSTRUCTION_SET_SELECT_H_

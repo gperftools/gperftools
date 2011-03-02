@@ -210,7 +210,7 @@
 #define PACKAGE_NAME "google-perftools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "google-perftools 1.4"
+#define PACKAGE_STRING "google-perftools 1.7"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "google-perftools"
@@ -219,7 +219,7 @@
 #undef PACKAGE_URL
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.4"
+#define PACKAGE_VERSION "1.7"
 
 /* How to access the PC from a struct ucontext */
 #undef PC_FROM_UCONTEXT

@@ -23,7 +23,8 @@ AM_CXXFLAGS =
 # builtins now in any case, but it's best to be explicit in case that
 # changes one day.  gcc ignores functions it doesn't understand.
 if GCC
-AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare \
+AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
+               -Wno-sign-compare -Wno-unused-result \
                -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
                -fno-builtin-calloc -fno-builtin-cfree \
                -fno-builtin-memalign -fno-builtin-posix_memalign \
@@ -162,6 +163,7 @@ SYSINFO_INCLUDES = src/base/sysinfo.h \
                    src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/cycleclock.h \
+                   src/base/arm_instruction_set_select.h \
                    src/base/basictypes.h
 noinst_LTLIBRARIES += libsysinfo.la
 libsysinfo_la_SOURCES = src/base/sysinfo.cc \
@@ -716,6 +718,9 @@ realloc_debug_unittest_CXXFLAGS = $(realloc_unittest_CXXFLAGS)
 realloc_debug_unittest_LDFLAGS = $(realloc_unittest_LDFLAGS)
 realloc_debug_unittest_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
 
+# debugallocation_test checks that we print a proper stacktrace when
+# debug-allocs fail, so we can't run it if we don't have stacktrace info.
+if WITH_STACK_TRACE
 TESTS += debugallocation_test.sh$(EXEEXT)
 debugallocation_test_sh_SOURCES = src/tests/debugallocation_test.sh
 noinst_SCRIPTS += $(debugallocation_test_sh_SOURCES)
@@ -730,6 +735,7 @@ debugallocation_test_SOURCES = src/tests/debugallocation_test.cc
 debugallocation_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 debugallocation_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 debugallocation_test_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
+endif WITH_STACK_TRACE
 
 endif WITH_DEBUGALLOC
 
