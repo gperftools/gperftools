@@ -122,6 +122,11 @@ my $UNKNOWN_BINARY = "(unknown)";
 # 64-bit profiles.  To err on the safe size, default to 64-bit here:
 my $address_length = 16;
 
+my $dev_null = "/dev/null";
+if (! -e $dev_null && $^O =~ /MSWin/) {    # $^O is the OS perl was built for
+  $dev_null = "nul";
+}
+
 # A list of paths to search for shared object files
 my @prefix_list = ();
 
@@ -705,7 +710,7 @@ sub ReadlineMightFail {
 sub RunGV {
   my $fname = shift;
   my $bg = shift;       # "" or " &" if we should run in background
-  if (!system("$GV --version >/dev/null 2>&1")) {
+  if (!system("$GV --version >$dev_null 2>&1")) {
     # Options using double dash are supported by this gv version.
     # Also, turn on noantialias to better handle bug in gv for
     # postscript files with large dimensions.
@@ -4261,7 +4266,7 @@ sub MapToSymbols {
 
   # If "addr2line" isn't installed on the system at all, just use
   # nm to get what info we can (function names, but not line numbers).
-  if (system("$addr2line --help >/dev/null 2>&1") != 0) {
+  if (system("$addr2line --help >$dev_null 2>&1") != 0) {
     MapSymbolsWithNM($image, $offset, $pclist, $symbols);
     return;
   }
@@ -4279,7 +4284,7 @@ sub MapToSymbols {
   if (defined($sep_address)) {
     # Only add " -i" to addr2line if the binary supports it.
     # addr2line --help returns 0, but not if it sees an unknown flag first.
-    if (system("$cmd -i --help >/dev/null 2>&1") == 0) {
+    if (system("$cmd -i --help >$dev_null 2>&1") == 0) {
       $cmd .= " -i";
     } else {
       $sep_address = undef;   # no need for sep_address if we don't support -i
@@ -4425,8 +4430,16 @@ sub ConfigureObjTools {
   # predictably return error status in prod.
   (-e $prog_file)  || error("$prog_file does not exist.\n");
 
-  # Follow symlinks (at least for systems where "file" supports that)
-  my $file_type = `/usr/bin/file -L $prog_file 2>/dev/null || /usr/bin/file $prog_file`;
+  my $file_type = undef;
+  if (-e "/usr/bin/file") {
+    # Follow symlinks (at least for systems where "file" supports that).
+    $file_type = `/usr/bin/file -L $prog_file 2>$dev_null || /usr/bin/file $prog_file`;
+  } elsif ($^O == "MSWin32") {
+    $file_type = "MS Windows";
+  } else {
+    print STDERR "WARNING: Can't determine the file type of $prog_file";
+  }
+
   if ($file_type =~ /64-bit/) {
     # Change $address_length to 16 if the program file is ELF 64-bit.
     # We can't detect this from many (most?) heap or lock contention
@@ -4638,16 +4651,16 @@ sub GetProcedureBoundaries {
   # --demangle and -f.
   my $demangle_flag = "";
   my $cppfilt_flag = "";
-  if (system("$nm --demangle $image >/dev/null 2>&1") == 0) {
+  if (system("$nm --demangle $image >$dev_null 2>&1") == 0) {
     # In this mode, we do "nm --demangle <foo>"
     $demangle_flag = "--demangle";
     $cppfilt_flag = "";
-  } elsif (system("$cppfilt $image >/dev/null 2>&1") == 0) {
+  } elsif (system("$cppfilt $image >$dev_null 2>&1") == 0) {
     # In this mode, we do "nm <foo> | c++filt"
     $cppfilt_flag = " | $cppfilt";
   };
   my $flatten_flag = "";
-  if (system("$nm -f $image >/dev/null 2>&1") == 0) {
+  if (system("$nm -f $image >$dev_null 2>&1") == 0) {
     $flatten_flag = "-f";
   }
 
@@ -4655,11 +4668,11 @@ sub GetProcedureBoundaries {
   # -D to at least get *exported* symbols.  If we can't use --demangle,
   # we use c++filt instead, if it exists on this system.
   my @nm_commands = ("$nm -n $flatten_flag $demangle_flag" .
-                     " $image 2>/dev/null $cppfilt_flag",
+                     " $image 2>$dev_null $cppfilt_flag",
                      "$nm -D -n $flatten_flag $demangle_flag" .
-                     " $image 2>/dev/null $cppfilt_flag",
+                     " $image 2>$dev_null $cppfilt_flag",
                      # 6nm is for Go binaries
-		     "6nm $image 2>/dev/null | sort",
+		     "6nm $image 2>$dev_null | sort",
                      );
 
   # If the executable is an MS Windows PDB-format executable, we'll
@@ -4668,7 +4681,7 @@ sub GetProcedureBoundaries {
   # PDB-format executables can apparently include dwarf .o files.
   if (exists $obj_tool_map{"nm_pdb"}) {
     my $nm_pdb = $obj_tool_map{"nm_pdb"};
-    push(@nm_commands, "$nm_pdb --demangle $image 2>/dev/null");
+    push(@nm_commands, "$nm_pdb --demangle $image 2>$dev_null");
   }
 
   foreach my $nm_command (@nm_commands) {

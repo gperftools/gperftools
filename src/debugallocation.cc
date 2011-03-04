@@ -36,10 +36,10 @@
 // Malloc can be in several places on older versions of OS X.
 # if defined(HAVE_MALLOC_H)
 # include <malloc.h>
-# elif defined(HAVE_SYS_MALLOC_H)
-# include <sys/malloc.h>
 # elif defined(HAVE_MALLOC_MALLOC_H)
 # include <malloc/malloc.h>
+# elif defined(HAVE_SYS_MALLOC_H)
+# include <sys/malloc.h>
 # endif
 #endif
 #include <pthread.h>
@@ -1404,7 +1404,14 @@ extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW {
 #endif
 
 extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
-  return BASE_MALLOC_SIZE(ptr);
+  if (!ptr) {
+    return 0;
+  }
+  MallocBlock* mb = MallocBlock::FromRawPointer(ptr);
+  // This is just to make sure we actually own mb (and ptr).  We don't
+  // use the actual value, just the 'exception' it raises on error.
+  (void)BASE_MALLOC_SIZE(mb);
+  return mb->data_size();
 }
 
 // Override __libc_memalign in libc on linux boxes.

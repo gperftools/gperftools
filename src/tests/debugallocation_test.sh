@@ -65,7 +65,7 @@ OneDeathTest() {
 }
 
 death_test_num=0   # which death test to run
-while /bin/true; do
+while :; do        # same as 'while true', but more portable
   echo -n "Running death test $death_test_num..."
   output="`OneDeathTest $death_test_num`"
   case $output in

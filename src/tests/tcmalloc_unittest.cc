@@ -1015,7 +1015,10 @@ static int RunAllTests(int argc, char** argv) {
     p1 = calloc(10, 2);
     CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
-    p1 = realloc(p1, 30);
+    // We make sure we realloc to a big size, since some systems (OS
+    // X) will notice if the realloced size continues to fit into the
+    // malloc-block and make this a noop if so.
+    p1 = realloc(p1, 30000);
     CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     VerifyDeleteHookWasCalled();
@@ -1091,6 +1094,15 @@ static int RunAllTests(int argc, char** argv) {
     VerifyNewHookWasCalled();
     ::operator delete(p2, std::nothrow);
     VerifyDeleteHookWasCalled();
+
+    // Try strdup(), which the system allocates but we must free.  If
+    // all goes well, libc will use our malloc!
+    p2 = strdup("test");
+    CHECK(p2 != NULL);
+    VerifyNewHookWasCalled();
+    free(p2);
+    VerifyDeleteHookWasCalled();
+
 
     // Test mmap too: both anonymous mmap and mmap of a file
     // Note that for right now we only override mmap on linux

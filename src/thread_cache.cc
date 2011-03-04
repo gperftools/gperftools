@@ -312,16 +312,6 @@ void ThreadCache::InitTSD() {
   ASSERT(!tsd_inited_);
   perftools_pthread_key_create(&heap_key_, DestroyThreadCache);
   tsd_inited_ = true;
-
-  // We may have used a fake pthread_t for the main thread.  Fix it.
-  pthread_t zero;
-  memset(&zero, 0, sizeof(zero));
-  SpinLockHolder h(Static::pageheap_lock());
-  for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
-    if (h->tid_ == zero) {
-      h->tid_ = pthread_self();
-    }
-  }
 }
 
 ThreadCache* ThreadCache::CreateCacheIfNecessary() {
@@ -329,14 +319,17 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   ThreadCache* heap = NULL;
   {
     SpinLockHolder h(Static::pageheap_lock());
-
-    // Early on in glibc's life, we cannot even call pthread_self()
-    pthread_t me;
-    if (!tsd_inited_) {
-      memset(&me, 0, sizeof(me));
-    } else {
-      me = pthread_self();
-    }
+    // On very old libc's, this call may crash if it happens too
+    // early.  No libc using NPTL should be affected.  If there
+    // is a crash here, we could use code (on linux, at least)
+    // to detect NPTL vs LinuxThreads:
+    //   http://www.redhat.com/archives/phil-list/2003-April/msg00038.html
+    // If we detect not-NPTL, we could execute the old code from
+    //   http://google-perftools.googlecode.com/svn/tags/google-perftools-1.7/src/thread_cache.cc
+    // that avoids calling pthread_self too early.  The problem with
+    // that code is it caused a race condition when tcmalloc is linked
+    // in statically and other libraries spawn threads before main.
+    const pthread_t me = pthread_self();
 
     // This may be a recursive malloc call from pthread_setspecific()
     // In that case, the heap for this thread has already been created

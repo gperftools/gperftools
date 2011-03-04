@@ -52,7 +52,7 @@ host_triplet = @host@
 # builtins now in any case, but it's best to be explicit in case that
 # changes one day.  gcc ignores functions it doesn't understand.
 @GCC_TRUE@am__append_2 = -Wall -Wwrite-strings -Woverloaded-virtual \
-@GCC_TRUE@               -Wno-sign-compare -Wno-unused-result \
+@GCC_TRUE@               -Wno-sign-compare \
 @GCC_TRUE@               -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc \
 @GCC_TRUE@               -fno-builtin-calloc -fno-builtin-cfree \
 @GCC_TRUE@               -fno-builtin-memalign -fno-builtin-posix_memalign \

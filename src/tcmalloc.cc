@@ -97,15 +97,15 @@
 #else
 #include <sys/types.h>
 #endif
-// We only need malloc.h for struct mallinfo.
-#ifdef HAVE_STRUCT_MALLINFO
+// We only need malloc.h for struct mallinfo and for apple builds
+#if defined(HAVE_STRUCT_MALLINFO) || defined(__APPLE__)
 // Malloc can be in several places on older versions of OS X.
 # if defined(HAVE_MALLOC_H)
 # include <malloc.h>
-# elif defined(HAVE_SYS_MALLOC_H)
-# include <sys/malloc.h>
 # elif defined(HAVE_MALLOC_MALLOC_H)
 # include <malloc/malloc.h>
+# elif defined(HAVE_SYS_MALLOC_H)
+# include <sys/malloc.h>
 # endif
 #endif
 #include <string.h>
@@ -262,14 +262,116 @@ extern "C" {
 }  // extern "C"
 #endif  // #ifndef _WIN32
 
+// We define this here because one some architectures it's needed soon.
+namespace {
+inline size_t GetSizeWithCallback(void* ptr,
+                                  size_t (*invalid_getsize_fn)(void*)) {
+  if (ptr == NULL)
+    return 0;
+  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
+  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
+  if (cl != 0) {
+    return Static::sizemap()->ByteSizeForClass(cl);
+  } else {
+    Span *span = Static::pageheap()->GetDescriptor(p);
+    if (span == NULL) {  // means we do not own this memory
+      return (*invalid_getsize_fn)(ptr);
+    } else if (span->sizeclass != 0) {
+      Static::pageheap()->CacheSizeClass(p, span->sizeclass);
+      return Static::sizemap()->ByteSizeForClass(span->sizeclass);
+    } else {
+      return span->length << kPageShift;
+    }
+  }
+}
+}
+
 // Override the libc functions to prefer our own instead.  This comes
-// first so code in tcmalloc.cc can use the overridden versions.  One
-// exception: in windows, by default, we patch our code into these
+// first so code in tcmalloc.cc can use the overridden versions.
+#if defined(WIN32_DO_PATCHING)
+
+// One exception: in windows, by default, we patch our code into these
 // functions (via src/windows/patch_function.cc) rather than override
 // them.  In that case, we don't want to do this overriding here.
-#if !defined(WIN32_DO_PATCHING)
 
-#if defined(__GNUC__) && !defined(__MACH__)
+#elif defined(__APPLE__)
+
+// Mach's two-level naming scheme makes aliasing difficult, but we can
+// use apple's malloc_default_zone() to replace the system alloc.
+// http://www.opensource.apple.com/source/Libc/Libc-583/include/malloc/malloc.h
+// http://www.opensource.apple.com/source/Libc/Libc-583/gen/malloc.c
+// We need wrappers for all the routines, sadly. :-(
+
+// malloc_zone semantics are we return 0 if we don't own the memory.
+static size_t mz_invalid_getsize(void*) {
+  return 0;
+}
+static size_t mz_size(malloc_zone_t* zone, const void* ptr) {
+  // TODO(csilvers): change this method to take a const void*, one day.
+  // TODO(csilvers): this is totally wrong with debugallocation.
+  return GetSizeWithCallback(const_cast<void*>(ptr), mz_invalid_getsize);
+}
+static void* mz_malloc(malloc_zone_t* zone, size_t size) {
+  return tc_malloc(size);
+}
+static void* mz_calloc(malloc_zone_t* zone, size_t num_items, size_t size) {
+  return tc_calloc(num_items, size);
+}
+static void* mz_valloc(malloc_zone_t* zone, size_t size) {
+  return tc_valloc(size);
+}
+static void mz_free(malloc_zone_t* zone, void* ptr) {
+  return tc_free(ptr);
+}
+static void* mz_realloc(malloc_zone_t* zone, void* ptr, size_t size) {
+  return tc_realloc(ptr, size);
+}
+static void mz_destroy(malloc_zone_t* zone) {
+  // A no-op -- we will not be destroyed!
+}
+
+static void ReplaceSystemAlloc() {
+  static malloc_zone_t system_zone_copy;
+  malloc_zone_t* system_zone = malloc_default_zone();
+  memcpy(&system_zone_copy, system_zone, sizeof(system_zone_copy));
+
+  system_zone->zone_name = "tcmalloc";
+  system_zone->size = &mz_size;
+  system_zone->malloc = &mz_malloc;
+  system_zone->calloc = &mz_calloc;
+  system_zone->valloc = &mz_valloc;
+  system_zone->free = &mz_free;
+  system_zone->realloc = &mz_realloc;
+  system_zone->destroy = &mz_destroy;
+  // TODO(csilvers): figure out if this version of malloc.h supports
+  // batch_malloc, batch_free, memalign, and free_definite_size, and
+  // set those to NULL if so.
+
+  // Now register the old system zone, so allocations that happened
+  // before we ran this command can still be executed.
+  malloc_zone_register(&system_zone_copy);
+}
+#define HAVE_REPLACE_SYSTEM_ALLOC 1
+
+// OS X doesn't have memalign, posix_memalign, pvalloc, or cfree, so
+// we can just define our own. :-)
+extern "C" {
+  void  cfree(void* p) __THROW                   { tc_cfree(p);               }
+  void* memalign(size_t a, size_t s) __THROW     { return tc_memalign(a, s);  }
+  void* pvalloc(size_t s) __THROW                { return tc_pvalloc(s);      }
+  int posix_memalign(void** r, size_t a, size_t s) __THROW {
+    return tc_posix_memalign(r, a, s);
+  }
+  void malloc_stats(void) __THROW                { tc_malloc_stats();         }
+  int mallopt(int cmd, int v) __THROW            { return tc_mallopt(cmd, v); }
+#ifdef HAVE_STRUCT_MALLINFO
+  struct mallinfo mallinfo(void) __THROW         { return tc_mallinfo();      }
+#endif
+  // An alias for malloc_size(), which os x defines.
+  size_t malloc_usable_size(void* p) __THROW     { return tc_malloc_size(p); }
+}  // extern "C"
+
+#elif defined(__GNUC__) && !defined(__MACH__)
   // Potentially faster variants that use the gcc alias extension.
   // FreeBSD does support aliases, but apparently not correctly. :-(
   // NOTE: we make many of these symbols weak, but do so in the makefile
@@ -344,7 +446,8 @@ extern "C" {
   size_t malloc_size(void* p) __THROW            { return tc_malloc_size(p); }
   size_t malloc_usable_size(void* p) __THROW     { return tc_malloc_size(p); }
 }  // extern "C"
-#endif  // #if defined(__GNUC__)
+
+#endif  // #if defined(WIN32_DO_PATCHING) ...
 
 // Some library routines on RedHat 9 allocate memory using malloc()
 // and free it using __libc_free() (or vice-versa).  Since we provide
@@ -380,8 +483,6 @@ extern "C" {
 #endif  // ifdef __GLIBC__
 
 #undef ALIAS
-
-#endif  // #ifndef(WIN32_DO_PATCHING)
 
 
 // ----------------------- IMPLEMENTATION -------------------------------
@@ -912,6 +1013,9 @@ TCMallocGuard::TCMallocGuard() {
     // patch the windows VirtualAlloc, etc.
     PatchWindowsFunctions();    // defined in windows/patch_functions.cc
 #endif
+#ifdef HAVE_REPLACE_SYSTEM_ALLOC
+    ReplaceSystemAlloc();       // for OS X
+#endif
     tc_free(tc_malloc(1));
     ThreadCache::InitTSD();
     tc_free(tc_malloc(1));
@@ -1167,27 +1271,6 @@ inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
 // The default "do_free" that uses the default callback.
 inline void do_free(void* ptr) {
   return do_free_with_callback(ptr, &InvalidFree);
-}
-
-inline size_t GetSizeWithCallback(void* ptr,
-                                  size_t (*invalid_getsize_fn)(void*)) {
-  if (ptr == NULL)
-    return 0;
-  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-  if (cl != 0) {
-    return Static::sizemap()->ByteSizeForClass(cl);
-  } else {
-    Span *span = Static::pageheap()->GetDescriptor(p);
-    if (span == NULL) {  // means we do not own this memory
-      return (*invalid_getsize_fn)(ptr);
-    } else if (span->sizeclass != 0) {
-      Static::pageheap()->CacheSizeClass(p, span->sizeclass);
-      return Static::sizemap()->ByteSizeForClass(span->sizeclass);
-    } else {
-      return span->length << kPageShift;
-    }
-  }
 }
 
 // This lets you call back to a given function pointer if ptr is invalid.

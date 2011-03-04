@@ -882,6 +882,8 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
   int64 inode;
   char *permissions, *filename;
   bool saw_shared_lib = false;
+  bool saw_nonzero_inode = false;
+  bool saw_shared_lib_with_nonzero_inode = false;
   while (it.Next(&start_address, &end_address, &permissions,
                  &file_offset, &inode, &filename)) {
     if (start_address >= end_address) {
@@ -897,16 +899,22 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
       // do things in this loop.
       continue;
     }
-    // Determine if any shared libraries are present.  This is the same
-    // list of extensions as is found in pprof.
-    if (strstr(filename, ".dll")) {   // for windows, which doesn't have inodes
+    // Determine if any shared libraries are present (this is the same
+    // list of extensions as is found in pprof).  We want to ignore
+    // 'fake' libraries with inode 0 when determining.  However, some
+    // systems don't share inodes via /proc, so we turn off this check
+    // if we don't see any evidence that we're getting inode info.
+    if (inode != 0) {
+      saw_nonzero_inode = true;
+    }
+    if ((strstr(filename, "lib") && strstr(filename, ".so")) ||
+        strstr(filename, ".dll") ||
+        // not all .dylib filenames start with lib. .dylib is big enough
+        // that we are unlikely to get false matches just checking that.
+        strstr(filename, ".dylib") || strstr(filename, ".bundle")) {
       saw_shared_lib = true;
-    } else if (inode != 0) {          // ignore fake files
-      if ((strstr(filename, "lib") && strstr(filename, ".so")) ||
-          // not all .dylib filenames start with lib. .dylib is big enough
-          // that we are unlikely to get false matches just checking that.
-          strstr(filename, ".dylib") || strstr(filename, ".bundle")) {
-        saw_shared_lib = true;
+      if (inode != 0) {
+        saw_shared_lib_with_nonzero_inode = true;
       }
     }
 
@@ -926,6 +934,12 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
       default:
         RAW_CHECK(0, "");
     }
+  }
+  // If /proc/self/maps is reporting inodes properly (we saw a
+  // non-zero inode), then we only say we saw a shared lib if we saw a
+  // 'real' one, with a non-zero inode.
+  if (saw_nonzero_inode) {
+    saw_shared_lib = saw_shared_lib_with_nonzero_inode;
   }
   if (!saw_shared_lib) {
     RAW_LOG(ERROR, "No shared libs detected. Will likely report false leak "

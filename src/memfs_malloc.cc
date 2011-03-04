@@ -71,6 +71,9 @@ DEFINE_bool(memfs_malloc_abort_on_fail,
 DEFINE_bool(memfs_malloc_ignore_mmap_fail,
             EnvToBool("TCMALLOC_MEMFS_IGNORE_MMAP_FAIL", false),
             "Ignore failures from mmap");
+DEFINE_bool(memfs_malloc_map_private,
+            EnvToBool("TCMALLOC_MEMFS_MAP_PRIVATE", false),
+	    "Use MAP_PRIVATE with mmap");
 
 // Hugetlbfs based allocator for tcmalloc
 class HugetlbSysAllocator: public SysAllocator {
@@ -162,8 +165,10 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
   //            size + alignment < (1<<NBITS).
   // and        extra <= alignment
   // therefore  size + extra < (1<<NBITS)
-  void *result = mmap(0, size + extra, PROT_WRITE|PROT_READ,
-                      MAP_SHARED, hugetlb_fd_, hugetlb_base_);
+  void *result;
+  result = mmap(0, size + extra, PROT_WRITE|PROT_READ,
+                FLAGS_memfs_malloc_map_private ? MAP_PRIVATE : MAP_SHARED,
+                hugetlb_fd_, hugetlb_base_);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
     if (!FLAGS_memfs_malloc_ignore_mmap_fail) {
       TCMalloc_MESSAGE(__FILE__, __LINE__, "mmap of size %"PRIuS" failed: %s\n",
