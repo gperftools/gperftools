@@ -182,7 +182,6 @@ enum AddOrRemove { ADD, REMOVE };
 static void AddRemoveMMapDataLocked(AddOrRemove mode) {
   RAW_DCHECK(heap_lock.IsHeld(), "");
   if (!FLAGS_mmap_profile || !is_on) return;
-  if (!FLAGS_mmap_log) MemoryRegionMap::CheckMallocHooks();
   // MemoryRegionMap maintained all the data we need for all
   // mmap-like allocations, so we just use it here:
   MemoryRegionMap::LockHolder l;
@@ -244,15 +243,6 @@ static void DumpProfileLocked(const char* reason) {
   RAW_DCHECK(!dumping, "");
 
   if (filename_prefix == NULL) return;  // we do not yet need dumping
-
-  if (FLAGS_only_mmap_profile == false) {
-    if (MallocHook::GetNewHook() != NewHook  ||
-        MallocHook::GetDeleteHook() != DeleteHook) {
-      RAW_LOG(FATAL, "Had our new/delete MallocHook-s replaced. "
-                     "Are you using another MallocHook client? "
-                     "Do not use --heap_profile=... to avoid this conflict.");
-    }
-  }
 
   dumping = true;
 
@@ -372,12 +362,6 @@ static void RawInfoStackDumper(const char* message, void*) {
 }
 #endif
 
-// Saved MemoryRegionMap's hooks to daisy-chain calls to.
-MallocHook::MmapHook saved_mmap_hook = NULL;
-MallocHook::MremapHook saved_mremap_hook = NULL;
-MallocHook::MunmapHook saved_munmap_hook = NULL;
-MallocHook::SbrkHook saved_sbrk_hook = NULL;
-
 static void MmapHook(const void* result, const void* start, size_t size,
                      int prot, int flags, int fd, off_t offset) {
   if (FLAGS_mmap_log) {  // log it
@@ -392,11 +376,6 @@ static void MmapHook(const void* result, const void* start, size_t size,
 #ifdef TODO_REENABLE_STACK_TRACING
     DumpStackTrace(1, RawInfoStackDumper, NULL);
 #endif
-  }
-  if (saved_mmap_hook) {
-    // Call MemoryRegionMap's hook: it will record needed info about the mmap
-    // for us w/o deadlocks:
-    (*saved_mmap_hook)(result, start, size, prot, flags, fd, offset);
   }
 }
 
@@ -417,9 +396,6 @@ static void MremapHook(const void* result, const void* old_addr,
     DumpStackTrace(1, RawInfoStackDumper, NULL);
 #endif
   }
-  if (saved_mremap_hook) {  // call MemoryRegionMap's hook
-    (*saved_mremap_hook)(result, old_addr, old_size, new_size, flags, new_addr);
-  }
 }
 
 static void MunmapHook(const void* ptr, size_t size) {
@@ -433,9 +409,6 @@ static void MunmapHook(const void* ptr, size_t size) {
     DumpStackTrace(1, RawInfoStackDumper, NULL);
 #endif
   }
-  if (saved_munmap_hook) {  // call MemoryRegionMap's hook
-    (*saved_munmap_hook)(ptr, size);
-  }
 }
 
 static void SbrkHook(const void* result, ptrdiff_t increment) {
@@ -445,9 +418,6 @@ static void SbrkHook(const void* result, ptrdiff_t increment) {
 #ifdef TODO_REENABLE_STACK_TRACING
     DumpStackTrace(1, RawInfoStackDumper, NULL);
 #endif
-  }
-  if (saved_sbrk_hook) {  // call MemoryRegionMap's hook
-    (*saved_sbrk_hook)(result, increment);
   }
 }
 
@@ -479,12 +449,11 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   }
 
   if (FLAGS_mmap_log) {
-    // Install our hooks to do the logging
-    // and maybe save MemoryRegionMap's hooks to call:
-    saved_mmap_hook = MallocHook::SetMmapHook(MmapHook);
-    saved_mremap_hook = MallocHook::SetMremapHook(MremapHook);
-    saved_munmap_hook = MallocHook::SetMunmapHook(MunmapHook);
-    saved_sbrk_hook = MallocHook::SetSbrkHook(SbrkHook);
+    // Install our hooks to do the logging:
+    RAW_CHECK(MallocHook::AddMmapHook(&MmapHook), "");
+    RAW_CHECK(MallocHook::AddMremapHook(&MremapHook), "");
+    RAW_CHECK(MallocHook::AddMunmapHook(&MunmapHook), "");
+    RAW_CHECK(MallocHook::AddSbrkHook(&SbrkHook), "");
   }
 
   heap_profiler_memory =
@@ -507,14 +476,9 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   // sequence of profiles.
 
   if (FLAGS_only_mmap_profile == false) {
-    // Now set the hooks that capture new/delete and malloc/free
-    // and check that these are the only hooks:
-    if (MallocHook::SetNewHook(NewHook) != NULL  ||
-        MallocHook::SetDeleteHook(DeleteHook) != NULL) {
-      RAW_LOG(FATAL, "Had other new/delete MallocHook-s set. "
-                     "Are you using the heap leak checker? "
-                     "Use --heap_check=\"\" to avoid this conflict.");
-    }
+    // Now set the hooks that capture new/delete and malloc/free.
+    RAW_CHECK(MallocHook::AddNewHook(&NewHook), "");
+    RAW_CHECK(MallocHook::AddDeleteHook(&DeleteHook), "");
   }
 
   // Copy filename prefix
@@ -536,24 +500,16 @@ extern "C" void HeapProfilerStop() {
   if (!is_on) return;
 
   if (FLAGS_only_mmap_profile == false) {
-    // Unset our new/delete hooks, checking they were the ones set:
-    if (MallocHook::SetNewHook(NULL) != NewHook  ||
-        MallocHook::SetDeleteHook(NULL) != DeleteHook) {
-      RAW_LOG(FATAL, "Had our new/delete MallocHook-s replaced. "
-                     "Are you using another MallocHook client? "
-                     "Do not use --heap_profile=... to avoid this conflict.");
-    }
+    // Unset our new/delete hooks, checking they were set:
+    RAW_CHECK(MallocHook::RemoveNewHook(&NewHook), "");
+    RAW_CHECK(MallocHook::RemoveDeleteHook(&DeleteHook), "");
   }
   if (FLAGS_mmap_log) {
-    // Restore mmap/sbrk hooks, checking that our hooks were the ones set:
-    if (MallocHook::SetMmapHook(saved_mmap_hook) != MmapHook  ||
-        MallocHook::SetMremapHook(saved_mremap_hook) != MremapHook  ||
-        MallocHook::SetMunmapHook(saved_munmap_hook) != MunmapHook  ||
-        MallocHook::SetSbrkHook(saved_sbrk_hook) != SbrkHook) {
-      RAW_LOG(FATAL, "Had our mmap/mremap/munmap/sbrk MallocHook-s replaced. "
-                     "Are you using another MallocHook client? "
-                     "Do not use --heap_profile=... to avoid this conflict.");
-    }
+    // Restore mmap/sbrk hooks, checking that our hooks were set:
+    RAW_CHECK(MallocHook::RemoveMmapHook(&MmapHook), "");
+    RAW_CHECK(MallocHook::RemoveMremapHook(&MremapHook), "");
+    RAW_CHECK(MallocHook::RemoveSbrkHook(&SbrkHook), "");
+    RAW_CHECK(MallocHook::RemoveMunmapHook(&MunmapHook), "");
   }
 
   // free profile

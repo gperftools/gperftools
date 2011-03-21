@@ -146,16 +146,11 @@ static void Test(bool use_new_arena, bool call_malloc_hook, int n) {
 // used for counting allocates and frees
 static int32 allocates;
 static int32 frees;
-static MallocHook::NewHook old_alloc_hook;
-static MallocHook::DeleteHook old_free_hook;
 
 // called on each alloc if kCallMallocHook specified
 static void AllocHook(const void *p, size_t size) {
   if (using_low_level_alloc) {
     allocates++;
-  }
-  if (old_alloc_hook != 0) {
-    (*old_alloc_hook)(p, size);
   }
 }
 
@@ -163,9 +158,6 @@ static void AllocHook(const void *p, size_t size) {
 static void FreeHook(const void *p) {
   if (using_low_level_alloc) {
     frees++;
-  }
-  if (old_free_hook != 0) {
-    (*old_free_hook)(p);
   }
 }
 
@@ -177,8 +169,8 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  old_alloc_hook = MallocHook::SetNewHook(AllocHook);
-  old_free_hook = MallocHook::SetDeleteHook(FreeHook);
+  CHECK(MallocHook::AddNewHook(&AllocHook));
+  CHECK(MallocHook::AddDeleteHook(&FreeHook));
   CHECK_EQ(allocates, 0);
   CHECK_EQ(frees, 0);
   Test(false, false, 50000);
@@ -198,7 +190,7 @@ int main(int argc, char *argv[]) {
     }
   }
   printf("\nPASS\n");
-  CHECK_EQ(MallocHook::SetNewHook(old_alloc_hook), AllocHook);
-  CHECK_EQ(MallocHook::SetDeleteHook(old_free_hook), FreeHook);
+  CHECK(MallocHook::RemoveNewHook(&AllocHook));
+  CHECK(MallocHook::RemoveDeleteHook(&FreeHook));
   return 0;
 }

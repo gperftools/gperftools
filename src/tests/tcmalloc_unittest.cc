@@ -692,14 +692,13 @@ static void TestNothrowNew(void* (*func)(size_t, const std::nothrow_t&)) {
     CHECK_GT(g_##hook_type##_calls, 0);                                 \
     g_##hook_type##_calls = 0;  /* reset for next call */               \
   }                                                                     \
-  static MallocHook::hook_type g_old_##hook_type;                       \
   static void Set##hook_type() {                                        \
-    g_old_##hook_type = MallocHook::Set##hook_type(                     \
-     (MallocHook::hook_type)&IncrementCallsTo##hook_type);              \
+    CHECK(MallocHook::Add##hook_type(                                   \
+        (MallocHook::hook_type)&IncrementCallsTo##hook_type));          \
   }                                                                     \
   static void Reset##hook_type() {                                      \
-    CHECK_EQ(MallocHook::Set##hook_type(g_old_##hook_type),             \
-             (MallocHook::hook_type)&IncrementCallsTo##hook_type);      \
+    CHECK(MallocHook::Remove##hook_type(                                \
+        (MallocHook::hook_type)&IncrementCallsTo##hook_type));          \
   }
 
 // We do one for each hook typedef in malloc_hook.h
@@ -765,7 +764,15 @@ static void RangeCallback(void* arg, const base::MallocRange* r) {
   RangeCallbackState* state = reinterpret_cast<RangeCallbackState*>(arg);
   if (state->ptr >= r->address &&
       state->ptr < r->address + r->length) {
-    CHECK_EQ(r->type, state->expected_type);
+    if (state->expected_type == base::MallocRange::FREE) {
+      // We are expecting r->type == FREE, but ReleaseMemory
+      // may have already moved us to UNMAPPED state instead (this happens in
+      // approximately 0.1% of executions). Accept either state.
+      CHECK(r->type == base::MallocRange::FREE ||
+            r->type == base::MallocRange::UNMAPPED);
+    } else {
+      CHECK_EQ(r->type, state->expected_type);
+    }
     CHECK_GE(r->length, state->min_size);
     state->matched = true;
   }

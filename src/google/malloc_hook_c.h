@@ -63,14 +63,21 @@ PERFTOOLS_DLL_DECL
 int MallocHook_GetCallerStackTrace(void** result, int max_depth,
                                    int skip_count);
 
+/* The MallocHook_{Add,Remove}*Hook functions return 1 on success and 0 on
+ * failure.
+ */
 
 typedef void (*MallocHook_NewHook)(const void* ptr, size_t size);
 PERFTOOLS_DLL_DECL
-MallocHook_NewHook MallocHook_SetNewHook(MallocHook_NewHook hook);
+int MallocHook_AddNewHook(MallocHook_NewHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemoveNewHook(MallocHook_NewHook hook);
 
 typedef void (*MallocHook_DeleteHook)(const void* ptr);
 PERFTOOLS_DLL_DECL
-MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook);
+int MallocHook_AddDeleteHook(MallocHook_DeleteHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemoveDeleteHook(MallocHook_DeleteHook hook);
 
 typedef void (*MallocHook_PreMmapHook)(const void *start,
                                        size_t size,
@@ -79,7 +86,9 @@ typedef void (*MallocHook_PreMmapHook)(const void *start,
                                        int fd,
                                        off_t offset);
 PERFTOOLS_DLL_DECL
-MallocHook_PreMmapHook MallocHook_SetPreMmapHook(MallocHook_PreMmapHook hook);
+int MallocHook_AddPreMmapHook(MallocHook_PreMmapHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemovePreMmapHook(MallocHook_PreMmapHook hook);
 
 typedef void (*MallocHook_MmapHook)(const void* result,
                                     const void* start,
@@ -89,11 +98,15 @@ typedef void (*MallocHook_MmapHook)(const void* result,
                                     int fd,
                                     off_t offset);
 PERFTOOLS_DLL_DECL
-MallocHook_MmapHook MallocHook_SetMmapHook(MallocHook_MmapHook hook);
+int MallocHook_AddMmapHook(MallocHook_MmapHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemoveMmapHook(MallocHook_MmapHook hook);
 
 typedef void (*MallocHook_MunmapHook)(const void* ptr, size_t size);
 PERFTOOLS_DLL_DECL
-MallocHook_MunmapHook MallocHook_SetMunmapHook(MallocHook_MunmapHook hook);
+int MallocHook_AddMunmapHook(MallocHook_MunmapHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemoveMunmapHook(MallocHook_MunmapHook hook);
 
 typedef void (*MallocHook_MremapHook)(const void* result,
                                       const void* old_addr,
@@ -102,15 +115,40 @@ typedef void (*MallocHook_MremapHook)(const void* result,
                                       int flags,
                                       const void* new_addr);
 PERFTOOLS_DLL_DECL
-MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook);
+int MallocHook_AddMremapHook(MallocHook_MremapHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemoveMremapHook(MallocHook_MremapHook hook);
 
 typedef void (*MallocHook_PreSbrkHook)(ptrdiff_t increment);
 PERFTOOLS_DLL_DECL
-MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook);
+int MallocHook_AddPreSbrkHook(MallocHook_PreSbrkHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemovePreSbrkHook(MallocHook_PreSbrkHook hook);
 
 typedef void (*MallocHook_SbrkHook)(const void* result, ptrdiff_t increment);
 PERFTOOLS_DLL_DECL
+int MallocHook_AddSbrkHook(MallocHook_SbrkHook hook);
+PERFTOOLS_DLL_DECL
+int MallocHook_RemoveSbrkHook(MallocHook_SbrkHook hook);
+
+/* The following are DEPRECATED. */
+PERFTOOLS_DLL_DECL
+MallocHook_NewHook MallocHook_SetNewHook(MallocHook_NewHook hook);
+PERFTOOLS_DLL_DECL
+MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook);
+PERFTOOLS_DLL_DECL
+MallocHook_PreMmapHook MallocHook_SetPreMmapHook(MallocHook_PreMmapHook hook);
+PERFTOOLS_DLL_DECL
+MallocHook_MmapHook MallocHook_SetMmapHook(MallocHook_MmapHook hook);
+PERFTOOLS_DLL_DECL
+MallocHook_MunmapHook MallocHook_SetMunmapHook(MallocHook_MunmapHook hook);
+PERFTOOLS_DLL_DECL
+MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook);
+PERFTOOLS_DLL_DECL
+MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook);
+PERFTOOLS_DLL_DECL
 MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook);
+/* End of DEPRECATED functions. */
 
 #ifdef __cplusplus
 }   // extern "C"

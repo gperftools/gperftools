@@ -45,6 +45,7 @@
 
 namespace base { namespace internal {
 
+// The following (implementation) code is DEPRECATED.
 // A simple atomic pointer class that can be initialized by the linker
 // when you define a namespace-scope variable as:
 //
@@ -95,27 +96,90 @@ extern AtomicPtr<MallocHook::MunmapHook>  munmap_hook_;
 extern AtomicPtr<MallocHook::MremapHook>  mremap_hook_;
 extern AtomicPtr<MallocHook::PreSbrkHook> presbrk_hook_;
 extern AtomicPtr<MallocHook::SbrkHook>    sbrk_hook_;
+// End DEPRECATED code.
+
+// Maximum of 7 hooks means that HookList is 8 words.
+static const int kHookListMaxValues = 7;
+
+// HookList: a class that provides synchronized insertions and removals and
+// lockless traversal.  Most of the implementation is in malloc_hook.cc.
+template <typename T>
+struct HookList {
+  COMPILE_ASSERT(sizeof(T) <= sizeof(AtomicWord), T_should_fit_in_AtomicWord);
+
+  // Adds value to the list.  Note that duplicates are allowed.  Thread-safe and
+  // blocking (acquires hooklist_spinlock).  Returns true on success; false
+  // otherwise (failures include invalid value and no space left).
+  bool Add(T value);
+
+  // Removes the first entry matching value from the list.  Thread-safe and
+  // blocking (acquires hooklist_spinlock).  Returns true on success; false
+  // otherwise (failures include invalid value and no value found).
+  bool Remove(T value);
+
+  // Store up to n values of the list in output_array, and return the number of
+  // elements stored.  Thread-safe and non-blocking.  This is fast (one memory
+  // access) if the list is empty.
+  int Traverse(T* output_array, int n) const;
+
+  // Fast inline implementation for fast path of Invoke*Hook.
+  bool empty() const {
+    return base::subtle::Acquire_Load(&priv_end) == 0;
+  }
+
+  // This internal data is not private so that the class is an aggregate and can
+  // be initialized by the linker.  Don't access this directly.  Use the
+  // INIT_HOOK_LIST macro in malloc_hook.cc.
+
+  // One more than the index of the last valid element in priv_data.  During
+  // 'Remove' this may be past the last valid element in priv_data, but
+  // subsequent values will be 0.
+  AtomicWord priv_end;
+  AtomicWord priv_data[kHookListMaxValues];
+};
+
+extern HookList<MallocHook::NewHook> new_hooks_;
+extern HookList<MallocHook::DeleteHook> delete_hooks_;
+extern HookList<MallocHook::PreMmapHook> premmap_hooks_;
+extern HookList<MallocHook::MmapHook> mmap_hooks_;
+extern HookList<MallocHook::MunmapHook> munmap_hooks_;
+extern HookList<MallocHook::MremapHook> mremap_hooks_;
+extern HookList<MallocHook::PreSbrkHook> presbrk_hooks_;
+extern HookList<MallocHook::SbrkHook> sbrk_hooks_;
 
 } }  // namespace base::internal
 
+// The following method is DEPRECATED
 inline MallocHook::NewHook MallocHook::GetNewHook() {
   return base::internal::new_hook_.Get();
 }
 
 inline void MallocHook::InvokeNewHook(const void* p, size_t s) {
+  if (!base::internal::new_hooks_.empty()) {
+    InvokeNewHookSlow(p, s);
+  }
+  // The following code is DEPRECATED.
   MallocHook::NewHook hook = MallocHook::GetNewHook();
   if (hook != NULL) (*hook)(p, s);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::DeleteHook MallocHook::GetDeleteHook() {
   return base::internal::delete_hook_.Get();
 }
 
 inline void MallocHook::InvokeDeleteHook(const void* p) {
+  if (!base::internal::delete_hooks_.empty()) {
+    InvokeDeleteHookSlow(p);
+  }
+  // The following code is DEPRECATED.
   MallocHook::DeleteHook hook = MallocHook::GetDeleteHook();
   if (hook != NULL) (*hook)(p);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::PreMmapHook MallocHook::GetPreMmapHook() {
   return base::internal::premmap_hook_.Get();
 }
@@ -126,12 +190,18 @@ inline void MallocHook::InvokePreMmapHook(const void* start,
                                           int flags,
                                           int fd,
                                           off_t offset) {
+  if (!base::internal::premmap_hooks_.empty()) {
+    InvokePreMmapHookSlow(start, size, protection, flags, fd, offset);
+  }
+  // The following code is DEPRECATED.
   MallocHook::PreMmapHook hook = MallocHook::GetPreMmapHook();
   if (hook != NULL) (*hook)(start, size,
                             protection, flags,
                             fd, offset);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::MmapHook MallocHook::GetMmapHook() {
   return base::internal::mmap_hook_.Get();
 }
@@ -143,22 +213,34 @@ inline void MallocHook::InvokeMmapHook(const void* result,
                                        int flags,
                                        int fd,
                                        off_t offset) {
+  if (!base::internal::mmap_hooks_.empty()) {
+    InvokeMmapHookSlow(result, start, size, protection, flags, fd, offset);
+  }
+  // The following code is DEPRECATED.
   MallocHook::MmapHook hook = MallocHook::GetMmapHook();
   if (hook != NULL) (*hook)(result,
                             start, size,
                             protection, flags,
                             fd, offset);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::MunmapHook MallocHook::GetMunmapHook() {
   return base::internal::munmap_hook_.Get();
 }
 
 inline void MallocHook::InvokeMunmapHook(const void* p, size_t size) {
+  if (!base::internal::munmap_hooks_.empty()) {
+    InvokeMunmapHookSlow(p, size);
+  }
+  // The following code is DEPRECATED.
   MallocHook::MunmapHook hook = MallocHook::GetMunmapHook();
   if (hook != NULL) (*hook)(p, size);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::MremapHook MallocHook::GetMremapHook() {
   return base::internal::mremap_hook_.Get();
 }
@@ -169,29 +251,46 @@ inline void MallocHook::InvokeMremapHook(const void* result,
                                          size_t new_size,
                                          int flags,
                                          const void* new_addr) {
+  if (!base::internal::mremap_hooks_.empty()) {
+    InvokeMremapHookSlow(result, old_addr, old_size, new_size, flags, new_addr);
+  }
+  // The following code is DEPRECATED.
   MallocHook::MremapHook hook = MallocHook::GetMremapHook();
   if (hook != NULL) (*hook)(result,
                             old_addr, old_size,
                             new_size, flags, new_addr);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::PreSbrkHook MallocHook::GetPreSbrkHook() {
   return base::internal::presbrk_hook_.Get();
 }
 
 inline void MallocHook::InvokePreSbrkHook(ptrdiff_t increment) {
+  if (!base::internal::presbrk_hooks_.empty() && increment != 0) {
+    InvokePreSbrkHookSlow(increment);
+  }
+  // The following code is DEPRECATED.
   MallocHook::PreSbrkHook hook = MallocHook::GetPreSbrkHook();
   if (hook != NULL && increment != 0) (*hook)(increment);
+  // End DEPRECATED code.
 }
 
+// The following method is DEPRECATED
 inline MallocHook::SbrkHook MallocHook::GetSbrkHook() {
   return base::internal::sbrk_hook_.Get();
 }
 
 inline void MallocHook::InvokeSbrkHook(const void* result,
                                        ptrdiff_t increment) {
+  if (!base::internal::sbrk_hooks_.empty() && increment != 0) {
+    InvokeSbrkHookSlow(result, increment);
+  }
+  // The following code is DEPRECATED.
   MallocHook::SbrkHook hook = MallocHook::GetSbrkHook();
   if (hook != NULL && increment != 0) (*hook)(result, increment);
+  // End DEPRECATED code.
 }
 
 #endif /* _MALLOC_HOOK_INL_H_ */

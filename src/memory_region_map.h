@@ -98,10 +98,6 @@ class MemoryRegionMap {
   // the number of Init() calls.
   static bool Shutdown();
 
-  // Check that our hooks are still in place and crash if not.
-  // No need for locking.
-  static void CheckMallocHooks();
-
   // Locks to protect our internal data structures.
   // These also protect use of arena_ if our Init() has been done.
   // The lock is recursive.
@@ -260,7 +256,6 @@ class MemoryRegionMap {
   union RegionSetRep;
 
  private:
-
   // representation ===========================================================
 
   // Counter of clients of this module that have called Init().

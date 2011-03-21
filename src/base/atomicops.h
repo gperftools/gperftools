@@ -86,11 +86,15 @@
 // TODO(csilvers): figure out ARCH_PIII/ARCH_K8 (perhaps via ./configure?)
 // ------------------------------------------------------------------------
 
+#include "base/arm_instruction_set_select.h"
+
 // TODO(csilvers): match piii, not just __i386.  Also, match k8
 #if defined(__MACH__) && defined(__APPLE__)
 #include "base/atomicops-internals-macosx.h"
-#elif defined(__GNUC__) && defined(__ARM_ARCH_5T__)
-#include "base/atomicops-internals-arm-gcc.h"
+#elif defined(__GNUC__) && defined(ARMV6)
+#include "base/atomicops-internals-arm-v6plus.h"
+#elif defined(ARMV3)
+#include "base/atomicops-internals-arm-generic.h"
 #elif defined(_MSC_VER) && defined(_M_IX86)
 #include "base/atomicops-internals-x86-msvc.h"
 #elif defined(__MINGW32__) && defined(__i386__)

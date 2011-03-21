@@ -262,12 +262,12 @@ extern "C" {
 }  // extern "C"
 #endif  // #ifndef _WIN32
 
-// We define this here because one some architectures it's needed soon.
+// We define this here because on some architectures it's needed soon.
 namespace {
 inline size_t GetSizeWithCallback(void* ptr,
                                   size_t (*invalid_getsize_fn)(void*)) {
   if (ptr == NULL)
-    return 0;
+    return (*invalid_getsize_fn)(ptr);
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
   if (cl != 0) {
@@ -296,39 +296,46 @@ inline size_t GetSizeWithCallback(void* ptr,
 
 #elif defined(__APPLE__)
 
+#include <AvailabilityMacros.h>
+
 // Mach's two-level naming scheme makes aliasing difficult, but we can
 // use apple's malloc_default_zone() to replace the system alloc.
 // http://www.opensource.apple.com/source/Libc/Libc-583/include/malloc/malloc.h
 // http://www.opensource.apple.com/source/Libc/Libc-583/gen/malloc.c
 // We need wrappers for all the routines, sadly. :-(
 
+namespace {
 // malloc_zone semantics are we return 0 if we don't own the memory.
-static size_t mz_invalid_getsize(void*) {
+size_t mz_invalid_getsize(void*) {
   return 0;
 }
-static size_t mz_size(malloc_zone_t* zone, const void* ptr) {
+size_t mz_size(malloc_zone_t* zone, const void* ptr) {
   // TODO(csilvers): change this method to take a const void*, one day.
   // TODO(csilvers): this is totally wrong with debugallocation.
   return GetSizeWithCallback(const_cast<void*>(ptr), mz_invalid_getsize);
 }
-static void* mz_malloc(malloc_zone_t* zone, size_t size) {
+void* mz_malloc(malloc_zone_t* zone, size_t size) {
   return tc_malloc(size);
 }
-static void* mz_calloc(malloc_zone_t* zone, size_t num_items, size_t size) {
+void* mz_calloc(malloc_zone_t* zone, size_t num_items, size_t size) {
   return tc_calloc(num_items, size);
 }
-static void* mz_valloc(malloc_zone_t* zone, size_t size) {
+void* mz_valloc(malloc_zone_t* zone, size_t size) {
   return tc_valloc(size);
 }
-static void mz_free(malloc_zone_t* zone, void* ptr) {
+void mz_free(malloc_zone_t* zone, void* ptr) {
   return tc_free(ptr);
 }
-static void* mz_realloc(malloc_zone_t* zone, void* ptr, size_t size) {
+void* mz_realloc(malloc_zone_t* zone, void* ptr, size_t size) {
   return tc_realloc(ptr, size);
 }
-static void mz_destroy(malloc_zone_t* zone) {
+void* mz_memalign(malloc_zone_t* zone, size_t align, size_t size) {
+  return tc_memalign(align, size);
+}
+void mz_destroy(malloc_zone_t* zone) {
   // A no-op -- we will not be destroyed!
 }
+}  // unnamed namespace
 
 static void ReplaceSystemAlloc() {
   static malloc_zone_t system_zone_copy;
@@ -343,6 +350,13 @@ static void ReplaceSystemAlloc() {
   system_zone->free = &mz_free;
   system_zone->realloc = &mz_realloc;
   system_zone->destroy = &mz_destroy;
+  system_zone->batch_malloc = NULL;
+  system_zone->batch_free = NULL;
+#ifdef MAC_OS_X_VERSION_10_6    // from AvailabilityMacros.h
+  system_zone->memalign = &mz_memalign;
+  system_zone->free_definite_size = NULL;
+#endif
+
   // TODO(csilvers): figure out if this version of malloc.h supports
   // batch_malloc, batch_free, memalign, and free_definite_size, and
   // set those to NULL if so.
@@ -526,9 +540,10 @@ static void ExtractStats(TCMallocStats* r, uint64_t* class_count) {
   for (int cl = 0; cl < kNumClasses; ++cl) {
     const int length = Static::central_cache()[cl].length();
     const int tc_length = Static::central_cache()[cl].tc_length();
+    const size_t cache_overhead = Static::central_cache()[cl].OverheadBytes();
     const size_t size = static_cast<uint64_t>(
         Static::sizemap()->ByteSizeForClass(cl));
-    r->central_bytes += (size * length);
+    r->central_bytes += (size * length) + cache_overhead;
     r->transfer_bytes += (size * tc_length);
     if (class_count) class_count[cl] = length + tc_length;
   }

@@ -323,4 +323,20 @@ int CentralFreeList::tc_length() {
   return used_slots_ * Static::sizemap()->num_objects_to_move(size_class_);
 }
 
+size_t CentralFreeList::OverheadBytes() {
+  SpinLockHolder h(&lock_);
+  size_t overhead = 0;
+  for (const Span* s = empty_.next; s != &empty_; s = s->next) {
+    ASSERT(size_class_ == s->sizeclass);
+    ASSERT(size_class_ != 0);
+    overhead += (s->length * kPageSize) % size_class_;
+  }
+  for (const Span* s = nonempty_.next; s != &nonempty_; s = s->next) {
+    ASSERT(size_class_ == s->sizeclass);
+    ASSERT(size_class_ != 0);
+    overhead += (s->length * kPageSize) % size_class_;
+  }
+  return overhead;
+}
+
 }  // namespace tcmalloc

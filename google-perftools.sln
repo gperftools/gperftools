@@ -36,6 +36,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "markidle_unittest", "vsproj
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "current_allocated_bytes_test", "vsprojects\current_allocated_bytes_test\current_allocated_bytes_test.vcproj", "{4AFFF21D-9D0A-410C-A7DB-7D21DA5166C0}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
+	EndProjectSection
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "packed-cache_test", "vsprojects\packed-cache_test\packed-cache_test.vcproj", "{605D3CED-B530-424E-B7D2-2A31F14FD570}"
 	ProjectSection(ProjectDependencies) = postProject
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}

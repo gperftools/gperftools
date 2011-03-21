@@ -51,7 +51,6 @@
 // sure this file is not optimized out by the linker.
 bool heap_leak_checker_bcad_variable;
 
-extern void HeapLeakChecker_BeforeConstructors();  // in heap-checker.cc
 extern void HeapLeakChecker_AfterDestructors();  // in heap-checker.cc
 
 // A helper class to ensure that some components of heap leak checking
@@ -61,7 +60,12 @@ class HeapLeakCheckerGlobalPrePost {
  public:
   HeapLeakCheckerGlobalPrePost() {
     if (count_ == 0) {
-      HeapLeakChecker_BeforeConstructors();
+      // The 'new int' will ensure that we have run an initial malloc
+      // hook, which will set up the heap checker via
+      // MallocHook_InitAtFirstAllocation_HeapLeakChecker.  See malloc_hook.cc.
+      // This is done in this roundabout fashion in order to avoid self-deadlock
+      // if we directly called HeapLeakChecker_BeforeConstructors here.
+      delete new int;
       // This needs to be called before the first allocation of an STL
       // object, but after libc is done setting up threads (because it
       // calls setenv, which requires a thread-aware errno).  By

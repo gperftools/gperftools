@@ -766,8 +766,10 @@ am__EXEEXT_24 = low_level_alloc_unittest$(EXEEXT) \
 	tcmalloc_minimal_large_unittest$(EXEEXT) $(am__EXEEXT_10) \
 	addressmap_unittest$(EXEEXT) $(am__EXEEXT_11) \
 	packed_cache_test$(EXEEXT) frag_unittest$(EXEEXT) \
-	markidle_unittest$(EXEEXT) malloc_extension_test$(EXEEXT) \
-	$(am__EXEEXT_12) $(am__EXEEXT_13) page_heap_test$(EXEEXT) \
+	markidle_unittest$(EXEEXT) \
+	current_allocated_bytes_test$(EXEEXT) \
+	malloc_extension_test$(EXEEXT) $(am__EXEEXT_12) \
+	$(am__EXEEXT_13) page_heap_test$(EXEEXT) \
 	pagemap_unittest$(EXEEXT) realloc_unittest$(EXEEXT) \
 	stack_trace_table_test$(EXEEXT) \
 	thread_dealloc_unittest$(EXEEXT) $(am__EXEEXT_14) \
@@ -791,6 +793,14 @@ am_atomicops_unittest_OBJECTS = atomicops_unittest.$(OBJEXT) \
 	$(am__objects_6)
 atomicops_unittest_OBJECTS = $(am_atomicops_unittest_OBJECTS)
 atomicops_unittest_DEPENDENCIES = $(am__DEPENDENCIES_2)
+am_current_allocated_bytes_test_OBJECTS = current_allocated_bytes_test-current_allocated_bytes_test.$(OBJEXT)
+current_allocated_bytes_test_OBJECTS =  \
+	$(am_current_allocated_bytes_test_OBJECTS)
+@MINGW_FALSE@am__DEPENDENCIES_5 = libtcmalloc_minimal.la
+@MINGW_TRUE@am__DEPENDENCIES_5 = libtcmalloc_minimal.la \
+@MINGW_TRUE@	libstacktrace.la
+current_allocated_bytes_test_DEPENDENCIES = $(am__DEPENDENCIES_5) \
+	$(am__DEPENDENCIES_1)
 am__debugallocation_test_SOURCES_DIST =  \
 	src/tests/debugallocation_test.cc
 @WITH_DEBUGALLOC_TRUE@@WITH_STACK_TRACE_TRUE@am_debugallocation_test_OBJECTS = debugallocation_test-debugallocation_test.$(OBJEXT)
@@ -805,9 +815,6 @@ debugallocation_test_sh_OBJECTS =  \
 debugallocation_test_sh_LDADD = $(LDADD)
 am_frag_unittest_OBJECTS = frag_unittest-frag_unittest.$(OBJEXT)
 frag_unittest_OBJECTS = $(am_frag_unittest_OBJECTS)
-@MINGW_FALSE@am__DEPENDENCIES_5 = libtcmalloc_minimal.la
-@MINGW_TRUE@am__DEPENDENCIES_5 = libtcmalloc_minimal.la \
-@MINGW_TRUE@	libstacktrace.la
 frag_unittest_DEPENDENCIES = $(am__DEPENDENCIES_5) \
 	$(am__DEPENDENCIES_1)
 am__getpc_test_SOURCES_DIST = src/tests/getpc_test.cc src/getpc.h
@@ -894,7 +901,7 @@ heap_profiler_unittest_sh_OBJECTS =  \
 heap_profiler_unittest_sh_LDADD = $(LDADD)
 am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/low_level_alloc.cc src/malloc_hook.cc \
-	src/tests/low_level_alloc_unittest.cc \
+	src/maybe_threads.cc src/tests/low_level_alloc_unittest.cc \
 	src/base/low_level_alloc.h src/base/basictypes.h \
 	src/google/malloc_hook.h src/google/malloc_hook_c.h \
 	src/malloc_hook-inl.h src/base/spinlock.h \
@@ -913,6 +920,7 @@ am__objects_29 = $(am__objects_1) $(am__objects_1)
 am_low_level_alloc_unittest_OBJECTS =  \
 	low_level_alloc_unittest-low_level_alloc.$(OBJEXT) \
 	low_level_alloc_unittest-malloc_hook.$(OBJEXT) \
+	low_level_alloc_unittest-maybe_threads.$(OBJEXT) \
 	low_level_alloc_unittest-low_level_alloc_unittest.$(OBJEXT) \
 	$(am__objects_29)
 low_level_alloc_unittest_OBJECTS =  \
@@ -1275,7 +1283,9 @@ SOURCES = $(liblogging_la_SOURCES) $(libprofiler_la_SOURCES) \
 	$(libtcmalloc_minimal_debug_la_SOURCES) \
 	$(libtcmalloc_minimal_internal_la_SOURCES) \
 	$(libwindows_la_SOURCES) $(addressmap_unittest_SOURCES) \
-	$(atomicops_unittest_SOURCES) $(debugallocation_test_SOURCES) \
+	$(atomicops_unittest_SOURCES) \
+	$(current_allocated_bytes_test_SOURCES) \
+	$(debugallocation_test_SOURCES) \
 	$(debugallocation_test_sh_SOURCES) $(frag_unittest_SOURCES) \
 	$(getpc_test_SOURCES) \
 	$(heap_checker_death_unittest_sh_SOURCES) \
@@ -1329,6 +1339,7 @@ DIST_SOURCES = $(liblogging_la_SOURCES) \
 	$(am__libwindows_la_SOURCES_DIST) \
 	$(am__addressmap_unittest_SOURCES_DIST) \
 	$(atomicops_unittest_SOURCES) \
+	$(current_allocated_bytes_test_SOURCES) \
 	$(am__debugallocation_test_SOURCES_DIST) \
 	$(am__debugallocation_test_sh_SOURCES_DIST) \
 	$(frag_unittest_SOURCES) $(am__getpc_test_SOURCES_DIST) \
@@ -1714,6 +1725,7 @@ WINDOWS_PROJECTS = google-perftools.sln \
 	vsprojects/packed-cache_test/packed-cache_test.vcproj \
 	vsprojects/frag_unittest/frag_unittest.vcproj \
 	vsprojects/markidle_unittest/markidle_unittest.vcproj \
+	vsprojects/current_allocated_bytes_test/current_allocated_bytes_test.vcproj \
 	vsprojects/malloc_extension_test/malloc_extension_test.vcproj \
 	vsprojects/page_heap_test/page_heap_test.vcproj \
 	vsprojects/pagemap_unittest/pagemap_unittest.vcproj \
@@ -1743,13 +1755,13 @@ TESTS = low_level_alloc_unittest atomicops_unittest $(am__append_11) \
 	tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest \
 	$(am__append_15) addressmap_unittest $(am__append_18) \
 	packed_cache_test frag_unittest markidle_unittest \
-	malloc_extension_test $(am__append_19) $(am__append_21) \
-	page_heap_test pagemap_unittest realloc_unittest \
-	stack_trace_table_test thread_dealloc_unittest \
-	$(am__append_24) $(am__append_25) $(am__append_35) \
-	$(am__append_40) $(am__append_43) $(am__append_50) \
-	$(am__append_52) $(am__append_54) $(am__append_58) \
-	$(am__append_63)
+	current_allocated_bytes_test malloc_extension_test \
+	$(am__append_19) $(am__append_21) page_heap_test \
+	pagemap_unittest realloc_unittest stack_trace_table_test \
+	thread_dealloc_unittest $(am__append_24) $(am__append_25) \
+	$(am__append_35) $(am__append_40) $(am__append_43) \
+	$(am__append_50) $(am__append_52) $(am__append_54) \
+	$(am__append_58) $(am__append_63)
 # TESTS_ENVIRONMENT sets environment variables for when you run unittest.
 # We always get "srcdir" set for free.
 # We'll add to this later, on a library-by-library basis.
@@ -1863,6 +1875,7 @@ LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
 
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
+                                   src/maybe_threads.cc \
                                    src/tests/low_level_alloc_unittest.cc \
                                    $(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES)
 
@@ -2045,6 +2058,12 @@ markidle_unittest_SOURCES = src/tests/markidle_unittest.cc \
 markidle_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 markidle_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 markidle_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc \
+                                       src/config_for_unittests.h
+
+current_allocated_bytes_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+current_allocated_bytes_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+current_allocated_bytes_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc \
                                 src/config_for_unittests.h \
                                 src/base/logging.h \
@@ -2606,6 +2625,9 @@ addressmap_unittest$(EXEEXT): $(addressmap_unittest_OBJECTS) $(addressmap_unitte
 atomicops_unittest$(EXEEXT): $(atomicops_unittest_OBJECTS) $(atomicops_unittest_DEPENDENCIES) 
 	@rm -f atomicops_unittest$(EXEEXT)
 	$(CXXLINK) $(atomicops_unittest_LDFLAGS) $(atomicops_unittest_OBJECTS) $(atomicops_unittest_LDADD) $(LIBS)
+current_allocated_bytes_test$(EXEEXT): $(current_allocated_bytes_test_OBJECTS) $(current_allocated_bytes_test_DEPENDENCIES) 
+	@rm -f current_allocated_bytes_test$(EXEEXT)
+	$(CXXLINK) $(current_allocated_bytes_test_LDFLAGS) $(current_allocated_bytes_test_OBJECTS) $(current_allocated_bytes_test_LDADD) $(LIBS)
 debugallocation_test$(EXEEXT): $(debugallocation_test_OBJECTS) $(debugallocation_test_DEPENDENCIES) 
 	@rm -f debugallocation_test$(EXEEXT)
 	$(CXXLINK) $(debugallocation_test_LDFLAGS) $(debugallocation_test_OBJECTS) $(debugallocation_test_LDADD) $(LIBS)
@@ -2807,6 +2829,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/addressmap_unittest-port.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/atomicops-internals-x86.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/atomicops_unittest.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debugallocation_test-debugallocation_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dynamic_annotations.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/frag_unittest-frag_unittest.Po@am__quote@
@@ -2873,6 +2896,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_level_alloc_unittest-low_level_alloc.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_level_alloc_unittest-low_level_alloc_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_level_alloc_unittest-malloc_hook.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_extension_c_test-malloc_extension_c_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_extension_debug_test-malloc_extension_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_extension_test-malloc_extension_test.Po@am__quote@
@@ -3531,6 +3555,20 @@ atomicops_unittest.obj: src/tests/atomicops_unittest.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(AM_CXXFLAGS) $(CXXFLAGS) -c -o atomicops_unittest.obj `if test -f 'src/tests/atomicops_unittest.cc'; then $(CYGPATH_W) 'src/tests/atomicops_unittest.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/atomicops_unittest.cc'; fi`
 
+current_allocated_bytes_test-current_allocated_bytes_test.o: src/tests/current_allocated_bytes_test.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(current_allocated_bytes_test_CXXFLAGS) $(CXXFLAGS) -MT current_allocated_bytes_test-current_allocated_bytes_test.o -MD -MP -MF "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Tpo" -c -o current_allocated_bytes_test-current_allocated_bytes_test.o `test -f 'src/tests/current_allocated_bytes_test.cc' || echo '$(srcdir)/'`src/tests/current_allocated_bytes_test.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Tpo" "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Po"; else rm -f "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/current_allocated_bytes_test.cc' object='current_allocated_bytes_test-current_allocated_bytes_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(current_allocated_bytes_test_CXXFLAGS) $(CXXFLAGS) -c -o current_allocated_bytes_test-current_allocated_bytes_test.o `test -f 'src/tests/current_allocated_bytes_test.cc' || echo '$(srcdir)/'`src/tests/current_allocated_bytes_test.cc
+
+current_allocated_bytes_test-current_allocated_bytes_test.obj: src/tests/current_allocated_bytes_test.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(current_allocated_bytes_test_CXXFLAGS) $(CXXFLAGS) -MT current_allocated_bytes_test-current_allocated_bytes_test.obj -MD -MP -MF "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Tpo" -c -o current_allocated_bytes_test-current_allocated_bytes_test.obj `if test -f 'src/tests/current_allocated_bytes_test.cc'; then $(CYGPATH_W) 'src/tests/current_allocated_bytes_test.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/current_allocated_bytes_test.cc'; fi`; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Tpo" "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Po"; else rm -f "$(DEPDIR)/current_allocated_bytes_test-current_allocated_bytes_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/current_allocated_bytes_test.cc' object='current_allocated_bytes_test-current_allocated_bytes_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(current_allocated_bytes_test_CXXFLAGS) $(CXXFLAGS) -c -o current_allocated_bytes_test-current_allocated_bytes_test.obj `if test -f 'src/tests/current_allocated_bytes_test.cc'; then $(CYGPATH_W) 'src/tests/current_allocated_bytes_test.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/current_allocated_bytes_test.cc'; fi`
+
 debugallocation_test-debugallocation_test.o: src/tests/debugallocation_test.cc
 @am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(debugallocation_test_CXXFLAGS) $(CXXFLAGS) -MT debugallocation_test-debugallocation_test.o -MD -MP -MF "$(DEPDIR)/debugallocation_test-debugallocation_test.Tpo" -c -o debugallocation_test-debugallocation_test.o `test -f 'src/tests/debugallocation_test.cc' || echo '$(srcdir)/'`src/tests/debugallocation_test.cc; \
 @am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/debugallocation_test-debugallocation_test.Tpo" "$(DEPDIR)/debugallocation_test-debugallocation_test.Po"; else rm -f "$(DEPDIR)/debugallocation_test-debugallocation_test.Tpo"; exit 1; fi
@@ -3656,6 +3694,20 @@ low_level_alloc_unittest-malloc_hook.obj: src/malloc_hook.cc
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/malloc_hook.cc' object='low_level_alloc_unittest-malloc_hook.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(low_level_alloc_unittest_CXXFLAGS) $(CXXFLAGS) -c -o low_level_alloc_unittest-malloc_hook.obj `if test -f 'src/malloc_hook.cc'; then $(CYGPATH_W) 'src/malloc_hook.cc'; else $(CYGPATH_W) '$(srcdir)/src/malloc_hook.cc'; fi`
+
+low_level_alloc_unittest-maybe_threads.o: src/maybe_threads.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(low_level_alloc_unittest_CXXFLAGS) $(CXXFLAGS) -MT low_level_alloc_unittest-maybe_threads.o -MD -MP -MF "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Tpo" -c -o low_level_alloc_unittest-maybe_threads.o `test -f 'src/maybe_threads.cc' || echo '$(srcdir)/'`src/maybe_threads.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Tpo" "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Po"; else rm -f "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/maybe_threads.cc' object='low_level_alloc_unittest-maybe_threads.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(low_level_alloc_unittest_CXXFLAGS) $(CXXFLAGS) -c -o low_level_alloc_unittest-maybe_threads.o `test -f 'src/maybe_threads.cc' || echo '$(srcdir)/'`src/maybe_threads.cc
+
+low_level_alloc_unittest-maybe_threads.obj: src/maybe_threads.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(low_level_alloc_unittest_CXXFLAGS) $(CXXFLAGS) -MT low_level_alloc_unittest-maybe_threads.obj -MD -MP -MF "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Tpo" -c -o low_level_alloc_unittest-maybe_threads.obj `if test -f 'src/maybe_threads.cc'; then $(CYGPATH_W) 'src/maybe_threads.cc'; else $(CYGPATH_W) '$(srcdir)/src/maybe_threads.cc'; fi`; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Tpo" "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Po"; else rm -f "$(DEPDIR)/low_level_alloc_unittest-maybe_threads.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/maybe_threads.cc' object='low_level_alloc_unittest-maybe_threads.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(low_level_alloc_unittest_CXXFLAGS) $(CXXFLAGS) -c -o low_level_alloc_unittest-maybe_threads.obj `if test -f 'src/maybe_threads.cc'; then $(CYGPATH_W) 'src/maybe_threads.cc'; else $(CYGPATH_W) '$(srcdir)/src/maybe_threads.cc'; fi`
 
 low_level_alloc_unittest-low_level_alloc_unittest.o: src/tests/low_level_alloc_unittest.cc
 @am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(low_level_alloc_unittest_CXXFLAGS) $(CXXFLAGS) -MT low_level_alloc_unittest-low_level_alloc_unittest.o -MD -MP -MF "$(DEPDIR)/low_level_alloc_unittest-low_level_alloc_unittest.Tpo" -c -o low_level_alloc_unittest-low_level_alloc_unittest.o `test -f 'src/tests/low_level_alloc_unittest.cc' || echo '$(srcdir)/'`src/tests/low_level_alloc_unittest.cc; \
@@ -4576,7 +4628,7 @@ check-TESTS: $(TESTS)
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/$(top_srcdir) $(distdir)/doc $(distdir)/m4 $(distdir)/packages $(distdir)/packages/rpm $(distdir)/src $(distdir)/src/google $(distdir)/src/solaris $(distdir)/src/tests $(distdir)/src/windows $(distdir)/src/windows/google $(distdir)/vsprojects/addr2line-pdb $(distdir)/vsprojects/addressmap_unittest $(distdir)/vsprojects/frag_unittest $(distdir)/vsprojects/libtcmalloc_minimal $(distdir)/vsprojects/low_level_alloc_unittest $(distdir)/vsprojects/malloc_extension_test $(distdir)/vsprojects/markidle_unittest $(distdir)/vsprojects/nm-pdb $(distdir)/vsprojects/packed-cache_test $(distdir)/vsprojects/page_heap_test $(distdir)/vsprojects/pagemap_unittest $(distdir)/vsprojects/realloc_unittest $(distdir)/vsprojects/sampler_test $(distdir)/vsprojects/stack_trace_table_test $(distdir)/vsprojects/tcmalloc_minimal_large $(distdir)/vsprojects/tcmalloc_minimal_unittest $(distdir)/vsprojects/thread_dealloc_unittest $(distdir)/vsprojects/tmu-static
+	$(mkdir_p) $(distdir)/$(top_srcdir) $(distdir)/doc $(distdir)/m4 $(distdir)/packages $(distdir)/packages/rpm $(distdir)/src $(distdir)/src/google $(distdir)/src/solaris $(distdir)/src/tests $(distdir)/src/windows $(distdir)/src/windows/google $(distdir)/vsprojects/addr2line-pdb $(distdir)/vsprojects/addressmap_unittest $(distdir)/vsprojects/current_allocated_bytes_test $(distdir)/vsprojects/frag_unittest $(distdir)/vsprojects/libtcmalloc_minimal $(distdir)/vsprojects/low_level_alloc_unittest $(distdir)/vsprojects/malloc_extension_test $(distdir)/vsprojects/markidle_unittest $(distdir)/vsprojects/nm-pdb $(distdir)/vsprojects/packed-cache_test $(distdir)/vsprojects/page_heap_test $(distdir)/vsprojects/pagemap_unittest $(distdir)/vsprojects/realloc_unittest $(distdir)/vsprojects/sampler_test $(distdir)/vsprojects/stack_trace_table_test $(distdir)/vsprojects/tcmalloc_minimal_large $(distdir)/vsprojects/tcmalloc_minimal_unittest $(distdir)/vsprojects/thread_dealloc_unittest $(distdir)/vsprojects/tmu-static
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

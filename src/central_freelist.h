@@ -64,6 +64,12 @@ class CentralFreeList {
   // Returns the number of free objects in the transfer cache.
   int tc_length();
 
+  // Returns the memory overhead (internal fragmentation) attributable
+  // to the freelist.  This is memory lost when the size of elements
+  // in a freelist doesn't exactly divide the page-size (a 8192-byte
+  // page full of 5-byte objects would have 2 bytes memory overhead).
+  size_t OverheadBytes();
+
  private:
   // TransferCache is used to cache transfers of
   // sizemap.num_objects_to_move(size_class) back and forth between
