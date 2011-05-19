@@ -39,6 +39,7 @@
 #ifdef HAVE_PTHREAD
 #include <pthread.h>
 #endif
+#include <stddef.h>
 #include <set>
 #include "base/stl_allocator.h"
 #include "base/spinlock.h"

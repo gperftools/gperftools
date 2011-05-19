@@ -122,6 +122,11 @@ const char kMangledDeleteArrayNothrow[] = "??_V@YAXPAXABUnothrow_t@std@@@Z";
 extern "C" PERFTOOLS_DLL_DECL void _tcmalloc();
 void _tcmalloc() { }
 
+// This is the version needed for windows x64, which has a different
+// decoration scheme which doesn't auto-add a leading underscore.
+extern "C" PERFTOOLS_DLL_DECL void __tcmalloc();
+void __tcmalloc() { }
+
 namespace {    // most everything here is in an unnamed namespace
 
 typedef void (*GenericFnPtr)();

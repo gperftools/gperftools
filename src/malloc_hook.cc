@@ -41,6 +41,10 @@
 # undef mremap
 #endif
 
+#include <stddef.h>
+#ifdef HAVE_STDINT_H
+#include <stdint.h>
+#endif
 #include <algorithm>
 #include "base/basictypes.h"
 #include "base/logging.h"
@@ -293,6 +297,10 @@ HookList<MallocHook::PreSbrkHook> presbrk_hooks_ =
     INIT_HOOK_LIST_WITH_VALUE(InitialPreSbrkHook);
 HookList<MallocHook::SbrkHook> sbrk_hooks_ = INIT_HOOK_LIST;
 
+// These lists contain either 0 or 1 hooks.
+HookList<MallocHook::MmapReplacement> mmap_replacement_ = { 0 };
+HookList<MallocHook::MunmapReplacement> munmap_replacement_ = { 0 };
+
 #undef INIT_HOOK_LIST_WITH_VALUE
 #undef INIT_HOOK_LIST
 
@@ -314,7 +322,9 @@ using base::internal::new_hooks_;
 using base::internal::delete_hooks_;
 using base::internal::premmap_hooks_;
 using base::internal::mmap_hooks_;
+using base::internal::mmap_replacement_;
 using base::internal::munmap_hooks_;
+using base::internal::munmap_replacement_;
 using base::internal::mremap_hooks_;
 using base::internal::presbrk_hooks_;
 using base::internal::sbrk_hooks_;
@@ -358,6 +368,21 @@ int MallocHook_RemovePreMmapHook(MallocHook_PreMmapHook hook) {
 }
 
 extern "C"
+int MallocHook_SetMmapReplacement(MallocHook_MmapReplacement hook) {
+  RAW_VLOG(10, "SetMmapReplacement(%p)", hook);
+  // NOTE this is a best effort CHECK. Concurrent sets could succeed since
+  // this test is outside of the Add spin lock.
+  RAW_CHECK(mmap_replacement_.empty(), "Only one MMapReplacement is allowed.");
+  return mmap_replacement_.Add(hook);
+}
+
+extern "C"
+int MallocHook_RemoveMmapReplacement(MallocHook_MmapReplacement hook) {
+  RAW_VLOG(10, "RemoveMmapReplacement(%p)", hook);
+  return mmap_replacement_.Remove(hook);
+}
+
+extern "C"
 int MallocHook_AddMmapHook(MallocHook_MmapHook hook) {
   RAW_VLOG(10, "AddMmapHook(%p)", hook);
   return mmap_hooks_.Add(hook);
@@ -379,6 +404,22 @@ extern "C"
 int MallocHook_RemoveMunmapHook(MallocHook_MunmapHook hook) {
   RAW_VLOG(10, "RemoveMunmapHook(%p)", hook);
   return munmap_hooks_.Remove(hook);
+}
+
+extern "C"
+int MallocHook_SetMunmapReplacement(MallocHook_MunmapReplacement hook) {
+  RAW_VLOG(10, "SetMunmapReplacement(%p)", hook);
+  // NOTE this is a best effort CHECK. Concurrent sets could succeed since
+  // this test is outside of the Add spin lock.
+  RAW_CHECK(munmap_replacement_.empty(),
+            "Only one MunmapReplacement is allowed.");
+  return munmap_replacement_.Add(hook);
+}
+
+extern "C"
+int MallocHook_RemoveMunmapReplacement(MallocHook_MunmapReplacement hook) {
+  RAW_VLOG(10, "RemoveMunmapReplacement(%p)", hook);
+  return munmap_replacement_.Remove(hook);
 }
 
 extern "C"
@@ -479,6 +520,15 @@ MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook) {
     }                                                                   \
   } while (0)
 
+// There should only be one replacement. Return the result of the first
+// one, or false if there is none.
+#define INVOKE_REPLACEMENT(HookType, hook_list, args) do {              \
+    HookType hooks[kHookListMaxValues];                                 \
+    int num_hooks = hook_list.Traverse(hooks, kHookListMaxValues);      \
+    return (num_hooks > 0 && (*hooks[0])args);                          \
+  } while (0)
+
+
 void MallocHook::InvokeNewHookSlow(const void* p, size_t s) {
   INVOKE_HOOKS(NewHook, new_hooks_, (p, s));
 }
@@ -508,8 +558,25 @@ void MallocHook::InvokeMmapHookSlow(const void* result,
                                        fd, offset));
 }
 
+bool MallocHook::InvokeMmapReplacementSlow(const void* start,
+                                           size_t size,
+                                           int protection,
+                                           int flags,
+                                           int fd,
+                                           off_t offset,
+                                           void** result) {
+  INVOKE_REPLACEMENT(MmapReplacement, mmap_replacement_,
+                      (start, size, protection, flags, fd, offset, result));
+}
+
 void MallocHook::InvokeMunmapHookSlow(const void* p, size_t s) {
   INVOKE_HOOKS(MunmapHook, munmap_hooks_, (p, s));
+}
+
+bool MallocHook::InvokeMunmapReplacementSlow(const void* p,
+                                             size_t s,
+                                             int* result) {
+  INVOKE_REPLACEMENT(MunmapReplacement, munmap_replacement_, (p, s, result));
 }
 
 void MallocHook::InvokeMremapHookSlow(const void* result,
@@ -739,7 +806,11 @@ extern "C" {
 extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
                         int fd, __off64_t offset) __THROW {
   MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
-  void *result = do_mmap64(start, length, prot, flags, fd, offset);
+  void *result;
+  if (!MallocHook::InvokeMmapReplacement(
+          start, length, prot, flags, fd, offset, &result)) {
+    result = do_mmap64(start, length, prot, flags, fd, offset);
+  }
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
 }
@@ -749,8 +820,12 @@ extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
 extern "C" void* mmap(void *start, size_t length, int prot, int flags,
                       int fd, off_t offset) __THROW {
   MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
-  void *result = do_mmap64(start, length, prot, flags, fd,
-                           static_cast<size_t>(offset)); // avoid sign extension
+  void *result;
+  if (!MallocHook::InvokeMmapReplacement(
+          start, length, prot, flags, fd, offset, &result)) {
+    result = do_mmap64(start, length, prot, flags, fd,
+                       static_cast<size_t>(offset)); // avoid sign extension
+  }
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
 }
@@ -759,7 +834,11 @@ extern "C" void* mmap(void *start, size_t length, int prot, int flags,
 
 extern "C" int munmap(void* start, size_t length) __THROW {
   MallocHook::InvokeMunmapHook(start, length);
-  return syscall(SYS_munmap, start, length);
+  int result;
+  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
+    result = syscall(SYS_munmap, start, length);
+  }
+  return result;
 }
 
 extern "C" void* mremap(void* old_addr, size_t old_size, size_t new_size,
@@ -786,11 +865,20 @@ extern "C" void* sbrk(ptrdiff_t increment) __THROW {
 
 /*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
                                          int flags, int fd, off_t offset) {
-  return do_mmap64(start, length, prot, flags, fd, offset);
+  void* result;
+  if (!MallocHook::InvokeMmapReplacement(
+          start, length, prot, flags, fd, offset, &result)) {
+    result = do_mmap64(start, length, prot, flags, fd, offset);
+  }
+  return result;
 }
 
 /*static*/int MallocHook::UnhookedMUnmap(void *start, size_t length) {
-  return sys_munmap(start, length);
+  int result;
+  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
+    result = sys_munmap(start, length);
+  }
+  return result;
 }
 
 #else   // defined(__linux) &&
@@ -798,11 +886,20 @@ extern "C" void* sbrk(ptrdiff_t increment) __THROW {
 
 /*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
                                          int flags, int fd, off_t offset) {
-  return mmap(start, length, prot, flags, fd, offset);
+  void* result;
+  if (!MallocHook::InvokeMmapReplacement(
+          start, length, prot, flags, fd, offset, &result)) {
+    result = mmap(start, length, prot, flags, fd, offset);
+  }
+  return result;
 }
 
 /*static*/int MallocHook::UnhookedMUnmap(void *start, size_t length) {
-  return munmap(start, length);
+  int result;
+  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
+    result = munmap(start, length);
+  }
+  return result;
 }
 
 #endif  // defined(__linux) &&

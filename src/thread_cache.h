@@ -35,14 +35,26 @@
 
 #include <config.h>
 #ifdef HAVE_PTHREAD
-#include <pthread.h>
+#include <pthread.h>                    // for pthread_t, pthread_key_t
 #endif
+#include <stddef.h>                     // for size_t, NULL
+#ifdef HAVE_STDINT_H
+#include <stdint.h>                     // for uint32_t, uint64_t
+#endif
+#include <sys/types.h>                  // for ssize_t
 #include "common.h"
 #include "linked_list.h"
 #include "maybe_threads.h"
 #include "page_heap_allocator.h"
 #include "sampler.h"
 #include "static_vars.h"
+
+#include "common.h"            // for SizeMap, kMaxSize, etc
+#include "internal_logging.h"  // for ASSERT, etc
+#include "linked_list.h"       // for SLL_Pop, SLL_PopRange, etc
+#include "page_heap_allocator.h"  // for PageHeapAllocator
+#include "sampler.h"           // for Sampler
+#include "static_vars.h"       // for Static
 
 namespace tcmalloc {
 

@@ -111,6 +111,7 @@
 #ifdef HAVE_PTHREAD
 #include <pthread.h>   // for pthread_t, pthread_self()
 #endif
+#include <stddef.h>
 
 #include <algorithm>
 #include <set>

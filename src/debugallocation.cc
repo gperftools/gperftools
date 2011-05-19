@@ -62,22 +62,19 @@
 #include <errno.h>
 #include <string.h>
 
+#include <google/malloc_extension.h>
+#include <google/malloc_hook.h>
+#include <google/stacktrace.h>
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
-#include "google/malloc_extension.h"
-#include "google/malloc_hook.h"
-#include "google/stacktrace.h"
+#include "base/spinlock.h"
 #include "addressmap-inl.h"
 #include "malloc_hook-inl.h"
 #include "symbolize.h"
 
-#ifdef TCMALLOC_FOR_DEBUGALLOCATION
+#define TCMALLOC_USING_DEBUGALLOCATION
 #include "tcmalloc.cc"
-#else
-#include "base/spinlock.h"
-// Else we already have a SpinLock defined in tcmalloc/internal_spinlock.h
-#endif
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
@@ -134,11 +131,6 @@ DEFINE_bool(symbolize_stacktrace,
 static void TracePrintf(int fd, const char *fmt, ...)
   __attribute__ ((__format__ (__printf__, 2, 3)));
 
-//
-// Define the malloc/free/mallopt/mallinfo implementations
-// we will be working on top of:
-#ifdef TCMALLOC_FOR_DEBUGALLOCATION
-
 // The do_* functions are defined in tcmalloc/tcmalloc.cc,
 // which is included before this file
 // when TCMALLOC_FOR_DEBUGALLOCATION is defined
@@ -149,39 +141,6 @@ static void TracePrintf(int fd, const char *fmt, ...)
 #define BASE_MALLOPT       do_mallopt
 #define BASE_MALLINFO      do_mallinfo
 #define BASE_MALLOC_SIZE(ptr) GetSizeWithCallback(ptr, &InvalidGetAllocatedSize)
-
-#else
-
-// GNU has some weird "weak aliasing" thing that permits us to define our
-// own malloc(), free(), and realloc() which can use the normal versions of
-// of themselves by calling __libc_malloc(), __libc_free(), and
-// __libc_realloc().
-//
-extern "C" {
-  extern void* __libc_malloc(size_t size);
-  extern void __libc_free(void* ptr);
-  extern void* __libc_realloc(void* ptr, size_t size);
-  extern void* __libc_calloc(size_t nmemb, size_t size);
-  extern int __libc_mallopt(int cmd, int value);
-#ifdef HAVE_STRUCT_MALLINFO
-  extern struct mallinfo __libc_mallinfo(void);
-#endif
-  static void noop_malloc_stats(void) {}
-}
-
-// We are working on top of standard libc's malloc library
-#define BASE_MALLOC_NEW    __libc_malloc
-#define BASE_MALLOC        __libc_malloc
-#define BASE_FREE          __libc_free
-#define BASE_MALLOC_STATS  noop_malloc_stats
-#define BASE_MALLOPT       __libc_mallopt
-#ifdef HAVE_STRUCT_MALLINFO
-#define BASE_MALLINFO      __libc_mallinfo
-#endif
-// This is malloc_size() on OS X, malloc_usable_size() on libc,
-// _msize() on windows.  Rather than trying to pick, we just bail.
-#define BASE_MALLOC_SIZE(ptr) 0   // TODO(csilvers): do better
-#endif
 
 // ========================================================================= //
 
@@ -998,18 +957,10 @@ static inline void DebugDeallocate(void* ptr, int type) {
 
 // The following functions may be called via MallocExtension::instance()
 // for memory verification and statistics.
-#ifdef TCMALLOC_FOR_DEBUGALLOCATION
-// Inherit from tcmalloc's version
-typedef TCMallocImplementation ParentImplementation;
-#else
-// Inherit from default version
-typedef MallocExtension ParentImplementation;
-#endif
-
-class DebugMallocImplementation : public ParentImplementation {
+class DebugMallocImplementation : public TCMallocImplementation {
  public:
   virtual bool GetNumericProperty(const char* name, size_t* value) {
-    bool result = ParentImplementation::GetNumericProperty(name, value);
+    bool result = TCMallocImplementation::GetNumericProperty(name, value);
     if (result && (strcmp(name, "generic.current_allocated_bytes") == 0)) {
       // Subtract bytes kept in the free queue
       size_t qsize = MallocBlock::FreeQueueSize();
@@ -1057,7 +1008,7 @@ class DebugMallocImplementation : public ParentImplementation {
   virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
     static const char* kDebugFreeQueue = "debug.free_queue";
 
-    ParentImplementation::GetFreeListSizes(v);
+    TCMallocImplementation::GetFreeListSizes(v);
 
     MallocExtension::FreeListInfo i;
     i.type = kDebugFreeQueue;

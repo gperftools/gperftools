@@ -95,11 +95,9 @@
 #include "base/atomicops-internals-arm-v6plus.h"
 #elif defined(ARMV3)
 #include "base/atomicops-internals-arm-generic.h"
-#elif defined(_MSC_VER) && defined(_M_IX86)
-#include "base/atomicops-internals-x86-msvc.h"
-#elif defined(__MINGW32__) && defined(__i386__)
-#include "base/atomicops-internals-x86-msvc.h"
-#elif defined(__GNUC__) && (defined(__i386) || defined(ARCH_K8))
+#elif defined(_WIN32)
+#include "base/atomicops-internals-x86-windows.h"
+#elif defined(__GNUC__) && (defined(__i386) || defined(__x86_64__))
 #include "base/atomicops-internals-x86.h"
 #elif defined(__linux__) && defined(__PPC__)
 #include "base/atomicops-internals-linuxppc.h"

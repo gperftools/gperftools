@@ -35,12 +35,12 @@
 // For 32 bits, this means allocations near 2^32 bytes and 2^31 bytes.
 // For 64 bits, this means allocations near 2^64 bytes and 2^63 bytes.
 
-#include <stddef.h>
-#include <stdlib.h>
+#include <stddef.h>                     // for size_t, NULL
+#include <stdlib.h>                     // for malloc, free, realloc
 #include <stdio.h>
-#include <set>
+#include <set>                          // for set, etc
 
-#include "base/logging.h"
+#include "base/logging.h"               // for operator<<, CHECK, etc
 
 using std::set;
 

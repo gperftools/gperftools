@@ -31,10 +31,16 @@
 // Author: Sanjay Ghemawat <opensource@google.com>
 
 #include <config.h>
-#include "page_heap.h"
-
-#include "static_vars.h"
-#include "system-alloc.h"
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>                   // for PRIuPTR
+#endif
+#include <google/malloc_extension.h>      // for MallocRange, etc
+#include "base/basictypes.h"
+#include "base/commandlineflags.h"
+#include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc
+#include "page_heap_allocator.h"  // for PageHeapAllocator
+#include "static_vars.h"       // for Static
+#include "system-alloc.h"      // for TCMalloc_SystemAlloc, etc
 
 DEFINE_double(tcmalloc_release_rate,
               EnvToDouble("TCMALLOC_RELEASE_RATE", 1.0),
@@ -336,11 +342,11 @@ void PageHeap::RegisterSizeClass(Span* span, size_t sc) {
   }
 }
 
-static double MB(uint64_t bytes) {
+static double MiB(uint64_t bytes) {
   return bytes / 1048576.0;
 }
 
-static double PagesToMB(uint64_t pages) {
+static double PagesToMiB(uint64_t pages) {
   return (pages << kPageShift) / 1048576.0;
 }
 
@@ -381,8 +387,9 @@ void PageHeap::Dump(TCMalloc_Printer* out) {
     }
   }
   out->printf("------------------------------------------------\n");
-  out->printf("PageHeap: %d sizes; %6.1f MB free; %6.1f MB unmapped\n",
-              nonempty_sizes, MB(stats_.free_bytes), MB(stats_.unmapped_bytes));
+  out->printf("PageHeap: %d sizes; %6.1f MiB free; %6.1f MiB unmapped\n",
+              nonempty_sizes, MiB(stats_.free_bytes),
+              MiB(stats_.unmapped_bytes));
   out->printf("------------------------------------------------\n");
   uint64_t total_normal = 0;
   uint64_t total_returned = 0;
@@ -394,14 +401,14 @@ void PageHeap::Dump(TCMalloc_Printer* out) {
       uint64_t r_pages = s * r_length;
       total_normal += n_pages;
       total_returned += r_pages;
-      out->printf("%6u pages * %6u spans ~ %6.1f MB; %6.1f MB cum"
-                  "; unmapped: %6.1f MB; %6.1f MB cum\n",
+      out->printf("%6u pages * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
+                  "; unmapped: %6.1f MiB; %6.1f MiB cum\n",
                   s,
                   (n_length + r_length),
-                  PagesToMB(n_pages + r_pages),
-                  PagesToMB(total_normal + total_returned),
-                  PagesToMB(r_pages),
-                  PagesToMB(total_returned));
+                  PagesToMiB(n_pages + r_pages),
+                  PagesToMiB(total_normal + total_returned),
+                  PagesToMiB(r_pages),
+                  PagesToMiB(total_returned));
     }
   }
 
@@ -411,27 +418,27 @@ void PageHeap::Dump(TCMalloc_Printer* out) {
   int r_spans = 0;
   out->printf("Normal large spans:\n");
   for (Span* s = large_.normal.next; s != &large_.normal; s = s->next) {
-    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MB\n",
-                s->length, PagesToMB(s->length));
+    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MiB\n",
+                s->length, PagesToMiB(s->length));
     n_pages += s->length;
     n_spans++;
   }
   out->printf("Unmapped large spans:\n");
   for (Span* s = large_.returned.next; s != &large_.returned; s = s->next) {
-    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MB\n",
-                s->length, PagesToMB(s->length));
+    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MiB\n",
+                s->length, PagesToMiB(s->length));
     r_pages += s->length;
     r_spans++;
   }
   total_normal += n_pages;
   total_returned += r_pages;
-  out->printf(">255   large * %6u spans ~ %6.1f MB; %6.1f MB cum"
-              "; unmapped: %6.1f MB; %6.1f MB cum\n",
+  out->printf(">255   large * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
+              "; unmapped: %6.1f MiB; %6.1f MiB cum\n",
               (n_spans + r_spans),
-              PagesToMB(n_pages + r_pages),
-              PagesToMB(total_normal + total_returned),
-              PagesToMB(r_pages),
-              PagesToMB(total_returned));
+              PagesToMiB(n_pages + r_pages),
+              PagesToMiB(total_normal + total_returned),
+              PagesToMiB(r_pages),
+              PagesToMiB(total_returned));
 }
 
 bool PageHeap::GetNextRange(PageID start, base::MallocRange* r) {

@@ -90,7 +90,14 @@ AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
 
 # Check if we have an objcopy installed that supports -W
 AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
-AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, ["$OBJCOPY" -W malloc /bin/ls /dev/null])
+AS_IF([test -n "$OBJCOPY"], [dnl
+  AC_CACHE_CHECK([if $OBJCOPY supports -W], gpt_cv_objcopy_weaken, [dnl
+    AC_LINK_IFELSE([void foo() {} int main() {return 0;}], [dnl
+      AS_IF(["$OBJCOPY" -W foo conftest$ac_exeext /dev/null],
+      	    [gpt_cv_objcopy_weaken=yes], [gpt_cv_objcopy_weaken=no])],
+    [gpt_cv_objcopy_weaken=no])])],
+  [gpt_cv_objcopy_weaken=no])
+AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, test $gpt_cv_objcopy_weaken = yes)
 
 case $host_os in
   *mingw*)
@@ -142,6 +149,8 @@ AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(sys/resource.h)         # for memalign_unittest.cc
 AC_CHECK_HEADERS(valgrind.h)    # we have a local copy if this isn't found
+AC_CHECK_HEADERS(sys/cdefs.h)   # Where glibc defines __THROW
+AC_CHECK_HEADERS(features.h)    # Where __GLIBC__ is defined
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.
 
@@ -168,7 +177,8 @@ fi
 # This workaround comes from
 #    http://cygwin.com/ml/cygwin/2004-11/msg00138.html
 case "$host" in
-  *-*-cygwin*) ac_cv_func_mmap_fixed_mapped=yes
+  *-*-cygwin*)
+	       ac_cv_func_mmap_fixed_mapped=yes
                AC_DEFINE(HAVE_MMAP, 1,
                          [Define to 1 if you have a working `mmap' system call.])
                ;;

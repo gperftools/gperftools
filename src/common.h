@@ -36,13 +36,11 @@
 #define TCMALLOC_COMMON_H_
 
 #include "config.h"
-#include <stddef.h>
+#include <stddef.h>                     // for size_t
 #ifdef HAVE_STDINT_H
-#include <stdint.h>
+#include <stdint.h>                     // for uintptr_t, uint64_t
 #endif
-#include <stdarg.h>
-#include "base/commandlineflags.h"
-#include "internal_logging.h"
+#include "internal_logging.h"  // for ASSERT, etc
 
 // Type that can hold a page number
 typedef uintptr_t PageID;
@@ -81,7 +79,13 @@ static const size_t kLargeSizeClass = 0;
 static const size_t kMaxPages = 1 << (20 - kPageShift);
 
 // Default bound on the total amount of thread caches.
+#ifdef TCMALLOC_SMALL_BUT_SLOW
+// Make the overall thread cache no bigger than that of a single thread
+// for the small memory footprint case.
+static const size_t kDefaultOverallThreadCacheSize = kMaxThreadCacheSize;
+#else
 static const size_t kDefaultOverallThreadCacheSize = 8u * kMaxThreadCacheSize;
+#endif
 
 // Lower bound on the per-thread cache sizes
 static const size_t kMinThreadCacheSize = kMaxSize * 2;
@@ -104,13 +108,13 @@ static const int kMaxDynamicFreeListLength = 8192;
 
 static const Length kMaxValidPages = (~static_cast<Length>(0)) >> kPageShift;
 
-#ifdef __x86_64__
+#if defined __x86_64__
 // All current and planned x86_64 processors only look at the lower 48 bits
 // in virtual to physical address translation.  The top 16 are thus unused.
 // TODO(rus): Under what operating systems can we increase it safely to 17?
 // This lets us use smaller page maps.  On first allocation, a 36-bit page map
 // uses only 96 KB instead of the 4.5 MB used by a 52-bit page map.
-static const int kAddressBits = 48;
+static const int kAddressBits = (sizeof(void*) < 8 ? (8 * sizeof(void*)) : 48);
 #else
 static const int kAddressBits = 8 * sizeof(void*);
 #endif

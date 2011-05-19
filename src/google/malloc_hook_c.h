@@ -102,11 +102,27 @@ int MallocHook_AddMmapHook(MallocHook_MmapHook hook);
 PERFTOOLS_DLL_DECL
 int MallocHook_RemoveMmapHook(MallocHook_MmapHook hook);
 
+typedef int (*MallocHook_MmapReplacement)(const void* start,
+                                          size_t size,
+                                          int protection,
+                                          int flags,
+                                          int fd,
+                                          off_t offset,
+                                          void** result);
+int MallocHook_SetMmapReplacement(MallocHook_MmapReplacement hook);
+int MallocHook_RemoveMmapReplacement(MallocHook_MmapReplacement hook);
+
 typedef void (*MallocHook_MunmapHook)(const void* ptr, size_t size);
 PERFTOOLS_DLL_DECL
 int MallocHook_AddMunmapHook(MallocHook_MunmapHook hook);
 PERFTOOLS_DLL_DECL
 int MallocHook_RemoveMunmapHook(MallocHook_MunmapHook hook);
+
+typedef int (*MallocHook_MunmapReplacement)(const void* ptr,
+                                            size_t size,
+                                            int* result);
+int MallocHook_SetMunmapReplacement(MallocHook_MunmapReplacement hook);
+int MallocHook_RemoveMunmapReplacement(MallocHook_MunmapReplacement hook);
 
 typedef void (*MallocHook_MremapHook)(const void* result,
                                       const void* old_addr,

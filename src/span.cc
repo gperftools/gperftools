@@ -33,11 +33,11 @@
 #include <config.h>
 #include "span.h"
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
+#include <string.h>                     // for NULL, memset
 
-#include "static_vars.h"
+#include "internal_logging.h"  // for ASSERT
+#include "page_heap_allocator.h"  // for PageHeapAllocator
+#include "static_vars.h"       // for Static
 
 namespace tcmalloc {
 

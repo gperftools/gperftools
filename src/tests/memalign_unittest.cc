@@ -49,6 +49,7 @@
 #include <unistd.h>        // for getpagesize()
 #endif
 #include "tcmalloc.h"      // must come early, to pick up posix_memalign
+#include <assert.h>
 #include <stdlib.h>        // defines posix_memalign
 #include <stdio.h>         // for the printf at the end
 #ifdef HAVE_STDINT_H

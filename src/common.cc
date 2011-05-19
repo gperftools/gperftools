@@ -31,9 +31,8 @@
 // Author: Sanjay Ghemawat <opensource@google.com>
 
 #include "config.h"
-#include "system-alloc.h"
-#include "config.h"
 #include "common.h"
+#include "system-alloc.h"
 
 namespace tcmalloc {
 

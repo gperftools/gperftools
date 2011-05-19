@@ -142,7 +142,9 @@ extern HookList<MallocHook::NewHook> new_hooks_;
 extern HookList<MallocHook::DeleteHook> delete_hooks_;
 extern HookList<MallocHook::PreMmapHook> premmap_hooks_;
 extern HookList<MallocHook::MmapHook> mmap_hooks_;
+extern HookList<MallocHook::MmapReplacement> mmap_replacement_;
 extern HookList<MallocHook::MunmapHook> munmap_hooks_;
+extern HookList<MallocHook::MunmapReplacement> munmap_replacement_;
 extern HookList<MallocHook::MremapHook> mremap_hooks_;
 extern HookList<MallocHook::PreSbrkHook> presbrk_hooks_;
 extern HookList<MallocHook::SbrkHook> sbrk_hooks_;
@@ -225,6 +227,22 @@ inline void MallocHook::InvokeMmapHook(const void* result,
   // End DEPRECATED code.
 }
 
+inline bool MallocHook::InvokeMmapReplacement(const void* start,
+                                              size_t size,
+                                              int protection,
+                                              int flags,
+                                              int fd,
+                                              off_t offset,
+                                              void** result) {
+  if (!base::internal::mmap_replacement_.empty()) {
+    return InvokeMmapReplacementSlow(start, size,
+                                     protection, flags,
+                                     fd, offset,
+                                     result);
+  }
+  return false;
+}
+
 // The following method is DEPRECATED
 inline MallocHook::MunmapHook MallocHook::GetMunmapHook() {
   return base::internal::munmap_hook_.Get();
@@ -238,6 +256,14 @@ inline void MallocHook::InvokeMunmapHook(const void* p, size_t size) {
   MallocHook::MunmapHook hook = MallocHook::GetMunmapHook();
   if (hook != NULL) (*hook)(p, size);
   // End DEPRECATED code.
+}
+
+inline bool MallocHook::InvokeMunmapReplacement(
+    const void* p, size_t size, int* result) {
+  if (!base::internal::mmap_replacement_.empty()) {
+    return InvokeMunmapReplacementSlow(p, size, result);
+  }
+  return false;
 }
 
 // The following method is DEPRECATED

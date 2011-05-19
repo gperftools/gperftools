@@ -34,7 +34,12 @@
 #define TCMALLOC_PAGE_HEAP_H_
 
 #include <config.h>
+#include <stddef.h>                     // for size_t
+#ifdef HAVE_STDINT_H
+#include <stdint.h>                     // for uint64_t, int64_t, uint16_t
+#endif
 #include <google/malloc_extension.h>
+#include "base/basictypes.h"
 #include "common.h"
 #include "packed-cache-inl.h"
 #include "pagemap.h"
@@ -50,12 +55,19 @@
 
 // This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
 // you're porting to a system where you really can't get a stacktrace.
+// Because we control the definition of GetStackTrace, all clients of
+// GetStackTrace should #include us rather than stacktrace.h.
 #ifdef NO_TCMALLOC_SAMPLES
   // We use #define so code compiles even if you #include stacktrace.h somehow.
 # define GetStackTrace(stack, depth, skip)  (0)
 #else
 # include <google/stacktrace.h>
 #endif
+
+class TCMalloc_Printer;
+namespace base {
+struct MallocRange;
+}
 
 namespace tcmalloc {
 

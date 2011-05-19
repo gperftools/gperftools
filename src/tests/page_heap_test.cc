@@ -1,11 +1,11 @@
 // Copyright 2009 Google Inc. All Rights Reserved.
 // Author: fikes@google.com (Andrew Fikes)
 
-#include <stdio.h>
 #include "config_for_unittests.h"
+#include "page_heap.h"
+#include <stdio.h>
 #include "base/logging.h"
 #include "common.h"
-#include "page_heap.h"
 
 namespace {
 

@@ -37,7 +37,9 @@
 #define TCMALLOC_SYSTEM_ALLOC_H_
 
 #include <config.h>
-#include "internal_logging.h"
+#include <stddef.h>                     // for size_t
+
+class SysAllocator;
 
 // REQUIRES: "alignment" is a power of two or "0" to indicate default alignment
 //
@@ -69,49 +71,7 @@ extern void* TCMalloc_SystemAlloc(size_t bytes, size_t *actual_bytes,
 // be released, partial pages will not.)
 extern void TCMalloc_SystemRelease(void* start, size_t length);
 
-// Interface to a pluggable system allocator.
-class SysAllocator {
- public:
-  SysAllocator() 
-    : usable_(true), 
-      failed_(false) {
-  };
-  virtual ~SysAllocator() {};
+// The current system allocator.
+extern PERFTOOLS_DLL_DECL SysAllocator* sys_alloc;
 
-  virtual void* Alloc(size_t size, size_t *actual_size, size_t alignment) = 0;
-
-  // Populate the map with whatever properties the specified allocator finds
-  // useful for debugging (such as number of bytes allocated and whether the
-  // allocator has failed).  The callee is responsible for any necessary
-  // locking (and avoiding deadlock).
-  virtual void DumpStats(TCMalloc_Printer* printer) = 0;
-
-  // So the allocator can be turned off at compile time
-  bool usable_;
-
-  // Did this allocator fail? If so, we don't need to retry more than twice.
-  bool failed_;
-};
-
-// Register a new system allocator. The priority determines the order in
-// which the allocators will be invoked. Allocators with numerically lower
-// priority are tried first. To keep things simple, the priority of various
-// allocators is known at compile time.
-//
-// Valid range of priorities: [0, kMaxDynamicAllocators)
-//
-// Please note that we can't use complex data structures and cause
-// recursive calls to malloc within this function. So all data structures
-// are statically allocated.
-//
-// Returns true on success. Does nothing on failure.
-extern PERFTOOLS_DLL_DECL bool RegisterSystemAllocator(SysAllocator *allocator,
-                                                       int priority);
-
-// Number of SysAllocators known to call RegisterSystemAllocator
-static const int kMaxDynamicAllocators = 2;
-
-// Retrieve the current state of various system allocators.
-extern PERFTOOLS_DLL_DECL void DumpSystemAllocatorStats(TCMalloc_Printer* printer);
-
-#endif /* TCMALLOC_SYSTEM_ALLOC_H_ */
+#endif /* TCMALLOC_SYSTEM_ALLOC_H__ */

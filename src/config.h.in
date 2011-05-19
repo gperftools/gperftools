@@ -122,6 +122,9 @@
 /* Define to 1 if the system has the type `struct mallinfo'. */
 #undef HAVE_STRUCT_MALLINFO
 
+/* Define to 1 if you have the <sys/cdefs.h> header file. */
+#undef HAVE_SYS_CDEFS_H
+
 /* Define to 1 if you have the <sys/malloc.h> header file. */
 #undef HAVE_SYS_MALLOC_H
 

@@ -33,12 +33,15 @@
 // Test realloc() functionality
 
 #include "config_for_unittests.h"
+#include <assert.h>                     // for assert
 #include <stdio.h>
-#include <stdlib.h>
-#include <algorithm>   // for min()
+#include <stddef.h>                     // for size_t, NULL
+#include <stdlib.h>                     // for free, malloc, realloc
+#include <algorithm>                    // for min
 #include "base/logging.h"
 
 using std::min;
+
 
 // Fill a buffer of the specified size with a predetermined pattern
 static void Fill(unsigned char* buffer, int n) {

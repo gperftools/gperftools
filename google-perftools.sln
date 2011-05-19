@@ -26,6 +26,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "low_level_alloc_unittest", 
 	ProjectSection(ProjectDependencies) = postProject
 	EndProjectSection
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "malloc_hook_test", "vsprojects\malloc_hook_test\malloc_hook_test.vcproj", "{3765198D-AA05-4AB0-9A21-A0CD8201EB2A}"
+	ProjectSection(ProjectDependencies) = postProject
+		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}
+	EndProjectSection
+EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "malloc_extension_test", "vsprojects\malloc_extension_test\malloc_extension_test.vcproj", "{3765198D-5305-4AB0-9A21-A0CD8201EB2A}"
 	ProjectSection(ProjectDependencies) = postProject
 		{55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F} = {55E2B3AE-3CA1-4DB6-97F7-0A044D6F446F}

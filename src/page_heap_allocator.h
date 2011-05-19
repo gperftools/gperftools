@@ -33,6 +33,11 @@
 #ifndef TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
 #define TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
 
+#include <stddef.h>                     // for NULL, size_t
+
+#include "common.h"            // for MetaDataAlloc
+#include "internal_logging.h"  // for ASSERT, CRASH
+
 namespace tcmalloc {
 
 // Simple allocator for objects of a specified type.  External locking

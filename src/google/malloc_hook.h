@@ -62,10 +62,6 @@
 //
 // NOTE FOR C USERS: If you want to use malloc_hook functionality from
 // a C program, #include malloc_hook_c.h instead of this file.
-//
-// TODO(csilvers): support a non-inlined function called
-// Assert*HookIs()?  This is the context in which I normally see
-// Get*Hook() called in non-tcmalloc code.
 
 #ifndef _MALLOC_HOOK_H_
 #define _MALLOC_HOOK_H_
@@ -132,6 +128,32 @@ class PERFTOOLS_DLL_DECL MallocHook {
                                        int fd,
                                        off_t offset);
 
+  // The MmapReplacement is invoked after the PreMmapHook but before
+  // the call is actually made. The MmapReplacement should return true
+  // if it handled the call, or false if it is still necessary to
+  // call mmap/mmap64.
+  // This should be used only by experts, and users must be be
+  // extremely careful to avoid recursive calls to mmap. The replacement
+  // should be async signal safe.
+  // Only one MmapReplacement is supported. After setting an MmapReplacement
+  // you must call RemoveMmapReplacement before calling SetMmapReplacement
+  // again.
+  typedef MallocHook_MmapReplacement MmapReplacement;
+  inline static bool SetMmapReplacement(MmapReplacement hook) {
+    return MallocHook_SetMmapReplacement(hook);
+  }
+  inline static bool RemoveMmapReplacement(MmapReplacement hook) {
+    return MallocHook_RemoveMmapReplacement(hook);
+  }
+  inline static bool InvokeMmapReplacement(const void* start,
+                                           size_t size,
+                                           int protection,
+                                           int flags,
+                                           int fd,
+                                           off_t offset,
+                                           void** result);
+
+
   // The MmapHook is invoked whenever a region of memory is mapped.
   // It may be passed MAP_FAILED if the mmap failed.
   typedef MallocHook_MmapHook MmapHook;
@@ -148,6 +170,26 @@ class PERFTOOLS_DLL_DECL MallocHook {
                                     int flags,
                                     int fd,
                                     off_t offset);
+
+  // The MunmapReplacement is invoked with munmap arguments just before
+  // the call is actually made. The MunmapReplacement should return true
+  // if it handled the call, or false if it is still necessary to
+  // call munmap.
+  // This should be used only by experts. The replacement should be
+  // async signal safe.
+  // Only one MunmapReplacement is supported. After setting an
+  // MunmapReplacement you must call RemoveMunmapReplacement before
+  // calling SetMunmapReplacement again.
+  typedef MallocHook_MunmapReplacement MunmapReplacement;
+  inline static bool SetMunmapReplacement(MunmapReplacement hook) {
+    return MallocHook_SetMunmapReplacement(hook);
+  }
+  inline static bool RemoveMunmapReplacement(MunmapReplacement hook) {
+    return MallocHook_RemoveMunmapReplacement(hook);
+  }
+  inline static bool InvokeMunmapReplacement(const void* p,
+                                             size_t size,
+                                             int* result);
 
   // The MunmapHook is invoked whenever a region of memory is unmapped.
   typedef MallocHook_MunmapHook MunmapHook;
@@ -214,6 +256,8 @@ class PERFTOOLS_DLL_DECL MallocHook {
 
   // Unhooked versions of mmap() and munmap().   These should be used
   // only by experts, since they bypass heapchecking, etc.
+  // Note: These do not run hooks, but they still use the MmapReplacement
+  // and MunmapReplacement.
   static void* UnhookedMMap(void *start, size_t length, int prot, int flags,
                             int fd, off_t offset);
   static int UnhookedMUnmap(void *start, size_t length);
@@ -277,7 +321,17 @@ class PERFTOOLS_DLL_DECL MallocHook {
                                  int flags,
                                  int fd,
                                  off_t offset);
+  static bool InvokeMmapReplacementSlow(const void* start,
+                                        size_t size,
+                                        int protection,
+                                        int flags,
+                                        int fd,
+                                        off_t offset,
+                                        void** result);
   static void InvokeMunmapHookSlow(const void* p, size_t size);
+  static bool InvokeMunmapReplacementSlow(const void* p,
+                                          size_t size,
+                                          int* result);
   static void InvokeMremapHookSlow(const void* result,
                                    const void* old_addr,
                                    size_t old_size,

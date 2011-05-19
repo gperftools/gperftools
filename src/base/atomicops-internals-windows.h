@@ -31,12 +31,12 @@
  * Author: Sanjay Ghemawat
  */
 
-// Implementation of atomic operations for x86.  This file should not
-// be included directly.  Clients should instead include
-// "base/atomicops.h".
+// Implementation of atomic operations using Windows API
+// functions.  This file should not be included directly.  Clients
+// should instead include "base/atomicops.h".
 
-#ifndef BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
-#define BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
+#ifndef BASE_ATOMICOPS_INTERNALS_WINDOWS_H_
+#define BASE_ATOMICOPS_INTERNALS_WINDOWS_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -257,8 +257,8 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
 
 // 64-bit low-level operations on 32-bit platform
 
-// TBD(vchen): The GNU assembly below must be converted to MSVC inline
-// assembly.
+// TODO(vchen): The GNU assembly below must be converted to MSVC inline
+// assembly.  Then the file should be renamed to ...-x86-mscv.h, probably.
 
 inline void NotImplementedFatalError(const char *function_name) {
   fprintf(stderr, "64-bit %s() not implemented on this platform\n",
@@ -411,4 +411,4 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
 }  // namespace base::subtle
 }  // namespace base
 
-#endif  // BASE_ATOMICOPS_INTERNALS_X86_MSVC_H_
+#endif  // BASE_ATOMICOPS_INTERNALS_WINDOWS_H_

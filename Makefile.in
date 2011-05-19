@@ -312,12 +312,13 @@ am__libprofiler_la_SOURCES_DIST = src/profiler.cc \
 	src/base/spinlock.h src/base/spinlock_internal.h \
 	src/base/atomicops.h src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h \
 	src/base/dynamic_annotations.h src/third_party/valgrind.h \
 	src/google/profiler.h src/google/stacktrace.h
 @WITH_CPU_PROFILER_TRUE@am__objects_2 = $(am__objects_1) \
@@ -337,12 +338,13 @@ am__libspinlock_la_SOURCES_DIST = src/base/spinlock.cc \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h
 @MINGW_FALSE@am_libspinlock_la_OBJECTS = spinlock.lo \
 @MINGW_FALSE@	spinlock_internal.lo atomicops-internals-x86.lo \
 @MINGW_FALSE@	$(am__objects_1)
@@ -383,12 +385,13 @@ am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -436,12 +439,13 @@ am__libtcmalloc_and_profiler_la_SOURCES_DIST = src/tcmalloc.cc \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -492,12 +496,13 @@ am__libtcmalloc_debug_la_SOURCES_DIST = src/debugallocation.cc \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -538,12 +543,13 @@ am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -600,12 +606,13 @@ am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -629,12 +636,13 @@ am__libtcmalloc_minimal_debug_la_SOURCES_DIST =  \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -663,12 +671,13 @@ am__libtcmalloc_minimal_internal_la_SOURCES_DIST = src/common.cc \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/tcmalloc_guard.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/tcmalloc_guard.h \
 	src/base/commandlineflags.h src/base/basictypes.h \
 	src/pagemap.h src/sampler.h src/central_freelist.h \
 	src/linked_list.h src/page_heap.h src/page_heap_allocator.h \
@@ -768,8 +777,8 @@ am__EXEEXT_24 = low_level_alloc_unittest$(EXEEXT) \
 	packed_cache_test$(EXEEXT) frag_unittest$(EXEEXT) \
 	markidle_unittest$(EXEEXT) \
 	current_allocated_bytes_test$(EXEEXT) \
-	malloc_extension_test$(EXEEXT) $(am__EXEEXT_12) \
-	$(am__EXEEXT_13) page_heap_test$(EXEEXT) \
+	malloc_hook_test$(EXEEXT) malloc_extension_test$(EXEEXT) \
+	$(am__EXEEXT_12) $(am__EXEEXT_13) page_heap_test$(EXEEXT) \
 	pagemap_unittest$(EXEEXT) realloc_unittest$(EXEEXT) \
 	stack_trace_table_test$(EXEEXT) \
 	thread_dealloc_unittest$(EXEEXT) $(am__EXEEXT_14) \
@@ -908,12 +917,13 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/spinlock_internal.h src/base/atomicops.h \
 	src/base/atomicops-internals-macosx.h \
 	src/base/atomicops-internals-linuxppc.h \
-	src/base/atomicops-internals-x86-msvc.h \
+	src/base/atomicops-internals-windows.h \
 	src/base/atomicops-internals-x86.h \
 	src/base/spinlock_win32-inl.h src/base/spinlock_linux-inl.h \
 	src/base/spinlock_posix-inl.h \
 	src/base/synchronization_profiling.h \
-	src/base/atomicops-internals-arm-gcc.h src/base/logging.h \
+	src/base/atomicops-internals-arm-generic.h \
+	src/base/atomicops-internals-arm-v6plus.h src/base/logging.h \
 	src/base/commandlineflags.h src/base/dynamic_annotations.h \
 	src/third_party/valgrind.h
 am__objects_29 = $(am__objects_1) $(am__objects_1)
@@ -952,6 +962,12 @@ am_malloc_extension_test_OBJECTS =  \
 	malloc_extension_test-malloc_extension_test.$(OBJEXT)
 malloc_extension_test_OBJECTS = $(am_malloc_extension_test_OBJECTS)
 malloc_extension_test_DEPENDENCIES = $(am__DEPENDENCIES_5) \
+	$(am__DEPENDENCIES_1)
+am_malloc_hook_test_OBJECTS =  \
+	malloc_hook_test-malloc_hook_test.$(OBJEXT) \
+	malloc_hook_test-testutil.$(OBJEXT)
+malloc_hook_test_OBJECTS = $(am_malloc_hook_test_OBJECTS)
+malloc_hook_test_DEPENDENCIES = $(am__DEPENDENCIES_5) \
 	$(am__DEPENDENCIES_1)
 am_markidle_unittest_OBJECTS =  \
 	markidle_unittest-markidle_unittest.$(OBJEXT) \
@@ -1300,7 +1316,8 @@ SOURCES = $(liblogging_la_SOURCES) $(libprofiler_la_SOURCES) \
 	$(low_level_alloc_unittest_SOURCES) \
 	$(malloc_extension_c_test_SOURCES) \
 	$(malloc_extension_debug_test_SOURCES) \
-	$(malloc_extension_test_SOURCES) $(markidle_unittest_SOURCES) \
+	$(malloc_extension_test_SOURCES) $(malloc_hook_test_SOURCES) \
+	$(markidle_unittest_SOURCES) \
 	$(maybe_threads_unittest_sh_SOURCES) \
 	$(memalign_debug_unittest_SOURCES) \
 	$(memalign_unittest_SOURCES) $(packed_cache_test_SOURCES) \
@@ -1355,7 +1372,8 @@ DIST_SOURCES = $(liblogging_la_SOURCES) \
 	$(am__low_level_alloc_unittest_SOURCES_DIST) \
 	$(am__malloc_extension_c_test_SOURCES_DIST) \
 	$(am__malloc_extension_debug_test_SOURCES_DIST) \
-	$(malloc_extension_test_SOURCES) $(markidle_unittest_SOURCES) \
+	$(malloc_extension_test_SOURCES) $(malloc_hook_test_SOURCES) \
+	$(markidle_unittest_SOURCES) \
 	$(am__maybe_threads_unittest_sh_SOURCES_DIST) \
 	$(am__memalign_debug_unittest_SOURCES_DIST) \
 	$(am__memalign_unittest_SOURCES_DIST) \
@@ -1726,6 +1744,7 @@ WINDOWS_PROJECTS = google-perftools.sln \
 	vsprojects/frag_unittest/frag_unittest.vcproj \
 	vsprojects/markidle_unittest/markidle_unittest.vcproj \
 	vsprojects/current_allocated_bytes_test/current_allocated_bytes_test.vcproj \
+	vsprojects/malloc_hook_test/malloc_hook_test.vcproj \
 	vsprojects/malloc_extension_test/malloc_extension_test.vcproj \
 	vsprojects/page_heap_test/page_heap_test.vcproj \
 	vsprojects/pagemap_unittest/pagemap_unittest.vcproj \
@@ -1755,13 +1774,14 @@ TESTS = low_level_alloc_unittest atomicops_unittest $(am__append_11) \
 	tcmalloc_minimal_unittest tcmalloc_minimal_large_unittest \
 	$(am__append_15) addressmap_unittest $(am__append_18) \
 	packed_cache_test frag_unittest markidle_unittest \
-	current_allocated_bytes_test malloc_extension_test \
-	$(am__append_19) $(am__append_21) page_heap_test \
-	pagemap_unittest realloc_unittest stack_trace_table_test \
-	thread_dealloc_unittest $(am__append_24) $(am__append_25) \
-	$(am__append_35) $(am__append_40) $(am__append_43) \
-	$(am__append_50) $(am__append_52) $(am__append_54) \
-	$(am__append_58) $(am__append_63)
+	current_allocated_bytes_test malloc_hook_test \
+	malloc_extension_test $(am__append_19) $(am__append_21) \
+	page_heap_test pagemap_unittest realloc_unittest \
+	stack_trace_table_test thread_dealloc_unittest \
+	$(am__append_24) $(am__append_25) $(am__append_35) \
+	$(am__append_40) $(am__append_43) $(am__append_50) \
+	$(am__append_52) $(am__append_54) $(am__append_58) \
+	$(am__append_63)
 # TESTS_ENVIRONMENT sets environment variables for when you run unittest.
 # We always get "srcdir" set for free.
 # We'll add to this later, on a library-by-library basis.
@@ -1828,7 +1848,7 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 @MINGW_FALSE@                    src/base/atomicops.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-macosx.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-linuxppc.h \
-@MINGW_FALSE@                    src/base/atomicops-internals-x86-msvc.h \
+@MINGW_FALSE@                    src/base/atomicops-internals-windows.h \
 @MINGW_FALSE@                    src/base/atomicops-internals-x86.h
 
 @MINGW_TRUE@SPINLOCK_INCLUDES = src/base/spinlock.h \
@@ -1839,8 +1859,9 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_7)
 @MINGW_TRUE@                    src/base/synchronization_profiling.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-macosx.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-linuxppc.h \
-@MINGW_TRUE@                    src/base/atomicops-internals-arm-gcc.h \
-@MINGW_TRUE@                    src/base/atomicops-internals-x86-msvc.h \
+@MINGW_TRUE@                    src/base/atomicops-internals-arm-generic.h \
+@MINGW_TRUE@                    src/base/atomicops-internals-arm-v6plus.h \
+@MINGW_TRUE@                    src/base/atomicops-internals-windows.h \
 @MINGW_TRUE@                    src/base/atomicops-internals-x86.h
 
 @MINGW_FALSE@libspinlock_la_SOURCES = src/base/spinlock.cc \
@@ -1885,7 +1906,7 @@ low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES
 low_level_alloc_unittest_LDADD = $(LIBSPINLOCK)
 ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
                               src/base/atomicops-internals-macosx.h \
-                              src/base/atomicops-internals-x86-msvc.h \
+                              src/base/atomicops-internals-windows.h \
                               src/base/atomicops-internals-x86.h \
                               $(LOGGING_INCLUDES)
 
@@ -2064,6 +2085,15 @@ current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc
 current_allocated_bytes_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 current_allocated_bytes_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 current_allocated_bytes_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
+                           src/config_for_unittests.h \
+                           src/base/logging.h \
+                           src/google/malloc_hook.h \
+                           src/tests/testutil.h src/tests/testutil.cc
+
+malloc_hook_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+malloc_hook_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+malloc_hook_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc \
                                 src/config_for_unittests.h \
                                 src/base/logging.h \
@@ -2688,6 +2718,9 @@ malloc_extension_debug_test$(EXEEXT): $(malloc_extension_debug_test_OBJECTS) $(m
 malloc_extension_test$(EXEEXT): $(malloc_extension_test_OBJECTS) $(malloc_extension_test_DEPENDENCIES) 
 	@rm -f malloc_extension_test$(EXEEXT)
 	$(CXXLINK) $(malloc_extension_test_LDFLAGS) $(malloc_extension_test_OBJECTS) $(malloc_extension_test_LDADD) $(LIBS)
+malloc_hook_test$(EXEEXT): $(malloc_hook_test_OBJECTS) $(malloc_hook_test_DEPENDENCIES) 
+	@rm -f malloc_hook_test$(EXEEXT)
+	$(CXXLINK) $(malloc_hook_test_LDFLAGS) $(malloc_hook_test_OBJECTS) $(malloc_hook_test_LDADD) $(LIBS)
 markidle_unittest$(EXEEXT): $(markidle_unittest_OBJECTS) $(markidle_unittest_DEPENDENCIES) 
 	@rm -f markidle_unittest$(EXEEXT)
 	$(CXXLINK) $(markidle_unittest_LDFLAGS) $(markidle_unittest_OBJECTS) $(markidle_unittest_LDADD) $(LIBS)
@@ -2900,6 +2933,8 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_extension_c_test-malloc_extension_c_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_extension_debug_test-malloc_extension_test.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_extension_test-malloc_extension_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_hook_test-malloc_hook_test.Po@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/malloc_hook_test-testutil.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/markidle_unittest-markidle_unittest.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/markidle_unittest-testutil.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/memalign_debug_unittest-memalign_unittest.Po@am__quote@
@@ -3750,6 +3785,34 @@ malloc_extension_test-malloc_extension_test.obj: src/tests/malloc_extension_test
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/malloc_extension_test.cc' object='malloc_extension_test-malloc_extension_test.obj' libtool=no @AMDEPBACKSLASH@
 @AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
 @am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_extension_test_CXXFLAGS) $(CXXFLAGS) -c -o malloc_extension_test-malloc_extension_test.obj `if test -f 'src/tests/malloc_extension_test.cc'; then $(CYGPATH_W) 'src/tests/malloc_extension_test.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/malloc_extension_test.cc'; fi`
+
+malloc_hook_test-malloc_hook_test.o: src/tests/malloc_hook_test.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -MT malloc_hook_test-malloc_hook_test.o -MD -MP -MF "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Tpo" -c -o malloc_hook_test-malloc_hook_test.o `test -f 'src/tests/malloc_hook_test.cc' || echo '$(srcdir)/'`src/tests/malloc_hook_test.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Tpo" "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Po"; else rm -f "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/malloc_hook_test.cc' object='malloc_hook_test-malloc_hook_test.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -c -o malloc_hook_test-malloc_hook_test.o `test -f 'src/tests/malloc_hook_test.cc' || echo '$(srcdir)/'`src/tests/malloc_hook_test.cc
+
+malloc_hook_test-malloc_hook_test.obj: src/tests/malloc_hook_test.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -MT malloc_hook_test-malloc_hook_test.obj -MD -MP -MF "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Tpo" -c -o malloc_hook_test-malloc_hook_test.obj `if test -f 'src/tests/malloc_hook_test.cc'; then $(CYGPATH_W) 'src/tests/malloc_hook_test.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/malloc_hook_test.cc'; fi`; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Tpo" "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Po"; else rm -f "$(DEPDIR)/malloc_hook_test-malloc_hook_test.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/malloc_hook_test.cc' object='malloc_hook_test-malloc_hook_test.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -c -o malloc_hook_test-malloc_hook_test.obj `if test -f 'src/tests/malloc_hook_test.cc'; then $(CYGPATH_W) 'src/tests/malloc_hook_test.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/malloc_hook_test.cc'; fi`
+
+malloc_hook_test-testutil.o: src/tests/testutil.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -MT malloc_hook_test-testutil.o -MD -MP -MF "$(DEPDIR)/malloc_hook_test-testutil.Tpo" -c -o malloc_hook_test-testutil.o `test -f 'src/tests/testutil.cc' || echo '$(srcdir)/'`src/tests/testutil.cc; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/malloc_hook_test-testutil.Tpo" "$(DEPDIR)/malloc_hook_test-testutil.Po"; else rm -f "$(DEPDIR)/malloc_hook_test-testutil.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/testutil.cc' object='malloc_hook_test-testutil.o' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -c -o malloc_hook_test-testutil.o `test -f 'src/tests/testutil.cc' || echo '$(srcdir)/'`src/tests/testutil.cc
+
+malloc_hook_test-testutil.obj: src/tests/testutil.cc
+@am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -MT malloc_hook_test-testutil.obj -MD -MP -MF "$(DEPDIR)/malloc_hook_test-testutil.Tpo" -c -o malloc_hook_test-testutil.obj `if test -f 'src/tests/testutil.cc'; then $(CYGPATH_W) 'src/tests/testutil.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/testutil.cc'; fi`; \
+@am__fastdepCXX_TRUE@	then mv -f "$(DEPDIR)/malloc_hook_test-testutil.Tpo" "$(DEPDIR)/malloc_hook_test-testutil.Po"; else rm -f "$(DEPDIR)/malloc_hook_test-testutil.Tpo"; exit 1; fi
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	source='src/tests/testutil.cc' object='malloc_hook_test-testutil.obj' libtool=no @AMDEPBACKSLASH@
+@AMDEP_TRUE@@am__fastdepCXX_FALSE@	DEPDIR=$(DEPDIR) $(CXXDEPMODE) $(depcomp) @AMDEPBACKSLASH@
+@am__fastdepCXX_FALSE@	$(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(malloc_hook_test_CXXFLAGS) $(CXXFLAGS) -c -o malloc_hook_test-testutil.obj `if test -f 'src/tests/testutil.cc'; then $(CYGPATH_W) 'src/tests/testutil.cc'; else $(CYGPATH_W) '$(srcdir)/src/tests/testutil.cc'; fi`
 
 markidle_unittest-markidle_unittest.o: src/tests/markidle_unittest.cc
 @am__fastdepCXX_TRUE@	if $(CXX) $(DEFS) $(DEFAULT_INCLUDES) $(INCLUDES) $(AM_CPPFLAGS) $(CPPFLAGS) $(markidle_unittest_CXXFLAGS) $(CXXFLAGS) -MT markidle_unittest-markidle_unittest.o -MD -MP -MF "$(DEPDIR)/markidle_unittest-markidle_unittest.Tpo" -c -o markidle_unittest-markidle_unittest.o `test -f 'src/tests/markidle_unittest.cc' || echo '$(srcdir)/'`src/tests/markidle_unittest.cc; \
@@ -4628,7 +4691,7 @@ check-TESTS: $(TESTS)
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/$(top_srcdir) $(distdir)/doc $(distdir)/m4 $(distdir)/packages $(distdir)/packages/rpm $(distdir)/src $(distdir)/src/google $(distdir)/src/solaris $(distdir)/src/tests $(distdir)/src/windows $(distdir)/src/windows/google $(distdir)/vsprojects/addr2line-pdb $(distdir)/vsprojects/addressmap_unittest $(distdir)/vsprojects/current_allocated_bytes_test $(distdir)/vsprojects/frag_unittest $(distdir)/vsprojects/libtcmalloc_minimal $(distdir)/vsprojects/low_level_alloc_unittest $(distdir)/vsprojects/malloc_extension_test $(distdir)/vsprojects/markidle_unittest $(distdir)/vsprojects/nm-pdb $(distdir)/vsprojects/packed-cache_test $(distdir)/vsprojects/page_heap_test $(distdir)/vsprojects/pagemap_unittest $(distdir)/vsprojects/realloc_unittest $(distdir)/vsprojects/sampler_test $(distdir)/vsprojects/stack_trace_table_test $(distdir)/vsprojects/tcmalloc_minimal_large $(distdir)/vsprojects/tcmalloc_minimal_unittest $(distdir)/vsprojects/thread_dealloc_unittest $(distdir)/vsprojects/tmu-static
+	$(mkdir_p) $(distdir)/$(top_srcdir) $(distdir)/doc $(distdir)/m4 $(distdir)/packages $(distdir)/packages/rpm $(distdir)/src $(distdir)/src/google $(distdir)/src/solaris $(distdir)/src/tests $(distdir)/src/windows $(distdir)/src/windows/google $(distdir)/vsprojects/addr2line-pdb $(distdir)/vsprojects/addressmap_unittest $(distdir)/vsprojects/current_allocated_bytes_test $(distdir)/vsprojects/frag_unittest $(distdir)/vsprojects/libtcmalloc_minimal $(distdir)/vsprojects/low_level_alloc_unittest $(distdir)/vsprojects/malloc_extension_test $(distdir)/vsprojects/malloc_hook_test $(distdir)/vsprojects/markidle_unittest $(distdir)/vsprojects/nm-pdb $(distdir)/vsprojects/packed-cache_test $(distdir)/vsprojects/page_heap_test $(distdir)/vsprojects/pagemap_unittest $(distdir)/vsprojects/realloc_unittest $(distdir)/vsprojects/sampler_test $(distdir)/vsprojects/stack_trace_table_test $(distdir)/vsprojects/tcmalloc_minimal_large $(distdir)/vsprojects/tcmalloc_minimal_unittest $(distdir)/vsprojects/thread_dealloc_unittest $(distdir)/vsprojects/tmu-static
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

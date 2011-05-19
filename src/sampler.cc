@@ -35,7 +35,8 @@
 #include "sampler.h"
 
 #include <algorithm>  // For min()
-#include <cmath>
+#include <math.h>
+#include "base/commandlineflags.h"
 
 using std::min;
 

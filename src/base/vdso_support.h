@@ -30,6 +30,7 @@
 #ifdef HAVE_FEATURES_H
 #include <features.h>   // for __GLIBC__
 #endif
+#include "base/basictypes.h"
 
 // Maybe one day we can rewrite this file not to require the elf
 // symbol extensions in glibc, but for right now we need them.
@@ -39,7 +40,6 @@
 
 #include <stdlib.h>     // for NULL
 #include <link.h>  // for ElfW
-#include "base/basictypes.h"
 
 namespace base {
 

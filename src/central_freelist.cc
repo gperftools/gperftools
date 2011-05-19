@@ -33,8 +33,10 @@
 #include "config.h"
 #include "central_freelist.h"
 
-#include "linked_list.h"
-#include "static_vars.h"
+#include "internal_logging.h"  // for ASSERT, MESSAGE
+#include "linked_list.h"       // for SLL_Next, SLL_Push, etc
+#include "page_heap.h"         // for PageHeap
+#include "static_vars.h"       // for Static
 
 namespace tcmalloc {
 
@@ -44,7 +46,12 @@ void CentralFreeList::Init(size_t cl) {
   tcmalloc::DLL_Init(&nonempty_);
   counter_ = 0;
 
-  cache_size_ = 1;
+#ifdef TCMALLOC_SMALL_BUT_SLOW
+  // Disable the transfer cache for the small footprint case.
+  cache_size_ = 0;
+#else
+  cache_size_ = 16;
+#endif
   used_slots_ = 0;
   ASSERT(cache_size_ <= kNumTransferEntries);
 }
@@ -142,8 +149,14 @@ bool CentralFreeList::MakeCacheSpace() {
   if (EvictRandomSizeClass(size_class_, false) ||
       EvictRandomSizeClass(size_class_, true)) {
     // Succeeded in evicting, we're going to make our cache larger.
-    cache_size_++;
-    return true;
+    // However, we may have dropped and re-acquired the lock in
+    // EvictRandomSizeClass (via ShrinkCache and the LockInverter), so the
+    // cache_size may have changed.  Therefore, check and verify that it is
+    // still OK to increase the cache_size.
+    if (cache_size_ < kNumTransferEntries) {
+      cache_size_++;
+      return true;
+    }
   }
   return false;
 }
@@ -321,22 +334,6 @@ void CentralFreeList::Populate() {
 int CentralFreeList::tc_length() {
   SpinLockHolder h(&lock_);
   return used_slots_ * Static::sizemap()->num_objects_to_move(size_class_);
-}
-
-size_t CentralFreeList::OverheadBytes() {
-  SpinLockHolder h(&lock_);
-  size_t overhead = 0;
-  for (const Span* s = empty_.next; s != &empty_; s = s->next) {
-    ASSERT(size_class_ == s->sizeclass);
-    ASSERT(size_class_ != 0);
-    overhead += (s->length * kPageSize) % size_class_;
-  }
-  for (const Span* s = nonempty_.next; s != &nonempty_; s = s->next) {
-    ASSERT(size_class_ == s->sizeclass);
-    ASSERT(size_class_ != 0);
-    overhead += (s->length * kPageSize) % size_class_;
-  }
-  return overhead;
 }
 
 }  // namespace tcmalloc

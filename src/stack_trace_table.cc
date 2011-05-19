@@ -31,10 +31,13 @@
 // Author: Andrew Fikes
 
 #include <config.h>
-#include "base/spinlock.h"
-#include "common.h"
-#include "static_vars.h"
 #include "stack_trace_table.h"
+#include <string.h>                     // for NULL, memset
+#include "base/spinlock.h"              // for SpinLockHolder
+#include "common.h"            // for StackTrace
+#include "internal_logging.h"  // for MESSAGE, ASSERT
+#include "page_heap_allocator.h"  // for PageHeapAllocator
+#include "static_vars.h"       // for Static
 
 namespace tcmalloc {
 

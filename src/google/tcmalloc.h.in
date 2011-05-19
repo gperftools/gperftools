@@ -35,6 +35,11 @@
 #ifndef TCMALLOC_TCMALLOC_H_
 #define TCMALLOC_TCMALLOC_H_
 
+#include <stddef.h>                     // for size_t
+#ifdef HAVE_SYS_CDEFS_H
+#include <sys/cdefs.h>   // where glibc defines __THROW
+#endif
+
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
 // optimization tool, but we may need to use it to match glibc prototypes.
@@ -60,7 +65,9 @@
 #endif
 
 #ifdef __cplusplus
-#include <new>          // for std::nothrow_t
+namespace std {
+struct nothrow_t;
+}
 
 extern "C" {
 #endif

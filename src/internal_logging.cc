@@ -31,15 +31,18 @@
 // Sanjay Ghemawat <opensource@google.com>
 
 #include <config.h>
-#include <stdio.h>
-#include <stdarg.h>
+#include "internal_logging.h"
+#include <stdarg.h>                     // for va_end, va_start
+#include <stdio.h>                      // for vsnprintf, va_list, etc
+#include <stdlib.h>                     // for abort
+#include <string.h>                     // for strlen, memcpy
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for write()
 #endif
-#include <string.h>
+
 #include <google/malloc_extension.h>
-#include "internal_logging.h"
 #include "base/logging.h"   // for perftools_vsnprintf
+#include "base/spinlock.h"              // for SpinLockHolder, SpinLock
 
 static const int kLogBufSize = 800;
 

@@ -67,6 +67,9 @@ application with frame pointers (via 'gcc -fno-omit-frame-pointer
 
 *** TCMALLOC LARGE PAGES: TRADING TIME FOR SPACE
 
+You can set a compiler directive that makes tcmalloc faster, at the
+cost of using more space (due to internal fragmentation).
+
 Internally, tcmalloc divides its memory into "pages."  The default
 page size is chosen to minimize memory use by reducing fragmentation.
 The cost is that keeping track of these pages can cost tcmalloc time.
@@ -83,6 +86,25 @@ flag yet.  To build libtcmalloc with large pages, run
    ./configure <normal flags> CXXFLAGS=-DTCMALLOC_LARGE_PAGES
 
 (or add -DTCMALLOC_LARGE_PAGES to your existing CXXFLAGS argument).
+
+
+*** SMALL TCMALLOC CACHES: TRADING SPACE FOR TIME
+
+You can set a compiler directive that makes tcmalloc use less memory
+for overhead, at the cost of some time.
+
+Internally, tcmalloc keeps information about some of its internal data
+structures in a cache.  This speeds memory operations that need to
+access this internal data.  We've added a new, experimental flag to
+tcmalloc that reduces the size of this cache, decresaing the memory
+needs of applications using tcmalloc.
+
+This feature is still very experimental; it's not even a configure
+flag yet.  To build libtcmalloc with smaller internal caches, run
+
+   ./configure <normal flags> CXXFLAGS=-DTCMALLOC_SMALL_BUT_SLOW
+
+(or add -DTCMALLOC_SMALL_BUT_SLOW to your existing CXXFLAGS argument).
 
 
 *** NOTE FOR ___tls_get_addr ERROR

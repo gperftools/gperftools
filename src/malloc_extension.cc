@@ -32,7 +32,6 @@
 
 #include <config.h>
 #include <assert.h>
-#include <stdio.h>
 #include <string.h>
 #include <stdio.h>
 #if defined HAVE_STDINT_H
@@ -102,6 +101,9 @@ void MallocExtension::Initialize() {
 #endif  /* __GLIBC__ */
 }
 
+// SysAllocator implementation
+SysAllocator::~SysAllocator() {}
+
 // Default implementation -- does nothing
 MallocExtension::~MallocExtension() { }
 bool MallocExtension::VerifyAllMemory() { return true; }
@@ -143,6 +145,14 @@ void MallocExtension::MarkThreadIdle() {
 }
 
 void MallocExtension::MarkThreadBusy() {
+  // Default implementation does nothing
+}
+
+SysAllocator* MallocExtension::GetSystemAllocator() {
+  return NULL;
+}
+
+void MallocExtension::SetSystemAllocator(SysAllocator *a) {
   // Default implementation does nothing
 }
 

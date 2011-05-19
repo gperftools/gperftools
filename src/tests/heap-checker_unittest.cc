@@ -86,15 +86,17 @@
 #include <pwd.h>
 #endif
 
+#include <algorithm>
 #include <iostream>             // for cout
 #include <iomanip>              // for hex
-#include <set>
-#include <map>
 #include <list>
+#include <map>
 #include <memory>
-#include <vector>
+#include <set>
 #include <string>
+#include <vector>
 
+#include "base/commandlineflags.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/commandlineflags.h"

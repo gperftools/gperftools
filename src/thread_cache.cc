@@ -31,11 +31,12 @@
 // Author: Ken Ashcraft <opensource@google.com>
 
 #include <config.h>
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
-#endif
-#include <algorithm>   // for min and max
 #include "thread_cache.h"
+#include <string.h>                     // for memcpy
+#include <algorithm>                    // for max, min
+#include "base/commandlineflags.h"      // for SpinLockHolder
+#include "base/spinlock.h"              // for SpinLockHolder
+#include "central_freelist.h"           // for CentralFreeListPadded
 #include "maybe_threads.h"
 
 using std::min;

@@ -50,6 +50,15 @@
 #if defined(__MACH__) && defined(__APPLE__)
 # include <mach/mach_time.h>
 #endif
+// For MSVC, we want the __rdtsc intrinsic, declared in <intrin.h>.
+// Unfortunately, in some environments, <windows.h> and <intrin.h> have
+// conflicting declarations of some other intrinsics, breaking compilation.
+// Therefore, we simply declare __rdtsc ourselves. See also
+// http://connect.microsoft.com/VisualStudio/feedback/details/262047
+#if defined(_MSC_VER)
+extern "C" uint64 __rdtsc();
+#pragma intrinsic(__rdtsc)
+#endif
 #include <sys/time.h>
 
 // NOTE: only i386 and x86_64 have been well tested.
@@ -97,8 +106,8 @@ struct CycleClock {
     int64 itc;
     asm("mov %0 = ar.itc" : "=r" (itc));
     return itc;
-#elif defined(_MSC_VER) && defined(_M_IX86)
-    _asm rdtsc
+#elif defined(_MSC_VER)
+    return __rdtsc();
 #elif defined(ARMV3)
 #if defined(ARMV6)  // V6 is the earliest arch that has a standard cyclecount
     uint32 pmccntr;

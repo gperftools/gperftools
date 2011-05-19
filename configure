@@ -4892,8 +4892,36 @@ else
 fi
 
 
+if test -n "$OBJCOPY"; then :
+    { $as_echo "$as_me:${as_lineno-$LINENO}: checking if $OBJCOPY supports -W" >&5
+$as_echo_n "checking if $OBJCOPY supports -W... " >&6; }
+if test "${gpt_cv_objcopy_weaken+set}" = set; then :
+  $as_echo_n "(cached) " >&6
+else
+      cat confdefs.h - <<_ACEOF >conftest.$ac_ext
+/* end confdefs.h.  */
+void foo() {} int main() {return 0;}
+_ACEOF
+if ac_fn_c_try_link "$LINENO"; then :
+        if "$OBJCOPY" -W foo conftest$ac_exeext /dev/null; then :
+  gpt_cv_objcopy_weaken=yes
+else
+  gpt_cv_objcopy_weaken=no
+fi
+else
+  gpt_cv_objcopy_weaken=no
+fi
+rm -f core conftest.err conftest.$ac_objext \
+    conftest$ac_exeext conftest.$ac_ext
+fi
+{ $as_echo "$as_me:${as_lineno-$LINENO}: result: $gpt_cv_objcopy_weaken" >&5
+$as_echo "$gpt_cv_objcopy_weaken" >&6; }
+else
+  gpt_cv_objcopy_weaken=no
+fi
 
-if "$OBJCOPY" -W malloc /bin/ls /dev/null; then
+
+if test $gpt_cv_objcopy_weaken = yes; then
   HAVE_OBJCOPY_WEAKEN_TRUE=
   HAVE_OBJCOPY_WEAKEN_FALSE='#'
 else
@@ -5581,13 +5609,13 @@ if test "${lt_cv_nm_interface+set}" = set; then :
 else
   lt_cv_nm_interface="BSD nm"
   echo "int some_variable = 0;" > conftest.$ac_ext
-  (eval echo "\"\$as_me:5584: $ac_compile\"" >&5)
+  (eval echo "\"\$as_me:5612: $ac_compile\"" >&5)
   (eval "$ac_compile" 2>conftest.err)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5587: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
+  (eval echo "\"\$as_me:5615: $NM \\\"conftest.$ac_objext\\\"\"" >&5)
   (eval "$NM \"conftest.$ac_objext\"" 2>conftest.err > conftest.out)
   cat conftest.err >&5
-  (eval echo "\"\$as_me:5590: output\"" >&5)
+  (eval echo "\"\$as_me:5618: output\"" >&5)
   cat conftest.out >&5
   if $GREP 'External.*some_variable' conftest.out > /dev/null; then
     lt_cv_nm_interface="MS dumpbin"
@@ -6761,7 +6789,6 @@ fi
 
 
 
-
 # Check whether --enable-libtool-lock was given.
 if test "${enable_libtool_lock+set}" = set; then :
   enableval=$enable_libtool_lock;
@@ -6793,7 +6820,7 @@ ia64-*-hpux*)
   ;;
 *-*-irix6*)
   # Find out which ABI we are using.
-  echo '#line 6796 "configure"' > conftest.$ac_ext
+  echo '#line 6823 "configure"' > conftest.$ac_ext
   if { { eval echo "\"\$as_me\":${as_lineno-$LINENO}: \"$ac_compile\""; } >&5
   (eval $ac_compile) 2>&5
   ac_status=$?
@@ -8666,11 +8693,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:8669: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:8696: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:8673: \$? = $ac_status" >&5
+   echo "$as_me:8700: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -9005,11 +9032,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:9008: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:9035: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:9012: \$? = $ac_status" >&5
+   echo "$as_me:9039: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -9110,11 +9137,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:9113: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:9140: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:9117: \$? = $ac_status" >&5
+   echo "$as_me:9144: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -9165,11 +9192,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:9168: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:9195: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:9172: \$? = $ac_status" >&5
+   echo "$as_me:9199: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -11549,7 +11576,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11552 "configure"
+#line 11579 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -11645,7 +11672,7 @@ else
   lt_dlunknown=0; lt_dlno_uscore=1; lt_dlneed_uscore=2
   lt_status=$lt_dlunknown
   cat > conftest.$ac_ext <<_LT_EOF
-#line 11648 "configure"
+#line 11675 "configure"
 #include "confdefs.h"
 
 #if HAVE_DLFCN_H
@@ -13601,11 +13628,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13604: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13631: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>conftest.err)
    ac_status=$?
    cat conftest.err >&5
-   echo "$as_me:13608: \$? = $ac_status" >&5
+   echo "$as_me:13635: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s "$ac_outfile"; then
      # The compiler can only warn and ignore the option if not recognized
      # So say no if there are warnings other than the usual output.
@@ -13700,11 +13727,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13703: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13730: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:13707: \$? = $ac_status" >&5
+   echo "$as_me:13734: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -13752,11 +13779,11 @@ else
    -e 's:.*FLAGS}\{0,1\} :&$lt_compiler_flag :; t' \
    -e 's: [^ ]*conftest\.: $lt_compiler_flag&:; t' \
    -e 's:$: $lt_compiler_flag:'`
-   (eval echo "\"\$as_me:13755: $lt_compile\"" >&5)
+   (eval echo "\"\$as_me:13782: $lt_compile\"" >&5)
    (eval "$lt_compile" 2>out/conftest.err)
    ac_status=$?
    cat out/conftest.err >&5
-   echo "$as_me:13759: \$? = $ac_status" >&5
+   echo "$as_me:13786: \$? = $ac_status" >&5
    if (exit $ac_status) && test -s out/conftest2.$ac_objext
    then
      # The compiler can only warn and ignore the option if not recognized
@@ -15232,6 +15259,30 @@ fi
 
 done
     # we have a local copy if this isn't found
+for ac_header in sys/cdefs.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "sys/cdefs.h" "ac_cv_header_sys_cdefs_h" "$ac_includes_default"
+if test "x$ac_cv_header_sys_cdefs_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_SYS_CDEFS_H 1
+_ACEOF
+
+fi
+
+done
+   # Where glibc defines __THROW
+for ac_header in features.h
+do :
+  ac_fn_c_check_header_mongrel "$LINENO" "features.h" "ac_cv_header_features_h" "$ac_includes_default"
+if test "x$ac_cv_header_features_h" = x""yes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_FEATURES_H 1
+_ACEOF
+
+fi
+
+done
+    # Where __GLIBC__ is defined
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.
 
@@ -15318,7 +15369,8 @@ fi
 # This workaround comes from
 #    http://cygwin.com/ml/cygwin/2004-11/msg00138.html
 case "$host" in
-  *-*-cygwin*) ac_cv_func_mmap_fixed_mapped=yes
+  *-*-cygwin*)
+	       ac_cv_func_mmap_fixed_mapped=yes
 
 $as_echo "#define HAVE_MMAP 1" >>confdefs.h
 

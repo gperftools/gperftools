@@ -31,7 +31,10 @@
 // Author: Ken Ashcraft <opensource@google.com>
 
 #include "static_vars.h"
-#include "sampler.h"  // for the init function
+#include <stddef.h>                     // for NULL
+#include <new>                          // for operator new
+#include "internal_logging.h"  // for CHECK_CONDITION
+#include "sampler.h"           // for Sampler
 
 namespace tcmalloc {
 

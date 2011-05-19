@@ -101,9 +101,15 @@ bool CheckIfKernelSupportsTLS() {
 // Force a reference to p_thread_callback_tcmalloc and p_process_term_tcmalloc
 // to prevent whole program optimization from discarding the variables.
 #ifdef _MSC_VER
+#if defined(_M_IX86)
 #pragma comment(linker, "/INCLUDE:__tls_used")
 #pragma comment(linker, "/INCLUDE:_p_thread_callback_tcmalloc")
 #pragma comment(linker, "/INCLUDE:_p_process_term_tcmalloc")
+#elif defined(_M_X64)
+#pragma comment(linker, "/INCLUDE:_tls_used")
+#pragma comment(linker, "/INCLUDE:p_thread_callback_tcmalloc")
+#pragma comment(linker, "/INCLUDE:p_process_term_tcmalloc")
+#endif
 #endif
 
 // When destr_fn eventually runs, it's supposed to take as its

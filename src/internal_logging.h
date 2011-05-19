@@ -36,10 +36,7 @@
 #define TCMALLOC_INTERNAL_LOGGING_H_
 
 #include <config.h>
-#include <stdlib.h>   // for abort()
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>   // for write()
-#endif
+#include <stddef.h>                     // for size_t
 
 //-------------------------------------------------------------------
 // Utility routines

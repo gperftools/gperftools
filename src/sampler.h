@@ -36,8 +36,13 @@
 #define TCMALLOC_SAMPLER_H_
 
 #include "config.h"
-#include "common.h"
-#include "static_vars.h"
+#include <stddef.h>                     // for size_t
+#ifdef HAVE_STDINT_H
+#include <stdint.h>                     // for uint64_t, uint32_t, int32_t
+#endif
+#include <string.h>                     // for memcpy
+#include "base/basictypes.h"  // for ASSERT
+#include "internal_logging.h"  // for ASSERT
 
 namespace tcmalloc {
 

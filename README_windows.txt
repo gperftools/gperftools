@@ -4,9 +4,9 @@ This project has begun being ported to Windows.  A working solution
 file exists in this directory:
     google-perftools.sln
 
-You can load this solution file into either VC++ 7.1 (Visual Studio
-2003) or VC++ 8.0 (Visual Studio 2005) -- in the latter case, it will
-automatically convert the files to the latest format for you.
+You can load this solution file into VC++ 7.1 (Visual Studio 2003) or
+later -- in the latter case, it will automatically convert the files
+to the latest format for you.
 
 When you build the solution, it will create a number of unittests,
 which you can run by hand (or, more easily, under the Visual Studio
@@ -58,7 +58,7 @@ to just build and link your program normally; the tcmalloc support
 comes in a post-processing step.  This is more reliable than the above
 technique (which depends on run-time patching, which is inherently
 fragile), though more work to set up.  For details, see
-https://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
+   https://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
 
 
 --- THE HEAP-PROFILER
@@ -68,6 +68,15 @@ been well tested, and probably does not work at all when Frame Pointer
 Optimization (FPO) is enabled -- that is, in release mode.  The other
 features of perftools, such as the cpu-profiler and leak-checker, have
 not yet been ported to Windows at all.
+
+
+--- WIN64
+
+The function-patcher has to disassemble code, and is very
+x86-specific.  However, the rest of perftools should work fine for
+both x86 and x64.  In particular, if you use the 'statically link with
+libc, and replace its malloc with tcmalloc' approach, mentioned above,
+it should be possible to use tcmalloc with 64-bit windows.
 
 
 --- ISSUES
@@ -101,4 +110,4 @@ them on the google-perftools Google Code site:
 
 -- craig
 
-Last modified: 3 February 2010
+Last modified: 6 April 2011

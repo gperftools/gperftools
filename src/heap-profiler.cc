@@ -33,7 +33,7 @@
 // TODO: Log large allocations
 
 #include <config.h>
-
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H

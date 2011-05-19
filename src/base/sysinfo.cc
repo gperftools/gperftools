@@ -204,7 +204,7 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
 static double cpuinfo_cycles_per_second = 1.0;  // 0.0 might be dangerous
 static int cpuinfo_num_cpus = 1;  // Conservative guess
 
-static void SleepForMilliseconds(int milliseconds) {
+void SleepForMilliseconds(int milliseconds) {
 #ifdef PLATFORM_WINDOWS
   _sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
 #else
@@ -318,6 +318,7 @@ static void InitializeSystemInfo() {
   }
 
   double bogo_clock = 1.0;
+  bool saw_bogo = false;
   int num_cpus = 0;
   line[0] = line[1] = '\0';
   int chars_read = 0;
@@ -341,19 +342,23 @@ static void InitializeSystemInfo() {
     if (newline != NULL)
       *newline = '\0';
 
+    // When parsing the "cpu MHz" and "bogomips" (fallback) entries, we only
+    // accept postive values. Some environments (virtual machines) report zero,
+    // which would cause infinite looping in WallTime_Init.
     if (!saw_mhz && strncasecmp(line, "cpu MHz", sizeof("cpu MHz")-1) == 0) {
       const char* freqstr = strchr(line, ':');
       if (freqstr) {
         cpuinfo_cycles_per_second = strtod(freqstr+1, &err) * 1000000.0;
-        if (freqstr[1] != '\0' && *err == '\0')
+        if (freqstr[1] != '\0' && *err == '\0' && cpuinfo_cycles_per_second > 0)
           saw_mhz = true;
       }
     } else if (strncasecmp(line, "bogomips", sizeof("bogomips")-1) == 0) {
       const char* freqstr = strchr(line, ':');
-      if (freqstr)
+      if (freqstr) {
         bogo_clock = strtod(freqstr+1, &err) * 1000000.0;
-      if (freqstr == NULL || freqstr[1] == '\0' || *err != '\0')
-        bogo_clock = 1.0;
+        if (freqstr[1] != '\0' && *err == '\0' && bogo_clock > 0)
+          saw_bogo = true;
+      }
     } else if (strncasecmp(line, "processor", sizeof("processor")-1) == 0) {
       num_cpus++;  // count up every time we see an "processor :" entry
     }
@@ -361,9 +366,14 @@ static void InitializeSystemInfo() {
   close(fd);
 
   if (!saw_mhz) {
-    // If we didn't find anything better, we'll use bogomips, but
-    // we're not happy about it.
-    cpuinfo_cycles_per_second = bogo_clock;
+    if (saw_bogo) {
+      // If we didn't find anything better, we'll use bogomips, but
+      // we're not happy about it.
+      cpuinfo_cycles_per_second = bogo_clock;
+    } else {
+      // If we don't even have bogomips, we'll use the slow estimation.
+      cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+    }
   }
   if (cpuinfo_cycles_per_second == 0.0) {
     cpuinfo_cycles_per_second = 1.0;   // maybe unnecessary, but safe

@@ -203,8 +203,9 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/synchronization_profiling.h \
                     src/base/atomicops-internals-macosx.h \
                     src/base/atomicops-internals-linuxppc.h \
-                    src/base/atomicops-internals-arm-gcc.h \
-                    src/base/atomicops-internals-x86-msvc.h \
+                    src/base/atomicops-internals-arm-generic.h \
+                    src/base/atomicops-internals-arm-v6plus.h \
+                    src/base/atomicops-internals-windows.h \
                     src/base/atomicops-internals-x86.h
 noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
@@ -229,7 +230,7 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/atomicops.h \
                     src/base/atomicops-internals-macosx.h \
                     src/base/atomicops-internals-linuxppc.h \
-                    src/base/atomicops-internals-x86-msvc.h \
+                    src/base/atomicops-internals-windows.h \
                     src/base/atomicops-internals-x86.h
 
 noinst_LTLIBRARIES += libspinlock.la
@@ -269,7 +270,7 @@ low_level_alloc_unittest_LDADD = $(LIBSPINLOCK)
 TESTS += atomicops_unittest
 ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
                               src/base/atomicops-internals-macosx.h \
-                              src/base/atomicops-internals-x86-msvc.h \
+                              src/base/atomicops-internals-windows.h \
                               src/base/atomicops-internals-x86.h \
                               $(LOGGING_INCLUDES)
 atomicops_unittest_SOURCES = src/tests/atomicops_unittest.cc \
@@ -552,6 +553,17 @@ current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc
 current_allocated_bytes_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 current_allocated_bytes_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 current_allocated_bytes_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+
+TESTS += malloc_hook_test
+WINDOWS_PROJECTS += vsprojects/malloc_hook_test/malloc_hook_test.vcproj
+malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
+                           src/config_for_unittests.h \
+                           src/base/logging.h \
+                           src/google/malloc_hook.h \
+                           src/tests/testutil.h src/tests/testutil.cc
+malloc_hook_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+malloc_hook_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+malloc_hook_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 TESTS += malloc_extension_test
 WINDOWS_PROJECTS += vsprojects/malloc_extension_test/malloc_extension_test.vcproj
