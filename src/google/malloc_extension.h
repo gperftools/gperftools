@@ -81,9 +81,6 @@ class SysAllocator {
   // Returns NULL if failed. Otherwise, the returned pointer p up to and
   // including (p + actual_size -1) have been allocated.
   virtual void* Alloc(size_t size, size_t *actual_size, size_t alignment) = 0;
-
-  // Notification that command-line flags have been initialized.
-  virtual void FlagsInitialized() = 0;
 };
 
 // The default implementations of the following routines do nothing.
@@ -103,6 +100,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
 
   // See "verify_memory.h" to see what these routines do
   virtual bool VerifyAllMemory();
+  // TODO(csilvers): change these to const void*.
   virtual bool VerifyNewMemory(void* p);
   virtual bool VerifyArrayNewMemory(void* p);
   virtual bool VerifyMallocMemory(void* p);
@@ -283,7 +281,26 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // will return 0.)
   // This is equivalent to malloc_size() in OS X, malloc_usable_size()
   // in glibc, and _msize() for windows.
+  // TODO(csilvers): change to const void*.
   virtual size_t GetAllocatedSize(void* p);
+
+  // Returns kOwned if this malloc implementation allocated the memory
+  // pointed to by p, or kNotOwned if some other malloc implementation
+  // allocated it or p is NULL.  May also return kUnknownOwnership if
+  // the malloc implementation does not keep track of ownership.
+  // REQUIRES: p must be a value returned from a previous call to
+  // malloc(), calloc(), realloc(), memalign(), posix_memalign(),
+  // valloc(), pvalloc(), new, or new[], and must refer to memory that
+  // is currently allocated (so, for instance, you should not pass in
+  // a pointer after having called free() on it).
+  enum Ownership {
+    // NOTE: Enum values MUST be kept in sync with the version in
+    // malloc_extension_c.h
+    kUnknownOwnership = 0,
+    kOwned,
+    kNotOwned
+  };
+  virtual Ownership GetOwnership(const void* p);
 
   // The current malloc implementation.  Always non-NULL.
   static MallocExtension* instance();

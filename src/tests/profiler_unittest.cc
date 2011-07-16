@@ -61,7 +61,7 @@ static void test_other_thread() {
     for (i = 0; i < g_iters; ++i ) {
       result ^= i;
     }
-    snprintf(b, sizeof(b), "%d", result);  // get some libc action
+    snprintf(b, sizeof(b), "other: %d", result);  // get some libc action
   }
 #endif
 }
@@ -74,7 +74,7 @@ static void test_main_thread() {
     for (i = 0; i < g_iters; ++i ) {
       result ^= i;
     }
-    snprintf(b, sizeof(b), "%d", result);  // get some libc action
+    snprintf(b, sizeof(b), "same: %d", result);  // get some libc action
   }
 }
 

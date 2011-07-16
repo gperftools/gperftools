@@ -48,6 +48,13 @@
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
+#ifdef __MACH__
+#include <mach-o/dyld.h>   // for GetProgramInvocationName()
+#include <limits.h>        // for PATH_MAX
+#endif
+#if defined(__CYGWIN__) || defined(__CYGWIN32__)
+#include <io.h>            // for get_osfhandle()
+#endif
 #include <string>
 #include "base/commandlineflags.h"
 #include "base/sysinfo.h"
@@ -64,6 +71,27 @@ DEFINE_string(symbolize_pprof,
 // called (since that's when leak-checking is done), so we make
 // a more-permanent copy that won't ever get destroyed.
 static string* g_pprof_path = new string(FLAGS_symbolize_pprof);
+
+// Returns NULL if we're on an OS where we can't get the invocation name.
+// Using a static var is ok because we're not called from a thread.
+static char* GetProgramInvocationName() {
+#if defined(HAVE_PROGRAM_INVOCATION_NAME)
+  extern char* program_invocation_name;  // gcc provides this
+  return program_invocation_name;
+#elif defined(__MACH__)
+  // We don't want to allocate memory for this since we may be
+  // calculating it when memory is corrupted.
+  static char program_invocation_name[PATH_MAX];
+  if (program_invocation_name[0] == '\0') {  // first time calculating
+    uint32_t length = sizeof(program_invocation_name);
+    if (_NSGetExecutablePath(program_invocation_name, &length))
+      return NULL;
+  }
+  return program_invocation_name;
+#else
+  return NULL;   // figure out a way to get argv[0]
+#endif
+}
 
 void SymbolTable::Add(const void* addr) {
   symbolization_table_[addr] = "";
@@ -82,11 +110,12 @@ const char* SymbolTable::GetSymbol(const void* addr) {
 int SymbolTable::Symbolize() {
 #if !defined(HAVE_UNISTD_H)  || !defined(HAVE_SYS_SOCKET_H) || !defined(HAVE_SYS_WAIT_H)
   return 0;
-#elif !defined(HAVE_PROGRAM_INVOCATION_NAME)
-  return 0;   // TODO(csilvers): get argv[0] somehow
 #else
+  const char* argv0 = GetProgramInvocationName();
+  if (argv0 == NULL)   // can't call symbolize if we can't figure out our name
+    return 0;
+
   // All this work is to do two-way communication.  ugh.
-  extern char* program_invocation_name;  // gcc provides this
   int *child_in = NULL;   // file descriptors
   int *child_out = NULL;  // for now, we don't worry about child_err
   int child_fds[5][2];    // socketpair may be called up to five times below
@@ -142,7 +171,7 @@ int SymbolTable::Symbolize() {
       unsetenv("HEAPCHECK");
       unsetenv("PERFTOOLS_VERBOSE");
       execlp(g_pprof_path->c_str(), g_pprof_path->c_str(),
-             "--symbols", program_invocation_name, NULL);
+             "--symbols", argv0, NULL);
       _exit(3);  // if execvp fails, it's bad news for us
     }
     default: {  // parent
@@ -159,7 +188,13 @@ int SymbolTable::Symbolize() {
         return 0;
       }
 #endif
+#if defined(__CYGWIN__) || defined(__CYGWIN32__)
+      // On cygwin, DumpProcSelfMaps() takes a HANDLE, not an fd.  Convert.
+      const HANDLE symbols_handle = (HANDLE) get_osfhandle(child_in[1]);
+      DumpProcSelfMaps(symbols_handle);
+#else
       DumpProcSelfMaps(child_in[1]);  // what pprof expects on stdin
+#endif
 
       // Allocate 24 bytes = ("0x" + 8 bytes + "\n" + overhead) for each
       // address to feed to pprof.

@@ -54,9 +54,9 @@ static inline int LgFloor(size_t n) {
 
 int AlignmentForSize(size_t size) {
   int alignment = kAlignment;
-  if (size >= 2048) {
-    // Cap alignment at 256 for large sizes.
-    alignment = 256;
+  if (size > kMaxSize) {
+    // Cap alignment at kPageSize for large sizes.
+    alignment = kPageSize;
   } else if (size >= 128) {
     // Space wasted due to alignment is at most 1/8, i.e., 12.5%.
     alignment = (1 << LgFloor(size)) / 8;
@@ -64,6 +64,10 @@ int AlignmentForSize(size_t size) {
     // We need an alignment of at least 16 bytes to satisfy
     // requirements for some SSE types.
     alignment = 16;
+  }
+  // Maximum alignment allowed is page size alignment.
+  if (alignment > kPageSize) {
+    alignment = kPageSize;
   }
   CHECK_CONDITION(size < 16 || alignment >= 16);
   CHECK_CONDITION((alignment & (alignment - 1)) == 0);
@@ -105,22 +109,23 @@ void SizeMap::Init() {
   int sc = 1;   // Next size class to assign
   int alignment = kAlignment;
   CHECK_CONDITION(kAlignment <= 16);
-  int last_lg = -1;
   for (size_t size = kAlignment; size <= kMaxSize; size += alignment) {
-    int lg = LgFloor(size);
-    if (lg > last_lg) {
-      // Increase alignment every so often to reduce number of size classes.
-      alignment = AlignmentForSize(size);
-      last_lg = lg;
-    }
+    alignment = AlignmentForSize(size);
     CHECK_CONDITION((size % alignment) == 0);
 
-    // Allocate enough pages so leftover is less than 1/8 of total.
-    // This bounds wasted space to at most 12.5%.
-    size_t psize = kPageSize;
-    while ((psize % size) > (psize >> 3)) {
+    int blocks_to_move = NumMoveSize(size) / 4;
+    size_t psize = 0;
+    do {
       psize += kPageSize;
-    }
+      // Allocate enough pages so leftover is less than 1/8 of total.
+      // This bounds wasted space to at most 12.5%.
+      while ((psize % size) > (psize >> 3)) {
+        psize += kPageSize;
+      }
+      // Continue to add pages until there are at least as many objects in
+      // the span as are needed when moving objects from the central
+      // freelists and spans to the thread caches.
+    } while ((psize / size) < (blocks_to_move));
     const size_t my_pages = psize >> kPageShift;
 
     if (sc > 1 && my_pages == class_to_pages_[sc-1]) {

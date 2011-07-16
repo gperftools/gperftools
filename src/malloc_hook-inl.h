@@ -104,7 +104,7 @@ static const int kHookListMaxValues = 7;
 // HookList: a class that provides synchronized insertions and removals and
 // lockless traversal.  Most of the implementation is in malloc_hook.cc.
 template <typename T>
-struct HookList {
+struct PERFTOOLS_DLL_DECL HookList {
   COMPILE_ASSERT(sizeof(T) <= sizeof(AtomicWord), T_should_fit_in_AtomicWord);
 
   // Adds value to the list.  Note that duplicates are allowed.  Thread-safe and

@@ -55,6 +55,14 @@ int main(int argc, char** argv) {
   ASSERT_TRUE(MallocExtension::instance()->VerifyAllMemory());
   ASSERT_TRUE(MallocExtension_VerifyAllMemory());
 
+  ASSERT_EQ(MallocExtension::kOwned,
+            MallocExtension::instance()->GetOwnership(a));
+  // TODO(csilvers): this relies on undocumented behavior that
+  // GetOwnership works on stack-allocated variables.  Use a better test.
+  ASSERT_EQ(MallocExtension::kNotOwned,
+            MallocExtension::instance()->GetOwnership(&cxx_bytes_used));
+  ASSERT_EQ(MallocExtension::kNotOwned,
+            MallocExtension::instance()->GetOwnership(NULL));
   ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(a), 1000);
   // This is just a sanity check.  If we allocated too much, tcmalloc is broken
   ASSERT_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
@@ -68,11 +76,23 @@ int main(int argc, char** argv) {
   }
 
   // Check the c-shim version too.
+  ASSERT_EQ(MallocExtension_kOwned, MallocExtension_GetOwnership(a));
+  ASSERT_EQ(MallocExtension_kNotOwned,
+            MallocExtension_GetOwnership(&cxx_bytes_used));
+  ASSERT_EQ(MallocExtension_kNotOwned, MallocExtension_GetOwnership(NULL));
   ASSERT_GE(MallocExtension_GetAllocatedSize(a), 1000);
   ASSERT_LE(MallocExtension_GetAllocatedSize(a), 5000);
   ASSERT_GE(MallocExtension_GetEstimatedAllocatedSize(1000), 1000);
 
   free(a);
+
+  // Verify that the .cc file and .h file have the same enum values.
+  ASSERT_EQ(static_cast<int>(MallocExtension::kUnknownOwnership),
+            static_cast<int>(MallocExtension_kUnknownOwnership));
+  ASSERT_EQ(static_cast<int>(MallocExtension::kOwned),
+            static_cast<int>(MallocExtension_kOwned));
+  ASSERT_EQ(static_cast<int>(MallocExtension::kNotOwned),
+            static_cast<int>(MallocExtension_kNotOwned));
 
   printf("DONE\n");
   return 0;

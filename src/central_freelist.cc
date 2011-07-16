@@ -31,12 +31,15 @@
 // Author: Sanjay Ghemawat <opensource@google.com>
 
 #include "config.h"
+#include <algorithm>
 #include "central_freelist.h"
-
 #include "internal_logging.h"  // for ASSERT, MESSAGE
 #include "linked_list.h"       // for SLL_Next, SLL_Push, etc
 #include "page_heap.h"         // for PageHeap
 #include "static_vars.h"       // for Static
+
+using std::min;
+using std::max;
 
 namespace tcmalloc {
 
@@ -44,16 +47,35 @@ void CentralFreeList::Init(size_t cl) {
   size_class_ = cl;
   tcmalloc::DLL_Init(&empty_);
   tcmalloc::DLL_Init(&nonempty_);
+  num_spans_ = 0;
   counter_ = 0;
 
+  max_cache_size_ = kMaxNumTransferEntries;
 #ifdef TCMALLOC_SMALL_BUT_SLOW
   // Disable the transfer cache for the small footprint case.
   cache_size_ = 0;
 #else
   cache_size_ = 16;
 #endif
+  if (cl > 0) {
+    // Limit the maximum size of the cache based on the size class.  If this
+    // is not done, large size class objects will consume a lot of memory if
+    // they just sit in the transfer cache.
+    int32_t bytes = Static::sizemap()->ByteSizeForClass(cl);
+    int32_t objs_to_move = Static::sizemap()->num_objects_to_move(cl);
+
+    ASSERT(objs_to_move > 0 && bytes > 0);
+    // Limit each size class cache to at most 1MB of objects or one entry,
+    // whichever is greater. Total transfer cache memory used across all
+    // size classes then can't be greater than approximately
+    // 1MB * kMaxNumTransferEntries.
+    // min and max are in parens to avoid macro-expansion on windows.
+    max_cache_size_ = (min)(max_cache_size_,
+                          (max)(1, (1024 * 1024) / (bytes * objs_to_move)));
+    cache_size_ = (min)(cache_size_, max_cache_size_);
+  }
   used_slots_ = 0;
-  ASSERT(cache_size_ <= kNumTransferEntries);
+  ASSERT(cache_size_ <= max_cache_size_);
 }
 
 void CentralFreeList::ReleaseListToSpans(void* start) {
@@ -110,6 +132,7 @@ void CentralFreeList::ReleaseToSpans(void* object) {
     counter_ -= ((span->length<<kPageShift) /
                  Static::sizemap()->ByteSizeForClass(span->sizeclass));
     tcmalloc::DLL_Remove(span);
+    --num_spans_;
 
     // Release central list lock while operating on pageheap
     lock_.Unlock();
@@ -144,7 +167,7 @@ bool CentralFreeList::MakeCacheSpace() {
   // Is there room in the cache?
   if (used_slots_ < cache_size_) return true;
   // Check if we can expand this cache?
-  if (cache_size_ == kNumTransferEntries) return false;
+  if (cache_size_ == max_cache_size_) return false;
   // Ok, we'll try to grab an entry from some other size class.
   if (EvictRandomSizeClass(size_class_, false) ||
       EvictRandomSizeClass(size_class_, true)) {
@@ -153,7 +176,7 @@ bool CentralFreeList::MakeCacheSpace() {
     // EvictRandomSizeClass (via ShrinkCache and the LockInverter), so the
     // cache_size may have changed.  Therefore, check and verify that it is
     // still OK to increase the cache_size.
-    if (cache_size_ < kNumTransferEntries) {
+    if (cache_size_ < max_cache_size_) {
       cache_size_++;
       return true;
     }
@@ -210,7 +233,7 @@ void CentralFreeList::InsertRange(void *start, void *end, int N) {
     MakeCacheSpace()) {
     int slot = used_slots_++;
     ASSERT(slot >=0);
-    ASSERT(slot < kNumTransferEntries);
+    ASSERT(slot < max_cache_size_);
     TCEntry *entry = &tc_slots_[slot];
     entry->head = start;
     entry->tail = end;
@@ -328,12 +351,25 @@ void CentralFreeList::Populate() {
   // Add span to list of non-empty spans
   lock_.Lock();
   tcmalloc::DLL_Prepend(&nonempty_, span);
+  ++num_spans_;
   counter_ += num;
 }
 
 int CentralFreeList::tc_length() {
   SpinLockHolder h(&lock_);
   return used_slots_ * Static::sizemap()->num_objects_to_move(size_class_);
+}
+
+size_t CentralFreeList::OverheadBytes() {
+  SpinLockHolder h(&lock_);
+  if (size_class_ == 0) {  // 0 holds the 0-sized allocations
+    return 0;
+  }
+  const size_t pages_per_span = Static::sizemap()->class_to_pages(size_class_);
+  const size_t object_size = Static::sizemap()->class_to_size(size_class_);
+  ASSERT(object_size > 0);
+  const size_t overhead_per_span = (pages_per_span * kPageSize) % object_size;
+  return num_spans_ * overhead_per_span;
 }
 
 }  // namespace tcmalloc

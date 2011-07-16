@@ -46,8 +46,9 @@ DEFINE_int64(tcmalloc_max_total_thread_cache_bytes,
              EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES",
                         kDefaultOverallThreadCacheSize),
              "Bound on the total amount of bytes allocated to "
-             "thread caches.  This bound is not strict, so it is possible "
-             "for the cache to go over this bound in certain circumstances. ");
+             "thread caches. This bound is not strict, so it is possible "
+             "for the cache to go over this bound in certain circumstances. "
+             "Maximum value of this flag is capped to 1 GB.");
 
 namespace tcmalloc {
 
@@ -72,7 +73,11 @@ pthread_key_t ThreadCache::heap_key_;
 
 #if defined(HAVE_TLS)
 bool kernel_supports_tls = false;      // be conservative
-# if !HAVE_DECL_UNAME   // if too old for uname, probably too old for TLS
+# if defined(_WIN32)    // windows has supported TLS since winnt, I think.
+    void CheckIfKernelSupportsTLS() {
+      kernel_supports_tls = true;
+    }
+# elif !HAVE_DECL_UNAME    // if too old for uname, probably too old for TLS
     void CheckIfKernelSupportsTLS() {
       kernel_supports_tls = false;
     }
@@ -313,6 +318,18 @@ void ThreadCache::InitTSD() {
   ASSERT(!tsd_inited_);
   perftools_pthread_key_create(&heap_key_, DestroyThreadCache);
   tsd_inited_ = true;
+
+#ifdef PTHREADS_CRASHES_IF_RUN_TOO_EARLY
+  // We may have used a fake pthread_t for the main thread.  Fix it.
+  pthread_t zero;
+  memset(&zero, 0, sizeof(zero));
+  SpinLockHolder h(Static::pageheap_lock());
+  for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
+    if (h->tid_ == zero) {
+      h->tid_ = pthread_self();
+    }
+  }
+#endif
 }
 
 ThreadCache* ThreadCache::CreateCacheIfNecessary() {
@@ -320,17 +337,23 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   ThreadCache* heap = NULL;
   {
     SpinLockHolder h(Static::pageheap_lock());
-    // On very old libc's, this call may crash if it happens too
-    // early.  No libc using NPTL should be affected.  If there
-    // is a crash here, we could use code (on linux, at least)
-    // to detect NPTL vs LinuxThreads:
-    //   http://www.redhat.com/archives/phil-list/2003-April/msg00038.html
-    // If we detect not-NPTL, we could execute the old code from
-    //   http://google-perftools.googlecode.com/svn/tags/google-perftools-1.7/src/thread_cache.cc
-    // that avoids calling pthread_self too early.  The problem with
-    // that code is it caused a race condition when tcmalloc is linked
-    // in statically and other libraries spawn threads before main.
+    // On some old glibc's, and on freebsd's libc (as of freebsd 8.1),
+    // calling pthread routines (even pthread_self) too early could
+    // cause a segfault.  Since we can call pthreads quite early, we
+    // have to protect against that in such situations by making a
+    // 'fake' pthread.  This is not ideal since it doesn't work well
+    // when linking tcmalloc statically with apps that create threads
+    // before main, so we only do it if we have to.
+#ifdef PTHREADS_CRASHES_IF_RUN_TOO_EARLY
+    pthread_t me;
+    if (!tsd_inited_) {
+      memset(&me, 0, sizeof(me));
+    } else {
+      me = pthread_self();
+    }
+#else
     const pthread_t me = pthread_self();
+#endif
 
     // This may be a recursive malloc call from pthread_setspecific()
     // In that case, the heap for this thread has already been created
@@ -474,7 +497,7 @@ void ThreadCache::PrintThreads(TCMalloc_Printer* out) {
     h->Print(out);
     actual_limit += h->max_size_;
   }
-  out->printf("ThreadCache overall: %"PRIuS ", unclaimed: %"PRIuS
+  out->printf("ThreadCache overall: %"PRIuS ", unclaimed: %"PRIdS
               ", actual: %"PRIuS"\n",
               overall_thread_cache_size_, unclaimed_cache_space_, actual_limit);
 }

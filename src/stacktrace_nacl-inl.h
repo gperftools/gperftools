@@ -1,4 +1,4 @@
-// Copyright (c) 2009, Google Inc.
+// Copyright (c) 2011, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,64 +28,10 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // ---
-// Author: Andrew Fikes
+// Author: Ivan Krasin
 //
-// Utility class for coalescing sampled stack traces.  Not thread-safe.
+// Native Client stub for stacktrace.
 
-#ifndef TCMALLOC_STACK_TRACE_TABLE_H_
-#define TCMALLOC_STACK_TRACE_TABLE_H_
-
-#include <config.h>
-#ifdef HAVE_STDINT_H
-#include <stdint.h>                     // for uintptr_t
-#endif
-#include "common.h"
-
-namespace tcmalloc {
-
-class PERFTOOLS_DLL_DECL StackTraceTable {
- public:
-  // REQUIRES: L < pageheap_lock
-  StackTraceTable();
-  ~StackTraceTable();
-
-  // Adds stack trace "t" to table.
-  //
-  // REQUIRES: L >= pageheap_lock
-  void AddTrace(const StackTrace& t);
-
-  // Returns stack traces formatted per MallocExtension guidelines.
-  // May return NULL on error.  Clears state before returning.
-  //
-  // REQUIRES: L < pageheap_lock
-  void** ReadStackTracesAndClear();
-
-  // Exposed for PageHeapAllocator
-  struct Bucket {
-    // Key
-    uintptr_t hash;
-    StackTrace trace;
-
-    // Payload
-    int count;
-    Bucket* next;
-
-    bool KeyEqual(uintptr_t h, const StackTrace& t) const;
-  };
-
-  // For testing
-  int depth_total() const { return depth_total_; }
-  int bucket_total() const { return bucket_total_; }
-
- private:
-  static const int kHashTableSize = 1 << 14; // => table_ is 128k
-
-  bool error_;
-  int depth_total_;
-  int bucket_total_;
-  Bucket** table_;
-};
-
-}  // namespace tcmalloc
-
-#endif  // TCMALLOC_STACK_TRACE_TABLE_H_
+int GET_STACK_TRACE_OR_FRAMES {
+  return 0;
+}

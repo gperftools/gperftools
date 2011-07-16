@@ -55,28 +55,74 @@ typedef int64 Atomic64;
 
 // 32-bit low-level operations on any platform
 
+extern "C" {
+// We use windows intrinsics when we can (they seem to be supported
+// well on MSVC 8.0 and above).  Unfortunately, in some
+// environments, <windows.h> and <intrin.h> have conflicting
+// declarations of some other intrinsics, breaking compilation:
+//   http://connect.microsoft.com/VisualStudio/feedback/details/262047
+// Therefore, we simply declare the relevant intrinsics ourself.
+
 // MinGW has a bug in the header files where it doesn't indicate the
 // first argument is volatile -- they're not up to date.  See
 //   http://readlist.com/lists/lists.sourceforge.net/mingw-users/0/3861.html
 // We have to const_cast away the volatile to avoid compiler warnings.
 // TODO(csilvers): remove this once MinGW has updated MinGW/include/winbase.h
-#ifdef __MINGW32__
-inline LONG InterlockedCompareExchange(volatile LONG* ptr,
-                                       LONG newval, LONG oldval) {
+#if defined(__MINGW32__)
+inline LONG FastInterlockedCompareExchange(volatile LONG* ptr,
+                                           LONG newval, LONG oldval) {
   return ::InterlockedCompareExchange(const_cast<LONG*>(ptr), newval, oldval);
 }
-inline LONG InterlockedExchange(volatile LONG* ptr, LONG newval) {
+inline LONG FastInterlockedExchange(volatile LONG* ptr, LONG newval) {
   return ::InterlockedExchange(const_cast<LONG*>(ptr), newval);
 }
-inline LONG InterlockedExchangeAdd(volatile LONG* ptr, LONG increment) {
+inline LONG FastInterlockedExchangeAdd(volatile LONG* ptr, LONG increment) {
   return ::InterlockedExchangeAdd(const_cast<LONG*>(ptr), increment);
 }
+
+#elif _MSC_VER >= 1400   // intrinsics didn't work so well before MSVC 8.0
+// Unfortunately, in some environments, <windows.h> and <intrin.h>
+// have conflicting declarations of some intrinsics, breaking
+// compilation.  So we declare the intrinsics we need ourselves.  See
+//   http://connect.microsoft.com/VisualStudio/feedback/details/262047
+LONG _InterlockedCompareExchange(volatile LONG* ptr, LONG newval, LONG oldval);
+#pragma intrinsic(_InterlockedCompareExchange)
+inline LONG FastInterlockedCompareExchange(volatile LONG* ptr,
+                                           LONG newval, LONG oldval) {
+  return _InterlockedCompareExchange(ptr, newval, oldval);
+}
+
+LONG _InterlockedExchange(volatile LONG* ptr, LONG newval);
+#pragma intrinsic(_InterlockedExchange)
+inline LONG FastInterlockedExchange(volatile LONG* ptr, LONG newval) {
+  return _InterlockedExchange(ptr, newval);
+}
+
+LONG _InterlockedExchangeAdd(volatile LONG* ptr, LONG increment);
+#pragma intrinsic(_InterlockedExchangeAdd)
+inline LONG FastInterlockedExchangeAdd(volatile LONG* ptr, LONG increment) {
+  return _InterlockedExchangeAdd(ptr, increment);
+}
+
+#else
+inline LONG FastInterlockedCompareExchange(volatile LONG* ptr,
+                                           LONG newval, LONG oldval) {
+  return ::InterlockedCompareExchange(ptr, newval, oldval);
+}
+inline LONG FastInterlockedExchange(volatile LONG* ptr, LONG newval) {
+  return ::InterlockedExchange(ptr, newval);
+}
+inline LONG FastInterlockedExchangeAdd(volatile LONG* ptr, LONG increment) {
+  return ::InterlockedExchangeAdd(ptr, increment);
+}
+
 #endif  // ifdef __MINGW32__
+}  // extern "C"
 
 inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
                                          Atomic32 old_value,
                                          Atomic32 new_value) {
-  LONG result = InterlockedCompareExchange(
+  LONG result = FastInterlockedCompareExchange(
       reinterpret_cast<volatile LONG*>(ptr),
       static_cast<LONG>(new_value),
       static_cast<LONG>(old_value));
@@ -85,7 +131,7 @@ inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
 
 inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
                                          Atomic32 new_value) {
-  LONG result = InterlockedExchange(
+  LONG result = FastInterlockedExchange(
       reinterpret_cast<volatile LONG*>(ptr),
       static_cast<LONG>(new_value));
   return static_cast<Atomic32>(result);
@@ -93,7 +139,7 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
 
 inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
                                         Atomic32 increment) {
-  return InterlockedExchangeAdd(
+  return FastInterlockedExchangeAdd(
       reinterpret_cast<volatile LONG*>(ptr),
       static_cast<LONG>(increment)) + increment;
 }
@@ -173,27 +219,68 @@ inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
 
 COMPILE_ASSERT(sizeof(Atomic64) == sizeof(PVOID), atomic_word_is_atomic);
 
-// Like for the __MINGW32__ case above, this works around a header
-// error in mingw, where it's missing 'volatile'.
-#ifdef __MINGW64__
-inline PVOID InterlockedCompareExchangePointer(volatile PVOID* ptr,
-                                               PVOID newval, PVOID oldval) {
+// These are the intrinsics needed for 64-bit operations.  Similar to the
+// 32-bit case above.
+
+extern "C" {
+#if defined(__MINGW64__)
+inline PVOID FastInterlockedCompareExchangePointer(volatile PVOID* ptr,
+                                                   PVOID newval, PVOID oldval) {
   return ::InterlockedCompareExchangePointer(const_cast<PVOID*>(ptr),
                                              newval, oldval);
 }
-inline PVOID InterlockedExchangePointer(volatile PVOID* ptr, PVOID newval) {
+inline PVOID FastInterlockedExchangePointer(volatile PVOID* ptr, PVOID newval) {
   return ::InterlockedExchangePointer(const_cast<PVOID*>(ptr), newval);
 }
-inline LONGLONG InterlockedExchangeAdd64(volatile LONGLONG* ptr,
-                                         LONGLONG increment) {
+inline LONGLONG FastInterlockedExchangeAdd64(volatile LONGLONG* ptr,
+                                             LONGLONG increment) {
   return ::InterlockedExchangeAdd64(const_cast<LONGLONG*>(ptr), increment);
 }
+
+#elif _MSC_VER >= 1400   // intrinsics didn't work so well before MSVC 8.0
+// Like above, we need to declare the intrinsics ourselves.
+PVOID _InterlockedCompareExchangePointer(volatile PVOID* ptr,
+                                         PVOID newval, PVOID oldval);
+#pragma intrinsic(_InterlockedCompareExchangePointer)
+inline PVOID FastInterlockedCompareExchangePointer(volatile PVOID* ptr,
+                                                   PVOID newval, PVOID oldval) {
+  return _InterlockedCompareExchangePointer(const_cast<PVOID*>(ptr),
+                                            newval, oldval);
+}
+
+PVOID _InterlockedExchangePointer(volatile PVOID* ptr, PVOID newval);
+#pragma intrinsic(_InterlockedExchangePointer)
+inline PVOID FastInterlockedExchangePointer(volatile PVOID* ptr, PVOID newval) {
+  return _InterlockedExchangePointer(const_cast<PVOID*>(ptr), newval);
+}
+
+LONGLONG _InterlockedExchangeAdd64(volatile LONGLONG* ptr, LONGLONG increment);
+#pragma intrinsic(_InterlockedExchangeAdd64)
+inline LONGLONG FastInterlockedExchangeAdd64(volatile LONGLONG* ptr,
+                                             LONGLONG increment) {
+  return _InterlockedExchangeAdd64(const_cast<LONGLONG*>(ptr), increment);
+}
+
+#else
+inline PVOID FastInterlockedCompareExchangePointer(volatile PVOID* ptr,
+                                                   PVOID newval, PVOID oldval) {
+  return ::InterlockedCompareExchangePointer(ptr, newval, oldval);
+}
+inline PVOID FastInterlockedExchangePointer(volatile PVOID* ptr, PVOID newval) {
+  return ::InterlockedExchangePointer(ptr, newval);
+}
+inline LONGLONG FastInterlockedExchangeAdd64(volatile LONGLONG* ptr,
+                                         LONGLONG increment) {
+  return ::InterlockedExchangeAdd64(ptr, increment);
+}
+
 #endif  // ifdef __MINGW64__
+}  // extern "C"
 
 inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
                                          Atomic64 old_value,
                                          Atomic64 new_value) {
-  PVOID result = InterlockedCompareExchangePointer(
+  PVOID result = FastInterlockedCompareExchangePointer(
     reinterpret_cast<volatile PVOID*>(ptr),
     reinterpret_cast<PVOID>(new_value), reinterpret_cast<PVOID>(old_value));
   return reinterpret_cast<Atomic64>(result);
@@ -201,7 +288,7 @@ inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
 
 inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
                                          Atomic64 new_value) {
-  PVOID result = InterlockedExchangePointer(
+  PVOID result = FastInterlockedExchangePointer(
     reinterpret_cast<volatile PVOID*>(ptr),
     reinterpret_cast<PVOID>(new_value));
   return reinterpret_cast<Atomic64>(result);
@@ -209,7 +296,7 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
 
 inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
                                         Atomic64 increment) {
-  return InterlockedExchangeAdd64(
+  return FastInterlockedExchangeAdd64(
       reinterpret_cast<volatile LONGLONG*>(ptr),
       static_cast<LONGLONG>(increment)) + increment;
 }
@@ -258,7 +345,7 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
 // 64-bit low-level operations on 32-bit platform
 
 // TODO(vchen): The GNU assembly below must be converted to MSVC inline
-// assembly.  Then the file should be renamed to ...-x86-mscv.h, probably.
+// assembly.  Then the file should be renamed to ...-x86-msvc.h, probably.
 
 inline void NotImplementedFatalError(const char *function_name) {
   fprintf(stderr, "64-bit %s() not implemented on this platform\n",

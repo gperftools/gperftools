@@ -1,4 +1,35 @@
-== 7 February 2011 ==
+== 15 July 2011 ==
+
+I've just released perftools 1.8
+
+Of the many changes in this release, a good number pertain to porting.
+I've revamped OS X support to use the malloc-zone framework; it should
+now Just Work to link in tcmalloc, without needing
+`DYLD_FORCE_FLAT_NAMESPACE` or the like.  (This is a pretty major
+change, so please feel free to report feedback at
+google-perftools@googlegroups.com.)  64-bit Windows support is also
+improved, as is ARM support, and the hooks are in place to improve
+FreeBSD support as well.
+
+On the other hand, I'm seeing hanging tests on Cygwin.  I see the same
+hanging even with (the old) perftools 1.7, so I'm guessing this is
+either a problem specific to my Cygwin installation, or nobody is
+trying to use perftools under Cygwin.  If you can reproduce the
+problem, and even better have a solution, you can report it at
+google-perftools@googlegroups.com.
+
+Internal changes include several performance and space-saving tweaks.
+One is user-visible (but in "stealth mode", and otherwise
+undocumented): you can compile with `-DTCMALLOC_SMALL_BUT_SLOW`.  In
+this mode, tcmalloc will use less memory overhead, at the cost of
+running (likely not noticeably) slower.
+
+There are many other changes as well, too numerous to recount here,
+but present in the
+[http://google-perftools.googlecode.com/svn/tags/perftools-1.8/ChangeLog ChangeLog].
+
+
+=== 7 February 2011 ===
 
 Thanks to endlessr..., who
 [http://code.google.com/p/google-perftools/issues/detail?id=307 identified]
@@ -9,7 +40,7 @@ some aggressive optimizations used in MSVC 10.  I'll fix the test, but in
 the meantime, feel free to use perftools even when compiled under MSVC
 10.
 
-== 4 February 2011 ==
+=== 4 February 2011 ===
 
 I've just released perftools 1.7
 

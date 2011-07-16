@@ -284,7 +284,7 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
   }
 }
 
-#if !(defined(__CYGWIN__) || defined(__CYGWIN32__))
+#if !(defined(__CYGWIN__) || defined(__CYGWIN32__)) && !defined(__native_client__)
 
 extern "C" PERFTOOLS_DLL_DECL void ProfilerRegisterThread() {
   ProfileHandlerRegisterThread();
@@ -316,12 +316,14 @@ extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(
   CpuProfiler::instance_.GetCurrentState(state);
 }
 
-#else  // OS_CYGWIN
+#else  // !defined(OS_CYGWIN) && !defined(__native_client__)
 
 // ITIMER_PROF doesn't work under cygwin.  ITIMER_REAL is available, but doesn't
 // work as well for profiling, and also interferes with alarm().  Because of
 // these issues, unless a specific need is identified, profiler support is
 // disabled under Cygwin.
+//
+// Native Client runtime also does not have signals working.
 extern "C" void ProfilerRegisterThread() { }
 extern "C" void ProfilerFlush() { }
 extern "C" int ProfilingIsEnabledForAllThreads() { return 0; }
@@ -335,7 +337,7 @@ extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
   memset(state, 0, sizeof(*state));
 }
 
-#endif  // OS_CYGWIN
+#endif  // !defined(OS_CYGWIN) && !defined(__native_client__)
 
 // DEPRECATED routines
 extern "C" PERFTOOLS_DLL_DECL void ProfilerEnable() { }

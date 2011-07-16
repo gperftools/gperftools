@@ -80,6 +80,18 @@ PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory(void);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(void* p);
 
+/*
+ * NOTE: These enum values MUST be kept in sync with the version in
+ *       malloc_extension.h
+ */
+typedef enum {
+  MallocExtension_kUnknownOwnership = 0,
+  MallocExtension_kOwned,
+  MallocExtension_kNotOwned
+} MallocExtension_Ownership;
+
+PERFTOOLS_DLL_DECL MallocExtension_Ownership MallocExtension_GetOwnership(const void* p);
+
 #ifdef __cplusplus
 }   // extern "C"
 #endif

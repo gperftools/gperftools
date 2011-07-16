@@ -74,4 +74,4 @@ extern void TCMalloc_SystemRelease(void* start, size_t length);
 // The current system allocator.
 extern PERFTOOLS_DLL_DECL SysAllocator* sys_alloc;
 
-#endif /* TCMALLOC_SYSTEM_ALLOC_H__ */
+#endif /* TCMALLOC_SYSTEM_ALLOC_H_ */

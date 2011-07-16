@@ -127,7 +127,6 @@
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
-		</Filter>
 			<File
 				RelativePath="..\..\src\tests\testutil.cc">
 				<FileConfiguration

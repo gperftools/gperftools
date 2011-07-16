@@ -35,7 +35,9 @@
 
 #include "config.h"
 #include <stddef.h>                     // for size_t
+#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for int32_t
+#endif
 #include "base/spinlock.h"
 #include "base/thread_annotations.h"
 #include "common.h"
@@ -66,6 +68,12 @@ class CentralFreeList {
   // Returns the number of free objects in the transfer cache.
   int tc_length();
 
+  // Returns the memory overhead (internal fragmentation) attributable
+  // to the freelist.  This is memory lost when the size of elements
+  // in a freelist doesn't exactly divide the page-size (an 8192-byte
+  // page full of 5-byte objects would have 2 bytes memory overhead).
+  size_t OverheadBytes();
+
  private:
   // TransferCache is used to cache transfers of
   // sizemap.num_objects_to_move(size_class) back and forth between
@@ -75,16 +83,16 @@ class CentralFreeList {
     void *tail;  // Tail of chain of objects.
   };
 
-  // A central cache freelist can have anywhere from 0 to kNumTransferEntries
-  // slots to put link list chains into.  To keep memory usage bounded the total
-  // number of TCEntries across size classes is fixed.  Currently each size
-  // class is initially given one TCEntry which also means that the maximum any
-  // one class can have is kNumClasses.
+  // A central cache freelist can have anywhere from 0 to kMaxNumTransferEntries
+  // slots to put link list chains into.
 #ifdef TCMALLOC_SMALL_BUT_SLOW
   // For the small memory model, the transfer cache is not used.
-  static const int kNumTransferEntries = 0;
+  static const int kMaxNumTransferEntries = 0;
 #else
-  static const int kNumTransferEntries = kNumClasses;
+  // Starting point for the the maximum number of entries in the transfer cache.
+  // This actual maximum for a given size class may be lower than this
+  // maximum value.
+  static const int kMaxNumTransferEntries = 64;
 #endif
 
   // REQUIRES: lock_ is held
@@ -143,12 +151,15 @@ class CentralFreeList {
   size_t   size_class_;     // My size class
   Span     empty_;          // Dummy header for list of empty spans
   Span     nonempty_;       // Dummy header for list of non-empty spans
+  size_t   num_spans_;      // Number of spans in empty_ plus nonempty_
   size_t   counter_;        // Number of free objects in cache entry
 
-  // Here we reserve space for TCEntry cache slots.  Since one size class can
-  // end up getting all the TCEntries quota in the system we just preallocate
-  // sufficient number of entries here.
-  TCEntry tc_slots_[kNumTransferEntries];
+  // Here we reserve space for TCEntry cache slots.  Space is preallocated
+  // for the largest possible number of entries than any one size class may
+  // accumulate.  Not all size classes are allowed to accumulate
+  // kMaxNumTransferEntries, so there is some wasted space for those size
+  // classes.
+  TCEntry tc_slots_[kMaxNumTransferEntries];
 
   // Number of currently used cached entries in tc_slots_.  This variable is
   // updated under a lock but can be read without one.
@@ -157,6 +168,8 @@ class CentralFreeList {
   // adaptive value that is increased if there is lots of traffic
   // on a given size class.
   int32_t cache_size_;
+  // Maximum size of the cache for a given size class.
+  int32_t max_cache_size_;
 };
 
 // Pads each CentralCache object to multiple of 64 bytes.  Since some

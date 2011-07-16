@@ -96,7 +96,7 @@
 #elif defined(ARMV3)
 #include "base/atomicops-internals-arm-generic.h"
 #elif defined(_WIN32)
-#include "base/atomicops-internals-x86-windows.h"
+#include "base/atomicops-internals-windows.h"
 #elif defined(__GNUC__) && (defined(__i386) || defined(__x86_64__))
 #include "base/atomicops-internals-x86.h"
 #elif defined(__linux__) && defined(__PPC__)

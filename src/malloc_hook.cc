@@ -283,7 +283,7 @@ int HookList<T>::Traverse(T* output_array, int n) const {
 
 // Explicit instantiation for malloc_hook_test.cc.  This ensures all the methods
 // are instantiated.
-template class HookList<MallocHook::NewHook>;
+template struct HookList<MallocHook::NewHook>;
 
 HookList<MallocHook::NewHook> new_hooks_ =
     INIT_HOOK_LIST_WITH_VALUE(&InitialNewHook);
@@ -698,191 +698,19 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
 #endif
 }
 
-// On Linux/x86, we override mmap/munmap/mremap/sbrk
-// and provide support for calling the related hooks.
-//
-// We define mmap() and mmap64(), which somewhat reimplements libc's mmap
-// syscall stubs.  Unfortunately libc only exports the stubs via weak symbols
-// (which we're overriding with our mmap64() and mmap() wrappers) so we can't
-// just call through to them.
+// On systems where we know how, we override mmap/munmap/mremap/sbrk
+// to provide support for calling the related hooks (in addition,
+// of course, to doing what these functions normally do).
 
+#if defined(__linux)
+# include "malloc_hook_mmap_linux.h"
 
-#if defined(__linux) && \
-    (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))
-#include <unistd.h>
-#include <syscall.h>
-#include <sys/mman.h>
-#include <errno.h>
-#include "base/linux_syscall_support.h"
+// This code doesn't even compile on my freebsd 8.1 (x86_64) system,
+// so comment it out for now.  TODO(csilvers): fix this!
+#elif 0 && defined(__FreeBSD__)
+# include "malloc_hook_mmap_freebsd.h"
 
-// The x86-32 case and the x86-64 case differ:
-// 32b has a mmap2() syscall, 64b does not.
-// 64b and 32b have different calling conventions for mmap().
-#if defined(__x86_64__) || defined(__PPC64__)
-
-static inline void* do_mmap64(void *start, size_t length,
-                              int prot, int flags,
-                              int fd, __off64_t offset) __THROW {
-  return (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
-}
-
-#elif defined(__i386__) || defined(__PPC__)
-
-static inline void* do_mmap64(void *start, size_t length,
-                              int prot, int flags,
-                              int fd, __off64_t offset) __THROW {
-  void *result;
-
-  // Try mmap2() unless it's not supported
-  static bool have_mmap2 = true;
-  if (have_mmap2) {
-    static int pagesize = 0;
-    if (!pagesize) pagesize = getpagesize();
-
-    // Check that the offset is page aligned
-    if (offset & (pagesize - 1)) {
-      result = MAP_FAILED;
-      errno = EINVAL;
-      goto out;
-    }
-
-    result = (void *)syscall(SYS_mmap2, 
-                       start, length, prot, flags, fd,
-                       (off_t) (offset / pagesize));
-    if (result != MAP_FAILED || errno != ENOSYS)  goto out;
-
-    // We don't have mmap2() after all - don't bother trying it in future
-    have_mmap2 = false;
-  }
-
-  if (((off_t)offset) != offset) {
-    // If we're trying to map a 64-bit offset, fail now since we don't
-    // have 64-bit mmap() support.
-    result = MAP_FAILED;
-    errno = EINVAL;
-    goto out;
-  }
-
-  {
-    // Fall back to old 32-bit offset mmap() call
-    // Old syscall interface cannot handle six args, so pass in an array
-    int32 args[6] = { (int32) start, length, prot, flags, fd, (off_t) offset };
-    result = (void *)syscall(SYS_mmap, args);
-  }
- out:
-  return result;
-}
-
-# endif  // defined(__x86_64__)
-
-// We use do_mmap64 abstraction to put MallocHook::InvokeMmapHook
-// calls right into mmap and mmap64, so that the stack frames in the caller's
-// stack are at the same offsets for all the calls of memory allocating
-// functions.
-
-// Put all callers of MallocHook::Invoke* in this module into
-// malloc_hook section,
-// so that MallocHook::GetCallerStackTrace can function accurately:
-
-// Make sure mmap doesn't get #define'd away by <sys/mman.h>
-#undef mmap
-
-extern "C" {
-  void* mmap64(void *start, size_t length, int prot, int flags,
-               int fd, __off64_t offset  ) __THROW
-    ATTRIBUTE_SECTION(malloc_hook);
-  void* mmap(void *start, size_t length,int prot, int flags,
-             int fd, off_t offset) __THROW
-    ATTRIBUTE_SECTION(malloc_hook);
-  int munmap(void* start, size_t length) __THROW
-    ATTRIBUTE_SECTION(malloc_hook);
-  void* mremap(void* old_addr, size_t old_size, size_t new_size,
-               int flags, ...) __THROW
-    ATTRIBUTE_SECTION(malloc_hook);
-  void* sbrk(ptrdiff_t increment) __THROW
-    ATTRIBUTE_SECTION(malloc_hook);
-}
-
-extern "C" void* mmap64(void *start, size_t length, int prot, int flags,
-                        int fd, __off64_t offset) __THROW {
-  MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
-  void *result;
-  if (!MallocHook::InvokeMmapReplacement(
-          start, length, prot, flags, fd, offset, &result)) {
-    result = do_mmap64(start, length, prot, flags, fd, offset);
-  }
-  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
-  return result;
-}
-
-#if !defined(__USE_FILE_OFFSET64) || !defined(__REDIRECT_NTH)
-
-extern "C" void* mmap(void *start, size_t length, int prot, int flags,
-                      int fd, off_t offset) __THROW {
-  MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
-  void *result;
-  if (!MallocHook::InvokeMmapReplacement(
-          start, length, prot, flags, fd, offset, &result)) {
-    result = do_mmap64(start, length, prot, flags, fd,
-                       static_cast<size_t>(offset)); // avoid sign extension
-  }
-  MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
-  return result;
-}
-
-#endif  // !defined(__USE_FILE_OFFSET64) || !defined(__REDIRECT_NTH)
-
-extern "C" int munmap(void* start, size_t length) __THROW {
-  MallocHook::InvokeMunmapHook(start, length);
-  int result;
-  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
-    result = syscall(SYS_munmap, start, length);
-  }
-  return result;
-}
-
-extern "C" void* mremap(void* old_addr, size_t old_size, size_t new_size,
-                        int flags, ...) __THROW {
-  va_list ap;
-  va_start(ap, flags);
-  void *new_address = va_arg(ap, void *);
-  va_end(ap);
-  void* result = sys_mremap(old_addr, old_size, new_size, flags, new_address);
-  MallocHook::InvokeMremapHook(result, old_addr, old_size, new_size, flags,
-                               new_address);
-  return result;
-}
-
-// libc's version:
-extern "C" void* __sbrk(ptrdiff_t increment);
-
-extern "C" void* sbrk(ptrdiff_t increment) __THROW {
-  MallocHook::InvokePreSbrkHook(increment);
-  void *result = __sbrk(increment);
-  MallocHook::InvokeSbrkHook(result, increment);
-  return result;
-}
-
-/*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
-                                         int flags, int fd, off_t offset) {
-  void* result;
-  if (!MallocHook::InvokeMmapReplacement(
-          start, length, prot, flags, fd, offset, &result)) {
-    result = do_mmap64(start, length, prot, flags, fd, offset);
-  }
-  return result;
-}
-
-/*static*/int MallocHook::UnhookedMUnmap(void *start, size_t length) {
-  int result;
-  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
-    result = sys_munmap(start, length);
-  }
-  return result;
-}
-
-#else   // defined(__linux) &&
-        // (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))
+#else
 
 /*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
                                          int flags, int fd, off_t offset) {
@@ -902,5 +730,4 @@ extern "C" void* sbrk(ptrdiff_t increment) __THROW {
   return result;
 }
 
-#endif  // defined(__linux) &&
-        // (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))
+#endif

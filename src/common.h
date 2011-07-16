@@ -63,16 +63,15 @@ typedef uintptr_t Length;
 
 #if defined(TCMALLOC_LARGE_PAGES)
 static const size_t kPageShift  = 15;
-static const size_t kNumClasses = 95;
-static const size_t kMaxThreadCacheSize = 4 << 20;
+static const size_t kNumClasses = 78;
 #else
-static const size_t kPageShift  = 12;
-static const size_t kNumClasses = 61;
-static const size_t kMaxThreadCacheSize = 2 << 20;
+static const size_t kPageShift  = 13;
+static const size_t kNumClasses = 86;
 #endif
+static const size_t kMaxThreadCacheSize = 4 << 20;
 
 static const size_t kPageSize   = 1 << kPageShift;
-static const size_t kMaxSize    = 8u * kPageSize;
+static const size_t kMaxSize    = 256 * 1024;
 static const size_t kAlignment  = 8;
 static const size_t kLargeSizeClass = 0;
 // For all span-lengths < kMaxPages we keep an exact-size list.
@@ -166,7 +165,7 @@ class SizeMap {
   //   32768      (32768 + 127 + (120<<7)) / 128  376
   static const int kMaxSmallSize = 1024;
   static const size_t kClassArraySize =
-      (((1 << kPageShift) * 8u + 127 + (120 << 7)) >> 7) + 1;
+      ((kMaxSize + 127 + (120 << 7)) >> 7) + 1;
   unsigned char class_array_[kClassArraySize];
 
   // Compute index of the class_array[] entry for a given size

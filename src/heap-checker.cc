@@ -52,7 +52,7 @@
 #include <time.h>
 #include <assert.h>
 
-#ifdef HAVE_LINUX_PTRACE_H
+#if defined(HAVE_LINUX_PTRACE_H) && !defined(__native_client__)
 #include <linux/ptrace.h>
 #endif
 #ifdef HAVE_SYS_SYSCALL_H
@@ -276,10 +276,6 @@ static bool constructor_heap_profiling = false;
 // RAW_VLOG level we dump key INFO messages at.  If you want to turn
 // off these messages, set the environment variable PERFTOOLS_VERBOSE=-1.
 static const int heap_checker_info_level = 0;
-
-//----------------------------------------------------------------------
-// Cancel our InitialMallocHook_* if present.
-static void CancelInitialMallocHooks();  // defined below
 
 //----------------------------------------------------------------------
 // HeapLeakChecker's own memory allocator that is
@@ -1473,7 +1469,7 @@ void HeapLeakChecker::IgnoreObject(const void* ptr) {
                           IgnoredObjectsMap;
     }
     if (!ignored_objects->insert(make_pair(AsInt(ptr), object_size)).second) {
-      RAW_LOG(FATAL, "Object at %p is already being ignored", ptr);
+      RAW_LOG(WARNING, "Object at %p is already being ignored", ptr);
     }
   }
 }

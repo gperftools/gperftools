@@ -126,6 +126,14 @@ void TestMallocExtension(void) {
   if (MallocExtension_GetAllocatedSize(x) < 10) {
     FAIL("GetEstimatedAllocatedSize returned a bad value (too small)");
   }
+  if (MallocExtension_GetOwnership(x) != MallocExtension_kOwned) {
+    FAIL("DidAllocatePtr returned a bad value (kNotOwned)");
+  }
+  /* TODO(csilvers): this relies on undocumented behavior that
+     GetOwnership works on stack-allocated variables.  Use a better test. */
+  if (MallocExtension_GetOwnership(hist) != MallocExtension_kNotOwned) {
+    FAIL("DidAllocatePtr returned a bad value (kOwned)");
+  }
 
   free(x);
 }

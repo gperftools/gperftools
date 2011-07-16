@@ -44,6 +44,7 @@
 #include "port.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
+#include "internal_logging.h"
 #include "system-alloc.h"
 
 // -----------------------------------------------------------------------
@@ -264,6 +265,9 @@ bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
 void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {
   // We don't dump stats on windows, right now
 }
+
+// The current system allocator
+SysAllocator* sys_alloc = NULL;
 
 
 // -----------------------------------------------------------------------

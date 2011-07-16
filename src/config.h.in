@@ -189,6 +189,9 @@
    */
 #undef LT_OBJDIR
 
+/* Define to 'volatile' if __malloc_hook is declared volatile */
+#undef MALLOC_HOOK_MAYBE_VOLATILE
+
 /* Define to 1 if your C compiler doesn't accept -c and -o together. */
 #undef NO_MINUS_C_MINUS_O
 
@@ -231,6 +234,12 @@
 
 /* printf format code for printing a size_t and ssize_t */
 #undef PRIxS
+
+/* Mark the systems where we know it's bad if pthreads runs too
+   early before main (before threads are initialized, presumably).  */
+#ifdef __FreeBSD__
+#define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
+#endif
 
 /* Define to necessary symbol if this constant uses a non-standard name on
    your system. */

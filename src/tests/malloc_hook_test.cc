@@ -36,15 +36,24 @@
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #endif
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>    // for sleep()
+#endif
 #include <algorithm>
 #include <string>
 #include <vector>
 #include <google/malloc_hook.h>
 #include "malloc_hook-inl.h"
 #include "base/logging.h"
-#include "base/spinlock.h"
+#include "base/simple_mutex.h"
 #include "base/sysinfo.h"
 #include "tests/testutil.h"
+
+// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
+// form of the name instead.
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
+#endif
 
 namespace {
 
@@ -72,6 +81,15 @@ static int RUN_ALL_TESTS() {
   return 0;
 }
 
+void Sleep(int seconds) {
+#ifdef _MSC_VER
+  _sleep(seconds * 1000);   // Windows's _sleep takes milliseconds argument
+#else
+  sleep(seconds);
+#endif
+}
+
+using std::min;
 using base::internal::kHookListMaxValues;
 
 // Since HookList is a template and is defined in malloc_hook.cc, we can only
@@ -81,7 +99,7 @@ typedef base::internal::HookList<MallocHook::NewHook> TestHookList;
 
 int TestHookList_Traverse(const TestHookList& list, int* output_array, int n) {
   MallocHook::NewHook values_as_hooks[kHookListMaxValues];
-  int result = list.Traverse(values_as_hooks, std::min(n, kHookListMaxValues));
+  int result = list.Traverse(values_as_hooks, min(n, kHookListMaxValues));
   for (int i = 0; i < result; ++i) {
     output_array[i] = reinterpret_cast<const int&>(values_as_hooks[i]);
   }
@@ -229,12 +247,12 @@ void MultithreadedTestThread(TestHookList* list, int shift,
 
 static volatile int num_threads_remaining;
 static TestHookList list = INIT_HOOK_LIST(69);
-static SpinLock threadcount_lock;
+static Mutex threadcount_lock;
 
 void MultithreadedTestThreadRunner(int thread_num) {
   // Wait for all threads to start running.
   {
-    SpinLockHolder h(&threadcount_lock);
+    MutexLock ml(&threadcount_lock);
     assert(num_threads_remaining > 0);
     --num_threads_remaining;
 
@@ -242,7 +260,7 @@ void MultithreadedTestThreadRunner(int thread_num) {
     // go simple and busy-wait.
     while (num_threads_remaining > 0) {
       threadcount_lock.Unlock();
-      SleepForMilliseconds(100);
+      Sleep(1);
       threadcount_lock.Lock();
     }
   }
@@ -271,7 +289,10 @@ TEST(HookListTest, MultithreadedTest) {
   EXPECT_EQ(0, list.priv_end);
 }
 
-#ifdef HAVE_MMAP
+// We only do mmap-hooking on (some) linux systems.
+#if defined(HAVE_MMAP) && defined(__linux) && \
+    (defined(__i386__) || defined(__x86_64__) || defined(__PPC__))
+
 int mmap_calls = 0;
 int mmap_matching_calls = 0;
 int munmap_calls = 0;
@@ -336,7 +357,7 @@ TEST(MallocMookTest, MmapReplacements) {
   // whoever owns that memory now.
   // EXPECT_DEATH(*ptr = 'a', "SIGSEGV");
 }
-#endif  // #ifdef HAVE_MMAN
+#endif  // #ifdef HAVE_MMAP && linux && ...
 
 }  // namespace
 

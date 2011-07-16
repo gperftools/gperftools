@@ -1,5 +1,34 @@
-// Copyright 2008 Google Inc. All Rights Reserved.
-// Author: ppluzhnikov@google.com (Paul Pluzhnikov)
+// Copyright (c) 2008, Google Inc.
+// All rights reserved.
+//
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
+//
+//     * Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//     * Redistributions in binary form must reproduce the above
+// copyright notice, this list of conditions and the following disclaimer
+// in the documentation and/or other materials provided with the
+// distribution.
+//     * Neither the name of Google Inc. nor the names of its
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+// "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+// LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
+// A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+// OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+// SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+// LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+// DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+// THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+// (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+// OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+// ---
+// Author: Paul Pluzhnikov
 //
 // Allow dynamic symbol lookup in the kernel VDSO page.
 //
@@ -27,19 +56,14 @@
 #define BASE_VDSO_SUPPORT_H_
 
 #include <config.h>
-#ifdef HAVE_FEATURES_H
-#include <features.h>   // for __GLIBC__
-#endif
 #include "base/basictypes.h"
+#include "base/elf_mem_image.h"
 
-// Maybe one day we can rewrite this file not to require the elf
-// symbol extensions in glibc, but for right now we need them.
-#if defined(__ELF__) && defined(__GLIBC__)
+#ifdef HAVE_ELF_MEM_IMAGE
 
 #define HAVE_VDSO_SUPPORT 1
 
 #include <stdlib.h>     // for NULL
-#include <link.h>  // for ElfW
 
 namespace base {
 
@@ -47,45 +71,17 @@ namespace base {
 // use any memory allocation routines.
 class VDSOSupport {
  public:
-  // Sentinel: there could never be a VDSO at this address.
-  static const void *const kInvalidBase;
-
-  // Information about a single vdso symbol.
-  // All pointers are into .dynsym, .dynstr, or .text of the VDSO.
-  // Do not free() them or modify through them.
-  struct SymbolInfo {
-    const char      *name;      // E.g. "__vdso_getcpu"
-    const char      *version;   // E.g. "LINUX_2.6", could be ""
-                                // for unversioned symbol.
-    const void      *address;   // Relocated symbol address.
-    const ElfW(Sym) *symbol;    // Symbol in the dynamic symbol table.
-  };
-
-  // Supports iteration over all dynamic symbols.
-  class SymbolIterator {
-   public:
-    friend class VDSOSupport;
-    const SymbolInfo *operator->() const;
-    const SymbolInfo &operator*() const;
-    SymbolIterator& operator++();
-    bool operator!=(const SymbolIterator &rhs) const;
-    bool operator==(const SymbolIterator &rhs) const;
-   private:
-    SymbolIterator(const void *const image, int index);
-    void Update(int incr);
-    SymbolInfo info_;
-    int index_;
-    const void *const image_;
-  };
-
   VDSOSupport();
+
+  typedef ElfMemImage::SymbolInfo SymbolInfo;
+  typedef ElfMemImage::SymbolIterator SymbolIterator;
 
   // Answers whether we have a vdso at all.
   bool IsPresent() const { return image_.IsPresent(); }
 
   // Allow to iterate over all VDSO symbols.
-  SymbolIterator begin() const;
-  SymbolIterator end() const;
+  SymbolIterator begin() const { return image_.begin(); }
+  SymbolIterator end() const { return image_.end(); }
 
   // Look up versioned dynamic symbol in the kernel VDSO.
   // Returns false if VDSO is not present, or doesn't contain given
@@ -111,33 +107,6 @@ class VDSOSupport {
   static const void *Init();
 
  private:
-  // An in-memory ELF image (may not exist on disk).
-  class ElfMemImage {
-   public:
-    explicit ElfMemImage(const void *base);
-    void                 Init(const void *base);
-    bool                 IsPresent() const { return ehdr_ != NULL; }
-    const ElfW(Phdr)*    GetPhdr(int index) const;
-    const ElfW(Sym)*     GetDynsym(int index) const;
-    const ElfW(Versym)*  GetVersym(int index) const;
-    const ElfW(Verdef)*  GetVerdef(int index) const;
-    const ElfW(Verdaux)* GetVerdefAux(const ElfW(Verdef) *verdef) const;
-    const char*          GetDynstr(ElfW(Word) offset) const;
-    const void*          GetSymAddr(const ElfW(Sym) *sym) const;
-    const char*          GetVerstr(ElfW(Word) offset) const;
-    int                  GetNumSymbols() const;
-   private:
-    const ElfW(Ehdr) *ehdr_;
-    const ElfW(Sym) *dynsym_;
-    const ElfW(Versym) *versym_;
-    const ElfW(Verdef) *verdef_;
-    const ElfW(Word) *hash_;
-    const char *dynstr_;
-    size_t strsize_;
-    size_t verdefnum_;
-    ElfW(Addr) link_base_;     // Link-time base (p_vaddr of first PT_LOAD).
-  };
-
   // image_ represents VDSO ELF image in memory.
   // image_.ehdr_ == NULL implies there is no VDSO.
   ElfMemImage image_;
@@ -181,6 +150,6 @@ class VDSOSupport {
 int GetCPU();
 }  // namespace base
 
-#endif  // __ELF__ and __GLIBC__
+#endif  // HAVE_ELF_MEM_IMAGE
 
 #endif  // BASE_VDSO_SUPPORT_H_

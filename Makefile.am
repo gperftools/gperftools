@@ -30,6 +30,9 @@ AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -fno-builtin-memalign -fno-builtin-posix_memalign \
                -fno-builtin-valloc -fno-builtin-pvalloc
 endif GCC
+if HAVE_W_NO_UNUSED_RESULT
+AM_CXXFLAGS += -Wno-unused-result
+endif HAVE_W_NO_UNUSED_RESULT
 
 # The -no-undefined flag allows libtool to generate shared libraries for
 # Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
@@ -255,11 +258,13 @@ LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/google/malloc_hook.h \
                                     src/google/malloc_hook_c.h \
                                     src/malloc_hook-inl.h \
+                                    src/malloc_hook_mmap_linux.h \
+                                    src/malloc_hook_mmap_freebsd.h \
                                     $(SPINLOCK_INCLUDES) \
                                     $(LOGGING_INCLUDES)
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
-                                   src/maybe_threads.cc \
+                                   $(MAYBE_THREADS_CC) \
                                    src/tests/low_level_alloc_unittest.cc \
                                    $(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES)
 # By default, MallocHook takes stack traces for use by the heap-checker.
@@ -286,11 +291,14 @@ if WITH_STACK_TRACE
 S_STACKTRACE_INCLUDES = src/stacktrace_config.h \
                         src/stacktrace_generic-inl.h \
 			src/stacktrace_libunwind-inl.h \
+			src/stacktrace_nacl-inl.h \
 			src/stacktrace_powerpc-inl.h \
 			src/stacktrace_x86_64-inl.h \
 			src/stacktrace_x86-inl.h \
 			src/stacktrace_win32-inl.h \
+                        src/base/elf_mem_image.h \
                         src/base/vdso_support.h
+
 SG_STACKTRACE_INCLUDES = src/google/stacktrace.h
 STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 googleinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
@@ -298,6 +306,7 @@ googleinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
 ### Making the library
 noinst_LTLIBRARIES += libstacktrace.la
 libstacktrace_la_SOURCES = src/stacktrace.cc \
+                           src/base/elf_mem_image.cc \
                            src/base/vdso_support.cc \
                            $(STACKTRACE_INCLUDES)
 libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)
@@ -363,6 +372,11 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/sampler.h \
                               src/central_freelist.h \
                               src/linked_list.h \
+                              src/libc_override.h \
+                              src/libc_override_gcc_and_weak.h \
+                              src/libc_override_glibc.h \
+                              src/libc_override_osx.h \
+                              src/libc_override_redefine.h \
                               src/page_heap.h \
                               src/page_heap_allocator.h \
                               src/span.h \
@@ -372,6 +386,8 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/stack_trace_table.h \
                               src/base/thread_annotations.h \
                               src/malloc_hook-inl.h \
+                              src/malloc_hook_mmap_linux.h \
+                              src/malloc_hook_mmap_freebsd.h \
                               src/maybe_threads.h
 SG_TCMALLOC_MINIMAL_INCLUDES = src/google/malloc_hook.h \
                                src/google/malloc_hook_c.h \
@@ -442,6 +458,8 @@ LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 ##                           src/google/malloc_hook.h \
 ##                           src/google/malloc_hook_c.h \
 ##                           src/malloc_hook-inl.h \
+##                           src/malloc_hook_mmap_linux.h \
+##                           src/malloc_hook_mmap_freebsd.h \
 ##                           src/base/basictypes.h \
 ##                           src/maybe_threads.h
 ## malloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
@@ -597,6 +615,7 @@ endif !ENABLE_STATIC
 endif !MINGW
 
 if !MINGW
+if !OSX
 TESTS += memalign_unittest
 memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
                             src/tcmalloc.h \
@@ -605,6 +624,7 @@ memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
 memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 memalign_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+endif !OSX
 endif !MINGW
 
 TESTS += page_heap_test
@@ -727,11 +747,15 @@ malloc_extension_debug_test_CXXFLAGS = $(malloc_extension_test_CXXFLAGS)
 malloc_extension_debug_test_LDFLAGS = $(malloc_extension_test_LDFLAGS)
 malloc_extension_debug_test_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
 
+if !MINGW
+if !OSX
 TESTS += memalign_debug_unittest
 memalign_debug_unittest_SOURCES = $(memalign_unittest_SOURCES)
 memalign_debug_unittest_CXXFLAGS = $(memalign_unittest_CXXFLAGS)
 memalign_debug_unittest_LDFLAGS = $(memalign_unittest_LDFLAGS)
 memalign_debug_unittest_LDADD = libtcmalloc_minimal_debug.la $(PTHREAD_LIBS)
+endif !OSX
+endif !MINGW
 
 TESTS += realloc_debug_unittest
 realloc_debug_unittest_SOURCES = $(realloc_unittest_SOURCES)
@@ -852,14 +876,15 @@ tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 # This makes sure it's safe to link in both tcmalloc and
 # tcmalloc_minimal.  (One would never do this on purpose, but perhaps
 # by accident...)  When we can compile libprofiler, we also link it in
-# to make sure that works too.
-
-TESTS += tcmalloc_both_unittest
-tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
-                                 src/tests/testutil.h src/tests/testutil.cc \
-                                 $(TCMALLOC_UNITTEST_INCLUDES)
-tcmalloc_both_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
-tcmalloc_both_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+# to make sure that works too.  NOTE: On OS X, it's *not* safe to
+# link both in (we end up with two copies of every global var, and
+# the code tends to pick one arbitrarily), so don't run the test there.
+# (We define these outside the 'if' because they're reused below.)
+tcmalloc_both_unittest_srcs = src/tests/tcmalloc_unittest.cc \
+                              src/tests/testutil.h src/tests/testutil.cc \
+                              $(TCMALLOC_UNITTEST_INCLUDES)
+tcmalloc_both_unittest_cflags = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_both_unittest_lflags = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 if WITH_CPU_PROFILER
 # We want libtcmalloc last on the link line, but due to a bug in
 # libtool involving convenience libs, they need to come last on the
@@ -868,12 +893,19 @@ if WITH_CPU_PROFILER
 # We also put pthreads after tcmalloc, because some pthread
 # implementations define their own malloc, and we need to go on the
 # first linkline to make sure our malloc 'wins'.
-tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
-                               libprofiler.la liblogging.la $(PTHREAD_LIBS)
+tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+                              libprofiler.la liblogging.la $(PTHREAD_LIBS)
 else
-tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
-                               liblogging.la $(PTHREAD_LIBS)
+tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+                              liblogging.la $(PTHREAD_LIBS)
 endif !WITH_CPU_PROFILER
+if !OSX
+TESTS += tcmalloc_both_unittest
+tcmalloc_both_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
+tcmalloc_both_unittest_CXXFLAGS = $(tcmalloc_both_unittest_cflags)
+tcmalloc_both_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
+tcmalloc_both_unittest_LDADD = $(tcmalloc_both_unittest_ladd)
+endif !OSX
 
 TESTS += tcmalloc_large_unittest
 tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
@@ -1221,9 +1253,9 @@ libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS) \
 libtcmalloc_and_profiler_la_LIBADD = $(libtcmalloc_la_LIBADD)
 
 TESTS += tcmalloc_and_profiler_unittest
-tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_SOURCES)
-tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_CXXFLAGS)
-tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_LDFLAGS)
+tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
+tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_cflags)
+tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
 tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
 
 LIBS_TO_WEAKEN += libtcmalloc_and_profiler.la
@@ -1269,8 +1301,8 @@ libtcmalloc.pc: Makefile packages/rpm/rpm.spec
 	echo '' >> "$@".tmp
 	echo 'Name: $(PACKAGE)' >> "$@".tmp
 	echo 'Version: $(VERSION)' >> "$@".tmp
-	-grep '^Summary:' packages/rpm/rpm.spec | sed s/^Summary:/Description:/ | head -n1 >> "$@".tmp
-	-grep '^URL: ' packages/rpm/rpm.spec >> "$@".tmp
+	-grep '^Summary:' $(top_srcdir)/packages/rpm/rpm.spec | sed s/^Summary:/Description:/ | head -n1 >> "$@".tmp
+	-grep '^URL: ' $(top_srcdir)/packages/rpm/rpm.spec >> "$@".tmp
 	echo 'Requires:' >> "$@".tmp
 	echo 'Libs: -L$${libdir} -ltcmalloc' >> "$@".tmp
 	echo 'Libs.private: $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)' >> "$@".tmp

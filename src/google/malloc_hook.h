@@ -81,6 +81,14 @@ extern "C" {
 # endif
 #endif
 
+// The C++ methods below call the C version (MallocHook_*), and thus
+// convert between an int and a bool.  Windows complains about this
+// (a "performance warning") which we don't care about, so we suppress.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable:4800)
+#endif
+
 // Note: malloc_hook_c.h defines MallocHook_*Hook and
 // MallocHook_{Add,Remove}*Hook.  The version of these inside the MallocHook
 // class are defined in terms of the malloc_hook_c version.  See malloc_hook_c.h
@@ -341,5 +349,10 @@ class PERFTOOLS_DLL_DECL MallocHook {
   static void InvokePreSbrkHookSlow(ptrdiff_t increment);
   static void InvokeSbrkHookSlow(const void* result, ptrdiff_t increment);
 };
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
 
 #endif /* _MALLOC_HOOK_H_ */

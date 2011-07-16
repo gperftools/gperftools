@@ -165,6 +165,10 @@ EXTERN_C int perftools_pthread_once(pthread_once_t *once_control,
 #endif  /* __cplusplus */
 #endif  /* HAVE_PTHREAD */
 
+inline void sched_yield(void) {
+  Sleep(0);
+}
+
 /*
  * __declspec(thread) isn't usable in a dll opened via LoadLibrary().
  * But it doesn't work to LoadLibrary() us anyway, because of all the
@@ -260,7 +264,7 @@ class SpinLockHolder {  // Acquires a spinlock for as long as the scope lasts
 #define MAP_PRIVATE    MEM_COMMIT
 #define MAP_SHARED     MEM_RESERVE   /* value of this #define is 100% arbitrary */
 
-#if __STDC__
+#if __STDC__ && !defined(__MINGW32__)
 typedef _off_t off_t;
 #endif
 
@@ -372,7 +376,6 @@ inline char *getcwd(char *buf, size_t size) {
 inline int mkdir(const char *pathname, int) {
   return _mkdir(pathname);
 }
-#endif
 
 inline FILE *popen(const char *command, const char *type) {
   return _popen(command, type);
@@ -380,13 +383,14 @@ inline FILE *popen(const char *command, const char *type) {
 inline int pclose(FILE *stream) {
   return _pclose(stream);
 }
+#endif
 
 EXTERN_C PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len);
 
 /* ----------------------------------- SYSTEM/PROCESS */
 
 typedef int pid_t;
-#if __STDC__
+#if __STDC__ && !defined(__MINGW32__)
 inline pid_t getpid(void) { return _getpid(); }
 #endif
 inline pid_t getppid(void) { return 0; }

@@ -4,11 +4,11 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.7, opensource@google.com)
+AC_INIT(google-perftools, 1.8, opensource@google.com)
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-TCMALLOC_SO_VERSION=1:0:1
-PROFILER_SO_VERSION=1:0:1
+TCMALLOC_SO_VERSION=2:0:2
+PROFILER_SO_VERSION=1:1:1
 
 AC_SUBST(TCMALLOC_SO_VERSION)
 AC_SUBST(PROFILER_SO_VERSION)
@@ -238,6 +238,24 @@ AM_CONDITIONAL(X86_64_AND_NO_FP_BY_DEFAULT,
 rm fp.s
 CFLAGS="$OLD_CFLAGS"
 
+# See if the compiler supports -Wno-unused-result.
+# Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling
+# __attribute__((warn_unused_result)) for things like write(),
+# which we don't care about.
+AC_CACHE_CHECK([if the compiler supports -Wno-unused-result],
+               perftools_cv_w_no_unused_result,
+	       [OLD_CFLAGS="$CFLAGS"
+	        CFLAGS="$CFLAGS -Wno-error -Wno-unused-result"
+		# gcc doesn't warn about unknown flags unless it's
+		# also warning for some other purpose, hence the
+		# divide-by-0.  (We use -Wno-error to make sure the
+		# divide-by-0 doesn't cause this test to fail!)
+	        AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, return 1/0)],
+	                          perftools_cv_w_no_unused_result=yes,
+                                  perftools_cv_w_no_unused_result=no)
+	        CFLAGS="$OLD_CFLAGS"])
+AM_CONDITIONAL(HAVE_W_NO_UNUSED_RESULT,
+	       test "$perftools_cv_w_no_unused_result" = yes)
 
 # Defines PRIuS
 AC_COMPILER_CHARACTERISTICS
@@ -276,9 +294,19 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && (defined(__i386__) || 
 #error gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
 #endif], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
-                      Define to 1 if compiler supports __thread)
+                          Define to 1 if compiler supports __thread)
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
+
+# glibc's __malloc_hook/etc were declared volatile starting in glibc 2.14
+AC_MSG_CHECKING([if __malloc_hook is declared volatile])
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <malloc.h>
+void* (* volatile __malloc_hook)(size_t, const void*) = 0;],)],
+                  [AC_DEFINE(MALLOC_HOOK_MAYBE_VOLATILE, volatile,
+                             Define to 'volatile' if __malloc_hook is declared volatile)
+                   AC_MSG_RESULT([yes])],
+                  [AC_DEFINE(MALLOC_HOOK_MAYBE_VOLATILE, ),
+                   AC_MSG_RESULT([no])])
 
 # Nanosleep requires extra libraries on some architectures (solaris).
 # This sets NANOSLEEP_LIBS.  nanosleep doesn't exist on mingw, which
@@ -334,10 +362,20 @@ AH_TOP([
 #define GOOGLE_PERFTOOLS_CONFIG_H_
 ])
 
+AH_VERBATIM([PTHREADS_CRASHES_IF_RUN_TOO_EARLY],
+	    [/* Mark the systems where we know it's bad if pthreads runs too
+   early before main (before threads are initialized, presumably).  */
+#ifdef __FreeBSD__
+#define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
+#endif])
+
 # MinGW uses autoconf, but also needs the windows shim routines
 # (since it doesn't have its own support for, say, pthreads).
 # This requires us to #include a special header file, and also to
 # link in some windows versions of .o's instead of the unix versions.
+#
+# Also, manually mark systems where we have to be careful how early
+# we run pthreads.  TODO(csilvers): turn this into an autoconf check.
 AH_BOTTOM([
 #ifdef __MINGW32__
 #include "windows/mingw.h"
@@ -346,6 +384,7 @@ AH_BOTTOM([
 #endif  /* #ifndef GOOGLE_PERFTOOLS_CONFIG_H_ */
 ])
 AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
+AM_CONDITIONAL(OSX, expr $host : '.*-apple-darwin.*' >/dev/null 2>&1)
 
 # Redhat 7 (and below?) has sys/ucontext.h, but if you try to #include
 # it directly, the compiler gets upset.  So we pretend we don't have

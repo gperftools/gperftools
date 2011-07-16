@@ -53,14 +53,14 @@
 # define _WIN32_WINNT 0x0501
 #endif
 
-#include "windows/port.h"
-
 #define HAVE_SNPRINTF 1
 
 // Some mingw distributions have a pthreads wrapper, but it doesn't
 // work as well as native windows spinlocks (at least for us).  So
 // pretend the pthreads wrapper doesn't exist, even when it does.
 #undef HAVE_PTHREAD
+
+#include "windows/port.h"
 
 #endif  /* __MINGW32__ */
 

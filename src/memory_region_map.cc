@@ -582,8 +582,8 @@ void MemoryRegionMap::MmapHook(const void* result,
                                int fd, off_t offset) {
   // TODO(maxim): replace all 0x%"PRIxS" by %p when RAW_VLOG uses a safe
   // snprintf reimplementation that does not malloc to pretty-print NULL
-  RAW_VLOG(10, "MMap = 0x%"PRIxPTR" of %"PRIuS" at %llu "
-              "prot %d flags %d fd %d offs %lld",
+  RAW_VLOG(10, "MMap = 0x%"PRIxPTR" of %"PRIuS" at %"PRIu64" "
+              "prot %d flags %d fd %d offs %"PRId64,
               reinterpret_cast<uintptr_t>(result), size,
               reinterpret_cast<uint64>(start), prot, flags, fd,
               static_cast<int64>(offset));

@@ -129,6 +129,7 @@
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
+		</Filter>
 		<Filter
 			Name="Header Files"
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"

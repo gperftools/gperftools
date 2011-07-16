@@ -134,13 +134,13 @@ static void TracePrintf(int fd, const char *fmt, ...)
 // The do_* functions are defined in tcmalloc/tcmalloc.cc,
 // which is included before this file
 // when TCMALLOC_FOR_DEBUGALLOCATION is defined
-#define BASE_MALLOC_NEW(size)    cpp_alloc(size, false)
+// TODO(csilvers): get rid of these now that we are tied to tcmalloc.
+#define BASE_MALLOC_NEW    do_malloc
 #define BASE_MALLOC        do_malloc
 #define BASE_FREE          do_free
 #define BASE_MALLOC_STATS  do_malloc_stats
 #define BASE_MALLOPT       do_mallopt
 #define BASE_MALLINFO      do_mallinfo
-#define BASE_MALLOC_SIZE(ptr) GetSizeWithCallback(ptr, &InvalidGetAllocatedSize)
 
 // ========================================================================= //
 
@@ -995,14 +995,25 @@ class DebugMallocImplementation : public TCMallocImplementation {
     return MallocBlock::MemoryStats(blocks, total, histogram);
   }
 
+  virtual size_t GetEstimatedAllocatedSize(size_t size) {
+    return size;
+  }
+
   virtual size_t GetAllocatedSize(void* p) {
     if (p) {
+      RAW_CHECK(GetOwnership(p) != MallocExtension::kNotOwned,
+                "ptr not allocated by tcmalloc");
       return MallocBlock::FromRawPointer(p)->data_size();
     }
     return 0;
   }
-  virtual size_t GetEstimatedAllocatedSize(size_t size) {
-    return size;
+
+  virtual MallocExtension::Ownership GetOwnership(const void* p) {
+    if (p) {
+      const MallocBlock* mb = MallocBlock::FromRawPointer(p);
+      return TCMallocImplementation::GetOwnership(mb);
+    }
+    return MallocExtension::kNotOwned;   // nobody owns NULL
   }
 
   virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
@@ -1038,8 +1049,10 @@ REGISTER_MODULE_INITIALIZER(debugallocation, {
 // ========================================================================= //
 
 // This is mostly the same a cpp_alloc in tcmalloc.cc.
-// TODO(csilvers): write a wrapper for new-handler so we don't have to
-// copy this code so much.
+// TODO(csilvers): change Allocate() above to call cpp_alloc, so we
+// don't have to reproduce the logic here.  To make tc_new_mode work
+// properly, I think we'll need to separate out the logic of throwing
+// from the logic of calling the new-handler.
 inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
   for (;;) {
     void* p = DebugAllocate(size, new_type);
@@ -1355,29 +1368,5 @@ extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW {
 #endif
 
 extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
-  if (!ptr) {
-    return 0;
-  }
-  MallocBlock* mb = MallocBlock::FromRawPointer(ptr);
-  // This is just to make sure we actually own mb (and ptr).  We don't
-  // use the actual value, just the 'exception' it raises on error.
-  (void)BASE_MALLOC_SIZE(mb);
-  return mb->data_size();
+  return MallocExtension::instance()->GetAllocatedSize(ptr);
 }
-
-// Override __libc_memalign in libc on linux boxes.
-// They have a bug in libc that causes them (very rarely) to allocate
-// with __libc_memalign() yet deallocate with free().
-// This function is an exception to the rule of calling MallocHook method
-// from the stack frame of the allocation function;
-// heap-checker handles this special case explicitly.
-static void *MemalignOverride(size_t align, size_t size, const void *caller)
-    __THROW ATTRIBUTE_SECTION(google_malloc);
-
-static void *MemalignOverride(size_t align, size_t size, const void *caller)
-    __THROW {
-  void *p = do_debug_memalign_or_debug_cpp_memalign(align, size);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
-}
-void *(*__memalign_hook)(size_t, size_t, const void *) = MemalignOverride;

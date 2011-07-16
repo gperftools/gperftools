@@ -204,28 +204,6 @@ that error.  To fix it, just comment out (or delete) the line
 in your config.h file before building.
 
 
-OS X ISSUES
------------
-
-You may need to set the environment variable DYLD_FORCE_FLAT_NAMESPACE
-to use perftools with OS X.  Because of how OS X does symbol binding,
-libc routines will use libc malloc even when the binary is linked with
--ltcmalloc.  This is not usually a problem, but becomes one if the
-application is responsible for freeing that memory: the application
-will use tcmalloc's free() to try to free memory allocated with libc's
-malloc(), which will cause no end of confusion.
-
-One (or both) of these workaround may fix the problem:
-    DYLD_FORCE_FLAT_NAMESPACE=1 myapp
-    DYLD_INSERT_LIBRARIES=path/to/libtcmalloc.dylib myapp
-
-The best solution may depend on the version of OS X being used.
-Neither solution is likely to work if you dlopen() libraries from
-within your application.  If you have any experience with this, we'd
-appreciate you sharing it at
-   http://groups.google.com/group/google-perftools
-
-
 64-BIT ISSUES
 -------------
 

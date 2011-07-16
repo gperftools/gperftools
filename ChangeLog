@@ -1,3 +1,58 @@
+Fri Jul 15 16:10:51 2011    Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.8 release
+	* PORTING: (Disabled) support for patching mmap on freebsd (chapp...)
+	* PORTING: Support volatile __malloc_hook for glibc 2.14 (csilvers)
+	* PORTING: Use _asm rdtsc and __rdtsc to get cycleclock in windows (koda)
+	* PORTING: Fix fd vs. HANDLE compiler error on cygwin (csilvers)
+	* PORTING: Do not test memalign or double-linking on OS X (csilvers)
+	* PORTING: Actually enable TLS on windows (jontra)
+	* PORTING: Some work to compile under Native Client (krasin)
+	* PORTING: deal with pthread_once w/o -pthread on freebsd (csilvers)
+	* Rearrange libc-overriding to make it easier to port (csilvers)
+	* Display source locations in pprof disassembly (sanjay)
+	* BUGFIX: Actually initialize allocator name (mec)
+	* BUGFIX: Keep track of 'overhead' bytes in malloc reporting (csilvers)
+	* Allow ignoring one object twice in the leak checker (glider)
+	* BUGFIX: top10 in pprof should print 10 lines, not 11 (rsc)
+	* Refactor vdso source files (tipp)
+	* Some documentation cleanups
+	* Document MAX_TOTAL_THREAD_CACHE_SIZE <= 1Gb (nsethi)
+	* Add MallocExtension::GetOwnership(ptr) (csilvers)
+	* BUGFIX: We were leaving out a needed $(top_srcdir) in the Makefile
+	* PORTING: Support getting argv0 on OS X
+	* Add 'weblist' command to pprof: like 'list' but html (sanjay)
+	* Improve source listing in pprof (sanjay)
+	* Cap cache sizes to reduce fragmentation (ruemmler)
+	* Improve performance by capping or increasing sizes (ruemmler)
+	* Add M{,un}mapReplacmenet hooks into MallocHook (ribrdb)
+	* Refactored system allocator logic (gangren)
+	* Include cleanups (csilvers)
+	* Add TCMALLOC_SMALL_BUT_SLOW support (ruemmler)
+	* Clarify that tcmalloc stats are MiB (robinson)
+	* Remove support for non-tcmalloc debugallocation (blount)
+	* Add a new test: malloc_hook_test (csilvers)
+	* Change the configure script to be more crosstool-friendly (mcgrathr)
+	* PORTING: leading-underscore changes to support win64 (csilvers)
+	* Improve debugallocation tc_malloc_size (csilvers)
+	* Extend atomicops.h and cyceclock to use ARM V6+ optimized code (sanek)
+	* Change malloc-hook to use a list-like structure (llib)
+	* Add flag to use MAP_PRIVATE in memfs_malloc (gangren)
+	* Windows support for pprof: nul and /usr/bin/file (csilvers)
+	* TESTING: add test on strdup to tcmalloc_test (csilvers)
+	* Augment heap-checker to deal with no-inode maps (csilvers)
+	* Count .dll/.dylib as shared libs in heap-checker (csilvers)
+	* Disable sys_futex for arm; it's not always reliable (sanek)
+	* PORTING: change lots of windows/port.h macros to functions
+	* BUGFIX: Generate correct version# in tcmalloc.h on windows (csilvers)
+	* PORTING: Some casting to make solaris happier about types (csilvers)
+	* TESTING: Disable debugallocation_test in 'minimal' mode (csilvers)
+	* Rewrite debugallocation to be more modular (csilvers)
+	* Don't try to run the heap-checker under valgrind (ppluzhnikov)
+	* BUGFIX: Make focused stat %'s relative, not absolute (sanjay)
+	* BUGFIX: Don't use '//' comments in a C file (csilvers)
+	* Quiet new-gcc compiler warnings via -Wno-unused-result, etc (csilvers)
+
 Fri Feb 04 15:54:31 2011    Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.7 release

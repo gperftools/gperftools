@@ -185,8 +185,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // for the purposes of heap leak checking.
   // If 'ptr' does not point to an active allocated object
   // at the time of this call, it is ignored;
-  // but if it does, the object must not get deleted from the heap later on;
-  // it must also be not already ignored at the time of this call.
+  // but if it does, the object must not get deleted from the heap later on.
   //
   // See also HiddenPointer, below, if you need to prevent a pointer from
   // being traversed by the heap checker but do not wish to transitively
