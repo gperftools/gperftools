@@ -37,6 +37,7 @@
 
 #ifdef HAVE_ELF_MEM_IMAGE  // defined in elf_mem_image.h
 
+#include <stddef.h>   // for size_t, ptrdiff_t
 #include "base/logging.h"
 
 // From binutils/include/elf/common.h (this doesn't appear to be documented

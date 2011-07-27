@@ -1,3 +1,9 @@
+Tue Jul 26 20:57:51 2011    Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.8 release
+	* Added an #include to fix compile breakage on latest gcc's
+	* Removed an extra , in the configure.ac script
+
 Fri Jul 15 16:10:51 2011    Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.8 release

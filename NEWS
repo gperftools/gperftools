@@ -1,4 +1,14 @@
-== 15 July 2011 ==
+== 26 July 2011 ==
+
+I've just released perftools 1.8.1
+
+I was missing an #include that caused the build to break under some
+compilers, especially newer gcc's, that wanted it.  This only affects
+people who build from source, so only the .tar.gz file is updated from
+perftools 1.8.  If you didn't have any problems compiling perftools
+1.8, there's no reason to upgrade.
+
+=== 15 July 2011 ===
 
 I've just released perftools 1.8
 
@@ -26,7 +36,7 @@ running (likely not noticeably) slower.
 
 There are many other changes as well, too numerous to recount here,
 but present in the
-[http://google-perftools.googlecode.com/svn/tags/perftools-1.8/ChangeLog ChangeLog].
+[http://google-perftools.googlecode.com/svn/tags/google-perftools-1.8/ChangeLog ChangeLog].
 
 
 === 7 February 2011 ===
@@ -53,7 +63,7 @@ Among the many new features in this release is a multi-megabyte
 reduction in the amount of tcmalloc overhead uder x86_64, improved
 performance in the case of contention, and many many bugfixes,
 especially architecture-specific bugfixes.  See the
-[http://google-perftools.googlecode.com/svn/tags/perftools-1.7/ChangeLog ChangeLog]
+[http://google-perftools.googlecode.com/svn/tags/google-perftools-1.7/ChangeLog ChangeLog]
 for full details.
 
 One architecture-specific change of note is added comments in the
