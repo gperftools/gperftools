@@ -1,4 +1,17 @@
-== 26 July 2011 ==
+== 11 August 2011 ==
+
+I've just released perftools 1.8.2
+
+I was incorrectly calculating the patch-level in the configuration
+step, meaning the TC_VERSION_PATCH #define in tcmalloc.h was wrong.
+Since the testing framework checks for this, it was failing.  Now it
+should work again.  This time, I was careful to re-run my tests after
+upping the version number. :-)
+
+If you don't care about the TC_VERSION_PATCH #define, there's no
+reason to upgrae.
+
+=== 26 July 2011 ===
 
 I've just released perftools 1.8.1
 

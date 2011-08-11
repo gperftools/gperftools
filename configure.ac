@@ -4,10 +4,10 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.8.1, opensource@google.com)
+AC_INIT(google-perftools, 1.8.2, opensource@google.com)
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-TCMALLOC_SO_VERSION=2:1:2
+TCMALLOC_SO_VERSION=2:2:2
 PROFILER_SO_VERSION=1:2:1
 
 AC_SUBST(TCMALLOC_SO_VERSION)
@@ -23,8 +23,8 @@ AM_CONFIG_HEADER(src/config.h)
 
 # Export the version information (for tc_version and friends)
 TC_VERSION_MAJOR=`expr "$PACKAGE_VERSION" : '\([[0-9]]*\)'`
-TC_VERSION_MINOR=`expr "$PACKAGE_VERSION" : '[[^.]]*\.\([[0-9]]*\)'`
-TC_VERSION_PATCH=`expr "$PACKAGE_VERSION" : '[[^.0-9]]*\([[^0-9]]*\)$'`
+TC_VERSION_MINOR=`expr "$PACKAGE_VERSION" : '[[0-9]]*\.\([[0-9]]*\)'`
+TC_VERSION_PATCH=`expr "$PACKAGE_VERSION" : '[[0-9]]*\.[[0-9]]*\(.*\)$'`
 AC_SUBST(TC_VERSION_MAJOR)
 AC_SUBST(TC_VERSION_MINOR)
 AC_SUBST(TC_VERSION_PATCH)

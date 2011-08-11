@@ -1,6 +1,11 @@
+Thu Aug 11 15:01:47 2011    Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.8.2 release
+	* Fixed calculation of patchlevel, 'make check' should all pass again
+
 Tue Jul 26 20:57:51 2011    Google Inc. <opensource@google.com>
 
-	* google-perftools: version 1.8 release
+	* google-perftools: version 1.8.1 release
 	* Added an #include to fix compile breakage on latest gcc's
 	* Removed an extra , in the configure.ac script
 
