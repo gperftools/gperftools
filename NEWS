@@ -1,4 +1,14 @@
-== 11 August 2011 ==
+== 26 August 2011 ==
+
+I've just released perftools 1.8.3
+
+The star-crossed 1.8 series continues; in 1.8.1, I had accidentally
+removed some code that was needed for FreeBSD.  (Without this code
+many apps would crash at startup.)  This release re-adds that code.
+If you are not on FreeBSD, or are using FreeBSD with perftools 1.8 or
+earlier, there is no need to upgrade.
+
+=== 11 August 2011 ===
 
 I've just released perftools 1.8.2
 

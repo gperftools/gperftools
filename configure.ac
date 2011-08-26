@@ -4,7 +4,7 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.8.2, opensource@google.com)
+AC_INIT(google-perftools, 1.8.3, opensource@google.com)
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 TCMALLOC_SO_VERSION=2:2:2
@@ -361,6 +361,13 @@ AH_TOP([
 #ifndef GOOGLE_PERFTOOLS_CONFIG_H_
 #define GOOGLE_PERFTOOLS_CONFIG_H_
 ])
+
+AH_VERBATIM([PTHREADS_CRASHES_IF_RUN_TOO_EARLY],
+	    [/* Mark the systems where we know it's bad if pthreads runs too
+   early before main (before threads are initialized, presumably).  */
+#ifdef __FreeBSD__
+#define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
+#endif])
 
 # MinGW uses autoconf, but also needs the windows shim routines
 # (since it doesn't have its own support for, say, pthreads).
