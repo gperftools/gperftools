@@ -37,77 +37,79 @@
 
 #include <config.h>
 #include <stddef.h>                     // for size_t
+#if defined HAVE_STDINT_H
+#include <stdint.h>
+#elif defined HAVE_INTTYPES_H
+#include <inttypes.h>
+#else
+#include <sys/types.h>
+#endif
 
 //-------------------------------------------------------------------
 // Utility routines
 //-------------------------------------------------------------------
 
-// Safe debugging routine: we write directly to the stderr file
+// Safe logging helper: we write directly to the stderr file
 // descriptor and avoid FILE buffering because that may invoke
-// malloc()
-extern void TCMalloc_MESSAGE(const char* filename,
-                             int line_number,
-                             const char* format, ...)
-#ifdef HAVE___ATTRIBUTE__
-  __attribute__ ((__format__ (__printf__, 3, 4)))
-#endif
-;
+// malloc().
+//
+// Example:
+//   Log(kLog, __FILE__, __LINE__, "error", bytes);
 
-// Right now, the only non-fatal messages we want to report are when
-// an allocation fails (we'll return NULL eventually, but sometimes
-// want more prominent notice to help debug).  message should be
-// a literal string with no %<whatever> format directives.
-#ifdef TCMALLOC_WARNINGS
-#define MESSAGE(message, num_bytes)                                     \
-   TCMalloc_MESSAGE(__FILE__, __LINE__, message " (%"PRIuS" bytes)\n",  \
-                    static_cast<size_t>(num_bytes))
-#else
-#define MESSAGE(message, num_bytes)
-#endif
-
-// Dumps the specified message and then calls abort().  If
-// "dump_stats" is specified, the first call will also dump the
-// tcmalloc stats.
-extern void TCMalloc_CRASH(bool dump_stats,
-                           const char* filename,
-                           int line_number,
-                           const char* format, ...)
-#ifdef HAVE___ATTRIBUTE__
-  __attribute__ ((__format__ (__printf__, 4, 5)))
-#endif
-;
-
-// This is a class that makes using the macro easier.  With this class,
-// CRASH("%d", i) expands to TCMalloc_CrashReporter.PrintfAndDie("%d", i).
-class PERFTOOLS_DLL_DECL TCMalloc_CrashReporter {
- public:
-  TCMalloc_CrashReporter(bool dump_stats, const char* file, int line)
-      : dump_stats_(dump_stats), file_(file), line_(line) {
-  }
-  void PrintfAndDie(const char* format, ...)
-#ifdef HAVE___ATTRIBUTE__
-      __attribute__ ((__format__ (__printf__, 2, 3)))  // 2,3 due to "this"
-#endif
-;
-
- private:
-  bool dump_stats_;
-  const char* file_;
-  int line_;
+namespace tcmalloc {
+enum LogMode {
+  kLog,                       // Just print the message
+  kCrash,                     // Print the message and crash
+  kCrashWithStats             // Print the message, some stats, and crash
 };
 
-#define CRASH \
-  TCMalloc_CrashReporter(false, __FILE__, __LINE__).PrintfAndDie
+class Logger;
 
-#define CRASH_WITH_STATS \
-  TCMalloc_CrashReporter(true, __FILE__, __LINE__).PrintfAndDie
+// A LogItem holds any of the argument types that can be passed to Log()
+class LogItem {
+ public:
+  LogItem()                     : tag_(kEnd)      { }
+  LogItem(const char* v)        : tag_(kStr)      { u_.str = v; }
+  LogItem(int v)                : tag_(kSigned)   { u_.snum = v; }
+  LogItem(long v)               : tag_(kSigned)   { u_.snum = v; }
+  LogItem(long long v)          : tag_(kSigned)   { u_.snum = v; }
+  LogItem(unsigned int v)       : tag_(kUnsigned) { u_.unum = v; }
+  LogItem(unsigned long v)      : tag_(kUnsigned) { u_.unum = v; }
+  LogItem(unsigned long long v) : tag_(kUnsigned) { u_.unum = v; }
+  LogItem(const void* v)        : tag_(kPtr)      { u_.ptr = v; }
+ private:
+  friend class Logger;
+  enum Tag {
+    kStr,
+    kSigned,
+    kUnsigned,
+    kPtr,
+    kEnd
+  };
+  Tag tag_;
+  union {
+    const char* str;
+    const void* ptr;
+    int64_t snum;
+    uint64_t unum;
+  } u_;
+};
+
+extern void Log(LogMode mode, const char* filename, int line,
+                LogItem a, LogItem b = LogItem(),
+                LogItem c = LogItem(), LogItem d = LogItem());
+
+// Tests can override this function to collect logging messages.
+extern void (*log_message_writer)(const char* msg, int length);
+
+}  // end tcmalloc namespace
 
 // Like assert(), but executed even in NDEBUG mode
 #undef CHECK_CONDITION
 #define CHECK_CONDITION(cond)                                            \
 do {                                                                     \
   if (!(cond)) {                                                         \
-    CRASH("assertion failed: %s\n", #cond);   \
+    ::tcmalloc::Log(::tcmalloc::kCrash, __FILE__, __LINE__, #cond);      \
   }                                                                      \
 } while (0)
 

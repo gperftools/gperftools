@@ -97,15 +97,20 @@ class HeapProfileTable {
   HeapProfileTable(Allocator alloc, DeAllocator dealloc);
   ~HeapProfileTable();
 
-  // Record an allocation at 'ptr' of 'bytes' bytes.
-  // skip_count gives the number of stack frames between this call
-  // and the memory allocation function that was asked to do the allocation.
-  void RecordAlloc(const void* ptr, size_t bytes, int skip_count);
+  // Collect the stack trace for the function that asked to do the
+  // allocation for passing to RecordAlloc() below.
+  //
+  // The stack trace is stored in 'stack'. The stack depth is returned.
+  //
+  // 'skip_count' gives the number of stack frames between this call
+  // and the memory allocation function.
+  static int GetCallerStackTrace(int skip_count, void* stack[kMaxStackDepth]);
 
-  // Direct version of RecordAlloc when the caller stack to use
-  // is already known: call_stack of depth stack_depth.
-  void RecordAllocWithStack(const void* ptr, size_t bytes,
-                            int stack_depth, const void* const call_stack[]);
+  // Record an allocation at 'ptr' of 'bytes' bytes.  'stack_depth'
+  // and 'call_stack' identifying the function that requested the
+  // allocation. They can be generated using GetCallerStackTrace() above.
+  void RecordAlloc(const void* ptr, size_t bytes,
+                   int stack_depth, const void* const call_stack[]);
 
   // Record the deallocation of memory at 'ptr'.
   void RecordFree(const void* ptr);

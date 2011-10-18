@@ -221,9 +221,6 @@ class SizeMap {
   inline int num_objects_to_move(size_t cl) {
     return num_objects_to_move_[cl];
   }
-
-  // Dump contents of the computed size map
-  void Dump(TCMalloc_Printer* out);
 };
 
 // Allocates "bytes" worth of memory and returns it.  Increments

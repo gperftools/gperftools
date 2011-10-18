@@ -31,6 +31,13 @@
 // Author: Urs Holzle <opensource@google.com>
 
 #include "config.h"
+#include <errno.h>
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
+#ifdef HAVE_INTTYPES_H
+#include <inttypes.h>
+#endif
 // We only need malloc.h for struct mallinfo.
 #ifdef HAVE_STRUCT_MALLINFO
 // Malloc can be in several places on older versions of OS X.
@@ -42,34 +49,29 @@
 # include <sys/malloc.h>
 # endif
 #endif
+#ifdef HAVE_PTHREAD
 #include <pthread.h>
-#include <stdio.h>
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>
 #endif
 #include <stdarg.h>
+#include <stdio.h>
+#include <string.h>
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #endif
-#include <sys/types.h>
 #include <sys/stat.h>
-#ifdef HAVE_FCNTL_H
-#include <fcntl.h>
-#endif
+#include <sys/types.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#include <errno.h>
-#include <string.h>
 
 #include <google/malloc_extension.h>
 #include <google/malloc_hook.h>
 #include <google/stacktrace.h>
+#include "addressmap-inl.h"
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
-#include "addressmap-inl.h"
 #include "malloc_hook-inl.h"
 #include "symbolize.h"
 
@@ -124,6 +126,13 @@ DEFINE_bool(symbolize_stacktrace,
             EnvToBool("TCMALLOC_SYMBOLIZE_STACKTRACE", true),
             "Symbolize the stack trace when provided (on some error exits)");
 
+// If we are LD_PRELOAD-ed against a non-pthreads app, then
+// pthread_once won't be defined.  We declare it here, for that
+// case (with weak linkage) which will cause the non-definition to
+// resolve to NULL.  We can then check for NULL or not in Instance.
+extern "C" int pthread_once(pthread_once_t *, void (*)(void))
+    ATTRIBUTE_WEAK;
+
 // ========================================================================= //
 
 // A safe version of printf() that does not do any allocation and
@@ -169,6 +178,7 @@ class FreeQueue {
   }
 
   QueueEntry Pop() {
+    RAW_CHECK(q_back_ != q_front_, "Queue is empty");
     const QueueEntry& ret = q_[q_back_];
     q_back_ = (q_back_ + 1) % kFreeQueueSize;
     return ret;
@@ -191,7 +201,7 @@ struct MallocBlockQueueEntry {
   MallocBlockQueueEntry() : block(NULL), size(0),
                             num_deleter_pcs(0), deleter_threadid(0) {}
   MallocBlockQueueEntry(MallocBlock* b, size_t s) : block(b), size(s) {
-    if (FLAGS_max_free_queue_size != 0) {
+    if (FLAGS_max_free_queue_size != 0 && b != NULL) {
       // Adjust the number of frames to skip (4) if you change the
       // location of this call.
       num_deleter_pcs =
@@ -266,7 +276,8 @@ class MallocBlock {
 
   // This array will be filled with 0xCD, for use with memcmp.
   static unsigned char kMagicDeletedBuffer[1024];
-  static bool deleted_buffer_initialized_;
+  static pthread_once_t deleted_buffer_initialized_;
+  static bool deleted_buffer_initialized_no_pthreads_;
 
  private:  // data layout
 
@@ -561,14 +572,18 @@ class MallocBlock {
 
   static void ProcessFreeQueue(MallocBlock* b, size_t size,
                                int max_free_queue_size) {
-    SpinLockHolder l(&free_queue_lock_);
+    // MallocBlockQueueEntry are about 144 in size, so we can only
+    // use a small array of them on the stack.
+    MallocBlockQueueEntry entries[4];
+    int num_entries = 0;
+    MallocBlockQueueEntry new_entry(b, size);
+    free_queue_lock_.Lock();
     if (free_queue_ == NULL)
       free_queue_ = new FreeQueue<MallocBlockQueueEntry>;
     RAW_CHECK(!free_queue_->Full(), "Free queue mustn't be full!");
 
     if (b != NULL) {
       free_queue_size_ += size + sizeof(MallocBlockQueueEntry);
-      MallocBlockQueueEntry new_entry(b, size);
       free_queue_->Push(new_entry);
     }
 
@@ -576,20 +591,46 @@ class MallocBlock {
     // max_free_queue_size, and the free queue has at least one free
     // space in it.
     while (free_queue_size_ > max_free_queue_size || free_queue_->Full()) {
-      MallocBlockQueueEntry cur = free_queue_->Pop();
-      CheckForDanglingWrites(cur);
-      free_queue_size_ -= cur.size + sizeof(MallocBlockQueueEntry);
-      BASE_FREE(cur.block);
+      RAW_CHECK(num_entries < arraysize(entries), "entries array overflow");
+      entries[num_entries] = free_queue_->Pop();
+      free_queue_size_ -=
+          entries[num_entries].size + sizeof(MallocBlockQueueEntry);
+      num_entries++;
+      if (num_entries == arraysize(entries)) {
+        // The queue will not be full at this point, so it is ok to
+        // release the lock.  The queue may still contain more than
+        // max_free_queue_size, but this is not a strict invariant.
+        free_queue_lock_.Unlock();
+        for (int i = 0; i < num_entries; i++) {
+          CheckForDanglingWrites(entries[i]);
+          BASE_FREE(entries[i].block);
+        }
+        num_entries = 0;
+        free_queue_lock_.Lock();
+      }
     }
     RAW_CHECK(free_queue_size_ >= 0, "Free queue size went negative!");
+    free_queue_lock_.Unlock();
+    for (int i = 0; i < num_entries; i++) {
+      CheckForDanglingWrites(entries[i]);
+      BASE_FREE(entries[i].block);
+    }
+  }
+  
+  static void InitDeletedBuffer() {
+    memset(kMagicDeletedBuffer, kMagicDeletedByte, sizeof(kMagicDeletedBuffer));
+    deleted_buffer_initialized_no_pthreads_ = true;
   }
 
   static void CheckForDanglingWrites(const MallocBlockQueueEntry& queue_entry) {
     // Initialize the buffer if necessary.
-    if (!deleted_buffer_initialized_) {
-      // This is threadsafe.  We hold free_queue_lock_.
-      memset(kMagicDeletedBuffer, 0xcd, sizeof(kMagicDeletedBuffer));
-      deleted_buffer_initialized_ = true;
+    if (pthread_once)
+      pthread_once(&deleted_buffer_initialized_, &InitDeletedBuffer);
+    if (!deleted_buffer_initialized_no_pthreads_) {
+      // This will be the case on systems that don't link in pthreads,
+      // including on FreeBSD where pthread_once has a non-zero address
+      // (but doesn't do anything) even when pthreads isn't linked in.
+      InitDeletedBuffer();
     }
 
     const unsigned char* p =
@@ -614,7 +655,7 @@ class MallocBlock {
     if (memcmp(buffer, kMagicDeletedBuffer, size_of_buffer) == 0) {
       return;
     }
-
+    
     RAW_LOG(ERROR,
             "Found a corrupted memory buffer in MallocBlock (may be offset "
             "from user ptr): buffer index: %zd, buffer ptr: %p, size of "
@@ -625,9 +666,9 @@ class MallocBlock {
     // lines we'll output:
     if (size_of_buffer <= 1024) {
       for (int i = 0; i < size_of_buffer; ++i) {
-        if (buffer[i] != 0xcd) {
-          RAW_LOG(ERROR, "Buffer byte %d is 0x%02x (should be 0xcd).",
-                  i, buffer[i]);
+        if (buffer[i] != kMagicDeletedByte) {
+          RAW_LOG(ERROR, "Buffer byte %d is 0x%02x (should be 0x%02x).",
+                  i, buffer[i], kMagicDeletedByte);
         }
       }
     } else {
@@ -777,7 +818,8 @@ size_t MallocBlock::free_queue_size_ = 0;
 SpinLock MallocBlock::free_queue_lock_(SpinLock::LINKER_INITIALIZED);
 
 unsigned char MallocBlock::kMagicDeletedBuffer[1024];
-bool MallocBlock::deleted_buffer_initialized_ = false;
+pthread_once_t MallocBlock::deleted_buffer_initialized_ = PTHREAD_ONCE_INIT;
+bool MallocBlock::deleted_buffer_initialized_no_pthreads_ = false;
 
 const char* const MallocBlock::kAllocName[] = {
   "malloc",

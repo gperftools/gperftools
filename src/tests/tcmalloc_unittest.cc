@@ -107,10 +107,12 @@ static bool kOSSupportsMemalign = false;
 static inline void* Memalign(size_t align, size_t size) {
   //LOG(FATAL) << "memalign not supported on windows";
   exit(1);
+  return NULL;
 }
 static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
   //LOG(FATAL) << "posix_memalign not supported on windows";
   exit(1);
+  return -1;
 }
 
 // OS X defines posix_memalign in some OS versions but not others;
@@ -120,10 +122,12 @@ static bool kOSSupportsMemalign = false;
 static inline void* Memalign(size_t align, size_t size) {
   //LOG(FATAL) << "memalign not supported on OS X";
   exit(1);
+  return NULL;
 }
 static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
   //LOG(FATAL) << "posix_memalign not supported on OS X";
   exit(1);
+  return -1;
 }
 
 #else

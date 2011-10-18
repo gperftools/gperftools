@@ -291,7 +291,6 @@ if WITH_STACK_TRACE
 S_STACKTRACE_INCLUDES = src/stacktrace_config.h \
                         src/stacktrace_generic-inl.h \
 			src/stacktrace_libunwind-inl.h \
-			src/stacktrace_nacl-inl.h \
 			src/stacktrace_powerpc-inl.h \
 			src/stacktrace_x86_64-inl.h \
 			src/stacktrace_x86-inl.h \

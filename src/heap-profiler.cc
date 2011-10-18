@@ -188,7 +188,7 @@ static void AddRemoveMMapDataLocked(AddOrRemove mode) {
   for (MemoryRegionMap::RegionIterator r = MemoryRegionMap::BeginRegionLocked();
        r != MemoryRegionMap::EndRegionLocked(); ++r) {
     if (mode == ADD) {
-      heap_profile->RecordAllocWithStack(
+      heap_profile->RecordAlloc(
         reinterpret_cast<const void*>(r->start_addr),
         r->end_addr - r->start_addr,
         r->call_stack_depth, r->call_stack);
@@ -324,9 +324,12 @@ static void MaybeDumpProfileLocked() {
 
 // Record an allocation in the profile.
 static void RecordAlloc(const void* ptr, size_t bytes, int skip_count) {
+  // Take the stack trace outside the critical section.
+  void* stack[HeapProfileTable::kMaxStackDepth];
+  int depth = HeapProfileTable::GetCallerStackTrace(skip_count + 1, stack);
   SpinLockHolder l(&heap_lock);
   if (is_on) {
-    heap_profile->RecordAlloc(ptr, bytes, skip_count + 1);
+    heap_profile->RecordAlloc(ptr, bytes, depth, stack);
     MaybeDumpProfileLocked();
   }
 }

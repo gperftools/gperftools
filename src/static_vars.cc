@@ -34,6 +34,7 @@
 #include <stddef.h>                     // for NULL
 #include <new>                          // for operator new
 #include "internal_logging.h"  // for CHECK_CONDITION
+#include "common.h"
 #include "sampler.h"           // for Sampler
 
 namespace tcmalloc {
@@ -46,7 +47,7 @@ PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
 PageHeapAllocator<StackTraceTable::Bucket> Static::bucket_allocator_;
 StackTrace* Static::growth_stacks_ = NULL;
-char Static::pageheap_memory_[sizeof(PageHeap)];
+PageHeap* Static::pageheap_ = NULL;
 
 void Static::InitStaticVars() {
   sizemap_.Init();
@@ -60,7 +61,11 @@ void Static::InitStaticVars() {
   for (int i = 0; i < kNumClasses; ++i) {
     central_cache_[i].Init(i);
   }
-  new ((void*)pageheap_memory_) PageHeap;
+  // It's important to have PageHeap allocated, not in static storage,
+  // so that HeapLeakChecker does not consider all the byte patterns stored
+  // in is caches as pointers that are sources of heap object liveness,
+  // which leads to it missing some memory leaks.
+  pageheap_ = new (MetaDataAlloc(sizeof(PageHeap))) PageHeap;
   DLL_Init(&sampled_objects_);
   Sampler::InitStatics();
 }

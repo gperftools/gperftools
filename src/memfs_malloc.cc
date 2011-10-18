@@ -60,6 +60,10 @@
 #include "base/sysinfo.h"
 #include "internal_logging.h"
 
+// TODO(sanjay): Move the code below into the tcmalloc namespace
+using tcmalloc::kLog;
+using tcmalloc::kCrash;
+using tcmalloc::Log;
 using std::string;
 
 DEFINE_string(memfs_malloc_path, EnvToString("TCMALLOC_MEMFS_MALLOC_PATH", ""),
@@ -135,11 +139,11 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
   if (result != NULL) {
     return result;
   }
-  TCMalloc_MESSAGE(__FILE__, __LINE__,
-                   "HugetlbSysAllocator: failed_=%d allocated=%"PRId64"\n",
-                   failed_, static_cast<int64_t>(hugetlb_base_));
+  Log(kLog, __FILE__, __LINE__,
+      "HugetlbSysAllocator: (failed, allocated)", failed_, hugetlb_base_);
   if (FLAGS_memfs_malloc_abort_on_fail) {
-    CRASH("memfs_malloc_abort_on_fail is set\n");
+    Log(kCrash, __FILE__, __LINE__,
+        "memfs_malloc_abort_on_fail is set");
   }
   return fallback_->Alloc(size, actual_size, alignment);
 }
@@ -157,13 +161,12 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
   if (limit > 0 && hugetlb_base_ + size + extra > limit) {
     // Disable the allocator when there's less than one page left.
     if (limit - hugetlb_base_ < big_page_size_) {
-      TCMalloc_MESSAGE(__FILE__, __LINE__, "reached memfs_malloc_limit_mb\n");
+      Log(kLog, __FILE__, __LINE__, "reached memfs_malloc_limit_mb");
       failed_ = true;
     }
     else {
-      TCMalloc_MESSAGE(__FILE__, __LINE__, "alloc size=%"PRIuS
-                       " too large while %"PRId64" bytes remain\n",
-                       size, static_cast<int64_t>(limit - hugetlb_base_));
+      Log(kLog, __FILE__, __LINE__,
+          "alloc too large (size, bytes left)", size, limit-hugetlb_base_);
     }
     return NULL;
   }
@@ -172,8 +175,8 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
   // hugetlbfs returns EINVAL for ftruncate.
   int ret = ftruncate(hugetlb_fd_, hugetlb_base_ + size + extra);
   if (ret != 0 && errno != EINVAL) {
-    TCMalloc_MESSAGE(__FILE__, __LINE__, "ftruncate failed: %s\n",
-                     strerror(errno));
+    Log(kLog, __FILE__, __LINE__,
+        "ftruncate failed", strerror(errno));
     failed_ = true;
     return NULL;
   }
@@ -188,8 +191,8 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
                 hugetlb_fd_, hugetlb_base_);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
     if (!FLAGS_memfs_malloc_ignore_mmap_fail) {
-      TCMalloc_MESSAGE(__FILE__, __LINE__, "mmap of size %"PRIuS" failed: %s\n",
-                       size + extra, strerror(errno));
+      Log(kLog, __FILE__, __LINE__,
+          "mmap failed (size, error)", size + extra, strerror(errno));
       failed_ = true;
     }
     return NULL;
@@ -213,33 +216,34 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
 
 bool HugetlbSysAllocator::Initialize() {
   char path[PATH_MAX];
-  int rc = snprintf(path, sizeof(path), "%s.XXXXXX",
-                    FLAGS_memfs_malloc_path.c_str());
-  if (rc < 0 || rc >= sizeof(path)) {
-    CRASH("XX fatal: memfs_malloc_path too long\n");
+  const int pathlen = FLAGS_memfs_malloc_path.size();
+  if (pathlen + 8 > sizeof(path)) {
+    Log(kCrash, __FILE__, __LINE__, "XX fatal: memfs_malloc_path too long");
     return false;
   }
+  memcpy(path, FLAGS_memfs_malloc_path.data(), pathlen);
+  memcpy(path + pathlen, ".XXXXXX", 8);  // Also copies terminating \0
 
   int hugetlb_fd = mkstemp(path);
   if (hugetlb_fd == -1) {
-    TCMalloc_MESSAGE(__FILE__, __LINE__,
-                     "warning: unable to create memfs_malloc_path %s: %s\n",
-                     path, strerror(errno));
+    Log(kLog, __FILE__, __LINE__,
+        "warning: unable to create memfs_malloc_path",
+        path, strerror(errno));
     return false;
   }
 
   // Cleanup memory on process exit
   if (unlink(path) == -1) {
-    CRASH("fatal: error unlinking memfs_malloc_path %s: %s\n",
-          path, strerror(errno));
+    Log(kCrash, __FILE__, __LINE__,
+        "fatal: error unlinking memfs_malloc_path", path, strerror(errno));
     return false;
   }
 
   // Use fstatfs to figure out the default page size for memfs
   struct statfs sfs;
   if (fstatfs(hugetlb_fd, &sfs) == -1) {
-    CRASH("fatal: error fstatfs of memfs_malloc_path: %s\n",
-          strerror(errno));
+    Log(kCrash, __FILE__, __LINE__,
+        "fatal: error fstatfs of memfs_malloc_path", strerror(errno));
     return false;
   }
   int64 page_size = sfs.f_bsize;

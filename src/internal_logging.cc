@@ -46,58 +46,132 @@
 
 static const int kLogBufSize = 800;
 
-void TCMalloc_MESSAGE(const char* filename,
-                      int line_number,
-                      const char* format, ...) {
-  char buf[kLogBufSize];
-  const int n = snprintf(buf, sizeof(buf), "%s:%d] ", filename, line_number);
-  if (n < kLogBufSize) {
-    va_list ap;
-    va_start(ap, format);
-    perftools_vsnprintf(buf + n, kLogBufSize - n, format, ap);
-    va_end(ap);
-  }
-  write(STDERR_FILENO, buf, strlen(buf));
-}
-
+// Variables for storing crash output.  Allocated statically since we
+// may not be able to heap-allocate while crashing.
+static SpinLock crash_lock(base::LINKER_INITIALIZED);
+static bool crashed = false;
 static const int kStatsBufferSize = 16 << 10;
 static char stats_buffer[kStatsBufferSize] = { 0 };
 
-static void TCMalloc_CRASH_internal(bool dump_stats,
-                                    const char* filename,
-                                    int line_number,
-                                    const char* format, va_list ap) {
-  char buf[kLogBufSize];
-  const int n = snprintf(buf, sizeof(buf), "%s:%d] ", filename, line_number);
-  if (n < kLogBufSize) {
-    perftools_vsnprintf(buf + n, kLogBufSize - n, format, ap);
+namespace tcmalloc {
+
+static void WriteMessage(const char* msg, int length) {
+  write(STDERR_FILENO, msg, length);
+}
+
+void (*log_message_writer)(const char* msg, int length) = WriteMessage;
+
+
+class Logger {
+ public:
+  bool Add(const LogItem& item);
+  bool AddStr(const char* str, int n);
+  bool AddNum(uint64_t num, int base);  // base must be 10 or 16.
+
+  static const int kBufSize = 200;
+  char* p_;
+  char* end_;
+  char buf_[kBufSize];
+};
+
+void Log(LogMode mode, const char* filename, int line,
+         LogItem a, LogItem b, LogItem c, LogItem d) {
+  Logger state;
+  state.p_ = state.buf_;
+  state.end_ = state.buf_ + sizeof(state.buf_);
+  state.AddStr(filename, strlen(filename))
+      && state.AddStr(":", 1)
+      && state.AddNum(line, 10)
+      && state.AddStr("]", 1)
+      && state.Add(a)
+      && state.Add(b)
+      && state.Add(c)
+      && state.Add(d);
+
+  // Teminate with newline
+  if (state.p_ >= state.end_) {
+    state.p_ = state.end_ - 1;
   }
-  write(STDERR_FILENO, buf, strlen(buf));
-  if (dump_stats) {
+  *state.p_ = '\n';
+  state.p_++;
+
+  int msglen = state.p_ - state.buf_;
+  if (mode == kLog) {
+    (*log_message_writer)(state.buf_, msglen);
+    return;
+  }
+
+  bool first_crash = false;
+  {
+    SpinLockHolder l(&crash_lock);
+    if (!crashed) {
+      crashed = true;
+      first_crash = true;
+    }
+  }
+
+  (*log_message_writer)(state.buf_, msglen);
+  if (first_crash && mode == kCrashWithStats) {
     MallocExtension::instance()->GetStats(stats_buffer, kStatsBufferSize);
-    write(STDERR_FILENO, stats_buffer, strlen(stats_buffer));
+    (*log_message_writer)(stats_buffer, strlen(stats_buffer));
   }
 
   abort();
 }
 
-void TCMalloc_CRASH(bool dump_stats,
-                    const char* filename,
-                    int line_number,
-                    const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  TCMalloc_CRASH_internal(dump_stats, filename, line_number, format, ap);
-  va_end(ap);
+bool Logger::Add(const LogItem& item) {
+  // Separate items with spaces
+  if (p_ < end_) {
+    *p_ = ' ';
+    p_++;
+  }
+
+  switch (item.tag_) {
+    case LogItem::kStr:
+      return AddStr(item.u_.str, strlen(item.u_.str));
+    case LogItem::kUnsigned:
+      return AddNum(item.u_.unum, 10);
+    case LogItem::kSigned:
+      if (item.u_.snum < 0) {
+        // The cast to uint64_t is intentionally before the negation
+        // so that we do not attempt to negate -2^63.
+        return AddStr("-", 1)
+            && AddNum(- static_cast<uint64_t>(item.u_.snum), 10);
+      } else {
+        return AddNum(static_cast<uint64_t>(item.u_.snum), 10);
+      }
+    case LogItem::kPtr:
+      return AddStr("0x", 2)
+          && AddNum(reinterpret_cast<uintptr_t>(item.u_.ptr), 16);
+    default:
+      return false;
+  }
 }
 
-
-void TCMalloc_CrashReporter::PrintfAndDie(const char* format, ...) {
-  va_list ap;
-  va_start(ap, format);
-  TCMalloc_CRASH_internal(dump_stats_, file_, line_, format, ap);
-  va_end(ap);
+bool Logger::AddStr(const char* str, int n) {
+  if (end_ - p_ < n) {
+    return false;
+  } else {
+    memcpy(p_, str, n);
+    p_ += n;
+    return true;
+  }
 }
+
+bool Logger::AddNum(uint64_t num, int base) {
+  static const char kDigits[] = "0123456789abcdef";
+  char space[22];  // more than enough for 2^64 in smallest supported base (10)
+  char* end = space + sizeof(space);
+  char* pos = end;
+  do {
+    pos--;
+    *pos = kDigits[num % base];
+    num /= base;
+  } while (num > 0 && pos > space);
+  return AddStr(pos, end - pos);
+}
+
+}  // end tcmalloc namespace
 
 void TCMalloc_Printer::printf(const char* format, ...) {
   if (left_ > 0) {

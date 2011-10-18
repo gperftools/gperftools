@@ -342,103 +342,25 @@ void PageHeap::RegisterSizeClass(Span* span, size_t sc) {
   }
 }
 
-static double MiB(uint64_t bytes) {
-  return bytes / 1048576.0;
-}
-
-static double PagesToMiB(uint64_t pages) {
-  return (pages << kPageShift) / 1048576.0;
-}
-
-void PageHeap::GetClassSizes(int64 class_sizes_normal[kMaxPages],
-                             int64 class_sizes_returned[kMaxPages],
-                             int64* normal_pages_in_spans,
-                             int64* returned_pages_in_spans) {
-
+void PageHeap::GetSmallSpanStats(SmallSpanStats* result) {
   for (int s = 0; s < kMaxPages; s++) {
-    if (class_sizes_normal != NULL) {
-      class_sizes_normal[s] = DLL_Length(&free_[s].normal);
-    }
-    if (class_sizes_returned != NULL) {
-      class_sizes_returned[s] = DLL_Length(&free_[s].returned);
-    }
-  }
-
-  if (normal_pages_in_spans != NULL) {
-    *normal_pages_in_spans = 0;
-    for (Span* s = large_.normal.next; s != &large_.normal; s = s->next) {
-      *normal_pages_in_spans += s->length;;
-    }
-  }
-
-  if (returned_pages_in_spans != NULL) {
-    *returned_pages_in_spans = 0;
-    for (Span* s = large_.returned.next; s != &large_.returned; s = s->next) {
-      *returned_pages_in_spans += s->length;
-    }
+    result->normal_length[s] = DLL_Length(&free_[s].normal);
+    result->returned_length[s] = DLL_Length(&free_[s].returned);
   }
 }
 
-void PageHeap::Dump(TCMalloc_Printer* out) {
-  int nonempty_sizes = 0;
-  for (int s = 0; s < kMaxPages; s++) {
-    if (!DLL_IsEmpty(&free_[s].normal) || !DLL_IsEmpty(&free_[s].returned)) {
-      nonempty_sizes++;
-    }
-  }
-  out->printf("------------------------------------------------\n");
-  out->printf("PageHeap: %d sizes; %6.1f MiB free; %6.1f MiB unmapped\n",
-              nonempty_sizes, MiB(stats_.free_bytes),
-              MiB(stats_.unmapped_bytes));
-  out->printf("------------------------------------------------\n");
-  uint64_t total_normal = 0;
-  uint64_t total_returned = 0;
-  for (int s = 0; s < kMaxPages; s++) {
-    const int n_length = DLL_Length(&free_[s].normal);
-    const int r_length = DLL_Length(&free_[s].returned);
-    if (n_length + r_length > 0) {
-      uint64_t n_pages = s * n_length;
-      uint64_t r_pages = s * r_length;
-      total_normal += n_pages;
-      total_returned += r_pages;
-      out->printf("%6u pages * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
-                  "; unmapped: %6.1f MiB; %6.1f MiB cum\n",
-                  s,
-                  (n_length + r_length),
-                  PagesToMiB(n_pages + r_pages),
-                  PagesToMiB(total_normal + total_returned),
-                  PagesToMiB(r_pages),
-                  PagesToMiB(total_returned));
-    }
-  }
-
-  uint64_t n_pages = 0;
-  uint64_t r_pages = 0;
-  int n_spans = 0;
-  int r_spans = 0;
-  out->printf("Normal large spans:\n");
+void PageHeap::GetLargeSpanStats(LargeSpanStats* result) {
+  result->spans = 0;
+  result->normal_pages = 0;
+  result->returned_pages = 0;
   for (Span* s = large_.normal.next; s != &large_.normal; s = s->next) {
-    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MiB\n",
-                s->length, PagesToMiB(s->length));
-    n_pages += s->length;
-    n_spans++;
+    result->normal_pages += s->length;;
+    result->spans++;
   }
-  out->printf("Unmapped large spans:\n");
   for (Span* s = large_.returned.next; s != &large_.returned; s = s->next) {
-    out->printf("   [ %6" PRIuPTR " pages ] %6.1f MiB\n",
-                s->length, PagesToMiB(s->length));
-    r_pages += s->length;
-    r_spans++;
+    result->returned_pages += s->length;
+    result->spans++;
   }
-  total_normal += n_pages;
-  total_returned += r_pages;
-  out->printf(">255   large * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
-              "; unmapped: %6.1f MiB; %6.1f MiB cum\n",
-              (n_spans + r_spans),
-              PagesToMiB(n_pages + r_pages),
-              PagesToMiB(total_normal + total_returned),
-              PagesToMiB(r_pages),
-              PagesToMiB(total_returned));
 }
 
 bool PageHeap::GetNextRange(PageID start, base::MallocRange* r) {

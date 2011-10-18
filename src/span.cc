@@ -89,16 +89,6 @@ int DLL_Length(const Span* list) {
   return result;
 }
 
-#if 0  // This isn't used.  If that changes, rewrite to use TCMalloc_Printer.
-void DLL_Print(const char* label, const Span* list) {
-  MESSAGE("%-10s %p:", label, list);
-  for (const Span* s = list->next; s != list; s = s->next) {
-    MESSAGE(" <%p,%"PRIuPTR",%"PRIuPTR">", s, s->start, s->length);
-  }
-  MESSAGE("%s\n", "");  // %s is to get around a compiler error.
-}
-#endif
-
 void DLL_Prepend(Span* list, Span* span) {
   ASSERT(span->next == NULL);
   ASSERT(span->prev == NULL);

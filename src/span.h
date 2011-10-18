@@ -96,11 +96,6 @@ void DLL_Prepend(Span* list, Span* span);
 // Return the length of the linked list. O(n)
 int DLL_Length(const Span* list);
 
-// Print the contents of the list to stderr.
-#if 0  // This isn't used.
-void DLL_Print(const char* label, const Span* list);
-#endif
-
 }  // namespace tcmalloc
 
 #endif  // TCMALLOC_SPAN_H_

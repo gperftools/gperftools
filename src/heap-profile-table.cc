@@ -189,15 +189,13 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
   return b;
 }
 
-void HeapProfileTable::RecordAlloc(const void* ptr, size_t bytes,
-                                   int skip_count) {
-  void* key[kMaxStackDepth];
-  int depth = MallocHook::GetCallerStackTrace(
-    key, kMaxStackDepth, kStripFrames + skip_count + 1);
-  RecordAllocWithStack(ptr, bytes, depth, key);
+int HeapProfileTable::GetCallerStackTrace(
+    int skip_count, void* stack[kMaxStackDepth]) {
+  return MallocHook::GetCallerStackTrace(
+      stack, kMaxStackDepth, kStripFrames + skip_count + 1);
 }
 
-void HeapProfileTable::RecordAllocWithStack(
+void HeapProfileTable::RecordAlloc(
     const void* ptr, size_t bytes, int stack_depth,
     const void* const call_stack[]) {
   Bucket* b = GetBucket(stack_depth, call_stack);

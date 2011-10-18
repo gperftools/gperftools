@@ -35,7 +35,7 @@
 #include <string.h>                     // for NULL, memset
 #include "base/spinlock.h"              // for SpinLockHolder
 #include "common.h"            // for StackTrace
-#include "internal_logging.h"  // for MESSAGE, ASSERT
+#include "internal_logging.h"  // for ASSERT, Log
 #include "page_heap_allocator.h"  // for PageHeapAllocator
 #include "static_vars.h"       // for Static
 
@@ -93,7 +93,8 @@ void StackTraceTable::AddTrace(const StackTrace& t) {
     bucket_total_++;
     b = Static::bucket_allocator()->New();
     if (b == NULL) {
-      MESSAGE("tcmalloc: could not allocate bucket", sizeof(*b));
+      Log(kLog, __FILE__, __LINE__,
+          "tcmalloc: could not allocate bucket", sizeof(*b));
       error_ = true;
     } else {
       b->hash = h;
@@ -114,8 +115,9 @@ void** StackTraceTable::ReadStackTracesAndClear() {
   const int out_len = bucket_total_ * 3 + depth_total_ + 1;
   void** out = new void*[out_len];
   if (out == NULL) {
-    MESSAGE("tcmalloc: allocation failed for stack traces\n",
-            out_len * sizeof(*out));
+    Log(kLog, __FILE__, __LINE__,
+        "tcmalloc: allocation failed for stack traces",
+        out_len * sizeof(*out));
     return NULL;
   }
 

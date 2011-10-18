@@ -32,6 +32,7 @@
 
 #include <config.h>
 #include "thread_cache.h"
+#include <errno.h>
 #include <string.h>                     // for memcpy
 #include <algorithm>                    // for max, min
 #include "base/commandlineflags.h"      // for SpinLockHolder
@@ -86,7 +87,8 @@ bool kernel_supports_tls = false;      // be conservative
     void CheckIfKernelSupportsTLS() {
       struct utsname buf;
       if (uname(&buf) != 0) {   // should be impossible
-        MESSAGE("uname failed assuming no TLS support (errno=%d)\n", errno);
+        Log(kLog, __FILE__, __LINE__,
+            "uname failed assuming no TLS support (errno)", errno);
         kernel_supports_tls = false;
       } else if (strcasecmp(buf.sysname, "linux") == 0) {
         // The linux case: the first kernel to support TLS was 2.6.0
@@ -260,10 +262,6 @@ void ThreadCache::Scavenge() {
   }
 
   IncreaseCacheLimit();
-
-//   int64 finish = CycleClock::Now();
-//   CycleTimer ct;
-//   MESSAGE("GC: %.0f ns\n", ct.CyclesToUsec(finish-start)*1000.0);
 }
 
 void ThreadCache::IncreaseCacheLimit() {
@@ -476,30 +474,6 @@ void ThreadCache::RecomputePerThreadCacheSize() {
   }
   unclaimed_cache_space_ = overall_thread_cache_size_ - claimed;
   per_thread_cache_size_ = space;
-  //  TCMalloc_MESSAGE(__FILE__, __LINE__, "Threads %d => cache size %8d\n", n, int(space));
-}
-
-void ThreadCache::Print(TCMalloc_Printer* out) const {
-  for (int cl = 0; cl < kNumClasses; ++cl) {
-    out->printf("      %5" PRIuS " : %4" PRIuS " len; %4d lo; %4"PRIuS
-                " max; %4"PRIuS" overages;\n",
-                Static::sizemap()->ByteSizeForClass(cl),
-                list_[cl].length(),
-                list_[cl].lowwatermark(),
-                list_[cl].max_length(),
-                list_[cl].length_overages());
-  }
-}
-
-void ThreadCache::PrintThreads(TCMalloc_Printer* out) {
-  size_t actual_limit = 0;
-  for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
-    h->Print(out);
-    actual_limit += h->max_size_;
-  }
-  out->printf("ThreadCache overall: %"PRIuS ", unclaimed: %"PRIdS
-              ", actual: %"PRIuS"\n",
-              overall_thread_cache_size_, unclaimed_cache_space_, actual_limit);
 }
 
 void ThreadCache::GetThreadStats(uint64_t* total_bytes, uint64_t* class_count) {

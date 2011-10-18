@@ -84,6 +84,19 @@
 #include <AvailabilityMacros.h>
 #include <malloc/malloc.h>
 
+// from AvailabilityMacros.h
+#if defined(MAC_OS_X_VERSION_10_6) && \
+    MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+extern "C" {
+  // This function is only available on 10.6 (and later) but the
+  // LibSystem headers do not use AvailabilityMacros.h to handle weak
+  // importing automatically.  This prototype is a copy of the one in
+  // <malloc/malloc.h> with the WEAK_IMPORT_ATTRBIUTE added.
+  extern malloc_zone_t *malloc_default_purgeable_zone(void)
+      WEAK_IMPORT_ATTRIBUTE;
+}
+#endif
+
 // We need to provide wrappers around all the libc functions.
 namespace {
 size_t mz_size(malloc_zone_t* zone, const void* ptr) {
@@ -235,8 +248,13 @@ static void ReplaceSystemAlloc() {
   // doing tiny and small allocs.  Sadly, it assumes that the default
   // zone is the szone implementation from OS X and will crash if it
   // isn't.  By creating the zone now, this will be true and changing
-  // the default zone won't cause a problem.  (OS X 10.6 and higher.)
-  malloc_default_purgeable_zone();
+  // the default zone won't cause a problem.  This only needs to
+  // happen when actually running on OS X 10.6 and higher (note the
+  // ifdef above only checks if we were *compiled* with 10.6 or
+  // higher; at runtime we have to check if this symbol is defined.)
+  if (malloc_default_purgeable_zone) {
+    malloc_default_purgeable_zone();
+  }
 #endif
 
   // Register the tcmalloc zone. At this point, it will not be the

@@ -76,6 +76,10 @@ static const bool kDebugMode = false;
 static const bool kDebugMode = true;
 #endif
 
+// TODO(sanjay): Move the code below into the tcmalloc namespace
+using tcmalloc::kLog;
+using tcmalloc::Log;
+
 // Anonymous namespace to avoid name conflicts on "CheckAddressBits".
 namespace {
 
@@ -420,7 +424,7 @@ void* DefaultSysAllocator::Alloc(size_t size, size_t *actual_size,
       if (result != NULL) {
         return result;
       }
-      TCMalloc_MESSAGE(__FILE__, __LINE__, "%s failed.\n", names_[i]);
+      Log(kLog, __FILE__, __LINE__, names_[i], "failed");
       failed_[i] = true;
     }
   }

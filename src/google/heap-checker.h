@@ -181,16 +181,22 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   };
 
   // Ignore an object located at 'ptr' (can go at the start or into the object)
-  // as well as all heap objects (transitively) referenced from it
-  // for the purposes of heap leak checking.
-  // If 'ptr' does not point to an active allocated object
-  // at the time of this call, it is ignored;
-  // but if it does, the object must not get deleted from the heap later on.
+  // as well as all heap objects (transitively) referenced from it for the
+  // purposes of heap leak checking. Returns 'ptr' so that one can write
+  //   static T* obj = IgnoreObject(new T(...));
+  //
+  // If 'ptr' does not point to an active allocated object at the time of this
+  // call, it is ignored; but if it does, the object must not get deleted from
+  // the heap later on.
   //
   // See also HiddenPointer, below, if you need to prevent a pointer from
   // being traversed by the heap checker but do not wish to transitively
   // whitelist objects referenced through it.
-  static void IgnoreObject(const void* ptr);
+  template <typename T>
+  static T* IgnoreObject(T* ptr) {
+    DoIgnoreObject(static_cast<const void*>(const_cast<const T*>(ptr)));
+    return ptr;
+  }
 
   // Undo what an earlier IgnoreObject() call promised and asked to do.
   // At the time of this call 'ptr' must point at or inside of an active
@@ -239,8 +245,8 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   friend int main(int, char**);
 
 
-  // Helper for DisableChecksIn
-  static void DisableChecksInLocked(const char* pattern);
+  // Actually implements IgnoreObject().
+  static void DoIgnoreObject(const void* ptr);
 
   // Disable checks based on stack trace entry at a depth <=
   // max_depth.  Used to hide allocations done inside some special

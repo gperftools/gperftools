@@ -65,9 +65,7 @@ class Static {
   // must be protected by pageheap_lock.
 
   // Page-level allocator.
-  static PageHeap* pageheap() {
-    return reinterpret_cast<PageHeap*>(pageheap_memory_);
-  }
+  static PageHeap* pageheap() { return pageheap_; }
 
   static PageHeapAllocator<Span>* span_allocator() { return &span_allocator_; }
 
@@ -105,10 +103,7 @@ class Static {
   // is stored in trace->stack[kMaxStackDepth-1].
   static StackTrace* growth_stacks_;
 
-  // PageHeap uses a constructor for initialization.  Like the members above,
-  // we can't depend on initialization order, so pageheap is new'd
-  // into this buffer.
-  static char pageheap_memory_[sizeof(PageHeap)];
+  static PageHeap* pageheap_;
 };
 
 }  // namespace tcmalloc

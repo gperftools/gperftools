@@ -156,6 +156,13 @@ bin_PROGRAMS =
 
 ### Unittests
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_38 = tcmalloc_unittest
+
+# This makes sure it's safe to link in both tcmalloc and
+# tcmalloc_minimal.  (One would never do this on purpose, but perhaps
+# by accident...)  When we can compile libprofiler, we also link it in
+# to make sure that works too.  NOTE: On OS X, it's *not* safe to
+# link both in (we end up with two copies of every global var, and
+# the code tends to pick one arbitrarily), so don't run the test there.
 @OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_39 = tcmalloc_both_unittest
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_40 =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_large_unittest \
@@ -1206,9 +1213,9 @@ am__tcmalloc_and_profiler_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
 	src/tests/testutil.cc src/config_for_unittests.h \
 	src/google/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_41 = tcmalloc_and_profiler_unittest-tcmalloc_unittest.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_and_profiler_unittest-testutil.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_41 = tcmalloc_and_profiler_unittest-tcmalloc_unittest.$(OBJEXT) \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_and_profiler_unittest-testutil.$(OBJEXT) \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_and_profiler_unittest_OBJECTS = $(am__objects_41)
 tcmalloc_and_profiler_unittest_OBJECTS =  \
 	$(am_tcmalloc_and_profiler_unittest_OBJECTS)
@@ -1217,29 +1224,27 @@ am__tcmalloc_both_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
 	src/tests/testutil.cc src/config_for_unittests.h \
 	src/google/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_42 = tcmalloc_both_unittest-tcmalloc_unittest.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_both_unittest-testutil.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_both_unittest_OBJECTS = $(am__objects_42)
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_both_unittest_OBJECTS = tcmalloc_both_unittest-tcmalloc_unittest.$(OBJEXT) \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_both_unittest-testutil.$(OBJEXT) \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
 tcmalloc_both_unittest_OBJECTS = $(am_tcmalloc_both_unittest_OBJECTS)
-@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_8 = $(am__DEPENDENCIES_6) \
-@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_5) \
-@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	liblogging.la \
-@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_8 = $(am__DEPENDENCIES_6) \
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_5) \
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libprofiler.la \
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	liblogging.la \
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_DEPENDENCIES = $(am__DEPENDENCIES_8)
+@OSX_FALSE@@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_DEPENDENCIES = $(am__DEPENDENCIES_6) \
+@OSX_FALSE@@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_5) \
+@OSX_FALSE@@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	liblogging.la \
+@OSX_FALSE@@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_DEPENDENCIES = $(am__DEPENDENCIES_6) \
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_5) \
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libprofiler.la \
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	liblogging.la \
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
 am__tcmalloc_debug_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tcmalloc.h \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/google/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_43 = tcmalloc_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_42 = tcmalloc_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_debug_unittest-testutil.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_debug_unittest_OBJECTS = $(am__objects_43)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_debug_unittest_OBJECTS = $(am__objects_42)
 tcmalloc_debug_unittest_OBJECTS =  \
 	$(am_tcmalloc_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_debug_unittest_DEPENDENCIES = libtcmalloc_debug.la \
@@ -1256,12 +1261,12 @@ am__tcmalloc_minimal_debug_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
 	src/tests/testutil.cc src/config_for_unittests.h \
 	src/google/malloc_extension.h
-am__objects_44 =  \
+am__objects_43 =  \
 	tcmalloc_minimal_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
 	tcmalloc_minimal_debug_unittest-testutil.$(OBJEXT) \
 	$(am__objects_1)
 @WITH_DEBUGALLOC_TRUE@am_tcmalloc_minimal_debug_unittest_OBJECTS =  \
-@WITH_DEBUGALLOC_TRUE@	$(am__objects_44)
+@WITH_DEBUGALLOC_TRUE@	$(am__objects_43)
 tcmalloc_minimal_debug_unittest_OBJECTS =  \
 	$(am_tcmalloc_minimal_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@tcmalloc_minimal_debug_unittest_DEPENDENCIES =  \
@@ -2320,22 +2325,14 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 # implementations define their own malloc, and we need to go on the
 # first linkline to make sure our malloc 'wins'.
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                 src/tests/testutil.h src/tests/testutil.cc \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                 $(TCMALLOC_UNITTEST_INCLUDES)
 
-# This makes sure it's safe to link in both tcmalloc and
-# tcmalloc_minimal.  (One would never do this on purpose, but perhaps
-# by accident...)  When we can compile libprofiler, we also link it in
-# to make sure that works too.  NOTE: On OS X, it's *not* safe to
-# link both in (we end up with two copies of every global var, and
-# the code tends to pick one arbitrarily), so don't run the test there.
-# (We define these outside the 'if' because they're reused below.)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_srcs = src/tests/tcmalloc_unittest.cc \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                              src/tests/testutil.h src/tests/testutil.cc \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                              $(TCMALLOC_UNITTEST_INCLUDES)
-
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_cflags = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_lflags = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
-@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                              liblogging.la $(PTHREAD_LIBS)
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+@OSX_FALSE@@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+@OSX_FALSE@@WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               liblogging.la $(PTHREAD_LIBS)
 
 # We want libtcmalloc last on the link line, but due to a bug in
 # libtool involving convenience libs, they need to come last on the
@@ -2344,13 +2341,9 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 # We also put pthreads after tcmalloc, because some pthread
 # implementations define their own malloc, and we need to go on the
 # first linkline to make sure our malloc 'wins'.
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                              libprofiler.la liblogging.la $(PTHREAD_LIBS)
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDADD = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+@OSX_FALSE@@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               libprofiler.la liblogging.la $(PTHREAD_LIBS)
 
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_CXXFLAGS = $(tcmalloc_both_unittest_cflags)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_both_unittest_LDADD = $(tcmalloc_both_unittest_ladd)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
@@ -2538,9 +2531,9 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 # libstacktrace.la, which we already get via libtcmalloc.  Trying to
 # specify it twice causes link-time duplicate-definition errors. :-(
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_and_profiler_la_LIBADD = $(libtcmalloc_la_LIBADD)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_cflags)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_SOURCES)
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_CXXFLAGS)
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_LDFLAGS)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
 
 # http://linux.die.net/man/1/pkg-config, http://pkg-config.freedesktop.org/wiki

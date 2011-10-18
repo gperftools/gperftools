@@ -36,7 +36,7 @@
 #include "config.h"
 #include "profile-handler.h"
 
-#if !(defined(__CYGWIN__) || defined(__CYGWIN32__)) && !defined(__native_client__)
+#if !(defined(__CYGWIN__) || defined(__CYGWIN32__))
 
 #include <stdio.h>
 #include <errno.h>
@@ -478,14 +478,12 @@ extern "C" void ProfileHandlerGetState(ProfileHandlerState* state) {
   ProfileHandler::Instance()->GetState(state);
 }
 
-#else  // !defined(OS_CYGWIN) && !defined(__native_client__)
+#else  // OS_CYGWIN
 
 // ITIMER_PROF doesn't work under cygwin.  ITIMER_REAL is available, but doesn't
 // work as well for profiling, and also interferes with alarm().  Because of
 // these issues, unless a specific need is identified, profiler support is
 // disabled under Cygwin.
-//
-// Native Client runtime also does not have signals working.
 extern "C" void ProfileHandlerRegisterThread() {
 }
 
@@ -503,4 +501,4 @@ extern "C" void ProfileHandlerReset() {
 extern "C" void ProfileHandlerGetState(ProfileHandlerState* state) {
 }
 
-#endif  // !defined(OS_CYGWIN) && !defined(__native_client__)
+#endif  // OS_CYGWIN

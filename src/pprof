@@ -104,7 +104,10 @@ my $GROWTH_PAGE = "/pprof/growth";
 my $CONTENTION_PAGE = "/pprof/contention";
 my $WALL_PAGE = "/pprof/wall(?:\\?.*)?";  # accepts options like namefilter
 my $FILTEREDPROFILE_PAGE = "/pprof/filteredprofile(?:\\?.*)?";
-my $CENSUSPROFILE_PAGE = "/pprof/censusprofile";  # must support "?seconds=#"
+my $CENSUSPROFILE_PAGE = "/pprof/censusprofile(?:\\?.*)?"; # must support cgi-param
+                                                       # "?seconds=#",
+                                                       # "?tags_regexp=#" and
+                                                       # "?type=#".
 my $SYMBOL_PAGE = "/pprof/symbol";     # must support symbol lookup via POST
 my $PROGRAM_NAME_PAGE = "/pprof/cmdline";
 
@@ -1187,10 +1190,35 @@ sub PrintText {
   }
 }
 
+# Callgrind format has a compression for repeated function and file
+# names.  You show the name the first time, and just use its number
+# subsequently.  This can cut down the file to about a third or a
+# quarter of its uncompressed size.  $key and $val are the key/value
+# pair that would normally be printed by callgrind; $map is a map from
+# value to number.
+sub CompressedCGName {
+  my($key, $val, $map) = @_;
+  my $idx = $map->{$val};
+  # For very short keys, providing an index hurts rather than helps.
+  if (length($val) <= 3) {
+    return "$key=$val\n";
+  } elsif (defined($idx)) {
+    return "$key=($idx)\n";
+  } else {
+    # scalar(keys $map) gives the number of items in the map.
+    $idx = scalar(keys(%{$map})) + 1;
+    $map->{$val} = $idx;
+    return "$key=($idx) $val\n";
+  }
+}
+
 # Print the call graph in a way that's suiteable for callgrind.
 sub PrintCallgrind {
   my $calls = shift;
   my $filename;
+  my %filename_to_index_map;
+  my %fnname_to_index_map;
+
   if ($main::opt_interactive) {
     $filename = shift;
     print STDERR "Writing callgrind file to '$filename'.\n"
@@ -1211,11 +1239,14 @@ sub PrintCallgrind {
          $callee_file, $callee_line, $callee_function ) =
        ( $1, $2, $3, $5, $6, $7 );
 
-      
-    printf CG ("fl=$caller_file\nfn=$caller_function\n");
+    # TODO(csilvers): for better compression, collect all the
+    # caller/callee_files and functions first, before printing
+    # anything, and only compress those referenced more than once.
+    printf CG CompressedCGName("fl", $caller_file, \%filename_to_index_map);
+    printf CG CompressedCGName("fn", $caller_function, \%fnname_to_index_map);
     if (defined $6) {
-      printf CG ("cfl=$callee_file\n");
-      printf CG ("cfn=$callee_function\n");
+      printf CG CompressedCGName("cfl", $callee_file, \%filename_to_index_map);
+      printf CG CompressedCGName("cfn", $callee_function, \%fnname_to_index_map);
       printf CG ("calls=$count $callee_line\n");
     }
     printf CG ("$caller_line $count\n\n");
@@ -3330,7 +3361,7 @@ sub FetchDynamicProfile {
     }
 
     (system($cmd) == 0) || error("Failed to get profile: $cmd: $!\n");
-    (system("mv $tmp_profile $real_profile") == 0) || error("Unable to rename profile\n");
+    (system("mv", $tmp_profile, $real_profile) == 0) || error("Unable to rename profile\n");
     print STDERR "Wrote profile to $real_profile\n";
     $main::collected_profile = $real_profile;
     return $main::collected_profile;
@@ -4934,6 +4965,21 @@ sub GetProcedureBoundariesViaNm {
 sub GetProcedureBoundaries {
   my $image = shift;
   my $regexp = shift;
+
+  # If $image doesn't start with /, then put ./ in front of it.  This works
+  # around an obnoxious bug in our probing of nm -f behavior.
+  # "nm -f $image" is supposed to fail on GNU nm, but if:
+  #
+  # a. $image starts with [BbSsPp] (for example, bin/foo/bar), AND
+  # b. you have a.out in your current directory (a not uncommon occurence)
+  #
+  # then "nm -f $image" succeeds because -f only looks at the first letter of
+  # the argument, which looks valid because it's [BbSsPp], and then since
+  # there's no image provided, it looks for a.out and finds it.
+  #
+  # This regex makes sure that $image starts with . or /, forcing the -f
+  # parsing to fail since . and / are not valid formats.
+  $image =~ s#^[^/]#./$&#;
 
   # For libc libraries, the copy in /usr/lib/debug contains debugging symbols
   my $debugging = DebuggingLibrary($image);

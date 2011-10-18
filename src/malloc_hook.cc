@@ -46,7 +46,6 @@
 #include <stdint.h>
 #endif
 #include <algorithm>
-#include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "maybe_threads.h"
@@ -204,14 +203,8 @@ static SpinLock hooklist_spinlock(base::LINKER_INITIALIZED);
 
 template <typename T>
 bool HookList<T>::Add(T value_as_t) {
-  // Note: we need to check this _before_ reinterpret_cast, since
-  // reinterpret_cast may include random junk from memory.
-  if (value_as_t == 0) {
-    return false;
-  }
-  AtomicWord value = reinterpret_cast<const AtomicWord&>(value_as_t);
+  AtomicWord value = bit_cast<AtomicWord>(value_as_t);
   if (value == 0) {
-    // This should not actually happen, but just to be sure...
     return false;
   }
   SpinLockHolder l(&hooklist_spinlock);
@@ -240,8 +233,7 @@ bool HookList<T>::Remove(T value_as_t) {
   SpinLockHolder l(&hooklist_spinlock);
   AtomicWord hooks_end = base::subtle::Acquire_Load(&priv_end);
   int index = 0;
-  // Note: we need to cast back to T since T may be smaller than AtomicWord.
-  while (index < hooks_end && value_as_t != reinterpret_cast<T>(
+  while (index < hooks_end && value_as_t != bit_cast<T>(
              base::subtle::Acquire_Load(&priv_data[index]))) {
     ++index;
   }
@@ -268,7 +260,7 @@ int HookList<T>::Traverse(T* output_array, int n) const {
   for (int i = 0; i < hooks_end && n > 0; ++i) {
     AtomicWord data = base::subtle::Acquire_Load(&priv_data[i]);
     if (data != 0) {
-      *output_array++ = reinterpret_cast<const T&>(data);
+      *output_array++ = bit_cast<T>(data);
       ++actual_hooks_end;
       --n;
     }
@@ -705,9 +697,7 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
 #if defined(__linux)
 # include "malloc_hook_mmap_linux.h"
 
-// This code doesn't even compile on my freebsd 8.1 (x86_64) system,
-// so comment it out for now.  TODO(csilvers): fix this!
-#elif 0 && defined(__FreeBSD__)
+#elif defined(__FreeBSD__)
 # include "malloc_hook_mmap_freebsd.h"
 
 #else

@@ -378,9 +378,14 @@
 
 #define ANNOTALYSIS_STATIC_INLINE
 #define ANNOTALYSIS_SEMICOLON_OR_EMPTY_BODY ;
+#define ANNOTALYSIS_IGNORE_READS_BEGIN
+#define ANNOTALYSIS_IGNORE_READS_END
+#define ANNOTALYSIS_IGNORE_WRITES_BEGIN
+#define ANNOTALYSIS_IGNORE_WRITES_END
+#define ANNOTALYSIS_UNPROTECTED_READ
 
-#if defined(__GNUC__) && defined(__SUPPORT_TS_ANNOTATION__) \
-  && (!defined(SWIG)) && defined(__SUPPORT_DYN_ANNOTATION__)
+#if defined(__GNUC__) && (!defined(SWIG)) && (!defined(__clang__)) && \
+    defined(__SUPPORT_TS_ANNOTATION__) && defined(__SUPPORT_DYN_ANNOTATION__)
 
 #if DYNAMIC_ANNOTATIONS_ENABLED == 0
 #define ANNOTALYSIS_ONLY 1
@@ -389,21 +394,22 @@
 #undef ANNOTALYSIS_SEMICOLON_OR_EMPTY_BODY
 #define ANNOTALYSIS_SEMICOLON_OR_EMPTY_BODY { (void)file; (void)line; }
 #endif
-#define ANNOTALYSIS_IGNORE_READS_BEGIN   __attribute__ ((ignore_reads_begin))
-#define ANNOTALYSIS_IGNORE_READS_END     __attribute__ ((ignore_reads_end))
-#define ANNOTALYSIS_IGNORE_WRITES_BEGIN  __attribute__ ((ignore_writes_begin))
-#define ANNOTALYSIS_IGNORE_WRITES_END    __attribute__ ((ignore_writes_end))
-#define ANNOTALYSIS_UNPROTECTED_READ     __attribute__ ((unprotected_read))
 
-#else
-
-#define ANNOTALYSIS_IGNORE_READS_BEGIN
-#define ANNOTALYSIS_IGNORE_READS_END
-#define ANNOTALYSIS_IGNORE_WRITES_BEGIN
-#define ANNOTALYSIS_IGNORE_WRITES_END
-#define ANNOTALYSIS_UNPROTECTED_READ
-
+/* Only emit attributes when annotalysis is enabled. */
+#if defined(__SUPPORT_TS_ANNOTATION__) && defined(__SUPPORT_DYN_ANNOTATION__)
+#undef  ANNOTALYSIS_IGNORE_READS_BEGIN
+#define ANNOTALYSIS_IGNORE_READS_BEGIN  __attribute__ ((ignore_reads_begin))
+#undef  ANNOTALYSIS_IGNORE_READS_END
+#define ANNOTALYSIS_IGNORE_READS_END    __attribute__ ((ignore_reads_end))
+#undef  ANNOTALYSIS_IGNORE_WRITES_BEGIN
+#define ANNOTALYSIS_IGNORE_WRITES_BEGIN __attribute__ ((ignore_writes_begin))
+#undef  ANNOTALYSIS_IGNORE_WRITES_END
+#define ANNOTALYSIS_IGNORE_WRITES_END   __attribute__ ((ignore_writes_end))
+#undef  ANNOTALYSIS_UNPROTECTED_READ
+#define ANNOTALYSIS_UNPROTECTED_READ    __attribute__ ((unprotected_read))
 #endif
+
+#endif // defined(__GNUC__) && (!defined(SWIG)) && (!defined(__clang__))
 
 /* Use the macros above rather than using these functions directly. */
 #ifdef __cplusplus
@@ -604,7 +610,7 @@ double ValgrindSlowdown(void);
     #undef ANNOTATE_UNPROTECTED_READ
     template <class T>
     inline T ANNOTATE_UNPROTECTED_READ(const volatile T &x)
-        __attribute__ ((unprotected_read)) {
+         ANNOTALYSIS_UNPROTECTED_READ {
       ANNOTATE_IGNORE_READS_BEGIN();
       T res = x;
       ANNOTATE_IGNORE_READS_END();

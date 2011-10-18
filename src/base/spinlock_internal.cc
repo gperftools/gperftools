@@ -44,7 +44,7 @@
 
 #if defined(_WIN32)
 #include "base/spinlock_win32-inl.h"
-#elif defined(__linux__) && !defined(__native_client__)
+#elif defined(__linux__)
 #include "base/spinlock_linux-inl.h"
 #else
 #include "base/spinlock_posix-inl.h"

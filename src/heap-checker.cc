@@ -52,7 +52,7 @@
 #include <time.h>
 #include <assert.h>
 
-#if defined(HAVE_LINUX_PTRACE_H) && !defined(__native_client__)
+#if defined(HAVE_LINUX_PTRACE_H)
 #include <linux/ptrace.h>
 #endif
 #ifdef HAVE_SYS_SYSCALL_H
@@ -545,6 +545,23 @@ inline static uintptr_t AsInt(const void* ptr) {
 
 //----------------------------------------------------------------------
 
+// We've seen reports that strstr causes heap-checker crashes in some
+// libc's (?):
+//    http://code.google.com/p/google-perftools/issues/detail?id=263
+// It's simple enough to use our own.  This is not in time-critical code.
+static const char* hc_strstr(const char* s1, const char* s2) {
+  const size_t len = strlen(s2);
+  RAW_CHECK(len > 0, "Unexpected empty string passed to strstr()");
+  for (const char* p = strchr(s1, *s2); p != NULL; p = strchr(p+1, *s2)) {
+    if (strncmp(p, s2, len) == 0) {
+      return p;
+    }
+  }
+  return NULL;
+}
+
+//----------------------------------------------------------------------
+
 // Our hooks for MallocHook
 static void NewHook(const void* ptr, size_t size) {
   if (ptr != NULL) {
@@ -552,6 +569,11 @@ static void NewHook(const void* ptr, size_t size) {
     const bool ignore = (counter > 0);
     RAW_VLOG(16, "Recording Alloc: %p of %"PRIuS "; %d", ptr, size,
              int(counter));
+
+    // Fetch the caller's stack trace before acquiring heap_checker_lock.
+    void* stack[HeapProfileTable::kMaxStackDepth];
+    int depth = HeapProfileTable::GetCallerStackTrace(0, stack);
+
     { SpinLockHolder l(&heap_checker_lock);
       if (size > max_heap_object_size) max_heap_object_size = size;
       uintptr_t addr = AsInt(ptr);
@@ -559,7 +581,7 @@ static void NewHook(const void* ptr, size_t size) {
       addr += size;
       if (addr > max_heap_address) max_heap_address = addr;
       if (heap_checker_on) {
-        heap_profile->RecordAlloc(ptr, size, 0);
+        heap_profile->RecordAlloc(ptr, size, depth, stack);
         if (ignore) {
           heap_profile->MarkAsIgnored(ptr);
         }
@@ -791,7 +813,7 @@ static void RecordGlobalDataLocked(uintptr_t start_address,
 // See if 'library' from /proc/self/maps has base name 'library_base'
 // i.e. contains it and has '.' or '-' after it.
 static bool IsLibraryNamed(const char* library, const char* library_base) {
-  const char* p = strstr(library, library_base);
+  const char* p = hc_strstr(library, library_base);
   size_t sz = strlen(library_base);
   return p != NULL  &&  (p[sz] == '.'  ||  p[sz] == '-');
 }
@@ -903,11 +925,11 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
     if (inode != 0) {
       saw_nonzero_inode = true;
     }
-    if ((strstr(filename, "lib") && strstr(filename, ".so")) ||
-        strstr(filename, ".dll") ||
+    if ((hc_strstr(filename, "lib") && hc_strstr(filename, ".so")) ||
+        hc_strstr(filename, ".dll") ||
         // not all .dylib filenames start with lib. .dylib is big enough
         // that we are unlikely to get false matches just checking that.
-        strstr(filename, ".dylib") || strstr(filename, ".bundle")) {
+        hc_strstr(filename, ".dylib") || hc_strstr(filename, ".bundle")) {
       saw_shared_lib = true;
       if (inode != 0) {
         saw_shared_lib_with_nonzero_inode = true;
@@ -1455,7 +1477,7 @@ void HeapLeakChecker::DisableChecksIn(const char* pattern) {
 }
 
 // static
-void HeapLeakChecker::IgnoreObject(const void* ptr) {
+void HeapLeakChecker::DoIgnoreObject(const void* ptr) {
   SpinLockHolder l(&heap_checker_lock);
   if (!heap_checker_on) return;
   size_t object_size;
@@ -1889,6 +1911,11 @@ static bool internal_init_start_has_run = false;
               "Heap-check constructor called twice.  Perhaps you both linked"
               " in the heap checker, and also used LD_PRELOAD to load it?");
     internal_init_start_has_run = true;
+
+#ifdef ADDRESS_SANITIZER
+    // AddressSanitizer's custom malloc conflicts with HeapChecker.
+    FLAGS_heap_check = "";
+#endif
 
     if (FLAGS_heap_check.empty()) {
       // turns out we do not need checking in the end; can stop profiling

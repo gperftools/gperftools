@@ -103,7 +103,6 @@
 # include "stacktrace_libunwind-inl.h"
 # include "stacktrace_generic-inl.h"
 # include "stacktrace_powerpc-inl.h"
-# include "stacktrace_nacl-inl.h"
 # include "stacktrace_win32-inl.h"
 #else
 # error Cannot calculate stack trace: will need to write for your environment

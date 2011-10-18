@@ -61,7 +61,7 @@
 extern "C" uint64 __rdtsc();
 #pragma intrinsic(__rdtsc)
 #endif
-#ifdef ARMV3
+#if defined(ARMV3) || defined(__mips__)
 #include <sys/time.h>
 #endif
 
@@ -134,6 +134,12 @@ struct CycleClock {
       }
     }
 #endif
+    struct timeval tv;
+    gettimeofday(&tv, NULL);
+    return static_cast<int64>(tv.tv_sec) * 1000000 + tv.tv_usec;
+#elif defined(__mips__)
+    // mips apparently only allows rdtsc for superusers, so we fall
+    // back to gettimeofday.  It's possible clock_gettime would be better.
     struct timeval tv;
     gettimeofday(&tv, NULL);
     return static_cast<int64>(tv.tv_sec) * 1000000 + tv.tv_usec;

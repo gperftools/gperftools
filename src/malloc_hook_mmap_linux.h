@@ -48,7 +48,20 @@
 // The x86-32 case and the x86-64 case differ:
 // 32b has a mmap2() syscall, 64b does not.
 // 64b and 32b have different calling conventions for mmap().
-#if defined(__i386__) || defined(__PPC__)
+
+// I test for 64-bit first so I don't have to do things like
+// '#if (defined(__mips__) && !defined(__MIPS64__))' as a mips32 check.
+#if defined(__x86_64__) || defined(__PPC64__) || (defined(_MIPS_SIM) && _MIPS_SIM == _ABI64)
+
+static inline void* do_mmap64(void *start, size_t length,
+                              int prot, int flags,
+                              int fd, __off64_t offset) __THROW {
+  return sys_mmap(start, length, prot, flags, fd, offset);
+}
+
+#define MALLOC_HOOK_HAVE_DO_MMAP64 1
+
+#elif defined(__i386__) || defined(__PPC__) || defined(__mips__)
 
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,
@@ -88,7 +101,8 @@ static inline void* do_mmap64(void *start, size_t length,
   {
     // Fall back to old 32-bit offset mmap() call
     // Old syscall interface cannot handle six args, so pass in an array
-    int32 args[6] = { (int32) start, length, prot, flags, fd, (off_t) offset };
+    int32 args[6] = { (int32) start, (int32) length, prot, flags, fd,
+                      (off_t) offset };
     result = (void *)syscall(SYS_mmap, args);
   }
  out:
@@ -97,17 +111,7 @@ static inline void* do_mmap64(void *start, size_t length,
 
 #define MALLOC_HOOK_HAVE_DO_MMAP64 1
 
-#elif defined(__x86_64__) || defined(__PPC64__)  // #if defined(__i386__) || ...
-
-static inline void* do_mmap64(void *start, size_t length,
-                              int prot, int flags,
-                              int fd, __off64_t offset) __THROW {
-  return (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
-}
-
-#define MALLOC_HOOK_HAVE_DO_MMAP64 1
-
-#endif  // #if defined(__i386__) || defined(__PPC__)
+#endif  // #if defined(__x86_64__)
 
 
 #ifdef MALLOC_HOOK_HAVE_DO_MMAP64

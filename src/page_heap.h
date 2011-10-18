@@ -64,7 +64,6 @@
 # include <google/stacktrace.h>
 #endif
 
-class TCMalloc_Printer;
 namespace base {
 struct MallocRange;
 }
@@ -137,9 +136,6 @@ class PERFTOOLS_DLL_DECL PageHeap {
     return reinterpret_cast<Span*>(pagemap_.get(p));
   }
 
-  // Dump state to stderr
-  void Dump(TCMalloc_Printer* out);
-
   // If this page heap is managing a range with starting page # >= start,
   // store info about the range in *r and return true.  Else return false.
   bool GetNextRange(PageID start, base::MallocRange* r);
@@ -152,10 +148,22 @@ class PERFTOOLS_DLL_DECL PageHeap {
     uint64_t unmapped_bytes;  // Total bytes on returned freelists
   };
   inline Stats stats() const { return stats_; }
-  void GetClassSizes(int64 class_sizes_normal[kMaxPages],
-                     int64 class_sizes_returned[kMaxPages],
-                     int64* normal_pages_in_spans,
-                     int64* returned_pages_in_spans);
+
+  struct SmallSpanStats {
+    // For each free list of small spans, the length (in spans) of the
+    // normal and returned free lists for that size.
+    int64 normal_length[kMaxPages];
+    int64 returned_length[kMaxPages];
+  };
+  void GetSmallSpanStats(SmallSpanStats* result);
+
+  // Stats for free large spans (i.e., spans with more than kMaxPages pages).
+  struct LargeSpanStats {
+    int64 spans;           // Number of such spans
+    int64 normal_pages;    // Combined page length of normal large spans
+    int64 returned_pages;  // Combined page length of unmapped spans
+  };
+  void GetLargeSpanStats(LargeSpanStats* result);
 
   bool Check();
   // Like Check() but does some more comprehensive checking.
