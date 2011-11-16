@@ -85,7 +85,7 @@ DECLARE_int32(verbose);
     if (!(condition)) {                                                 \
       WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
                       sizeof("Check failed: " #condition "\n")-1);      \
-      exit(1);                                                          \
+      abort();                                                          \
     }                                                                   \
   } while (0)
 
@@ -95,7 +95,7 @@ DECLARE_int32(verbose);
     if (!(condition)) {                                                        \
       WRITE_TO_STDERR("Check failed: " #condition ": " message "\n",           \
                       sizeof("Check failed: " #condition ": " message "\n")-1);\
-      exit(1);                                                                 \
+      abort();                                                                 \
     }                                                                          \
   } while (0)
 
@@ -118,7 +118,7 @@ enum { DEBUG_MODE = 1 };
                       sizeof("Check failed: " #condition ": ")-1);      \
       WRITE_TO_STDERR(strerror(err_no), strlen(strerror(err_no)));      \
       WRITE_TO_STDERR("\n", sizeof("\n")-1);                            \
-      exit(1);                                                          \
+      abort();                                                          \
     }                                                                   \
   } while (0)
 
@@ -135,7 +135,7 @@ enum { DEBUG_MODE = 1 };
   do {                                                                  \
     if (!((val1) op (val2))) {                                          \
       fprintf(stderr, "Check failed: %s %s %s\n", #val1, #op, #val2);   \
-      exit(1);                                                          \
+      abort();                                                          \
     }                                                                   \
   } while (0)
 

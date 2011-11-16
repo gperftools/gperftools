@@ -42,7 +42,7 @@ void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
   } else if (loop == 1) {
     Sleep(0);
   } else {
-    Sleep(1);
+    Sleep(base::internal::SuggestedDelayNS(loop) / 1000000);
   }
 }
 

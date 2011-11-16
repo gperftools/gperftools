@@ -104,6 +104,7 @@
 # include "stacktrace_generic-inl.h"
 # include "stacktrace_powerpc-inl.h"
 # include "stacktrace_win32-inl.h"
+# include "base/stacktrace_arm-inl.h"
 #else
 # error Cannot calculate stack trace: will need to write for your environment
 #endif

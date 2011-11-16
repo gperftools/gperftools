@@ -1077,14 +1077,18 @@ static DebugMallocImplementation debug_malloc_implementation;
 
 REGISTER_MODULE_INITIALIZER(debugallocation, {
   // Either we or valgrind will control memory management.  We
-  // register our extension if we're the winner.
-  if (RunningOnValgrind()) {
-    // Let Valgrind uses its own malloc (so don't register our extension).
-  } else {
+  // register our extension if we're the winner. Otherwise let
+  // Valgrind use its own malloc (so don't register our extension).
+  if (!RunningOnValgrind()) {
     MallocExtension::Register(&debug_malloc_implementation);
+  }
+});
+
+REGISTER_MODULE_DESTRUCTOR(debugallocation, {
+  if (!RunningOnValgrind()) {
     // When the program exits, check all blocks still in the free
     // queue for corruption.
-    atexit(DanglingWriteChecker);
+    DanglingWriteChecker();
   }
 });
 

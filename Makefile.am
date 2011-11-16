@@ -292,7 +292,6 @@ S_STACKTRACE_INCLUDES = src/stacktrace_config.h \
                         src/stacktrace_generic-inl.h \
 			src/stacktrace_libunwind-inl.h \
 			src/stacktrace_powerpc-inl.h \
-			src/stacktrace_x86_64-inl.h \
 			src/stacktrace_x86-inl.h \
 			src/stacktrace_win32-inl.h \
                         src/base/elf_mem_image.h \
@@ -314,12 +313,12 @@ libstacktrace_la_LDFLAGS = -export-symbols-regex $(STACKTRACE_SYMBOLS)
 
 ### Unittests
 TESTS += stacktrace_unittest
-STACKTRACE_UNITTEST_INLCUDES = src/config_for_unittests.h \
+STACKTRACE_UNITTEST_INCLUDES = src/config_for_unittests.h \
                                src/base/commandlineflags.h \
                                $(STACKTRACE_INCLUDES) \
                                $(LOGGING_INCLUDES)
 stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
-                              $(STACKTRACE_UNITTEST_INLCUDES)
+                              $(STACKTRACE_UNITTEST_INCLUDES)
 stacktrace_unittest_LDADD = libstacktrace.la liblogging.la
 
 ### Documentation

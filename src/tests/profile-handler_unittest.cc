@@ -3,6 +3,13 @@
 //         Chris Demetriou (cgd@google.com)
 //
 // This file contains the unit tests for profile-handler.h interface.
+//
+// It is linked into three separate unit tests:
+//     profile-handler_unittest tests basic functionality
+//     profile-handler_disable_test tests that the profiler
+//         is disabled with --install_signal_handlers=false
+//     profile-handler_conflict_test tests that the profiler
+//         is disabled when a SIGPROF handler is registered before InitGoogle.
 
 #include "config.h"
 #include "profile-handler.h"
@@ -16,6 +23,16 @@
 
 // Some helpful macros for the test class
 #define TEST_F(cls, fn)    void cls :: fn()
+
+// Do we expect the profiler to be enabled?
+DEFINE_bool(test_profiler_enabled, true,
+            "expect profiler to be enabled during tests");
+
+// Should we look at the kernel signal handler settings during the test?
+// Not if we're in conflict_test, because we can't distinguish its nop
+// handler from the real one.
+DEFINE_bool(test_profiler_signal_handler, true,
+            "check profiler signal handler during tests");
 
 namespace {
 
@@ -278,17 +295,24 @@ class ProfileHandlerTest {
     // Check the callback count.
     EXPECT_GT(GetCallbackCount(), 0);
     // Check that the profile timer is enabled.
-    EXPECT_TRUE(IsTimerEnabled());
+    EXPECT_EQ(FLAGS_test_profiler_enabled, IsTimerEnabled());
     // Check that the signal handler is enabled.
-    EXPECT_TRUE(IsSignalEnabled());
+    if (FLAGS_test_profiler_signal_handler) {
+      EXPECT_EQ(FLAGS_test_profiler_enabled, IsSignalEnabled());
+    }
     uint64 interrupts_before = GetInterruptCount();
     // Sleep for a bit and check that tick counter is making progress.
     int old_tick_count = tick_counter;
     Delay(kSleepInterval);
     int new_tick_count = tick_counter;
-    EXPECT_GT(new_tick_count, old_tick_count);
     uint64 interrupts_after = GetInterruptCount();
-    EXPECT_GT(interrupts_after, interrupts_before);
+    if (FLAGS_test_profiler_enabled) {
+      EXPECT_GT(new_tick_count, old_tick_count);
+      EXPECT_GT(interrupts_after, interrupts_before);
+    } else {
+      EXPECT_EQ(new_tick_count, old_tick_count);
+      EXPECT_EQ(interrupts_after, interrupts_before);
+    }
   }
 
   // Verifies that a callback is not receiving profile ticks.
@@ -300,7 +324,9 @@ class ProfileHandlerTest {
     EXPECT_EQ(old_tick_count, new_tick_count);
     // If no callbacks, signal handler and shared timer should be disabled.
     if (GetCallbackCount() == 0) {
-      EXPECT_FALSE(IsSignalEnabled());
+      if (FLAGS_test_profiler_signal_handler) {
+        EXPECT_FALSE(IsSignalEnabled());
+      }
       if (timer_separate_) {
         EXPECT_TRUE(IsTimerEnabled());
       } else {
@@ -313,7 +339,9 @@ class ProfileHandlerTest {
   // timer, if shared, is disabled. Expects the worker to be running.
   void VerifyDisabled() {
     // Check that the signal handler is disabled.
-    EXPECT_FALSE(IsSignalEnabled());
+    if (FLAGS_test_profiler_signal_handler) {
+      EXPECT_FALSE(IsSignalEnabled());
+    }
     // Check that the callback count is 0.
     EXPECT_EQ(0, GetCallbackCount());
     // Check that the timer is disabled if shared, enabled otherwise.
@@ -465,8 +493,10 @@ TEST_F(ProfileHandlerTest, RegisterCallbackBeforeThread) {
   // correctly enabled.
   RegisterThread();
   EXPECT_EQ(1, GetCallbackCount());
-  EXPECT_TRUE(IsTimerEnabled());
-  EXPECT_TRUE(IsSignalEnabled());
+  EXPECT_EQ(FLAGS_test_profiler_enabled, IsTimerEnabled());
+  if (FLAGS_test_profiler_signal_handler) {
+    EXPECT_EQ(FLAGS_test_profiler_enabled, IsSignalEnabled());
+  }
 }
 
 }  // namespace

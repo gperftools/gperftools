@@ -61,7 +61,8 @@ static inline void* do_mmap64(void *start, size_t length,
 
 #define MALLOC_HOOK_HAVE_DO_MMAP64 1
 
-#elif defined(__i386__) || defined(__PPC__) || defined(__mips__)
+#elif defined(__i386__) || defined(__PPC__) || defined(__mips__) || \
+      defined(__arm__)
 
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,
@@ -98,6 +99,7 @@ static inline void* do_mmap64(void *start, size_t length,
     goto out;
   }
 
+#ifdef __NR_mmap
   {
     // Fall back to old 32-bit offset mmap() call
     // Old syscall interface cannot handle six args, so pass in an array
@@ -105,6 +107,11 @@ static inline void* do_mmap64(void *start, size_t length,
                       (off_t) offset };
     result = (void *)syscall(SYS_mmap, args);
   }
+#else
+  // Some Linux ports like ARM EABI Linux has no mmap, just mmap2.
+  result = MAP_FAILED;
+#endif
+
  out:
   return result;
 }

@@ -62,11 +62,19 @@ extern "C" {
 static inline void* do_sbrk(intptr_t increment) {
   void* curbrk;
 
-  __asm__ __volatile__(
-      "movl .curbrk, %%eax;"
-      "movl %%eax, %0"
-      : "=r" (curbrk)
-      :: "%eax");
+#if defined(__x86_64__) || defined(__amd64__)
+    __asm__ __volatile__(
+        "movq .curbrk, %%rax;"
+        "movq %%rax, %0"
+        : "=r" (curbrk)
+        :: "%rax");
+#else
+    __asm__ __volatile__(
+        "movl .curbrk, %%eax;"
+        "movl %%eax, %0"
+        : "=r" (curbrk)
+        :: "%eax");
+#endif
 
   char* prevbrk = static_cast<char*>(curbrk);
   void* newbrk = prevbrk + increment;

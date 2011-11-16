@@ -1844,14 +1844,24 @@ struct kernel_statfs {
     #undef LSS_REG
     #define LSS_REG(r,a) register unsigned long __r##r __asm__("$"#r) =       \
                                  (unsigned long)(a)
+
+    #if _MIPS_SIM == _MIPS_SIM_ABI32
+    // See http://sources.redhat.com/ml/libc-alpha/2004-10/msg00050.html
+    // or http://www.linux-mips.org/archives/linux-mips/2004-10/msg00142.html
+    #define MIPS_SYSCALL_CLOBBERS "$1", "$3", "$8", "$9", "$10", "$11", "$12",\
+                                "$13", "$14", "$15", "$24", "$25", "memory"
+    #else
+    #define MIPS_SYSCALL_CLOBBERS "$1", "$3", "$10", "$11", "$12", "$13",     \
+                                "$14", "$15", "$24", "$25", "memory"
+    #endif
+
     #undef  LSS_BODY
     #define LSS_BODY(type,name,r7,...)                                        \
           register unsigned long __v0 __asm__("$2") = __NR_##name;            \
           __asm__ __volatile__ ("syscall\n"                                   \
                                 : "=&r"(__v0), r7 (__r7)                      \
                                 : "0"(__v0), ##__VA_ARGS__                    \
-                                : "$8", "$9", "$10", "$11", "$12",            \
-                                  "$13", "$14", "$15", "$24", "memory");      \
+                                : MIPS_SYSCALL_CLOBBERS);                     \
           LSS_RETURN(type, __v0, __r7)
     #undef _syscall0
     #define _syscall0(type, name)                                             \
@@ -1909,8 +1919,7 @@ struct kernel_statfs {
                               : "=&r"(__v0), "+r" (__r7)                      \
                               : "i" (__NR_##name), "r"(__r4), "r"(__r5),      \
                                 "r"(__r6), "m" ((unsigned long)arg5)          \
-                              : "$8", "$9", "$10", "$11", "$12",              \
-                                "$13", "$14", "$15", "$24", "memory");        \
+                              : MIPS_SYSCALL_CLOBBERS);                       \
         LSS_RETURN(type, __v0, __r7);                                         \
       }
     #else
@@ -1950,8 +1959,7 @@ struct kernel_statfs {
                               : "i" (__NR_##name), "r"(__r4), "r"(__r5),      \
                                 "r"(__r6), "r" ((unsigned long)arg5),         \
                                 "r" ((unsigned long)arg6)                     \
-                              : "$8", "$9", "$10", "$11", "$12",              \
-                                "$13", "$14", "$15", "$24", "memory");        \
+                              : MIPS_SYSCALL_CLOBBERS);                       \
         LSS_RETURN(type, __v0, __r7);                                         \
       }
     #else
@@ -2271,8 +2279,10 @@ struct kernel_statfs {
                       struct kernel_timespec*, t)
   LSS_INLINE _syscall3(int,     getdents,        int,         f,
                       struct kernel_dirent*, d, int,    c)
+#ifdef __NR_getdents64
   LSS_INLINE _syscall3(int,     getdents64,      int,         f,
                       struct kernel_dirent64*, d, int,    c)
+#endif
   LSS_INLINE _syscall0(gid_t,   getegid)
   LSS_INLINE _syscall0(uid_t,   geteuid)
   LSS_INLINE _syscall0(pid_t,   getpgrp)

@@ -42,6 +42,9 @@
 
 #include "base/spinlock_internal.h"
 
+// forward declaration for use by spinlock_*-inl.h
+namespace base { namespace internal { static int SuggestedDelayNS(int loop); }}
+
 #if defined(_WIN32)
 #include "base/spinlock_win32-inl.h"
 #elif defined(__linux__)
@@ -71,6 +74,28 @@ int32 SpinLockWait(volatile Atomic32 *w, int n,
     }
   }
   return v;
+}
+
+// Return a suggested delay in nanoseconds for iteration number "loop"
+static int SuggestedDelayNS(int loop) {
+  // Weak pseudo-random number generator to get some spread between threads
+  // when many are spinning.
+  static base::subtle::Atomic64 rand;
+  uint64 r = base::subtle::NoBarrier_Load(&rand);
+  r = 0x5deece66dLL * r + 0xb;   // numbers from nrand48()
+  base::subtle::NoBarrier_Store(&rand, r);
+
+  r <<= 16;   // 48-bit random number now in top 48-bits.
+  if (loop < 0 || loop > 32) {   // limit loop to 0..32
+    loop = 32;
+  }
+  // loop>>3 cannot exceed 4 because loop cannot exceed 32.
+  // Select top 20..24 bits of lower 48 bits,
+  // giving approximately 0ms to 16ms.
+  // Mean is exponential in loop for first 32 iterations, then 8ms.
+  // The futex path multiplies this by 16, since we expect explicit wakeups
+  // almost always on that path.
+  return r >> (44 - (loop >> 3));
 }
 
 } // namespace internal

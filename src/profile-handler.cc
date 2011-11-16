@@ -46,6 +46,7 @@
 #include <string>
 
 #include "base/dynamic_annotations.h"
+#include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "maybe_threads.h"
@@ -139,6 +140,9 @@ class ProfileHandler {
   // Counts the number of callbacks registered.
   int32 callback_count_ GUARDED_BY(control_lock_);
 
+  // Is profiling allowed at all?
+  bool allowed_;
+
   // Whether or not the threading system provides interval timers that are
   // shared by all threads in a process.
   enum {
@@ -199,6 +203,10 @@ class ProfileHandler {
   // Disables (ignores) the timer interrupt signal.
   void DisableHandler() EXCLUSIVE_LOCKS_REQUIRED(control_lock_);
 
+  // Returns true if the handler is not being used by something else.
+  // This checks the kernel's signal handler table.
+  bool IsSignalHandlerAvailable();
+
   // SIGPROF/SIGALRM handler. Iterate over and call all the registered callbacks.
   static void SignalHandler(int sig, siginfo_t* sinfo, void* ucontext);
 
@@ -239,6 +247,7 @@ ProfileHandler* ProfileHandler::Instance() {
 ProfileHandler::ProfileHandler()
     : interrupts_(0),
       callback_count_(0),
+      allowed_(true),
       timer_sharing_(TIMERS_UNTOUCHED) {
   SpinLockHolder cl(&control_lock_);
 
@@ -255,6 +264,19 @@ ProfileHandler::ProfileHandler()
     frequency_ = kDefaultFrequency;
   }
 
+  if (!allowed_) {
+    return;
+  }
+
+  // If something else is using the signal handler,
+  // assume it has priority over us and stop.
+  if (!IsSignalHandlerAvailable()) {
+    RAW_LOG(INFO, "Disabling profiler because %s handler is already in use.",
+                    timer_type_ == ITIMER_REAL ? "SIGALRM" : "SIGPROF");
+    allowed_ = false;
+    return;
+  }
+
   // Ignore signals until we decide to turn profiling on.  (Paranoia;
   // should already be ignored.)
   DisableHandler();
@@ -266,6 +288,10 @@ ProfileHandler::~ProfileHandler() {
 
 void ProfileHandler::RegisterThread() {
   SpinLockHolder cl(&control_lock_);
+
+  if (!allowed_) {
+    return;
+  }
 
   // We try to detect whether timers are being shared by setting a
   // timer in the first call to this function, then checking whether
@@ -312,6 +338,7 @@ void ProfileHandler::RegisterThread() {
 
 ProfileHandlerToken* ProfileHandler::RegisterCallback(
     ProfileHandlerCallback callback, void* callback_arg) {
+
   ProfileHandlerToken* token = new ProfileHandlerToken(callback, callback_arg);
 
   SpinLockHolder cl(&control_lock_);
@@ -386,9 +413,13 @@ void ProfileHandler::GetState(ProfileHandlerState* state) {
   }
   state->frequency = frequency_;
   state->callback_count = callback_count_;
+  state->allowed = allowed_;
 }
 
 void ProfileHandler::StartTimer() {
+  if (!allowed_) {
+    return;
+  }
   struct itimerval timer;
   timer.it_interval.tv_sec = 0;
   timer.it_interval.tv_usec = 1000000 / frequency_;
@@ -397,12 +428,18 @@ void ProfileHandler::StartTimer() {
 }
 
 void ProfileHandler::StopTimer() {
+  if (!allowed_) {
+    return;
+  }
   struct itimerval timer;
   memset(&timer, 0, sizeof timer);
   setitimer(timer_type_, &timer, 0);
 }
 
 bool ProfileHandler::IsTimerRunning() {
+  if (!allowed_) {
+    return false;
+  }
   struct itimerval current_timer;
   RAW_CHECK(0 == getitimer(timer_type_, &current_timer), "getitimer");
   return (current_timer.it_value.tv_sec != 0 ||
@@ -410,6 +447,9 @@ bool ProfileHandler::IsTimerRunning() {
 }
 
 void ProfileHandler::EnableHandler() {
+  if (!allowed_) {
+    return;
+  }
   struct sigaction sa;
   sa.sa_sigaction = SignalHandler;
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
@@ -419,6 +459,9 @@ void ProfileHandler::EnableHandler() {
 }
 
 void ProfileHandler::DisableHandler() {
+  if (!allowed_) {
+    return;
+  }
   struct sigaction sa;
   sa.sa_handler = SIG_IGN;
   sa.sa_flags = SA_RESTART;
@@ -427,9 +470,28 @@ void ProfileHandler::DisableHandler() {
   RAW_CHECK(sigaction(signal_number, &sa, NULL) == 0, "sigprof (disable)");
 }
 
+bool ProfileHandler::IsSignalHandlerAvailable() {
+  struct sigaction sa;
+  const int signal_number = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
+  RAW_CHECK(sigaction(signal_number, NULL, &sa) == 0, "is-signal-handler avail");
+
+  // We only take over the handler if the current one is unset.
+  // It must be SIG_IGN or SIG_DFL, not some other function.
+  // SIG_IGN must be allowed because when profiling is allowed but
+  // not actively in use, this code keeps the handler set to SIG_IGN.
+  // That setting will be inherited across fork+exec.  In order for
+  // any child to be able to use profiling, SIG_IGN must be treated
+  // as available.
+  return sa.sa_handler == SIG_IGN || sa.sa_handler == SIG_DFL;
+}
+
 void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {
   int saved_errno = errno;
-  RAW_CHECK(instance_ != NULL, "ProfileHandler is not initialized");
+  // At this moment, instance_ must be initialized because the handler is
+  // enabled in RegisterThread or RegisterCallback only after
+  // ProfileHandler::Instance runs.
+  RAW_CHECK(ANNOTATE_UNPROTECTED_READ(instance_) != NULL,
+            "ProfileHandler is not initialized");
   {
     SpinLockHolder sl(&instance_->signal_lock_);
     ++instance_->interrupts_;
@@ -442,20 +504,9 @@ void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {
   errno = saved_errno;
 }
 
-// The sole purpose of this class is to initialize the ProfileHandler singleton
-// when the global static objects are created. Note that the main thread will
-// be registered at this time.
-class ProfileHandlerInitializer {
- public:
-  ProfileHandlerInitializer() {
-    ProfileHandler::Instance()->RegisterThread();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ProfileHandlerInitializer);
-};
-// ProfileHandlerInitializer singleton
-static ProfileHandlerInitializer profile_handler_initializer;
+// This module initializer registers the main thread, so it must be
+// executed in the context of the main thread.
+REGISTER_MODULE_INITIALIZER(profile_main, ProfileHandlerRegisterThread());
 
 extern "C" void ProfileHandlerRegisterThread() {
   ProfileHandler::Instance()->RegisterThread();

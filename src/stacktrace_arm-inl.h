@@ -1,10 +1,10 @@
-// Copyright (c) 2007, Google Inc.
+// Copyright (c) 2011, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -28,22 +28,27 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // ---
-// Author: Craig Silverstein
+// Author: Doug Kwan
+// This is inspired by Craig Silverstein's PowerPC stacktrace code.
 //
-// Produce stack trace.  I'm guessing (hoping!) the code is much like
-// for x86.  For apple machines, at least, it seems to be; see
-//    http://developer.apple.com/documentation/mac/runtimehtml/RTArch-59.html
-//    http://www.linux-foundation.org/spec/ELF/ppc64/PPC-elf64abi-1.9.html#STACK
-// Linux has similar code: http://patchwork.ozlabs.org/linuxppc/patch?id=8882
 
-#ifndef BASE_STACKTRACE_POWERPC_INL_H_
-#define BASE_STACKTRACE_POWERPC_INL_H_
+#ifndef BASE_STACKTRACE_ARM_INL_H_
+#define BASE_STACKTRACE_ARM_INL_H_
 // Note: this file is included into stacktrace.cc more than once.
 // Anything that should only be defined once should be here:
 
 #include <stdint.h>   // for uintptr_t
-#include <stdlib.h>   // for NULL
+#include "base/basictypes.h"  // for NULL
 #include <google/stacktrace.h>
+
+// WARNING:
+// This only works if all your code is in either ARM or THUMB mode.  With
+// interworking, the frame pointer of the caller can either be in r11 (ARM
+// mode) or r7 (THUMB mode).  A callee only saves the frame pointer of its
+// mode in a fixed location on its stack frame.  If the caller is a different
+// mode, there is no easy way to find the frame pointer.  It can either be
+// still in the designated register or saved on stack along with other callee
+// saved registers.
 
 // Given a pointer to a stack frame, locate and return the calling
 // stackframe, or return NULL if no stackframe can be found. Perform sanity
@@ -51,7 +56,7 @@
 // "STRICT_UNWINDING") to reduce the chance that a bad pointer is returned.
 template<bool STRICT_UNWINDING>
 static void **NextStackFrame(void **old_sp) {
-  void **new_sp = (void **) *old_sp;
+  void **new_sp = (void**) old_sp[-1];
 
   // Check that the transition from frame pointer old_sp to frame
   // pointer new_sp isn't clearly bogus
@@ -74,9 +79,13 @@ static void **NextStackFrame(void **old_sp) {
 }
 
 // This ensures that GetStackTrace stes up the Link Register properly.
-void StacktracePowerPCDummyFunction() __attribute__((noinline));
-void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
-#endif  // BASE_STACKTRACE_POWERPC_INL_H_
+#ifdef __GNUC__
+void StacktraceArmDummyFunction() __attribute__((noinline));
+void StacktraceArmDummyFunction() { __asm__ volatile(""); }
+#else
+# error StacktraceArmDummyFunction() needs to be ported to this platform.
+#endif
+#endif  // BASE_STACKTRACE_ARM_INL_H_
 
 // Note: this part of the file is included several times.
 // Do not put globals below.
@@ -93,66 +102,32 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 int GET_STACK_TRACE_OR_FRAMES {
-  void **sp;
-  // Apple OS X uses an old version of gnu as -- both Darwin 7.9.0 (Panther)
-  // and Darwin 8.8.1 (Tiger) use as 1.38.  This means we have to use a
-  // different asm syntax.  I don't know quite the best way to discriminate
-  // systems using the old as from the new one; I've gone with __APPLE__.
-  // TODO(csilvers): use autoconf instead, to look for 'as --version' == 1 or 2
-#ifdef __APPLE__
-  __asm__ volatile ("mr %0,r1" : "=r" (sp));
+#ifdef __GNUC__
+  void **sp = reinterpret_cast<void**>(__builtin_frame_address(0));
 #else
-  __asm__ volatile ("mr %0,1" : "=r" (sp));
+# error reading stack point not yet supported on this platform.
 #endif
 
-  // On PowerPC, the "Link Register" or "Link Record" (LR), is a stack
-  // entry that holds the return address of the subroutine call (what
-  // instruction we run after our function finishes).  This is the
-  // same as the stack-pointer of our parent routine, which is what we
-  // want here.  While the compiler will always(?) set up LR for
-  // subroutine calls, it may not for leaf functions (such as this one).
-  // This routine forces the compiler (at least gcc) to push it anyway.
-  StacktracePowerPCDummyFunction();
-
-#if IS_STACK_FRAMES
-  // Note we do *not* increment skip_count here for the SYSV ABI.  If
-  // we did, the list of stack frames wouldn't properly match up with
-  // the list of return addresses.  Note this means the top pc entry
-  // is probably bogus for linux/ppc (and other SYSV-ABI systems).
-#else
-  // The LR save area is used by the callee, so the top entry is bogus.
-  skip_count++;
-#endif
+  // On ARM, the return address is stored in the link register (r14).
+  // This is not saved on the stack frame of a leaf function.  To
+  // simplify code that reads return addresses, we call a dummy
+  // function so that the return address of this function is also
+  // stored in the stack frame.  This works at least for gcc.
+  StacktraceArmDummyFunction();
 
   int n = 0;
   while (sp && n < max_depth) {
     // The GetStackFrames routine is called when we are in some
     // informational context (the failure signal handler for example).
     // Use the non-strict unwinding rules to produce a stack trace
-    // that is as complete as possible (even if it contains a few
-    // bogus entries in some rare cases).
-    void **next_sp = NextStackFrame<!IS_STACK_FRAMES>(sp);
+    // that is as complete as possible (even if it contains a few bogus
+    // entries in some rare cases).
+    void **next_sp = NextStackFrame<IS_STACK_FRAMES == 0>(sp);
 
     if (skip_count > 0) {
       skip_count--;
     } else {
-      // PowerPC has 3 main ABIs, which say where in the stack the
-      // Link Register is.  For DARWIN and AIX (used by apple and
-      // linux ppc64), it's in sp[2].  For SYSV (used by linux ppc),
-      // it's in sp[1].
-#if defined(_CALL_AIX) || defined(_CALL_DARWIN)
-      result[n] = *(sp+2);
-#elif defined(_CALL_SYSV)
-      result[n] = *(sp+1);
-#elif defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
-      // This check is in case the compiler doesn't define _CALL_AIX/etc.
-      result[n] = *(sp+2);
-#elif defined(__linux)
-      // This check is in case the compiler doesn't define _CALL_SYSV.
-      result[n] = *(sp+1);
-#else
-#error Need to specify the PPC ABI for your archiecture.
-#endif
+      result[n] = *sp;
 
 #if IS_STACK_FRAMES
       if (next_sp > sp) {

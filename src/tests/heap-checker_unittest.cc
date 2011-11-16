@@ -1381,7 +1381,13 @@ int main(int argc, char** argv) {
     RunHidden(NewCallback(MakeALeak, &arr));
     Use(&arr);
     LogHidden("Leaking", arr);
-    if (FLAGS_test_cancel_global_check)  HeapLeakChecker::CancelGlobalCheck();
+    if (FLAGS_test_cancel_global_check) {
+      HeapLeakChecker::CancelGlobalCheck();
+    } else {
+      // Verify we can call NoGlobalLeaks repeatedly without deadlocking
+      HeapLeakChecker::NoGlobalLeaks();
+      HeapLeakChecker::NoGlobalLeaks();
+    }
     return Pass();
       // whole-program leak-check should (with very high probability)
       // catch the leak of arr (10 * sizeof(int) bytes)
@@ -1396,7 +1402,13 @@ int main(int argc, char** argv) {
     Use(&arr2);
     LogHidden("Loop leaking", arr1);
     LogHidden("Loop leaking", arr2);
-    if (FLAGS_test_cancel_global_check)  HeapLeakChecker::CancelGlobalCheck();
+    if (FLAGS_test_cancel_global_check) {
+      HeapLeakChecker::CancelGlobalCheck();
+    } else {
+      // Verify we can call NoGlobalLeaks repeatedly without deadlocking
+      HeapLeakChecker::NoGlobalLeaks();
+      HeapLeakChecker::NoGlobalLeaks();
+    }
     return Pass();
       // whole-program leak-check should (with very high probability)
       // catch the leak of arr1 and arr2 (4 * sizeof(void*) bytes)

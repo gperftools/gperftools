@@ -49,7 +49,7 @@ void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
   } else {
     struct timespec tm;
     tm.tv_sec = 0;
-    tm.tv_nsec = 1000000;
+    tm.tv_nsec = base::internal::SuggestedDelayNS(loop);
     nanosleep(&tm, NULL);
   }
   errno = save_errno;

@@ -76,12 +76,12 @@ void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
     struct timespec tm;
     tm.tv_sec = 0;
     if (have_futex) {
-      tm.tv_nsec = 1000000;   // 1ms; really we're trying to sleep for one
-                              // kernel clock tick
+      tm.tv_nsec = base::internal::SuggestedDelayNS(loop);
     } else {
       tm.tv_nsec = 2000001;   // above 2ms so linux 2.4 doesn't spin
     }
     if (have_futex) {
+      tm.tv_nsec *= 16;  // increase the delay; we expect explicit wakeups
       sys_futex(reinterpret_cast<int *>(const_cast<Atomic32 *>(w)),
                 FUTEX_WAIT | futex_private_flag,
                 value, reinterpret_cast<struct kernel_timespec *>(&tm));

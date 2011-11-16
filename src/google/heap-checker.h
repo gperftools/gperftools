@@ -204,12 +204,6 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   static void UnIgnoreObject(const void* ptr);
 
   // ----------------------------------------------------------------------- //
-  // Initialization; to be called from main() only.
-
-  // Full starting of recommended whole-program checking.
-  static void InternalInitStart();
-
-  // ----------------------------------------------------------------------- //
   // Internal types defined in .cc
 
   class Allocator;
@@ -231,6 +225,9 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
 
   // Helper for *NoLeaks and *SameHeap
   bool DoNoLeaks(ShouldSymbolize should_symbolize);
+
+  // Helper for NoGlobalLeaks, also called by the global destructor.
+  static bool NoGlobalLeaksMaybeSymbolize(ShouldSymbolize should_symbolize);
 
   // These used to be public, but they are now deprecated.
   // Will remove entirely when all internal uses are fixed.
@@ -291,10 +288,6 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // are being used.
   static void IgnoreLiveObjectsLocked(const char* name, const char* name2);
 
-  // Runs REGISTER_HEAPCHECK_CLEANUP cleanups and potentially
-  // calls DoMainHeapCheck
-  static void RunHeapCleanups();
-
   // Do the overall whole-program heap leak check if needed;
   // returns true when did the leak check.
   static bool DoMainHeapCheck();
@@ -352,6 +345,13 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
 
   // This gets to execute after destructors for all global objects
   friend void HeapLeakChecker_AfterDestructors();
+
+  // Full starting of recommended whole-program checking.
+  friend void HeapLeakChecker_InternalInitStart();
+
+  // Runs REGISTER_HEAPCHECK_CLEANUP cleanups and potentially
+  // calls DoMainHeapCheck
+  friend void HeapLeakChecker_RunHeapCleanups();
 
   // ----------------------------------------------------------------------- //
   // Member data.

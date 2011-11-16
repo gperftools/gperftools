@@ -137,6 +137,7 @@ struct ProfileHandlerState {
   int32 frequency;  /* Profiling frequency */
   int32 callback_count;  /* Number of callbacks registered */
   int64 interrupts;  /* Number of interrupts received */
+  bool allowed; /* Profiling is allowed */
 };
 void ProfileHandlerGetState(struct ProfileHandlerState* state);
 
