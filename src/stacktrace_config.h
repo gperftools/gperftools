@@ -71,7 +71,7 @@
 // The ARM case
 #elif defined(__arm__)  && __GNUC__ >= 2
 # if !defined(NO_FRAME_POINTER)
-#   define STACKTRACE_INL_HEADER "base/stacktrace_arm-inl.h"
+#   define STACKTRACE_INL_HEADER "stacktrace_arm-inl.h"
 # else
 #   error stacktrace without frame pointer is not supported on ARM
 # endif
