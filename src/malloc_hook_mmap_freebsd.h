@@ -40,14 +40,20 @@
 #include <sys/mman.h>
 #include <errno.h>
 
-static inline void* do_mmap(void *start, size_t length,
-                            int prot, int flags,
-                            int fd, off_t offset) __THROW {
-  return (void *)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
-}
-
 // Make sure mmap doesn't get #define'd away by <sys/mman.h>
 #undef mmap
+
+// According to the FreeBSD documentation, use syscall if you do not
+// need 64-bit alignment otherwise use __syscall. Indeed, syscall
+// doesn't work correctly in most situations on 64-bit. It's return
+// type is 'int' so for things like SYS_mmap, it actually truncates
+// the returned address to 32-bits.
+#if defined(__amd64__) || defined(__x86_64__)
+# define MALLOC_HOOK_SYSCALL __syscall
+#else
+# define MALLOC_HOOK_SYSCALL syscall
+#endif
+
 
 extern "C" {
   void* mmap(void *start, size_t length,int prot, int flags,
@@ -59,28 +65,47 @@ extern "C" {
     ATTRIBUTE_SECTION(malloc_hook);
 }
 
+static inline void* do_mmap(void *start, size_t length,
+                            int prot, int flags,
+                            int fd, off_t offset) __THROW {
+  return (void *)MALLOC_HOOK_SYSCALL(SYS_mmap,
+                                     start, length, prot, flags, fd, offset);
+}
+
 static inline void* do_sbrk(intptr_t increment) {
-  void* curbrk;
+  void* curbrk = 0;
 
 #if defined(__x86_64__) || defined(__amd64__)
-    __asm__ __volatile__(
-        "movq .curbrk, %%rax;"
-        "movq %%rax, %0"
-        : "=r" (curbrk)
-        :: "%rax");
+# ifdef PIC
+  __asm__ __volatile__(
+      "movq .curbrk@GOTPCREL(%%rip), %%rdx;"
+      "movq (%%rdx), %%rax;"
+      "movq %%rax, %0;"
+      : "=r" (curbrk)
+      :: "%rdx", "%rax");
+# else
+  __asm__ __volatile__(
+      "movq .curbrk(%%rip), %%rax;"
+      "movq %%rax, %0;"
+      : "=r" (curbrk)
+      :: "%rax");
+# endif
 #else
-    __asm__ __volatile__(
-        "movl .curbrk, %%eax;"
-        "movl %%eax, %0"
-        : "=r" (curbrk)
-        :: "%eax");
+  __asm__ __volatile__(
+      "movl .curbrk, %%eax;"
+      "movl %%eax, %0;"
+      : "=r" (curbrk)
+      :: "%eax");
 #endif
+
+  if (increment == 0) {
+    return curbrk;
+  }
 
   char* prevbrk = static_cast<char*>(curbrk);
   void* newbrk = prevbrk + increment;
 
   if (brk(newbrk) == -1) {
-    assert(0);
     return reinterpret_cast<void*>(static_cast<intptr_t>(-1));
   }
 
@@ -91,15 +116,24 @@ static inline void* do_sbrk(intptr_t increment) {
 extern "C" void* mmap(void *start, size_t length, int prot, int flags,
                       int fd, off_t offset) __THROW {
   MallocHook::InvokePreMmapHook(start, length, prot, flags, fd, offset);
-  void *result = do_mmap(start, length, prot, flags, fd,
-                         static_cast<size_t>(offset)); // avoid sign extension
+  void *result;
+  if (!MallocHook::InvokeMmapReplacement(
+          start, length, prot, flags, fd, offset, &result)) {
+    result = do_mmap(start, length, prot, flags, fd,
+                       static_cast<size_t>(offset)); // avoid sign extension
+  }
   MallocHook::InvokeMmapHook(result, start, length, prot, flags, fd, offset);
   return result;
 }
 
 extern "C" int munmap(void* start, size_t length) __THROW {
   MallocHook::InvokeMunmapHook(start, length);
-  return syscall(SYS_munmap, start, length);
+  int result;
+  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
+    result = MALLOC_HOOK_SYSCALL(SYS_munmap, start, length);
+  }
+
+  return result;
 }
 
 extern "C" void* sbrk(intptr_t increment) __THROW {
@@ -111,9 +145,21 @@ extern "C" void* sbrk(intptr_t increment) __THROW {
 
 /*static*/void* MallocHook::UnhookedMMap(void *start, size_t length, int prot,
                                          int flags, int fd, off_t offset) {
-  return mmap(start, length, prot, flags, fd, offset);
+  void* result;
+  if (!MallocHook::InvokeMmapReplacement(
+	  start, length, prot, flags, fd, offset, &result)) {
+    result = do_mmap(start, length, prot, flags, fd, offset);
+  }
+
+  return result;
 }
 
 /*static*/int MallocHook::UnhookedMUnmap(void *start, size_t length) {
-  return munmap(start, length);
+  int result;
+  if (!MallocHook::InvokeMunmapReplacement(start, length, &result)) {
+    result = MALLOC_HOOK_SYSCALL(SYS_munmap, start, length);
+  }
+  return result;
 }
+
+#undef MALLOC_HOOK_SYSCALL
