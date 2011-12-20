@@ -175,6 +175,8 @@ inline Atomic32 Release_Load(volatile const Atomic32* ptr) {
 // are available.
 #ifdef BASE_ATOMICOPS_HAS_LDREXD_AND_STREXD
 
+#define BASE_HAS_ATOMIC64 1
+
 inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
                                          Atomic64 old_value,
                                          Atomic64 new_value) {

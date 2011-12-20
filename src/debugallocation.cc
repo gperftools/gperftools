@@ -616,7 +616,7 @@ class MallocBlock {
       BASE_FREE(entries[i].block);
     }
   }
-  
+
   static void InitDeletedBuffer() {
     memset(kMagicDeletedBuffer, kMagicDeletedByte, sizeof(kMagicDeletedBuffer));
     deleted_buffer_initialized_no_pthreads_ = true;
@@ -655,7 +655,7 @@ class MallocBlock {
     if (memcmp(buffer, kMagicDeletedBuffer, size_of_buffer) == 0) {
       return;
     }
-    
+
     RAW_LOG(ERROR,
             "Found a corrupted memory buffer in MallocBlock (may be offset "
             "from user ptr): buffer index: %zd, buffer ptr: %p, size of "
@@ -712,8 +712,10 @@ class MallocBlock {
     RAW_LOG(FATAL,
             "Memory was written to after being freed.  MallocBlock: %p, user "
             "ptr: %p, size: %zd.  If you can't find the source of the error, "
-            "try using valgrind or purify, or study the output of the "
-            "deleter's stack printed above.", b, b->data_addr(), size);
+            "try using ASan (http://code.google.com/p/address-sanitizer/), "
+            "Valgrind, or Purify, or study the "
+            "output of the deleter's stack printed above.",
+            b, b->data_addr(), size);
   }
 
   static MallocBlock* FromRawPointer(void* p) {

@@ -414,10 +414,14 @@ inline unsigned int sleep(unsigned int seconds) {
   return 0;
 }
 
+// mingw64 seems to define timespec (though mingw.org mingw doesn't),
+// protected by the _TIMESPEC_DEFINED macro.
+#ifndef _TIMESPEC_DEFINED
 struct timespec {
   int tv_sec;
   int tv_nsec;
 };
+#endif
 
 inline int nanosleep(const struct timespec *req, struct timespec *rem) {
   Sleep(req->tv_sec * 1000 + req->tv_nsec / 1000000);

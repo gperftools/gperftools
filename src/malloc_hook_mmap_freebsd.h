@@ -68,13 +68,8 @@ extern "C" {
 static inline void* do_mmap(void *start, size_t length,
                             int prot, int flags,
                             int fd, off_t offset) __THROW {
-  if (__FreeBSD_version >= 700051) {
-    return (void *)MALLOC_HOOK_SYSCALL(SYS_mmap,
-                                       start, length, prot, flags, fd, offset);
-  }
-
   return (void *)MALLOC_HOOK_SYSCALL(SYS_mmap,
-                                     start, length, prot, flags, fd, 0, offset);
+                                     start, length, prot, flags, fd, offset);
 }
 
 static inline void* do_sbrk(intptr_t increment) {
