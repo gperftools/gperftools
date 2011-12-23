@@ -100,6 +100,10 @@ bool kernel_supports_tls = false;      // be conservative
           kernel_supports_tls = false;
         else
           kernel_supports_tls = true;
+      } else if (strcasecmp(buf.sysname, "CYGWIN_NT-6.1-WOW64") == 0) {
+        // In my testing, this version of cygwin, at least, would hang
+        // when using TLS.
+        kernel_supports_tls = false;
       } else {        // some other kernel, we'll be optimisitic
         kernel_supports_tls = true;
       }
