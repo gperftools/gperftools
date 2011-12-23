@@ -95,12 +95,12 @@ class LogItem {
   } u_;
 };
 
-extern void Log(LogMode mode, const char* filename, int line,
+extern PERFTOOLS_DLL_DECL void Log(LogMode mode, const char* filename, int line,
                 LogItem a, LogItem b = LogItem(),
                 LogItem c = LogItem(), LogItem d = LogItem());
 
 // Tests can override this function to collect logging messages.
-extern void (*log_message_writer)(const char* msg, int length);
+extern PERFTOOLS_DLL_DECL void (*log_message_writer)(const char* msg, int length);
 
 }  // end tcmalloc namespace
 

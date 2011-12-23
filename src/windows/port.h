@@ -65,14 +65,15 @@
 
 /*
  * 4018: signed/unsigned mismatch is common (and ok for signed_i < unsigned_i)
- * 4244: otherwise we get problems when substracting two size_t's to an int
+ * 4244: otherwise we get problems when subtracting two size_t's to an int
  * 4288: VC++7 gets confused when a var is defined in a loop and then after it
  * 4267: too many false positives for "conversion gives possible data loss"
  * 4290: it's ok windows ignores the "throw" directive
  * 4996: Yes, we're ok using "unsafe" functions like vsnprintf and getenv()
+ * 4146: internal_logging.cc intentionally negates an unsigned value
  */
 #ifdef _MSC_VER
-#pragma warning(disable:4018 4244 4288 4267 4290 4996)
+#pragma warning(disable:4018 4244 4288 4267 4290 4996 4146)
 #endif
 
 #ifndef __cplusplus

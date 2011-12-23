@@ -147,6 +147,9 @@
 # define WIN32_DO_PATCHING 1
 #endif
 
+// Some windows file somewhere (at least on cygwin) #define's small (!)
+#undef small
+
 using STL_NAMESPACE::max;
 using STL_NAMESPACE::numeric_limits;
 using STL_NAMESPACE::vector;
