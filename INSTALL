@@ -277,7 +277,7 @@ above, by linking in libtcmalloc_minimal.
    installed as part of the Sun C++ compiler package.)  See that
    section for a list of binaries, and instructions on building them.
 
-** Windows:
+** Windows  (MSVC, Cygwin, and MinGW):
 
    Work on Windows is rather preliminary: we haven't found a good way
    to get stack traces in release mode on windows (that is, when FPO
@@ -286,10 +286,9 @@ above, by linking in libtcmalloc_minimal.
    all.  But as in other ports, the basic tcmalloc library
    functionality, overriding malloc and new and such (and even
    windows-specific functions like _aligned_malloc!), is working fine,
-   at least with VC++ 7.1 (Visual Studio 2003) and VC++ 8.0
-   (Visual Studio 2005), in both debug and release modes.  See
-   README.windows for instructions on how to install on Windows using
-   Visual Studio.
+   at least with VC++ 7.1 (Visual Studio 2003) through VC++ 10.0,
+   in both debug and release modes.  See README.windows for
+   instructions on how to install on Windows using Visual Studio.
 
    Cygwin can compile some but not all of perftools.  Furthermore,
    there is a problem with exception-unwinding in cygwin (it can call

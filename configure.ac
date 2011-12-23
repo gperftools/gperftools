@@ -4,11 +4,11 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ(2.57)
 
-AC_INIT(google-perftools, 1.8.3, opensource@google.com)
+AC_INIT(google-perftools, 1.9, opensource@google.com)
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-TCMALLOC_SO_VERSION=2:2:2
-PROFILER_SO_VERSION=1:2:1
+TCMALLOC_SO_VERSION=3:0:3
+PROFILER_SO_VERSION=2:0:2
 
 AC_SUBST(TCMALLOC_SO_VERSION)
 AC_SUBST(PROFILER_SO_VERSION)
@@ -237,6 +237,12 @@ AM_CONDITIONAL(X86_64_AND_NO_FP_BY_DEFAULT,
                test "$is_x86_64" = yes && ! grep 'mov.*rsp.*rbp' fp.s >/dev/null 2>&1)
 rm fp.s
 CFLAGS="$OLD_CFLAGS"
+
+# We need to know if we're i386 so we can turn on -mmms, which is not
+# on by default for i386 (it is for x86_64).
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __i386__ == 1 ? 0 : 1])],
+                  [is_i386=yes], [is_i386=no])
+AM_CONDITIONAL(I386, test "$is_i386" = yes)
 
 # See if the compiler supports -Wno-unused-result.
 # Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling

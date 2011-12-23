@@ -1,4 +1,16 @@
-== 26 August 2011 ==
+== 22 December 2011 ==
+
+I've just released perftools 1.9
+
+This change has a slew of improvements, from better ARM and freebsd
+support, to improved performance by moving some code outside of locks,
+to better pprof reporting of code with overloaded functions.
+
+The full list of changes is in the
+[http://google-perftools.googlecode.com/svn/tags/google-perftools-1.9/ChangeLog ChangeLog].
+
+
+=== 26 August 2011 ===
 
 I've just released perftools 1.8.3
 

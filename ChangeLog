@@ -1,3 +1,46 @@
+Thu Dec 22 16:22:45 2011    Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.9 release
+	* Lightweight check for double-frees (blount)
+	* BUGFIX: Fix pprof to exit properly if run with no args (dagitses)
+	* Suggest ASan as a way to diagnose buggy code (ppluzhnikov)
+	* Get rid of unused CACHELINE_SIZE (csilvers)
+	* Replace atexit() calls with global dtors; helps freebsd (csilvers)
+	* Disable heap-checker under AddressSanitizer (kcc)
+	* Fix bug in powerpc stacktracing (ppluzhnikov)
+	* PERF: Use exponential backoff waiting for spinlocks (m3b)
+	* Fix 64-bit nm on 32-bit binaries in pprof (csilvers)
+	* Add ProfileHandlerDisallowForever (rsc)
+	* BUGFIX: Shell escape when forking in pprof (csilvers)
+	* No longer combine overloaded functions in pprof (csilvers)
+	* Fix address-normalizing bug in pprof (csilvers)
+	* More consistently call abort() instead of exit() on failure (csilvers)
+	* Allow NoGlobalLeaks to be safely called more than once (csilvers)
+	* PORTING/BUGFIX: Fix ARM cycleclock to use volatile asm (dougkwan)
+	* PORTING: 64-bit atomic ops for ARMv7 (dougkwan)
+	* PORTING: Implement stacktrace for ARM (dougkwan)
+	* PORTING: Fix malloc_hook_mmap_linux for ARM (dougkwan)
+	* PORTING: Update linux_syscall_support.h for ARM/etc (evannier, sanek)
+	* PORTING: Fix freebsd to work on x86_64 (chapp...@gmail.com)
+	* PORTING: Added additional SYS_mmap fixes for FreeBSD (chappedm)
+	* PORTING: Allow us to compile on OS X 10.6 and run on 10.5 (raltherr)
+	* PORTING: Check for mingw compilers that *do* define timespec
+	* PORTING: Add "support" for MIPS cycletimer
+	* PORTING: Fix fallback cycle-timer to work with Now (dougkwan)
+	* PERF: Move stack trace collecting out of the mutex (taylorc)
+	* PERF: Get the deallocation stack trace outside the mutex (sean)
+	* Make PageHeap dynamically allocated for leak checks (maxim)
+	* BUGFIX: Fix probing of nm -f behavior in pprof (dpeng)
+	* BUGFIX: Fix a race with the CentralFreeList lock before main (sanjay)
+	* Support /pprof/censusprofile url arguments (rajatjain)
+	* Change IgnoreObject to return its argument (nlewycky)
+	* Update malloc-hook files to support more CPUs
+	* BUGFIX: write our own strstr to avoid libc problems (csilvers)
+	* Use simple callgrind compression facility in pprof
+	* Print an error message when we can't run pprof to symbolize (csilvers)
+	* Die in configure when g++ is't installed (csilvers)
+	* DOC: Beef up the documentation a bit about using libunwind (csilvers)
+
 Fri Aug 26 13:29:25 2011    Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.8.3 release
