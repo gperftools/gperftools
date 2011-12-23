@@ -29,6 +29,11 @@ AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -fno-builtin-calloc -fno-builtin-cfree \
                -fno-builtin-memalign -fno-builtin-posix_memalign \
                -fno-builtin-valloc -fno-builtin-pvalloc
+# On i386, -mmmx is needed for the mmx-based instructions in
+# atomicops-internal-x86.h.
+if I386
+AM_CXXFLAGS += -mmmx
+endif I386
 endif GCC
 if HAVE_W_NO_UNUSED_RESULT
 AM_CXXFLAGS += -Wno-unused-result
