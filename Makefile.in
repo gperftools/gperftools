@@ -363,10 +363,10 @@ libspinlock_la_OBJECTS = $(am_libspinlock_la_OBJECTS)
 am__libstacktrace_la_SOURCES_DIST = src/stacktrace.cc \
 	src/base/elf_mem_image.cc src/base/vdso_support.cc \
 	src/stacktrace_config.h src/stacktrace_generic-inl.h \
-	src/stacktrace_libunwind-inl.h src/stacktrace_powerpc-inl.h \
-	src/stacktrace_x86-inl.h src/stacktrace_win32-inl.h \
-	src/base/elf_mem_image.h src/base/vdso_support.h \
-	src/google/stacktrace.h
+	src/stacktrace_libunwind-inl.h src/stacktrace_arm-inl.h \
+	src/stacktrace_powerpc-inl.h src/stacktrace_x86-inl.h \
+	src/stacktrace_win32-inl.h src/base/elf_mem_image.h \
+	src/base/vdso_support.h src/google/stacktrace.h
 @WITH_STACK_TRACE_TRUE@am__objects_4 = $(am__objects_1) \
 @WITH_STACK_TRACE_TRUE@	$(am__objects_1)
 @WITH_STACK_TRACE_TRUE@am_libstacktrace_la_OBJECTS = stacktrace.lo \
@@ -1184,11 +1184,12 @@ am__stacktrace_unittest_SOURCES_DIST =  \
 	src/tests/stacktrace_unittest.cc src/config_for_unittests.h \
 	src/base/commandlineflags.h src/stacktrace_config.h \
 	src/stacktrace_generic-inl.h src/stacktrace_libunwind-inl.h \
-	src/stacktrace_powerpc-inl.h src/stacktrace_x86-inl.h \
-	src/stacktrace_win32-inl.h src/base/elf_mem_image.h \
-	src/base/vdso_support.h src/google/stacktrace.h \
-	src/base/logging.h src/base/basictypes.h \
-	src/base/dynamic_annotations.h src/third_party/valgrind.h
+	src/stacktrace_arm-inl.h src/stacktrace_powerpc-inl.h \
+	src/stacktrace_x86-inl.h src/stacktrace_win32-inl.h \
+	src/base/elf_mem_image.h src/base/vdso_support.h \
+	src/google/stacktrace.h src/base/logging.h \
+	src/base/basictypes.h src/base/dynamic_annotations.h \
+	src/third_party/valgrind.h
 @WITH_STACK_TRACE_TRUE@am__objects_40 = $(am__objects_4) \
 @WITH_STACK_TRACE_TRUE@	$(am__objects_1)
 @WITH_STACK_TRACE_TRUE@am_stacktrace_unittest_OBJECTS =  \
@@ -1965,6 +1966,7 @@ atomicops_unittest_LDADD = $(LIBSPINLOCK)
 @WITH_STACK_TRACE_TRUE@S_STACKTRACE_INCLUDES = src/stacktrace_config.h \
 @WITH_STACK_TRACE_TRUE@                        src/stacktrace_generic-inl.h \
 @WITH_STACK_TRACE_TRUE@			src/stacktrace_libunwind-inl.h \
+@WITH_STACK_TRACE_TRUE@			src/stacktrace_arm-inl.h \
 @WITH_STACK_TRACE_TRUE@			src/stacktrace_powerpc-inl.h \
 @WITH_STACK_TRACE_TRUE@			src/stacktrace_x86-inl.h \
 @WITH_STACK_TRACE_TRUE@			src/stacktrace_win32-inl.h \

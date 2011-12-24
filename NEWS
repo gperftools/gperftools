@@ -1,3 +1,12 @@
+== 23 December 2011 ==
+
+I've just released perftools 1.9.1
+
+I missed including a file in the tarball, that is needed to compile on
+ARM.  If you are not compiling on ARM, or have successfully compiled
+perftools 1.9, there is no need to upgrade.
+
+
 == 22 December 2011 ==
 
 I've just released perftools 1.9
