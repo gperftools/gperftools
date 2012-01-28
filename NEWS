@@ -1,4 +1,14 @@
-== 23 December 2011 ==
+== 24 January 2011 ==
+
+The `google-perftools` Google Code page has been renamed to
+`gperftools`, in preparation for the project being renamed to
+`gperftools`.  In the coming weeks, I'll be stepping down as
+maintainer for the perftools project, and as part of that Google is
+relinquishing ownership of the project; it will now be entirely
+community run.  The name change reflects that shift.  The 'g' in
+'gperftools' stands for 'great'. :-)
+
+=== 23 December 2011 ===
 
 I've just released perftools 1.9.1
 
@@ -7,7 +17,7 @@ ARM.  If you are not compiling on ARM, or have successfully compiled
 perftools 1.9, there is no need to upgrade.
 
 
-== 22 December 2011 ==
+=== 22 December 2011 ===
 
 I've just released perftools 1.9
 

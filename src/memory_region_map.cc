@@ -145,6 +145,8 @@ SpinLock MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
     SpinLock::LINKER_INITIALIZED);
 int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
 pthread_t MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
+int64 MemoryRegionMap::map_size_ = 0;
+int64 MemoryRegionMap::unmap_size_ = 0;
 
 // ========================================================================= //
 
@@ -462,6 +464,7 @@ void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
               reinterpret_cast<void*>(region.caller()));
   // Note: none of the above allocates memory.
   Lock();  // recursively lock
+  map_size_ += size;
   InsertRegionLocked(region);
     // This will (eventually) allocate storage for and copy over the stack data
     // from region.call_stack_data_ that is pointed by region.call_stack().
@@ -573,6 +576,7 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
               reinterpret_cast<void*>(end_addr),
               regions_->size());
   if (VLOG_IS_ON(12))  LogAllLocked();
+  unmap_size_ += size;
   Unlock();
 }
 

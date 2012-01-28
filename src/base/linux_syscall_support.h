@@ -69,6 +69,63 @@
  * This file defines a few internal symbols that all start with "LSS_".
  * Do not access these symbols from outside this file. They are not part
  * of the supported API.
+ *
+ * NOTE: This is a stripped down version of the official opensource
+ * version of linux_syscall_support.h, which lives at
+ *    http://code.google.com/p/linux-syscall-support/
+ * It includes only the syscalls that are used in perftools, plus a
+ * few extra.  Here's the breakdown:
+ * 1) Perftools uses these: grep -rho 'sys_[a-z0-9_A-Z]* *(' src | sort -u
+ *      sys__exit(
+ *      sys_clone(
+ *      sys_close(
+ *      sys_fcntl(
+ *      sys_fstat(
+ *      sys_futex(
+ *      sys_futex1(
+ *      sys_getcpu(
+ *      sys_getdents(
+ *      sys_getppid(
+ *      sys_gettid(
+ *      sys_lseek(
+ *      sys_mmap(
+ *      sys_mremap(
+ *      sys_munmap(
+ *      sys_open(
+ *      sys_pipe(
+ *      sys_prctl(
+ *      sys_ptrace(
+ *      sys_ptrace_detach(
+ *      sys_read(
+ *      sys_sched_yield(
+ *      sys_sigaction(
+ *      sys_sigaltstack(
+ *      sys_sigdelset(
+ *      sys_sigfillset(
+ *      sys_sigprocmask(
+ *      sys_socket(
+ *      sys_stat(
+ *      sys_waitpid(
+ * 2) These are used as subroutines of the above:
+ *      sys_getpid       -- gettid
+ *      sys_kill         -- ptrace_detach
+ *      sys_restore      -- sigaction
+ *      sys_restore_rt   -- sigaction
+ *      sys_socketcall   -- socket
+ *      sys_wait4        -- waitpid
+ * 3) I left these in even though they're not used.  They either
+ * complement the above (write vs read) or are variants (rt_sigaction):
+ *      sys_fstat64
+ *      sys_getdents64
+ *      sys_llseek
+ *      sys_mmap2
+ *      sys_openat
+ *      sys_rt_sigaction
+ *      sys_rt_sigprocmask
+ *      sys_sigaddset
+ *      sys_sigemptyset
+ *      sys_stat64
+ *      sys_write
  */
 #ifndef SYS_LINUX_SYSCALL_SUPPORT_H
 #define SYS_LINUX_SYSCALL_SUPPORT_H
@@ -152,36 +209,6 @@ struct kernel_dirent {
   long               d_off;
   unsigned short     d_reclen;
   char               d_name[256];
-};
-
-/* include/linux/uio.h                                                       */
-struct kernel_iovec {
-  void               *iov_base;
-  unsigned long      iov_len;
-};
-
-/* include/linux/socket.h                                                    */
-struct kernel_msghdr {
-  void               *msg_name;
-  int                msg_namelen;
-  struct kernel_iovec*msg_iov;
-  unsigned long      msg_iovlen;
-  void               *msg_control;
-  unsigned long      msg_controllen;
-  unsigned           msg_flags;
-};
-
-/* include/asm-generic/poll.h                                                */
-struct kernel_pollfd {
-  int                fd;
-  short              events;
-  short              revents;
-};
-
-/* include/linux/resource.h                                                  */
-struct kernel_rlimit {
-  unsigned long      rlim_cur;
-  unsigned long      rlim_max;
 };
 
 /* include/linux/time.h                                                      */
@@ -272,12 +299,6 @@ struct kernel_sigaction {
   void               (*sa_restorer)(void);
   struct kernel_sigset_t sa_mask;
 #endif
-};
-
-/* include/linux/socket.h                                                    */
-struct kernel_sockaddr {
-  unsigned short     sa_family;
-  char               sa_data[14];
 };
 
 /* include/asm-{arm,i386,mips,ppc}/stat.h                                    */
@@ -449,74 +470,6 @@ struct kernel_stat {
 };
 #endif
 
-/* include/asm-{arm,i386,mips,x86_64,ppc}/statfs.h                           */
-#ifdef __mips__
-#if _MIPS_SIM != _MIPS_SIM_ABI64
-struct kernel_statfs64 {
-  unsigned long      f_type;
-  unsigned long      f_bsize;
-  unsigned long      f_frsize;
-  unsigned long      __pad;
-  unsigned long long f_blocks;
-  unsigned long long f_bfree;
-  unsigned long long f_files;
-  unsigned long long f_ffree;
-  unsigned long long f_bavail;
-  struct { int val[2]; } f_fsid;
-  unsigned long      f_namelen;
-  unsigned long      f_spare[6];
-};
-#endif
-#elif !defined(__x86_64__)
-struct kernel_statfs64 {
-  unsigned long      f_type;
-  unsigned long      f_bsize;
-  unsigned long long f_blocks;
-  unsigned long long f_bfree;
-  unsigned long long f_bavail;
-  unsigned long long f_files;
-  unsigned long long f_ffree;
-  struct { int val[2]; } f_fsid;
-  unsigned long      f_namelen;
-  unsigned long      f_frsize;
-  unsigned long      f_spare[5];
-};
-#endif
-
-/* include/asm-{arm,i386,mips,x86_64,ppc,generic}/statfs.h                   */
-#ifdef __mips__
-struct kernel_statfs {
-  long               f_type;
-  long               f_bsize;
-  long               f_frsize;
-  long               f_blocks;
-  long               f_bfree;
-  long               f_files;
-  long               f_ffree;
-  long               f_bavail;
-  struct { int val[2]; } f_fsid;
-  long               f_namelen;
-  long               f_spare[6];
-};
-#else
-struct kernel_statfs {
-  /* x86_64 actually defines all these fields as signed, whereas all other  */
-  /* platforms define them as unsigned. Leaving them at unsigned should not */
-  /* cause any problems.                                                    */
-  unsigned long      f_type;
-  unsigned long      f_bsize;
-  unsigned long      f_blocks;
-  unsigned long      f_bfree;
-  unsigned long      f_bavail;
-  unsigned long      f_files;
-  unsigned long      f_ffree;
-  struct { int val[2]; } f_fsid;
-  unsigned long      f_namelen;
-  unsigned long      f_frsize;
-  unsigned long      f_spare[5];
-};
-#endif
-
 
 /* Definitions missing from the standard header files                        */
 #ifndef O_DIRECTORY
@@ -525,12 +478,6 @@ struct kernel_statfs {
 #else
 #define O_DIRECTORY             0200000
 #endif
-#endif
-#ifndef NT_PRXFPREG
-#define NT_PRXFPREG             0x46e62b7f
-#endif
-#ifndef PTRACE_GETFPXREGS
-#define PTRACE_GETFPXREGS       ((enum __ptrace_request)18)
 #endif
 #ifndef PR_GET_DUMPABLE
 #define PR_GET_DUMPABLE         3
@@ -553,46 +500,11 @@ struct kernel_statfs {
 #ifndef SA_RESTORER
 #define SA_RESTORER             0x04000000
 #endif
-#ifndef CPUCLOCK_PROF
-#define CPUCLOCK_PROF           0
-#endif
-#ifndef CPUCLOCK_VIRT
-#define CPUCLOCK_VIRT           1
-#endif
-#ifndef CPUCLOCK_SCHED
-#define CPUCLOCK_SCHED          2
-#endif
-#ifndef CPUCLOCK_PERTHREAD_MASK
-#define CPUCLOCK_PERTHREAD_MASK 4
-#endif
-#ifndef MAKE_PROCESS_CPUCLOCK
-#define MAKE_PROCESS_CPUCLOCK(pid, clock)                                     \
-        ((~(int)(pid) << 3) | (int)(clock))
-#endif
-#ifndef MAKE_THREAD_CPUCLOCK
-#define MAKE_THREAD_CPUCLOCK(tid, clock)                                      \
-        ((~(int)(tid) << 3) | (int)((clock) | CPUCLOCK_PERTHREAD_MASK))
-#endif
 
 #if defined(__i386__)
-#ifndef __NR_setresuid
-#define __NR_setresuid          164
-#define __NR_setresgid          170
-#endif
 #ifndef __NR_rt_sigaction
 #define __NR_rt_sigaction       174
 #define __NR_rt_sigprocmask     175
-#define __NR_rt_sigpending      176
-#define __NR_rt_sigsuspend      179
-#endif
-#ifndef __NR_pread64
-#define __NR_pread64            180
-#endif
-#ifndef __NR_pwrite64
-#define __NR_pwrite64           181
-#endif
-#ifndef __NR_ugetrlimit
-#define __NR_ugetrlimit         191
 #endif
 #ifndef __NR_stat64
 #define __NR_stat64             195
@@ -600,121 +512,43 @@ struct kernel_statfs {
 #ifndef __NR_fstat64
 #define __NR_fstat64            197
 #endif
-#ifndef __NR_setresuid32
-#define __NR_setresuid32        208
-#define __NR_setresgid32        210
-#endif
-#ifndef __NR_setfsuid32
-#define __NR_setfsuid32         215
-#define __NR_setfsgid32         216
-#endif
 #ifndef __NR_getdents64
 #define __NR_getdents64         220
 #endif
 #ifndef __NR_gettid
 #define __NR_gettid             224
 #endif
-#ifndef __NR_readahead
-#define __NR_readahead          225
-#endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           226
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          227
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           229
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          230
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          232
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         233
-#endif
 #ifndef __NR_futex
 #define __NR_futex              240
-#endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  241
-#define __NR_sched_getaffinity  242
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    258
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      265
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       266
-#endif
-#ifndef __NR_statfs64
-#define __NR_statfs64           268
-#endif
-#ifndef __NR_fstatfs64
-#define __NR_fstatfs64          269
-#endif
-#ifndef __NR_fadvise64_64
-#define __NR_fadvise64_64       272
-#endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         289
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         290
 #endif
 #ifndef __NR_openat
 #define __NR_openat             295
 #endif
-#ifndef __NR_fstatat64
-#define __NR_fstatat64          300
-#endif
-#ifndef __NR_unlinkat
-#define __NR_unlinkat           301
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         317
-#endif
 #ifndef __NR_getcpu
 #define __NR_getcpu             318
-#endif
-#ifndef __NR_fallocate
-#define __NR_fallocate          324
 #endif
 /* End of i386 definitions                                                   */
 #elif defined(__arm__)
 #ifndef __syscall
 #if defined(__thumb__) || defined(__ARM_EABI__)
-#define __SYS_REG(name) register long __sysreg __asm__("r7") = __NR_##name;
-#define __SYS_REG_LIST(regs...) "r" (__sysreg) , ##regs
+#define __SYS_REG(name) register long __sysreg __asm__("r6") = __NR_##name;
+#define __SYS_REG_LIST(regs...) [sysreg] "r" (__sysreg) , ##regs
 #define __syscall(name) "swi\t0"
+#define __syscall_safe(name)                     \
+  "push  {r7}\n"                                 \
+  "mov   r7,%[sysreg]\n"                         \
+  __syscall(name)"\n"                            \
+  "pop   {r7}"
 #else
 #define __SYS_REG(name)
 #define __SYS_REG_LIST(regs...) regs
 #define __syscall(name) "swi\t" __sys1(__NR_##name) ""
+#define __syscall_safe(name) __syscall(name)
 #endif
-#endif
-#ifndef __NR_setresuid
-#define __NR_setresuid          (__NR_SYSCALL_BASE + 164)
-#define __NR_setresgid          (__NR_SYSCALL_BASE + 170)
 #endif
 #ifndef __NR_rt_sigaction
 #define __NR_rt_sigaction       (__NR_SYSCALL_BASE + 174)
 #define __NR_rt_sigprocmask     (__NR_SYSCALL_BASE + 175)
-#define __NR_rt_sigpending      (__NR_SYSCALL_BASE + 176)
-#define __NR_rt_sigsuspend      (__NR_SYSCALL_BASE + 179)
-#endif
-#ifndef __NR_pread64
-#define __NR_pread64            (__NR_SYSCALL_BASE + 180)
-#endif
-#ifndef __NR_pwrite64
-#define __NR_pwrite64           (__NR_SYSCALL_BASE + 181)
-#endif
-#ifndef __NR_ugetrlimit
-#define __NR_ugetrlimit         (__NR_SYSCALL_BASE + 191)
 #endif
 #ifndef __NR_stat64
 #define __NR_stat64             (__NR_SYSCALL_BASE + 195)
@@ -722,169 +556,35 @@ struct kernel_statfs {
 #ifndef __NR_fstat64
 #define __NR_fstat64            (__NR_SYSCALL_BASE + 197)
 #endif
-#ifndef __NR_setresuid32
-#define __NR_setresuid32        (__NR_SYSCALL_BASE + 208)
-#define __NR_setresgid32        (__NR_SYSCALL_BASE + 210)
-#endif
-#ifndef __NR_setfsuid32
-#define __NR_setfsuid32         (__NR_SYSCALL_BASE + 215)
-#define __NR_setfsgid32         (__NR_SYSCALL_BASE + 216)
-#endif
 #ifndef __NR_getdents64
 #define __NR_getdents64         (__NR_SYSCALL_BASE + 217)
 #endif
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_SYSCALL_BASE + 224)
 #endif
-#ifndef __NR_readahead
-#define __NR_readahead          (__NR_SYSCALL_BASE + 225)
-#endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           (__NR_SYSCALL_BASE + 226)
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          (__NR_SYSCALL_BASE + 227)
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           (__NR_SYSCALL_BASE + 229)
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          (__NR_SYSCALL_BASE + 230)
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          (__NR_SYSCALL_BASE + 232)
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         (__NR_SYSCALL_BASE + 233)
-#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_SYSCALL_BASE + 240)
 #endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  (__NR_SYSCALL_BASE + 241)
-#define __NR_sched_getaffinity  (__NR_SYSCALL_BASE + 242)
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    (__NR_SYSCALL_BASE + 256)
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      (__NR_SYSCALL_BASE + 263)
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       (__NR_SYSCALL_BASE + 264)
-#endif
-#ifndef __NR_statfs64
-#define __NR_statfs64           (__NR_SYSCALL_BASE + 266)
-#endif
-#ifndef __NR_fstatfs64
-#define __NR_fstatfs64          (__NR_SYSCALL_BASE + 267)
-#endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         (__NR_SYSCALL_BASE + 314)
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         (__NR_SYSCALL_BASE + 315)
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         (__NR_SYSCALL_BASE + 344)
-#endif
 /* End of ARM definitions                                                  */
 #elif defined(__x86_64__)
-#ifndef __NR_pread64
-#define __NR_pread64             17
-#endif
-#ifndef __NR_pwrite64
-#define __NR_pwrite64            18
-#endif
-#ifndef __NR_setresuid
-#define __NR_setresuid          117
-#define __NR_setresgid          119
-#endif
 #ifndef __NR_gettid
 #define __NR_gettid             186
-#endif
-#ifndef __NR_readahead
-#define __NR_readahead          187
-#endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           188
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          189
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           191
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          192
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          194
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         195
 #endif
 #ifndef __NR_futex
 #define __NR_futex              202
 #endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  203
-#define __NR_sched_getaffinity  204
-#endif
 #ifndef __NR_getdents64
 #define __NR_getdents64         217
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    218
-#endif
-#ifndef __NR_fadvise64
-#define __NR_fadvise64          221
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      228
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       229
-#endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         251
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         252
 #endif
 #ifndef __NR_openat
 #define __NR_openat             257
 #endif
-#ifndef __NR_newfstatat
-#define __NR_newfstatat         262
-#endif
-#ifndef __NR_unlinkat
-#define __NR_unlinkat           263
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         279
-#endif
-#ifndef __NR_fallocate
-#define __NR_fallocate          285
-#endif
 /* End of x86-64 definitions                                                 */
 #elif defined(__mips__)
 #if _MIPS_SIM == _MIPS_SIM_ABI32
-#ifndef __NR_setresuid
-#define __NR_setresuid          (__NR_Linux + 185)
-#define __NR_setresgid          (__NR_Linux + 190)
-#endif
 #ifndef __NR_rt_sigaction
 #define __NR_rt_sigaction       (__NR_Linux + 194)
 #define __NR_rt_sigprocmask     (__NR_Linux + 195)
-#define __NR_rt_sigpending      (__NR_Linux + 196)
-#define __NR_rt_sigsuspend      (__NR_Linux + 199)
-#endif
-#ifndef __NR_pread64
-#define __NR_pread64            (__NR_Linux + 200)
-#endif
-#ifndef __NR_pwrite64
-#define __NR_pwrite64           (__NR_Linux + 201)
 #endif
 #ifndef __NR_stat64
 #define __NR_stat64             (__NR_Linux + 213)
@@ -898,48 +598,8 @@ struct kernel_statfs {
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 222)
 #endif
-#ifndef __NR_readahead
-#define __NR_readahead          (__NR_Linux + 223)
-#endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           (__NR_Linux + 224)
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          (__NR_Linux + 225)
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           (__NR_Linux + 227)
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          (__NR_Linux + 228)
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          (__NR_Linux + 230)
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         (__NR_Linux + 231)
-#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 238)
-#endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  (__NR_Linux + 239)
-#define __NR_sched_getaffinity  (__NR_Linux + 240)
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    (__NR_Linux + 252)
-#endif
-#ifndef __NR_statfs64
-#define __NR_statfs64           (__NR_Linux + 255)
-#endif
-#ifndef __NR_fstatfs64
-#define __NR_fstatfs64          (__NR_Linux + 256)
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      (__NR_Linux + 263)
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       (__NR_Linux + 264)
 #endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 288)
@@ -947,72 +607,16 @@ struct kernel_statfs {
 #ifndef __NR_fstatat
 #define __NR_fstatat            (__NR_Linux + 293)
 #endif
-#ifndef __NR_unlinkat
-#define __NR_unlinkat           (__NR_Linux + 294)
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         (__NR_Linux + 308)
-#endif
 #ifndef __NR_getcpu
 #define __NR_getcpu             (__NR_Linux + 312)
 #endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         (__NR_Linux + 314)
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         (__NR_Linux + 315)
-#endif
 /* End of MIPS (old 32bit API) definitions */
 #elif  _MIPS_SIM == _MIPS_SIM_ABI64
-#ifndef __NR_pread64
-#define __NR_pread64            (__NR_Linux +  16)
-#endif
-#ifndef __NR_pwrite64
-#define __NR_pwrite64           (__NR_Linux +  17)
-#endif
-#ifndef __NR_setresuid
-#define __NR_setresuid          (__NR_Linux + 115)
-#define __NR_setresgid          (__NR_Linux + 117)
-#endif
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 178)
 #endif
-#ifndef __NR_readahead
-#define __NR_readahead          (__NR_Linux + 179)
-#endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           (__NR_Linux + 180)
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          (__NR_Linux + 181)
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           (__NR_Linux + 183)
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          (__NR_Linux + 184)
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          (__NR_Linux + 186)
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         (__NR_Linux + 187)
-#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 194)
-#endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  (__NR_Linux + 195)
-#define __NR_sched_getaffinity  (__NR_Linux + 196)
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    (__NR_Linux + 212)
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      (__NR_Linux + 222)
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       (__NR_Linux + 223)
 #endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 247)
@@ -1020,72 +624,16 @@ struct kernel_statfs {
 #ifndef __NR_fstatat
 #define __NR_fstatat            (__NR_Linux + 252)
 #endif
-#ifndef __NR_unlinkat
-#define __NR_unlinkat           (__NR_Linux + 253)
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         (__NR_Linux + 267)
-#endif
 #ifndef __NR_getcpu
 #define __NR_getcpu             (__NR_Linux + 271)
 #endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         (__NR_Linux + 273)
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         (__NR_Linux + 274)
-#endif
 /* End of MIPS (64bit API) definitions */
 #else
-#ifndef __NR_setresuid
-#define __NR_setresuid          (__NR_Linux + 115)
-#define __NR_setresgid          (__NR_Linux + 117)
-#endif
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 178)
 #endif
-#ifndef __NR_readahead
-#define __NR_readahead          (__NR_Linux + 179)
-#endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           (__NR_Linux + 180)
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          (__NR_Linux + 181)
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           (__NR_Linux + 183)
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          (__NR_Linux + 184)
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          (__NR_Linux + 186)
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         (__NR_Linux + 187)
-#endif
 #ifndef __NR_futex
 #define __NR_futex              (__NR_Linux + 194)
-#endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  (__NR_Linux + 195)
-#define __NR_sched_getaffinity  (__NR_Linux + 196)
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    (__NR_Linux + 213)
-#endif
-#ifndef __NR_statfs64
-#define __NR_statfs64           (__NR_Linux + 217)
-#endif
-#ifndef __NR_fstatfs64
-#define __NR_fstatfs64          (__NR_Linux + 218)
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      (__NR_Linux + 226)
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       (__NR_Linux + 227)
 #endif
 #ifndef __NR_openat
 #define __NR_openat             (__NR_Linux + 251)
@@ -1093,50 +641,16 @@ struct kernel_statfs {
 #ifndef __NR_fstatat
 #define __NR_fstatat            (__NR_Linux + 256)
 #endif
-#ifndef __NR_unlinkat
-#define __NR_unlinkat           (__NR_Linux + 257)
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         (__NR_Linux + 271)
-#endif
 #ifndef __NR_getcpu
 #define __NR_getcpu             (__NR_Linux + 275)
-#endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         (__NR_Linux + 277)
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         (__NR_Linux + 278)
 #endif
 /* End of MIPS (new 32bit API) definitions                                   */
 #endif
 /* End of MIPS definitions                                                   */
 #elif defined(__PPC__)
-#ifndef __NR_setfsuid
-#define __NR_setfsuid           138
-#define __NR_setfsgid           139
-#endif
-#ifndef __NR_setresuid
-#define __NR_setresuid          164
-#define __NR_setresgid          169
-#endif
 #ifndef __NR_rt_sigaction
 #define __NR_rt_sigaction       173
 #define __NR_rt_sigprocmask     174
-#define __NR_rt_sigpending      175
-#define __NR_rt_sigsuspend      178
-#endif
-#ifndef __NR_pread64
-#define __NR_pread64            179
-#endif
-#ifndef __NR_pwrite64
-#define __NR_pwrite64           180
-#endif
-#ifndef __NR_ugetrlimit
-#define __NR_ugetrlimit         190
-#endif
-#ifndef __NR_readahead
-#define __NR_readahead          191
 #endif
 #ifndef __NR_stat64
 #define __NR_stat64             195
@@ -1150,66 +664,11 @@ struct kernel_statfs {
 #ifndef __NR_gettid
 #define __NR_gettid             207
 #endif
-#ifndef __NR_setxattr
-#define __NR_setxattr           209
-#endif
-#ifndef __NR_lsetxattr
-#define __NR_lsetxattr          210
-#endif
-#ifndef __NR_getxattr
-#define __NR_getxattr           212
-#endif
-#ifndef __NR_lgetxattr
-#define __NR_lgetxattr          213
-#endif
-#ifndef __NR_listxattr
-#define __NR_listxattr          215
-#endif
-#ifndef __NR_llistxattr
-#define __NR_llistxattr         216
-#endif
 #ifndef __NR_futex
 #define __NR_futex              221
 #endif
-#ifndef __NR_sched_setaffinity
-#define __NR_sched_setaffinity  222
-#define __NR_sched_getaffinity  223
-#endif
-#ifndef __NR_set_tid_address
-#define __NR_set_tid_address    232
-#endif
-#ifndef __NR_clock_gettime
-#define __NR_clock_gettime      246
-#endif
-#ifndef __NR_clock_getres
-#define __NR_clock_getres       247
-#endif
-#ifndef __NR_statfs64
-#define __NR_statfs64           252
-#endif
-#ifndef __NR_fstatfs64
-#define __NR_fstatfs64          253
-#endif
-#ifndef __NR_fadvise64_64
-#define __NR_fadvise64_64       254
-#endif
-#ifndef __NR_ioprio_set
-#define __NR_ioprio_set         273
-#endif
-#ifndef __NR_ioprio_get
-#define __NR_ioprio_get         274
-#endif
 #ifndef __NR_openat
 #define __NR_openat             286
-#endif
-#ifndef __NR_fstatat64
-#define __NR_fstatat64          291
-#endif
-#ifndef __NR_unlinkat
-#define __NR_unlinkat           292
-#endif
-#ifndef __NR_move_pages
-#define __NR_move_pages         301
 #endif
 #ifndef __NR_getcpu
 #define __NR_getcpu             302
@@ -1315,6 +774,15 @@ struct kernel_statfs {
    } while (0)
   #endif
   #if defined(__i386__)
+    #if defined(NO_FRAME_POINTER) && (100 * __GNUC__ + __GNUC_MINOR__ >= 404)
+      /* This only works for GCC-4.4 and above -- the first version to use
+         .cfi directives for dwarf unwind info.  */
+      #define CFI_ADJUST_CFA_OFFSET(adjust)                                   \
+                  ".cfi_adjust_cfa_offset " #adjust "\n"
+    #else
+      #define CFI_ADJUST_CFA_OFFSET(adjust) /**/
+    #endif
+
     /* In PIC mode (e.g. when building shared libraries), gcc for i386
      * reserves ebx. Unfortunately, most distribution ship with implementations
      * of _syscallX() which clobber ebx.
@@ -1327,11 +795,13 @@ struct kernel_statfs {
     #define LSS_BODY(type,args...)                                            \
       long __res;                                                             \
       __asm__ __volatile__("push %%ebx\n"                                     \
+                           CFI_ADJUST_CFA_OFFSET(4)                           \
                            "movl %2,%%ebx\n"                                  \
                            "int $0x80\n"                                      \
-                           "pop %%ebx"                                        \
+                           "pop %%ebx\n"                                      \
+                           CFI_ADJUST_CFA_OFFSET(-4)                          \
                            args                                               \
-                           : "memory");                                       \
+                           : "esp", "memory");                                \
       LSS_RETURN(type,__res)
     #undef  _syscall0
     #define _syscall0(type,name)                                              \
@@ -1388,7 +858,7 @@ struct kernel_statfs {
                              : "i" (__NR_##name), "ri" ((long)(arg1)),        \
                                "c" ((long)(arg2)), "d" ((long)(arg3)),        \
                                "S" ((long)(arg4)), "D" ((long)(arg5))         \
-                             : "memory");                                     \
+                             : "esp", "memory");                              \
         LSS_RETURN(type,__res);                                               \
       }
     #undef  _syscall6
@@ -1410,7 +880,7 @@ struct kernel_statfs {
                              : "i" (__NR_##name),  "0" ((long)(&__s)),        \
                                "c" ((long)(arg2)), "d" ((long)(arg3)),        \
                                "S" ((long)(arg4)), "D" ((long)(arg5))         \
-                             : "memory");                                     \
+                             : "esp", "memory");                              \
         LSS_RETURN(type,__res);                                               \
       }
     LSS_INLINE int LSS_NAME(clone)(int (*fn)(void *), void *child_stack,
@@ -1496,34 +966,8 @@ struct kernel_statfs {
                            : "0"(-EINVAL), "i"(__NR_clone),
                              "m"(fn), "m"(child_stack), "m"(flags), "m"(arg),
                              "m"(parent_tidptr), "m"(newtls), "m"(child_tidptr)
-                           : "memory", "ecx", "edx", "esi", "edi");
+                           : "esp", "memory", "ecx", "edx", "esi", "edi");
       LSS_RETURN(int, __res);
-    }
-
-    #define __NR__fadvise64_64 __NR_fadvise64_64
-    LSS_INLINE _syscall6(int, _fadvise64_64, int, fd,
-                         unsigned, offset_lo, unsigned, offset_hi,
-                         unsigned, len_lo, unsigned, len_hi,
-                         int, advice)
-
-    LSS_INLINE int LSS_NAME(fadvise64)(int fd, loff_t offset,
-                                       loff_t len, int advice) {
-      return LSS_NAME(_fadvise64_64)(fd,
-                                     (unsigned)offset, (unsigned)(offset >>32),
-                                     (unsigned)len, (unsigned)(len >> 32),
-                                     advice);
-    }
-
-    #define __NR__fallocate __NR_fallocate
-    LSS_INLINE _syscall6(int, _fallocate, int, fd,
-                         int, mode,
-                         unsigned, offset_lo, unsigned, offset_hi,
-                         unsigned, len_lo, unsigned, len_hi)
-
-    LSS_INLINE int LSS_NAME(fallocate)(int fd, int mode,
-                                       loff_t offset, loff_t len) {
-      union { loff_t off; unsigned w[2]; } o = { offset }, l = { len };
-      return LSS_NAME(_fallocate)(fd, mode, o.w[0], o.w[1], l.w[0], l.w[1]);
     }
 
     LSS_INLINE void (*LSS_NAME(restore_rt)(void))(void) {
@@ -1604,7 +1048,7 @@ struct kernel_statfs {
           __asm__ __volatile__("movq %5,%%r10; syscall" :                     \
             "=a" (__res) : "0" (__NR_##name),                                 \
             "D" ((long)(arg1)), "S" ((long)(arg2)), "d" ((long)(arg3)),       \
-            "g" ((long)(arg4)) : "r10", "r11", "rcx", "memory");              \
+            "r" ((long)(arg4)) : "r10", "r11", "rcx", "memory");              \
           LSS_RETURN(type, __res);                                            \
       }
     #undef _syscall5
@@ -1616,7 +1060,7 @@ struct kernel_statfs {
           __asm__ __volatile__("movq %5,%%r10; movq %6,%%r8; syscall" :       \
             "=a" (__res) : "0" (__NR_##name),                                 \
             "D" ((long)(arg1)), "S" ((long)(arg2)), "d" ((long)(arg3)),       \
-            "g" ((long)(arg4)), "g" ((long)(arg5)) :                          \
+            "r" ((long)(arg4)), "r" ((long)(arg5)) :                          \
             "r8", "r10", "r11", "rcx", "memory");                             \
           LSS_RETURN(type, __res);                                            \
       }
@@ -1630,7 +1074,7 @@ struct kernel_statfs {
                                "syscall" :                                    \
             "=a" (__res) : "0" (__NR_##name),                                 \
             "D" ((long)(arg1)), "S" ((long)(arg2)), "d" ((long)(arg3)),       \
-            "g" ((long)(arg4)), "g" ((long)(arg5)), "g" ((long)(arg6)) :      \
+            "r" ((long)(arg4)), "r" ((long)(arg5)), "r" ((long)(arg6)) :      \
             "r8", "r9", "r10", "r11", "rcx", "memory");                       \
           LSS_RETURN(type, __res);                                            \
       }
@@ -1639,8 +1083,6 @@ struct kernel_statfs {
                                    void *newtls, int *child_tidptr) {
       long __res;
       {
-        register void *__tls  __asm__("r8")  = newtls;
-        register int  *__ctid __asm__("r10") = child_tidptr;
         __asm__ __volatile__(/* if (fn == NULL)
                               *   return -EINVAL;
                               */
@@ -1653,8 +1095,10 @@ struct kernel_statfs {
                              "testq  %5,%5\n"
                              "jz     1f\n"
 
-                             /* childstack -= 2*sizeof(void *);
+                             /* Set up alignment of the child stack:
+                              * child_stack = (child_stack & ~0xF) - 16;
                               */
+                             "andq   $-16,%5\n"
                              "subq   $16,%5\n"
 
                              /* Push "arg" and "fn" onto the stack that will be
@@ -1671,6 +1115,8 @@ struct kernel_statfs {
                               *                %r10 = child_tidptr)
                               */
                              "movq   %2,%%rax\n"
+                             "movq   %9,%%r8\n"
+                             "movq   %10,%%r10\n"
                              "syscall\n"
 
                              /* if (%rax != 0)
@@ -1701,13 +1147,11 @@ struct kernel_statfs {
                              : "=a" (__res)
                              : "0"(-EINVAL), "i"(__NR_clone), "i"(__NR_exit),
                                "r"(fn), "S"(child_stack), "D"(flags), "r"(arg),
-                               "d"(parent_tidptr), "r"(__tls), "r"(__ctid)
-                             : "memory", "r11", "rcx");
+                               "d"(parent_tidptr), "g"(newtls), "g"(child_tidptr)
+                             : "rsp", "memory", "r8", "r10", "r11", "rcx");
       }
       LSS_RETURN(int, __res);
     }
-    LSS_INLINE _syscall4(int, fadvise64, int, fd, loff_t, offset, loff_t, len,
-                         int,  advice)
 
     LSS_INLINE void (*LSS_NAME(restore_rt)(void))(void) {
       /* On x86-64, the kernel does not know how to return from
@@ -1735,12 +1179,26 @@ struct kernel_statfs {
      */
     #undef LSS_REG
     #define LSS_REG(r,a) register long __r##r __asm__("r"#r) = (long)a
+
+    /* r0..r3 are scratch registers and not preserved across function
+     * calls.  We need to first evaluate the first 4 syscall arguments
+     * and store them on stack.  They must be loaded into r0..r3 after
+     * all function calls to avoid r0..r3 being clobbered.
+     */
+    #undef LSS_SAVE_ARG
+    #define LSS_SAVE_ARG(r,a) long __tmp##r = (long)a
+    #undef LSS_LOAD_ARG
+    #define LSS_LOAD_ARG(r) register long __r##r __asm__("r"#r) = __tmp##r
+
     #undef  LSS_BODY
-    #define LSS_BODY(type,name,args...)                                       \
+    #define LSS_BODY(type, name, args...)                                     \
           register long __res_r0 __asm__("r0");                               \
           long __res;                                                         \
-          __asm__ __volatile__ (__syscall(name)                               \
-                                : "=r"(__res_r0) : args : "lr", "memory");    \
+          __SYS_REG(name)                                                     \
+          __asm__ __volatile__ (__syscall_safe(name)                          \
+                                : "=r"(__res_r0)                              \
+                                : __SYS_REG_LIST(args)                        \
+                                : "lr", "memory");                            \
           __res = __res_r0;                                                   \
           LSS_RETURN(type, __res)
     #undef _syscall0
@@ -1751,77 +1209,126 @@ struct kernel_statfs {
     #undef _syscall1
     #define _syscall1(type, name, type1, arg1)                                \
       type LSS_NAME(name)(type1 arg1) {                                       \
-        LSS_REG(0, arg1); LSS_BODY(type, name, "r"(__r0));                    \
+        /* There is no need for using a volatile temp.  */                    \
+        LSS_REG(0, arg1);                                                     \
+        LSS_BODY(type, name, "r"(__r0));                                      \
       }
     #undef _syscall2
     #define _syscall2(type, name, type1, arg1, type2, arg2)                   \
       type LSS_NAME(name)(type1 arg1, type2 arg2) {                           \
-        LSS_REG(0, arg1); LSS_REG(1, arg2);                                   \
+        LSS_SAVE_ARG(0, arg1);                                                \
+        LSS_SAVE_ARG(1, arg2);                                                \
+        LSS_LOAD_ARG(0);                                                      \
+        LSS_LOAD_ARG(1);                                                      \
         LSS_BODY(type, name, "r"(__r0), "r"(__r1));                           \
       }
     #undef _syscall3
     #define _syscall3(type, name, type1, arg1, type2, arg2, type3, arg3)      \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3) {               \
-        LSS_REG(0, arg1); LSS_REG(1, arg2); LSS_REG(2, arg3);                 \
+        LSS_SAVE_ARG(0, arg1);                                                \
+        LSS_SAVE_ARG(1, arg2);                                                \
+        LSS_SAVE_ARG(2, arg3);                                                \
+        LSS_LOAD_ARG(0);                                                      \
+        LSS_LOAD_ARG(1);                                                      \
+        LSS_LOAD_ARG(2);                                                      \
         LSS_BODY(type, name, "r"(__r0), "r"(__r1), "r"(__r2));                \
       }
     #undef _syscall4
-    #define _syscall4(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4)  \
+    #define _syscall4(type, name, type1, arg1, type2, arg2, type3, arg3,      \
+                      type4, arg4)                                            \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4) {   \
-        LSS_REG(0, arg1); LSS_REG(1, arg2); LSS_REG(2, arg3);                 \
-        LSS_REG(3, arg4);                                                     \
+        LSS_SAVE_ARG(0, arg1);                                                \
+        LSS_SAVE_ARG(1, arg2);                                                \
+        LSS_SAVE_ARG(2, arg3);                                                \
+        LSS_SAVE_ARG(3, arg4);                                                \
+        LSS_LOAD_ARG(0);                                                      \
+        LSS_LOAD_ARG(1);                                                      \
+        LSS_LOAD_ARG(2);                                                      \
+        LSS_LOAD_ARG(3);                                                      \
         LSS_BODY(type, name, "r"(__r0), "r"(__r1), "r"(__r2), "r"(__r3));     \
       }
     #undef _syscall5
-    #define _syscall5(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4,  \
-                      type5,arg5)                                             \
+    #define _syscall5(type, name, type1, arg1, type2, arg2, type3, arg3,      \
+                      type4, arg4, type5, arg5)                               \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4,     \
                           type5 arg5) {                                       \
-        LSS_REG(0, arg1); LSS_REG(1, arg2); LSS_REG(2, arg3);                 \
-        LSS_REG(3, arg4); LSS_REG(4, arg5);                                   \
+        LSS_SAVE_ARG(0, arg1);                                                \
+        LSS_SAVE_ARG(1, arg2);                                                \
+        LSS_SAVE_ARG(2, arg3);                                                \
+        LSS_SAVE_ARG(3, arg4);                                                \
+        LSS_REG(4, arg5);                                                     \
+        LSS_LOAD_ARG(0);                                                      \
+        LSS_LOAD_ARG(1);                                                      \
+        LSS_LOAD_ARG(2);                                                      \
+        LSS_LOAD_ARG(3);                                                      \
         LSS_BODY(type, name, "r"(__r0), "r"(__r1), "r"(__r2), "r"(__r3),      \
                              "r"(__r4));                                      \
       }
     #undef _syscall6
-    #define _syscall6(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4,  \
-                      type5,arg5,type6,arg6)                                  \
+    #define _syscall6(type, name, type1, arg1, type2, arg2, type3, arg3,      \
+                      type4, arg4, type5, arg5, type6, arg6)                  \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4,     \
                           type5 arg5, type6 arg6) {                           \
-        LSS_REG(0, arg1); LSS_REG(1, arg2); LSS_REG(2, arg3);                 \
-        LSS_REG(3, arg4); LSS_REG(4, arg5); LSS_REG(5, arg6);                 \
+        LSS_SAVE_ARG(0, arg1);                                                \
+        LSS_SAVE_ARG(1, arg2);                                                \
+        LSS_SAVE_ARG(2, arg3);                                                \
+        LSS_SAVE_ARG(3, arg4);                                                \
+        LSS_REG(4, arg5);                                                     \
+        LSS_REG(5, arg6);                                                     \
+        LSS_LOAD_ARG(0);                                                      \
+        LSS_LOAD_ARG(1);                                                      \
+        LSS_LOAD_ARG(2);                                                      \
+        LSS_LOAD_ARG(3);                                                      \
         LSS_BODY(type, name, "r"(__r0), "r"(__r1), "r"(__r2), "r"(__r3),      \
                              "r"(__r4), "r"(__r5));                           \
       }
     LSS_INLINE int LSS_NAME(clone)(int (*fn)(void *), void *child_stack,
                                    int flags, void *arg, int *parent_tidptr,
                                    void *newtls, int *child_tidptr) {
-      long __res;
+      register long __res __asm__("r5");
       {
-        register int   __flags __asm__("r0") = flags;
-        register void *__stack __asm__("r1") = child_stack;
-        register void *__ptid  __asm__("r2") = parent_tidptr;
-        register void *__tls   __asm__("r3") = newtls;
+        if (fn == NULL || child_stack == NULL) {
+            __res = -EINVAL;
+            goto clone_exit;
+        }
+
+        /* stash first 4 arguments on stack first because we can only load
+         * them after all function calls.
+         */
+        int    tmp_flags = flags;
+        int  * tmp_stack = (int*) child_stack;
+        void * tmp_ptid  = parent_tidptr;
+        void * tmp_tls   = newtls;
+
         register int  *__ctid  __asm__("r4") = child_tidptr;
-        __asm__ __volatile__(/* if (fn == NULL || child_stack == NULL)
-                              *   return -EINVAL;
-                              */
-                             "cmp   %2,#0\n"
-                             "cmpne %3,#0\n"
-                             "moveq %0,%1\n"
-                             "beq   1f\n"
 
-                             /* Push "arg" and "fn" onto the stack that will be
-                              * used by the child.
-                              */
-                             "str   %5,[%3,#-4]!\n"
-                             "str   %2,[%3,#-4]!\n"
+        /* Push "arg" and "fn" onto the stack that will be
+         * used by the child.
+         */
+        *(--tmp_stack) = (int) arg;
+        *(--tmp_stack) = (int) fn;
 
-                             /* %r0 = syscall(%r0 = flags,
+        /* We must load r0..r3 last after all possible function calls.  */
+        register int   __flags __asm__("r0") = tmp_flags;
+        register void *__stack __asm__("r1") = tmp_stack;
+        register void *__ptid  __asm__("r2") = tmp_ptid;
+        register void *__tls   __asm__("r3") = tmp_tls;
+
+        /* %r0 = syscall(%r0 = flags,
+         *               %r1 = child_stack,
+         *               %r2 = parent_tidptr,
+         *               %r3 = newtls,
+         *               %r4 = child_tidptr)
+         */
+        __SYS_REG(clone)
+        __asm__ __volatile__(/* %r0 = syscall(%r0 = flags,
                               *               %r1 = child_stack,
                               *               %r2 = parent_tidptr,
                               *               %r3 = newtls,
                               *               %r4 = child_tidptr)
                               */
+                             "push  {r7}\n"
+                             "mov   r7,%1\n"
                              __syscall(clone)"\n"
 
                              /* if (%r0 != 0)
@@ -1836,16 +1343,24 @@ struct kernel_statfs {
                              "mov   lr,pc\n"
                              "ldr   pc,[sp]\n"
 
-                             /* Call _exit(%r0).
+                             /* Call _exit(%r0), which never returns.  We only
+                              * need to set r7 for EABI syscall ABI but we do
+                              * this always to simplify code sharing between
+                              * old and new syscall ABIs.
                               */
+                             "mov   r7,%2\n"
                              __syscall(exit)"\n"
-                           "1:\n"
+
+                             /* Pop r7 from the stack only in the parent.
+                              */
+                           "1: pop {r7}\n"
                              : "=r" (__res)
-                             : "i"(-EINVAL),
-                               "r"(fn), "r"(__stack), "r"(__flags), "r"(arg),
+                             : "r"(__sysreg),
+                               "i"(__NR_exit), "r"(__stack), "r"(__flags),
                                "r"(__ptid), "r"(__tls), "r"(__ctid)
-                             : "lr", "memory");
+                             : "cc", "lr", "memory");
       }
+      clone_exit:
       LSS_RETURN(int, __res);
     }
   #elif defined(__mips__)
@@ -2263,25 +1778,12 @@ struct kernel_statfs {
   #define __NR__exit   __NR_exit
   #define __NR__gettid __NR_gettid
   #define __NR__mremap __NR_mremap
-  LSS_INLINE _syscall1(int,     chdir,           const char *,p)
   LSS_INLINE _syscall1(int,     close,           int,         f)
-  LSS_INLINE _syscall2(int,     clock_getres,    int,         c,
-                       struct kernel_timespec*, t)
-  LSS_INLINE _syscall2(int,     clock_gettime,   int,         c,
-                       struct kernel_timespec*, t)
-  LSS_INLINE _syscall1(int,     dup,             int,         f)
-  LSS_INLINE _syscall2(int,     dup2,            int,         s,
-                       int,            d)
-  LSS_INLINE _syscall3(int,     execve,          const char*, f,
-                       const char*const*,a,const char*const*, e)
   LSS_INLINE _syscall1(int,     _exit,           int,         e)
   LSS_INLINE _syscall3(int,     fcntl,           int,         f,
                        int,            c, long,   a)
-  LSS_INLINE _syscall0(pid_t,   fork)
   LSS_INLINE _syscall2(int,     fstat,           int,         f,
                       struct kernel_stat*,   b)
-  LSS_INLINE _syscall2(int,     fstatfs,         int,         f,
-                      struct kernel_statfs*, b)
   LSS_INLINE _syscall4(int,     futex,           int*,        a,
                        int,            o, int,    v,
                       struct kernel_timespec*, t)
@@ -2291,147 +1793,53 @@ struct kernel_statfs {
   LSS_INLINE _syscall3(int,     getdents64,      int,         f,
                       struct kernel_dirent64*, d, int,    c)
 #endif
-  LSS_INLINE _syscall0(gid_t,   getegid)
-  LSS_INLINE _syscall0(uid_t,   geteuid)
-  LSS_INLINE _syscall0(pid_t,   getpgrp)
   LSS_INLINE _syscall0(pid_t,   getpid)
   LSS_INLINE _syscall0(pid_t,   getppid)
-  LSS_INLINE _syscall2(int,     getpriority,     int,         a,
-                       int,            b)
-  LSS_INLINE _syscall2(int,     getrlimit,       int,         r,
-                      struct kernel_rlimit*, l)
-  LSS_INLINE _syscall1(pid_t,   getsid,          pid_t,       p)
   LSS_INLINE _syscall0(pid_t,   _gettid)
-  LSS_INLINE _syscall5(int,     setxattr,        const char *,p,
-                       const char *,   n,        const void *,v,
-                       size_t,         s,        int,         f)
-  LSS_INLINE _syscall5(int,     lsetxattr,       const char *,p,
-                       const char *,   n,        const void *,v,
-                       size_t,         s,        int,         f)
-  LSS_INLINE _syscall4(ssize_t, getxattr,        const char *,p,
-                       const char *,   n,        void *,      v, size_t, s)
-  LSS_INLINE _syscall4(ssize_t, lgetxattr,       const char *,p,
-                       const char *,   n,        void *,      v, size_t, s)
-  LSS_INLINE _syscall3(ssize_t, listxattr,       const char *,p,
-                       char *,   l,              size_t,      s)
-  LSS_INLINE _syscall3(ssize_t, llistxattr,      const char *,p,
-                       char *,   l,              size_t,      s)
-  LSS_INLINE _syscall2(int,     ioprio_get,      int,         which,
-                       int,     who)
-  LSS_INLINE _syscall3(int,     ioprio_set,      int,         which,
-                       int,     who,             int,         ioprio)
   LSS_INLINE _syscall2(int,     kill,            pid_t,       p,
                        int,            s)
   LSS_INLINE _syscall3(off_t,   lseek,           int,         f,
                        off_t,          o, int,    w)
   LSS_INLINE _syscall2(int,     munmap,          void*,       s,
                        size_t,         l)
-  LSS_INLINE _syscall6(long,    move_pages,      pid_t,       p,
-                       unsigned long,  n, void **,g, int *,   d,
-                       int *,          s, int,    f)
   LSS_INLINE _syscall5(void*,   _mremap,         void*,       o,
                        size_t,         os,       size_t,      ns,
                        unsigned long,  f, void *, a)
   LSS_INLINE _syscall3(int,     open,            const char*, p,
                        int,            f, int,    m)
-  LSS_INLINE _syscall3(int,     poll,           struct kernel_pollfd*, u,
-                       unsigned int,   n, int,    t)
   LSS_INLINE _syscall2(int,     prctl,           int,         o,
                        long,           a)
   LSS_INLINE _syscall4(long,    ptrace,          int,         r,
                        pid_t,          p, void *, a, void *, d)
   LSS_INLINE _syscall3(ssize_t, read,            int,         f,
                        void *,         b, size_t, c)
-  LSS_INLINE _syscall3(int,     readlink,        const char*, p,
-                       char*,          b, size_t, s)
   LSS_INLINE _syscall4(int,     rt_sigaction,    int,         s,
                        const struct kernel_sigaction*, a,
                        struct kernel_sigaction*, o, size_t,   c)
-  LSS_INLINE _syscall2(int, rt_sigpending, struct kernel_sigset_t *, s,
-                       size_t,         c)
   LSS_INLINE _syscall4(int, rt_sigprocmask,      int,         h,
                        const struct kernel_sigset_t*,  s,
                        struct kernel_sigset_t*,        o, size_t, c);
-  LSS_INLINE _syscall2(int, rt_sigsuspend,
-                       const struct kernel_sigset_t*, s,  size_t, c);
-  LSS_INLINE _syscall3(int,     sched_getaffinity,pid_t,      p,
-                       unsigned int,   l, unsigned long *, m)
-  LSS_INLINE _syscall3(int,     sched_setaffinity,pid_t,      p,
-                       unsigned int,   l, unsigned long *, m)
   LSS_INLINE _syscall0(int,     sched_yield)
-  LSS_INLINE _syscall1(long,    set_tid_address, int *,       t)
-  LSS_INLINE _syscall1(int,     setfsgid,        gid_t,       g)
-  LSS_INLINE _syscall1(int,     setfsuid,        uid_t,       u)
-  LSS_INLINE _syscall1(int,     setuid,          uid_t,       u)
-  LSS_INLINE _syscall1(int,     setgid,          gid_t,       g)
-  LSS_INLINE _syscall2(int,     setpgid,         pid_t,       p,
-                       pid_t,          g)
-  LSS_INLINE _syscall3(int,     setpriority,     int,         a,
-                       int,            b, int,    p)
-  LSS_INLINE _syscall3(int,     setresgid,       gid_t,       r,
-                       gid_t,          e, gid_t,  s)
-  LSS_INLINE _syscall3(int,     setresuid,       uid_t,       r,
-                       uid_t,          e, uid_t,  s)
-  LSS_INLINE _syscall2(int,     setrlimit,       int,         r,
-                       const struct kernel_rlimit*, l)
-  LSS_INLINE _syscall0(pid_t,    setsid)
   LSS_INLINE _syscall2(int,     sigaltstack,     const stack_t*, s,
                        const stack_t*, o)
   LSS_INLINE _syscall2(int,     stat,            const char*, f,
                       struct kernel_stat*,   b)
-  LSS_INLINE _syscall2(int,     statfs,          const char*, f,
-                      struct kernel_statfs*, b)
   LSS_INLINE _syscall3(ssize_t, write,            int,        f,
                        const void *,   b, size_t, c)
-  LSS_INLINE _syscall3(ssize_t, writev,           int,        f,
-                       const struct kernel_iovec*, v, size_t, c)
   #if defined(__NR_getcpu)
     LSS_INLINE _syscall3(long, getcpu, unsigned *, cpu,
                          unsigned *, node, void *, unused);
   #endif
   #if defined(__x86_64__) ||                                                  \
      (defined(__mips__) && _MIPS_SIM != _MIPS_SIM_ABI32)
-    LSS_INLINE _syscall3(int, recvmsg,            int,   s,
-                        struct kernel_msghdr*,     m, int, f)
-    LSS_INLINE _syscall3(int, sendmsg,            int,   s,
-                         const struct kernel_msghdr*, m, int, f)
-    LSS_INLINE _syscall6(int, sendto,             int,   s,
-                         const void*,             m, size_t, l,
-                         int,                     f,
-                         const struct kernel_sockaddr*, a, int, t)
-    LSS_INLINE _syscall2(int, shutdown,           int,   s,
-                         int,                     h)
     LSS_INLINE _syscall3(int, socket,             int,   d,
                          int,                     t, int,       p)
-    LSS_INLINE _syscall4(int, socketpair,         int,   d,
-                         int,                     t, int,       p, int*, s)
   #endif
   #if defined(__x86_64__)
-    LSS_INLINE _syscall4(int, fallocate, int, fd, int, mode,
-                         loff_t, offset, loff_t, len)
     LSS_INLINE _syscall6(void*, mmap,              void*, s,
                          size_t,                   l, int,               p,
                          int,                      f, int,               d,
                          __off64_t,                o)
-    LSS_INLINE _syscall4(int, newfstatat,         int,   d,
-                         const char *,            p,
-                        struct kernel_stat*,       b, int, f)
-
-    LSS_INLINE int LSS_NAME(setfsgid32)(gid_t gid) {
-      return LSS_NAME(setfsgid)(gid);
-    }
-
-    LSS_INLINE int LSS_NAME(setfsuid32)(uid_t uid) {
-      return LSS_NAME(setfsuid)(uid);
-    }
-
-    LSS_INLINE int LSS_NAME(setresgid32)(gid_t rgid, gid_t egid, gid_t sgid) {
-      return LSS_NAME(setresgid)(rgid, egid, sgid);
-    }
-
-    LSS_INLINE int LSS_NAME(setresuid32)(uid_t ruid, uid_t euid, uid_t suid) {
-      return LSS_NAME(setresuid)(ruid, euid, suid);
-    }
 
     LSS_INLINE int LSS_NAME(sigaction)(int signum,
                                        const struct kernel_sigaction *act,
@@ -2453,18 +1861,10 @@ struct kernel_statfs {
       }
     }
 
-    LSS_INLINE int LSS_NAME(sigpending)(struct kernel_sigset_t *set) {
-      return LSS_NAME(rt_sigpending)(set, (KERNEL_NSIG+7)/8);
-    }
-
     LSS_INLINE int LSS_NAME(sigprocmask)(int how,
                                          const struct kernel_sigset_t *set,
                                          struct kernel_sigset_t *oldset) {
       return LSS_NAME(rt_sigprocmask)(how, set, oldset, (KERNEL_NSIG+7)/8);
-    }
-
-    LSS_INLINE int LSS_NAME(sigsuspend)(const struct kernel_sigset_t *set) {
-      return LSS_NAME(rt_sigsuspend)(set, (KERNEL_NSIG+7)/8);
     }
   #endif
   #if defined(__x86_64__) || \
@@ -2472,98 +1872,24 @@ struct kernel_statfs {
      (defined(__mips__) && _MIPS_SIM != _MIPS_SIM_ABI32)
     LSS_INLINE _syscall4(pid_t, wait4,            pid_t, p,
                          int*,                    s, int,       o,
-                        struct kernel_rusage*,     r)
-
+                         struct kernel_rusage*,   r)
     LSS_INLINE pid_t LSS_NAME(waitpid)(pid_t pid, int *status, int options){
       return LSS_NAME(wait4)(pid, status, options, 0);
     }
-  #endif
-  #if defined(__i386__) || defined(__x86_64__)
+   #endif
+  #if defined(__i386__) || defined(__x86_64__) || defined(__arm__)
     LSS_INLINE _syscall4(int, openat, int, d, const char *, p, int, f, int, m)
-    LSS_INLINE _syscall3(int, unlinkat, int, d, const char *, p, int, f)
-  #endif
-  #if defined(__i386__) || defined(__arm__)
-    #define __NR__getresgid32 __NR_getresgid32
-    #define __NR__getresuid32 __NR_getresuid32
-    #define __NR__setfsgid32  __NR_setfsgid32
-    #define __NR__setfsuid32  __NR_setfsuid32
-    #define __NR__setresgid32 __NR_setresgid32
-    #define __NR__setresuid32 __NR_setresuid32
-    LSS_INLINE _syscall2(int,   ugetrlimit,        int,          r,
-                        struct kernel_rlimit*, l)
-    LSS_INLINE _syscall1(int,     _setfsgid32,      gid_t,       f)
-    LSS_INLINE _syscall1(int,     _setfsuid32,      uid_t,       f)
-    LSS_INLINE _syscall3(int,     _setresgid32,    gid_t,       r,
-                         gid_t,          e, gid_t,  s)
-    LSS_INLINE _syscall3(int,     _setresuid32,    uid_t,       r,
-                         uid_t,          e, uid_t,  s)
-
-    LSS_INLINE int LSS_NAME(setfsgid32)(gid_t gid) {
-      int rc;
-      if ((rc = LSS_NAME(_setfsgid32)(gid)) < 0 &&
-          LSS_ERRNO == ENOSYS) {
-        if ((unsigned int)gid & ~0xFFFFu) {
-          rc = EINVAL;
-        } else {
-          rc = LSS_NAME(setfsgid)(gid);
-        }
-      }
-      return rc;
-    }
-
-    LSS_INLINE int LSS_NAME(setfsuid32)(uid_t uid) {
-      int rc;
-      if ((rc = LSS_NAME(_setfsuid32)(uid)) < 0 &&
-          LSS_ERRNO == ENOSYS) {
-        if ((unsigned int)uid & ~0xFFFFu) {
-          rc = EINVAL;
-        } else {
-          rc = LSS_NAME(setfsuid)(uid);
-        }
-      }
-      return rc;
-    }
-
-    LSS_INLINE int LSS_NAME(setresgid32)(gid_t rgid, gid_t egid, gid_t sgid) {
-      int rc;
-      if ((rc = LSS_NAME(_setresgid32)(rgid, egid, sgid)) < 0 &&
-          LSS_ERRNO == ENOSYS) {
-        if ((unsigned int)rgid & ~0xFFFFu ||
-            (unsigned int)egid & ~0xFFFFu ||
-            (unsigned int)sgid & ~0xFFFFu) {
-          rc = EINVAL;
-        } else {
-          rc = LSS_NAME(setresgid)(rgid, egid, sgid);
-        }
-      }
-      return rc;
-    }
-
-    LSS_INLINE int LSS_NAME(setresuid32)(uid_t ruid, uid_t euid, uid_t suid) {
-      int rc;
-      if ((rc = LSS_NAME(_setresuid32)(ruid, euid, suid)) < 0 &&
-          LSS_ERRNO == ENOSYS) {
-        if ((unsigned int)ruid & ~0xFFFFu ||
-            (unsigned int)euid & ~0xFFFFu ||
-            (unsigned int)suid & ~0xFFFFu) {
-          rc = EINVAL;
-        } else {
-          rc = LSS_NAME(setresuid)(ruid, euid, suid);
-        }
-      }
-      return rc;
-    }
   #endif
   LSS_INLINE int LSS_NAME(sigemptyset)(struct kernel_sigset_t *set) {
     memset(&set->sig, 0, sizeof(set->sig));
     return 0;
   }
-  
+
   LSS_INLINE int LSS_NAME(sigfillset)(struct kernel_sigset_t *set) {
     memset(&set->sig, -1, sizeof(set->sig));
     return 0;
   }
-  
+
   LSS_INLINE int LSS_NAME(sigaddset)(struct kernel_sigset_t *set,
                                      int signum) {
     if (signum < 1 || signum > (int)(8*sizeof(set->sig))) {
@@ -2575,7 +1901,7 @@ struct kernel_statfs {
       return 0;
     }
   }
-  
+
   LSS_INLINE int LSS_NAME(sigdelset)(struct kernel_sigset_t *set,
                                         int signum) {
     if (signum < 1 || signum > (int)(8*sizeof(set->sig))) {
@@ -2587,30 +1913,26 @@ struct kernel_statfs {
       return 0;
     }
   }
-  
-  LSS_INLINE int LSS_NAME(sigismember)(struct kernel_sigset_t *set,
-                                          int signum) {
-    if (signum < 1 || signum > (int)(8*sizeof(set->sig))) {
-      LSS_ERRNO = EINVAL;
-      return -1;
-    } else {
-      return !!(set->sig[(signum - 1)/(8*sizeof(set->sig[0]))] &
-                (1UL << ((signum - 1) % (8*sizeof(set->sig[0])))));
-    }
-  }
+
   #if defined(__i386__) || \
       defined(__arm__) || \
      (defined(__mips__) && _MIPS_SIM == _MIPS_SIM_ABI32) || defined(__PPC__)
     #define __NR__sigaction   __NR_sigaction
-    #define __NR__sigpending  __NR_sigpending
     #define __NR__sigprocmask __NR_sigprocmask
-    #define __NR__sigsuspend  __NR_sigsuspend
     LSS_INLINE _syscall2(int, fstat64,             int, f,
                          struct kernel_stat64 *, b)
     LSS_INLINE _syscall5(int, _llseek,     uint, fd, ulong, hi, ulong, lo,
                          loff_t *, res, uint, wh)
+#ifdef __PPC64__
+    LSS_INLINE _syscall6(void*, mmap,              void*, s,
+                         size_t,                   l, int,               p,
+                         int,                      f, int,               d,
+                         off_t,                    o)
+#else
+    #ifndef __ARM_EABI__
+    /* Not available on ARM EABI Linux.  */
     LSS_INLINE _syscall1(void*, mmap,              void*, a)
-#ifndef __PPC64__
+    #endif
     LSS_INLINE _syscall6(void*, mmap2,             void*, s,
                          size_t,                   l, int,               p,
                          int,                      f, int,               d,
@@ -2619,17 +1941,9 @@ struct kernel_statfs {
     LSS_INLINE _syscall3(int,   _sigaction,        int,   s,
                          const struct kernel_old_sigaction*,  a,
                          struct kernel_old_sigaction*,        o)
-    LSS_INLINE _syscall1(int,   _sigpending, unsigned long*, s)
     LSS_INLINE _syscall3(int,   _sigprocmask,      int,   h,
                          const unsigned long*,     s,
                          unsigned long*,           o)
-    #ifdef __PPC__
-    LSS_INLINE _syscall1(int, _sigsuspend,         unsigned long, s)
-    #else
-    LSS_INLINE _syscall3(int, _sigsuspend,         const void*, a,
-                         int,                      b,
-                         unsigned long,            s)
-    #endif
     LSS_INLINE _syscall2(int, stat64,              const char *, p,
                          struct kernel_stat64 *, b)
 
@@ -2695,17 +2009,6 @@ struct kernel_statfs {
       return rc;
     }
 
-    LSS_INLINE int LSS_NAME(sigpending)(struct kernel_sigset_t *set) {
-      int old_errno = LSS_ERRNO;
-      int rc = LSS_NAME(rt_sigpending)(set, (KERNEL_NSIG+7)/8);
-      if (rc < 0 && LSS_ERRNO == ENOSYS) {
-        LSS_ERRNO = old_errno;
-        LSS_NAME(sigemptyset)(set);
-        rc = LSS_NAME(_sigpending)(&set->sig[0]);
-      }
-      return rc;
-    }
-
     LSS_INLINE int LSS_NAME(sigprocmask)(int how,
                                          const struct kernel_sigset_t *set,
                                          struct kernel_sigset_t *oldset) {
@@ -2719,20 +2022,6 @@ struct kernel_statfs {
         rc = LSS_NAME(_sigprocmask)(how,
                                     set ? &set->sig[0] : NULL,
                                     oldset ? &oldset->sig[0] : NULL);
-      }
-      return rc;
-    }
-
-    LSS_INLINE int LSS_NAME(sigsuspend)(const struct kernel_sigset_t *set) {
-      int olderrno = LSS_ERRNO;
-      int rc = LSS_NAME(rt_sigsuspend)(set, (KERNEL_NSIG+7)/8);
-      if (rc < 0 && LSS_ERRNO == ENOSYS) {
-        LSS_ERRNO = olderrno;
-        rc = LSS_NAME(_sigsuspend)(
-        #ifndef __PPC__
-                                   set, 0,
-        #endif
-                                   set->sig[0]);
       }
       return rc;
     }
@@ -2792,92 +2081,19 @@ struct kernel_statfs {
         }                                                                     \
         LSS_RETURN(type, __sc_ret, __sc_err)
 
-    LSS_INLINE ssize_t LSS_NAME(recvmsg)(int s,struct kernel_msghdr *msg,
-                                         int flags){
-      LSS_SC_BODY(3, ssize_t, 17, s, msg, flags);
-    }
-
-    LSS_INLINE ssize_t LSS_NAME(sendmsg)(int s,
-                                         const struct kernel_msghdr *msg,
-                                         int flags) {
-      LSS_SC_BODY(3, ssize_t, 16, s, msg, flags);
-    }
-
-    // TODO(csilvers): why is this ifdef'ed out?
-#if 0
-    LSS_INLINE ssize_t LSS_NAME(sendto)(int s, const void *buf, size_t len,
-                                        int flags,
-                                        const struct kernel_sockaddr *to,
-                                        unsigned int tolen) {
-      LSS_BODY(6, ssize_t, 11, s, buf, len, flags, to, tolen);
-    }
-#endif
-
-    LSS_INLINE int LSS_NAME(shutdown)(int s, int how) {
-      LSS_SC_BODY(2, int, 13, s, how);
-    }
-
     LSS_INLINE int LSS_NAME(socket)(int domain, int type, int protocol) {
       LSS_SC_BODY(3, int, 1, domain, type, protocol);
     }
-
-    LSS_INLINE int LSS_NAME(socketpair)(int d, int type, int protocol,
-                                        int sv[2]) {
-      LSS_SC_BODY(4, int, 8, d, type, protocol, sv);
-    }
   #endif
   #if defined(__i386__) || \
-      defined(__arm__) || \
+      (defined(__arm__) && !defined(__ARM_EABI__)) || \
       (defined(__mips__) && _MIPS_SIM == _MIPS_SIM_ABI32)
+
     /* See sys_socketcall in net/socket.c in kernel source.
      * It de-multiplexes on its first arg and unpacks the arglist
      * array in its second arg.
      */
     LSS_INLINE _syscall2(long, socketcall, int, c, unsigned long*, a)
-
-    LSS_INLINE ssize_t LSS_NAME(recvmsg)(int s,struct kernel_msghdr *msg,
-                                         int flags){
-      unsigned long args[3] = {
-        (unsigned long) s,
-        (unsigned long) msg,
-        (unsigned long) flags
-      };
-      return (ssize_t) LSS_NAME(socketcall)(17, args);
-    }
-
-    LSS_INLINE ssize_t LSS_NAME(sendmsg)(int s,
-                                         const struct kernel_msghdr *msg,
-                                         int flags) {
-      unsigned long args[3] = {
-        (unsigned long) s,
-        (unsigned long) msg,
-        (unsigned long) flags
-      };
-      return (ssize_t) LSS_NAME(socketcall)(16, args);
-    }
-
-    LSS_INLINE ssize_t LSS_NAME(sendto)(int s, const void *buf, size_t len,
-                                        int flags,
-                                        const struct kernel_sockaddr *to,
-                                        unsigned int tolen) {
-      unsigned long args[6] = {
-        (unsigned long) s,
-        (unsigned long) buf,
-        (unsigned long) len,
-        (unsigned long) flags,
-        (unsigned long) to,
-        (unsigned long) tolen
-      };
-      return (ssize_t) LSS_NAME(socketcall)(11, args);
-    }
-
-    LSS_INLINE int LSS_NAME(shutdown)(int s, int how) {
-      unsigned long args[2] = {
-        (unsigned long) s,
-        (unsigned long) how
-      };
-      return LSS_NAME(socketcall)(13, args);
-    }
 
     LSS_INLINE int LSS_NAME(socket)(int domain, int type, int protocol) {
       unsigned long args[3] = {
@@ -2887,22 +2103,9 @@ struct kernel_statfs {
       };
       return LSS_NAME(socketcall)(1, args);
     }
-
-    LSS_INLINE int LSS_NAME(socketpair)(int d, int type, int protocol,
-                                        int sv[2]) {
-      unsigned long args[4] = {
-        (unsigned long) d,
-        (unsigned long) type,
-        (unsigned long) protocol,
-        (unsigned long) sv
-      };
-      return LSS_NAME(socketcall)(8, args);
-    }
-  #endif
-  #if defined(__i386__) || defined(__PPC__)
-    LSS_INLINE _syscall4(int,   fstatat64,        int,   d,
-                         const char *,      p,
-                         struct kernel_stat64 *,   b,    int,   f)
+  #elif defined(__ARM_EABI__)
+    LSS_INLINE _syscall3(int, socket,             int,   d,
+                         int,                     t, int,       p)
   #endif
   #if defined(__i386__) || defined(__PPC__) ||                                \
      (defined(__mips__) && _MIPS_SIM == _MIPS_SIM_ABI32)
@@ -2934,29 +2137,6 @@ struct kernel_statfs {
   #else
     LSS_INLINE _syscall1(int,     pipe,           int *, p)
   #endif
-  /* TODO(csilvers): see if ppc can/should support this as well              */
-  #if defined(__i386__) || \
-      defined(__arm__) || \
-     (defined(__mips__) && _MIPS_SIM != _MIPS_SIM_ABI64)
-    #define __NR__statfs64  __NR_statfs64
-    #define __NR__fstatfs64 __NR_fstatfs64
-    LSS_INLINE _syscall3(int, _statfs64,     const char*, p,
-                         size_t, s,struct kernel_statfs64*, b)
-    LSS_INLINE _syscall3(int, _fstatfs64,          int,   f,
-                         size_t, s,struct kernel_statfs64*, b)
-    LSS_INLINE int LSS_NAME(statfs64)(const char *p,
-                                     struct kernel_statfs64 *b) {
-      return LSS_NAME(_statfs64)(p, sizeof(*b), b);
-    }
-    LSS_INLINE int LSS_NAME(fstatfs64)(int f,struct kernel_statfs64 *b) {
-      return LSS_NAME(_fstatfs64)(f, sizeof(*b), b);
-    }
-  #endif
-
-  LSS_INLINE int LSS_NAME(execv)(const char *path, const char *const argv[]) {
-    extern char **environ;
-    return LSS_NAME(execve)(path, argv, (const char *const *)environ);
-  }
 
   LSS_INLINE pid_t LSS_NAME(gettid)() {
     pid_t tid = LSS_NAME(_gettid)();
@@ -2993,72 +2173,6 @@ struct kernel_statfs {
     LSS_ERRNO = err;
     return rc;
   }
-
-  LSS_INLINE int LSS_NAME(raise)(int sig) {
-    return LSS_NAME(kill)(LSS_NAME(getpid)(), sig);
-  }
-
-  LSS_INLINE int LSS_NAME(setpgrp)() {
-    return LSS_NAME(setpgid)(0, 0);
-  }
-
-  LSS_INLINE int LSS_NAME(sysconf)(int name) {
-    extern int __getpagesize(void);
-    switch (name) {
-      case _SC_OPEN_MAX: {
-        struct kernel_rlimit limit;
-        return LSS_NAME(getrlimit)(RLIMIT_NOFILE, &limit) < 0
-               ? 8192 : limit.rlim_cur;
-      }
-      case _SC_PAGESIZE:
-        return __getpagesize();
-      default:
-        errno = ENOSYS;
-        return -1;
-    }
-  }
-  #if defined(__x86_64__) ||                                                  \
-     (defined(__mips__) && _MIPS_SIM == _MIPS_SIM_ABI64)
-    LSS_INLINE _syscall4(ssize_t, pread64,        int,         f,
-                         void *,         b, size_t,   c,
-                         loff_t,         o)
-    LSS_INLINE _syscall4(ssize_t, pwrite64,       int,         f,
-                         const void *,   b, size_t,   c,
-                         loff_t,         o)
-    LSS_INLINE _syscall3(int,     readahead,      int,         f,
-                         loff_t,         o, unsigned, c)
-  #else
-    #define __NR__pread64   __NR_pread64
-    #define __NR__pwrite64  __NR_pwrite64
-    #define __NR__readahead __NR_readahead
-    LSS_INLINE _syscall5(ssize_t, _pread64,        int,         f,
-                         void *,         b, size_t, c, unsigned, o1,
-                         unsigned, o2)
-    LSS_INLINE _syscall5(ssize_t, _pwrite64,       int,         f,
-                         const void *,   b, size_t, c, unsigned, o1,
-                         long, o2)
-    LSS_INLINE _syscall4(int, _readahead,          int,         f,
-                         unsigned,       o1, unsigned, o2, size_t, c);
-    /* We force 64bit-wide parameters onto the stack, then access each
-     * 32-bit component individually. This guarantees that we build the
-     * correct parameters independent of the native byte-order of the
-     * underlying architecture.
-     */
-    LSS_INLINE ssize_t LSS_NAME(pread64)(int fd, void *buf, size_t count,
-                                         loff_t off) {
-      union { loff_t off; unsigned arg[2]; } o = { off };
-      return LSS_NAME(_pread64)(fd, buf, count, o.arg[0], o.arg[1]);
-    }
-    LSS_INLINE ssize_t LSS_NAME(pwrite64)(int fd, const void *buf,
-                                          size_t count, loff_t off) {
-      union { loff_t off; unsigned arg[2]; } o = { off };
-      return LSS_NAME(_pwrite64)(fd, buf, count, o.arg[0], o.arg[1]);
-    }
-    LSS_INLINE int LSS_NAME(readahead)(int fd, loff_t off, int len) {
-      union { loff_t off; unsigned arg[2]; } o = { off };
-      return LSS_NAME(_readahead)(fd, o.arg[0], o.arg[1], len);
-    }
-  #endif
 #endif
 
 #if defined(__cplusplus) && !defined(SYS_CPLUSPLUS)

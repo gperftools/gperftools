@@ -58,9 +58,9 @@ extern "C" {
 #define kMallocExtensionHistogramSize 64
 
 PERFTOOLS_DLL_DECL int MallocExtension_VerifyAllMemory(void);
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyNewMemory(void* p);
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyArrayNewMemory(void* p);
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyMallocMemory(void* p);
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyNewMemory(const void* p);
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyArrayNewMemory(const void* p);
+PERFTOOLS_DLL_DECL int MallocExtension_VerifyMallocMemory(const void* p);
 PERFTOOLS_DLL_DECL int MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
                                       int histogram[kMallocExtensionHistogramSize]);
 PERFTOOLS_DLL_DECL void MallocExtension_GetStats(char* buffer, int buffer_length);
@@ -78,7 +78,7 @@ PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy(void);
 PERFTOOLS_DLL_DECL void MallocExtension_ReleaseToSystem(size_t num_bytes);
 PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory(void);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
-PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(void* p);
+PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(const void* p);
 
 /*
  * NOTE: These enum values MUST be kept in sync with the version in

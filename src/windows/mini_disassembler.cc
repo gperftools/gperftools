@@ -100,6 +100,12 @@ InstructionType MiniDisassembler::Disassemble(
 void MiniDisassembler::Initialize() {
   operand_is_32_bits_ = operand_default_is_32_bits_;
   address_is_32_bits_ = address_default_is_32_bits_;
+#ifdef _M_X64
+  operand_default_support_64_bits_ = true;
+#else
+  operand_default_support_64_bits_ = false;
+#endif
+  operand_is_64_bits_ = false;
   operand_bytes_ = 0;
   have_modrm_ = false;
   should_decode_modrm_ = false;
@@ -129,6 +135,8 @@ InstructionType MiniDisassembler::ProcessPrefixes(unsigned char* start_byte,
         got_f3_prefix_ = true;
       else if (0x66 == (*start_byte))
         got_66_prefix_ = true;
+      else if (operand_default_support_64_bits_ && (*start_byte) & 0x48)
+        operand_is_64_bits_ = true;
 
       instruction_type = opcode.type_;
       size ++;
@@ -314,8 +322,12 @@ bool MiniDisassembler::ProcessOperand(int flag_operand) {
           // floating point
           succeeded = false;
           break;
-        case OT_V: // Word or doubleword, depending on operand-size attribute.
-          if (operand_is_32_bits_)
+        case OT_V: // Word, doubleword or quadword, depending on operand-size 
+                   // attribute.
+          if (operand_is_64_bits_ && flag_operand & AM_I &&
+              flag_operand & IOS_64)
+            operand_bytes_ += OS_QUAD_WORD;
+          else if (operand_is_32_bits_)
             operand_bytes_ += OS_DOUBLE_WORD;
           else
             operand_bytes_ += OS_WORD;

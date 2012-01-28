@@ -50,9 +50,10 @@ for a given run of an executable:</p>
 
 <ol>
   <li> <p>Define the environment variable CPUPROFILE to the filename
-       to dump the profile to.  For instance, to profile
-       <code>/usr/local/bin/my_binary_compiled_with_libprofiler_so</code>:</p>
-       <pre>% env CPUPROFILE=/tmp/mybin.prof /usr/local/bin/my_binary_compiled_with_libprofiler_so</pre>
+       to dump the profile to.  For instance, if you had a version of
+       <code>/bin/ls</code> that had been linked against libprofiler,
+       you could run:</p>
+       <pre>% env CPUPROFILE=ls.prof /bin/ls</pre>
 
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>ProfilerStart()</code> and <code>ProfilerStop()</code>.

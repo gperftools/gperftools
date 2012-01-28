@@ -67,6 +67,10 @@ inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
     "ldrex   %1, [%3]\n"
     "mov     %0, #0\n"
     "teq     %1, %4\n"
+    // The following IT (if-then) instruction is needed for the subsequent
+    // conditional instruction STREXEQ when compiling in THUMB mode.
+    // In ARM mode, the compiler/assembler will not generate any code for it.
+    "it      eq\n"
     "strexeq %0, %5, [%3]\n"
         : "=&r" (res), "=&r" (oldval), "+Qo" (*ptr)
         : "r" (ptr), "Ir" (old_value), "r" (new_value)
@@ -186,7 +190,12 @@ inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
     "ldrexd   %1, [%3]\n"
     "mov      %0, #0\n"
     "teq      %Q1, %Q4\n"
+    // The following IT (if-then) instructions are needed for the subsequent
+    // conditional instructions when compiling in THUMB mode.
+    // In ARM mode, the compiler/assembler will not generate any code for it.
+    "it       eq\n"
     "teqeq    %R1, %R4\n"
+    "it       eq\n"
     "strexdeq %0, %5, [%3]\n"
         : "=&r" (res), "=&r" (oldval), "+Q" (*ptr)
         : "r" (ptr), "Ir" (old_value), "r" (new_value)

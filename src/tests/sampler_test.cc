@@ -357,7 +357,7 @@ bool CheckMean(size_t mean, int num_samples) {
   }
   double empirical_mean = total / static_cast<double>(num_samples);
   double expected_sd = mean / pow(num_samples * 1.0, 0.5);
-  return(abs(mean-empirical_mean) < expected_sd * kSigmas);
+  return(fabs(mean-empirical_mean) < expected_sd * kSigmas);
 }
 
 // Prints a sequence so you can look at the distribution
@@ -409,8 +409,8 @@ TEST(Sampler, LargeAndSmallAllocs_CombinedTest) {
                                      size_small, kSamplingInterval);
   LOG(INFO) << StringPrintf("large_allocs_sds = %f\n", large_allocs_sds);
   LOG(INFO) << StringPrintf("small_allocs_sds = %f\n", small_allocs_sds);
-  CHECK_LE(abs(large_allocs_sds), kSigmas);
-  CHECK_LE(abs(small_allocs_sds), kSigmas);
+  CHECK_LE(fabs(large_allocs_sds), kSigmas);
+  CHECK_LE(fabs(small_allocs_sds), kSigmas);
 }
 
 // Tests whether the mean is about right over 1000 samples

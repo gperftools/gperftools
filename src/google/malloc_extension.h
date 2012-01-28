@@ -100,10 +100,9 @@ class PERFTOOLS_DLL_DECL MallocExtension {
 
   // See "verify_memory.h" to see what these routines do
   virtual bool VerifyAllMemory();
-  // TODO(csilvers): change these to const void*.
-  virtual bool VerifyNewMemory(void* p);
-  virtual bool VerifyArrayNewMemory(void* p);
-  virtual bool VerifyMallocMemory(void* p);
+  virtual bool VerifyNewMemory(const void* p);
+  virtual bool VerifyArrayNewMemory(const void* p);
+  virtual bool VerifyMallocMemory(const void* p);
   virtual bool MallocMemoryStats(int* blocks, size_t* total,
                                  int histogram[kMallocHistogramSize]);
 
@@ -281,8 +280,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // will return 0.)
   // This is equivalent to malloc_size() in OS X, malloc_usable_size()
   // in glibc, and _msize() for windows.
-  // TODO(csilvers): change to const void*.
-  virtual size_t GetAllocatedSize(void* p);
+  virtual size_t GetAllocatedSize(const void* p);
 
   // Returns kOwned if this malloc implementation allocated the memory
   // pointed to by p, or kNotOwned if some other malloc implementation

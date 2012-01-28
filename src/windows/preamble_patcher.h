@@ -29,6 +29,7 @@
  *
  * ---
  * Author: Joi Sigurdsson
+ * Author: Scott Francis
  *
  * Definition of PreamblePatcher
  */
@@ -47,7 +48,25 @@
 // bytes of the function. Considering the worst case scenario, we need 4
 // bytes + the max instruction size + 5 more bytes for our jump back to
 // the original code. With that in mind, 32 is a good number :)
+#ifdef _M_X64
+// In 64-bit mode we may need more room.  In 64-bit mode all jumps must be
+// within +/-2GB of RIP.  Because of this limitation we may need to use a
+// trampoline to jump to the replacement function if it is further than 2GB
+// away from the target. The trampoline is 14 bytes.
+//
+// So 4 bytes + max instruction size (17 bytes) + 5 bytes to jump back to the
+// original code + trampoline size.  64 bytes is a nice number :-)
+#define MAX_PREAMBLE_STUB_SIZE    (64)
+#else
 #define MAX_PREAMBLE_STUB_SIZE    (32)
+#endif
+
+// Determines if this is a 64-bit binary.
+#ifdef _M_X64
+static const bool kIs64BitBinary = true;
+#else
+static const bool kIs64BitBinary = false;
+#endif
 
 namespace sidestep {
 
@@ -67,6 +86,8 @@ enum SideStepError {
 
 #define SIDESTEP_TO_HRESULT(error)                      \
   MAKE_HRESULT(SEVERITY_ERROR, FACILITY_NULL, error)
+
+class DeleteUnsignedCharArray;
 
 // Implements a patching mechanism that overwrites the first few bytes of
 // a function preamble with a jump to our hook function, which is then
@@ -287,7 +308,55 @@ class PreamblePatcher {
     return (T)ResolveTargetImpl((unsigned char*)target_function, NULL);
   }
 
+  // Allocates a block of memory of size MAX_PREAMBLE_STUB_SIZE that is as
+  // close (within 2GB) as possible to target.  This is done to ensure that 
+  // we can perform a relative jump from target to a trampoline if the 
+  // replacement function is > +-2GB from target.  This means that we only need 
+  // to patch 5 bytes in the target function.
+  //
+  // @param target    Pointer to target function.
+  //
+  // @return  Returns a block of memory of size MAX_PREAMBLE_STUB_SIZE that can
+  //          be used to store a function preamble block.
+  static unsigned char* AllocPreambleBlockNear(void* target);
+
+  // Frees a block allocated by AllocPreambleBlockNear.
+  //
+  // @param block     Block that was returned by AllocPreambleBlockNear.
+  static void FreePreambleBlock(unsigned char* block);
+
  private:
+  friend class DeleteUnsignedCharArray;
+
+   // Used to store data allocated for preamble stubs
+  struct PreamblePage {
+    unsigned int magic_;
+    PreamblePage* next_;
+    // This member points to a linked list of free blocks within the page
+    // or NULL if at the end
+    void* free_;
+  };
+
+  // In 64-bit mode, the replacement function must be within 2GB of the original
+  // target in order to only require 5 bytes for the function patch.  To meet
+  // this requirement we're creating an allocator within this class to
+  // allocate blocks that are within 2GB of a given target. This member is the
+  // head of a linked list of pages used to allocate blocks that are within
+  // 2GB of the target.
+  static PreamblePage* preamble_pages_;
+  
+  // Page granularity
+  static long granularity_;
+
+  // Page size
+  static long pagesize_;
+
+  // Determines if the patcher has been initialized.
+  static bool initialized_;
+
+  // Used to initialize static members.
+  static void Initialize();
+
   // Patches a function by overwriting its first few bytes with
   // a jump to a different function.  This is similar to the RawPatch
   // function except that it uses the stub allocated by the caller
@@ -318,7 +387,7 @@ class PreamblePatcher {
   // @return An error code indicating the result of patching.
   static SideStepError RawPatchWithStubAndProtections(
       void* target_function,
-      void *replacement_function,
+      void* replacement_function,
       unsigned char* preamble_stub,
       unsigned long stub_size,
       unsigned long* bytes_needed);
@@ -348,7 +417,7 @@ class PreamblePatcher {
   //
   // @return An error code indicating the result of patching.
   static SideStepError RawPatchWithStub(void* target_function,
-                                        void *replacement_function,
+                                        void* replacement_function,
                                         unsigned char* preamble_stub,
                                         unsigned long stub_size,
                                         unsigned long* bytes_needed);
@@ -365,12 +434,175 @@ class PreamblePatcher {
   // target_function, we get to the address stop, we return
   // immediately, the address that jumps to stop_before.
   //
+  // @param stop_before_trampoline  When following JMP instructions from 
+  // target_function, stop before a trampoline is detected.  See comment in
+  // PreamblePatcher::RawPatchWithStub for more information.  This parameter 
+  // has no effect in 32-bit mode.
+  //
   // @return Either target_function (the input parameter), or if
   // target_function's body consists entirely of a JMP instruction,
   // the address it JMPs to (or more precisely, the address at the end
   // of a chain of JMPs).
   static void* ResolveTargetImpl(unsigned char* target_function,
-                                 unsigned char* stop_before);
+                                 unsigned char* stop_before,
+                                 bool stop_before_trampoline = false);
+
+  // Helper routine that attempts to allocate a page as close (within 2GB)
+  // as possible to target.
+  //
+  // @param target    Pointer to target function.
+  //
+  // @return   Returns an address that is within 2GB of target.
+  static void* AllocPageNear(void* target);
+
+  // Helper routine that determines if a target instruction is a short
+  // conditional jump.
+  //
+  // @param target            Pointer to instruction.
+  //
+  // @param instruction_size  Size of the instruction in bytes.
+  //
+  // @return  Returns true if the instruction is a short conditional jump.
+  static bool IsShortConditionalJump(unsigned char* target,
+                                     unsigned int instruction_size);
+
+  // Helper routine that determines if a target instruction is a near
+  // conditional jump.
+  //
+  // @param target            Pointer to instruction.
+  //
+  // @param instruction_size  Size of the instruction in bytes.
+  //
+  // @return  Returns true if the instruction is a near conditional jump.
+  static bool IsNearConditionalJump(unsigned char* target,
+                                    unsigned int instruction_size);
+
+  // Helper routine that determines if a target instruction is a near
+  // relative jump.
+  //
+  // @param target            Pointer to instruction.
+  //
+  // @param instruction_size  Size of the instruction in bytes.
+  //
+  // @return  Returns true if the instruction is a near absolute jump.
+  static bool IsNearRelativeJump(unsigned char* target,
+                                 unsigned int instruction_size);
+
+  // Helper routine that determines if a target instruction is a near 
+  // absolute call.
+  //
+  // @param target            Pointer to instruction.
+  //
+  // @param instruction_size  Size of the instruction in bytes.
+  //
+  // @return  Returns true if the instruction is a near absolute call.
+  static bool IsNearAbsoluteCall(unsigned char* target,
+                                 unsigned int instruction_size);
+
+  // Helper routine that determines if a target instruction is a near 
+  // absolute call.
+  //
+  // @param target            Pointer to instruction.
+  //
+  // @param instruction_size  Size of the instruction in bytes.
+  //
+  // @return  Returns true if the instruction is a near absolute call.
+  static bool IsNearRelativeCall(unsigned char* target,
+                                 unsigned int instruction_size);
+
+  // Helper routine that determines if a target instruction is a 64-bit MOV
+  // that uses a RIP-relative displacement.
+  //
+  // @param target            Pointer to instruction.
+  //
+  // @param instruction_size  Size of the instruction in bytes.
+  //
+  // @return  Returns true if the instruction is a MOV with displacement.
+  static bool IsMovWithDisplacement(unsigned char* target,
+                                    unsigned int instruction_size);
+
+  // Helper routine that converts a short conditional jump instruction
+  // to a near conditional jump in a target buffer.  Note that the target
+  // buffer must be within 2GB of the source for the near jump to work.
+  //
+  // A short conditional jump instruction is in the format:
+  // 7x xx = Jcc rel8off
+  //
+  // @param source              Pointer to instruction.
+  //
+  // @param instruction_size    Size of the instruction.
+  //
+  // @param target              Target buffer to write the new instruction.
+  //
+  // @param target_bytes        Pointer to a buffer that contains the size
+  //                            of the target instruction, in bytes.
+  //
+  // @param target_size         Size of the target buffer.
+  //
+  // @return  Returns SIDESTEP_SUCCESS if successful, otherwise an error.
+  static SideStepError PatchShortConditionalJump(unsigned char* source,
+                                                 unsigned int instruction_size,
+                                                 unsigned char* target,
+                                                 unsigned int* target_bytes,
+                                                 unsigned int target_size);
+
+  // Helper routine that converts an instruction that will convert various
+  // jump-like instructions to corresponding instructions in the target buffer.
+  // What this routine does is fix up the relative offsets contained in jump
+  // instructions to point back to the original target routine.  Like with
+  // PatchShortConditionalJump, the target buffer must be within 2GB of the
+  // source.
+  //
+  // We currently handle the following instructions:
+  //
+  // E9 xx xx xx xx     = JMP rel32off
+  // 0F 8x xx xx xx xx  = Jcc rel32off
+  // FF /2 xx xx xx xx  = CALL reg/mem32/mem64
+  // E8 xx xx xx xx     = CALL rel32off
+  //
+  // It should not be hard to update this function to support other
+  // instructions that jump to relative targets.
+  //
+  // @param source              Pointer to instruction.
+  //
+  // @param instruction_size    Size of the instruction.
+  //
+  // @param target              Target buffer to write the new instruction.
+  //
+  // @param target_bytes        Pointer to a buffer that contains the size
+  //                            of the target instruction, in bytes.
+  //
+  // @param target_size         Size of the target buffer.
+  //
+  // @return  Returns SIDESTEP_SUCCESS if successful, otherwise an error.
+  static SideStepError PatchNearJumpOrCall(unsigned char* source,
+                                           unsigned int instruction_size,
+                                           unsigned char* target,
+                                           unsigned int* target_bytes,
+                                           unsigned int target_size);
+  
+  // Helper routine that patches a 64-bit MOV instruction with a RIP-relative
+  // displacement.  The target buffer must be within 2GB of the source.
+  //
+  // 48 8B 0D XX XX XX XX = MOV rel32off
+  //
+  // @param source              Pointer to instruction.
+  //
+  // @param instruction_size    Size of the instruction.
+  //
+  // @param target              Target buffer to write the new instruction.
+  //
+  // @param target_bytes        Pointer to a buffer that contains the size
+  //                            of the target instruction, in bytes.
+  //
+  // @param target_size         Size of the target buffer.
+  //
+  // @return  Returns SIDESTEP_SUCCESS if successful, otherwise an error.
+  static SideStepError PatchMovWithDisplacement(unsigned char* source,
+                                                unsigned int instruction_size,
+                                                unsigned char* target,
+                                                unsigned int* target_bytes,
+                                                unsigned int target_size);
 };
 
 };  // namespace sidestep

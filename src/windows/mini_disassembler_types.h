@@ -143,6 +143,16 @@ enum OperandType {
   OT_ADDRESS_MODE_M = 0x80000000
 };
 
+// Flag that indicates if an immediate operand is 64-bits.
+//
+// The Intel 64 and IA-32 Architecture Software Developer's Manual currently
+// defines MOV as the only instruction supporting a 64-bit immediate operand.
+enum ImmediateOperandSize {
+  IOS_MASK = 0x0000F000,
+  IOS_DEFAULT = 0x0,
+  IOS_64 = 0x00001000
+};
+
 // Everything that's in an Opcode (see below) except the three
 // alternative opcode structs for different prefixes.
 struct SpecificOpcode {
@@ -154,8 +164,8 @@ struct SpecificOpcode {
   InstructionType type_;
 
   // Description of the type of the dest, src and aux operands,
-  // put together from an enOperandType flag and an enAddressingMethod
-  // flag.
+  // put together from enOperandType, enAddressingMethod and 
+  // enImmediateOperandSize flags.
   int flag_dest_;
   int flag_source_;
   int flag_aux_;

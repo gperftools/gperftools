@@ -165,6 +165,12 @@ class MiniDisassembler {
   // Default address size is 32 bits if true, 16 bits if false.
   bool address_default_is_32_bits_;
 
+  // Determines if 64 bit operands are supported (x64).
+  bool operand_default_support_64_bits_;
+
+  // Current operand size is 64 bits if true, 32 bits if false.
+  bool operand_is_64_bits_;
+
   // Huge big opcode table based on the IA-32 manual, defined
   // in Ia32OpcodeMap.cc
   static const OpcodeTable s_ia32_opcode_map_[];

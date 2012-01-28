@@ -86,7 +86,7 @@ bool kernel_supports_tls = false;      // be conservative
 #   include <sys/utsname.h>    // DECL_UNAME checked for <sys/utsname.h> too
     void CheckIfKernelSupportsTLS() {
       struct utsname buf;
-      if (uname(&buf) != 0) {   // should be impossible
+      if (uname(&buf) < 0) {   // should be impossible
         Log(kLog, __FILE__, __LINE__,
             "uname failed assuming no TLS support (errno)", errno);
         kernel_supports_tls = false;

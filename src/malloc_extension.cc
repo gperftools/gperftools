@@ -108,9 +108,9 @@ SysAllocator::~SysAllocator() {}
 // Default implementation -- does nothing
 MallocExtension::~MallocExtension() { }
 bool MallocExtension::VerifyAllMemory() { return true; }
-bool MallocExtension::VerifyNewMemory(void* p) { return true; }
-bool MallocExtension::VerifyArrayNewMemory(void* p) { return true; }
-bool MallocExtension::VerifyMallocMemory(void* p) { return true; }
+bool MallocExtension::VerifyNewMemory(const void* p) { return true; }
+bool MallocExtension::VerifyArrayNewMemory(const void* p) { return true; }
+bool MallocExtension::VerifyMallocMemory(const void* p) { return true; }
 
 bool MallocExtension::GetNumericProperty(const char* property, size_t* value) {
   return false;
@@ -177,7 +177,7 @@ size_t MallocExtension::GetEstimatedAllocatedSize(size_t size) {
   return size;
 }
 
-size_t MallocExtension::GetAllocatedSize(void* p) {
+size_t MallocExtension::GetAllocatedSize(const void* p) {
   assert(GetOwnership(p) != kNotOwned);
   return 0;
 }
@@ -343,9 +343,9 @@ void MallocExtension::Ranges(void* arg, RangeFunction func) {
   }
 
 C_SHIM(VerifyAllMemory, int, (void), ());
-C_SHIM(VerifyNewMemory, int, (void* p), (p));
-C_SHIM(VerifyArrayNewMemory, int, (void* p), (p));
-C_SHIM(VerifyMallocMemory, int, (void* p), (p));
+C_SHIM(VerifyNewMemory, int, (const void* p), (p));
+C_SHIM(VerifyArrayNewMemory, int, (const void* p), (p));
+C_SHIM(VerifyMallocMemory, int, (const void* p), (p));
 C_SHIM(MallocMemoryStats, int,
        (int* blocks, size_t* total, int histogram[kMallocHistogramSize]),
        (blocks, total, histogram));
@@ -362,7 +362,7 @@ C_SHIM(MarkThreadBusy, void, (void), ());
 C_SHIM(ReleaseFreeMemory, void, (void), ());
 C_SHIM(ReleaseToSystem, void, (size_t num_bytes), (num_bytes));
 C_SHIM(GetEstimatedAllocatedSize, size_t, (size_t size), (size));
-C_SHIM(GetAllocatedSize, size_t, (void* p), (p));
+C_SHIM(GetAllocatedSize, size_t, (const void* p), (p));
 
 // Can't use the shim here because of the need to translate the enums.
 extern "C"

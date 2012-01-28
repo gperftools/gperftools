@@ -784,6 +784,8 @@ static void MakeDisabledLiveCallbackLocked(
   }
 }
 
+static const char kUnnamedProcSelfMapEntry[] = "UNNAMED";
+
 // This function takes some fields from a /proc/self/maps line:
 //
 //   start_address  start address of a memory region.
@@ -801,7 +803,9 @@ static void RecordGlobalDataLocked(uintptr_t start_address,
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
   // Ignore non-writeable regions.
   if (strchr(permissions, 'w') == NULL) return;
-  if (filename == NULL  ||  *filename == '\0')  filename = "UNNAMED";
+  if (filename == NULL  ||  *filename == '\0') {
+    filename = kUnnamedProcSelfMapEntry;
+  }
   RAW_VLOG(11, "Looking into %s: 0x%" PRIxPTR "..0x%" PRIxPTR,
               filename, start_address, end_address);
   (*library_live_objects)[filename].
@@ -1405,6 +1409,31 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
       }
     }
     if (size < sizeof(void*)) continue;
+
+#ifdef NO_FRAME_POINTER
+    // Frame pointer omission requires us to use libunwind, which uses direct
+    // mmap and munmap system calls, and that needs special handling.
+    if (name2 == kUnnamedProcSelfMapEntry) {
+      static const uintptr_t page_mask = ~(getpagesize() - 1);
+      const uintptr_t addr = reinterpret_cast<uintptr_t>(object);
+      if ((addr & page_mask) == 0 && (size & page_mask) == 0) {
+        // This is an object we slurped from /proc/self/maps.
+        // It may or may not be readable at this point.
+        //
+        // In case all the above conditions made a mistake, and the object is
+        // not related to libunwind, we also verify that it's not readable
+        // before ignoring it.
+        if (msync(const_cast<char*>(object), size, MS_ASYNC) != 0) {
+          // Skip unreadable object, so we don't crash trying to sweep it.
+          RAW_VLOG(0, "Ignoring inaccessible object [%p, %p) "
+                   "(msync error %d (%s))",
+                   object, object + size, errno, strerror(errno));
+          continue;
+        }
+      }
+    }
+#endif
+
     const char* const max_object = object + size - sizeof(void*);
     while (object <= max_object) {
       // potentially unaligned load:
@@ -1986,6 +2015,16 @@ void HeapLeakChecker_InternalInitStart() {
     RAW_LOG(FATAL, "Unsupported heap_check flag: %s",
                    FLAGS_heap_check.c_str());
   }
+  // FreeBSD doesn't seem to honor atexit execution order:
+  //    http://code.google.com/p/gperftools/issues/detail?id=375
+  // Since heap-checking before destructors depends on atexit running
+  // at the right time, on FreeBSD we always check after, even in the
+  // less strict modes.  This just means FreeBSD is always a bit
+  // stricter in its checking than other OSes.
+#ifdef __FreeBSD__
+  FLAGS_heap_check_after_destructors = true;
+#endif
+
   { SpinLockHolder l(&heap_checker_lock);
     RAW_DCHECK(heap_checker_pid == getpid(), "");
     heap_checker_on = true;

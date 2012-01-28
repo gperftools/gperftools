@@ -87,6 +87,7 @@ class STL_Allocator {
   size_type max_size() const { return size_t(-1) / sizeof(T); }
 
   void construct(pointer p, const T& val) { ::new(p) T(val); }
+  void construct(pointer p) { ::new(p) T(); }
   void destroy(pointer p) { p->~T(); }
 
   // There's no state, so these allocators are always equal

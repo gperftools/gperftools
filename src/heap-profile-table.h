@@ -138,7 +138,8 @@ class HeapProfileTable {
   // are skipped in heap checking reports.
   void MarkAsIgnored(const void* ptr);
 
-  // Return current total (de)allocation statistics.
+  // Return current total (de)allocation statistics.  It doesn't contain
+  // mmap'ed regions.
   const Stats& total() const { return total_; }
 
   // Allocation data iteration callback: gets passed object pointer and
@@ -148,7 +149,7 @@ class HeapProfileTable {
   // Iterate over the allocation profile data calling "callback"
   // for every allocation.
   void IterateAllocs(AllocIterator callback) const {
-    allocation_->Iterate(MapArgsAllocIterator, callback);
+    alloc_address_map_->Iterate(MapArgsAllocIterator, callback);
   }
 
   // Allocation context profile data iteration callback
@@ -185,6 +186,16 @@ class HeapProfileTable {
   // As a side-effect, clears the "live" bit on every live object in *this.
   // Caller must call ReleaseSnapshot() on result when no longer needed.
   Snapshot* NonLiveSnapshot(Snapshot* base);
+
+  // Refresh the internal mmap information from MemoryRegionMap.  Results of
+  // FillOrderedProfile and IterateOrderedAllocContexts will contain mmap'ed
+  // memory regions as at calling RefreshMMapData.
+  void RefreshMMapData();
+
+  // Clear the internal mmap information.  Results of FillOrderedProfile and
+  // IterateOrderedAllocContexts won't contain mmap'ed memory regions after
+  // calling ClearMMapData.
+  void ClearMMapData();
 
  private:
 
@@ -263,9 +274,18 @@ class HeapProfileTable {
                            const char* extra,
                            Stats* profile_stats);
 
-  // Get the bucket for the caller stack trace 'key' of depth 'depth'
-  // creating the bucket if needed.
-  Bucket* GetBucket(int depth, const void* const key[]);
+  // Deallocate a given allocation map.
+  void DeallocateAllocationMap(AllocationMap* allocation);
+
+  // Deallocate a given bucket table.
+  void DeallocateBucketTable(Bucket** table);
+
+  // Get the bucket for the caller stack trace 'key' of depth 'depth' from a
+  // bucket hash map 'table' creating the bucket if needed.  '*bucket_count'
+  // is incremented both when 'bucket_count' is not NULL and when a new
+  // bucket object is created.
+  Bucket* GetBucket(int depth, const void* const key[], Bucket** table,
+                    int* bucket_count);
 
   // Helper for IterateAllocs to do callback signature conversion
   // from AllocationMap::Iterate to AllocIterator.
@@ -285,9 +305,14 @@ class HeapProfileTable {
   inline static void DumpNonLiveIterator(const void* ptr, AllocValue* v,
                                          const DumpArgs& args);
 
+  // Helper for filling size variables in buckets by zero.
+  inline static void ZeroBucketCountsIterator(
+      const void* ptr, AllocValue* v, HeapProfileTable* heap_profile);
+
   // Helper for IterateOrderedAllocContexts and FillOrderedProfile.
-  // Creates a sorted list of Buckets whose length is num_buckets_.
-  // The caller is responsible for dellocating the returned list.
+  // Creates a sorted list of Buckets whose length is num_alloc_buckets_ +
+  // num_avaliable_mmap_buckets_.
+  // The caller is responsible for deallocating the returned list.
   Bucket** MakeSortedBucketList() const;
 
   // Helper for TakeSnapshot.  Saves object to snapshot.
@@ -319,17 +344,25 @@ class HeapProfileTable {
 
   // Overall profile stats; we use only the Stats part,
   // but make it a Bucket to pass to UnparseBucket.
+  // It doesn't contain mmap'ed regions.
   Bucket total_;
 
-  // Bucket hash table.
+  // Bucket hash table for malloc.
   // We hand-craft one instead of using one of the pre-written
   // ones because we do not want to use malloc when operating on the table.
   // It is only few lines of code, so no big deal.
-  Bucket** table_;
-  int num_buckets_;
+  Bucket** alloc_table_;
+  int num_alloc_buckets_;
 
-  // Map of all currently allocated objects we know about.
-  AllocationMap* allocation_;
+  // Bucket hash table for mmap.
+  // This table is filled with the information from MemoryRegionMap by calling
+  // RefreshMMapData.
+  Bucket** mmap_table_;
+  int num_available_mmap_buckets_;
+
+  // Map of all currently allocated objects and mapped regions we know about.
+  AllocationMap* alloc_address_map_;
+  AllocationMap* mmap_address_map_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapProfileTable);
 };

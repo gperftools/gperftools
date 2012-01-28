@@ -742,7 +742,7 @@ class MallocBlock {
     return FromRawPointer(const_cast<void*>(p));
   }
 
-  void Check(int type) {
+  void Check(int type) const {
     alloc_map_lock_.Lock();
     CheckLocked(type);
     alloc_map_lock_.Unlock();
@@ -1015,17 +1015,17 @@ class DebugMallocImplementation : public TCMallocImplementation {
     return result;
   }
 
-  virtual bool VerifyNewMemory(void* p) {
+  virtual bool VerifyNewMemory(const void* p) {
     if (p)  MallocBlock::FromRawPointer(p)->Check(MallocBlock::kNewType);
     return true;
   }
 
-  virtual bool VerifyArrayNewMemory(void* p) {
+  virtual bool VerifyArrayNewMemory(const void* p) {
     if (p)  MallocBlock::FromRawPointer(p)->Check(MallocBlock::kArrayNewType);
     return true;
   }
 
-  virtual bool VerifyMallocMemory(void* p) {
+  virtual bool VerifyMallocMemory(const void* p) {
     if (p)  MallocBlock::FromRawPointer(p)->Check(MallocBlock::kMallocType);
     return true;
   }
@@ -1043,7 +1043,7 @@ class DebugMallocImplementation : public TCMallocImplementation {
     return size;
   }
 
-  virtual size_t GetAllocatedSize(void* p) {
+  virtual size_t GetAllocatedSize(const void* p) {
     if (p) {
       RAW_CHECK(GetOwnership(p) != MallocExtension::kNotOwned,
                 "ptr not allocated by tcmalloc");

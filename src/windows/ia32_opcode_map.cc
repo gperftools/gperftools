@@ -111,6 +111,25 @@ const Opcode s_first_opcode_byte[] = {
   /* 0x3D */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "cmp", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x3E */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x3F */ { 0, IT_GENERIC, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, "aas", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+#ifdef _M_X64
+  /* REX Prefixes in 64-bit mode. */
+  /* 0x40 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x41 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x42 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x43 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x44 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x45 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x46 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x47 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x48 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x49 */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x4A */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x4B */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x4C */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x4D */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x4E */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0x4F */ { 0, IT_PREFIX, AM_NOT_USED, AM_NOT_USED, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+#else
   /* 0x40 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "inc", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x41 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "inc", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x42 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "inc", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
@@ -127,6 +146,7 @@ const Opcode s_first_opcode_byte[] = {
   /* 0x4D */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "dec", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x4E */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "dec", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x4F */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "dec", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+#endif
   /* 0x50 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "push", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x51 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "push", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0x52 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_NOT_USED, AM_NOT_USED, "push", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
@@ -231,6 +251,16 @@ const Opcode s_first_opcode_byte[] = {
   /* 0xB5 */ { 0, IT_GENERIC, AM_REGISTER | OT_B, AM_I | OT_B, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xB6 */ { 0, IT_GENERIC, AM_REGISTER | OT_B, AM_I | OT_B, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xB7 */ { 0, IT_GENERIC, AM_REGISTER | OT_B, AM_I | OT_B, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+#ifdef _M_X64
+  /* 0xB8 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xB9 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xBA */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xBB */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xBC */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xBD */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xBE */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+  /* 0xBF */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V | IOS_64, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+#else
   /* 0xB8 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xB9 */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xBA */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
@@ -239,6 +269,7 @@ const Opcode s_first_opcode_byte[] = {
   /* 0xBD */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xBE */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xBF */ { 0, IT_GENERIC, AM_REGISTER | OT_V, AM_I | OT_V, AM_NOT_USED, "mov", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
+#endif
   /* 0xC0 */ { 6, IT_REFERENCE, AM_E | OT_B, AM_I | OT_B, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xC1 */ { 7, IT_REFERENCE, AM_E | OT_V, AM_I | OT_B, AM_NOT_USED, 0, false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },
   /* 0xC2 */ { 0, IT_RETURN, AM_I | OT_W, AM_NOT_USED, AM_NOT_USED, "ret", false, /* F2h */ { 0 }, /* F3h */ { 0 }, /* 66h */ { 0 } },

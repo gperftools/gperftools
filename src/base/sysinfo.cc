@@ -86,12 +86,20 @@
 // time, so prefer making the syscalls directly if we can.
 #ifdef HAVE_SYS_SYSCALL_H
 # include <sys/syscall.h>
+#endif
+#ifdef SYS_open   // solaris 11, at least sometimes, only defines SYS_openat
 # define safeopen(filename, mode)  syscall(SYS_open, filename, mode)
-# define saferead(fd, buffer, size)  syscall(SYS_read, fd, buffer, size)
-# define safeclose(fd)  syscall(SYS_close, fd)
 #else
 # define safeopen(filename, mode)  open(filename, mode)
+#endif
+#ifdef SYS_read
+# define saferead(fd, buffer, size)  syscall(SYS_read, fd, buffer, size)
+#else
 # define saferead(fd, buffer, size)  read(fd, buffer, size)
+#endif
+#ifdef SYS_close
+# define safeclose(fd)  syscall(SYS_close, fd)
+#else
 # define safeclose(fd)  close(fd)
 #endif
 

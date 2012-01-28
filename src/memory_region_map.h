@@ -252,6 +252,10 @@ class MemoryRegionMap {
   static RegionIterator BeginRegionLocked();
   static RegionIterator EndRegionLocked();
 
+  // Return the accumulated sizes of mapped and unmapped regions.
+  static int64 MapSize() { return map_size_; }
+  static int64 UnmapSize() { return unmap_size_; }
+
   // Effectively private type from our .cc =================================
   // public to let us declare global objects:
   union RegionSetRep;
@@ -285,6 +289,11 @@ class MemoryRegionMap {
   static int recursion_count_;
   // The thread id of the thread that's inside the recursive lock.
   static pthread_t lock_owner_tid_;
+
+  // Total size of all mapped pages so far
+  static int64 map_size_;
+  // Total size of all unmapped pages so far
+  static int64 unmap_size_;
 
   // helpers ==================================================================
 

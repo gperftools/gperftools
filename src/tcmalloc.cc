@@ -289,13 +289,13 @@ void InvalidFree(void* ptr) {
   Log(kCrash, __FILE__, __LINE__, "Attempt to free invalid pointer", ptr);
 }
 
-size_t InvalidGetSizeForRealloc(void* old_ptr) {
+size_t InvalidGetSizeForRealloc(const void* old_ptr) {
   Log(kCrash, __FILE__, __LINE__,
       "Attempt to realloc invalid pointer", old_ptr);
   return 0;
 }
 
-size_t InvalidGetAllocatedSize(void* ptr) {
+size_t InvalidGetAllocatedSize(const void* ptr) {
   Log(kCrash, __FILE__, __LINE__,
       "Attempt to get the size of an invalid pointer", ptr);
   return 0;
@@ -757,7 +757,7 @@ class TCMallocImplementation : public MallocExtension {
   // This just calls GetSizeWithCallback, but because that's in an
   // unnamed namespace, we need to move the definition below it in the
   // file.
-  virtual size_t GetAllocatedSize(void* ptr);
+  virtual size_t GetAllocatedSize(const void* ptr);
 
   // This duplicates some of the logic in GetSizeWithCallback, but is
   // faster.  This is important on OS X, where this function is called
@@ -1147,8 +1147,8 @@ inline void do_free(void* ptr) {
 
 // NOTE: some logic here is duplicated in GetOwnership (above), for
 // speed.  If you change this function, look at that one too.
-inline size_t GetSizeWithCallback(void* ptr,
-                                  size_t (*invalid_getsize_fn)(void*)) {
+inline size_t GetSizeWithCallback(const void* ptr,
+                                  size_t (*invalid_getsize_fn)(const void*)) {
   if (ptr == NULL)
     return 0;
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
@@ -1173,7 +1173,7 @@ inline size_t GetSizeWithCallback(void* ptr,
 inline void* do_realloc_with_callback(
     void* old_ptr, size_t new_size,
     void (*invalid_free_fn)(void*),
-    size_t (*invalid_get_size_fn)(void*)) {
+    size_t (*invalid_get_size_fn)(const void*)) {
   // Get the size of the old entry
   const size_t old_size = GetSizeWithCallback(old_ptr, invalid_get_size_fn);
 
@@ -1438,7 +1438,7 @@ void* cpp_memalign(size_t align, size_t size) {
 }  // end unnamed namespace
 
 // As promised, the definition of this function, declared above.
-size_t TCMallocImplementation::GetAllocatedSize(void* ptr) {
+size_t TCMallocImplementation::GetAllocatedSize(const void* ptr) {
   ASSERT(TCMallocImplementation::GetOwnership(ptr)
          != TCMallocImplementation::kNotOwned);
   return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
