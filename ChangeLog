@@ -1,3 +1,25 @@
+Tue Jan 31 10:43:50 2012    Google Inc. <opensource@google.com>
+
+	* google-perftools: version 1.10 release
+	* PORTING: Support for patching assembly on win x86_64! (scott.fr...)
+	* PORTING: Work around atexit-execution-order bug on freebsd (csilvers)
+	* PORTING: Patch _calloc_crt for windows (roger orr)
+	* PORTING: Add C++11 compatibility method for stl allocator (jdennett)
+	* PORTING: use MADV_FREE, not MADV_DONTNEED, on freebsd (csilvers)
+	* PORTING: Don't use SYS_open when not supported on solaris (csilvers)
+	* PORTING: Do not assume uname() returns 0 on success (csilvers)
+	* LSS: Improved ARM support in linux-syscall-support (dougkwan)
+	* LSS: Get rid of unused syscalls in linux-syscall-support (csilvers)
+	* LSS: Fix broken mmap wrapping for ppc (markus)
+	* LSS: Emit .cfi_adjust_cfa_offset when appropriate (ppluzhnikov)
+	* LSS: Be more accurate in register use in __asm__ (markus)
+	* LSS: Fix __asm__ calls to compile under clang (chandlerc)
+	* LSS: Fix ARM inline assembly bug around r7 and swi (lcwu)
+	* No longer log when an allocator fails (csilvers)
+	* void* -> const void* for MallocExtension methods (llib)
+	* Improve HEAP_PROFILE_MMAP and fix bugs with it (dmikurube)
+	* Replace int-based abs with more correct fabs in a test (pmurin)
+
 Thu Dec 22 16:22:45 2011    Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.9 release

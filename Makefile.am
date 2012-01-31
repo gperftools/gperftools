@@ -226,6 +226,18 @@ LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
 # (We do this via a #pragma for msvc, but need to do it here for mingw).
 libsysinfo_la_LIBADD += -lshlwapi
 
+# There's a windows-specific unittest we can run.  Right now it's
+# win64-specific, and relies on masm, so we comment it out.
+## TESTS += preamble_patcher_test
+## preamble_patcher_test_SOURCES = src/windows/preamble_patcher_test.cc \
+##                                 src/windows/shortproc.asm \
+##                                 src/windows/auto_testing_hook.h \
+##                                 src/windows/preamble_patcher.h \
+##                                 src/base/basictypes.h \
+##                                 src/base/logging.h
+## preamble_patcher_test_LDFLAGS = $(TCMALLOC_FLAGS)
+## preamble_patcher_test_LDADD = $(LIBTCMALLOC_MINIMAL)
+
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
 TCMALLOC_CC =
 # windows has its own system for threads and system memory allocation.
@@ -254,6 +266,14 @@ TCMALLOC_CC = src/tcmalloc.cc
 MAYBE_THREADS_CC = src/maybe_threads.cc
 SYSTEM_ALLOC_CC = src/system-alloc.cc
 endif !MINGW
+
+# Add this whether or not we're under MinGW, to keep the tarball complete.
+WINDOWS_PROJECTS += vsprojects/preamble_patcher_test/preamble_patcher_test.vcproj
+# Because we've commented out the test, above, we have to explicitly add
+# the test files to the tarball or automake will leave them out.
+WINDOWS_PROJECTS += src/windows/preamble_patcher_test.cc \
+                    src/windows/shortproc.asm \
+                    src/windows/auto_testing_hook.h
 
 ### Unittests
 TESTS += low_level_alloc_unittest

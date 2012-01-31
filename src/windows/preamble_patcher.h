@@ -37,6 +37,7 @@
 #ifndef GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H_
 #define GOOGLE_PERFTOOLS_PREAMBLE_PATCHER_H_
 
+#include "config.h"
 #include <windows.h>
 
 // compatibility shim
@@ -147,7 +148,7 @@ class DeleteUnsignedCharArray;
 // reuse the result of calling the function with a given parameter, which
 // may mean if you patch the function in between your patch will never get
 // invoked.  See preamble_patcher_test.cc for an example.
-class PreamblePatcher {
+class PERFTOOLS_DLL_DECL PreamblePatcher {
  public:
 
   // This is a typesafe version of RawPatch(), identical in all other

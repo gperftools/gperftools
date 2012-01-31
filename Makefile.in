@@ -1774,7 +1774,14 @@ lib_LTLIBRARIES = libtcmalloc_minimal.la $(am__append_24) \
 noinst_LTLIBRARIES = liblogging.la libsysinfo.la $(am__append_8) \
 	$(am__append_10) $(am__append_12) \
 	libtcmalloc_minimal_internal.la $(am__append_33)
+
+# Add this whether or not we're under MinGW, to keep the tarball complete.
+# Because we've commented out the test, above, we have to explicitly add
+# the test files to the tarball or automake will leave them out.
 WINDOWS_PROJECTS = google-perftools.sln \
+	vsprojects/preamble_patcher_test/preamble_patcher_test.vcproj \
+	src/windows/preamble_patcher_test.cc src/windows/shortproc.asm \
+	src/windows/auto_testing_hook.h \
 	vsprojects/low_level_alloc_unittest/low_level_alloc_unittest.vcproj \
 	$(am__append_16) \
 	vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcproj \
@@ -1920,6 +1927,9 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS) $(am__append_9)
 @MINGW_FALSE@LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
 @MINGW_TRUE@LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
 @MINGW_FALSE@TCMALLOC_CC = src/tcmalloc.cc
+
+# There's a windows-specific unittest we can run.  Right now it's
+# win64-specific, and relies on masm, so we comment it out.
 
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
 @MINGW_TRUE@TCMALLOC_CC = 
@@ -4765,7 +4775,7 @@ check-TESTS: $(TESTS)
 distdir: $(DISTFILES)
 	$(am__remove_distdir)
 	mkdir $(distdir)
-	$(mkdir_p) $(distdir)/$(top_srcdir) $(distdir)/doc $(distdir)/m4 $(distdir)/packages $(distdir)/packages/rpm $(distdir)/src $(distdir)/src/google $(distdir)/src/solaris $(distdir)/src/tests $(distdir)/src/windows $(distdir)/src/windows/google $(distdir)/vsprojects/addr2line-pdb $(distdir)/vsprojects/addressmap_unittest $(distdir)/vsprojects/current_allocated_bytes_test $(distdir)/vsprojects/frag_unittest $(distdir)/vsprojects/libtcmalloc_minimal $(distdir)/vsprojects/low_level_alloc_unittest $(distdir)/vsprojects/malloc_extension_test $(distdir)/vsprojects/malloc_hook_test $(distdir)/vsprojects/markidle_unittest $(distdir)/vsprojects/nm-pdb $(distdir)/vsprojects/packed-cache_test $(distdir)/vsprojects/page_heap_test $(distdir)/vsprojects/pagemap_unittest $(distdir)/vsprojects/realloc_unittest $(distdir)/vsprojects/sampler_test $(distdir)/vsprojects/stack_trace_table_test $(distdir)/vsprojects/tcmalloc_minimal_large $(distdir)/vsprojects/tcmalloc_minimal_unittest $(distdir)/vsprojects/thread_dealloc_unittest $(distdir)/vsprojects/tmu-static
+	$(mkdir_p) $(distdir)/$(top_srcdir) $(distdir)/doc $(distdir)/m4 $(distdir)/packages $(distdir)/packages/rpm $(distdir)/src $(distdir)/src/google $(distdir)/src/solaris $(distdir)/src/tests $(distdir)/src/windows $(distdir)/src/windows/google $(distdir)/vsprojects/addr2line-pdb $(distdir)/vsprojects/addressmap_unittest $(distdir)/vsprojects/current_allocated_bytes_test $(distdir)/vsprojects/frag_unittest $(distdir)/vsprojects/libtcmalloc_minimal $(distdir)/vsprojects/low_level_alloc_unittest $(distdir)/vsprojects/malloc_extension_test $(distdir)/vsprojects/malloc_hook_test $(distdir)/vsprojects/markidle_unittest $(distdir)/vsprojects/nm-pdb $(distdir)/vsprojects/packed-cache_test $(distdir)/vsprojects/page_heap_test $(distdir)/vsprojects/pagemap_unittest $(distdir)/vsprojects/preamble_patcher_test $(distdir)/vsprojects/realloc_unittest $(distdir)/vsprojects/sampler_test $(distdir)/vsprojects/stack_trace_table_test $(distdir)/vsprojects/tcmalloc_minimal_large $(distdir)/vsprojects/tcmalloc_minimal_unittest $(distdir)/vsprojects/thread_dealloc_unittest $(distdir)/vsprojects/tmu-static
 	@srcdirstrip=`echo "$(srcdir)" | sed 's|.|.|g'`; \
 	topsrcdirstrip=`echo "$(top_srcdir)" | sed 's|.|.|g'`; \
 	list='$(DISTFILES)'; for file in $$list; do \

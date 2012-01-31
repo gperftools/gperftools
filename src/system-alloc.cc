@@ -64,7 +64,7 @@
 // MADV_FREE is specifically designed for use by malloc(), but only
 // FreeBSD supports it; in linux we fall back to the somewhat inferior
 // MADV_DONTNEED.
-#ifndef MADV_FREE
+#if !defined(MADV_FREE) && defined(MADV_DONTNEED)
 # define MADV_FREE  MADV_DONTNEED
 #endif
 

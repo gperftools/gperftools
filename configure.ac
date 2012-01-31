@@ -7,8 +7,8 @@ AC_PREREQ(2.57)
 AC_INIT(google-perftools, 1.10, opensource@google.com)
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-TCMALLOC_SO_VERSION=3:0:3
-PROFILER_SO_VERSION=2:0:2
+TCMALLOC_SO_VERSION=4:0:0
+PROFILER_SO_VERSION=2:1:2
 
 AC_SUBST(TCMALLOC_SO_VERSION)
 AC_SUBST(PROFILER_SO_VERSION)

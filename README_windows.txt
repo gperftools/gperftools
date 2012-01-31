@@ -78,6 +78,11 @@ both x86 and x64.  In particular, if you use the 'statically link with
 libc, and replace its malloc with tcmalloc' approach, mentioned above,
 it should be possible to use tcmalloc with 64-bit windows.
 
+As of perftools 1.10, there is some support for disassembling x86_64
+instructions, for work with win64.  This work is preliminary, but the
+test file preamble_patcher_test.cc is provided to play around with
+that a bit.  preamble_patcher_test will not compile on win32.
+
 
 --- ISSUES
 

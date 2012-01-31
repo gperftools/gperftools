@@ -1095,7 +1095,15 @@ static inline ThreadCache* GetCacheIfPresent() {
 // It is used primarily by windows code which wants a specialized callback.
 inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
   if (ptr == NULL) return;
-  ASSERT(Static::pageheap() != NULL);  // Should not call free() before malloc()
+  if (Static::pageheap() == NULL) {
+    // We called free() before malloc().  This can occur if the
+    // (system) malloc() is called before tcmalloc is loaded, and then
+    // free() is called after tcmalloc is loaded (and tc_free has
+    // replaced free), but before the global constructor has run that
+    // sets up the tcmalloc data structures.
+    (*invalid_free_fn)(ptr);  // Decide how to handle the bad free request
+    return;
+  }
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   Span* span = NULL;
   size_t cl = Static::pageheap()->GetSizeClassIfCached(p);

@@ -1,4 +1,32 @@
-== 24 January 2011 ==
+== 31 January 2012 ==
+
+I've just released perftools 1.10
+
+There is an API-incompatible change: several of the methods in the
+`MallocExtension` class have changed from taking a `void*` to taking a
+`const void*`.  You should not be affected by this API change
+unless you've written your own custom malloc extension that derives
+from `MallocExtension`, but since it is a user-visible change, I have
+upped the `.so` version number for this release.
+
+This release focuses on improvements to linux-syscall-support.h,
+including ARM and PPC fixups and general cleanups.  I hope this will
+magically fix an array of bugs people have been seeing.
+
+There is also exciting news on the porting front, with support for
+patching win64 assembly contributed by IBM Canada!  This is an
+important step -- perhaps the most difficult -- to getting perftools
+to work on 64-bit windows using the patching technique (it doesn't
+affect the libc-modification technique).  `premable_patcher_test` has
+been added to help test these changes; it is meant to compile under
+x86_64, and won't work under win32.
+
+For the full list of changes, including improved `HEAP_PROFILE_MMAP`
+support, see the
+[http://google-perftools.googlecode.com/svn/tags/google-perftools-1.10/ChangeLog ChangeLog].
+
+
+=== 24 January 2011 ===
 
 The `google-perftools` Google Code page has been renamed to
 `gperftools`, in preparation for the project being renamed to

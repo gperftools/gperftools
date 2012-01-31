@@ -36,6 +36,7 @@
 #ifndef GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H_
 #define GOOGLE_PERFTOOLS_MINI_DISASSEMBLER_H_
 
+#include "config.h"
 #include <windows.h>
 #include "mini_disassembler_types.h"
 
@@ -74,7 +75,7 @@ namespace sidestep {
 // IA-32 Intel® Architecture Software Developer’s Manual Volume 2:
 // Instruction Set Reference for information about operand decoding
 // etc.
-class MiniDisassembler {
+class PERFTOOLS_DLL_DECL MiniDisassembler {
  public:
 
   // Creates a new instance and sets defaults.

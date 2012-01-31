@@ -32,6 +32,8 @@
 ;
 ; Unit tests for PreamblePatcher
  
+.MODEL small
+ 
 .CODE
 
 TooShortFunction PROC

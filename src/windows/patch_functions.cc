@@ -826,7 +826,7 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
   return do_realloc_with_callback(
       old_ptr, new_size,
       (void (*)(void*))origstub_fn_[kFree],
-      (size_t (*)(void*))origstub_fn_[k_Msize]);
+      (size_t (*)(const void*))origstub_fn_[k_Msize]);
 }
 
 template<int T>
@@ -904,7 +904,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
 
 template<int T>
 size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
-  return GetSizeWithCallback(ptr, (size_t (*)(void*))origstub_fn_[k_Msize]);
+  return GetSizeWithCallback(ptr, (size_t (*)(const void*))origstub_fn_[k_Msize]);
 }
 
 // We need to define this because internal windows functions like to

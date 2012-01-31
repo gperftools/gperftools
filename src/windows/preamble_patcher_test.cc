@@ -34,6 +34,7 @@
  * Unit tests for PreamblePatcher
  */
 
+#include "config_for_unittests.h"
 #include "preamble_patcher.h"
 #include "mini_disassembler.h"
 #pragma warning(push)
@@ -51,6 +52,17 @@
 // that the optimized access a register that is changed by a call to the hook
 // function.
 #pragma optimize("", off)
+
+// A convenience macro to avoid a lot of casting in the tests.
+// I tried to make this a templated function, but windows complained:
+//     error C2782: 'sidestep::SideStepError `anonymous-namespace'::Unpatch(T,T,T *)' : template parameter 'T' is ambiguous
+//        could be 'int (int)'
+//        or       'int (__cdecl *)(int)'
+// My life isn't long enough to try to figure out how to fix this.
+#define UNPATCH(target_function, replacement_function, original_function_stub) \
+  sidestep::PreamblePatcher::Unpatch((void*)(target_function),          \
+                                     (void*)(replacement_function),     \
+                                     (void*)(original_function))
 
 namespace {
 
@@ -130,9 +142,9 @@ bool TestPatchWithLongJump() {
                                                         &original_function));
   SIDESTEP_ASSERT((*original_function)(1) == 2);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(IncrementNumber,
-                                                          (IncrementingFunc) p,
-                                                          original_function));
+                       UNPATCH(IncrementNumber,
+                               (IncrementingFunc)p,
+                               original_function));
   ::VirtualFree(p, 0, MEM_RELEASE);
   return true;
 }
@@ -145,9 +157,9 @@ bool TestPatchWithPreambleShortCondJump() {
                                                         &original_function));
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(JumpShortCondFunction,
-                                                          HookIncrementNumber,
-                                                          original_function));
+                       UNPATCH(JumpShortCondFunction,
+                               (void*)HookIncrementNumber,
+                               original_function));
   return true;
 }
 
@@ -160,9 +172,9 @@ bool TestPatchWithPreambleNearRelativeCondJump() {
   (*original_function)(0);
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(JumpNearCondFunction,
-                                                          HookIncrementNumber,
-                                                          original_function));
+                       UNPATCH(JumpNearCondFunction,
+                               HookIncrementNumber,
+                               original_function));
   return true;
 }
 
@@ -175,9 +187,9 @@ bool TestPatchWithPreambleAbsoluteJump() {
   (*original_function)(0);
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(JumpAbsoluteFunction,
-                                                          HookIncrementNumber,
-                                                          original_function));
+                       UNPATCH(JumpAbsoluteFunction,
+                               HookIncrementNumber,
+                               original_function));
   return true;
 }
 
@@ -191,10 +203,9 @@ bool TestPatchWithPreambleNearRelativeCall() {
   (*original_function)(0);
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(
-                                                    CallNearRelativeFunction,
-                                                    HookIncrementNumber,
-                                                    original_function));
+                       UNPATCH(CallNearRelativeFunction,
+                               HookIncrementNumber,
+                               original_function));
   return true;
 }
 
@@ -239,9 +250,9 @@ bool TestPatchUsingDynamicStub() {
 #endif
 
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(IncrementNumber,
-                                                          HookIncrementNumber,
-                                                          original_function));
+                       UNPATCH(IncrementNumber,
+                               HookIncrementNumber,
+                               original_function));
   return true;
 }
 
@@ -256,9 +267,9 @@ bool PatchThenUnpatch() {
   SIDESTEP_EXPECT_TRUE(original_function(2) == 3);
 
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Unpatch(IncrementNumber,
-                                                          HookIncrementNumber,
-                                                          original_function));
+                       UNPATCH(IncrementNumber,
+                               HookIncrementNumber,
+                               original_function));
   original_function = NULL;
   SIDESTEP_EXPECT_TRUE(IncrementNumber(3) == 4);
 
