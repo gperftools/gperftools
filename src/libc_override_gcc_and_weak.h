@@ -41,7 +41,7 @@
 #ifdef HAVE_SYS_CDEFS_H
 #include <sys/cdefs.h>    // for __THROW
 #endif
-#include <google/tcmalloc.h>
+#include <gperftools/tcmalloc.h>
 
 #ifndef __THROW    // I guess we're not on a glibc-like system
 # define __THROW   // __THROW is just an optimization, so ok to make it ""

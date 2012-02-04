@@ -45,7 +45,7 @@
 #include <vector>
 #include "base/logging.h"
 #include "common.h"
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 
 using std::vector;
 

@@ -61,8 +61,8 @@
 #include "base/logging.h"
 #include "raw_printer.h"
 #include "symbolize.h"
-#include <google/stacktrace.h>
-#include <google/malloc_hook.h>
+#include <gperftools/stacktrace.h>
+#include <gperftools/malloc_hook.h>
 #include "memory_region_map.h"
 #include "base/commandlineflags.h"
 #include "base/logging.h"    // for the RawFD I/O commands

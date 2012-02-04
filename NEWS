@@ -1,4 +1,38 @@
-== 31 January 2012 ==
+== 03 February 2012 ==
+
+I've just released gperftools 2.0
+
+The `google-perftools` project has been renamed to `gperftools`.  I
+(csilvers) am stepping down as maintainer, to be replaced by
+David Chappelle.  Welcome to the team, David!  David has been an
+an active contributor to perftools in the past -- in fact, he's the
+only person other than me that already has commit status.  I am
+pleased to have him take over as maintainer.
+
+I have both renamed the project (the Google Code site renamed a few
+weeks ago), and bumped the major version number up to 2, to reflect
+the new community ownership of the project.  Almost all the
+[http://sparsehash.googlecode.com/svn/tags/gperftools-2.0/ChangeLog changes]
+are related to the renaming.
+
+The main functional change from google-perftools 1.10 is that
+I've renamed the `google/` include-directory to be `gperftools/`
+instead.  New code should `#include <gperftools/tcmalloc.h>`/etc.
+(Most users of perftools don't need any perftools-specific includes at
+all, so this is mostly directed to "power users.")  I've kept the old
+names around as forwarding headers to the new, so `#include
+<google/tcmalloc.h>` will continue to work.
+
+(The other functional change which I snuck in is getting rid of some
+bash-isms in one of the unittest driver scripts, so it could run on
+Solaris.)
+
+Note that some internal names still contain the text `google`, such as
+the `google_malloc` internal linker section.  I think that's a
+trickier transition, and can happen in a future release (if at all).
+
+
+=== 31 January 2012 ===
 
 I've just released perftools 1.10
 
@@ -23,7 +57,7 @@ x86_64, and won't work under win32.
 
 For the full list of changes, including improved `HEAP_PROFILE_MMAP`
 support, see the
-[http://google-perftools.googlecode.com/svn/tags/google-perftools-1.10/ChangeLog ChangeLog].
+[http://gperftools.googlecode.com/svn/tags/google-perftools-1.10/ChangeLog ChangeLog].
 
 
 === 24 January 2011 ===

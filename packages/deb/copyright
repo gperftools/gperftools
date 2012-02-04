@@ -1,9 +1,9 @@
-This package was debianized by Google Inc. <opensource@google.com> on
-Tue, 31 Jan 2012 10:43:50 -0800.
+This package was debianized by Craig Silverstein <google-perftools@googlegroups.com>
+on Fri, 03 Feb 2012 15:40:45 -0800.
 
 It was downloaded from http://code.google.com/p/gperftools/downloads/list
 
-Upstream Author: opensource@google.com
+Upstream Author: google-perftools@googlegroups.com
 
 Copyright (c) 2005, Google Inc.
 All rights reserved.

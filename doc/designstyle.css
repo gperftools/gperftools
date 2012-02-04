@@ -71,12 +71,6 @@ UL.nobullets {
   margin-left: -1em;
 }
 
-/*
-body:after {
-  content: "Google Confidential";
-}
-*/
-
 /* pretty printing styles.  See prettify.js */
 .str { color: #080; }
 .kwd { color: #008; }

@@ -39,7 +39,7 @@
 
 #include <stdint.h>   // for uintptr_t
 #include "base/basictypes.h"  // for NULL
-#include <google/stacktrace.h>
+#include <gperftools/stacktrace.h>
 
 // WARNING:
 // This only works if all your code is in either ARM or THUMB mode.  With

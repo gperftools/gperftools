@@ -23,9 +23,9 @@ when compiling.  gcc makes some optimizations assuming it is using its
 own, built-in malloc; that assumption obviously isn't true with
 tcmalloc.  In practice, we haven't seen any problems with this, but
 the expected risk is highest for users who register their own malloc
-hooks with tcmalloc (using google/malloc_hook.h).  The risk is lowest
-for folks who use tcmalloc_minimal (or, of course, who pass in the
-above flags :-) ).
+hooks with tcmalloc (using gperftools/malloc_hook.h).  The risk is
+lowest for folks who use tcmalloc_minimal (or, of course, who pass in
+the above flags :-) ).
 
 
 HEAP PROFILER
@@ -227,7 +227,7 @@ cause a segfault.  I'll explain the problem first, and then some
 workarounds.
 
 Note that this only affects the cpu-profiler, which is a
-google-perftools feature you must turn on manually by setting the
+gperftools feature you must turn on manually by setting the
 CPUPROFILE environment variable.  If you do not turn on cpu-profiling,
 you shouldn't see any crashes due to perftools.
 

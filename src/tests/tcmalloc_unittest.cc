@@ -88,9 +88,9 @@
 #include <new>
 #include "base/logging.h"
 #include "base/simple_mutex.h"
-#include "google/malloc_hook.h"
-#include "google/malloc_extension.h"
-#include "google/tcmalloc.h"
+#include "gperftools/malloc_hook.h"
+#include "gperftools/malloc_extension.h"
+#include "gperftools/tcmalloc.h"
 #include "thread_cache.h"
 #include "tests/testutil.h"
 

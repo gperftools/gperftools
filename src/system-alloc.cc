@@ -48,7 +48,7 @@
 #include <unistd.h>                     // for sbrk, getpagesize, off_t
 #endif
 #include <new>                          // for operator new
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
 #include "base/spinlock.h"              // for SpinLockHolder, SpinLock, etc

@@ -45,10 +45,10 @@
 #include "base/dynamic_annotations.h"
 #include "base/sysinfo.h"    // for FillProcSelfMaps
 #ifndef NO_HEAP_CHECK
-#include "google/heap-checker.h"
+#include "gperftools/heap-checker.h"
 #endif
-#include "google/malloc_extension.h"
-#include "google/malloc_extension_c.h"
+#include "gperftools/malloc_extension.h"
+#include "gperftools/malloc_extension_c.h"
 #include "maybe_threads.h"
 
 using STL_NAMESPACE::string;

@@ -87,7 +87,7 @@
 //   goes from about 1100 ns to about 300 ns.
 
 #include "config.h"
-#include <google/tcmalloc.h>
+#include <gperftools/tcmalloc.h>
 
 #include <errno.h>                      // for ENOMEM, EINVAL, errno
 #ifdef HAVE_SYS_CDEFS_H
@@ -111,8 +111,8 @@
 #include <new>                          // for nothrow_t (ptr only), etc
 #include <vector>                       // for vector
 
-#include <google/malloc_extension.h>
-#include <google/malloc_hook.h>         // for MallocHook
+#include <gperftools/malloc_extension.h>
+#include <gperftools/malloc_hook.h>         // for MallocHook
 #include "base/basictypes.h"            // for int64
 #include "base/commandlineflags.h"      // for RegisterFlagValidator, etc
 #include "base/dynamic_annotations.h"   // for RunningOnValgrind

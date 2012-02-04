@@ -33,7 +33,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vector>
-#include "google/malloc_extension.h"
+#include "gperftools/malloc_extension.h"
 #include "base/logging.h"
 
 using std::vector;

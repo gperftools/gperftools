@@ -64,7 +64,7 @@ typedef ucontext ucontext_t;
 #include "base/vdso_support.h"
 #endif
 
-#include "google/stacktrace.h"
+#include "gperftools/stacktrace.h"
 
 #if defined(__linux__) && defined(__i386__) && defined(__ELF__) && defined(HAVE_MMAP)
 // Count "push %reg" instructions in VDSO __kernel_vsyscall(),

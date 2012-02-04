@@ -1,8 +1,8 @@
 /* src/config.h.in.  Generated from configure.ac by autoheader.  */
 
 
-#ifndef GOOGLE_PERFTOOLS_CONFIG_H_
-#define GOOGLE_PERFTOOLS_CONFIG_H_
+#ifndef GPERFTOOLS_CONFIG_H_
+#define GPERFTOOLS_CONFIG_H_
 
 
 /* Define to 1 if compiler supports __builtin_stack_pointer */
@@ -270,5 +270,5 @@
 #include "windows/mingw.h"
 #endif
 
-#endif  /* #ifndef GOOGLE_PERFTOOLS_CONFIG_H_ */
+#endif  /* #ifndef GPERFTOOLS_CONFIG_H_ */
 

@@ -64,9 +64,9 @@
 #include <unistd.h>
 #endif
 
-#include <google/malloc_extension.h>
-#include <google/malloc_hook.h>
-#include <google/stacktrace.h>
+#include <gperftools/malloc_extension.h>
+#include <gperftools/malloc_hook.h>
+#include <gperftools/stacktrace.h>
 #include "addressmap-inl.h"
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"

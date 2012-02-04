@@ -41,7 +41,7 @@
 #include <stdlib.h>
 #include <string>
 #include "base/logging.h"
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 
 using std::string;
 

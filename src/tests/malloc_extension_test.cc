@@ -36,8 +36,8 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include "base/logging.h"
-#include <google/malloc_extension.h>
-#include <google/malloc_extension_c.h>
+#include <gperftools/malloc_extension.h>
+#include <gperftools/malloc_extension_c.h>
 
 using STL_NAMESPACE::vector;
 

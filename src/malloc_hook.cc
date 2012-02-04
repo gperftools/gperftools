@@ -50,7 +50,7 @@
 #include "base/spinlock.h"
 #include "maybe_threads.h"
 #include "malloc_hook-inl.h"
-#include <google/malloc_hook.h>
+#include <gperftools/malloc_hook.h>
 
 // This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
 // you're porting to a system where you really can't get a stacktrace.
@@ -58,7 +58,7 @@
   // We use #define so code compiles even if you #include stacktrace.h somehow.
 # define GetStackTrace(stack, depth, skip)  (0)
 #else
-# include <google/stacktrace.h>
+# include <gperftools/stacktrace.h>
 #endif
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,

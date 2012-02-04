@@ -91,7 +91,7 @@
 #include <vector>
 #include <base/logging.h>
 #include "base/spinlock.h"
-#include "google/malloc_hook.h"
+#include "gperftools/malloc_hook.h"
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"
 

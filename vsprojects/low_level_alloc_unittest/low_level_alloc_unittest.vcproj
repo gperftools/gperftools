@@ -343,7 +343,7 @@
 				RelativePath="..\..\src\base\low_level_alloc.h">
 			</File>
 			<File
-				RelativePath="..\..\src\google\malloc_hook.h">
+				RelativePath="..\..\src\gperftools\malloc_hook.h">
 			</File>
 			<File
 				RelativePath="..\..\src\malloc_hook-inl.h">
@@ -361,10 +361,10 @@
 				RelativePath="..\..\src\stacktrace_win32-inl.h.h">
 			</File>
 			<File
-				RelativePath="..\..\src\google\stacktrace.h">
+				RelativePath="..\..\src\gperftools\stacktrace.h">
 			</File>
 			<File
-				RelativePath="..\..\src\google\stacktrace_config.h">
+				RelativePath="..\..\src\gperftools\stacktrace_config.h">
 			</File>
 		</Filter>
 	</Files>

@@ -40,7 +40,7 @@
 #ifdef HAVE_SYS_CDEFS_H
 #include <sys/cdefs.h>    // for __THROW
 #endif
-#include <google/tcmalloc.h>
+#include <gperftools/tcmalloc.h>
 
 #ifndef __GLIBC__
 # error libc_override_glibc.h is for glibc distributions only.

@@ -53,7 +53,7 @@
 // Some code may do that.
 
 #include <config.h>
-#include <google/stacktrace.h>
+#include <gperftools/stacktrace.h>
 #include "stacktrace_config.h"
 
 #if defined(STACKTRACE_INL_HEADER)

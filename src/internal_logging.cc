@@ -40,7 +40,7 @@
 #include <unistd.h>    // for write()
 #endif
 
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 #include "base/logging.h"   // for perftools_vsnprintf
 #include "base/spinlock.h"              // for SpinLockHolder, SpinLock
 

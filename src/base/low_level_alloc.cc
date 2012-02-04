@@ -38,7 +38,7 @@
 #include "base/spinlock.h"
 #include "base/logging.h"
 #include "malloc_hook-inl.h"
-#include <google/malloc_hook.h>
+#include <gperftools/malloc_hook.h>
 #include <errno.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>

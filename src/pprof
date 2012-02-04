@@ -72,7 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 
-my $PPROF_VERSION = "1.10";
+my $PPROF_VERSION = "2.0";
 
 # These are the object tools we use which can come from a
 # user-specified location using --tools, from the PPROF_TOOLS
@@ -172,7 +172,7 @@ pprof --symbols <program>
    For more help with querying remote servers, including how to add the
    necessary server-side support code, see this filename (or one like it):
 
-   /usr/doc/google-perftools-$PPROF_VERSION/pprof_remote_servers.html
+   /usr/doc/gperftools-$PPROF_VERSION/pprof_remote_servers.html
 
 Options:
    --cum               Sort by cumulative data
@@ -270,7 +270,7 @@ EOF
 
 sub version_string {
   return <<EOF
-pprof (part of google-perftools $PPROF_VERSION)
+pprof (part of gperftools $PPROF_VERSION)
 
 Copyright 1998-2007 Google Inc.
 
@@ -1039,8 +1039,8 @@ parameters will be ignored.
 
 Further pprof details are available at this location (or one similar):
 
- /usr/doc/google-perftools-$PPROF_VERSION/cpu_profiler.html
- /usr/doc/google-perftools-$PPROF_VERSION/heap_profiler.html
+ /usr/doc/gperftools-$PPROF_VERSION/cpu_profiler.html
+ /usr/doc/gperftools-$PPROF_VERSION/heap_profiler.html
 
 ENDOFHELP
 }

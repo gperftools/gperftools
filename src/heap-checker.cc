@@ -73,20 +73,20 @@
 #include <algorithm>
 #include <functional>
 
-#include <google/heap-checker.h>
+#include <gperftools/heap-checker.h>
 
 #include "base/basictypes.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
-#include <google/stacktrace.h>
+#include <gperftools/stacktrace.h>
 #include "base/commandlineflags.h"
 #include "base/elfcore.h"              // for i386_regs
 #include "base/thread_lister.h"
 #include "heap-profile-table.h"
 #include "base/low_level_alloc.h"
 #include "malloc_hook-inl.h"
-#include <google/malloc_hook.h>
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_hook.h>
+#include <gperftools/malloc_extension.h>
 #include "maybe_threads.h"
 #include "memory_region_map.h"
 #include "base/spinlock.h"
@@ -547,7 +547,7 @@ inline static uintptr_t AsInt(const void* ptr) {
 
 // We've seen reports that strstr causes heap-checker crashes in some
 // libc's (?):
-//    http://code.google.com/p/google-perftools/issues/detail?id=263
+//    http://code.google.com/p/gperftools/issues/detail?id=263
 // It's simple enough to use our own.  This is not in time-critical code.
 static const char* hc_strstr(const char* s1, const char* s2) {
   const size_t len = strlen(s2);

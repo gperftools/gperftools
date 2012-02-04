@@ -133,10 +133,10 @@
 			Filter="h;hpp;hxx;hm;inl;inc;xsd"
 			UniqueIdentifier="{33995380-89BD-4b04-88EB-625FBE52EBFB}">
 			<File
-				RelativePath="..\..\src\google\malloc_extension.h">
+				RelativePath="..\..\src\gperftools\malloc_extension.h">
 			</File>
 			<File
-				RelativePath="..\..\src\google\malloc_extension_c.h">
+				RelativePath="..\..\src\gperftools\malloc_extension_c.h">
 			</File>
 			<File
 				RelativePath="..\..\src\windows\config.h">

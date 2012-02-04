@@ -38,7 +38,7 @@
 #ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for uint64_t, int64_t, uint16_t
 #endif
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
 #include "common.h"
 #include "packed-cache-inl.h"
@@ -61,7 +61,7 @@
   // We use #define so code compiles even if you #include stacktrace.h somehow.
 # define GetStackTrace(stack, depth, skip)  (0)
 #else
-# include <google/stacktrace.h>
+# include <gperftools/stacktrace.h>
 #endif
 
 namespace base {

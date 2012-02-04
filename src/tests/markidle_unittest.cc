@@ -35,7 +35,7 @@
 
 #include "config_for_unittests.h"
 #include "base/logging.h"
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 #include "tests/testutil.h"   // for RunThread()
 
 // Helper routine to do lots of allocations

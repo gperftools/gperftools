@@ -34,7 +34,7 @@
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>                   // for PRIuPTR
 #endif
-#include <google/malloc_extension.h>      // for MallocRange, etc
+#include <gperftools/malloc_extension.h>      // for MallocRange, etc
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
 #include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc

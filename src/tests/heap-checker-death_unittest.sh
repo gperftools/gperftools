@@ -84,11 +84,11 @@ Test() {
   output="$TMPDIR/output"
   ALARM $timeout env "$@" $EXE > "$output" 2>&1
   actual_ec=$?
-  ec_ok=$(expr "$actual_ec" : "$expected_ec$" >/dev/null || echo false)
-  matches_ok=$(test -z "$expected_regexp" || \
-               grep -q "$expected_regexp" "$output" || echo false)
-  negmatches_ok=$(test -z "$unexpected_regexp" || \
-                  ! grep -q "$unexpected_regexp" "$output" || echo false)
+  ec_ok=`expr "$actual_ec" : "$expected_ec$" >/dev/null || echo false`
+  matches_ok=`test -z "$expected_regexp" || \
+              grep "$expected_regexp" "$output" >/dev/null 2>&1 || echo false`
+  negmatches_ok=`test -z "$unexpected_regexp" || \
+                 ! grep "$unexpected_regexp" "$output" >/dev/null 2>&1 || echo false`
   if $ec_ok && $matches_ok && $negmatches_ok; then
     echo "PASS"
     return 0  # 0: success

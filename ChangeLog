@@ -1,3 +1,14 @@
+Fri Feb 03 15:40:45 2012  Google Inc. <google-perftools@googlegroups.com>
+
+	* gperftools: version 2.0
+	* Renamed the project from google-perftools to gperftools (csilvers)
+	* Renamed the .deb/.rpm packagse from google-perftools to gperftools too
+	* Renamed include directory from google/ to gperftools/ (csilvers)
+	* Changed the 'official' perftools email in setup.py/etc
+	* Renamed google-perftools.sln to gperftools.sln
+	* PORTING: Removed bash-isms & grep -q in heap-checker-death_unittest.sh
+	* Changed copyright text to reflect Google's relinquished ownership
+
 Tue Jan 31 10:43:50 2012    Google Inc. <opensource@google.com>
 
 	* google-perftools: version 1.10 release

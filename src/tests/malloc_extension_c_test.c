@@ -40,8 +40,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>   /* for size_t */
-#include <google/malloc_extension_c.h>
-#include <google/malloc_hook_c.h>
+#include <gperftools/malloc_extension_c.h>
+#include <gperftools/malloc_hook_c.h>
 
 #define FAIL(msg) do {                          \
   fprintf(stderr, "FATAL ERROR: %s\n", msg);    \

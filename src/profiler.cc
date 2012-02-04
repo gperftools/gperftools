@@ -55,8 +55,8 @@ typedef int ucontext_t;   // just to quiet the compiler, mostly
 #endif
 #include <sys/time.h>
 #include <string>
-#include <google/profiler.h>
-#include <google/stacktrace.h>
+#include <gperftools/profiler.h>
+#include <gperftools/stacktrace.h>
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/googleinit.h"

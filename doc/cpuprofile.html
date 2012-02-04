@@ -3,7 +3,7 @@
 
 <HEAD>
   <link rel="stylesheet" href="designstyle.css">
-  <title>Google CPU Profiler</title>
+  <title>Gperftools CPU Profiler</title>
 </HEAD>
 
 <BODY>
@@ -57,7 +57,7 @@ for a given run of an executable:</p>
 
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>ProfilerStart()</code> and <code>ProfilerStop()</code>.
-       (These functions are declared in <code>&lt;google/profiler.h&gt;</code>.)
+       (These functions are declared in <code>&lt;gperftools/profiler.h&gt;</code>.)
        <code>ProfilerStart()</code> will take
        the profile-filename as an argument.</p>
 </ol>
@@ -72,7 +72,7 @@ CPUPROFILE with the child's process id).</p>
 <p>For security reasons, CPU profiling will not write to a file -- and
 is thus not usable -- for setuid programs.</p>
 
-<p>See the include-file <code>google/profiler.h</code> for
+<p>See the include-file <code>gperftools/profiler.h</code> for
 advanced-use functions, including <code>ProfilerFlush()</code> and
 <code>ProfilerStartWithOptions()</code>.</p>
 

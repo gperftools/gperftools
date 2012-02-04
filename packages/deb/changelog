@@ -1,3 +1,10 @@
+gperftools (2.0-1) unstable; urgency=low
+
+  * New upstream release.
+  * Package renamed from google-perftools to gperftools.
+
+ -- Google Inc. and others <google-perftools@googlegroups.com>  Fri, 03 Feb 2012 15:40:45 -0800
+
 google-perftools (1.10-1) unstable; urgency=low
 
   * New upstream release.

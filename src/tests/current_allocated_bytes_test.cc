@@ -42,7 +42,7 @@
 #include "config_for_unittests.h"
 #include <stdlib.h>
 #include <stdio.h>
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 #include "base/logging.h"
 
 const char kCurrent[] = "generic.current_allocated_bytes";

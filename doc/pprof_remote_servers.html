@@ -64,7 +64,7 @@ can change it if you'd like.</p>
 </pre>
 <p>and have the server send <code>output</code> back as an HTTP
 response to <code>pprof</code>.  <code>MallocExtension</code> is
-defined in the header file <code>google/malloc_extension.h</code>.</p>
+defined in the header file <code>gperftools/malloc_extension.h</code>.</p>
 
 <p>Note this will only only work if the binary is being run with
 sampling turned on (which is not the default).  To do this, set the
@@ -115,7 +115,7 @@ controlled via the variable <code>GROWTH_PAGE</code> in the
 </pre>
 <p>and sending <code>output</code> back as an HTTP response to
 <code>pprof</code>.  <code>MallocExtension</code> is defined in the
-header file <code>google/malloc_extension.h</code>.</p>
+header file <code>gperftools/malloc_extension.h</code>.</p>
 
 <p>Here's an example, from an actual Google webserver, of what the
 output should look like:</p>
@@ -138,7 +138,7 @@ change it if you'd like.</p>
 <p>The server should respond by calling
 <code>ProfilerStart(filename)</code>, continuing to do its work, and
 then, XX seconds later, calling <code>ProfilerStop()</code>.  (These
-functions are declared in <code>google/profiler.h</code>.)  The
+functions are declared in <code>gperftools/profiler.h</code>.)  The
 application is responsible for picking a unique filename for
 <code>ProfilerStart()</code>.  After calling
 <code>ProfilerStop()</code>, the server should read the contents of

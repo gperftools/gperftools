@@ -147,7 +147,7 @@
 				RelativePath="..\..\src\base\logging.h">
 			</File>
 			<File
-				RelativePath="..\..\src\google\malloc_extension.h">
+				RelativePath="..\..\src\gperftools\malloc_extension.h">
 			</File>
 		</Filter>
 	</Files>

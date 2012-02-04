@@ -3,7 +3,7 @@
 
 <HEAD>
   <link rel="stylesheet" href="designstyle.css">
-  <title>Google Heap Profiler</title>
+  <title>Gperftools Heap Profiler</title>
 </HEAD>
 
 <BODY>
@@ -66,7 +66,7 @@ for a given run of an executable:</p>
        <pre>% env HEAPPROFILE=/tmp/mybin.hprof /usr/local/bin/my_binary_compiled_with_tcmalloc</pre>
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>HeapProfilerStart()</code> and <code>HeapProfilerStop()</code>.
-       (These functions are declared in <code>&lt;google/heap-profiler.h&gt;</code>.)
+       (These functions are declared in <code>&lt;gperftools/heap-profiler.h&gt;</code>.)
        <code>HeapProfilerStart()</code> will take the
        profile-filename-prefix as an argument.  Then, as often as
        you'd like before calling <code>HeapProfilerStop()</code>, you

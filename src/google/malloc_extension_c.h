@@ -26,74 +26,9 @@
  * THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- *
- * --
- * Author: Craig Silverstein
- *
- * C shims for the C++ malloc_extension.h.  See malloc_extension.h for
- * details.  Note these C shims always work on
- * MallocExtension::instance(); it is not possible to have more than
- * one MallocExtension object in C applications.
  */
 
-#ifndef _MALLOC_EXTENSION_C_H_
-#define _MALLOC_EXTENSION_C_H_
-
-#include <stddef.h>
-#include <sys/types.h>
-
-/* Annoying stuff for windows -- makes sure clients can import these fns */
-#ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#define kMallocExtensionHistogramSize 64
-
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyAllMemory(void);
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyNewMemory(const void* p);
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyArrayNewMemory(const void* p);
-PERFTOOLS_DLL_DECL int MallocExtension_VerifyMallocMemory(const void* p);
-PERFTOOLS_DLL_DECL int MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
-                                      int histogram[kMallocExtensionHistogramSize]);
-PERFTOOLS_DLL_DECL void MallocExtension_GetStats(char* buffer, int buffer_length);
-
-/* TODO(csilvers): write a C version of these routines, that perhaps
- * takes a function ptr and a void *.
+/* The code has moved to gperftools/.  Use that include-directory for
+ * new code.
  */
-/* void MallocExtension_GetHeapSample(string* result); */
-/* void MallocExtension_GetHeapGrowthStacks(string* result); */
-
-PERFTOOLS_DLL_DECL int MallocExtension_GetNumericProperty(const char* property, size_t* value);
-PERFTOOLS_DLL_DECL int MallocExtension_SetNumericProperty(const char* property, size_t value);
-PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadIdle(void);
-PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy(void);
-PERFTOOLS_DLL_DECL void MallocExtension_ReleaseToSystem(size_t num_bytes);
-PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory(void);
-PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
-PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(const void* p);
-
-/*
- * NOTE: These enum values MUST be kept in sync with the version in
- *       malloc_extension.h
- */
-typedef enum {
-  MallocExtension_kUnknownOwnership = 0,
-  MallocExtension_kOwned,
-  MallocExtension_kNotOwned
-} MallocExtension_Ownership;
-
-PERFTOOLS_DLL_DECL MallocExtension_Ownership MallocExtension_GetOwnership(const void* p);
-
-#ifdef __cplusplus
-}   // extern "C"
-#endif
-
-#endif /* _MALLOC_EXTENSION_C_H_ */
+#include <gperftools/malloc_extension_c.h>

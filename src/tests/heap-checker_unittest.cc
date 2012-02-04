@@ -101,10 +101,10 @@
 #include "base/logging.h"
 #include "base/commandlineflags.h"
 #include "base/thread_lister.h"
-#include <google/heap-checker.h>
+#include <gperftools/heap-checker.h>
 #include "memory_region_map.h"
-#include <google/malloc_extension.h>
-#include <google/stacktrace.h>
+#include <gperftools/malloc_extension.h>
+#include <gperftools/stacktrace.h>
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
 // form of the name instead.

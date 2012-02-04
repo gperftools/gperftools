@@ -38,7 +38,7 @@
 #include <unistd.h>    // for sleep()
 #endif
 #include "base/logging.h"
-#include <google/malloc_extension.h>
+#include <gperftools/malloc_extension.h>
 #include "tests/testutil.h"   // for RunThread()
 
 // Size/number of objects to allocate per thread (1 MB per thread)

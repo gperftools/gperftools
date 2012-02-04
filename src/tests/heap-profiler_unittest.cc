@@ -49,7 +49,7 @@
 #include <string>
 #include "base/basictypes.h"
 #include "base/logging.h"
-#include <google/heap-profiler.h>
+#include <gperftools/heap-profiler.h>
 
 using std::string;
 

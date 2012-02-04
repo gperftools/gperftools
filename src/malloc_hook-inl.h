@@ -41,7 +41,7 @@
 #include <sys/types.h>
 #include "base/atomicops.h"
 #include "base/basictypes.h"
-#include <google/malloc_hook.h>
+#include <gperftools/malloc_hook.h>
 
 namespace base { namespace internal {
 

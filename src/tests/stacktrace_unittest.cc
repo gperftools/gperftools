@@ -35,7 +35,7 @@
 #include <stdlib.h>
 #include "base/commandlineflags.h"
 #include "base/logging.h"
-#include <google/stacktrace.h>
+#include <gperftools/stacktrace.h>
 
 namespace {
 

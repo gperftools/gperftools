@@ -42,7 +42,7 @@
 #include <algorithm>
 #include <limits>
 #include "base/logging.h"               // for Check_GEImpl, Check_LTImpl, etc
-#include <google/malloc_extension.h>    // for MallocExtension::instance
+#include <gperftools/malloc_extension.h>    // for MallocExtension::instance
 #include "common.h"                     // for kAddressBits
 
 class ArraySysAllocator : public SysAllocator {
