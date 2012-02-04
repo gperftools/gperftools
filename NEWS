@@ -12,7 +12,7 @@ pleased to have him take over as maintainer.
 I have both renamed the project (the Google Code site renamed a few
 weeks ago), and bumped the major version number up to 2, to reflect
 the new community ownership of the project.  Almost all the
-[http://sparsehash.googlecode.com/svn/tags/gperftools-2.0/ChangeLog changes]
+[http://gperftools.googlecode.com/svn/tags/gperftools-2.0/ChangeLog changes]
 are related to the renaming.
 
 The main functional change from google-perftools 1.10 is that
