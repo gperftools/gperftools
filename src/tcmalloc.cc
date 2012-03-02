@@ -656,6 +656,27 @@ class TCMallocImplementation : public MallocExtension {
       return true;
     }
 
+    if (strcmp(name, "tcmalloc.central_cache_free_bytes") == 0) {
+      TCMallocStats stats;
+      ExtractStats(&stats, NULL, NULL, NULL);
+      *value = stats.central_bytes;
+      return true;
+    }
+
+    if (strcmp(name, "tcmalloc.transfer_cache_free_bytes") == 0) {
+      TCMallocStats stats;
+      ExtractStats(&stats, NULL, NULL, NULL);
+      *value = stats.transfer_bytes;
+      return true;
+    }
+
+    if (strcmp(name, "tcmalloc.thread_cache_free_bytes") == 0) {
+      TCMallocStats stats;
+      ExtractStats(&stats, NULL, NULL, NULL);
+      *value = stats.thread_bytes;
+      return true;
+    }
+
     if (strcmp(name, "tcmalloc.pageheap_free_bytes") == 0) {
       SpinLockHolder l(Static::pageheap_lock());
       *value = Static::pageheap()->stats().free_bytes;
