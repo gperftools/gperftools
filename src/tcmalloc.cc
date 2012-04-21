@@ -1468,6 +1468,8 @@ void* cpp_memalign(size_t align, size_t size) {
 
 // As promised, the definition of this function, declared above.
 size_t TCMallocImplementation::GetAllocatedSize(const void* ptr) {
+  if (ptr == NULL)
+    return 0;
   ASSERT(TCMallocImplementation::GetOwnership(ptr)
          != TCMallocImplementation::kNotOwned);
   return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
