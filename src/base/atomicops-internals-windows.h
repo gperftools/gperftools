@@ -434,16 +434,12 @@ inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
 #endif
 }
 
-inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
-#if 0 // Not implemented
-  __asm {
-    mov mm0, value;  // Use mmx reg for 64-bit atomic moves
-    mov ptr, mm0;
-    emms;            // Empty mmx state to enable FP registers
-  }
-#else
-  NotImplementedFatalError("NoBarrier_Store");
-#endif
+inline void NoBarrier_Store(volatile Atomic64* ptrValue, Atomic64 value) {
+	__asm {
+		movq mm0, value;  // Use mmx reg for 64-bit atomic moves
+		movq ptrValue, mm0;
+		emms;            // Empty mmx state to enable FP registers
+	}
 }
 
 inline void Acquire_Store(volatile Atomic64* ptr, Atomic64 value) {
@@ -455,19 +451,14 @@ inline void Release_Store(volatile Atomic64* ptr, Atomic64 value) {
   NoBarrier_Store(ptr, value);
 }
 
-inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptr) {
-#if 0 // Not implemented
-  Atomic64 value;
-  __asm {
-    mov mm0, ptr;    // Use mmx reg for 64-bit atomic moves
-    mov value, mm0;
-    emms;            // Empty mmx state to enable FP registers
-  }
-  return value;
-#else
-  NotImplementedFatalError("NoBarrier_Store");
-  return 0;
-#endif
+inline Atomic64 NoBarrier_Load(volatile const Atomic64* ptrValue) {
+	Atomic64 value;
+	__asm {
+		movq mm0, ptrValue;    // Use mmx reg for 64-bit atomic moves
+		movq value, mm0;
+		emms;            // Empty mmx state to enable FP registers
+	}
+	return value;
 }
 
 inline Atomic64 Acquire_Load(volatile const Atomic64* ptr) {
