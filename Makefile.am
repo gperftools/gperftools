@@ -30,13 +30,9 @@ AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -fno-builtin-memalign -fno-builtin-posix_memalign \
                -fno-builtin-valloc -fno-builtin-pvalloc
 # On i386, -mmmx is needed for the mmx-based instructions in
-# atomicops-internal-x86.h. Also as of gcc 4.6, -fomit-frame-pointer
-# is the default. Since we must always have frame pointers for I386
-# in order to generate backtraces we now specify -fno-omit-frame-pointer
-# by default.
+# atomicops-internal-x86.h.
 if I386
 AM_CXXFLAGS += -mmmx
-AM_CXXFLAGS += -fno-omit-frame-pointer
 endif I386
 endif GCC
 if HAVE_W_NO_UNUSED_RESULT
@@ -71,6 +67,16 @@ else
 AM_CXXFLAGS += -DNO_FRAME_POINTER
 endif !ENABLE_FRAME_POINTERS
 endif X86_64_AND_NO_FP_BY_DEFAULT
+
+# As of gcc 4.6, -fomit-frame-pointer is the default even for i386. Since
+# we must always have frame pointers for i386 in order to generate backtraces
+# we now specify -fno-omit-frame-pointer by default (i386 only).
+if GCC
+if I386
+AM_CXXFLAGS += -fno-omit-frame-pointer
+endif I386
+endif GCC
+
 
 # For windows systems (at least, mingw), we need to tell all our
 # tests to link in libtcmalloc using -u.  This is because libtcmalloc
