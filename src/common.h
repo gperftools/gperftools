@@ -64,6 +64,9 @@ typedef uintptr_t Length;
 #if defined(TCMALLOC_LARGE_PAGES)
 static const size_t kPageShift  = 15;
 static const size_t kNumClasses = 78;
+#elif defined(TCMALLOC_LARGE_PAGES64K)
+static const size_t kPageShift  = 16;
+static const size_t kNumClasses = 82;
 #else
 static const size_t kPageShift  = 13;
 static const size_t kNumClasses = 86;
