@@ -45,6 +45,8 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <sys/prctl.h>
+#include <semaphore.h>
 
 #include "base/linux_syscall_support.h"
 #include "base/thread_lister.h"
@@ -240,6 +242,7 @@ struct ListerParams {
   ListAllProcessThreadsCallBack callback;
   void        *parameter;
   va_list     ap;
+  sem_t       *lock;
 };
 
 
@@ -253,6 +256,13 @@ static void ListerThread(struct ListerParams *args) {
   int                max_threads = 0, sig;
   struct kernel_stat marker_sb, proc_sb;
   stack_t            altstack;
+
+  /* Wait for parent thread to set appropriate permissions
+   * to allow ptrace activity
+   */
+  if (sem_wait(args->lock) < 0) {
+    goto failure;
+  }
 
   /* Create "marker" that we can use to detect threads sharing the same
    * address space and the same file handles. By setting the FD_CLOEXEC flag
@@ -536,6 +546,7 @@ int ListAllProcessThreads(void *parameter,
   pid_t                  clone_pid;
   int                    dumpable = 1, sig;
   struct kernel_sigset_t sig_blocked, sig_old;
+  sem_t                  lock;
 
   va_start(args.ap, callback);
 
@@ -565,6 +576,7 @@ int ListAllProcessThreads(void *parameter,
   args.altstack_mem = altstack_mem;
   args.parameter    = parameter;
   args.callback     = callback;
+  args.lock         = &lock;
 
   /* Before cloning the thread lister, block all asynchronous signals, as we */
   /* are not prepared to handle them.                                        */
@@ -596,42 +608,59 @@ int ListAllProcessThreads(void *parameter,
       #undef  SYS_LINUX_SYSCALL_SUPPORT_H
       #include "linux_syscall_support.h"
     #endif
-  
-    int clone_errno;
-    clone_pid = local_clone((int (*)(void *))ListerThread, &args);
-    clone_errno = errno;
 
-    sys_sigprocmask(SIG_SETMASK, &sig_old, &sig_old);
+    /* Lock before clone so that parent
+     * can set ptrace permissions prior
+     * to ListerThread actually executing
+     */
+    if (sem_init(&lock, 0, 0) == 0) {
 
-    if (clone_pid >= 0) {
-      int status, rc;
-      while ((rc = sys0_waitpid(clone_pid, &status, __WALL)) < 0 &&
-             ERRNO == EINTR) {
-             /* Keep waiting                                                 */
-      }
-      if (rc < 0) {
-        args.err = ERRNO;
-        args.result = -1;
-      } else if (WIFEXITED(status)) {
-        switch (WEXITSTATUS(status)) {
-          case 0: break;             /* Normal process termination           */
-          case 2: args.err = EFAULT; /* Some fault (e.g. SIGSEGV) detected   */
-                  args.result = -1;
-                  break;
-          case 3: args.err = EPERM;  /* Process is already being traced      */
-                  args.result = -1;
-                  break;
-          default:args.err = ECHILD; /* Child died unexpectedly              */
-                  args.result = -1;
-                  break;
+      int clone_errno;
+      clone_pid = local_clone((int (*)(void *))ListerThread, &args);
+      clone_errno = errno;
+
+      sys_sigprocmask(SIG_SETMASK, &sig_old, &sig_old);
+
+      if (clone_pid >= 0) {
+        /* Allow child process to ptrace us
+         * and then release lock so that
+         * ListerThread then executes
+         */
+        prctl(PR_SET_PTRACER, clone_pid, 0, 0, 0);
+        sem_post(&lock);
+        int status, rc;
+        while ((rc = sys0_waitpid(clone_pid, &status, __WALL)) < 0 &&
+               ERRNO == EINTR) {
+                /* Keep waiting                                                 */
         }
-      } else if (!WIFEXITED(status)) {
-        args.err    = EFAULT;        /* Terminated due to an unhandled signal*/
+        if (rc < 0) {
+          args.err = ERRNO;
+          args.result = -1;
+        } else if (WIFEXITED(status)) {
+          switch (WEXITSTATUS(status)) {
+            case 0: break;             /* Normal process termination           */
+            case 2: args.err = EFAULT; /* Some fault (e.g. SIGSEGV) detected   */
+                    args.result = -1;
+                    break;
+            case 3: args.err = EPERM;  /* Process is already being traced      */
+                    args.result = -1;
+                    break;
+            default:args.err = ECHILD; /* Child died unexpectedly              */
+                    args.result = -1;
+                    break;
+          }
+        } else if (!WIFEXITED(status)) {
+          args.err    = EFAULT;        /* Terminated due to an unhandled signal*/
+          args.result = -1;
+        }
+        sem_destroy(&lock);
+      } else {
         args.result = -1;
+        args.err    = clone_errno;
       }
     } else {
       args.result = -1;
-      args.err    = clone_errno;
+      args.err    = errno;
     }
   }
 

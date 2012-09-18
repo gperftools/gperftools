@@ -2025,9 +2025,9 @@ void HeapLeakChecker_InternalInitStart() {
   // at the right time, on FreeBSD we always check after, even in the
   // less strict modes.  This just means FreeBSD is always a bit
   // stricter in its checking than other OSes.
-#ifdef __FreeBSD__
+  // This now appears to be the case in other OSes as well;
+  // so always check afterwards.
   FLAGS_heap_check_after_destructors = true;
-#endif
 
   { SpinLockHolder l(&heap_checker_lock);
     RAW_DCHECK(heap_checker_pid == getpid(), "");
