@@ -331,8 +331,12 @@ class AssignAttributeStartEnd {
 
 #endif  // HAVE___ATTRIBUTE__ and __ELF__ or __MACH__
 
-#if defined(HAVE___ATTRIBUTE__) && (defined(__i386__) || defined(__x86_64__))
-# define CACHELINE_ALIGNED __attribute__((aligned(64)))
+#if defined(HAVE___ATTRIBUTE__)
+# if (defined(__i386__) || defined(__x86_64__))
+#   define CACHELINE_ALIGNED __attribute__((aligned(64)))
+# elif (defined(__PPC__) || defined(__PPC64__))
+#   define CACHELINE_ALIGNED __attribute__((aligned(16)))
+# endif
 #else
 # define CACHELINE_ALIGNED
 #endif  // defined(HAVE___ATTRIBUTE__) && (__i386__ || __x86_64__)
