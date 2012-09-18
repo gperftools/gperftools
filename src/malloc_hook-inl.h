@@ -66,7 +66,7 @@ class AtomicPtr {
     // This prevents MSVC 2005, at least, from complaining (it has to
     // do with __wp64; AtomicWord is __wp64, but Atomic32/64 aren't).
     return reinterpret_cast<PtrT>(static_cast<AtomicWord>(
-      base::subtle::Acquire_Load(&data_)));
+      base::subtle::NoBarrier_Load(&data_)));
   }
 
   // Sets the contained value to new_val and returns the old value,
@@ -124,7 +124,7 @@ struct PERFTOOLS_DLL_DECL HookList {
 
   // Fast inline implementation for fast path of Invoke*Hook.
   bool empty() const {
-    return base::subtle::Acquire_Load(&priv_end) == 0;
+    return base::subtle::NoBarrier_Load(&priv_end) == 0;
   }
 
   // This internal data is not private so that the class is an aggregate and can
