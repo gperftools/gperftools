@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
   //      ElfW(Addr) gp;      /* global pointer */
   //   };
   // We want the code entry point.
-#if defined(__ia64) || defined(__ppc64)     // NOTE: ppc64 is UNTESTED
+#if defined(__ia64) || defined(__powerpc64__)     // NOTE: ppc64 is UNTESTED
   expected = ((char**)expected)[0];         // this is "ip"
 #endif
 
