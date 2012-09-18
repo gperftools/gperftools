@@ -97,15 +97,24 @@ struct CycleClock {
     uint64 low, high;
     __asm__ volatile ("rdtsc" : "=a" (low), "=d" (high));
     return (high << 32) | low;
+#elif defined(__powerpc64__) || defined(__ppc64__)
+    uint64 tb;
+    __asm__ volatile (\
+      "mfspr %0, 268"
+      : "=r" (tb));
+    return tb;
 #elif defined(__powerpc__) || defined(__ppc__)
     // This returns a time-base, which is not always precisely a cycle-count.
-    int64 tbl, tbu0, tbu1;
-    asm("mftbu %0" : "=r" (tbu0));
-    asm("mftb  %0" : "=r" (tbl));
-    asm("mftbu %0" : "=r" (tbu1));
-    tbl &= -static_cast<int64>(tbu0 == tbu1);
-    // high 32 bits in tbu1; low 32 bits in tbl  (tbu0 is garbage)
-    return (tbu1 << 32) | tbl;
+    uint32 tbu, tbl, tmp;
+    __asm__ volatile (\
+      "0:\n"
+      "mftbu %0\n"
+      "mftbl %1\n"
+      "mftbu %2\n"
+      "cmpw %0, %2\n"
+      "bne- 0b"
+      : "=r" (tbu), "=r" (tbl), "=r" (tmp));
+    return (((uint64) tbu << 32) | tbl);
 #elif defined(__sparc__)
     int64 tick;
     asm(".byte 0x83, 0x41, 0x00, 0x00");
