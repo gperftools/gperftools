@@ -350,6 +350,22 @@ static void InitializeSystemInfo() {
     if (newline != NULL)
       *newline = '\0';
 
+#if defined(__powerpc__) || defined(__ppc__)
+    // PowerPC cpus report the frequency in "clock" line
+    if (strncasecmp(line, "clock", sizeof("clock")-1) == 0) {
+      const char* freqstr = strchr(line, ':');
+      if (freqstr) {
+	// PowerPC frequencies are only reported as MHz (check 'show_cpuinfo'
+	// function at arch/powerpc/kernel/setup-common.c)
+	char *endp = strstr(line, "MHz");
+	if (endp) {
+	  *endp = 0;
+	  cpuinfo_cycles_per_second = strtod(freqstr+1, &err) * 1000000.0;
+          if (freqstr[1] != '\0' && *err == '\0' && cpuinfo_cycles_per_second > 0)
+            saw_mhz = true;
+	}
+      }
+#else
     // When parsing the "cpu MHz" and "bogomips" (fallback) entries, we only
     // accept postive values. Some environments (virtual machines) report zero,
     // which would cause infinite looping in WallTime_Init.
@@ -367,6 +383,7 @@ static void InitializeSystemInfo() {
         if (freqstr[1] != '\0' && *err == '\0' && bogo_clock > 0)
           saw_bogo = true;
       }
+#endif
     } else if (strncasecmp(line, "processor", sizeof("processor")-1) == 0) {
       num_cpus++;  // count up every time we see an "processor :" entry
     }
