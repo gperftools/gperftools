@@ -70,6 +70,12 @@ typedef int ucontext_t;   // just to quiet the compiler, mostly
 
 using std::string;
 
+DEFINE_bool(cpu_profile_unittest,
+            EnvToBool("PERFTOOLS_UNITTEST", true),
+            "Determines whether or not we are running under the \
+             control of a unit test. This allows us to include or \
+			 exclude certain behaviours.");
+
 // Collects up all profile data.  This is a singleton, which is
 // initialized by a constructor at startup.
 class CpuProfiler {
@@ -139,12 +145,19 @@ CpuProfiler::CpuProfiler()
   // is no need to limit the number of profilers.
   char fname[PATH_MAX];
   if (!GetUniquePathFromEnv("CPUPROFILE", fname)) {
+    if (!FLAGS_cpu_profile_unittest) {
+      RAW_LOG(WARNING, "CPU profiler linked but no valid CPUPROFILE environment variable found\n");
+    }
     return;
   }
   // We don't enable profiling if setuid -- it's a security risk
 #ifdef HAVE_GETEUID
-  if (getuid() != geteuid())
+  if (getuid() != geteuid()) {
+    if (!FLAGS_cpu_profile_unittest) {
+      RAW_LOG(WARNING, "Cannot perform CPU profiling when running with setuid\n");
+    }
     return;
+  }
 #endif
 
   if (!Start(fname, NULL)) {

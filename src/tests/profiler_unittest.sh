@@ -85,6 +85,14 @@ PROFILER4_REALNAME=`Realname "$PROFILER4"`
 # It's meaningful to the profiler, so make sure we know its state
 unset CPUPROFILE
 
+# Some output/logging in the profiler can cause issues when running the unit
+# tests. For example, logging a warning when the profiler is detected as being
+# present but no CPUPROFILE is specified in the environment. Especially when
+# we are checking for a silent run or specific timing constraints are being
+# checked. So set the env variable signifying that we are running in a unit
+# test environment.
+PERFTOOLS_UNITTEST=1 
+
 rm -rf "$TMPDIR"
 mkdir "$TMPDIR" || exit 2
 
@@ -95,11 +103,11 @@ RegisterFailure() {
 }
 
 # Takes two filenames representing profiles, with their executable scripts,
-# and a multiplier, and verifies that the 'contentful' functions in
-# each profile take the same time (possibly scaled by the given
-# multiplier).  It used to be "same" meant within 50%, after adding an 
-# noise-reducing X units to each value.  But even that would often
-# spuriously fail, so now it's "both non-zero".  We're pretty forgiving.
+# and a multiplier, and verifies that the 'contentful' functions in each
+# profile take the same time (possibly scaled by the given multiplier). It
+# used to be "same" meant within 50%, after adding an noise-reducing X units
+# to each value.  But even that would often spuriously fail, so now it's
+# "both non-zero". We're pretty forgiving.
 VerifySimilar() {
   prof1="$TMPDIR/$1"
   exec1="$2"
