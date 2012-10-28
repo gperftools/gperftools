@@ -285,7 +285,6 @@ sub usage {
   my $msg = shift;
   print STDERR "$msg\n\n";
   print STDERR usage_string();
-  print STDERR "\nFATAL ERROR: $msg\n";    # just as a reminder
   exit(1);
 }
 
