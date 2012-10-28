@@ -223,10 +223,6 @@ DEFINE_int32(heap_check_delay_seconds, 0,
              " its checks. Report any such issues to the heap-checker"
              " maintainer(s).");
 
-DEFINE_int32(heap_check_error_exit_code,
-             EnvToInt("HEAP_CHECK_ERROR_EXIT_CODE", 1),
-             "Exit code to return if any leaks were detected.");
-
 //----------------------------------------------------------------------
 
 DEFINE_string(heap_profile_pprof,
@@ -2161,8 +2157,7 @@ bool HeapLeakChecker::DoMainHeapCheck() {
     }
     RAW_LOG(ERROR, "Exiting with error code (instead of crashing) "
                    "because of whole-program memory leaks");
-    // We don't want to call atexit() routines!
-    _exit(FLAGS_heap_check_error_exit_code);
+    _exit(1);    // we don't want to call atexit() routines!
   }
   return true;
 }
