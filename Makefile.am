@@ -69,14 +69,13 @@ endif !ENABLE_FRAME_POINTERS
 endif X86_64_AND_NO_FP_BY_DEFAULT
 
 # As of gcc 4.6, -fomit-frame-pointer is the default even for i386. Since
-# we must always have frame pointers for i386 in order to generate backtraces
-# we now specify -fno-omit-frame-pointer by default (i386 only).
+# we must always have frame pointers for gcc i386 in order to generate
+# backtraces we now specify -fno-omit-frame-pointer by default (i386 only).
 if GCC
 if I386
 AM_CXXFLAGS += -fno-omit-frame-pointer
 endif I386
 endif GCC
-
 
 # For windows systems (at least, mingw), we need to tell all our
 # tests to link in libtcmalloc using -u.  This is because libtcmalloc

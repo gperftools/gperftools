@@ -214,16 +214,14 @@ AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)
 AC_SUBST(UNWIND_LIBS)
 
-# On x86_64, instead of libunwind, we can choose to compile with frame-pointers
-# (This isn't needed on i386, where -fno-omit-frame-pointer is the default).
+# On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
 AC_ARG_ENABLE(frame_pointers,
               AS_HELP_STRING([--enable-frame-pointers],
                              [On x86_64 systems, compile with -fno-omit-frame-pointer (see INSTALL)]),
 	      , enable_frame_pointers=no)
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 
-# Some x86_64 systems do not insert frame pointers by default (all
-# i386 systems that I know of, do.  I don't know about non-x86 chips).
+# Some x86_64 systems do not insert frame pointers by default.
 # We want to see if the current system is one of those.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __x86_64__ == 1 ? 0 : 1])],
                   [is_x86_64=yes], [is_x86_64=no])
