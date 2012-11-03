@@ -91,7 +91,7 @@ environment variables.</p>
   <td><code>HEAP_PROFILE_ALLOCATION_INTERVAL</code></td>
   <td>default: 1073741824 (1 Gb)</td>
   <td>
-    Dump heap profiling information once every specified number of
+    Dump heap profiling information each time the specified number of
     bytes has been allocated by the program.
   </td>
 </tr>
@@ -102,6 +102,15 @@ environment variables.</p>
   <td>
     Dump heap profiling information whenever the high-water memory
     usage mark increases by the specified number of bytes.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>HEAP_PROFILE_TIME_INTERVAL</code></td>
+  <td>default: 104857600 (100 Mb)</td>
+  <td>
+    Dump heap profiling information each time the specified
+    number of seconds has elapsed.
   </td>
 </tr>
 

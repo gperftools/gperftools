@@ -107,6 +107,10 @@ DEFINE_int64(heap_profile_inuse_interval,
              "If non-zero, dump heap profiling information whenever "
              "the high-water memory usage mark increases by the specified "
              "number of bytes.");
+DEFINE_int64(heap_profile_time_interval,
+             EnvToInt64("HEAP_PROFILE_TIME_INTERVAL", 0),
+             "If non-zero, dump heap profiling information once every "
+             "specified number of seconds since the last dump.");
 DEFINE_bool(mmap_log,
             EnvToBool("HEAP_PROFILE_MMAP_LOG", false),
             "Should mmap/munmap calls be logged?");
@@ -168,6 +172,7 @@ static int   dump_count = 0;          // How many dumps so far
 static int64 last_dump_alloc = 0;     // alloc_size when did we last dump
 static int64 last_dump_free = 0;      // free_size when did we last dump
 static int64 high_water_mark = 0;     // In-use-bytes at last high-water dump
+static int64 last_dump_time = 0;      // The time of the last dump
 
 static HeapProfileTable* heap_profile = NULL;  // the heap profile table
 
@@ -264,6 +269,7 @@ static void MaybeDumpProfileLocked() {
     const int64 inuse_bytes = total.alloc_size - total.free_size;
     bool need_to_dump = false;
     char buf[128];
+    int64 current_time = time(NULL);
     if (FLAGS_heap_profile_allocation_interval > 0 &&
         total.alloc_size >=
         last_dump_alloc + FLAGS_heap_profile_allocation_interval) {
@@ -284,6 +290,13 @@ static void MaybeDumpProfileLocked() {
       snprintf(buf, sizeof(buf), "%"PRId64" MB currently in use",
                inuse_bytes >> 20);
       need_to_dump = true;
+    } else if (FLAGS_heap_profile_time_interval > 0 &&
+               current_time - last_dump_time >=
+               FLAGS_heap_profile_time_interval) {
+      snprintf(buf, sizeof(buf), "%d sec since the last dump",
+               current_time - last_dump_time);
+      need_to_dump = true;
+      last_dump_time = current_time;
     }
     if (need_to_dump) {
       DumpProfileLocked(buf);
@@ -447,6 +460,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   last_dump_alloc = 0;
   last_dump_free = 0;
   high_water_mark = 0;
+  last_dump_time = 0;
 
   // We do not reset dump_count so if the user does a sequence of
   // HeapProfilerStart/HeapProfileStop, we will get a continuous
