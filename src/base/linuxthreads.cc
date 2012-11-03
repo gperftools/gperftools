@@ -609,8 +609,8 @@ int ListAllProcessThreads(void *parameter,
       #include "linux_syscall_support.h"
     #endif
 
-    /* Lock before clone so that parent
-     * can set ptrace permissions prior
+    /* Lock before clone so that parent can set
+	 * ptrace permissions (if necessary) prior
      * to ListerThread actually executing
      */
     if (sem_init(&lock, 0, 0) == 0) {
@@ -622,11 +622,15 @@ int ListAllProcessThreads(void *parameter,
       sys_sigprocmask(SIG_SETMASK, &sig_old, &sig_old);
 
       if (clone_pid >= 0) {
-        /* Allow child process to ptrace us
-         * and then release lock so that
-         * ListerThread then executes
+#ifdef PR_SET_PTRACER
+        /* In newer versions of glibc permission must explicitly
+         * be given to allow for ptrace.
          */
         prctl(PR_SET_PTRACER, clone_pid, 0, 0, 0);
+#endif
+        /* Releasing the lock here allows the
+         * ListerThread to execute and ptrace us.
+		 */
         sem_post(&lock);
         int status, rc;
         while ((rc = sys0_waitpid(clone_pid, &status, __WALL)) < 0 &&
