@@ -32,6 +32,7 @@
 # define PLATFORM_WINDOWS 1
 #endif
 
+#include <ctype.h>    // for isspace()
 #include <stdlib.h>   // for getenv()
 #include <stdio.h>    // for snprintf(), sscanf()
 #include <string.h>   // for memmove(), memchr(), etc.
@@ -575,6 +576,145 @@ static bool NextExtMachHelper(const mach_header* hdr,
 }
 #endif
 
+// Finds |c| in |text|, and assign '\0' at the found position.
+// The original character at the modified position should be |c|.
+// A pointer to the modified position is stored in |endptr|.
+// |endptr| should not be NULL.
+static bool ExtractUntilChar(char *text, int c, char **endptr) {
+  CHECK_NE(text, NULL);
+  CHECK_NE(endptr, NULL);
+  char *found;
+  found = strchr(text, c);
+  if (found == NULL) {
+    *endptr = NULL;
+    return false;
+  }
+
+  *endptr = found;
+  *found = '\0';
+  return true;
+}
+
+// Increments |*text_pointer| while it points a whitespace character.
+// It is to follow sscanf's whilespace handling.
+static void SkipWhileWhitespace(char **text_pointer, int c) {
+  if (isspace(c)) {
+    while (isspace(**text_pointer) && isspace(*((*text_pointer) + 1))) {
+      ++(*text_pointer);
+    }
+  }
+}
+
+template<class T>
+static T StringToInteger(char *text, char **endptr, int base) {
+  assert(false);
+  return T();
+}
+
+template<>
+int StringToInteger<int>(char *text, char **endptr, int base) {
+  return strtol(text, endptr, base);
+}
+
+template<>
+int64 StringToInteger<int64>(char *text, char **endptr, int base) {
+  return strtoll(text, endptr, base);
+}
+
+template<>
+uint64 StringToInteger<uint64>(char *text, char **endptr, int base) {
+  return strtoull(text, endptr, base);
+}
+
+template<typename T>
+static T StringToIntegerUntilChar(
+    char *text, int base, int c, char **endptr_result) {
+  CHECK_NE(endptr_result, NULL);
+  *endptr_result = NULL;
+
+  char *endptr_extract;
+  if (!ExtractUntilChar(text, c, &endptr_extract))
+    return 0;
+
+  T result;
+  char *endptr_strto;
+  result = StringToInteger<T>(text, &endptr_strto, base);
+  *endptr_extract = c;
+
+  if (endptr_extract != endptr_strto)
+    return 0;
+
+  *endptr_result = endptr_extract;
+  SkipWhileWhitespace(endptr_result, c);
+
+  return result;
+}
+
+static char *CopyStringUntilChar(
+    char *text, unsigned out_len, int c, char *out) {
+  char *endptr;
+  if (!ExtractUntilChar(text, c, &endptr))
+    return NULL;
+
+  strncpy(out, text, out_len);
+  out[out_len-1] = '\0';
+  *endptr = c;
+
+  SkipWhileWhitespace(&endptr, c);
+  return endptr;
+}
+
+template<typename T>
+static bool StringToIntegerUntilCharWithCheck(
+    T *outptr, char *text, int base, int c, char **endptr) {
+  *outptr = StringToIntegerUntilChar<T>(*endptr, base, c, endptr);
+  if (*endptr == NULL || **endptr == '\0') return false;
+  ++(*endptr);
+  return true;
+}
+
+static bool ParseProcMapsLine(char *text, uint64 *start, uint64 *end,
+                              char *flags, uint64 *offset,
+                              int *major, int *minor, int64 *inode,
+                              unsigned *filename_offset) {
+#if defined(__linux__)
+  /*
+   * It's similar to:
+   * sscanf(text, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
+   *        start, end, flags, offset, major, minor, inode, filename_offset)
+   */
+  char *endptr = text;
+  if (endptr == NULL || *endptr == '\0')  return false;
+
+  if (!StringToIntegerUntilCharWithCheck(start, endptr, 16, '-', &endptr))
+    return false;
+
+  if (!StringToIntegerUntilCharWithCheck(end, endptr, 16, ' ', &endptr))
+    return false;
+
+  endptr = CopyStringUntilChar(endptr, 5, ' ', flags);
+  if (endptr == NULL || *endptr == '\0')  return false;
+  ++endptr;
+
+  if (!StringToIntegerUntilCharWithCheck(offset, endptr, 16, ' ', &endptr))
+    return false;
+
+  if (!StringToIntegerUntilCharWithCheck(major, endptr, 16, ':', &endptr))
+    return false;
+
+  if (!StringToIntegerUntilCharWithCheck(minor, endptr, 16, ' ', &endptr))
+    return false;
+
+  if (!StringToIntegerUntilCharWithCheck(inode, endptr, 10, ' ', &endptr))
+    return false;
+
+  *filename_offset = (endptr - text);
+  return true;
+#else
+  return false;
+#endif
+}
+
 ProcMapsIterator::ProcMapsIterator(pid_t pid) {
   Init(pid, NULL, false);
 }
@@ -729,13 +869,14 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     unsigned filename_offset = 0;
 #if defined(__linux__)
     // for now, assume all linuxes have the same format
-    if (sscanf(stext_, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
-               start ? start : &tmpstart,
-               end ? end : &tmpend,
-               flags_,
-               offset ? offset : &tmpoffset,
-               &major, &minor,
-               inode ? inode : &tmpinode, &filename_offset) != 7) continue;
+    if (!ParseProcMapsLine(
+        stext_,
+        start ? start : &tmpstart,
+        end ? end : &tmpend,
+        flags_,
+        offset ? offset : &tmpoffset,
+        &major, &minor,
+        inode ? inode : &tmpinode, &filename_offset)) continue;
 #elif defined(__CYGWIN__) || defined(__CYGWIN32__)
     // cygwin is like linux, except the third field is the "entry point"
     // rather than the offset (see format_process_maps at
