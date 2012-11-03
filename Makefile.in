@@ -71,8 +71,8 @@ host_triplet = @host@
 @ENABLE_FRAME_POINTERS_FALSE@@X86_64_AND_NO_FP_BY_DEFAULT_TRUE@am__append_6 = -DNO_FRAME_POINTER
 
 # As of gcc 4.6, -fomit-frame-pointer is the default even for i386. Since
-# we must always have frame pointers for i386 in order to generate backtraces
-# we now specify -fno-omit-frame-pointer by default (i386 only).
+# we must always have frame pointers for gcc i386 in order to generate
+# backtraces we now specify -fno-omit-frame-pointer by default (i386 only).
 @GCC_TRUE@@I386_TRUE@am__append_7 = -fno-omit-frame-pointer
 @MINGW_TRUE@am__append_8 = -Wl,-u__tcmalloc
 noinst_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2) $(am__EXEEXT_3) \

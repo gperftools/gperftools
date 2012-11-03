@@ -16543,8 +16543,7 @@ fi
 
 
 
-# On x86_64, instead of libunwind, we can choose to compile with frame-pointers
-# (This isn't needed on i386, where -fno-omit-frame-pointer is the default).
+# On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
 # Check whether --enable-frame_pointers was given.
 if test "${enable_frame_pointers+set}" = set; then :
   enableval=$enable_frame_pointers;
@@ -16563,8 +16562,7 @@ else
 fi
 
 
-# Some x86_64 systems do not insert frame pointers by default (all
-# i386 systems that I know of, do.  I don't know about non-x86 chips).
+# Some x86_64 systems do not insert frame pointers by default.
 # We want to see if the current system is one of those.
 cat confdefs.h - <<_ACEOF >conftest.$ac_ext
 /* end confdefs.h.  */
