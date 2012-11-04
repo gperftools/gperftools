@@ -759,9 +759,10 @@ static void TestAlignmentForSize(int size) {
     CHECK((p % sizeof(void*)) == 0);
     CHECK((p % sizeof(double)) == 0);
 
-    // Must have 16-byte alignment for large enough objects
-    if (size >= 16) {
-      CHECK((p % 16) == 0);
+    // Must have 16-byte (or 8-byte in case of -DTCMALLOC_ALIGN_8BYTES) 
+    // alignment for large enough objects
+    if (size >= kMinAlign) {
+      CHECK((p % kMinAlign) == 0);
     }
   }
   for (int i = 0; i < kNum; i++) {

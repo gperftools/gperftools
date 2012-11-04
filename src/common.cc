@@ -60,16 +60,16 @@ int AlignmentForSize(size_t size) {
   } else if (size >= 128) {
     // Space wasted due to alignment is at most 1/8, i.e., 12.5%.
     alignment = (1 << LgFloor(size)) / 8;
-  } else if (size >= 16) {
+  } else if (size >= kMinAlign) {
     // We need an alignment of at least 16 bytes to satisfy
     // requirements for some SSE types.
-    alignment = 16;
+    alignment = kMinAlign;
   }
   // Maximum alignment allowed is page size alignment.
   if (alignment > kPageSize) {
     alignment = kPageSize;
   }
-  CHECK_CONDITION(size < 16 || alignment >= 16);
+  CHECK_CONDITION(size < kMinAlign || alignment >= kMinAlign);
   CHECK_CONDITION((alignment & (alignment - 1)) == 0);
   return alignment;
 }
@@ -110,7 +110,7 @@ void SizeMap::Init() {
   // Compute the size classes we want to use
   int sc = 1;   // Next size class to assign
   int alignment = kAlignment;
-  CHECK_CONDITION(kAlignment <= 16);
+  CHECK_CONDITION(kAlignment <= kMinAlign);
   for (size_t size = kAlignment; size <= kMaxSize; size += alignment) {
     alignment = AlignmentForSize(size);
     CHECK_CONDITION((size % alignment) == 0);
