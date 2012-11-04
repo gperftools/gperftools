@@ -237,7 +237,7 @@ static inline bool OSAtomicCompareAndSwap64(Atomic64 old_value,
   Atomic64 prev;
   __asm__ __volatile__(
 "1:		ldarx   %0,0,%2\n\
-		cmpw    0,%0,%3\n\
+		cmpd    0,%0,%3\n\
 		bne-    2f\n\
 		stdcx.  %4,0,%2\n\
 		bne-    1b\n\
