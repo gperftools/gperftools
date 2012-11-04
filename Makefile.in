@@ -349,7 +349,7 @@ am__libprofiler_la_SOURCES_DIST = src/profiler.cc \
 @WITH_CPU_PROFILER_TRUE@am__objects_2 = $(am__objects_1) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am__objects_3 = $(am__objects_2) \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_1) $(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_libprofiler_la_OBJECTS = profiler.lo \
 @WITH_CPU_PROFILER_TRUE@	profile-handler.lo profiledata.lo \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_3)
@@ -439,26 +439,27 @@ am__libtcmalloc_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/gperftools/malloc_hook.h src/gperftools/malloc_hook_c.h \
 	src/gperftools/malloc_extension.h \
 	src/gperftools/malloc_extension_c.h \
-	src/gperftools/stacktrace.h src/gperftools/heap-profiler.h \
-	src/gperftools/heap-checker.h src/base/thread_lister.c \
+	src/gperftools/heap-profiler.h src/gperftools/heap-checker.h \
+	src/gperftools/stacktrace.h src/base/thread_lister.c \
 	src/base/linuxthreads.cc src/heap-checker.cc \
 	src/heap-checker-bcad.cc
 @MINGW_FALSE@am__objects_5 = libtcmalloc_la-tcmalloc.lo
 am__objects_6 = $(am__objects_1)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_7 = $(am__objects_6) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_8 = $(am__objects_1)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_9 = $(am__objects_7) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8)
-@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_10 = thread_lister.lo \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_8 = $(am__objects_7) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
+@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_9 = thread_lister.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_la-linuxthreads.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_la-heap-checker.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_la-heap-checker-bcad.lo
-@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_11 = $(am__objects_10)
+@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_10 = $(am__objects_9)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_la_OBJECTS =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_5) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_11)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_10)
 libtcmalloc_la_OBJECTS = $(am_libtcmalloc_la_OBJECTS)
 libtcmalloc_la_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) \
@@ -502,29 +503,29 @@ am__libtcmalloc_and_profiler_la_SOURCES_DIST = src/tcmalloc.cc \
 	src/gperftools/malloc_hook.h src/gperftools/malloc_hook_c.h \
 	src/gperftools/malloc_extension.h \
 	src/gperftools/malloc_extension_c.h \
-	src/gperftools/stacktrace.h src/gperftools/heap-profiler.h \
-	src/gperftools/heap-checker.h src/base/thread_lister.c \
+	src/gperftools/heap-profiler.h src/gperftools/heap-checker.h \
+	src/gperftools/stacktrace.h src/base/thread_lister.c \
 	src/base/linuxthreads.cc src/heap-checker.cc \
 	src/heap-checker-bcad.cc src/profiler.cc \
 	src/profile-handler.cc src/profiledata.cc src/profiledata.h \
 	src/profile-handler.h src/getpc.h src/base/simple_mutex.h \
 	src/gperftools/profiler.h
-@MINGW_FALSE@am__objects_12 = libtcmalloc_and_profiler_la-tcmalloc.lo
-@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_13 = thread_lister.lo \
+@MINGW_FALSE@am__objects_11 = libtcmalloc_and_profiler_la-tcmalloc.lo
+@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_12 = thread_lister.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_and_profiler_la-linuxthreads.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_and_profiler_la-heap-checker.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_and_profiler_la-heap-checker-bcad.lo
-@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_14 = $(am__objects_13)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_15 =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_12) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_14)
-@WITH_CPU_PROFILER_TRUE@am__objects_16 = libtcmalloc_and_profiler_la-profiler.lo \
+@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_13 = $(am__objects_12)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_14 =  \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_11) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_13)
+@WITH_CPU_PROFILER_TRUE@am__objects_15 = libtcmalloc_and_profiler_la-profiler.lo \
 @WITH_CPU_PROFILER_TRUE@	libtcmalloc_and_profiler_la-profile-handler.lo \
 @WITH_CPU_PROFILER_TRUE@	libtcmalloc_and_profiler_la-profiledata.lo \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_3)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_and_profiler_la_OBJECTS = $(am__objects_15) \
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_16)
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_and_profiler_la_OBJECTS = $(am__objects_14) \
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_15)
 libtcmalloc_and_profiler_la_OBJECTS =  \
 	$(am_libtcmalloc_and_profiler_la_OBJECTS)
 libtcmalloc_and_profiler_la_LINK = $(LIBTOOL) --tag=CXX \
@@ -568,15 +569,15 @@ am__libtcmalloc_debug_la_SOURCES_DIST = src/debugallocation.cc \
 	src/gperftools/malloc_hook.h src/gperftools/malloc_hook_c.h \
 	src/gperftools/malloc_extension.h \
 	src/gperftools/malloc_extension_c.h \
-	src/gperftools/stacktrace.h src/gperftools/heap-profiler.h \
-	src/gperftools/heap-checker.h
-@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_17 = thread_lister.lo \
+	src/gperftools/heap-profiler.h src/gperftools/heap-checker.h \
+	src/gperftools/stacktrace.h
+@WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_16 = thread_lister.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_debug_la-linuxthreads.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_debug_la-heap-checker.lo \
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_debug_la-heap-checker-bcad.lo
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_debug_la_OBJECTS = libtcmalloc_debug_la-debugallocation.lo \
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_17) \
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_16) \
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8)
 libtcmalloc_debug_la_OBJECTS = $(am_libtcmalloc_debug_la_OBJECTS)
 libtcmalloc_debug_la_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) \
@@ -628,12 +629,12 @@ am__libtcmalloc_internal_la_SOURCES_DIST = src/common.cc \
 	src/gperftools/heap-checker.h src/base/low_level_alloc.cc \
 	src/heap-profile-table.cc src/heap-profiler.cc \
 	src/raw_printer.cc src/memory_region_map.cc
-@MINGW_FALSE@am__objects_18 = libtcmalloc_internal_la-system-alloc.lo
-@MINGW_FALSE@am__objects_19 =  \
+@MINGW_FALSE@am__objects_17 = libtcmalloc_internal_la-system-alloc.lo
+@MINGW_FALSE@am__objects_18 =  \
 @MINGW_FALSE@	libtcmalloc_internal_la-maybe_threads.lo
-am__objects_20 = $(am__objects_6) $(am__objects_1)
-am__objects_21 = libtcmalloc_internal_la-common.lo \
-	libtcmalloc_internal_la-internal_logging.lo $(am__objects_18) \
+am__objects_19 = $(am__objects_6) $(am__objects_1) $(am__objects_1)
+am__objects_20 = libtcmalloc_internal_la-common.lo \
+	libtcmalloc_internal_la-internal_logging.lo $(am__objects_17) \
 	libtcmalloc_internal_la-memfs_malloc.lo \
 	libtcmalloc_internal_la-central_freelist.lo \
 	libtcmalloc_internal_la-page_heap.lo \
@@ -644,11 +645,11 @@ am__objects_21 = libtcmalloc_internal_la-common.lo \
 	libtcmalloc_internal_la-symbolize.lo \
 	libtcmalloc_internal_la-thread_cache.lo \
 	libtcmalloc_internal_la-malloc_hook.lo \
-	libtcmalloc_internal_la-malloc_extension.lo $(am__objects_19) \
-	$(am__objects_20)
+	libtcmalloc_internal_la-malloc_extension.lo $(am__objects_18) \
+	$(am__objects_19)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_libtcmalloc_internal_la_OBJECTS =  \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_21) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_9) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_20) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_8) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal_la-low_level_alloc.lo \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal_la-heap-profile-table.lo \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	libtcmalloc_internal_la-heap-profiler.lo \
@@ -690,9 +691,9 @@ am__libtcmalloc_minimal_la_SOURCES_DIST = src/tcmalloc.cc src/common.h \
 	src/gperftools/malloc_extension.h \
 	src/gperftools/malloc_extension_c.h \
 	src/gperftools/stacktrace.h
-@MINGW_FALSE@am__objects_22 = libtcmalloc_minimal_la-tcmalloc.lo
-am_libtcmalloc_minimal_la_OBJECTS = $(am__objects_22) \
-	$(am__objects_20)
+@MINGW_FALSE@am__objects_21 = libtcmalloc_minimal_la-tcmalloc.lo
+am_libtcmalloc_minimal_la_OBJECTS = $(am__objects_21) \
+	$(am__objects_19)
 libtcmalloc_minimal_la_OBJECTS = $(am_libtcmalloc_minimal_la_OBJECTS)
 libtcmalloc_minimal_la_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) \
@@ -730,7 +731,7 @@ am__libtcmalloc_minimal_debug_la_SOURCES_DIST =  \
 	src/gperftools/malloc_extension_c.h \
 	src/gperftools/stacktrace.h
 @WITH_DEBUGALLOC_TRUE@am_libtcmalloc_minimal_debug_la_OBJECTS = libtcmalloc_minimal_debug_la-debugallocation.lo \
-@WITH_DEBUGALLOC_TRUE@	$(am__objects_20)
+@WITH_DEBUGALLOC_TRUE@	$(am__objects_19)
 libtcmalloc_minimal_debug_la_OBJECTS =  \
 	$(am_libtcmalloc_minimal_debug_la_OBJECTS)
 libtcmalloc_minimal_debug_la_LINK = $(LIBTOOL) --tag=CXX \
@@ -773,14 +774,14 @@ am__libtcmalloc_minimal_internal_la_SOURCES_DIST = src/common.cc \
 	src/gperftools/malloc_extension.h \
 	src/gperftools/malloc_extension_c.h \
 	src/gperftools/stacktrace.h
-@MINGW_FALSE@am__objects_23 =  \
+@MINGW_FALSE@am__objects_22 =  \
 @MINGW_FALSE@	libtcmalloc_minimal_internal_la-system-alloc.lo
-@MINGW_FALSE@am__objects_24 =  \
+@MINGW_FALSE@am__objects_23 =  \
 @MINGW_FALSE@	libtcmalloc_minimal_internal_la-maybe_threads.lo
 am_libtcmalloc_minimal_internal_la_OBJECTS =  \
 	libtcmalloc_minimal_internal_la-common.lo \
 	libtcmalloc_minimal_internal_la-internal_logging.lo \
-	$(am__objects_23) \
+	$(am__objects_22) \
 	libtcmalloc_minimal_internal_la-memfs_malloc.lo \
 	libtcmalloc_minimal_internal_la-central_freelist.lo \
 	libtcmalloc_minimal_internal_la-page_heap.lo \
@@ -792,7 +793,7 @@ am_libtcmalloc_minimal_internal_la_OBJECTS =  \
 	libtcmalloc_minimal_internal_la-thread_cache.lo \
 	libtcmalloc_minimal_internal_la-malloc_hook.lo \
 	libtcmalloc_minimal_internal_la-malloc_extension.lo \
-	$(am__objects_24) $(am__objects_20)
+	$(am__objects_23) $(am__objects_19)
 libtcmalloc_minimal_internal_la_OBJECTS =  \
 	$(am_libtcmalloc_minimal_internal_la_OBJECTS)
 libtcmalloc_minimal_internal_la_LINK = $(LIBTOOL) --tag=CXX \
@@ -878,10 +879,10 @@ am__addressmap_unittest_SOURCES_DIST =  \
 	src/base/basictypes.h src/base/dynamic_annotations.h \
 	src/third_party/valgrind.h src/windows/port.h \
 	src/windows/port.cc
-@MINGW_TRUE@am__objects_25 = addressmap_unittest-port.$(OBJEXT)
+@MINGW_TRUE@am__objects_24 = addressmap_unittest-port.$(OBJEXT)
 am_addressmap_unittest_OBJECTS =  \
 	addressmap_unittest-addressmap_unittest.$(OBJEXT) \
-	$(am__objects_6) $(am__objects_25)
+	$(am__objects_6) $(am__objects_24)
 addressmap_unittest_OBJECTS = $(am_addressmap_unittest_OBJECTS)
 addressmap_unittest_DEPENDENCIES = liblogging.la
 addressmap_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
@@ -940,10 +941,10 @@ am__heap_checker_debug_unittest_SOURCES_DIST =  \
 	src/base/googleinit.h src/gperftools/heap-checker.h \
 	src/base/logging.h src/base/basictypes.h \
 	src/base/dynamic_annotations.h src/third_party/valgrind.h
-@WITH_HEAP_CHECKER_TRUE@am__objects_26 = $(am__objects_1)
-@WITH_HEAP_CHECKER_TRUE@am__objects_27 = heap_checker_debug_unittest-heap-checker_unittest.$(OBJEXT) \
-@WITH_HEAP_CHECKER_TRUE@	$(am__objects_26)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@am_heap_checker_debug_unittest_OBJECTS = $(am__objects_27)
+@WITH_HEAP_CHECKER_TRUE@am__objects_25 = $(am__objects_1)
+@WITH_HEAP_CHECKER_TRUE@am__objects_26 = heap_checker_debug_unittest-heap-checker_unittest.$(OBJEXT) \
+@WITH_HEAP_CHECKER_TRUE@	$(am__objects_25)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@am_heap_checker_debug_unittest_OBJECTS = $(am__objects_26)
 heap_checker_debug_unittest_OBJECTS =  \
 	$(am_heap_checker_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_CHECKER_TRUE@heap_checker_debug_unittest_DEPENDENCIES = libtcmalloc_debug.la \
@@ -966,7 +967,7 @@ am__heap_checker_unittest_SOURCES_DIST =  \
 	src/base/logging.h src/base/basictypes.h \
 	src/base/dynamic_annotations.h src/third_party/valgrind.h
 @WITH_HEAP_CHECKER_TRUE@am_heap_checker_unittest_OBJECTS = heap_checker_unittest-heap-checker_unittest.$(OBJEXT) \
-@WITH_HEAP_CHECKER_TRUE@	$(am__objects_26)
+@WITH_HEAP_CHECKER_TRUE@	$(am__objects_25)
 heap_checker_unittest_OBJECTS = $(am_heap_checker_unittest_OBJECTS)
 @WITH_HEAP_CHECKER_TRUE@heap_checker_unittest_DEPENDENCIES =  \
 @WITH_HEAP_CHECKER_TRUE@	$(LIBTCMALLOC) liblogging.la \
@@ -984,9 +985,9 @@ heap_checker_unittest_sh_LDADD = $(LDADD)
 am__heap_profiler_debug_unittest_SOURCES_DIST =  \
 	src/tests/heap-profiler_unittest.cc src/config_for_unittests.h \
 	src/gperftools/heap-profiler.h
-@WITH_HEAP_PROFILER_TRUE@am__objects_28 = heap_profiler_debug_unittest-heap-profiler_unittest.$(OBJEXT) \
+@WITH_HEAP_PROFILER_TRUE@am__objects_27 = heap_profiler_debug_unittest-heap-profiler_unittest.$(OBJEXT) \
 @WITH_HEAP_PROFILER_TRUE@	$(am__objects_1)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_TRUE@am_heap_profiler_debug_unittest_OBJECTS = $(am__objects_28)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_TRUE@am_heap_profiler_debug_unittest_OBJECTS = $(am__objects_27)
 heap_profiler_debug_unittest_OBJECTS =  \
 	$(am_heap_profiler_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_TRUE@heap_profiler_debug_unittest_DEPENDENCIES = libtcmalloc_debug.la \
@@ -1038,15 +1039,15 @@ am__low_level_alloc_unittest_SOURCES_DIST =  \
 	src/base/atomicops-internals-arm-v6plus.h src/base/logging.h \
 	src/base/commandlineflags.h src/base/dynamic_annotations.h \
 	src/third_party/valgrind.h
-@MINGW_FALSE@am__objects_29 =  \
+@MINGW_FALSE@am__objects_28 =  \
 @MINGW_FALSE@	low_level_alloc_unittest-maybe_threads.$(OBJEXT)
-am__objects_30 = $(am__objects_1) $(am__objects_1)
+am__objects_29 = $(am__objects_1) $(am__objects_1)
 am_low_level_alloc_unittest_OBJECTS =  \
 	low_level_alloc_unittest-low_level_alloc.$(OBJEXT) \
 	low_level_alloc_unittest-malloc_hook.$(OBJEXT) \
-	$(am__objects_29) \
+	$(am__objects_28) \
 	low_level_alloc_unittest-low_level_alloc_unittest.$(OBJEXT) \
-	$(am__objects_30)
+	$(am__objects_29)
 low_level_alloc_unittest_OBJECTS =  \
 	$(am_low_level_alloc_unittest_OBJECTS)
 low_level_alloc_unittest_DEPENDENCIES = $(LIBSPINLOCK)
@@ -1072,10 +1073,10 @@ am__malloc_extension_debug_test_SOURCES_DIST =  \
 	src/tests/malloc_extension_test.cc src/config_for_unittests.h \
 	src/base/logging.h src/gperftools/malloc_extension.h \
 	src/gperftools/malloc_extension_c.h
-am__objects_31 =  \
+am__objects_30 =  \
 	malloc_extension_debug_test-malloc_extension_test.$(OBJEXT)
 @WITH_DEBUGALLOC_TRUE@am_malloc_extension_debug_test_OBJECTS =  \
-@WITH_DEBUGALLOC_TRUE@	$(am__objects_31)
+@WITH_DEBUGALLOC_TRUE@	$(am__objects_30)
 malloc_extension_debug_test_OBJECTS =  \
 	$(am_malloc_extension_debug_test_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@malloc_extension_debug_test_DEPENDENCIES =  \
@@ -1124,9 +1125,9 @@ am__memalign_debug_unittest_SOURCES_DIST =  \
 	src/tests/memalign_unittest.cc src/tcmalloc.h \
 	src/config_for_unittests.h src/tests/testutil.h \
 	src/tests/testutil.cc
-@MINGW_FALSE@@OSX_FALSE@am__objects_32 = memalign_debug_unittest-memalign_unittest.$(OBJEXT) \
+@MINGW_FALSE@@OSX_FALSE@am__objects_31 = memalign_debug_unittest-memalign_unittest.$(OBJEXT) \
 @MINGW_FALSE@@OSX_FALSE@	memalign_debug_unittest-testutil.$(OBJEXT)
-@MINGW_FALSE@@OSX_FALSE@@WITH_DEBUGALLOC_TRUE@am_memalign_debug_unittest_OBJECTS = $(am__objects_32)
+@MINGW_FALSE@@OSX_FALSE@@WITH_DEBUGALLOC_TRUE@am_memalign_debug_unittest_OBJECTS = $(am__objects_31)
 memalign_debug_unittest_OBJECTS =  \
 	$(am_memalign_debug_unittest_OBJECTS)
 @MINGW_FALSE@@OSX_FALSE@@WITH_DEBUGALLOC_TRUE@memalign_debug_unittest_DEPENDENCIES = libtcmalloc_minimal_debug.la \
@@ -1197,11 +1198,11 @@ profiledata_unittest_OBJECTS = $(am_profiledata_unittest_OBJECTS)
 am__profiler1_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/gperftools/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_33 = profiler1_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_32 = profiler1_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler1_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler1_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_33)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_32)
 profiler1_unittest_OBJECTS = $(am_profiler1_unittest_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@profiler1_unittest_DEPENDENCIES =  \
 @WITH_CPU_PROFILER_TRUE@	$(LIBPROFILER)
@@ -1212,11 +1213,11 @@ profiler1_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am__profiler2_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/gperftools/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_34 = profiler2_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_33 = profiler2_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler2_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler2_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_34)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_33)
 profiler2_unittest_OBJECTS = $(am_profiler2_unittest_OBJECTS)
 profiler2_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) \
@@ -1225,11 +1226,11 @@ profiler2_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am__profiler3_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/gperftools/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_35 = profiler3_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_34 = profiler3_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler3_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler3_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_35)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_34)
 profiler3_unittest_OBJECTS = $(am_profiler3_unittest_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@profiler3_unittest_DEPENDENCIES =  \
 @WITH_CPU_PROFILER_TRUE@	$(LIBPROFILER) $(am__DEPENDENCIES_1)
@@ -1240,11 +1241,11 @@ profiler3_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am__profiler4_unittest_SOURCES_DIST = src/tests/profiler_unittest.cc \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/gperftools/profiler.h
-@WITH_CPU_PROFILER_TRUE@am__objects_36 = profiler4_unittest-profiler_unittest.$(OBJEXT) \
+@WITH_CPU_PROFILER_TRUE@am__objects_35 = profiler4_unittest-profiler_unittest.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler4_unittest-testutil.$(OBJEXT) \
 @WITH_CPU_PROFILER_TRUE@	$(am__objects_1)
 @WITH_CPU_PROFILER_TRUE@am_profiler4_unittest_OBJECTS =  \
-@WITH_CPU_PROFILER_TRUE@	$(am__objects_36)
+@WITH_CPU_PROFILER_TRUE@	$(am__objects_35)
 profiler4_unittest_OBJECTS = $(am_profiler4_unittest_OBJECTS)
 profiler4_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) \
@@ -1268,9 +1269,9 @@ raw_printer_test_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am__realloc_debug_unittest_SOURCES_DIST =  \
 	src/tests/realloc_unittest.cc src/config_for_unittests.h \
 	src/base/logging.h
-am__objects_37 = realloc_debug_unittest-realloc_unittest.$(OBJEXT)
+am__objects_36 = realloc_debug_unittest-realloc_unittest.$(OBJEXT)
 @WITH_DEBUGALLOC_TRUE@am_realloc_debug_unittest_OBJECTS =  \
-@WITH_DEBUGALLOC_TRUE@	$(am__objects_37)
+@WITH_DEBUGALLOC_TRUE@	$(am__objects_36)
 realloc_debug_unittest_OBJECTS = $(am_realloc_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@realloc_debug_unittest_DEPENDENCIES =  \
 @WITH_DEBUGALLOC_TRUE@	libtcmalloc_minimal_debug.la \
@@ -1290,8 +1291,8 @@ realloc_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(realloc_unittest_LDFLAGS) $(LDFLAGS) -o $@
 am__sampler_debug_test_SOURCES_DIST = src/tests/sampler_test.cc \
 	src/config_for_unittests.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_38 = sampler_debug_test-sampler_test.$(OBJEXT)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_sampler_debug_test_OBJECTS = $(am__objects_38)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_37 = sampler_debug_test-sampler_test.$(OBJEXT)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_sampler_debug_test_OBJECTS = $(am__objects_37)
 sampler_debug_test_OBJECTS = $(am_sampler_debug_test_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@sampler_debug_test_DEPENDENCIES = libtcmalloc_debug.la \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
@@ -1312,9 +1313,9 @@ sampler_test_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 am__sampling_debug_test_SOURCES_DIST = src/tests/sampling_test.cc \
 	src/config_for_unittests.h src/base/logging.h \
 	src/gperftools/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_39 = sampling_debug_test-sampling_test.$(OBJEXT) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_38 = sampling_debug_test-sampling_test.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_sampling_debug_test_OBJECTS = $(am__objects_39)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_sampling_debug_test_OBJECTS = $(am__objects_38)
 sampling_debug_test_OBJECTS = $(am_sampling_debug_test_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@sampling_debug_test_DEPENDENCIES = libtcmalloc_debug.la \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__DEPENDENCIES_1)
@@ -1347,7 +1348,7 @@ am__simple_compat_test_SOURCES_DIST = src/tests/simple_compat_test.cc \
 	src/google/malloc_extension.h src/google/malloc_extension_c.h \
 	src/google/malloc_hook.h src/google/malloc_hook_c.h \
 	src/google/profiler.h src/google/stacktrace.h \
-	src/google/tcmalloc.h src/windows/google/tcmalloc.h
+	src/google/tcmalloc.h
 @WITH_HEAP_PROFILER_TRUE@am_simple_compat_test_OBJECTS =  \
 @WITH_HEAP_PROFILER_TRUE@	simple_compat_test.$(OBJEXT) \
 @WITH_HEAP_PROFILER_TRUE@	$(am__objects_1)
@@ -1376,11 +1377,11 @@ am__stacktrace_unittest_SOURCES_DIST =  \
 	src/gperftools/stacktrace.h src/base/logging.h \
 	src/base/basictypes.h src/base/dynamic_annotations.h \
 	src/third_party/valgrind.h
-@WITH_STACK_TRACE_TRUE@am__objects_40 = $(am__objects_4) \
+@WITH_STACK_TRACE_TRUE@am__objects_39 = $(am__objects_4) \
 @WITH_STACK_TRACE_TRUE@	$(am__objects_1)
 @WITH_STACK_TRACE_TRUE@am_stacktrace_unittest_OBJECTS =  \
 @WITH_STACK_TRACE_TRUE@	stacktrace_unittest.$(OBJEXT) \
-@WITH_STACK_TRACE_TRUE@	$(am__objects_40)
+@WITH_STACK_TRACE_TRUE@	$(am__objects_39)
 stacktrace_unittest_OBJECTS = $(am_stacktrace_unittest_OBJECTS)
 @WITH_STACK_TRACE_TRUE@stacktrace_unittest_DEPENDENCIES =  \
 @WITH_STACK_TRACE_TRUE@	libstacktrace.la liblogging.la
@@ -1398,10 +1399,10 @@ am__tcmalloc_and_profiler_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
 	src/tests/testutil.cc src/config_for_unittests.h \
 	src/gperftools/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_41 = tcmalloc_and_profiler_unittest-tcmalloc_unittest.$(OBJEXT) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_40 = tcmalloc_and_profiler_unittest-tcmalloc_unittest.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_and_profiler_unittest-testutil.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_and_profiler_unittest_OBJECTS = $(am__objects_41)
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_and_profiler_unittest_OBJECTS = $(am__objects_40)
 tcmalloc_and_profiler_unittest_OBJECTS =  \
 	$(am_tcmalloc_and_profiler_unittest_OBJECTS)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_and_profiler_unittest_DEPENDENCIES = libtcmalloc_and_profiler.la
@@ -1413,10 +1414,10 @@ am__tcmalloc_both_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
 	src/tests/testutil.cc src/config_for_unittests.h \
 	src/gperftools/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_42 = tcmalloc_both_unittest-tcmalloc_unittest.$(OBJEXT) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_41 = tcmalloc_both_unittest-tcmalloc_unittest.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_both_unittest-testutil.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_both_unittest_OBJECTS = $(am__objects_42)
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_both_unittest_OBJECTS = $(am__objects_41)
 tcmalloc_both_unittest_OBJECTS = $(am_tcmalloc_both_unittest_OBJECTS)
 @WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_4 = $(LIBTCMALLOC) \
 @WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(LIBTCMALLOC_MINIMAL) \
@@ -1436,10 +1437,10 @@ am__tcmalloc_debug_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tcmalloc.h \
 	src/tests/testutil.h src/tests/testutil.cc \
 	src/config_for_unittests.h src/gperftools/malloc_extension.h
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_43 = tcmalloc_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_42 = tcmalloc_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_debug_unittest-testutil.$(OBJEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_debug_unittest_OBJECTS = $(am__objects_43)
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_debug_unittest_OBJECTS = $(am__objects_42)
 tcmalloc_debug_unittest_OBJECTS =  \
 	$(am_tcmalloc_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_debug_unittest_DEPENDENCIES = libtcmalloc_debug.la \
@@ -1464,12 +1465,12 @@ am__tcmalloc_minimal_debug_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
 	src/tests/testutil.cc src/config_for_unittests.h \
 	src/gperftools/malloc_extension.h
-am__objects_44 =  \
+am__objects_43 =  \
 	tcmalloc_minimal_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
 	tcmalloc_minimal_debug_unittest-testutil.$(OBJEXT) \
 	$(am__objects_1)
 @WITH_DEBUGALLOC_TRUE@am_tcmalloc_minimal_debug_unittest_OBJECTS =  \
-@WITH_DEBUGALLOC_TRUE@	$(am__objects_44)
+@WITH_DEBUGALLOC_TRUE@	$(am__objects_43)
 tcmalloc_minimal_debug_unittest_OBJECTS =  \
 	$(am_tcmalloc_minimal_debug_unittest_OBJECTS)
 @WITH_DEBUGALLOC_TRUE@tcmalloc_minimal_debug_unittest_DEPENDENCIES =  \
@@ -1937,8 +1938,7 @@ googleinclude_HEADERS = \
    src/google/malloc_hook_c.h			\
    src/google/profiler.h			\
    src/google/stacktrace.h			\
-   src/google/tcmalloc.h                        \
-   src/windows/google/tcmalloc.h
+   src/google/tcmalloc.h
 
 # This is for HTML and other documentation you want to install.
 # Add your documentation files (in doc/) in addition to these
@@ -2241,10 +2241,9 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
 SG_TCMALLOC_MINIMAL_INCLUDES = src/gperftools/malloc_hook.h \
                                src/gperftools/malloc_hook_c.h \
                                src/gperftools/malloc_extension.h \
-                               src/gperftools/malloc_extension_c.h \
-                               src/gperftools/stacktrace.h
+                               src/gperftools/malloc_extension_c.h
 
-TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES)
+TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           src/internal_logging.cc \
                                           $(SYSTEM_ALLOC_CC) \
@@ -2464,11 +2463,12 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                      src/base/thread_lister.h \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                      src/heap-profile-table.h
 
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@SG_TCMALLOC_INCLUDES = $(SG_TCMALLOC_MINIMAL_INCLUDES) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                       src/gperftools/heap-profiler.h \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                       src/gperftools/heap-checker.h
 
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_INCLUDES)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@		    $(SG_TCMALLOC_INCLUDES) $(SG_STACKTRACE_INCLUDES)
+
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                  $(TCMALLOC_INCLUDES) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                                  src/base/low_level_alloc.cc \
@@ -2674,10 +2674,10 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_CPU_PROFILER_TRUE@                          $(SPINLOCK_INCLUDES) \
 @WITH_CPU_PROFILER_TRUE@                          $(LOGGING_INCLUDES)
 
-@WITH_CPU_PROFILER_TRUE@SG_CPU_PROFILER_INCLUDES = src/gperftools/profiler.h \
-@WITH_CPU_PROFILER_TRUE@                           src/gperftools/stacktrace.h
+@WITH_CPU_PROFILER_TRUE@SG_CPU_PROFILER_INCLUDES = src/gperftools/profiler.h
+@WITH_CPU_PROFILER_TRUE@CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES) \
+@WITH_CPU_PROFILER_TRUE@			$(SG_STACKTRACE_INCLUDES)
 
-@WITH_CPU_PROFILER_TRUE@CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES)
 @WITH_CPU_PROFILER_TRUE@libprofiler_la_SOURCES = src/profiler.cc \
 @WITH_CPU_PROFILER_TRUE@                         src/profile-handler.cc \
 @WITH_CPU_PROFILER_TRUE@                         src/profiledata.cc \

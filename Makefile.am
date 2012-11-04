@@ -126,8 +126,7 @@ googleinclude_HEADERS =				\
    src/google/malloc_hook_c.h			\
    src/google/profiler.h			\
    src/google/stacktrace.h			\
-   src/google/tcmalloc.h                        \
-   src/windows/google/tcmalloc.h
+   src/google/tcmalloc.h
 
 docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
 # This is for HTML and other documentation you want to install.
@@ -437,9 +436,8 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
 SG_TCMALLOC_MINIMAL_INCLUDES = src/gperftools/malloc_hook.h \
                                src/gperftools/malloc_hook_c.h \
                                src/gperftools/malloc_extension.h \
-                               src/gperftools/malloc_extension_c.h \
-                               src/gperftools/stacktrace.h
-TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES)
+                               src/gperftools/malloc_extension_c.h
+TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
 
 ### Making the library
@@ -847,10 +845,10 @@ S_TCMALLOC_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) \
                       src/base/sysinfo.h \
                       src/base/thread_lister.h \
                       src/heap-profile-table.h
-SG_TCMALLOC_INCLUDES = $(SG_TCMALLOC_MINIMAL_INCLUDES) \
-                       src/gperftools/heap-profiler.h \
+SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
                        src/gperftools/heap-checker.h
-TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_INCLUDES)
+TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) \
+		    $(SG_TCMALLOC_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
 
 ### Making the library
@@ -1191,9 +1189,9 @@ S_CPU_PROFILER_INCLUDES = src/profiledata.h \
                           src/base/sysinfo.h \
                           $(SPINLOCK_INCLUDES) \
                           $(LOGGING_INCLUDES)
-SG_CPU_PROFILER_INCLUDES = src/gperftools/profiler.h \
-                           src/gperftools/stacktrace.h
-CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES)
+SG_CPU_PROFILER_INCLUDES = src/gperftools/profiler.h
+CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES) \
+			$(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
 
 ### Making the library
