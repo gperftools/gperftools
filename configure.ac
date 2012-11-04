@@ -188,7 +188,13 @@ case "$host" in
                AC_DEFINE(HAVE_MMAP, 1,
                          [Define to 1 if you have a working `mmap' system call.])
                ;;
-            *) AC_FUNC_MMAP
+            *) if test "$cross_compiling" = yes; then
+                 ac_cv_func_mmap_fixed_mapped=yes
+                 AC_DEFINE(HAVE_MMAP, 1,
+                           [Define to 1 if you have a working `mmap' system call.])
+               else
+                 AC_FUNC_MMAP
+               fi
                ;;
 esac
 

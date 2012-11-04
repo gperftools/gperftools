@@ -15482,7 +15482,13 @@ case "$host" in
 $as_echo "#define HAVE_MMAP 1" >>confdefs.h
 
                ;;
-            *)
+            *) if test "$cross_compiling" = yes; then
+                 ac_cv_func_mmap_fixed_mapped=yes
+
+$as_echo "#define HAVE_MMAP 1" >>confdefs.h
+
+               else
+
 
 
   for ac_header in $ac_header_list
@@ -15683,6 +15689,7 @@ $as_echo "#define HAVE_MMAP 1" >>confdefs.h
 fi
 rm -f conftest.mmap conftest.txt
 
+               fi
                ;;
 esac
 
