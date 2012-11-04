@@ -29,10 +29,15 @@ AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -fno-builtin-calloc -fno-builtin-cfree \
                -fno-builtin-memalign -fno-builtin-posix_memalign \
                -fno-builtin-valloc -fno-builtin-pvalloc
+
 # On i386, -mmmx is needed for the mmx-based instructions in
-# atomicops-internal-x86.h.
+# atomicops-internal-x86.h. Also as of gcc 4.6, -fomit-frame-pointer
+# is the default. Since we must always have frame pointers for I386
+# in order to generate backtraces we now specify -fno-omit-frame-pointer
+# by default.
 if I386
 AM_CXXFLAGS += -mmmx
+AM_CXXFLAGS += -fno-omit-frame-pointer
 endif I386
 endif GCC
 if HAVE_W_NO_UNUSED_RESULT

@@ -2,9 +2,9 @@
 ## In general, the safest way to proceed is to run ./autogen.sh
 
 # make sure we're interpreted by some minimal autoconf
-AC_PREREQ(2.57)
+AC_PREREQ([2.68])
 
-AC_INIT(gperftools, 2.0, google-perftools@googlegroups.com)
+AC_INIT([gperftools],[2.0],[google-perftools@googlegroups.com])
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
 TCMALLOC_SO_VERSION=5:0:1
@@ -19,7 +19,7 @@ AC_CONFIG_SRCDIR(README)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-zip])
-AM_CONFIG_HEADER(src/config.h)
+AC_CONFIG_HEADERS([src/config.h])
 
 # Export the version information (for tc_version and friends)
 TC_VERSION_MAJOR=`expr "$PACKAGE_VERSION" : '\([[0-9]]*\)'`
@@ -92,7 +92,7 @@ AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
 AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
 AS_IF([test -n "$OBJCOPY"], [dnl
   AC_CACHE_CHECK([if $OBJCOPY supports -W], gpt_cv_objcopy_weaken, [dnl
-    AC_LINK_IFELSE([void foo() {} int main() {return 0;}], [dnl
+    AC_LINK_IFELSE([AC_LANG_PROGRAM([void foo() {} int main() {return 0;}])], [dnl
       AS_IF(["$OBJCOPY" -W foo conftest$ac_exeext /dev/null],
       	    [gpt_cv_objcopy_weaken=yes], [gpt_cv_objcopy_weaken=no])],
     [gpt_cv_objcopy_weaken=no])])],
@@ -105,14 +105,20 @@ case $host_os in
     # around the executables it builds.  Such scripts have caused failures on
     # MinGW.  Using this option means an extra link step is executed during
     # "make install".
-    AC_DISABLE_FAST_INSTALL
+    _LT_SET_OPTION([LT_INIT],[disable-fast-install])
+AC_DIAGNOSE([obsolete],[AC_DISABLE_FAST_INSTALL: Remove this warning and the call to _LT_SET_OPTION when you put
+the `disable-fast-install' option into LT_INIT's first parameter.])
+
     ;;
    *)
-    AC_ENABLE_FAST_INSTALL
+    _LT_SET_OPTION([LT_INIT],[fast-install])
+AC_DIAGNOSE([obsolete],[AC_ENABLE_FAST_INSTALL: Remove this warning and the call to _LT_SET_OPTION when you put
+the `fast-install' option into LT_INIT's first parameter.])
+
     ;;
 esac
 
-AC_PROG_LIBTOOL
+LT_INIT
 AC_SUBST(LIBTOOL_DEPS)
 AM_CONDITIONAL(USE_LIBTOOL, test "x$LIBTOOL" != "x")
 
@@ -189,12 +195,9 @@ esac
 # If AtomicWord != Atomic32, we need to define two versions of all the
 # atomicops functions.  If they're the same, we want to define only one.
 AC_MSG_CHECKING([if int32_t is the same type as intptr_t])
-AC_TRY_COMPILE([#include <stdint.h>],
-	       [int32_t v1 = 0; intptr_t v2 = 0; return (&v1 - &v2)],
-               [AC_DEFINE(INT32_EQUALS_INTPTR, 1,
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdint.h>]], [[int32_t v1 = 0; intptr_t v2 = 0; return (&v1 - &v2)]])],[AC_DEFINE(INT32_EQUALS_INTPTR, 1,
                           Define to 1 if int32_t is equivalent to intptr_t)
-                AC_MSG_RESULT([yes])],
-               [AC_MSG_RESULT([no])])
+                AC_MSG_RESULT([yes])],[AC_MSG_RESULT([no])])
 
 # We want to access the "PC" (Program Counter) register from a struct
 # ucontext.  Every system has its own way of doing that.  We try all the
