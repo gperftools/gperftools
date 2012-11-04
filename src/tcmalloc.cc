@@ -131,18 +131,6 @@
 #include "tcmalloc_guard.h"    // for TCMallocGuard
 #include "thread_cache.h"      // for ThreadCache
 
-// We only need malloc.h for struct mallinfo.
-#ifdef HAVE_STRUCT_MALLINFO
-// Malloc can be in several places on older versions of OS X.
-# if defined(HAVE_MALLOC_H)
-# include <malloc.h>
-# elif defined(HAVE_SYS_MALLOC_H)
-# include <sys/malloc.h>
-# elif defined(HAVE_MALLOC_MALLOC_H)
-# include <malloc/malloc.h>
-# endif
-#endif
-
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
 # define WIN32_DO_PATCHING 1
 #endif
