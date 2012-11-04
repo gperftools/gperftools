@@ -50,6 +50,14 @@ DEFINE_double(tcmalloc_release_rate,
               "to return memory slower.  Reasonable rates are in the "
               "range [0,10]");
 
+DEFINE_int64(tcmalloc_heap_limit_mb,
+              EnvToInt("TCMALLOC_HEAP_LIMIT_MB", 0),
+              "Limit total size of the process heap to the "
+              "specified number of MiB. "
+              "When we approach the limit the memory is released "
+              "to the system more aggressively (more minor page faults). "
+              "Zero means to allocate as long as system allows.");
+
 namespace tcmalloc {
 
 PageHeap::PageHeap()
@@ -82,8 +90,18 @@ Span* PageHeap::SearchFreeAndLargeLists(Length n) {
     // Alternatively, maybe there's a usable returned span.
     ll = &free_[s].returned;
     if (!DLL_IsEmpty(ll)) {
-      ASSERT(ll->next->location == Span::ON_RETURNED_FREELIST);
-      return Carve(ll->next, n);
+      // We did not call EnsureLimit before, to avoid releasing the span
+      // that will be taken immediately back.
+      // Calling EnsureLimit here is not very expensive, as it fails only if
+      // there is no more normal spans (and it fails efficiently)
+      // or SystemRelease does not work (there is probably no returned spans).
+      if (EnsureLimit(n)) {
+        // ll may have became empty due to coalescing
+        if (!DLL_IsEmpty(ll)) {
+          ASSERT(ll->next->location == Span::ON_RETURNED_FREELIST);
+          return Carve(ll->next, n);
+        }
+      }
     }
   }
   // No luck in free lists, our last chance is in a larger class.
@@ -125,6 +143,8 @@ Span* PageHeap::AllocLarge(Length n) {
     }
   }
 
+  Span *bestNormal = best;
+
   // Search through released list in case it has a better fit
   for (Span* span = large_.returned.next;
        span != &large_.returned;
@@ -139,7 +159,27 @@ Span* PageHeap::AllocLarge(Length n) {
     }
   }
 
-  return best == NULL ? NULL : Carve(best, n);
+  if (best == bestNormal) {
+    return best == NULL ? NULL : Carve(best, n);
+  }
+
+  // best comes from returned list.
+
+  if (EnsureLimit(n, false)) {
+    return Carve(best, n);
+  }
+
+  if (EnsureLimit(n, true)) {
+    // best could have been destroyed by coalescing.
+    // bestNormal is not a best-fit, and it could be destroyed as well.
+    // We retry, the limit is already ensured:
+    return AllocLarge(n);
+  }
+
+  // If bestNormal existed, EnsureLimit would succeeded:
+  ASSERT(bestNormal == NULL);
+  // We are not allowed to take best from returned list.
+  return NULL;
 }
 
 Span* PageHeap::Split(Span* span, Length n) {
@@ -294,28 +334,26 @@ void PageHeap::IncrementalScavenge(Length n) {
 Length PageHeap::ReleaseLastNormalSpan(SpanList* slist) {
   Span* s = slist->normal.prev;
   ASSERT(s->location == Span::ON_NORMAL_FREELIST);
-  RemoveFromFreeList(s);
-  const Length n = s->length;
-  TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
-                         static_cast<size_t>(s->length << kPageShift));
-  s->location = Span::ON_RETURNED_FREELIST;
-  MergeIntoFreeList(s);  // Coalesces if possible.
-  return n;
+
+  if (TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
+                         static_cast<size_t>(s->length << kPageShift))) {
+    RemoveFromFreeList(s);
+    const Length n = s->length;
+    s->location = Span::ON_RETURNED_FREELIST;
+    MergeIntoFreeList(s);  // Coalesces if possible.
+    return n;
+  }
+
+  return 0;
 }
 
 Length PageHeap::ReleaseAtLeastNPages(Length num_pages) {
   Length released_pages = 0;
-  Length prev_released_pages = -1;
 
   // Round robin through the lists of free spans, releasing the last
-  // span in each list.  Stop after releasing at least num_pages.
-  while (released_pages < num_pages) {
-    if (released_pages == prev_released_pages) {
-      // Last iteration of while loop made no progress.
-      break;
-    }
-    prev_released_pages = released_pages;
-
+  // span in each list.  Stop after releasing at least num_pages
+  // or when there is nothing more to release.
+  while (released_pages < num_pages && stats_.free_bytes > 0) {
     for (int i = 0; i < kMaxPages+1 && released_pages < num_pages;
          i++, release_index_++) {
       if (release_index_ > kMaxPages) release_index_ = 0;
@@ -323,11 +361,37 @@ Length PageHeap::ReleaseAtLeastNPages(Length num_pages) {
           &large_ : &free_[release_index_];
       if (!DLL_IsEmpty(&slist->normal)) {
         Length released_len = ReleaseLastNormalSpan(slist);
+        // Some systems do not support release
+        if (released_len == 0) return released_pages;
         released_pages += released_len;
       }
     }
   }
   return released_pages;
+}
+
+bool PageHeap::EnsureLimit(Length n, bool withRelease)
+{
+  Length limit = (FLAGS_tcmalloc_heap_limit_mb*1024*1024) >> kPageShift;
+  if (limit == 0) return true; //there is no limit
+
+  // We do not use stats_.system_bytes because it does not take
+  // MetaDataAllocs into account.
+  Length takenPages = TCMalloc_SystemTaken >> kPageShift;
+  //XXX takenPages may be slightly bigger than limit for two reasons:
+  //* MetaDataAllocs ignore the limit (it is not easy to handle
+  //  out of memory there)
+  //* sys_alloc may round allocation up to huge page size,
+  //  although smaller limit was ensured
+
+  ASSERT(takenPages >= stats_.unmapped_bytes >> kPageShift);
+  takenPages -= stats_.unmapped_bytes >> kPageShift;
+
+  if (takenPages + n > limit && withRelease) {
+    takenPages -= ReleaseAtLeastNPages(takenPages + n - limit);
+  }
+
+  return takenPages + n <= limit;
 }
 
 void PageHeap::RegisterSizeClass(Span* span, size_t sc) {
@@ -407,12 +471,17 @@ bool PageHeap::GrowHeap(Length n) {
   if (n > kMaxValidPages) return false;
   Length ask = (n>kMinSystemAlloc) ? n : static_cast<Length>(kMinSystemAlloc);
   size_t actual_size;
-  void* ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
+  void* ptr = NULL;
+  if (EnsureLimit(ask)) {
+      ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
+  }
   if (ptr == NULL) {
     if (n < ask) {
       // Try growing just "n" pages
       ask = n;
-      ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
+      if (EnsureLimit(ask)) {
+        ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
+      }
     }
     if (ptr == NULL) return false;
   }

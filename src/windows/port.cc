@@ -218,6 +218,11 @@ extern "C" int perftools_pthread_once(pthread_once_t *once_control,
 // -----------------------------------------------------------------------
 // These functions replace system-alloc.cc
 
+// The current system allocator declaration (unused here)
+SysAllocator* sys_alloc = NULL;
+// Number of bytes taken from system.
+size_t TCMalloc_SystemTaken = 0;
+
 // This is mostly like MmapSysAllocator::Alloc, except it does these weird
 // munmap's in the middle of the page, which is forbidden in windows.
 extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
@@ -243,6 +248,8 @@ extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   if (result == NULL)
     return NULL;
 
+  TCMalloc_SystemTaken += size + extra;
+
   // Adjust the return memory so it is aligned
   uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
   size_t adjust = 0;
@@ -254,8 +261,9 @@ extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   return reinterpret_cast<void*>(ptr);
 }
 
-void TCMalloc_SystemRelease(void* start, size_t length) {
+bool TCMalloc_SystemRelease(void* start, size_t length) {
   // TODO(csilvers): should I be calling VirtualFree here?
+  return false;
 }
 
 bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
@@ -265,9 +273,6 @@ bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
 void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {
   // We don't dump stats on windows, right now
 }
-
-// The current system allocator
-SysAllocator* sys_alloc = NULL;
 
 
 // -----------------------------------------------------------------------

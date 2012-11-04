@@ -274,9 +274,13 @@ class PERFTOOLS_DLL_DECL PageHeap {
   void IncrementalScavenge(Length n);
 
   // Release the last span on the normal portion of this list.
-  // Return the length of that span.
+  // Return the length of that span or zero if release failed.
   Length ReleaseLastNormalSpan(SpanList* slist);
 
+  // Checks if we are allowed to take more memory from the system.
+  // If limit is reached and allowRelease is true, tries to release
+  // some unused spans.
+  bool EnsureLimit(Length n, bool allowRelease = true);
 
   // Number of pages to deallocate before doing more scavenging
   int64_t scavenge_counter_;

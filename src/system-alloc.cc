@@ -122,6 +122,9 @@ static size_t pagesize = 0;
 // The current system allocator
 SysAllocator* sys_alloc = NULL;
 
+// Number of bytes taken from system.
+size_t TCMalloc_SystemTaken = 0;
+
 // Configuration parameters.
 DEFINE_int32(malloc_devmem_start,
              EnvToInt("TCMALLOC_DEVMEM_START", 0),
@@ -137,6 +140,10 @@ DEFINE_bool(malloc_skip_sbrk,
 DEFINE_bool(malloc_skip_mmap,
             EnvToBool("TCMALLOC_SKIP_MMAP", false),
             "Whether mmap can be used to obtain memory.");
+DEFINE_bool(malloc_disable_memory_release,
+            EnvToBool("TCMALLOC_DISABLE_MEMORY_RELEASE", false),
+            "Whether MADV_FREE/MADV_DONTNEED should be used"
+            " to return unused memory to the system.");
 
 // static allocators
 class SbrkSysAllocator : public SysAllocator {
@@ -485,21 +492,24 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
     if (actual_size) {
       CheckAddressBits<kAddressBits>(
           reinterpret_cast<uintptr_t>(result) + *actual_size - 1);
+      TCMalloc_SystemTaken += *actual_size;
     } else {
       CheckAddressBits<kAddressBits>(
           reinterpret_cast<uintptr_t>(result) + size - 1);
+      TCMalloc_SystemTaken += size;
     }
   }
   return result;
 }
 
-void TCMalloc_SystemRelease(void* start, size_t length) {
+bool TCMalloc_SystemRelease(void* start, size_t length) {
 #ifdef MADV_FREE
   if (FLAGS_malloc_devmem_start) {
     // It's not safe to use MADV_FREE/MADV_DONTNEED if we've been
     // mapping /dev/mem for heap memory.
-    return;
+    return false;
   }
+  if (FLAGS_malloc_disable_memory_release) return false;
   if (pagesize == 0) pagesize = getpagesize();
   const size_t pagemask = pagesize - 1;
 
@@ -518,13 +528,14 @@ void TCMalloc_SystemRelease(void* start, size_t length) {
   ASSERT(new_end <= end);
 
   if (new_end > new_start) {
-    // Note -- ignoring most return codes, because if this fails it
-    // doesn't matter...
-    while (madvise(reinterpret_cast<char*>(new_start), new_end - new_start,
-                   MADV_FREE) == -1 &&
-           errno == EAGAIN) {
-      // NOP
-    }
+    int result;
+    do {
+      result = madvise(reinterpret_cast<char*>(new_start),
+          new_end - new_start, MADV_FREE);
+    } while (result == -1 && errno == EAGAIN);
+
+    return result != -1;
   }
 #endif
+  return false;
 }

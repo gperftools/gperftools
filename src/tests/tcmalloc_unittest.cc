@@ -92,6 +92,7 @@
 #include "gperftools/malloc_extension.h"
 #include "gperftools/tcmalloc.h"
 #include "thread_cache.h"
+#include "system-alloc.h"
 #include "tests/testutil.h"
 
 // Windows doesn't define pvalloc and a few other obsolete unix
@@ -835,20 +836,26 @@ static void CheckRangeCallback(void* ptr, base::MallocRange::Type type,
 
 }
 
+static bool HaveSystemRelease =
+    TCMalloc_SystemRelease(TCMalloc_SystemAlloc(kPageSize, NULL, 0), kPageSize);
+
 static void TestRanges() {
   static const int MB = 1048576;
   void* a = malloc(MB);
   void* b = malloc(MB);
+  base::MallocRange::Type releasedType =
+      HaveSystemRelease ? base::MallocRange::UNMAPPED : base::MallocRange::FREE;
+
   CheckRangeCallback(a, base::MallocRange::INUSE, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
   free(a);
   CheckRangeCallback(a, base::MallocRange::FREE, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
   MallocExtension::instance()->ReleaseFreeMemory();
-  CheckRangeCallback(a, base::MallocRange::UNMAPPED, MB);
+  CheckRangeCallback(a, releasedType, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
   free(b);
-  CheckRangeCallback(a, base::MallocRange::UNMAPPED, MB);
+  CheckRangeCallback(a, releasedType, MB);
   CheckRangeCallback(b, base::MallocRange::FREE, MB);
 }
 
@@ -866,6 +873,9 @@ static void TestReleaseToSystem() {
   // messes up all the equality tests here.  I just disable the
   // teset in this mode.  TODO(csilvers): get it to work for debugalloc?
 #ifndef DEBUGALLOCATION
+
+  if(!HaveSystemRelease) return;
+
   const double old_tcmalloc_release_rate = FLAGS_tcmalloc_release_rate;
   FLAGS_tcmalloc_release_rate = 0;
 
