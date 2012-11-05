@@ -54,12 +54,27 @@ for a given run of an executable:</p>
        <code>/bin/ls</code> that had been linked against libprofiler,
        you could run:</p>
        <pre>% env CPUPROFILE=ls.prof /bin/ls</pre>
-
+  </li>
+  <li> <p>In addition to defining the environment variable CPUPROFILE
+       you can also define CPUPROFILESIGNAL.  This allows profiling to be
+       controlled via the signal number that you specify.  The signal number
+       must be unused by the program under normal operation. Internally it
+       acts as a switch, triggered by the signal, which is off by default.
+       For instance, if you had a copy of <code>/bin/chrome</code> that had been
+       been linked against libprofiler, you could run:</p>
+       <pre>% env CPUPROFILE=chrome.prof CPUPROFILESIGNAL=12 /bin/chrome &</pre>
+       <p>You can then trigger profiling to start:</p>
+       <pre>% killall -12 chrome</pre>
+	   <p>Then after a period of time you can tell it to stop which will
+       generate the profile:</p>
+       <pre>% killall -12 chrome</pre>
+  </li>
   <li> <p>In your code, bracket the code you want profiled in calls to
        <code>ProfilerStart()</code> and <code>ProfilerStop()</code>.
        (These functions are declared in <code>&lt;gperftools/profiler.h&gt;</code>.)
        <code>ProfilerStart()</code> will take
        the profile-filename as an argument.</p>
+  </li>
 </ol>
 
 <p>In Linux 2.6 and above, profiling works correctly with threads,

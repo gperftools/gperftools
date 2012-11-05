@@ -70,14 +70,21 @@ typedef int ucontext_t;   // just to quiet the compiler, mostly
 
 using std::string;
 
-DEFINE_bool(cpu_profile_unittest,
+DEFINE_bool(cpu_profiler_unittest,
             EnvToBool("PERFTOOLS_UNITTEST", true),
             "Determines whether or not we are running under the \
              control of a unit test. This allows us to include or \
 			 exclude certain behaviours.");
 
-// Collects up all profile data.  This is a singleton, which is
-// initialized by a constructor at startup.
+// Collects up all profile data. This is a singleton, which is
+// initialized by a constructor at startup. If no cpu profiler
+// signal is specified then the profiler lifecycle is either
+// manaully controlled via the API or attached to the scope of
+// the singleton (program scope). Otherwise the cpu toggle is
+// used to allow for user selectable control via signal generation.
+// This is very useful for profiling a daemon process without
+// having to start and stop the daemon or having to modify the
+// source code to use the cpu profiler API.
 class CpuProfiler {
  public:
   CpuProfiler();
@@ -132,6 +139,40 @@ class CpuProfiler {
                            void* cpu_profiler);
 };
 
+// Signal handler that is registered when a user selectable signal
+// number is defined in the environment variable CPUPROFILESIGNAL.
+static void CpuProfilerSwitch(int signal_number)
+{
+    bool static started = false;
+	static unsigned profile_count = 0;
+    static char base_profile_name[1024] = "\0";
+
+	if (base_profile_name[0] == '\0') {
+    	if (!GetUniquePathFromEnv("CPUPROFILE", base_profile_name)) {
+        	RAW_LOG(FATAL,"Cpu profiler switch is registered but no CPUPROFILE is defined");
+        	return;
+    	}
+	}
+    if (!started) 
+    {
+    	char full_profile_name[1024];
+
+		snprintf(full_profile_name, sizeof(full_profile_name), "%s.%u",
+                 base_profile_name, profile_count++);
+
+        if(!ProfilerStart(full_profile_name))
+        {
+            RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
+                    full_profile_name, strerror(errno));
+        }
+    }
+    else    
+    {
+        ProfilerStop();
+    }
+    started = !started;
+}
+
 // Profile data structure singleton: Constructor will check to see if
 // profiling should be enabled.  Destructor will write profile data
 // out to disk.
@@ -143,26 +184,60 @@ CpuProfiler::CpuProfiler()
   // TODO(cgd) Move this code *out* of the CpuProfile constructor into a
   // separate object responsible for initialization. With ProfileHandler there
   // is no need to limit the number of profilers.
-  char fname[PATH_MAX];
-  if (!GetUniquePathFromEnv("CPUPROFILE", fname)) {
-    if (!FLAGS_cpu_profile_unittest) {
+  if (getenv("CPUPROFILE") == NULL) {
+    if (!FLAGS_cpu_profiler_unittest) {
       RAW_LOG(WARNING, "CPU profiler linked but no valid CPUPROFILE environment variable found\n");
     }
     return;
   }
+
   // We don't enable profiling if setuid -- it's a security risk
 #ifdef HAVE_GETEUID
   if (getuid() != geteuid()) {
-    if (!FLAGS_cpu_profile_unittest) {
+    if (!FLAGS_cpu_profiler_unittest) {
       RAW_LOG(WARNING, "Cannot perform CPU profiling when running with setuid\n");
     }
     return;
   }
 #endif
 
-  if (!Start(fname, NULL)) {
-    RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
-            fname, strerror(errno));
+  char *signal_number_str = getenv("CPUPROFILESIGNAL");
+  if (signal_number_str != NULL)
+  {
+    long int signal_number = strtol(signal_number_str, NULL, 10);
+	printf("<debug> signal_number=%d\n", signal_number);
+    if (signal_number >=1 && signal_number <=64)
+    {
+      sighandler_t old_signal_handler = signal(signal_number, CpuProfilerSwitch);
+	  if (old_signal_handler == NULL)
+	  {
+      	RAW_LOG(INFO,"Using signal %d as cpu profiling switch", signal_number);
+		
+      }
+      else
+      {
+        RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
+      }
+    }
+	else
+	{
+      RAW_LOG(FATAL, "Signal number %s is invalid\n", signal_number_str);
+	}
+  }
+  else
+  {
+    char fname[PATH_MAX];
+    if (!GetUniquePathFromEnv("CPUPROFILE", fname)) {
+      if (!FLAGS_cpu_profiler_unittest) {
+        RAW_LOG(WARNING, "CPU profiler linked but no valid CPUPROFILE environment variable found\n");
+      }
+      return;
+	}
+
+    if (!Start(fname, NULL)) {
+      RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
+              fname, strerror(errno));
+    }
   }
 }
 
