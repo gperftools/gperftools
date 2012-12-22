@@ -360,21 +360,4 @@ namespace base {
 enum LinkerInitialized { LINKER_INITIALIZED };
 }
 
-// Macros for performing optimizations based on branch prediction.
-#if defined(__GNUC__) && ((__GNUC__ * 100 + __GNUC_MINOR__) >= 303)
-#ifndef LIKELY
-# define LIKELY(x) __builtin_expect(!!(x), 1)
-#endif
-#ifndef UNLIKELY
-# define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#endif
-#else // not !defined(__GNUC__) && ((__GNUC__ * 100 + __GNUC_MINOR__) >= 303)
-#ifndef LIKELY
-# define LIKELY(x) (x)
-#endif
-#ifndef UNLIKELY
-# define UNLIKELY(x) (x)
-#endif
-#endif // defined(__GNUC__) && ((__GNUC__ * 100 + __GNUC_MINOR__) >= 303)
-
 #endif  // _BASICTYPES_H_

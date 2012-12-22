@@ -969,13 +969,13 @@ static void* DoSampledAllocation(size_t size) {
   SpinLockHolder h(Static::pageheap_lock());
   // Allocate span
   Span *span = Static::pageheap()->New(tcmalloc::pages(size == 0 ? 1 : size));
-  if (span == NULL) {
+  if (UNLIKELY(span == NULL)) {
     return NULL;
   }
 
   // Allocate stack trace
   StackTrace *stack = Static::stacktrace_allocator()->New();
-  if (stack == NULL) {
+  if (UNLIKELY(stack == NULL)) {
     // Sampling failed because of lack of memory
     return span;
   }
@@ -1064,7 +1064,7 @@ inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
   } else {
     SpinLockHolder h(Static::pageheap_lock());
     Span* span = Static::pageheap()->New(num_pages);
-    result = (span == NULL ? NULL : SpanToMallocResult(span));
+    result = (UNLIKELY(span == NULL) ? NULL : SpanToMallocResult(span));
     report_large = should_report_large(num_pages);
   }
 
@@ -1231,7 +1231,7 @@ inline size_t GetSizeWithCallback(const void* ptr,
     return Static::sizemap()->ByteSizeForClass(cl);
   } else {
     const Span *span = Static::pageheap()->GetDescriptor(p);
-    if (span == NULL) {  // means we do not own this memory
+    if (UNLIKELY(span == NULL)) {  // means we do not own this memory
       return (*invalid_getsize_fn)(ptr);
     } else if (span->sizeclass != 0) {
       Static::pageheap()->CacheSizeClass(p, span->sizeclass);
@@ -1270,7 +1270,7 @@ inline void* do_realloc_with_callback(
       // Either new_size is not a tiny increment, or last do_malloc failed.
       new_ptr = do_malloc_or_cpp_alloc(new_size);
     }
-    if (new_ptr == NULL) {
+    if (UNLIKELY(new_ptr == NULL)) {
       return NULL;
     }
     MallocHook::InvokeNewHook(new_ptr, new_size);
@@ -1313,7 +1313,7 @@ void* do_memalign(size_t align, size_t size) {
     return p;
   }
 
-  if (Static::pageheap() == NULL) ThreadCache::InitModule();
+  if (UNLIKELY(Static::pageheap() == NULL)) ThreadCache::InitModule();
 
   // Allocate at least one byte to avoid boundary conditions below
   if (size == 0) size = 1;
@@ -1345,13 +1345,13 @@ void* do_memalign(size_t align, size_t size) {
     // TODO: We could put the rest of this page in the appropriate
     // TODO: cache but it does not seem worth it.
     Span* span = Static::pageheap()->New(tcmalloc::pages(size));
-    return span == NULL ? NULL : SpanToMallocResult(span);
+    return UNLIKELY(span == NULL) ? NULL : SpanToMallocResult(span);
   }
 
   // Allocate extra pages and carve off an aligned portion
   const Length alloc = tcmalloc::pages(size + align);
   Span* span = Static::pageheap()->New(alloc);
-  if (span == NULL) return NULL;
+  if (UNLIKELY(span == NULL)) return NULL;
 
   // Skip starting portion so that we end up aligned
   Length skip = 0;
@@ -1421,7 +1421,7 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
 #else
   for (;;) {
     void* p = do_malloc_no_errno(size);
-    if (p == NULL) {  // allocation failed
+    if (UNLIKELY(p == NULL)) {  // allocation failed
       // Get the current new handler.  NB: this function is not
       // thread-safe.  We make a feeble stab at making it so here, but
       // this lock only protects against tcmalloc interfering with
@@ -1472,7 +1472,7 @@ void* cpp_memalign(size_t align, size_t size) {
 #ifdef PREANSINEW
     return p;
 #else
-    if (p == NULL) {  // allocation failed
+    if (UNLIKELY(p == NULL)) {  // allocation failed
       // Get the current new handler.  NB: this function is not
       // thread-safe.  We make a feeble stab at making it so here, but
       // this lock only protects against tcmalloc interfering with
@@ -1672,7 +1672,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
 
   void* result = do_memalign_or_cpp_memalign(align, size);
   MallocHook::InvokeNewHook(result, size);
-  if (result == NULL) {
+  if (UNLIKELY(result == NULL)) {
     return ENOMEM;
   } else {
     *result_ptr = result;

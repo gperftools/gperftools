@@ -43,6 +43,14 @@
 #include "internal_logging.h"  // for ASSERT, etc
 #include "base/basictypes.h"   // for LIKELY, etc
 
+#ifdef HAVE_BUILTIN_EXPECT
+#define LIKELY(x) __builtin_expect(!!(x), 1)
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#else
+#define LIKELY(x) (x)
+#define UNLIKELY(x) (x)
+#endif
+
 // Type that can hold a page number
 typedef uintptr_t PageID;
 

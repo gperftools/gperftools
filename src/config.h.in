@@ -5,6 +5,9 @@
 #define GPERFTOOLS_CONFIG_H_
 
 
+/* Define to 1 if compiler supports __builtin_expect */
+#undef HAVE_BUILTIN_EXPECT
+
 /* Define to 1 if compiler supports __builtin_stack_pointer */
 #undef HAVE_BUILTIN_STACK_POINTER
 

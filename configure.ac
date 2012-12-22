@@ -289,6 +289,14 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM(, [void *sp = __builtin_stack_pointer()])],
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
 
+# Check for __builtin_expect()
+AC_MSG_CHECKING([for __builtin_expect()])
+AC_LINK_IFELSE([AC_LANG_PROGRAM(, return __builtin_expect(main != 0, 1))],
+               [AC_DEFINE(HAVE_BUILTIN_EXPECT, 1,
+                          Define to 1 if compiler supports __builtin_expect)
+                AC_MSG_RESULT([yes])],
+               [AC_MSG_RESULT([no])])
+
 # Check if __environ is available (for GetenvBeforeMain)
 AC_MSG_CHECKING([for __environ])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],
