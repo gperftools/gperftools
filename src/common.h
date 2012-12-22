@@ -1,10 +1,10 @@
 // Copyright (c) 2008, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -41,6 +41,7 @@
 #include <stdint.h>                     // for uintptr_t, uint64_t
 #endif
 #include "internal_logging.h"  // for ASSERT, etc
+#include "base/basictypes.h"   // for LIKELY, etc
 
 // Type that can hold a page number
 typedef uintptr_t PageID;
@@ -74,7 +75,7 @@ static const size_t kPageShift  = 13;
 static const size_t kNumClasses = 93;
 // Unless we force to use 8 bytes alignment we use an alignment of
 // at least 16 bytes to statisfy requirements for some SSE types.
-// Keep in mind when using the 16 bytes alignment you can have a space 
+// Keep in mind when using the 16 bytes alignment you can have a space
 // waste due alignment of 25%. (eg malloc of 24 bytes will get 32 bytes)
 static const size_t kMinAlign   = 8;
 #else
@@ -183,13 +184,15 @@ class SizeMap {
   unsigned char class_array_[kClassArraySize];
 
   // Compute index of the class_array[] entry for a given size
-  static inline int ClassIndex(int s) {
+  static inline size_t ClassIndex(int s) {
+    // Use unsigned arithmetic to avoid unnecessary sign extensions.
     ASSERT(0 <= s);
     ASSERT(s <= kMaxSize);
-    const bool big = (s > kMaxSmallSize);
-    const int add_amount = big ? (127 + (120<<7)) : 7;
-    const int shift_amount = big ? 7 : 3;
-    return (s + add_amount) >> shift_amount;
+    if (LIKELY(s <= kMaxSmallSize)) {
+      return (static_cast<uint32_t>(s) + 7) >> 3;
+    } else {
+      return (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7;
+    }
   }
 
   int NumMoveSize(size_t size);

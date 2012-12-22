@@ -1,10 +1,10 @@
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -14,7 +14,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -357,5 +357,22 @@ class AssignAttributeStartEnd {
 namespace base {
 enum LinkerInitialized { LINKER_INITIALIZED };
 }
+
+// Macros for performing optimizations based on branch prediction.
+#if defined(__GNUC__) && ((__GNUC__ * 100 + __GNUC_MINOR__) >= 303)
+#ifndef LIKELY
+# define LIKELY(x) __builtin_expect(!!(x), 1)
+#endif
+#ifndef UNLIKELY
+# define UNLIKELY(x) __builtin_expect(!!(x), 0)
+#endif
+#else // not !defined(__GNUC__) && ((__GNUC__ * 100 + __GNUC_MINOR__) >= 303)
+#ifndef LIKELY
+# define LIKELY(x) (x)
+#endif
+#ifndef UNLIKELY
+# define UNLIKELY(x) (x)
+#endif
+#endif // defined(__GNUC__) && ((__GNUC__ * 100 + __GNUC_MINOR__) >= 303)
 
 #endif  // _BASICTYPES_H_
