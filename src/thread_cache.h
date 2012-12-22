@@ -123,10 +123,10 @@ class ThreadCache {
   // Return the number of thread heaps in use.
   static inline int HeapsInUse();
 
-  // Writes to total_bytes the total number of bytes used by all thread heaps.
-  // class_count must be an array of size kNumClasses.  Writes the number of
-  // items on the corresponding freelist.  class_count may be NULL.
-  // The storage of both parameters must be zero intialized.
+  // Adds to *total_bytes the total number of bytes used by all thread heaps.
+  // Also, if class_count is not NULL, it must be an array of size kNumClasses,
+  // and this function will increment each element of class_count by the number
+  // of items in all thread-local freelists of the corresponding size class.
   // REQUIRES: Static::pageheap_lock is held.
   static void GetThreadStats(uint64_t* total_bytes, uint64_t* class_count);
 

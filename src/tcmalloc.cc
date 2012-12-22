@@ -299,7 +299,10 @@ struct TCMallocStats {
   PageHeap::Stats pageheap;   // Stats from page heap
 };
 
-// Get stats into "r".  Also get per-size-class counts if class_count != NULL
+// Get stats into "r".  Also, if class_count != NULL, class_count[k]
+// will be set to the total number of objects of size class k in the
+// central cache, transfer cache, and per-thread caches. If small_spans
+// is non-NULL, it is filled.  Same for large_spans.
 static void ExtractStats(TCMallocStats* r, uint64_t* class_count,
                          PageHeap::SmallSpanStats* small_spans,
                          PageHeap::LargeSpanStats* large_spans) {
@@ -313,7 +316,12 @@ static void ExtractStats(TCMallocStats* r, uint64_t* class_count,
         Static::sizemap()->ByteSizeForClass(cl));
     r->central_bytes += (size * length) + cache_overhead;
     r->transfer_bytes += (size * tc_length);
-    if (class_count) class_count[cl] = length + tc_length;
+    if (class_count) {
+      // Sum the lengths of all per-class freelists, except the per-thread
+      // freelists, which get counted when we call GetThreadStats(), below.
+      class_count[cl] = length + tc_length;
+    }
+
   }
 
   // Add stats from per-thread heaps
@@ -402,7 +410,8 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
 
   if (level >= 2) {
     out->printf("------------------------------------------------\n");
-    out->printf("Size class breakdown\n");
+    out->printf("Total size of freelists for per-thread caches,\n");
+    out->printf("transfer cache, and central cache, by size class\n");
     out->printf("------------------------------------------------\n");
     uint64_t cumulative = 0;
     for (int cl = 0; cl < kNumClasses; ++cl) {
