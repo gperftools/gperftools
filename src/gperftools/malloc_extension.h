@@ -400,7 +400,7 @@ struct MallocRange {
     INUSE,                // Application is using this range
     FREE,                 // Range is currently free
     UNMAPPED,             // Backing physical memory has been returned to the OS
-    UNKNOWN,
+    UNKNOWN
     // More enum values may be added in the future
   };
 
