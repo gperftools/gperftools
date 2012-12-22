@@ -449,6 +449,12 @@ void* DefaultSysAllocator::Alloc(size_t size, size_t *actual_size,
   return NULL;
 }
 
+ATTRIBUTE_WEAK ATTRIBUTE_NOINLINE
+SysAllocator *tc_get_sysalloc_override(SysAllocator *def)
+{
+  return def;
+}
+
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
   MmapSysAllocator *mmap = new (mmap_space) MmapSysAllocator();
@@ -469,7 +475,8 @@ void InitSystemAllocators(void) {
     sdef->SetChildAllocator(sbrk, 0, sbrk_name);
     sdef->SetChildAllocator(mmap, 1, mmap_name);
   }
-  sys_alloc = sdef;
+
+  sys_alloc = tc_get_sysalloc_override(sdef);
 }
 
 void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
