@@ -1248,8 +1248,8 @@ inline void* do_realloc_with_callback(
   //    . If we need to grow, grow to max(new_size, old_size * 1.X)
   //    . Don't shrink unless new_size < old_size * 0.Y
   // X and Y trade-off time for wasted space.  For now we do 1.25 and 0.5.
-  const int lower_bound_to_grow = old_size + old_size / 4;
-  const int upper_bound_to_shrink = old_size / 2;
+  const size_t lower_bound_to_grow = old_size + old_size / 4ul;
+  const size_t upper_bound_to_shrink = old_size / 2ul;
   if ((new_size > old_size) || (new_size < upper_bound_to_shrink)) {
     // Need to reallocate.
     void* new_ptr = NULL;
