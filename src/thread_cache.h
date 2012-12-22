@@ -75,6 +75,12 @@ inline bool KernelSupportsTLS() {
 
 class ThreadCache {
  public:
+#ifdef HAVE_TLS
+  enum { have_tls = true };
+#else
+  enum { have_tls = false };
+#endif
+
   // All ThreadCache objects are kept in a linked list (for stats collection)
   ThreadCache* next_;
   ThreadCache* prev_;
@@ -106,8 +112,13 @@ class ThreadCache {
   static ThreadCache* GetThreadHeap();
   static ThreadCache* GetCache();
   static ThreadCache* GetCacheIfPresent();
+  static ThreadCache* GetCacheWhichMustBePresent();
   static ThreadCache* CreateCacheIfNecessary();
   static void         BecomeIdle();
+  static size_t       MinSizeForSlowPath();
+  static void         SetMinSizeForSlowPath(size_t size);
+
+  static bool IsFastPathAllowed() { return MinSizeForSlowPath() != 0; }
 
   // Return the number of thread heaps in use.
   static inline int HeapsInUse();
@@ -251,12 +262,24 @@ class ThreadCache {
   // Since we don't really use dlopen in google code -- and using dlopen
   // on a malloc replacement is asking for trouble in any case -- that's
   // a good tradeoff for us.
+#ifdef HAVE___ATTRIBUTE__
+#define ATTR_INITIAL_EXEC __attribute__ ((tls_model ("initial-exec")))
+#else
+#define ATTR_INITIAL_EXEC
+#endif
+
 #ifdef HAVE_TLS
-  static __thread ThreadCache* threadlocal_heap_
-# ifdef HAVE___ATTRIBUTE__
-   __attribute__ ((tls_model ("initial-exec")))
-# endif
-   ;
+  struct ThreadLocalData {
+    ThreadCache* heap;
+    // min_size_for_slow_path is 0 if heap is NULL or kMaxSize + 1 otherwise.
+    // The latter is the common case and allows allocation to be faster
+    // than it would be otherwise: typically a single branch will
+    // determine that the requested allocation is no more than kMaxSize
+    // and we can then proceed, knowing that global and thread-local tcmalloc
+    // state is initialized.
+    size_t min_size_for_slow_path;
+  };
+  static __thread ThreadLocalData threadlocal_data_ ATTR_INITIAL_EXEC;
 #endif
 
   // Thread-specific key.  Initialization here is somewhat tricky
@@ -373,10 +396,21 @@ inline ThreadCache* ThreadCache::GetThreadHeap() {
 #ifdef HAVE_TLS
   // __thread is faster, but only when the kernel supports it
   if (KernelSupportsTLS())
-    return threadlocal_heap_;
+    return threadlocal_data_.heap;
 #endif
   return reinterpret_cast<ThreadCache *>(
       perftools_pthread_getspecific(heap_key_));
+}
+
+inline ThreadCache* ThreadCache::GetCacheWhichMustBePresent() {
+#ifdef HAVE_TLS
+  ASSERT(threadlocal_data_.heap);
+  return threadlocal_data_.heap;
+#else
+  ASSERT(perftools_pthread_getspecific(heap_key_));
+  return reinterpret_cast<ThreadCache *>(
+      perftools_pthread_getspecific(heap_key_));
+#endif
 }
 
 inline ThreadCache* ThreadCache::GetCache() {
@@ -396,6 +430,20 @@ inline ThreadCache* ThreadCache::GetCache() {
 inline ThreadCache* ThreadCache::GetCacheIfPresent() {
   if (!tsd_inited_) return NULL;
   return GetThreadHeap();
+}
+
+inline size_t ThreadCache::MinSizeForSlowPath() {
+#ifdef HAVE_TLS
+  return threadlocal_data_.min_size_for_slow_path;
+#else
+  return 0;
+#endif
+}
+
+inline void ThreadCache::SetMinSizeForSlowPath(size_t size) {
+#ifdef HAVE_TLS
+  threadlocal_data_.min_size_for_slow_path = size;
+#endif
 }
 
 }  // namespace tcmalloc

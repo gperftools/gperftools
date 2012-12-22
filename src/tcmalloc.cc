@@ -1005,6 +1005,7 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
 
 inline void* cpp_alloc(size_t size, bool nothrow);
 inline void* do_malloc(size_t size);
+inline void* do_malloc_no_errno(size_t size);
 
 // TODO(willchan): Investigate whether or not lining this much is harmful to
 // performance.
@@ -1012,6 +1013,10 @@ inline void* do_malloc(size_t size);
 // Otherwise, it will run the std::new_handler if set.
 inline void* do_malloc_or_cpp_alloc(size_t size) {
   return tc_new_mode ? cpp_alloc(size, true) : do_malloc(size);
+}
+
+inline void* do_malloc_no_errno_or_cpp_alloc(size_t size) {
+  return tc_new_mode ? cpp_alloc(size, true) : do_malloc_no_errno(size);
 }
 
 void* cpp_memalign(size_t align, size_t size);
@@ -1060,26 +1065,35 @@ inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
   return result;
 }
 
-inline void* do_malloc(size_t size) {
-  void* ret = NULL;
+inline void* do_malloc_small(ThreadCache* heap, size_t size) {
+  ASSERT(Static::IsInited());
+  ASSERT(heap != NULL);
+  size_t cl = Static::sizemap()->SizeClass(size);
+  size = Static::sizemap()->class_to_size(cl);
 
-  // The following call forces module initialization
-  ThreadCache* heap = ThreadCache::GetCache();
-  if (size <= kMaxSize) {
-    size_t cl = Static::sizemap()->SizeClass(size);
-    size = Static::sizemap()->class_to_size(cl);
-
-    if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
-      ret = DoSampledAllocation(size);
-    } else {
-      // The common case, and also the simplest.  This just pops the
-      // size-appropriate freelist, after replenishing it if it's empty.
-      ret = CheckedMallocResult(heap->Allocate(size, cl));
-    }
+  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
+    return DoSampledAllocation(size);
   } else {
-    ret = do_malloc_pages(heap, size);
+    // The common case, and also the simplest.  This just pops the
+    // size-appropriate freelist, after replenishing it if it's empty.
+    return CheckedMallocResult(heap->Allocate(size, cl));
   }
-  if (ret == NULL) errno = ENOMEM;
+}
+
+inline void* do_malloc_no_errno(size_t size) {
+  if (ThreadCache::have_tls &&
+      LIKELY(size < ThreadCache::MinSizeForSlowPath())) {
+    return do_malloc_small(ThreadCache::GetCacheWhichMustBePresent(), size);
+  } else if (size <= kMaxSize) {
+    return do_malloc_small(ThreadCache::GetCache(), size);
+  } else {
+    return do_malloc_pages(ThreadCache::GetCache(), size);
+  }
+}
+
+inline void* do_malloc(size_t size) {
+  void* ret = do_malloc_no_errno(size);
+  if (UNLIKELY(ret == NULL)) errno = ENOMEM;
   return ret;
 }
 
@@ -1088,55 +1102,72 @@ inline void* do_calloc(size_t n, size_t elem_size) {
   const size_t size = n * elem_size;
   if (elem_size != 0 && size / elem_size != n) return NULL;
 
-  void* result = do_malloc_or_cpp_alloc(size);
-  if (result != NULL) {
+  void* result = do_malloc_no_errno_or_cpp_alloc(size);
+  if (result == NULL) {
+    errno = ENOMEM;
+  } else {
     memset(result, 0, size);
   }
   return result;
 }
 
-static inline ThreadCache* GetCacheIfPresent() {
-  void* const p = ThreadCache::GetCacheIfPresent();
-  return reinterpret_cast<ThreadCache*>(p);
+// If ptr is NULL, do nothing.  Otherwise invoke the given function.
+inline void free_null_or_invalid(void* ptr, void (*invalid_free_fn)(void*)) {
+  if (ptr != NULL) {
+    (*invalid_free_fn)(ptr);
+  }
 }
 
-// This lets you call back to a given function pointer if ptr is invalid.
-// It is used primarily by windows code which wants a specialized callback.
-inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
-  if (ptr == NULL) return;
-  if (Static::pageheap() == NULL) {
+// Helper for do_free_with_callback(), below.  Inputs:
+//   ptr is object to be freed
+//   invalid_free_fn is a function that gets invoked on certain "bad frees"
+//   heap is the ThreadCache for this thread, or NULL if it isn't known
+//   heap_must_be_valid is whether heap is known to be non-NULL
+//
+// This function may only be used after Static::IsInited() is true.
+//
+// We can usually detect the case where ptr is not pointing to a page that
+// tcmalloc is using, and in those cases we invoke invalid_free_fn.
+//
+// To maximize speed in the common case, we usually get here with
+// heap_must_be_valid being a manifest constant equal to true.
+inline void do_free_helper(void* ptr,
+                           void (*invalid_free_fn)(void*),
+                           ThreadCache* heap,
+                           bool heap_must_be_valid) {
+  ASSERT((Static::IsInited() && heap != NULL) || !heap_must_be_valid);
+  if (!heap_must_be_valid && !Static::IsInited()) {
     // We called free() before malloc().  This can occur if the
     // (system) malloc() is called before tcmalloc is loaded, and then
     // free() is called after tcmalloc is loaded (and tc_free has
     // replaced free), but before the global constructor has run that
     // sets up the tcmalloc data structures.
-    (*invalid_free_fn)(ptr);  // Decide how to handle the bad free request
+    free_null_or_invalid(ptr, invalid_free_fn);
     return;
   }
-  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   Span* span = NULL;
+  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-
-  if (cl == 0) {
+  if (UNLIKELY(cl == 0)) {
     span = Static::pageheap()->GetDescriptor(p);
-    if (!span) {
-      // span can be NULL because the pointer passed in is invalid
+    if (UNLIKELY(!span)) {
+      // span can be NULL because the pointer passed in is NULL or invalid
       // (not something returned by malloc or friends), or because the
       // pointer was allocated with some other allocator besides
       // tcmalloc.  The latter can happen if tcmalloc is linked in via
       // a dynamic library, but is not listed last on the link line.
       // In that case, libraries after it on the link line will
       // allocate with libc malloc, but free with tcmalloc's free.
-      (*invalid_free_fn)(ptr);  // Decide how to handle the bad free request
+      free_null_or_invalid(ptr, invalid_free_fn);
       return;
     }
     cl = span->sizeclass;
     Static::pageheap()->CacheSizeClass(p, cl);
   }
-  if (cl != 0) {
+  ASSERT(ptr != NULL);
+  if (LIKELY(cl != 0)) {
     ASSERT(!Static::pageheap()->GetDescriptor(p)->sample);
-    ThreadCache* heap = GetCacheIfPresent();
-    if (heap != NULL) {
+    if (heap_must_be_valid || heap != NULL) {
       heap->Deallocate(ptr, cl);
     } else {
       // Delete directly into central cache
@@ -1154,6 +1185,23 @@ inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
       span->objects = NULL;
     }
     Static::pageheap()->Delete(span);
+  }
+}
+
+// Helper for the object deletion (free, delete, etc.).  Inputs:
+//   ptr is object to be freed
+//   invalid_free_fn is a function that gets invoked on certain "bad frees"
+//
+// We can usually detect the case where ptr is not pointing to a page that
+// tcmalloc is using, and in those cases we invoke invalid_free_fn.
+inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
+  ThreadCache* heap = NULL;
+  if (LIKELY(ThreadCache::IsFastPathAllowed())) {
+    heap = ThreadCache::GetCacheWhichMustBePresent();
+    do_free_helper(ptr, invalid_free_fn, heap, true);
+  } else {
+    heap = ThreadCache::GetCacheIfPresent();
+    do_free_helper(ptr, invalid_free_fn, heap, false);
   }
 }
 
@@ -1207,7 +1255,7 @@ inline void* do_realloc_with_callback(
     void* new_ptr = NULL;
 
     if (new_size > old_size && new_size < lower_bound_to_grow) {
-      new_ptr = do_malloc_or_cpp_alloc(lower_bound_to_grow);
+      new_ptr = do_malloc_no_errno_or_cpp_alloc(lower_bound_to_grow);
     }
     if (new_ptr == NULL) {
       // Either new_size is not a tiny increment, or last do_malloc failed.
@@ -1359,11 +1407,11 @@ inline struct mallinfo do_mallinfo() {
 static SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
 
 inline void* cpp_alloc(size_t size, bool nothrow) {
-  for (;;) {
-    void* p = do_malloc(size);
 #ifdef PREANSINEW
-    return p;
+  return do_malloc(size);
 #else
+  for (;;) {
+    void* p = do_malloc_no_errno(size);
     if (p == NULL) {  // allocation failed
       // Get the current new handler.  NB: this function is not
       // thread-safe.  We make a feeble stab at making it so here, but
@@ -1382,11 +1430,11 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
         (*nh)();
         continue;
       }
-      return 0;
+      goto fail;
 #else
       // If no new_handler is established, the allocation failed.
       if (!nh) {
-        if (nothrow) return 0;
+        if (nothrow) goto fail;
         throw std::bad_alloc();
       }
       // Otherwise, try the new_handler.  If it returns, retry the
@@ -1396,7 +1444,7 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
         (*nh)();
       } catch (const std::bad_alloc&) {
         if (!nothrow) throw;
-        return p;
+        goto fail;
       }
 #endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
     } else {  // allocation success
@@ -1404,6 +1452,9 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
     }
 #endif  // PREANSINEW
   }
+fail:
+  errno = ENOMEM;
+  return 0;
 }
 
 void* cpp_memalign(size_t align, size_t size) {

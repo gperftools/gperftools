@@ -63,11 +63,9 @@ ThreadCache* ThreadCache::thread_heaps_ = NULL;
 int ThreadCache::thread_heap_count_ = 0;
 ThreadCache* ThreadCache::next_memory_steal_ = NULL;
 #ifdef HAVE_TLS
-__thread ThreadCache* ThreadCache::threadlocal_heap_
-# ifdef HAVE___ATTRIBUTE__
-   __attribute__ ((tls_model ("initial-exec")))
-# endif
-   ;
+__thread ThreadCache::ThreadLocalData ThreadCache::threadlocal_data_
+    ATTR_INITIAL_EXEC
+    = {0, 0};
 #endif
 bool ThreadCache::tsd_inited_ = false;
 pthread_key_t ThreadCache::heap_key_;
@@ -379,7 +377,8 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
     perftools_pthread_setspecific(heap_key_, heap);
 #ifdef HAVE_TLS
     // Also keep a copy in __thread for faster retrieval
-    threadlocal_heap_ = heap;
+    threadlocal_data_.heap = heap;
+    SetMinSizeForSlowPath(kMaxSize + 1);
 #endif
     heap->in_setspecific_ = false;
   }
@@ -414,7 +413,8 @@ void ThreadCache::BecomeIdle() {
   perftools_pthread_setspecific(heap_key_, NULL);
 #ifdef HAVE_TLS
   // Also update the copy in __thread
-  threadlocal_heap_ = NULL;
+  threadlocal_data_.heap = NULL;
+  SetMinSizeForSlowPath(0);
 #endif
   heap->in_setspecific_ = false;
   if (GetThreadHeap() == heap) {
@@ -434,7 +434,8 @@ void ThreadCache::DestroyThreadCache(void* ptr) {
   if (ptr == NULL) return;
 #ifdef HAVE_TLS
   // Prevent fast path of GetThreadHeap() from returning heap.
-  threadlocal_heap_ = NULL;
+  threadlocal_data_.heap = NULL;
+  SetMinSizeForSlowPath(0);
 #endif
   DeleteCache(reinterpret_cast<ThreadCache*>(ptr));
 }
