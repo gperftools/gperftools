@@ -89,6 +89,18 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
   return old_value;
 }
 
+inline Atomic32 Acquire_AtomicExchange(volatile Atomic32* ptr,
+                                       Atomic32 new_value) {
+  // pLinuxKernelCmpxchg already has acquire and release barrier semantics.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
+inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
+                                       Atomic32 new_value) {
+  // pLinuxKernelCmpxchg already has acquire and release barrier semantics.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
 inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
                                         Atomic32 increment) {
   for (;;) {
@@ -174,6 +186,18 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
                                          Atomic64 new_value) {
   NotImplementedFatalError("NoBarrier_AtomicExchange");
   return 0;
+}
+
+inline Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_value) {
+  // pLinuxKernelCmpxchg already has acquire and release barrier semantics.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
+inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_value) {
+  // pLinuxKernelCmpxchg already has acquire and release barrier semantics.
+  return NoBarrier_AtomicExchange(ptr, new_value);
 }
 
 inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,

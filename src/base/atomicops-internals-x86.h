@@ -89,6 +89,21 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
   return new_value;  // Now it's the previous value.
 }
 
+inline Atomic32 Acquire_AtomicExchange(volatile Atomic32* ptr,
+                                       Atomic32 new_value) {
+  Atomic32 old_val = NoBarrier_AtomicExchange(ptr, new_value);
+  if (AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug) {
+    __asm__ __volatile__("lfence" : : : "memory");
+  }
+  return old_val;
+}
+
+inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
+                                       Atomic32 new_value) {
+  // xchgl already has release memory barrier semantics.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
 inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
                                           Atomic32 increment) {
   Atomic32 temp = increment;
@@ -152,7 +167,7 @@ inline void MemoryBarrier() {
     __asm__ __volatile__("mfence" : : : "memory");
   } else { // mfence is faster but not present on PIII
     Atomic32 x = 0;
-    NoBarrier_AtomicExchange(&x, 0);  // acts as a barrier on PIII
+    Acquire_AtomicExchange(&x, 0);
   }
 }
 
@@ -161,8 +176,7 @@ inline void Acquire_Store(volatile Atomic32* ptr, Atomic32 value) {
     *ptr = value;
     __asm__ __volatile__("mfence" : : : "memory");
   } else {
-    NoBarrier_AtomicExchange(ptr, value);
-                          // acts as a barrier on PIII
+    Acquire_AtomicExchange(ptr, value);
   }
 }
 #endif
@@ -211,6 +225,21 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
                        : "m" (*ptr), "0" (new_value)
                        : "memory");
   return new_value;  // Now it's the previous value.
+}
+
+inline Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_value) {
+  Atomic64 old_val = NoBarrier_AtomicExchange(ptr, new_value);
+  if (AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug) {
+    __asm__ __volatile__("lfence" : : : "memory");
+  }
+  return old_val;
+}
+
+inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_value) {
+  // xchgq already has release memory barrier semantics.
+  return NoBarrier_AtomicExchange(ptr, new_value);
 }
 
 inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
@@ -332,6 +361,20 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
   } while (__sync_val_compare_and_swap(ptr, old_val, new_val) != old_val);
 
   return old_val;
+}
+
+inline Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_val) {
+  Atomic64 old_val = NoBarrier_AtomicExchange(ptr, new_val);
+  if (AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug) {
+    __asm__ __volatile__("lfence" : : : "memory");
+  }
+  return old_val;
+}
+
+inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_val) {
+ return NoBarrier_AtomicExchange(ptr, new_val);
 }
 
 inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,

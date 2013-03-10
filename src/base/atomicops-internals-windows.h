@@ -137,6 +137,18 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
   return static_cast<Atomic32>(result);
 }
 
+inline Atomic32 Acquire_AtomicExchange(volatile Atomic32* ptr,
+                                       Atomic32 new_value) {
+  // FastInterlockedExchange has both acquire and release memory barriers.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
+inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
+                                       Atomic32 new_value) {
+  // FastInterlockedExchange has both acquire and release memory barriers.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
 inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
                                         Atomic32 increment) {
   return FastInterlockedExchangeAdd(
@@ -188,8 +200,7 @@ inline void NoBarrier_Store(volatile Atomic32* ptr, Atomic32 value) {
 }
 
 inline void Acquire_Store(volatile Atomic32* ptr, Atomic32 value) {
-  NoBarrier_AtomicExchange(ptr, value);
-              // acts as a barrier in this implementation
+  Acquire_AtomicExchange(ptr, value);
 }
 
 inline void Release_Store(volatile Atomic32* ptr, Atomic32 value) {
@@ -477,6 +488,18 @@ inline Atomic64 Release_Load(volatile const Atomic64* ptr) {
 
 #endif  // defined(_WIN64) || defined(__MINGW64__)
 
+
+inline Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_value) {
+  // FastInterlockedExchange has both acquire and release memory barriers.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
+
+inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
+                                       Atomic64 new_value) {
+  // FastInterlockedExchange has both acquire and release memory barriers.
+  return NoBarrier_AtomicExchange(ptr, new_value);
+}
 
 inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 old_value,
