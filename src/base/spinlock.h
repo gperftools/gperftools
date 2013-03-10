@@ -31,11 +31,6 @@
  * Author: Sanjay Ghemawat
  */
 
-//
-// Fast spinlocks (at least on x86, a lock/unlock pair is approximately
-// half the cost of a Mutex because the unlock just does a store instead
-// of a compare-and-swap which is expensive).
-
 // SpinLock is async signal safe.
 // If used within a signal handler, all lock holders
 // should block the signal even outside the signal handler.
@@ -95,10 +90,9 @@ class LOCKABLE SpinLock {
   // TODO(csilvers): uncomment the annotation when we figure out how to
   //                 support this macro with 0 args (see thread_annotations.h)
   inline void Unlock() /*UNLOCK_FUNCTION()*/ {
-    uint64 wait_cycles =
-        static_cast<uint64>(base::subtle::NoBarrier_Load(&lockword_));
     ANNOTATE_RWLOCK_RELEASED(this, 1);
-    base::subtle::Release_Store(&lockword_, kSpinLockFree);
+    uint64 wait_cycles = static_cast<uint64>(
+        base::subtle::Release_AtomicExchange(&lockword_, kSpinLockFree));
     if (wait_cycles != kSpinLockHeld) {
       // Collect contentionz profile info, and speed the wakeup of any waiter.
       // The wait_cycles value indicates how long this thread spent waiting
