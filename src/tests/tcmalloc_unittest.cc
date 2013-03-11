@@ -725,7 +725,7 @@ static void TestNothrowNew(void* (*func)(size_t, const std::nothrow_t&)) {
 // Note the ... in the hook signature: we don't care what arguments
 // the hook takes.
 #define MAKE_HOOK_CALLBACK(hook_type)                                   \
-  static int g_##hook_type##_calls = 0;                                 \
+  static volatile int g_##hook_type##_calls = 0;                                 \
   static void IncrementCallsTo##hook_type(...) {                        \
     g_##hook_type##_calls++;                                            \
   }                                                                     \
@@ -760,7 +760,7 @@ static void TestAlignmentForSize(int size) {
     CHECK((p % sizeof(void*)) == 0);
     CHECK((p % sizeof(double)) == 0);
 
-    // Must have 16-byte (or 8-byte in case of -DTCMALLOC_ALIGN_8BYTES) 
+    // Must have 16-byte (or 8-byte in case of -DTCMALLOC_ALIGN_8BYTES)
     // alignment for large enough objects
     if (size >= kMinAlign) {
       CHECK((p % kMinAlign) == 0);
