@@ -60,6 +60,8 @@
 // pretend the pthreads wrapper doesn't exist, even when it does.
 #undef HAVE_PTHREAD
 
+#define HAVE_PID_T
+
 #include "windows/port.h"
 
 #endif  /* __MINGW32__ */

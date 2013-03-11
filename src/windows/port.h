@@ -390,7 +390,10 @@ EXTERN_C PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len);
 
 /* ----------------------------------- SYSTEM/PROCESS */
 
+#ifndef HAVE_PID_T
 typedef int pid_t;
+#endif
+
 #if __STDC__ && !defined(__MINGW32__)
 inline pid_t getpid(void) { return _getpid(); }
 #endif
