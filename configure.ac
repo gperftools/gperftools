@@ -295,10 +295,18 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],
 # Note, however, that our code tickles a bug in gcc < 4.1.2
 # involving TLS and -fPIC (which our libraries will use) on x86:
 #   http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
+#
+# And mingw also does compile __thread but resultant code actually
+# fails to work correctly at least in some not so ancient version:
+# http://mingw-users.1079350.n2.nabble.com/gcc-4-4-multi-threaded-exception-handling-amp-thread-specifier-not-working-td3440749.html
 AC_MSG_CHECKING([for __thread])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__)) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 1) || (__GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ < 2))
 #error gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
-#endif], [static __thread int p = 0])],
+#endif
+#if defined(__MINGW32__)
+#error mingw doesn't really support tls
+#endif
+], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
                           Define to 1 if compiler supports __thread)
                 AC_MSG_RESULT([yes])],
