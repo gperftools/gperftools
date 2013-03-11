@@ -338,6 +338,11 @@ class AssignAttributeStartEnd {
 #   define CACHELINE_ALIGNED __attribute__((aligned(32)))
 # elif (defined(__PPC__) || defined(__PPC64__))
 #   define CACHELINE_ALIGNED __attribute__((aligned(16)))
+# elif (defined(__arm__))
+#   define CACHELINE_ALIGNED __attribute__((aligned(64)))
+    // some ARMs have shorter cache lines (ARM1176JZF-S is 32 bytes for example) but obviously 64-byte aligned implies 32-byte aligned
+# else
+#   error Could not determine cache line length - unknown architecture
 # endif
 #else
 # define CACHELINE_ALIGNED
