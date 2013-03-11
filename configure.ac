@@ -163,6 +163,11 @@ fi
 # This workaround comes from
 #    http://cygwin.com/ml/cygwin/2004-11/msg00138.html
 case "$host" in
+  *-*-mingw*)
+               dnl mingw doesn't have mmap, not worth
+               dnl checking. Especially given that mingw can be a
+               dnl cross-compiler
+               ;;
   *-*-cygwin*)
 	       ac_cv_func_mmap_fixed_mapped=yes
                AC_DEFINE(HAVE_MMAP, 1,
