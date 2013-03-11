@@ -59,6 +59,16 @@ void TestDeleteHook(const void* ptr) {
   g_delete_hook_calls++;
 }
 
+static
+void *forced_malloc(size_t size)
+{
+  void *rv = malloc(size);
+  if (!rv) {
+    FAIL("malloc is not supposed to fail here");
+  }
+  return rv;
+}
+
 void TestMallocHook(void) {
   /* TODO(csilvers): figure out why we get:
    * E0100 00:00:00.000000  7383 malloc_hook.cc:244] RAW: google_malloc section is missing, thus InHookCaller is broken!
@@ -78,8 +88,9 @@ void TestMallocHook(void) {
   if (!MallocHook_AddDeleteHook(&TestDeleteHook)) {
     FAIL("Failed to add delete hook");
   }
-  free(malloc(10));
-  free(malloc(20));
+
+  free(forced_malloc(10));
+  free(forced_malloc(20));
   if (g_new_hook_calls != 2) {
     FAIL("Wrong number of calls to the new hook");
   }
