@@ -85,7 +85,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <malloc.h>       // for _msize and _expand
-#include <Psapi.h>        // for EnumProcessModules, GetModuleInformation, etc.
+#include <psapi.h>        // for EnumProcessModules, GetModuleInformation, etc.
 #include <set>
 #include <map>
 #include <vector>

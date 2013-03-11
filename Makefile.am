@@ -221,7 +221,7 @@ libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
                         src/windows/preamble_patcher.cc \
                         src/windows/preamble_patcher_with_stub.cc
 # patch_functions.cc uses Psapi.lib.  MSVC has a #pragma for that, but not us.
-libwindows_la_LIBADD = -lPsapi
+libwindows_la_LIBADD = -lpsapi
 
 SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/spinlock_internal.h \

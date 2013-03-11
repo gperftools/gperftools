@@ -38,7 +38,7 @@
 #include <time.h>
 #if (defined(_WIN32) || defined(__MINGW32__)) && (!defined(__CYGWIN__) && !defined(__CYGWIN32__))
 #include <windows.h>   // for DWORD
-#include <TlHelp32.h>  // for CreateToolhelp32Snapshot
+#include <tlhelp32.h>  // for CreateToolhelp32Snapshot
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>    // for pid_t
