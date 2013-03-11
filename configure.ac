@@ -99,28 +99,7 @@ AS_IF([test -n "$OBJCOPY"], [dnl
   [gpt_cv_objcopy_weaken=no])
 AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, test $gpt_cv_objcopy_weaken = yes)
 
-case $host_os in
-  *mingw*)
-    # Disabling fast install keeps libtool from creating wrapper scripts
-    # around the executables it builds.  Such scripts have caused failures on
-    # MinGW.  Using this option means an extra link step is executed during
-    # "make install".
-    _LT_SET_OPTION([LT_INIT],[disable-fast-install])
-AC_DIAGNOSE([obsolete],[AC_DISABLE_FAST_INSTALL: Remove this warning and the call to _LT_SET_OPTION when you put
-the `disable-fast-install' option into LT_INIT's first parameter.])
-
-    ;;
-   *)
-    _LT_SET_OPTION([LT_INIT],[fast-install])
-AC_DIAGNOSE([obsolete],[AC_ENABLE_FAST_INSTALL: Remove this warning and the call to _LT_SET_OPTION when you put
-the `fast-install' option into LT_INIT's first parameter.])
-
-    ;;
-esac
-
-LT_INIT
-AC_SUBST(LIBTOOL_DEPS)
-AM_CONDITIONAL(USE_LIBTOOL, test "x$LIBTOOL" != "x")
+LT_INIT([])
 
 AC_C_INLINE
 AX_C___ATTRIBUTE__

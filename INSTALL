@@ -8,6 +8,28 @@ unlimited permission to copy, distribute and modify it.
 Perftools-Specific Install Notes
 ================================
 
+*** Building from source repository
+
+As of 2.1 gperftools does not have configure and other autotools
+products checked into it's source repository. This is common practice
+for projects using autotools.
+
+NOTE: Source releases (.tar.gz that you download from
+code.google.com/p/gperftools) still have all required files just as
+before. Nothing has changed w.r.t. building from .tar.gz releases.
+
+But, in order to build gperftools checked out from subversion
+repository you need to have autoconf, automake and libtool
+installed. And before running ./configure you have to generate it (and
+a bunch of other files) by running ./autogen.sh script. That script
+will take care of calling correct autotools programs in correct order.
+
+If you're maintainer then it's business as usual too. Just run make
+dist (or, preferably, make distcheck) and it'll produce .tar.gz or
+.tar.bz2 with all autotools magic already included. So that users can
+build our software without having autotools.
+
+
 *** NOTE FOR 64-BIT LINUX SYSTEMS
 
 The glibc built-in stack-unwinder on 64-bit systems has some problems
