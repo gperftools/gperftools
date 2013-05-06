@@ -540,6 +540,12 @@ tcmalloc_minimal_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_minimal_large_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
+TESTS += tcmalloc_minimal_large_heap_fragmentation_unittest
+tcmalloc_minimal_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
+tcmalloc_minimal_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_minimal_large_heap_fragmentation_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+
 # This tests it works to LD_PRELOAD libtcmalloc (tests maybe_threads.cc)
 # In theory this should work under mingw, but mingw has trouble running
 # shell scripts that end in .exe.  And it doesn't seem to build shared
@@ -964,6 +970,12 @@ tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
 tcmalloc_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_large_unittest_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
+
+TESTS += tcmalloc_large_heap_fragmentation_unittest
+tcmalloc_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
+tcmalloc_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_large_heap_fragmentation_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+tcmalloc_large_heap_fragmentation_unittest_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 
 TESTS += raw_printer_test
 raw_printer_test_SOURCES = src/tests/raw_printer_test.cc
