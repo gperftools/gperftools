@@ -34,6 +34,7 @@
 #include "config.h"
 #include "common.h"
 #include "system-alloc.h"
+#include "base/spinlock.h"
 
 namespace tcmalloc {
 
@@ -211,12 +212,56 @@ void SizeMap::Init() {
 
 // Metadata allocator -- keeps stats about how many bytes allocated.
 static uint64_t metadata_system_bytes_ = 0;
+static const size_t kMetadataAllocChunkSize = 8*1024*1024;
+static const size_t kMetadataBigAllocThreshold = kMetadataAllocChunkSize / 8;
+// usually malloc uses larger alignments, but because metadata cannot
+// have and fancy simd types, aligning on pointer size seems fine
+static const size_t kMetadataAllignment = sizeof(void *);
+
+static char *metadata_chunk_alloc_;
+static size_t metadata_chunk_avail_;
+
+static SpinLock metadata_alloc_lock(SpinLock::LINKER_INITIALIZED);
+
 void* MetaDataAlloc(size_t bytes) {
-  void* result = TCMalloc_SystemAlloc(bytes, NULL);
-  if (result != NULL) {
-    metadata_system_bytes_ += bytes;
+  if (bytes >= kMetadataAllocChunkSize) {
+    void *rv = TCMalloc_SystemAlloc(kMetadataBigAllocThreshold,
+                                    NULL, kMetadataAllignment);
+    if (rv != NULL) {
+      metadata_system_bytes_ += bytes;
+    }
+    return rv;
   }
-  return result;
+
+  SpinLockHolder h(&metadata_alloc_lock);
+
+  // the following works by essentially turning address to integer of
+  // log_2 kMetadataAllignment size and negating it. I.e. negated
+  // value + original value gets 0 and that's what we want modulo
+  // kMetadataAllignment. Note, we negate before masking higher bits
+  // off, otherwise we'd have to mask them off after negation anyways.
+  intptr_t alignment = -reinterpret_cast<intptr_t>(metadata_chunk_alloc_) & (kMetadataAllignment-1);
+
+  if (metadata_chunk_avail_ < bytes + alignment) {
+    size_t real_size;
+    void *ptr = TCMalloc_SystemAlloc(kMetadataAllocChunkSize,
+                                     &real_size, kMetadataAllignment);
+    if (ptr == NULL) {
+      return NULL;
+    }
+
+    metadata_chunk_alloc_ = static_cast<char *>(ptr);
+    metadata_chunk_avail_ = real_size;
+
+    alignment = 0;
+  }
+
+  void *rv = static_cast<void *>(metadata_chunk_alloc_ + alignment);
+  bytes += alignment;
+  metadata_chunk_alloc_ += bytes;
+  metadata_chunk_avail_ -= bytes;
+  metadata_system_bytes_ += bytes;
+  return rv;
 }
 
 uint64_t metadata_system_bytes() { return metadata_system_bytes_; }
