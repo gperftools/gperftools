@@ -108,6 +108,8 @@ Span* PageHeap::SearchFreeAndLargeLists(Length n) {
   return AllocLarge(n);  // May be NULL
 }
 
+static const size_t kForcedCoalesceInterval = 128*1024*1024;
+
 Span* PageHeap::New(Length n) {
   ASSERT(Check());
   ASSERT(n > 0);
@@ -115,6 +117,38 @@ Span* PageHeap::New(Length n) {
   Span* result = SearchFreeAndLargeLists(n);
   if (result != NULL)
     return result;
+
+  if (stats_.free_bytes != 0 && stats_.unmapped_bytes != 0
+      && stats_.free_bytes + stats_.unmapped_bytes >= stats_.system_bytes / 4
+      && (stats_.system_bytes / kForcedCoalesceInterval
+          != (stats_.system_bytes + (n << kPageShift)) / kForcedCoalesceInterval)) {
+    // We're about to grow heap, but there are lots of free pages.
+    // tcmalloc's design decision to keep unmapped and free spans
+    // separately and never coalesce them means that sometimes there
+    // can be free pages span of sufficient size, but it consists of
+    // "segments" of different type so page heap search cannot find
+    // it. In order to prevent growing heap and wasting memory in such
+    // case we're going to unmap all free pages. So that all free
+    // spans are maximally coalesced.
+    //
+    // We're also limiting 'rate' of going into this path to be at
+    // most once per 128 megs of heap growth. Otherwise programs that
+    // grow heap frequently (and that means by small amount) could be
+    // penalized with higher count of minor page faults.
+    //
+    // See also large_heap_fragmentation_unittest.cc and
+    // https://code.google.com/p/gperftools/issues/detail?id=368
+    ReleaseAtLeastNPages(static_cast<Length>(0x7fffffff));
+
+    // then try again. If we are forced to grow heap because of large
+    // spans fragmentation and not because of problem described above,
+    // then at the very least we've just unmapped free but
+    // insufficiently big large spans back to OS. So in case of really
+    // unlucky memory fragmentation we'll be consuming virtual address
+    // space, but not real memory
+    result = SearchFreeAndLargeLists(n);
+    if (result != NULL) return result;
+  }
 
   // Grow the heap and try again.
   if (!GrowHeap(n)) {
