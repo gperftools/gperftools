@@ -535,6 +535,12 @@ bool PreamblePatcher::IsShortConditionalJump(
   return (*(target) & 0x70) == 0x70 && instruction_size == 2;
 }
 
+bool PreamblePatcher::IsShortJump(
+    unsigned char* target,
+    unsigned int instruction_size) {
+  return target[0] == 0xeb && instruction_size == 2;
+}
+
 bool PreamblePatcher::IsNearConditionalJump(
     unsigned char* target,
     unsigned int instruction_size) {
@@ -594,6 +600,36 @@ SideStepError PreamblePatcher::PatchShortConditionalJump(
     memcpy(reinterpret_cast<void*>(target),
            reinterpret_cast<void*>(&jmpcode), 2);
     memcpy(reinterpret_cast<void*>(target + 2),
+           reinterpret_cast<void*>(&fixup_jump_offset), 4);
+  }
+
+  return SIDESTEP_SUCCESS;
+}
+
+SideStepError PreamblePatcher::PatchShortJump(
+    unsigned char* source,
+    unsigned int instruction_size,
+    unsigned char* target,
+    unsigned int* target_bytes,
+    unsigned int target_size) {
+  // note: rel8 offset is _signed_. Thus we need signed char here.
+  unsigned char* original_jump_dest = (source + 2) + static_cast<signed char>(source[1]);
+  unsigned char* stub_jump_from = target + 5;
+  __int64 fixup_jump_offset = original_jump_dest - stub_jump_from;
+  if (fixup_jump_offset > INT_MAX || fixup_jump_offset < INT_MIN) {
+    SIDESTEP_ASSERT(false &&
+                    "Unable to fix up short jump because target"
+                    " is too far away.");
+    return SIDESTEP_JUMP_INSTRUCTION;
+  }
+
+  *target_bytes = 5;
+  if (target_size > *target_bytes) {
+    // Convert the short jump to a near jump.
+    //
+    // e9 xx xx xx xx = jmp rel32off
+    target[0] = 0xe9;
+    memcpy(reinterpret_cast<void*>(target + 1),
            reinterpret_cast<void*>(&fixup_jump_offset), 4);
   }
 

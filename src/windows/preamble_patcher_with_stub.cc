@@ -150,6 +150,11 @@ SideStepError PreamblePatcher::RawPatchWithStub(
                                              preamble_stub + stub_bytes,
                                              &jump_bytes,
                                              stub_size - stub_bytes);
+      } else if (IsShortJump(target + preamble_bytes, cur_bytes)) {
+        jump_ret = PatchShortJump(target + preamble_bytes, cur_bytes,
+                                  preamble_stub + stub_bytes,
+                                  &jump_bytes,
+                                  stub_size - stub_bytes);
       } else if (IsNearConditionalJump(target + preamble_bytes, cur_bytes) ||
                  IsNearRelativeJump(target + preamble_bytes, cur_bytes) ||
                  IsNearAbsoluteCall(target + preamble_bytes, cur_bytes) ||

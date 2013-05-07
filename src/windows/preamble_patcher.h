@@ -467,6 +467,8 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   static bool IsShortConditionalJump(unsigned char* target,
                                      unsigned int instruction_size);
 
+  static bool IsShortJump(unsigned char *target, unsigned int instruction_size);
+
   // Helper routine that determines if a target instruction is a near
   // conditional jump.
   //
@@ -546,6 +548,12 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
                                                  unsigned char* target,
                                                  unsigned int* target_bytes,
                                                  unsigned int target_size);
+
+  static SideStepError PatchShortJump(unsigned char* source,
+                                      unsigned int instruction_size,
+                                      unsigned char* target,
+                                      unsigned int* target_bytes,
+                                      unsigned int target_size);
 
   // Helper routine that converts an instruction that will convert various
   // jump-like instructions to corresponding instructions in the target buffer.
