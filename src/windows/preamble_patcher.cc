@@ -594,7 +594,9 @@ SideStepError PreamblePatcher::PatchShortConditionalJump(
     unsigned char* target,
     unsigned int* target_bytes,
     unsigned int target_size) {
-  unsigned char* original_jump_dest = (source + 2) + source[1];
+  // note: rel8 offset is signed. Thus we need to ask for signed char
+  // to negative offsets right
+  unsigned char* original_jump_dest = (source + 2) + static_cast<signed char>(source[1]);
   unsigned char* stub_jump_from = target + 6;
   __int64 fixup_jump_offset = original_jump_dest - stub_jump_from;
   if (fixup_jump_offset > INT_MAX || fixup_jump_offset < INT_MIN) {
