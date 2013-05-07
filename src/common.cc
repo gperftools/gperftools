@@ -225,7 +225,7 @@ static SpinLock metadata_alloc_lock(SpinLock::LINKER_INITIALIZED);
 
 void* MetaDataAlloc(size_t bytes) {
   if (bytes >= kMetadataAllocChunkSize) {
-    void *rv = TCMalloc_SystemAlloc(kMetadataBigAllocThreshold,
+    void *rv = TCMalloc_SystemAlloc(bytes,
                                     NULL, kMetadataAllignment);
     if (rv != NULL) {
       metadata_system_bytes_ += bytes;
