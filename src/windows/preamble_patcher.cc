@@ -103,6 +103,7 @@ void* PreamblePatcher::ResolveTargetImpl(unsigned char* target,
       new_target = target + 2 + relative_offset;
     } else if (target[0] == ASM_JMP32ABS_0 &&
                target[1] == ASM_JMP32ABS_1) {
+    jmp32rel:
       // Visual studio seems to sometimes do it this way instead of the
       // previous way.  Not sure what the rules are, but it was happening
       // with operator new in some binaries.
@@ -118,6 +119,18 @@ void* PreamblePatcher::ResolveTargetImpl(unsigned char* target,
         memcpy(&new_target_v, reinterpret_cast<void*>(target + 2), 4);
       }
       new_target = reinterpret_cast<unsigned char*>(*new_target_v);
+    } else if (kIs64BitBinary && target[0] == ASM_REXW
+               && target[1] == ASM_JMP32ABS_0
+               && target[2] == ASM_JMP32ABS_1) {
+      // in Visual Studio 2012 we're seeing jump like that:
+      //   rex.W jmpq *0x11d019(%rip)
+      //
+      // according to docs I have, rex prefix is actually unneeded and
+      // can be ignored. I.e. docs say for jumps like that operand
+      // already defaults to 64-bit. But clearly it breaks abs. jump
+      // detection above and we just skip rex
+      target++;
+      goto jmp32rel;
     } else {
       break;
     }
