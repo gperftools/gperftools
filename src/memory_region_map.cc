@@ -582,11 +582,31 @@ void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
   Region region;
   region.Create(start, size);
   // First get the call stack info into the local varible 'region':
-  const int depth =
-    max_stack_depth_ > 0
-    ? MallocHook::GetCallerStackTrace(const_cast<void**>(region.call_stack),
-                                      max_stack_depth_, kStripFrames + 1)
-    : 0;
+  int depth = 0;
+  // NOTE: libunwind also does mmap and very much likely while holding
+  // it's own lock(s). So some threads may first take libunwind lock,
+  // and then take region map lock (necessary to record mmap done from
+  // inside libunwind). On the other hand other thread(s) may do
+  // normal mmap. Which would call this method to record it. Which
+  // would then proceed with installing that record to region map
+  // while holding region map lock. That may cause mmap from our own
+  // internal allocators, so attempt to unwind in this case may cause
+  // reverse order of taking libuwind and region map locks. Which is
+  // obvious deadlock.
+  //
+  // Thankfully, we can easily detect if we're holding region map lock
+  // and avoid recording backtrace in this (rare and largely
+  // irrelevant) case. By doing this we "declare" that thread needing
+  // both locks must take region map lock last. In other words we do
+  // not allow taking libuwind lock when we already have region map
+  // lock. Note, this is generally impossible when somebody tries to
+  // mix cpu profiling and heap checking/profiling, because cpu
+  // profiler grabs backtraces at arbitrary places. But at least such
+  // combination is rarer and less relevant.
+  if (max_stack_depth_ > 0 && !LockIsHeld()) {
+    depth = MallocHook::GetCallerStackTrace(const_cast<void**>(region.call_stack),
+                                            max_stack_depth_, kStripFrames + 1);
+  }
   region.set_call_stack_depth(depth);  // record stack info fully
   RAW_VLOG(10, "New global region %p..%p from %p",
               reinterpret_cast<void*>(region.start_addr),
