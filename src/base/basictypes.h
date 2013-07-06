@@ -185,8 +185,14 @@ template <bool>
 struct CompileAssert {
 };
 
+#ifdef HAVE___ATTRIBUTE__
+# define ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+# define ATTRIBUTE_UNUSED
+#endif
+
 #define COMPILE_ASSERT(expr, msg)                               \
-  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1]
+  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] ATTRIBUTE_UNUSED
 
 #define arraysize(a)  (sizeof(a) / sizeof(*(a)))
 
