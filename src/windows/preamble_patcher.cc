@@ -349,7 +349,7 @@ SideStepError PreamblePatcher::Unpatch(void* target_function,
 
   // Disassemble the preamble of stub and copy the bytes back to target.
   // If we've done any conditional jumps in the preamble we need to convert
-  // them back to the orignal REL8 jumps in the target.
+  // them back to the original REL8 jumps in the target.
   MiniDisassembler disassembler;
   unsigned int preamble_bytes = 0;
   unsigned int target_bytes = 0;

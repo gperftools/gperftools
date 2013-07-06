@@ -78,7 +78,7 @@ extern double CyclesPerSecond(void);
 
 
 //  Return true if we're running POSIX (e.g., NPTL on Linux) threads,
-//  as opposed to a non-POSIX thread libary.  The thing that we care
+//  as opposed to a non-POSIX thread library.  The thing that we care
 //  about is whether a thread's pid is the same as the thread that
 //  spawned it.  If so, this function returns true.
 //  Thread-safe.

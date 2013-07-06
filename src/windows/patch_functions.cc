@@ -239,7 +239,7 @@ class LibcInfo {
 // given module, these three go together.  And in fact,
 // Perftools_malloc_ may need to call origstub_malloc_, which means we
 // either need to change Perftools_malloc_ to take origstub_malloc_ as
-// an arugment -- unfortunately impossible since it needs to keep the
+// an argument -- unfortunately impossible since it needs to keep the
 // same API as normal malloc -- or we need to write a different
 // version of Perftools_malloc_ for each LibcInfo instance we create.
 // We choose the second route, and use templates to implement it (we

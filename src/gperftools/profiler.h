@@ -123,7 +123,7 @@ PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname);
  *
  * 'options' may be NULL, in which case all are given default values.
  *
- * Returns nonzero if profiling was started sucessfully, or zero else.
+ * Returns nonzero if profiling was started successfully, or zero else.
  */
 PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(
     const char *fname, const struct ProfilerOptions *options);

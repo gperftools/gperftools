@@ -5061,7 +5061,7 @@ sub GetProcedureBoundaries {
   # "nm -f $image" is supposed to fail on GNU nm, but if:
   #
   # a. $image starts with [BbSsPp] (for example, bin/foo/bar), AND
-  # b. you have a.out in your current directory (a not uncommon occurence)
+  # b. you have a.out in your current directory (a not uncommon occurrence)
   #
   # then "nm -f $image" succeeds because -f only looks at the first letter of
   # the argument, which looks valid because it's [BbSsPp], and then since
