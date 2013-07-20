@@ -1,6 +1,6 @@
 Source: gperftools
 Priority: optional
-Maintainer: Google Inc. and others <google-perftools@googlegroups.com>
+Maintainer: gperftools Contributors <google-perftools@googlegroups.com>
 Build-Depends: debhelper (>= 4.0.0), binutils
 Standards-Version: 3.6.1
 

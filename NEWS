@@ -1,3 +1,38 @@
+== 20 July 2013 ==
+
+gperftools 2.1rc is out!
+
+As a result of more than a year of contributions we're ready for 2.1
+release.
+
+But before making that step I'd like to create RC and make sure people
+have chance to test it.
+
+Here are notable changes since 2.0:
+
+* fixes for building on newer platforms. Notably, there's now initial
+  support for x32 ABI (--enable-minimal only at this time))
+
+* new getNumericProperty stats for cache sizes
+
+* added HEAP_PROFILER_TIME_INTERVAL variable (see documentation)
+
+* added environment variable to control heap size (TCMALLOC_HEAP_LIMIT_MB)
+
+* added environment variable to disable release of memory back to OS
+  (TCMALLOC_DISABLE_MEMORY_RELEASE)
+
+* cpu profiler can now be switched on and off by sending it a signal
+  (specified in CPUPROFILESIGNAL)
+
+* (issue 491) fixed race-ful spinlock wake-ups
+
+* (issue 496) added some support for fork-ing of process that is using
+  tcmalloc
+
+* (issue 368) improved memory fragmentation when large chunks of
+  memory are allocated/freed
+
 == 03 February 2012 ==
 
 I've just released gperftools 2.0

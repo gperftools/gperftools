@@ -9,8 +9,8 @@ Release: %rel
 Group: Development/Libraries
 URL: http://code.google.com/p/gperftools/
 License: BSD
-Vendor: Google Inc. and others
-Packager: Google Inc. and others <google-perftools@googlegroups.com>
+Vendor: gperftools Contributors
+Packager: gperftools Contributors <google-perftools@googlegroups.com>
 Source: http://%{NAME}.googlecode.com/files/%{NAME}-%{VERSION}.tar.gz
 Distribution: Redhat 7 and above.
 Buildroot: %{_tmppath}/%{name}-root

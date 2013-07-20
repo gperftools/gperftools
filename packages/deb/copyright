@@ -1,11 +1,14 @@
-This package was debianized by Craig Silverstein <google-perftools@googlegroups.com>
-on Fri, 03 Feb 2012 15:40:45 -0800.
+This package was debianized by gperftools Contributors <google-perftools@googlegroups.com>
+on Sat, 20 Jul 2013 14:21:10 -0700.
 
 It was downloaded from http://code.google.com/p/gperftools/downloads/list
 
 Upstream Author: google-perftools@googlegroups.com
 
 Copyright (c) 2005, Google Inc.
+All rights reserved.
+
+Copyright (c) 2013, gperftools Contributors
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
