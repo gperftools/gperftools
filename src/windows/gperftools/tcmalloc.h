@@ -50,8 +50,8 @@
 // Define the version number so folks can check against it
 #define TC_VERSION_MAJOR  2
 #define TC_VERSION_MINOR  0
-#define TC_VERSION_PATCH  ""
-#define TC_VERSION_STRING "gperftools 2.0"
+#define TC_VERSION_PATCH  ".99"
+#define TC_VERSION_STRING "gperftools 2.0.99"
 
 #include <stdlib.h>   // for struct mallinfo, if it's defined
 
