@@ -110,7 +110,7 @@ inline Atomic32 Acquire_AtomicExchange(volatile Atomic32* ptr,
   return old_value;
 }
 
-inline Atomic64 Release_AtomicExchange(volatile Atomic32* ptr,
+inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
                                        Atomic32 new_value) {
   MemoryBarrier();
   return NoBarrier_AtomicExchange(ptr, new_value);
