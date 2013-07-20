@@ -354,6 +354,15 @@ AC_PROGRAM_INVOCATION_NAME
 # Make the install prefix available, to figure out where to look for pprof
 AC_INSTALL_PREFIX
 
+dnl only very recent mingw has sleep and nanosleep
+case "$host" in
+   *-mingw*)
+     AC_CHECK_DECLS([sleep], [], [], [#include <unistd.h>])
+     AC_CHECK_DECLS([nanosleep], [], [], [#include <time.h>])
+   ;;
+esac
+
+
 # For windows, this has a non-trivial value (__declspec(export)), but any
 # system that uses configure wants this to be the empty string.
 AC_DEFINE(PERFTOOLS_DLL_DECL,,
