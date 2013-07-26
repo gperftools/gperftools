@@ -407,7 +407,7 @@ inline int poll(struct pollfd* fds, int nfds, int timeout) {
   return 0;
 }
 
-EXTERN_C int getpagesize();   /* in port.cc */
+EXTERN_C PERFTOOLS_DLL_DECL int getpagesize();   /* in port.cc */
 
 /* ----------------------------------- OTHER */
 

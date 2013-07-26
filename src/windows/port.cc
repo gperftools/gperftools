@@ -50,6 +50,7 @@
 // -----------------------------------------------------------------------
 // Basic libraries
 
+PERFTOOLS_DLL_DECL
 int getpagesize() {
   static int pagesize = 0;
   if (pagesize == 0) {
