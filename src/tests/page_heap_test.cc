@@ -154,5 +154,12 @@ int main(int argc, char **argv) {
   TestPageHeap_Stats();
   TestPageHeap_Limit();
   printf("PASS\n");
+  // on windows as part of library destructors we call getenv which
+  // calls malloc which fails due to our exhausted heap limit. It then
+  // causes fancy stack overflow because log message we're printing
+  // for failed allocation somehow cause malloc calls too
+  //
+  // To keep us out of trouble we just drop malloc limit
+  FLAGS_tcmalloc_heap_limit_mb = 0;
   return 0;
 }
