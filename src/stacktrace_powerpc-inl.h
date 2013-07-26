@@ -45,32 +45,45 @@
 #include <stdlib.h>   // for NULL
 #include <gperftools/stacktrace.h>
 
+struct layout_ppc {
+  struct layout_ppc *next;
+#if defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
+  long condition_register;
+#endif
+  void *return_addr;
+};
+
 // Given a pointer to a stack frame, locate and return the calling
 // stackframe, or return NULL if no stackframe can be found. Perform sanity
 // checks (the strictness of which is controlled by the boolean parameter
 // "STRICT_UNWINDING") to reduce the chance that a bad pointer is returned.
 template<bool STRICT_UNWINDING>
-static void **NextStackFrame(void **old_sp) {
-  void **new_sp = (void **) *old_sp;
+static layout_ppc *NextStackFrame(layout_ppc *current) {
+  uintptr_t old_sp = (uintptr_t)(current);
+  uintptr_t new_sp = (uintptr_t)(current->next);
 
   // Check that the transition from frame pointer old_sp to frame
   // pointer new_sp isn't clearly bogus
   if (STRICT_UNWINDING) {
     // With the stack growing downwards, older stack frame must be
     // at a greater address that the current one.
-    if (new_sp <= old_sp) return NULL;
+    if (new_sp <= old_sp)
+      return NULL;
     // Assume stack frames larger than 100,000 bytes are bogus.
-    if ((uintptr_t)new_sp - (uintptr_t)old_sp > 100000) return NULL;
+    if (new_sp - old_sp > 100000)
+      return NULL;
   } else {
     // In the non-strict mode, allow discontiguous stack frames.
     // (alternate-signal-stacks for example).
-    if (new_sp == old_sp) return NULL;
+    if (new_sp == old_sp)
+      return NULL;
     // And allow frames upto about 1MB.
-    if ((new_sp > old_sp)
-        && ((uintptr_t)new_sp - (uintptr_t)old_sp > 1000000)) return NULL;
+    if ((new_sp > old_sp) && (new_sp - old_sp > 1000000))
+      return NULL;
   }
-  if ((uintptr_t)new_sp & (sizeof(void *) - 1)) return NULL;
-  return new_sp;
+  if (new_sp & (sizeof(void *) - 1))
+    return NULL;
+  return current->next;
 }
 
 // This ensures that GetStackTrace stes up the Link Register properly.
@@ -80,6 +93,26 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 
 // Note: this part of the file is included several times.
 // Do not put globals below.
+
+// Load instruction used on top-of-stack get.
+#if defined(__PPC64__) || defined(__LP64__)
+# define LOAD "ld"
+#else
+# define LOAD "lwz"
+#endif
+
+#if defined(__linux__) && defined(__PPC__)
+# define TOP_STACK "%0,0(1)"
+#elif defined(__MACH__) && defined(__APPLE__)
+// Apple OS X uses an old version of gnu as -- both Darwin 7.9.0 (Panther)
+// and Darwin 8.8.1 (Tiger) use as 1.38.  This means we have to use a
+// different asm syntax.  I don't know quite the best way to discriminate
+// systems using the old as from the new one; I've gone with __APPLE__.
+// TODO(csilvers): use autoconf instead, to look for 'as --version' == 1 or 2
+# define TOP_STACK "%0,0(r1)"
+#endif
+
+
 
 // The following 4 functions are generated from the code below:
 //   GetStack{Trace,Frames}()
@@ -93,78 +126,44 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 int GET_STACK_TRACE_OR_FRAMES {
-  void **sp;
-  // Apple OS X uses an old version of gnu as -- both Darwin 7.9.0 (Panther)
-  // and Darwin 8.8.1 (Tiger) use as 1.38.  This means we have to use a
-  // different asm syntax.  I don't know quite the best way to discriminate
-  // systems using the old as from the new one; I've gone with __APPLE__.
-  // TODO(csilvers): use autoconf instead, to look for 'as --version' == 1 or 2
-#ifdef __APPLE__
-  __asm__ volatile ("mr %0,r1" : "=r" (sp));
-#else
-  __asm__ volatile ("mr %0,1" : "=r" (sp));
-#endif
+  layout_ppc *current;
+  int n;
 
-  // On PowerPC, the "Link Register" or "Link Record" (LR), is a stack
-  // entry that holds the return address of the subroutine call (what
-  // instruction we run after our function finishes).  This is the
-  // same as the stack-pointer of our parent routine, which is what we
-  // want here.  While the compiler will always(?) set up LR for
-  // subroutine calls, it may not for leaf functions (such as this one).
-  // This routine forces the compiler (at least gcc) to push it anyway.
+  // Force GCC to spill LR.
+  asm volatile ("" : "=l"(current));
+
+  // Get the address on top-of-stack
+  asm volatile (LOAD " " TOP_STACK : "=r"(current));
+
   StacktracePowerPCDummyFunction();
 
-#if IS_STACK_FRAMES
-  // Note we do *not* increment skip_count here for the SYSV ABI.  If
-  // we did, the list of stack frames wouldn't properly match up with
-  // the list of return addresses.  Note this means the top pc entry
-  // is probably bogus for linux/ppc (and other SYSV-ABI systems).
-#else
-  // The LR save area is used by the callee, so the top entry is bogus.
-  skip_count++;
-#endif
+  n = 0;
+  while (current && n < max_depth) {
+    result[n] = current->return_addr;
 
-  int n = 0;
-  while (sp && n < max_depth) {
     // The GetStackFrames routine is called when we are in some
     // informational context (the failure signal handler for example).
     // Use the non-strict unwinding rules to produce a stack trace
     // that is as complete as possible (even if it contains a few
     // bogus entries in some rare cases).
-    void **next_sp = NextStackFrame<!IS_STACK_FRAMES>(sp);
-
-    if (skip_count > 0) {
-      skip_count--;
-    } else {
-      // PowerPC has 3 main ABIs, which say where in the stack the
-      // Link Register is.  For DARWIN and AIX (used by apple and
-      // linux ppc64), it's in sp[2].  For SYSV (used by linux ppc),
-      // it's in sp[1].
-#if defined(_CALL_AIX) || defined(_CALL_DARWIN)
-      result[n] = *(sp+2);
-#elif defined(_CALL_SYSV)
-      result[n] = *(sp+1);
-#elif defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
-      // This check is in case the compiler doesn't define _CALL_AIX/etc.
-      result[n] = *(sp+2);
-#elif defined(__linux)
-      // This check is in case the compiler doesn't define _CALL_SYSV.
-      result[n] = *(sp+1);
-#else
-#error Need to specify the PPC ABI for your archiecture.
-#endif
-
+    layout_ppc *next = NextStackFrame<!IS_STACK_FRAMES>(current);
 #if IS_STACK_FRAMES
-      if (next_sp > sp) {
-        sizes[n] = (uintptr_t)next_sp - (uintptr_t)sp;
-      } else {
-        // A frame-size of 0 is used to indicate unknown frame size.
-        sizes[n] = 0;
-      }
-#endif
-      n++;
+    if (next > current) {
+      sizes[n] = (uintptr_t)next - (uintptr_t)current;
+    } else {
+      // A frame-size of 0 is used to indicate unknown frame size.
+      sizes[n] = 0;
     }
-    sp = next_sp;
+#endif
+    current = next;
+    n++;
   }
+
+  // It's possible the second-last stack frame can't return
+  // (that is, it's __libc_start_main), in which case
+  // the CRT startup code will have set its LR to 'NULL'.
+  if (n > 0 && result[n-1] == NULL)
+    n--;
+
   return n;
 }

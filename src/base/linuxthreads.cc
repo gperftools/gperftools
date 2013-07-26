@@ -96,6 +96,14 @@ static int local_clone (int (*fn)(void *), void *arg, ...)
 #endif
 #endif
 
+/* To avoid the gap cross page boundaries, increase by the large parge
+ * size mostly PowerPC system uses.  */
+#ifdef __PPC64__
+#define CLONE_STACK_SIZE 65536
+#else
+#define CLONE_STACK_SIZE 4096
+#endif
+
 static int local_clone (int (*fn)(void *), void *arg, ...) {
   /* Leave 4kB of gap between the callers stack and the new clone. This
    * should be more than sufficient for the caller to call waitpid() until
@@ -111,7 +119,7 @@ static int local_clone (int (*fn)(void *), void *arg, ...) {
    * is being debugged. This is OK and the error code will be reported
    * correctly.
    */
-  return sys_clone(fn, (char *)&arg - 4096,
+  return sys_clone(fn, (char *)&arg - CLONE_STACK_SIZE,
                    CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_UNTRACED, arg, 0, 0, 0);
 }
 

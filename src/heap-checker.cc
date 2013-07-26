@@ -1008,6 +1008,15 @@ static enum {
 // due to reliance on locale functions (these are called through RAW_LOG
 // and in other ways).
 //
+
+#if defined(HAVE_LINUX_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
+# if (defined(__i386__) || defined(__x86_64))
+#  define THREAD_REGS i386_regs
+# elif defined(__PPC__)
+#  define THREAD_REGS ppc_regs
+# endif
+#endif
+
 /*static*/ int HeapLeakChecker::IgnoreLiveThreadsLocked(void* parameter,
                                                         int num_threads,
                                                         pid_t* thread_pids,
@@ -1030,9 +1039,8 @@ static enum {
     // specially via self_thread_stack, not here:
     if (thread_pids[i] == self_thread_pid) continue;
     RAW_VLOG(11, "Handling thread with pid %d", thread_pids[i]);
-#if (defined(__i386__) || defined(__x86_64)) && \
-    defined(HAVE_LINUX_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
-    i386_regs thread_regs;
+#ifdef THREAD_REGS
+    THREAD_REGS thread_regs;
 #define sys_ptrace(r, p, a, d)  syscall(SYS_ptrace, (r), (p), (a), (d))
     // We use sys_ptrace to avoid thread locking
     // because this is called from ListAllProcessThreads

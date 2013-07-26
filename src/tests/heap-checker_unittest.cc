@@ -1263,6 +1263,27 @@ static void* Mmapper(uintptr_t* addr_after_mmap_call) {
   return r;
 }
 
+// On PPC64 the stacktrace returned by GetStatcTrace contains the function
+// address from .text segment while function pointers points to ODP entries.
+// The following code decodes the ODP to get the actual symbol address.
+#if defined(__linux) && defined(__PPC64__)
+static inline uintptr_t GetFunctionAddress (void* (*func)(uintptr_t*))
+{
+  struct odp_entry_t {
+    unsigned long int symbol;
+    unsigned long int toc;
+    unsigned long int env;
+  } *odp_entry = reinterpret_cast<odp_entry_t*>(func);
+
+  return static_cast<uintptr_t>(odp_entry->symbol);
+}
+#else
+static inline uintptr_t GetFunctionAddress (void* (*func)(uintptr_t*))
+{
+  return reinterpret_cast<uintptr_t>(func);
+}
+#endif
+
 // to trick complier into preventing inlining
 static void* (*mmapper_addr)(uintptr_t* addr) = &Mmapper;
 
@@ -1283,7 +1304,7 @@ static void VerifyMemoryRegionMapStackGet() {
     }
   }
   // caller must point into Mmapper function:
-  if (!(reinterpret_cast<uintptr_t>(mmapper_addr) <= caller  &&
+  if (!(GetFunctionAddress(mmapper_addr) <= caller  &&
         caller < caller_addr_limit)) {
     LOGF << std::hex << "0x" << caller
          << " does not seem to point into code of function Mmapper at "
@@ -1316,7 +1337,7 @@ extern void VerifyHeapProfileTableStackGet() {
   uintptr_t caller =
     reinterpret_cast<uintptr_t>(HeapLeakChecker::GetAllocCaller(addr));
   // caller must point into Mallocer function:
-  if (!(reinterpret_cast<uintptr_t>(mallocer_addr) <= caller  &&
+  if (!(GetFunctionAddress(mallocer_addr) <= caller  &&
         caller < caller_addr_limit)) {
     LOGF << std::hex << "0x" << caller
          << " does not seem to point into code of function Mallocer at "
