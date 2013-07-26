@@ -225,8 +225,9 @@ size_t TCMalloc_SystemTaken = 0;
 
 // This is mostly like MmapSysAllocator::Alloc, except it does these weird
 // munmap's in the middle of the page, which is forbidden in windows.
-extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
-                                  size_t alignment) {
+extern PERFTOOLS_DLL_DECL
+void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
+			   size_t alignment) {
   // Align on the pagesize boundary
   const int pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
@@ -261,6 +262,7 @@ extern void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   return reinterpret_cast<void*>(ptr);
 }
 
+extern PERFTOOLS_DLL_DECL
 bool TCMalloc_SystemRelease(void* start, size_t length) {
   // TODO(csilvers): should I be calling VirtualFree here?
   return false;
