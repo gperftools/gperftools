@@ -12,8 +12,11 @@ DECLARE_int64(tcmalloc_heap_limit_mb);
 
 namespace {
 
+// The system will only release memory if the block size is equal or hight than
+// system page size.
 static bool HaveSystemRelease =
-    TCMalloc_SystemRelease(TCMalloc_SystemAlloc(kPageSize, NULL, 0), kPageSize);
+    TCMalloc_SystemRelease(
+      TCMalloc_SystemAlloc(getpagesize(), NULL, 0), getpagesize());
 
 static void CheckStats(const tcmalloc::PageHeap* ph,
                        uint64_t system_pages,
