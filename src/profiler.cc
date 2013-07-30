@@ -202,30 +202,19 @@ CpuProfiler::CpuProfiler()
 #endif
 
   char *signal_number_str = getenv("CPUPROFILESIGNAL");
-  if (signal_number_str != NULL)
-  {
+  if (signal_number_str != NULL) {
     long int signal_number = strtol(signal_number_str, NULL, 10);
-	printf("<debug> signal_number=%ld\n", signal_number);
-    if (signal_number >=1 && signal_number <=64)
-    {
-      sighandler_t old_signal_handler = signal(signal_number, CpuProfilerSwitch);
-	  if (old_signal_handler == NULL)
-	  {
+    if (signal_number >= 1 && signal_number <= 64) {
+      void *old_signal_handler = reinterpret_cast<void *>(signal(signal_number, CpuProfilerSwitch));
+      if (old_signal_handler == NULL) {
       	RAW_LOG(INFO,"Using signal %d as cpu profiling switch", signal_number);
-		
-      }
-      else
-      {
+      } else {
         RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
       }
-    }
-	else
-	{
+    } else {
       RAW_LOG(FATAL, "Signal number %s is invalid\n", signal_number_str);
-	}
-  }
-  else
-  {
+    }
+  } else {
     char fname[PATH_MAX];
     if (!GetUniquePathFromEnv("CPUPROFILE", fname)) {
       if (!FLAGS_cpu_profiler_unittest) {
