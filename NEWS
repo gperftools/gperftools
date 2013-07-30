@@ -1,3 +1,11 @@
+== 30 July 2013 ==
+
+gperftools 2.1 is out!
+
+Just few fixes where merged after rc. Most notably:
+
+* Some fixes for debug allocation on POWER/Linux
+
 == 20 July 2013 ==
 
 gperftools 2.1rc is out!
