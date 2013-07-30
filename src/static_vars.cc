@@ -36,6 +36,7 @@
 #include "internal_logging.h"  // for CHECK_CONDITION
 #include "common.h"
 #include "sampler.h"           // for Sampler
+#include "base/googleinit.h"
 
 namespace tcmalloc {
 
@@ -95,7 +96,6 @@ void Static::InitStaticVars() {
   for (int i = 0; i < kNumClasses; ++i) {
     central_cache_[i].Init(i);
   }
-  SetupAtForkLocksHandler();
 
   // It's important to have PageHeap allocated, not in static storage,
   // so that HeapLeakChecker does not consider all the byte patterns stored
@@ -105,5 +105,7 @@ void Static::InitStaticVars() {
   DLL_Init(&sampled_objects_);
   Sampler::InitStatics();
 }
+
+REGISTER_MODULE_INITIALIZER(tcmalloc_fork_handler, SetupAtForkLocksHandler());
 
 }  // namespace tcmalloc
