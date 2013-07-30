@@ -159,14 +159,14 @@ inline AtomicWord NoBarrier_AtomicExchange(volatile AtomicWord* ptr,
       reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
 }
 
-AtomicWord Acquire_AtomicExchange(volatile AtomicWord* ptr,
-                                  AtomicWord new_value) {
+inline AtomicWord Acquire_AtomicExchange(volatile AtomicWord* ptr,
+                                         AtomicWord new_value) {
   return Acquire_AtomicExchange(
       reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
 }
 
-AtomicWord Release_AtomicExchange(volatile AtomicWord* ptr,
-                                  AtomicWord new_value) {
+inline AtomicWord Release_AtomicExchange(volatile AtomicWord* ptr,
+                                         AtomicWord new_value) {
   return Release_AtomicExchange(
       reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
 }
