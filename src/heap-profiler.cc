@@ -190,13 +190,14 @@ static char* DoGetHeapProfileLocked(char* buf, int buflen) {
   RAW_DCHECK(heap_lock.IsHeld(), "");
   int bytes_written = 0;
   if (is_on) {
-    if (FLAGS_mmap_profile) {
-      heap_profile->RefreshMMapData();
-    }
+    HeapProfileTable::Stats const stats = heap_profile->total();
+    (void)stats;   // avoid an unused-variable warning in non-debug mode.
     bytes_written = heap_profile->FillOrderedProfile(buf, buflen - 1);
-    if (FLAGS_mmap_profile) {
-      heap_profile->ClearMMapData();
-    }
+    // FillOrderedProfile should not reduce the set of active mmap-ed regions,
+    // hence MemoryRegionMap will let us remove everything we've added above:
+    RAW_DCHECK(stats.Equivalent(heap_profile->total()), "");
+    // if this fails, we somehow removed by FillOrderedProfile
+    // more than we have added.
   }
   buf[bytes_written] = '\0';
   RAW_DCHECK(bytes_written == strlen(buf), "");
@@ -435,7 +436,8 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   if (FLAGS_mmap_profile) {
     // Ask MemoryRegionMap to record all mmap, mremap, and sbrk
     // call stack traces of at least size kMaxStackDepth:
-    MemoryRegionMap::Init(HeapProfileTable::kMaxStackDepth);
+    MemoryRegionMap::Init(HeapProfileTable::kMaxStackDepth,
+                          /* use_buckets */ true);
   }
 
   if (FLAGS_mmap_log) {
@@ -455,7 +457,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
       reinterpret_cast<char*>(ProfilerMalloc(kProfileBufferSize));
 
   heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
-                   HeapProfileTable(ProfilerMalloc, ProfilerFree);
+      HeapProfileTable(ProfilerMalloc, ProfilerFree, FLAGS_mmap_profile);
 
   last_dump_alloc = 0;
   last_dump_free = 0;

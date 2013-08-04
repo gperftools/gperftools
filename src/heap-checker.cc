@@ -2206,13 +2206,14 @@ void HeapLeakChecker::BeforeConstructorsLocked() {
   RAW_CHECK(MallocHook::AddNewHook(&NewHook), "");
   RAW_CHECK(MallocHook::AddDeleteHook(&DeleteHook), "");
   constructor_heap_profiling = true;
-  MemoryRegionMap::Init(1);
+  MemoryRegionMap::Init(1, /* use_buckets */ false);
     // Set up MemoryRegionMap with (at least) one caller stack frame to record
     // (important that it's done before HeapProfileTable creation below).
   Allocator::Init();
   RAW_CHECK(heap_profile == NULL, "");
   heap_profile = new(Allocator::Allocate(sizeof(HeapProfileTable)))
-                   HeapProfileTable(&Allocator::Allocate, &Allocator::Free);
+      HeapProfileTable(&Allocator::Allocate, &Allocator::Free,
+                       /* profile_mmap */ false);
   RAW_VLOG(10, "Starting tracking the heap");
   heap_checker_on = true;
 }
