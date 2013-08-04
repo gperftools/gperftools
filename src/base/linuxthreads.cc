@@ -416,7 +416,7 @@ static void ListerThread(struct ListerParams *args) {
               /* Check if the marker is identical to the one we created      */
               if (sys_stat(fname, &tmp_sb) >= 0 &&
                   marker_sb.st_ino == tmp_sb.st_ino) {
-                long i;
+                long i, j;
 
                 /* Found one of our threads, make sure it is no duplicate    */
                 for (i = 0; i < num_threads; i++) {
@@ -452,28 +452,28 @@ static void ListerThread(struct ListerParams *args) {
                   sig_num_threads = num_threads;
                   goto next_entry;
                 }
-                /* Attaching to a process doesn't guarantee it'll stop before
-                 * ptrace returns; you have to wait on it.  Specifying __WCLONE
-                 * means it will only wait for clone children (i.e. threads,
-                 * not processes).
-                 */
-                while (sys_waitpid(pid, (int *)0, __WCLONE) < 0) {
+                while (sys_waitpid(pid, (int *)0, __WALL) < 0) {
                   if (errno != EINTR) {
-                    /* Assumes ECHILD                                        */
-                    if (pid == ppid) {
-                        /* The parent is not a clone                         */
-                        found_parent = true;
-                        break;
-                    } else {
-                        sys_ptrace_detach(pid);
-                        num_threads--;
-                        sig_num_threads = num_threads;
-                        goto next_entry;
-                    }
+                    sys_ptrace_detach(pid);
+                    num_threads--;
+                    sig_num_threads = num_threads;
+                    goto next_entry;
                   }
                 }
 
-                added_entries++;
+                if (sys_ptrace(PTRACE_PEEKDATA, pid, &i, &j) || i++ != j ||
+                    sys_ptrace(PTRACE_PEEKDATA, pid, &i, &j) || i   != j) {
+                  /* Address spaces are distinct, even though both
+                   * processes show the "marker". This is probably
+                   * a forked child process rather than a thread.
+                   */
+                  sys_ptrace_detach(pid);
+                  num_threads--;
+                  sig_num_threads = num_threads;
+                } else {
+                  found_parent |= pid == ppid;
+                  added_entries++;
+                }
               }
             }
           }
