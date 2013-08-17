@@ -851,7 +851,8 @@ S_TCMALLOC_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) \
                       src/base/stl_allocator.h \
                       src/base/sysinfo.h \
                       src/base/thread_lister.h \
-                      src/heap-profile-table.h
+                      src/heap-profile-table.h \
+                      src/heap-profile-stats.h
 SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
                        src/gperftools/heap-checker.h
 TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) \
