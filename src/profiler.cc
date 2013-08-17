@@ -205,9 +205,9 @@ CpuProfiler::CpuProfiler()
   if (signal_number_str != NULL) {
     long int signal_number = strtol(signal_number_str, NULL, 10);
     if (signal_number >= 1 && signal_number <= 64) {
-      void *old_signal_handler = reinterpret_cast<void *>(signal(signal_number, CpuProfilerSwitch));
-      if (old_signal_handler == NULL) {
-      	RAW_LOG(INFO,"Using signal %d as cpu profiling switch", signal_number);
+      intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, CpuProfilerSwitch));
+      if (old_signal_handler == 0) {
+        RAW_LOG(INFO,"Using signal %d as cpu profiling switch", signal_number);
       } else {
         RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
       }
