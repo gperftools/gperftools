@@ -489,6 +489,25 @@
 				</FileConfiguration>
 			</File>
 			<File
+				RelativePath="..\..\src\windows\system-alloc.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalOptions="/D PERFTOOLS_DLL_DECL="
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
+			<File
 				RelativePath="..\..\src\raw_printer.cc">
 				<FileConfiguration
 					Name="Debug|Win32">

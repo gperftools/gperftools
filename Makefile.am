@@ -214,6 +214,7 @@ WINDOWS_INCLUDES = src/windows/port.h \
 noinst_LTLIBRARIES += libwindows.la
 libwindows_la_SOURCES = $(WINDOWS_INCLUDES) \
                         src/windows/port.cc \
+                        src/windows/system-alloc.cc \
                         src/windows/ia32_modrm_map.cc \
                         src/windows/ia32_opcode_map.cc \
                         src/windows/mini_disassembler.cc \

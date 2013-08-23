@@ -45,7 +45,6 @@
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "internal_logging.h"
-#include "system-alloc.h"
 
 // -----------------------------------------------------------------------
 // Basic libraries
@@ -213,68 +212,6 @@ extern "C" int perftools_pthread_once(pthread_once_t *once_control,
     }
   }
   return 0;
-}
-
-
-// -----------------------------------------------------------------------
-// These functions replace system-alloc.cc
-
-// The current system allocator declaration (unused here)
-SysAllocator* sys_alloc = NULL;
-// Number of bytes taken from system.
-size_t TCMalloc_SystemTaken = 0;
-
-// This is mostly like MmapSysAllocator::Alloc, except it does these weird
-// munmap's in the middle of the page, which is forbidden in windows.
-extern PERFTOOLS_DLL_DECL
-void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
-			   size_t alignment) {
-  // Align on the pagesize boundary
-  const int pagesize = getpagesize();
-  if (alignment < pagesize) alignment = pagesize;
-  size = ((size + alignment - 1) / alignment) * alignment;
-
-  // Safest is to make actual_size same as input-size.
-  if (actual_size) {
-    *actual_size = size;
-  }
-
-  // Ask for extra memory if alignment > pagesize
-  size_t extra = 0;
-  if (alignment > pagesize) {
-    extra = alignment - pagesize;
-  }
-
-  void* result = VirtualAlloc(0, size + extra,
-                              MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-  if (result == NULL)
-    return NULL;
-
-  TCMalloc_SystemTaken += size + extra;
-
-  // Adjust the return memory so it is aligned
-  uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
-  size_t adjust = 0;
-  if ((ptr & (alignment - 1)) != 0) {
-    adjust = alignment - (ptr & (alignment - 1));
-  }
-
-  ptr += adjust;
-  return reinterpret_cast<void*>(ptr);
-}
-
-extern PERFTOOLS_DLL_DECL
-bool TCMalloc_SystemRelease(void* start, size_t length) {
-  // TODO(csilvers): should I be calling VirtualFree here?
-  return false;
-}
-
-bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
-  return false;   // we don't allow registration on windows, right now
-}
-
-void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {
-  // We don't dump stats on windows, right now
 }
 
 
