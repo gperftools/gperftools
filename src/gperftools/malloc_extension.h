@@ -71,7 +71,7 @@ struct MallocRange;
 }
 
 // Interface to a pluggable system allocator.
-class SysAllocator {
+class PERFTOOLS_DLL_DECL SysAllocator {
  public:
   SysAllocator() {
   }
