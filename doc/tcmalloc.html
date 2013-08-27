@@ -86,9 +86,9 @@ needed, and periodic garbage collections are used to migrate memory
 back from a thread-local cache into the central data structures.</p>
 <center><img src="overview.gif"></center>
 
-<p>TCMalloc treats objects with size &lt;= 32K ("small" objects)
+<p>TCMalloc treats objects with size &lt;= 256K ("small" objects)
 differently from larger objects.  Large objects are allocated directly
-from the central heap using a page-level allocator (a page is a 4K
+from the central heap using a page-level allocator (a page is a 8K
 aligned region of memory).  I.e., a large object is always
 page-aligned and occupies an integral number of pages.</p>
 
@@ -99,8 +99,8 @@ up into 32 objects of size 128 bytes each.</p>
 
 <h2><A NAME="Small_Object_Allocation">Small Object Allocation</A></h2>
 
-<p>Each small object size maps to one of approximately 60 allocatable
-size-classes.  For example, all allocations in the range 833 to 1024
+<p>Each small object size maps to one of approximately 88 allocatable
+size-classes.  For example, all allocations in the range 961 to 1024
 bytes are rounded up to 1024.  The size-classes are spaced so that
 small sizes are separated by 8 bytes, larger sizes by 16 bytes, even
 larger sizes by 32 bytes, and so forth.  The maximal spacing is
@@ -198,12 +198,12 @@ to see how it affects the <code>max_length</code>.
 
 <h2><A NAME="Large_Object_Allocation">Large Object Allocation</A></h2>
 
-<p>A large object size (&gt; 32K) is rounded up to a page size (4K)
+<p>A large object size (&gt; 256K) is rounded up to a page size (8K)
 and is handled by a central page heap.  The central page heap is again
-an array of free lists.  For <code>i &lt; 256</code>, the
+an array of free lists.  For <code>i &lt; 128</code>, the
 <code>k</code>th entry is a free list of runs that consist of
-<code>k</code> pages.  The <code>256</code>th entry is a free list of
-runs that have length <code>&gt;= 256</code> pages: </p>
+<code>k</code> pages.  The <code>128</code>th entry is a free list of
+runs that have length <code>&gt;= 128</code> pages: </p>
 <center><img src="pageheap.gif"></center>
 
 <p>An allocation for <code>k</code> pages is satisfied by looking in
@@ -238,9 +238,9 @@ pages and span <em>d</em> occupies 3 pages.</p>
 
 <p>In a 32-bit address space, the central array is represented by a a
 2-level radix tree where the root contains 32 entries and each leaf
-contains 2^15 entries (a 32-bit address spave has 2^20 4K pages, and
-the first level of tree divides the 2^20 pages by 2^5).  This leads to
-a starting memory usage of 128KB of space (2^15*4 bytes) for the
+contains 2^14 entries (a 32-bit address space has 2^19 8K pages, and
+the first level of tree divides the 2^19 pages by 2^5).  This leads to
+a starting memory usage of 64KB of space (2^14*4 bytes) for the
 central array, which seems acceptable.</p>
 
 <p>On 64-bit machines, we use a 3-level radix tree.</p>
