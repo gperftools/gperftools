@@ -2,7 +2,7 @@
 ## In general, the safest way to proceed is to run ./autogen.sh
 
 # make sure we're interpreted by some minimal autoconf
-AC_PREREQ([2.68])
+AC_PREREQ([2.59])
 
 AC_INIT([gperftools],[2.1],[google-perftools@googlegroups.com])
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
