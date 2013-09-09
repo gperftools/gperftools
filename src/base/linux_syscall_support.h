@@ -2020,6 +2020,23 @@ struct kernel_stat {
       return LSS_NAME(rt_sigprocmask)(how, set, oldset, (KERNEL_NSIG+7)/8);
     }
   #endif
+  #if defined(__mips__) && (_MIPS_ISA == _MIPS_ISA_MIPS64)
+    LSS_INLINE _syscall6(void*, mmap,              void*, s,
+                         size_t,                   l, int,               p,
+                         int,                      f, int,               d,
+                         __off64_t,                o)
+    LSS_INLINE int LSS_NAME(sigaction)(int signum,
+                                       const struct kernel_sigaction *act,
+                                       struct kernel_sigaction *oldact) {
+        return LSS_NAME(rt_sigaction)(signum, act, oldact, (KERNEL_NSIG+7)/8);
+
+    }
+    LSS_INLINE int LSS_NAME(sigprocmask)(int how,
+                                         const struct kernel_sigset_t *set,
+                                         struct kernel_sigset_t *oldset) {
+      return LSS_NAME(rt_sigprocmask)(how, set, oldset, (KERNEL_NSIG+7)/8);
+    }
+  #endif
   #if defined(__x86_64__) || \
       defined(__arm__) || \
      (defined(__mips__) && _MIPS_SIM != _MIPS_SIM_ABI32)

@@ -233,6 +233,7 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/atomicops-internals-linuxppc.h \
                     src/base/atomicops-internals-arm-generic.h \
                     src/base/atomicops-internals-arm-v6plus.h \
+                    src/base/atomicops-internals-mips.h \
                     src/base/atomicops-internals-windows.h \
                     src/base/atomicops-internals-x86.h
 noinst_LTLIBRARIES += libspinlock.la
