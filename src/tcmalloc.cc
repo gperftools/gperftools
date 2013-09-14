@@ -926,7 +926,11 @@ TCMallocGuard::TCMallocGuard() {
 
 TCMallocGuard::~TCMallocGuard() {
   if (--tcmallocguard_refcount == 0) {
-    const char* env = getenv("MALLOCSTATS");
+    const char* env = NULL;
+    if (!RunningOnValgrind()) {
+      // Valgrind uses it's own malloc so we cannot do MALLOCSTATS
+      env = getenv("MALLOCSTATS");
+    }
     if (env != NULL) {
       int level = atoi(env);
       if (level < 1) level = 1;
