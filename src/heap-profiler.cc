@@ -51,6 +51,7 @@
 #include <errno.h>
 #include <assert.h>
 #include <sys/types.h>
+#include <signal.h>
 
 #include <algorithm>
 #include <string>
@@ -535,6 +536,14 @@ extern "C" void HeapProfilerDump(const char *reason) {
   }
 }
 
+// Signal handler that is registered when a user selectable signal
+// number is defined in the environment variable HEAPPROFILESIGNAL.
+static void HeapProfilerDumpSignal(int signal_number) {
+  (void)signal_number;
+  HeapProfilerDump("signal");
+}
+
+
 //----------------------------------------------------------------------
 // Initialization/finalization code
 //----------------------------------------------------------------------
@@ -554,6 +563,19 @@ static void HeapProfilerInit() {
     return;
   }
 #endif
+
+  char *signal_number_str = getenv("HEAPPROFILESIGNAL");
+  if (signal_number_str != NULL) {
+    long int signal_number = strtol(signal_number_str, NULL, 10);
+    intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, HeapProfilerDumpSignal));
+    if (old_signal_handler == reinterpret_cast<intptr_t>(SIG_ERR)) {
+      RAW_LOG(FATAL, "Failed to set signal. Perhaps signal number %s is invalid\n", signal_number_str);
+    } else if (old_signal_handler == NULL) {
+      RAW_LOG(INFO,"Using signal %d as heap profiling switch", signal_number);
+    } else {
+      RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
+    }
+  }
 
   HeapProfileTable::CleanupOldProfiles(fname);
 
