@@ -1,3 +1,4 @@
+// -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright 2009 Google Inc. All Rights Reserved.
 // Author: fikes@google.com (Andrew Fikes)
 
