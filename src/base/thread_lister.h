@@ -55,26 +55,26 @@ typedef int (*ListAllProcessThreadsCallBack)(void *parameter,
  * address space, the filesystem, and the filehandles with the caller. Most
  * notably, it does not share the same pid and ppid; and if it terminates,
  * the rest of the application is still there. 'callback' is supposed to do
- * or arrange for ResumeAllProcessThreads. This happens automatically, if
+ * or arrange for TCMalloc_ResumeAllProcessThreads. This happens automatically, if
  * the thread raises a synchronous signal (e.g. SIGSEGV); asynchronous
  * signals are blocked. If the 'callback' decides to unblock them, it must
  * ensure that they cannot terminate the application, or that
- * ResumeAllProcessThreads will get called.
+ * TCMalloc_ResumeAllProcessThreads will get called.
  * It is an error for the 'callback' to make any library calls that could
  * acquire locks. Most notably, this means that most system calls have to
  * avoid going through libc. Also, this means that it is not legal to call
  * exit() or abort().
  * We return -1 on error and the return value of 'callback' on success.
  */
-int ListAllProcessThreads(void *parameter,
-                          ListAllProcessThreadsCallBack callback, ...);
+int TCMalloc_ListAllProcessThreads(void *parameter,
+                                   ListAllProcessThreadsCallBack callback, ...);
 
 /* This function resumes the list of all linux threads that
- * ListAllProcessThreads pauses before giving to its callback.
- * The function returns non-zero if at least one thread was
+ * TCMalloc_ListAllProcessThreads pauses before giving to its
+ * callback.  The function returns non-zero if at least one thread was
  * suspended and has now been resumed.
  */
-int ResumeAllProcessThreads(int num_threads, pid_t *thread_pids);
+int TCMalloc_ResumeAllProcessThreads(int num_threads, pid_t *thread_pids);
 
 #ifdef __cplusplus
 }

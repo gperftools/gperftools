@@ -257,15 +257,15 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   // Helper for DoNoLeaks to ignore all objects reachable from all live data
   static void IgnoreAllLiveObjectsLocked(const void* self_stack_top);
 
-  // Callback we pass to ListAllProcessThreads (see thread_lister.h)
+  // Callback we pass to TCMalloc_ListAllProcessThreads (see thread_lister.h)
   // that is invoked when all threads of our process are found and stopped.
   // The call back does the things needed to ignore live data reachable from
   // thread stacks and registers for all our threads
   // as well as do other global-live-data ignoring
   // (via IgnoreNonThreadLiveObjectsLocked)
   // during the quiet state of all threads being stopped.
-  // For the argument meaning see the comment by ListAllProcessThreads.
-  // Here we only use num_threads and thread_pids, that ListAllProcessThreads
+  // For the argument meaning see the comment by TCMalloc_ListAllProcessThreads.
+  // Here we only use num_threads and thread_pids, that TCMalloc_ListAllProcessThreads
   // fills for us with the number and pids of all the threads of our process
   // it found and attached to.
   static int IgnoreLiveThreadsLocked(void* parameter,

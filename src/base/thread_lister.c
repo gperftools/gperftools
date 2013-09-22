@@ -48,8 +48,8 @@
  * or if the multi-threading code has not been ported, yet.
  */
 
-int ListAllProcessThreads(void *parameter,
-                          ListAllProcessThreadsCallBack callback, ...) {
+int TCMalloc_ListAllProcessThreads(void *parameter,
+				   ListAllProcessThreadsCallBack callback, ...) {
   int rc;
   va_list ap;
   pid_t pid;
@@ -70,7 +70,7 @@ int ListAllProcessThreads(void *parameter,
   return rc;
 }
 
-int ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
+int TCMalloc_ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
   return 1;
 }
 

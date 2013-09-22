@@ -194,9 +194,9 @@ static int c_open(const char *fname, int flags, int mode) {
  * In order to find the main application from the signal handler, we
  * need to store information about it in global variables. This is
  * safe, because the main application should be suspended at this
- * time. If the callback ever called ResumeAllProcessThreads(), then
+ * time. If the callback ever called TCMalloc_ResumeAllProcessThreads(), then
  * we are running a higher risk, though. So, try to avoid calling
- * abort() after calling ResumeAllProcessThreads.
+ * abort() after calling TCMalloc_ResumeAllProcessThreads.
  */
 static volatile int *sig_pids, sig_num_threads, sig_proc, sig_marker;
 
@@ -215,7 +215,7 @@ static void SignalHandler(int signum, siginfo_t *si, void *data) {
         sys_ptrace(PTRACE_KILL, sig_pids[sig_num_threads], 0, 0);
       }
     } else if (sig_num_threads > 0) {
-      ResumeAllProcessThreads(sig_num_threads, (int *)sig_pids);
+      TCMalloc_ResumeAllProcessThreads(sig_num_threads, (int *)sig_pids);
     }
   }
   sig_pids = NULL;
@@ -497,7 +497,7 @@ static void ListerThread(struct ListerParams *args) {
          * error to the caller.
          */
         if (!found_parent) {
-          ResumeAllProcessThreads(num_threads, pids);
+          TCMalloc_ResumeAllProcessThreads(num_threads, pids);
           sys__exit(3);
         }
 
@@ -509,7 +509,7 @@ static void ListerThread(struct ListerParams *args) {
         args->err = errno;
 
         /* Callback should have resumed threads, but better safe than sorry  */
-        if (ResumeAllProcessThreads(num_threads, pids)) {
+        if (TCMalloc_ResumeAllProcessThreads(num_threads, pids)) {
           /* Callback forgot to resume at least one thread, report error     */
           args->err    = EINVAL;
           args->result = -1;
@@ -519,7 +519,7 @@ static void ListerThread(struct ListerParams *args) {
       }
     detach_threads:
       /* Resume all threads prior to retrying the operation                  */
-      ResumeAllProcessThreads(num_threads, pids);
+      TCMalloc_ResumeAllProcessThreads(num_threads, pids);
       sig_pids = NULL;
       num_threads = 0;
       sig_num_threads = num_threads;
@@ -537,19 +537,19 @@ static void ListerThread(struct ListerParams *args) {
  * address space, the filesystem, and the filehandles with the caller. Most
  * notably, it does not share the same pid and ppid; and if it terminates,
  * the rest of the application is still there. 'callback' is supposed to do
- * or arrange for ResumeAllProcessThreads. This happens automatically, if
+ * or arrange for TCMalloc_ResumeAllProcessThreads. This happens automatically, if
  * the thread raises a synchronous signal (e.g. SIGSEGV); asynchronous
  * signals are blocked. If the 'callback' decides to unblock them, it must
  * ensure that they cannot terminate the application, or that
- * ResumeAllProcessThreads will get called.
+ * TCMalloc_ResumeAllProcessThreads will get called.
  * It is an error for the 'callback' to make any library calls that could
  * acquire locks. Most notably, this means that most system calls have to
  * avoid going through libc. Also, this means that it is not legal to call
  * exit() or abort().
  * We return -1 on error and the return value of 'callback' on success.
  */
-int ListAllProcessThreads(void *parameter,
-                          ListAllProcessThreadsCallBack callback, ...) {
+int TCMalloc_ListAllProcessThreads(void *parameter,
+                                   ListAllProcessThreadsCallBack callback, ...) {
   char                   altstack_mem[ALT_STACKSIZE];
   struct ListerParams    args;
   pid_t                  clone_pid;
@@ -689,11 +689,11 @@ failed:
 }
 
 /* This function resumes the list of all linux threads that
- * ListAllProcessThreads pauses before giving to its callback.
+ * TCMalloc_ListAllProcessThreads pauses before giving to its callback.
  * The function returns non-zero if at least one thread was
  * suspended and has now been resumed.
  */
-int ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
+int TCMalloc_ResumeAllProcessThreads(int num_threads, pid_t *thread_pids) {
   int detached_at_least_one = 0;
   while (num_threads-- > 0) {
     detached_at_least_one |= sys_ptrace_detach(thread_pids[num_threads]) >= 0;
