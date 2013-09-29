@@ -133,7 +133,7 @@ struct CycleClock {
 #elif defined(_MSC_VER)
     return __rdtsc();
 #elif defined(ARMV3)
-#if defined(ARMV6)  // V6 is the earliest arch that has a standard cyclecount
+#if defined(ARMV7)  // V7 is the earliest arch that has a standard cyclecount
     uint32 pmccntr;
     uint32 pmuseren;
     uint32 pmcntenset;
