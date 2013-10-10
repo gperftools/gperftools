@@ -294,25 +294,26 @@ int CentralFreeList::FetchFromOneSpans(int N, void **start, void **end) {
   ASSERT(span->objects != NULL);
 
   int result = 0;
-  *end = span->objects;
-  while (result < N) {
-    void *t;
+  void *prev, *curr;
+  curr = span->objects;
+  do {
+    prev = curr;
+    curr = *(reinterpret_cast<void**>(curr));
+  } while (++result < N && curr != NULL);
 
-    t = span->objects;
-    span->objects = *(reinterpret_cast<void**>(t));
-    SLL_Push(start, t);
-    result++;
-    if (span->objects == NULL) {
-      // Move to empty list
-      tcmalloc::DLL_Remove(span);
-      tcmalloc::DLL_Prepend(&empty_, span);
-      Event(span, 'E', 0);
-      break;
-    }
+  if (curr == NULL) {
+    // Move to empty list
+    tcmalloc::DLL_Remove(span);
+    tcmalloc::DLL_Prepend(&empty_, span);
+    Event(span, 'E', 0);
   }
+
+  *start = span->objects;
+  *end = prev;
+  span->objects = curr;
+  SLL_SetNext(*end, NULL);
   span->refcount += result;
   counter_ -= result;
-  SLL_SetNext(*end, NULL);
   return result;
 }
 
