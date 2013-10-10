@@ -188,7 +188,7 @@ void SizeMap::Init() {
   }
 
   // Double-check sizes just to be safe
-  for (size_t size = 0; size <= kMaxSize; size++) {
+  for (size_t size = 0; size <= kMaxSize;) {
     const int sc = SizeClass(size);
     if (sc <= 0 || sc >= kNumClasses) {
       Log(kCrash, __FILE__, __LINE__,
@@ -202,6 +202,11 @@ void SizeMap::Init() {
     if (size > s || s == 0) {
       Log(kCrash, __FILE__, __LINE__,
           "Bad (class, size, requested)", sc, s, size);
+    }
+    if (size <= kMaxSmallSize) {
+      size += 8;
+    } else {
+      size += 128;
     }
   }
 
