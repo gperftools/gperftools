@@ -114,13 +114,13 @@ class CentralFreeList {
   // REQUIRES: lock_ is held
   // Remove object from cache and return.
   // Return NULL if no free entries in cache.
-  void* FetchFromSpans() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  int FetchFromOneSpans(int N, void **start, void **end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: lock_ is held
   // Remove object from cache and return.  Fetches
   // from pageheap if cache is empty.  Only returns
   // NULL on allocation failure.
-  void* FetchFromSpansSafe() EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  int FetchFromOneSpansSafe(int N, void **start, void **end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: lock_ is held
   // Release a linked list of objects to spans.
