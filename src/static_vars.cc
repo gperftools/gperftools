@@ -31,9 +31,13 @@
 // ---
 // Author: Ken Ashcraft <opensource@google.com>
 
+#include <config.h>
 #include "static_vars.h"
 #include <stddef.h>                     // for NULL
 #include <new>                          // for operator new
+#ifdef HAVE_PTHREAD
+#include <pthread.h>                    // for pthread_atfork
+#endif
 #include "internal_logging.h"  // for CHECK_CONDITION
 #include "common.h"
 #include "sampler.h"           // for Sampler
