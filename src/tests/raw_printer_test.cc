@@ -1,6 +1,9 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright 2009 Google Inc. All Rights Reserved.
 // Author: sanjay@google.com (Sanjay Ghemawat)
+//
+// Use of this source code is governed by a BSD-style license that can
+// be found in the LICENSE file.
 
 #include "raw_printer.h"
 #include <stdio.h>

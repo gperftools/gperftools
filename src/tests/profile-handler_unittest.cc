@@ -3,6 +3,10 @@
 // Author: Nabeel Mian (nabeelmian@google.com)
 //         Chris Demetriou (cgd@google.com)
 //
+// Use of this source code is governed by a BSD-style license that can
+// be found in the LICENSE file.
+//
+//
 // This file contains the unit tests for profile-handler.h interface.
 //
 // It is linked into three separate unit tests:

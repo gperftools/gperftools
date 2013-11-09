@@ -1,4 +1,8 @@
-/* A manual version of config.h fit for windows machines. */
+/* A manual version of config.h fit for windows machines.
+ *
+ * Use of this source code is governed by a BSD-style license that can
+ * be found in the LICENSE file.
+ */
 
 /* Sometimes we accidentally #include this config.h instead of the one
    in .. -- this is particularly true for msys/mingw, which uses the

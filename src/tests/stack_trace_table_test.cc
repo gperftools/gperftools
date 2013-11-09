@@ -1,6 +1,10 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright 2009 Google Inc. All Rights Reserved.
 // Author: fikes@google.com (Andrew Fikes)
+//
+// Use of this source code is governed by a BSD-style license that can
+// be found in the LICENSE file.
+
 
 #include "config_for_unittests.h"
 #include <stdio.h>   // for puts()
