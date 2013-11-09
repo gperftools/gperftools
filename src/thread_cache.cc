@@ -44,13 +44,17 @@
 using std::min;
 using std::max;
 
-DEFINE_int64(tcmalloc_max_total_thread_cache_bytes,
-             EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES",
-                        kDefaultOverallThreadCacheSize),
-             "Bound on the total amount of bytes allocated to "
-             "thread caches. This bound is not strict, so it is possible "
-             "for the cache to go over this bound in certain circumstances. "
-             "Maximum value of this flag is capped to 1 GB.");
+// Note: this is initialized manually in InitModule to ensure that
+// it's configured at right time
+//
+// DEFINE_int64(tcmalloc_max_total_thread_cache_bytes,
+//              EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES",
+//                         kDefaultOverallThreadCacheSize),
+//              "Bound on the total amount of bytes allocated to "
+//              "thread caches. This bound is not strict, so it is possible "
+//              "for the cache to go over this bound in certain circumstances. "
+//              "Maximum value of this flag is capped to 1 GB.");
+
 
 namespace tcmalloc {
 
@@ -309,6 +313,9 @@ int ThreadCache::GetSamplePeriod() {
 void ThreadCache::InitModule() {
   SpinLockHolder h(Static::pageheap_lock());
   if (!phinited) {
+    set_overall_thread_cache_size(
+      EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES",
+                 kDefaultOverallThreadCacheSize));
     Static::InitStaticVars();
     threadcache_allocator.Init();
     phinited = 1;
