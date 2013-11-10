@@ -271,12 +271,14 @@ Span* PageHeap::Carve(Span* span, Length n) {
     // The previous span of |leftover| was just splitted -- no need to
     // coalesce them. The next span of |leftover| was not previously coalesced
     // with |span|, i.e. is NULL or has got location other than |old_location|.
+#ifndef NDEBUG
     const PageID p = leftover->start;
     const Length len = leftover->length;
     Span* next = GetDescriptor(p+len);
     ASSERT (next == NULL ||
             next->location == Span::IN_USE ||
             next->location != leftover->location);
+#endif
 
     PrependToFreeList(leftover);  // Skip coalescing - no candidates possible
     span->length = n;
