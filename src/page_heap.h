@@ -143,10 +143,12 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   // Page heap statistics
   struct Stats {
-    Stats() : system_bytes(0), free_bytes(0), unmapped_bytes(0) {}
+    Stats() : system_bytes(0), free_bytes(0), unmapped_bytes(0), committed_bytes(0) {}
     uint64_t system_bytes;    // Total bytes allocated from system
     uint64_t free_bytes;      // Total bytes on normal freelists
     uint64_t unmapped_bytes;  // Total bytes on returned freelists
+    uint64_t committed_bytes;  // Bytes committed, always <= system_bytes_.
+
   };
   inline Stats stats() const { return stats_; }
 
@@ -263,6 +265,12 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Coalesce span with neighboring spans if possible, prepend to
   // appropriate free list, and adjust stats.
   void MergeIntoFreeList(Span* span);
+
+  // Commit the span.
+  void CommitSpan(Span* span);
+
+  // Decommit the span.
+  bool DecommitSpan(Span* span);
 
   // Prepends span to appropriate free list, and adjusts stats.
   void PrependToFreeList(Span* span);

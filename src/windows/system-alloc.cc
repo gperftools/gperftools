@@ -66,31 +66,31 @@ void* VirtualSysAllocator::Alloc(size_t size, size_t *actual_size,
   if (alignment < pagesize) alignment = pagesize;
   size = ((size + alignment - 1) / alignment) * alignment;
 
-  // Safest is to make actual_size same as input-size.
+  // Report the total number of bytes the OS actually delivered.  This might be
+  // greater than |size| because of alignment concerns.  The full size is
+  // necessary so that adjacent spans can be coalesced.
+  // TODO(antonm): proper processing of alignments
+  // in actual_size and decommitting.
   if (actual_size) {
     *actual_size = size;
   }
 
-  // Ask for extra memory if alignment > pagesize
-  size_t extra = 0;
-  if (alignment > pagesize) {
-    extra = alignment - pagesize;
-  }
+  // We currently do not support alignments larger than the pagesize or
+  // alignments that are not multiples of the pagesize after being floored.
+  // If this ability is needed it can be done by the caller (assuming it knows
+  // the page size).
+  assert(alignment <= pagesize);
 
-  void* result = VirtualAlloc(0, size + extra,
+  void* result = VirtualAlloc(0, size,
                               MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
   if (result == NULL)
     return NULL;
 
-  // Adjust the return memory so it is aligned
-  uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
-  size_t adjust = 0;
-  if ((ptr & (alignment - 1)) != 0) {
-    adjust = alignment - (ptr & (alignment - 1));
-  }
+  // If the result is not aligned memory fragmentation will result which can
+  // lead to pathological memory use.
+  assert((reinterpret_cast<uintptr_t>(result) & (alignment - 1)) == 0);
 
-  ptr += adjust;
-  return reinterpret_cast<void*>(ptr);
+  return result;
 }
 
 #ifdef _MSC_VER
@@ -146,8 +146,52 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
 
 extern PERFTOOLS_DLL_DECL
 bool TCMalloc_SystemRelease(void* start, size_t length) {
-  // TODO(csilvers): should I be calling VirtualFree here?
-  return false;
+  if (VirtualFree(start, length, MEM_DECOMMIT))
+    return true;
+
+  // The decommit may fail if the memory region consists of allocations
+  // from more than one call to VirtualAlloc.  In this case, fall back to
+  // using VirtualQuery to retrieve the allocation boundaries and decommit
+  // them each individually.
+
+  char* ptr = static_cast<char*>(start);
+  char* end = ptr + length;
+  MEMORY_BASIC_INFORMATION info;
+  while (ptr < end) {
+    size_t resultSize = VirtualQuery(ptr, &info, sizeof(info));
+    assert(resultSize == sizeof(info));
+    size_t decommitSize = std::min<size_t>(info.RegionSize, end - ptr);
+    BOOL success = VirtualFree(ptr, decommitSize, MEM_DECOMMIT);
+    assert(success == TRUE);
+    ptr += decommitSize;
+  }
+
+  return true;
+}
+
+extern PERFTOOLS_DLL_DECL
+void TCMalloc_SystemCommit(void* start, size_t length) {
+  if (VirtualAlloc(start, length, MEM_COMMIT, PAGE_READWRITE) == start)
+    return;
+
+  // The commit may fail if the memory region consists of allocations
+  // from more than one call to VirtualAlloc.  In this case, fall back to
+  // using VirtualQuery to retrieve the allocation boundaries and commit them
+  // each individually.
+
+  char* ptr = static_cast<char*>(start);
+  char* end = ptr + length;
+  MEMORY_BASIC_INFORMATION info;
+  while (ptr < end) {
+    size_t resultSize = VirtualQuery(ptr, &info, sizeof(info));
+    assert(resultSize == sizeof(info));
+
+    size_t commitSize = std::min<size_t>(info.RegionSize, end - ptr);
+    void* newAddress = VirtualAlloc(ptr, commitSize, MEM_COMMIT,
+                                    PAGE_READWRITE);
+    assert(newAddress == ptr);
+    ptr += commitSize;
+  }
 }
 
 bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {

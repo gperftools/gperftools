@@ -544,3 +544,9 @@ bool TCMalloc_SystemRelease(void* start, size_t length) {
 #endif
   return false;
 }
+
+void TCMalloc_SystemCommit(void* start, size_t length) {
+  // Nothing to do here.  TCMalloc_SystemRelease does not alter pages
+  // such that they need to be re-committed before they can be used by the
+  // application.
+}

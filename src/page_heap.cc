@@ -153,6 +153,7 @@ Span* PageHeap::New(Length n) {
 
   // Grow the heap and try again.
   if (!GrowHeap(n)) {
+    ASSERT(stats_.unmapped_bytes+ stats_.committed_bytes==stats_.system_bytes);
     ASSERT(Check());
     return NULL;
   }
@@ -235,6 +236,22 @@ Span* PageHeap::Split(Span* span, Length n) {
   return leftover;
 }
 
+void PageHeap::CommitSpan(Span* span) {
+  TCMalloc_SystemCommit(reinterpret_cast<void*>(span->start << kPageShift),
+                        static_cast<size_t>(span->length << kPageShift));
+  stats_.committed_bytes += span->length << kPageShift;
+}
+
+bool PageHeap::DecommitSpan(Span* span) {
+  bool rv = TCMalloc_SystemRelease(reinterpret_cast<void*>(span->start << kPageShift),
+                                   static_cast<size_t>(span->length << kPageShift));
+  if (rv) {
+    stats_.committed_bytes -= span->length << kPageShift;
+  }
+
+  return rv;
+}
+
 Span* PageHeap::Carve(Span* span, Length n) {
   ASSERT(n > 0);
   ASSERT(span->location != Span::IN_USE);
@@ -250,11 +267,29 @@ Span* PageHeap::Carve(Span* span, Length n) {
     leftover->location = old_location;
     Event(leftover, 'S', extra);
     RecordSpan(leftover);
+
+    // The previous span of |leftover| was just splitted -- no need to
+    // coalesce them. The next span of |leftover| was not previously coalesced
+    // with |span|, i.e. is NULL or has got location other than |old_location|.
+    const PageID p = leftover->start;
+    const Length len = leftover->length;
+    Span* next = GetDescriptor(p+len);
+    ASSERT (next == NULL ||
+            next->location == Span::IN_USE ||
+            next->location != leftover->location);
+
     PrependToFreeList(leftover);  // Skip coalescing - no candidates possible
     span->length = n;
     pagemap_.set(span->start + n - 1, span);
   }
   ASSERT(Check());
+  if (old_location == Span::ON_RETURNED_FREELIST) {
+    // We need to recommit this address space.
+    CommitSpan(span);
+  }
+  ASSERT(span->location == Span::IN_USE);
+  ASSERT(span->length == n);
+  ASSERT(stats_.unmapped_bytes+ stats_.committed_bytes==stats_.system_bytes);
   return span;
 }
 
@@ -271,6 +306,7 @@ void PageHeap::Delete(Span* span) {
   Event(span, 'D', span->length);
   MergeIntoFreeList(span);  // Coalesces if possible
   IncrementalScavenge(n);
+  ASSERT(stats_.unmapped_bytes+ stats_.committed_bytes==stats_.system_bytes);
   ASSERT(Check());
 }
 
@@ -284,6 +320,7 @@ void PageHeap::MergeIntoFreeList(Span* span) {
   //
   // Note that only similar spans are merged together.  For example,
   // we do not coalesce "returned" spans with "normal" spans.
+
   const PageID p = span->start;
   const Length n = span->length;
   Span* prev = GetDescriptor(p-1);
@@ -370,8 +407,7 @@ Length PageHeap::ReleaseLastNormalSpan(SpanList* slist) {
   Span* s = slist->normal.prev;
   ASSERT(s->location == Span::ON_NORMAL_FREELIST);
 
-  if (TCMalloc_SystemRelease(reinterpret_cast<void*>(s->start << kPageShift),
-                         static_cast<size_t>(s->length << kPageShift))) {
+  if (DecommitSpan(s)) {
     RemoveFromFreeList(s);
     const Length n = s->length;
     s->location = Span::ON_RETURNED_FREELIST;
@@ -525,6 +561,7 @@ bool PageHeap::GrowHeap(Length n) {
 
   uint64_t old_system_bytes = stats_.system_bytes;
   stats_.system_bytes += (ask << kPageShift);
+  stats_.committed_bytes += (ask << kPageShift);
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   ASSERT(p > 0);
 
@@ -546,6 +583,7 @@ bool PageHeap::GrowHeap(Length n) {
     Span* span = NewSpan(p, ask);
     RecordSpan(span);
     Delete(span);
+    ASSERT(stats_.unmapped_bytes+ stats_.committed_bytes==stats_.system_bytes);
     ASSERT(Check());
     return true;
   } else {
