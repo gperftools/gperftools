@@ -192,6 +192,11 @@ class PERFTOOLS_DLL_DECL PageHeap {
   }
   void CacheSizeClass(PageID p, size_t cl) const { pagemap_cache_.Put(p, cl); }
 
+  bool GetAggressiveDecommit(void) {return aggressive_decommit_;}
+  void SetAggressiveDecommit(bool aggressive_decommit) {
+    aggressive_decommit_ = aggressive_decommit;
+  }
+
  private:
   // Allocates a big block of memory for the pagemap once we reach more than
   // 128MB
@@ -291,11 +296,15 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // some unused spans.
   bool EnsureLimit(Length n, bool allowRelease = true);
 
+  bool MayMergeSpans(Span *span, Span *other);
+
   // Number of pages to deallocate before doing more scavenging
   int64_t scavenge_counter_;
 
   // Index of last free list where we released memory to the OS.
   int release_index_;
+
+  bool aggressive_decommit_;
 };
 
 }  // namespace tcmalloc

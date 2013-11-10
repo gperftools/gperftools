@@ -66,7 +66,8 @@ PageHeap::PageHeap()
       pagemap_cache_(0),
       scavenge_counter_(0),
       // Start scavenging at kMaxPages list
-      release_index_(kMaxPages) {
+      release_index_(kMaxPages),
+      aggressive_decommit_(false) {
   COMPILE_ASSERT(kNumClasses <= (1 << PageMapCache::kValuebits), valuebits);
   DLL_Init(&large_.normal);
   DLL_Init(&large_.returned);
@@ -312,6 +313,13 @@ void PageHeap::Delete(Span* span) {
   ASSERT(Check());
 }
 
+bool PageHeap::MayMergeSpans(Span *span, Span *other) {
+  if (aggressive_decommit_) {
+    return other->location != Span::IN_USE;
+  }
+  return span->location == other->location;
+}
+
 void PageHeap::MergeIntoFreeList(Span* span) {
   ASSERT(span->location != Span::IN_USE);
 
@@ -320,16 +328,44 @@ void PageHeap::MergeIntoFreeList(Span* span) {
   // entries for the pieces we are merging together because we only
   // care about the pagemap entries for the boundaries.
   //
-  // Note that only similar spans are merged together.  For example,
-  // we do not coalesce "returned" spans with "normal" spans.
+  // Note: depending on aggressive_decommit_ mode we allow only
+  // similar spans to be coalesced.
+  //
+  // The following applies if aggressive_decommit_ is enabled:
+  //
+  // Note that the adjacent spans we merge into "span" may come out of a
+  // "normal" (committed) list, and cleanly merge with our IN_USE span, which
+  // is implicitly committed.  If the adjacents spans are on the "returned"
+  // (decommitted) list, then we must get both spans into the same state before
+  // or after we coalesce them.  The current code always decomits. This is
+  // achieved by blindly decommitting the entire coalesced region, which  may
+  // include any combination of committed and decommitted spans, at the end of
+  // the method.
+
+  // TODO(jar): "Always decommit" causes some extra calls to commit when we are
+  // called in GrowHeap() during an allocation :-/.  We need to eval the cost of
+  // that oscillation, and possibly do something to reduce it.
+
+  // TODO(jar): We need a better strategy for deciding to commit, or decommit,
+  // based on memory usage and free heap sizes.
+
+  uint64_t temp_committed = 0;
 
   const PageID p = span->start;
   const Length n = span->length;
   Span* prev = GetDescriptor(p-1);
-  if (prev != NULL && prev->location == span->location) {
+  if (prev != NULL && MayMergeSpans(span, prev)) {
     // Merge preceding span into this span
     ASSERT(prev->start + prev->length == p);
     const Length len = prev->length;
+    if (aggressive_decommit_ && prev->location == Span::ON_RETURNED_FREELIST) {
+      // We're about to put the merge span into the returned freelist and call
+      // DecommitSpan() on it, which will mark the entire span including this
+      // one as released and decrease stats_.committed_bytes by the size of the
+      // merged span.  To make the math work out we temporarily increase the
+      // stats_.committed_bytes amount.
+      temp_committed = prev->length << kPageShift;
+    }
     RemoveFromFreeList(prev);
     DeleteSpan(prev);
     span->start -= len;
@@ -338,10 +374,14 @@ void PageHeap::MergeIntoFreeList(Span* span) {
     Event(span, 'L', len);
   }
   Span* next = GetDescriptor(p+n);
-  if (next != NULL && next->location == span->location) {
+  if (next != NULL && MayMergeSpans(span, next)) {
     // Merge next span into this span
     ASSERT(next->start == p+n);
     const Length len = next->length;
+    if (aggressive_decommit_ && next->location == Span::ON_RETURNED_FREELIST) {
+      // See the comment below 'if (prev->location ...' for explanation.
+      temp_committed += next->length << kPageShift;
+    }
     RemoveFromFreeList(next);
     DeleteSpan(next);
     span->length += len;
@@ -349,6 +389,14 @@ void PageHeap::MergeIntoFreeList(Span* span) {
     Event(span, 'R', len);
   }
 
+  if (aggressive_decommit_) {
+    if (DecommitSpan(span)) {
+      span->location = Span::ON_RETURNED_FREELIST;
+      stats_.committed_bytes += temp_committed;
+    } else {
+      ASSERT(temp_committed == 0);
+    }
+  }
   PrependToFreeList(span);
 }
 
