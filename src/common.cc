@@ -122,7 +122,7 @@ void SizeMap::Init() {
   InitTCMallocTransferNumObjects();
 
   // Do some sanity checking on add_amount[]/shift_amount[]/class_array[]
-  if (ClassIndex(0) < 0) {
+  if (ClassIndex(0) != 0) {
     Log(kCrash, __FILE__, __LINE__,
         "Invalid class index for size 0", ClassIndex(0));
   }
