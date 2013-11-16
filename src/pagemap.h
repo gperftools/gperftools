@@ -152,9 +152,9 @@ class TCMalloc_PageMap2 {
   }
 
   void set(Number k, void* v) {
-    ASSERT(k >> BITS == 0);
     const Number i1 = k >> LEAF_BITS;
     const Number i2 = k & (LEAF_LENGTH-1);
+    ASSERT(i1 < ROOT_LENGTH);
     root_[i1]->values[i2] = v;
   }
 
