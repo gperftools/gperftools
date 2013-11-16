@@ -127,8 +127,8 @@ HeapProfileTable::HeapProfileTable(Allocator alloc,
                                    bool profile_mmap)
     : alloc_(alloc),
       dealloc_(dealloc),
-      bucket_table_(NULL),
       profile_mmap_(profile_mmap),
+      bucket_table_(NULL),
       num_buckets_(0),
       address_map_(NULL) {
   // Make a hash table for buckets.
