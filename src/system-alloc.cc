@@ -495,17 +495,17 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   // Enforce minimum alignment
   if (alignment < sizeof(MemoryAligner)) alignment = sizeof(MemoryAligner);
 
+  size_t actual_size_storage;
+  if (actual_size == NULL) {
+    actual_size = &actual_size_storage;
+  }
+
   void* result = sys_alloc->Alloc(size, actual_size, alignment);
   if (result != NULL) {
-    if (actual_size) {
+    CHECK_CONDITION(
       CheckAddressBits<kAddressBits>(
-          reinterpret_cast<uintptr_t>(result) + *actual_size - 1);
-      TCMalloc_SystemTaken += *actual_size;
-    } else {
-      CheckAddressBits<kAddressBits>(
-          reinterpret_cast<uintptr_t>(result) + size - 1);
-      TCMalloc_SystemTaken += size;
-    }
+        reinterpret_cast<uintptr_t>(result) + *actual_size - 1));
+    TCMalloc_SystemTaken += *actual_size;
   }
   return result;
 }
