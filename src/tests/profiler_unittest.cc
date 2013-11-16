@@ -111,27 +111,31 @@ int main(int argc, char** argv) {
   ProfilerFlush();                           // just because we can
 
   // The other threads, if any, will run only half as long as the main thread
-  RunManyThreads(test_other_thread, num_threads);
-
+  if(num_threads > 0) {
+    RunManyThreads(test_other_thread, num_threads);
+  } else {
   // Or maybe they asked to fork.  The fork test is only interesting
   // when we use CPUPROFILE to name, so check for that
 #ifdef HAVE_UNISTD_H
-  for (; num_threads < 0; ++num_threads) {   // -<num_threads> to fork
-    if (filename) {
-      printf("FORK test only makes sense when no filename is specified.\n");
-      return 2;
+    for (; num_threads < 0; ++num_threads) {   // -<num_threads> to fork
+      if (filename) {
+        printf("FORK test only makes sense when no filename is specified.\n");
+        return 2;
+      }
+      switch (fork()) {
+        case -1:
+          printf("FORK failed!\n");
+          return 1;
+        case 0:             // child
+          return execl(argv[0], argv[0], argv[1], NULL);
+        default:
+          wait(NULL);       // we'll let the kids run one at a time
+      }
     }
-    switch (fork()) {
-      case -1:
-        printf("FORK failed!\n");
-        return 1;
-      case 0:             // child
-        return execl(argv[0], argv[0], argv[1], NULL);
-      default:
-        wait(NULL);       // we'll let the kids run one at a time
-    }
-  }
+#else
+    fprintf(stderr, "%s was compiled without support for fork() and exec()\n", argv[0]);
 #endif
+  }
 
   test_main_thread();
 
