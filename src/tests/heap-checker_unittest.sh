@@ -48,7 +48,7 @@ if [ "x$1" = "x-h" -o "$1" = "x--help" ]; then
   exit 1
 fi
 
-HEAP_CHECKER="${1:-$BINDIR}/heap-checker_unittest"
+HEAP_CHECKER="${1:-$BINDIR/heap-checker_unittest}"
 PPROF_PATH="${2:-$PPROF_PATH}"
 
 TMPDIR=/tmp/heap_check_info

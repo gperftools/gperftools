@@ -44,7 +44,7 @@ if [ "x$1" = "x-h" -o "x$1" = "x--help" ]; then
   exit 1
 fi
 
-EXE="${1:-$BINDIR}/heap-checker_unittest"
+EXE="${1:-$BINDIR/heap-checker_unittest}"
 TMPDIR="/tmp/heap_check_death_info"
 
 ALARM() {

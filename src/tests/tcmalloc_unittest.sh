@@ -38,7 +38,7 @@
 # behavior, just performance.
 
 BINDIR="${BINDIR:-.}"
-TCMALLOC_UNITTEST="${1:-$BINDIR}/tcmalloc_unittest"
+TCMALLOC_UNITTEST="${1:-$BINDIR/tcmalloc_unittest}"
 
 TMPDIR=/tmp/tcmalloc_unittest
 rm -rf $TMPDIR || exit 2

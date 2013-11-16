@@ -52,7 +52,7 @@ if [ "x$1" = "x-h" -o "x$1" = "x--help" ]; then
   exit 1
 fi
 
-HEAP_PROFILER="${1:-$BINDIR}/heap-profiler_unittest"
+HEAP_PROFILER="${1:-$BINDIR/heap-profiler_unittest}"
 PPROF="${2:-$PPROF_PATH}"
 TEST_TMPDIR=/tmp/heap_profile_info
 
