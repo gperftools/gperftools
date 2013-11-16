@@ -571,7 +571,7 @@ static void HeapProfilerInit() {
     intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, HeapProfilerDumpSignal));
     if (old_signal_handler == reinterpret_cast<intptr_t>(SIG_ERR)) {
       RAW_LOG(FATAL, "Failed to set signal. Perhaps signal number %s is invalid\n", signal_number_str);
-    } else if (old_signal_handler == NULL) {
+    } else if (old_signal_handler == 0) {
       RAW_LOG(INFO,"Using signal %d as heap profiling switch", signal_number);
     } else {
       RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
