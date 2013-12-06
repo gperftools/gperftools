@@ -21,6 +21,8 @@ AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-zip])
 AC_CONFIG_HEADERS([src/config.h])
 
+AM_MAINTAINER_MODE()
+
 # Export the version information (for tc_version and friends)
 TC_VERSION_MAJOR=`expr "$PACKAGE_VERSION" : '\([[0-9]]*\)'`
 TC_VERSION_MINOR=`expr "$PACKAGE_VERSION" : '[[0-9]]*\.\([[0-9]]*\)'`
