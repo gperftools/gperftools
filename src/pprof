@@ -71,6 +71,7 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use Cwd;
 
 my $PPROF_VERSION = "2.0";
 
@@ -4326,7 +4327,7 @@ sub ParseTextSectionHeader {
 # Split /proc/pid/maps dump into a list of libraries
 sub ParseLibraries {
   return if $main::use_symbol_page;  # We don't need libraries info.
-  my $prog = shift;
+  my $prog = Cwd::abs_path(shift);
   my $map = shift;
   my $pcs = shift;
 
@@ -4359,6 +4360,16 @@ sub ParseLibraries {
       $finish = HexExtend($2);
       $offset = $zero_offset;
       $lib = $3;
+    } elsif (($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+)$/i) && ($4 eq $prog)) {
+      # PIEs and address space randomization do not play well with our
+      # default assumption that main executable is at lowest
+      # addresses. So we're detecting main executable in
+      # /proc/self/maps as well.
+      $start = HexExtend($1);
+      $finish = HexExtend($2);
+      $offset = HexExtend($3);
+      $lib = $4;
+      $lib =~ s|\\|/|g;     # turn windows-style paths into unix-style paths
     } else {
       next;
     }
