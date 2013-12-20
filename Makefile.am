@@ -662,7 +662,7 @@ if GCC
 malloc_extension_c_test_CFLAGS += -ansi
 endif GCC
 malloc_extension_c_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS) -lstdc++
 endif !ENABLE_STATIC
 endif !MINGW
 

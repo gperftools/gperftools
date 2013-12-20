@@ -202,8 +202,7 @@ static const char mmap_name[] = "MmapSysAllocator";
 
 void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
-#ifndef HAVE_SBRK
-  failed_ = true;
+#if !defined(HAVE_SBRK) || defined(__UCLIBC__)
   return NULL;
 #else
   // Check if we should use sbrk allocation.
@@ -275,7 +274,6 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
 void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
 #ifndef HAVE_MMAP
-  failed_ = true;
   return NULL;
 #else
   // Check if we should use mmap allocation.
@@ -344,7 +342,6 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
 void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
                                 size_t alignment) {
 #ifndef HAVE_MMAP
-  failed_ = true;
   return NULL;
 #else
   static bool initialized = false;

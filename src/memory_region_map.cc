@@ -797,8 +797,6 @@ void MemoryRegionMap::MremapHook(const void* result,
   }
 }
 
-extern "C" void* __sbrk(ptrdiff_t increment);  // defined in libc
-
 void MemoryRegionMap::SbrkHook(const void* result, ptrdiff_t increment) {
   RAW_VLOG(10, "Sbrk = 0x%" PRIxPTR " of %" PRIdS "", (uintptr_t)result, increment);
   if (result != reinterpret_cast<void*>(-1)) {

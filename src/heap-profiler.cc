@@ -541,7 +541,13 @@ extern "C" void HeapProfilerDump(const char *reason) {
 // number is defined in the environment variable HEAPPROFILESIGNAL.
 static void HeapProfilerDumpSignal(int signal_number) {
   (void)signal_number;
-  HeapProfilerDump("signal");
+  if (!heap_lock.TryLock()) {
+    return;
+  }
+  if (is_on && !dumping) {
+    DumpProfileLocked("signal");
+  }
+  heap_lock.Unlock();
 }
 
 

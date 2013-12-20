@@ -1652,8 +1652,13 @@ ssize_t HeapLeakChecker::ObjectsLeaked() const {
 // Save pid of main thread for using in naming dump files
 static int32 main_thread_pid = getpid();
 #ifdef HAVE_PROGRAM_INVOCATION_NAME
+#ifdef __UCLIBC__
+extern const char* program_invocation_name;
+extern const char* program_invocation_short_name;
+#else
 extern char* program_invocation_name;
 extern char* program_invocation_short_name;
+#endif
 static const char* invocation_name() { return program_invocation_short_name; }
 static string invocation_path() { return program_invocation_name; }
 #else

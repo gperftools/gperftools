@@ -82,7 +82,9 @@ extern "C" {
   void* pvalloc(size_t size) __THROW              ALIAS(tc_pvalloc);
   int posix_memalign(void** r, size_t a, size_t s) __THROW
       ALIAS(tc_posix_memalign);
+#ifndef __UCLIBC__
   void malloc_stats(void) __THROW                 ALIAS(tc_malloc_stats);
+#endif
   int mallopt(int cmd, int value) __THROW         ALIAS(tc_mallopt);
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo mallinfo(void) __THROW          ALIAS(tc_mallinfo);
