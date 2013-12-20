@@ -47,6 +47,10 @@
 #ifndef BASE_STACKTRACE_CONFIG_H_
 #define BASE_STACKTRACE_CONFIG_H_
 
+#ifdef HAVE_FEATURES_H
+#include <features.h>   // for __UCLIBC__
+#endif
+
 // First, the i386 and x86_64 case.
 #if (defined(__i386__) || defined(__x86_64__)) && __GNUC__ >= 2
 # if !defined(NO_FRAME_POINTER)
@@ -79,8 +83,11 @@
 
 // The MIPS case
 #elif defined(__mips__)  && __GNUC__ >= 2
-# define STACKTRACE_INL_HEADER "stacktrace_generic-inl.h"
-
+# if defined(__UCLIBC__)
+#   define STACKTRACE_INL_HEADER "stacktrace_instrument-inl.h"
+# else
+#   define STACKTRACE_INL_HEADER "stacktrace_generic-inl.h"
+# endif
 // The Windows case -- probably cygwin and mingw will use one of the
 // x86-includes above, but if not, we can fall back to windows intrinsics.
 #elif defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
