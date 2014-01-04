@@ -75,14 +75,6 @@ class AtomicPtr {
   // This is a full-barrier instruction.
   PtrT Exchange(PtrT new_val);
 
-  // Atomically executes:
-  //      result = data_
-  //      if (data_ == old_val)
-  //        data_ = new_val;
-  //      return result;
-  // This is a full-barrier instruction.
-  PtrT CompareAndSwap(PtrT old_val, PtrT new_val);
-
   // Not private so that the class is an aggregate and can be
   // initialized by the linker. Don't access this directly.
   AtomicWord data_;
