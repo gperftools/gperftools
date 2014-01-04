@@ -33,7 +33,7 @@
 //
 // This file is an internal atomic implementation, use base/atomicops.h instead.
 //
-// LinuxKernelCmpxchg and Barrier_AtomicIncrement are from Google Gears.
+// LinuxKernelCmpxchg is from Google Gears.
 
 #ifndef BASE_ATOMICOPS_INTERNALS_ARM_GENERIC_H_
 #define BASE_ATOMICOPS_INTERNALS_ARM_GENERIC_H_
@@ -100,26 +100,6 @@ inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
                                        Atomic32 new_value) {
   // pLinuxKernelCmpxchg already has acquire and release barrier semantics.
   return NoBarrier_AtomicExchange(ptr, new_value);
-}
-
-inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
-                                        Atomic32 increment) {
-  for (;;) {
-    // Atomic exchange the old value with an incremented one.
-    Atomic32 old_value = *ptr;
-    Atomic32 new_value = old_value + increment;
-    if (pLinuxKernelCmpxchg(old_value, new_value,
-                            const_cast<Atomic32*>(ptr)) == 0) {
-      // The exchange took place as expected.
-      return new_value;
-    }
-    // Otherwise, *ptr changed mid-loop and we need to retry.
-  }
-}
-
-inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
-                                          Atomic32 increment) {
-  return Barrier_AtomicIncrement(ptr, increment);
 }
 
 inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
@@ -199,18 +179,6 @@ inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
                                        Atomic64 new_value) {
   // pLinuxKernelCmpxchg already has acquire and release barrier semantics.
   return NoBarrier_AtomicExchange(ptr, new_value);
-}
-
-inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
-                                          Atomic64 increment) {
-  NotImplementedFatalError("NoBarrier_AtomicIncrement");
-  return 0;
-}
-
-inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
-                                        Atomic64 increment) {
-  NotImplementedFatalError("Barrier_AtomicIncrement");
-  return 0;
 }
 
 inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {

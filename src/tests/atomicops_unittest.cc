@@ -38,76 +38,6 @@
 
 #define GG_ULONGLONG(x)  static_cast<uint64>(x)
 
-template <class AtomicType>
-static void TestAtomicIncrement(AtomicType (*atomic_increment_func)
-                                (volatile AtomicType*, AtomicType)) {
-  // For now, we just test single threaded execution
-
-  // use a guard value to make sure the atomic_increment_func doesn't go
-  // outside the expected address bounds.  This is in particular to
-  // test that some future change to the asm code doesn't cause the
-  // 32-bit atomic_increment_func doesn't do the wrong thing on 64-bit
-  // machines.
-  struct {
-    AtomicType prev_word;
-    AtomicType count;
-    AtomicType next_word;
-  } s;
-
-  AtomicType prev_word_value, next_word_value;
-  memset(&prev_word_value, 0xFF, sizeof(AtomicType));
-  memset(&next_word_value, 0xEE, sizeof(AtomicType));
-
-  s.prev_word = prev_word_value;
-  s.count = 0;
-  s.next_word = next_word_value;
-
-  ASSERT_EQ(1, (*atomic_increment_func)(&s.count, 1));
-  ASSERT_EQ(1, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(3, (*atomic_increment_func)(&s.count, 2));
-  ASSERT_EQ(3, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(6, (*atomic_increment_func)(&s.count, 3));
-  ASSERT_EQ(6, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(3, (*atomic_increment_func)(&s.count, -3));
-  ASSERT_EQ(3, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(1, (*atomic_increment_func)(&s.count, -2));
-  ASSERT_EQ(1, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(0, (*atomic_increment_func)(&s.count, -1));
-  ASSERT_EQ(0, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(-1, (*atomic_increment_func)(&s.count, -1));
-  ASSERT_EQ(-1, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(-5, (*atomic_increment_func)(&s.count, -4));
-  ASSERT_EQ(-5, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-
-  ASSERT_EQ(0, (*atomic_increment_func)(&s.count, 5));
-  ASSERT_EQ(0, s.count);
-  ASSERT_EQ(prev_word_value, s.prev_word);
-  ASSERT_EQ(next_word_value, s.next_word);
-}
-
 
 #define NUM_BITS(T) (sizeof(T) * 8)
 
@@ -159,21 +89,6 @@ static void TestAtomicExchange(AtomicType (*atomic_exchange_func)
   ASSERT_EQ(k_test_val, new_value);
 }
 
-
-template <class AtomicType>
-static void TestAtomicIncrementBounds(AtomicType (*atomic_increment_func)
-                                      (volatile AtomicType*, AtomicType)) {
-  // Test increment at the half-width boundary of the atomic type.
-  // It is primarily for testing at the 32-bit boundary for 64-bit atomic type.
-  AtomicType test_val = GG_ULONGLONG(1) << (NUM_BITS(AtomicType) / 2);
-  AtomicType value = test_val - 1;
-  AtomicType new_value = (*atomic_increment_func)(&value, 1);
-  ASSERT_EQ(test_val, value);
-  ASSERT_EQ(value, new_value);
-
-  (*atomic_increment_func)(&value, -1);
-  ASSERT_EQ(test_val - 1, value);
-}
 
 // This is a simple sanity check that values are correct. Not testing
 // atomicity
@@ -235,42 +150,13 @@ static void TestAtomicOps() {
   TestAtomicExchange<AtomicType>(base::subtle::Acquire_AtomicExchange);
   TestAtomicExchange<AtomicType>(base::subtle::Release_AtomicExchange);
 
-  TestAtomicIncrementBounds<AtomicType>(
-      base::subtle::NoBarrier_AtomicIncrement);
-  TestAtomicIncrementBounds<AtomicType>(
-      base::subtle::Barrier_AtomicIncrement);
-
   TestStore<AtomicType>();
   TestLoad<AtomicType>();
 }
 
 int main(int argc, char** argv) {
-  TestAtomicIncrement<AtomicWord>(base::subtle::NoBarrier_AtomicIncrement);
-  TestAtomicIncrement<AtomicWord>(base::subtle::Barrier_AtomicIncrement);
-  TestAtomicIncrement<Atomic32>(base::subtle::NoBarrier_AtomicIncrement);
-  TestAtomicIncrement<Atomic32>(base::subtle::Barrier_AtomicIncrement);
-
   TestAtomicOps<AtomicWord>();
   TestAtomicOps<Atomic32>();
-
-  // I've commented the Atomic64 tests out for now, because Atomic64
-  // doesn't work on x86 systems that are not compiled to support mmx
-  // registers.  Since I want this project to be as portable as
-  // possible -- that is, not to assume we've compiled for mmx or even
-  // that the processor supports it -- and we don't actually use
-  // Atomic64 anywhere, I've commented it out of the test for now.
-  // (Luckily, if we ever do use Atomic64 by accident, we'll get told
-  // via a compiler error rather than some obscure runtime failure, so
-  // this course of action is safe.)
-  // If we ever *do* want to enable this, try adding -msse (or -mmmx?)
-  // to the CXXFLAGS in Makefile.am.
-#if 0 and defined(BASE_HAS_ATOMIC64)
-  TestAtomicIncrement<base::subtle::Atomic64>(
-      base::subtle::NoBarrier_AtomicIncrement);
-  TestAtomicIncrement<base::subtle::Atomic64>(
-      base::subtle::Barrier_AtomicIncrement);
-#endif
-
   printf("PASS\n");
   return 0;
 }

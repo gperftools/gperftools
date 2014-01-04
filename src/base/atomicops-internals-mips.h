@@ -112,45 +112,9 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
     return old;
 }
 
-// Atomically increment *ptr by "increment". Returns the new value of
-// *ptr with the increment applied. This routine implies no memory barriers.
-inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
-                                          Atomic32 increment)
-{
-    Atomic32 temp, temp2;
-    __asm__ volatile(
-        ".set   push                \n"
-        ".set   noreorder           \n"
-
-    "1:                             \n"
-        "ll     %0,     %2          \n" // temp = *ptr
-        "addu   %1,     %0,     %3  \n" // temp2 = temp + increment
-        "sc     %1,     %2          \n" // *ptr = temp2 (with atomic check)
-        "beqz   %1,     1b          \n" // start again on atomic error
-        "addu   %1,     %0,     %3  \n" // temp2 = temp + increment
-
-        ".set   pop                 \n"
-        : "=&r" (temp), "=&r" (temp2),
-          "=m" (*ptr)
-        : "Ir" (increment), "m" (*ptr)
-        : "memory"
-    );
-    // temp2 now holds the final value.
-    return temp2;
-}
-
 inline void MemoryBarrier()
 {
     __asm__ volatile("sync" : : : "memory");
-}
-
-inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
-                                        Atomic32 increment)
-{
-    MemoryBarrier();
-    Atomic32 res = NoBarrier_AtomicIncrement(ptr, increment);
-    MemoryBarrier();
-    return res;
 }
 
 // "Acquire" operations
@@ -283,46 +247,12 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
     return old;
 }
 
-inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
-                                          Atomic64 increment)
-{
-    Atomic64 temp, temp2;
-    __asm__ volatile(
-        ".set   push                \n"
-        ".set   noreorder           \n"
-
-    "1:                             \n"
-        "lld    %0,     %2          \n" // temp = *ptr
-        "daddu  %1,     %0,     %3  \n" // temp2 = temp + increment
-        "scd    %1,     %2          \n" // *ptr = temp2 (with atomic check)
-        "beqz   %1,     1b          \n" // start again on atomic error
-        "daddu  %1,     %0,     %3  \n" // temp2 = temp + increment
-
-        ".set   pop                 \n"
-        : "=&r" (temp), "=&r" (temp2),
-          "=m" (*ptr)
-        : "Ir" (increment), "m" (*ptr)
-        : "memory"
-    );
-    // temp2 now holds the final value.
-    return temp2;
-}
-
 inline Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr,
                                        Atomic64 new_value)
 {
     Atomic64 old_value = NoBarrier_AtomicExchange(ptr, new_value);
     MemoryBarrier();
     return old_value;
-}
-
-inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
-                                        Atomic64 increment)
-{
-    MemoryBarrier();
-    Atomic64 res = NoBarrier_AtomicIncrement(ptr, increment);
-    MemoryBarrier();
-    return res;
 }
 
 inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,

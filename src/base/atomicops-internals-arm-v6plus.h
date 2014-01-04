@@ -117,39 +117,6 @@ inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
   return NoBarrier_AtomicExchange(ptr, new_value);
 }
 
-inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
-                                          Atomic32 increment) {
-  Atomic32 tmp, res;
-  __asm__ __volatile__(
-      "1:\n"
-      "ldrex  %1, [%2]\n"
-      "add    %1, %1, %3\n"
-      "strex  %0, %1, [%2]\n"
-      "teq    %0, #0\n"
-      "bne    1b"
-      : "=&r" (tmp), "=&r"(res)
-      : "r" (ptr), "r"(increment)
-      : "cc", "memory");
-  return res;
-}
-
-inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
-                                        Atomic32 increment) {
-  Atomic32 tmp, res;
-  __asm__ __volatile__(
-      "1:\n"
-      "ldrex  %1, [%2]\n"
-      "add    %1, %1, %3\n"
-      "dmb\n"
-      "strex  %0, %1, [%2]\n"
-      "teq    %0, #0\n"
-      "bne    1b"
-      : "=&r" (tmp), "=&r"(res)
-      : "r" (ptr), "r"(increment)
-      : "cc", "memory");
-  return res;
-}
-
 inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value,
                                        Atomic32 new_value) {
@@ -252,43 +219,6 @@ inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
   return NoBarrier_AtomicExchange(ptr, new_value);
 }
 
-inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
-                                          Atomic64 increment) {
-  int store_failed;
-  Atomic64 res;
-  __asm__ __volatile__(
-      "1:\n"
-      "ldrexd  %1, [%2]\n"
-      "adds    %Q1, %Q1, %Q3\n"
-      "adc     %R1, %R1, %R3\n"
-      "strexd  %0, %1, [%2]\n"
-      "teq     %0, #0\n"
-      "bne     1b"
-      : "=&r" (store_failed), "=&r"(res)
-      : "r" (ptr), "r"(increment)
-      : "cc", "memory");
-  return res;
-}
-
-inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
-                                        Atomic64 increment) {
-  int store_failed;
-  Atomic64 res;
-  __asm__ __volatile__(
-      "1:\n"
-      "ldrexd  %1, [%2]\n"
-      "adds    %Q1, %Q1, %Q3\n"
-      "adc     %R1, %R1, %R3\n"
-      "dmb\n"
-      "strexd  %0, %1, [%2]\n"
-      "teq     %0, #0\n"
-      "bne     1b"
-      : "=&r" (store_failed), "=&r"(res)
-      : "r" (ptr), "r"(increment)
-      : "cc", "memory");
-  return res;
-}
-
 inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
   int store_failed;
   Atomic64 dummy;
@@ -344,18 +274,6 @@ inline Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr,
 inline Atomic64 Release_AtomicExchange(volatile Atomic64* ptr,
                                        Atomic64 new_value) {
   NotImplementedFatalError("Release_AtomicExchange");
-  return 0;
-}
-
-inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
-                                          Atomic64 increment) {
-  NotImplementedFatalError("NoBarrier_AtomicIncrement");
-  return 0;
-}
-
-inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
-                                        Atomic64 increment) {
-  NotImplementedFatalError("Barrier_AtomicIncrement");
   return 0;
 }
 

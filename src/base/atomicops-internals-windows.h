@@ -150,18 +150,6 @@ inline Atomic32 Release_AtomicExchange(volatile Atomic32* ptr,
   return NoBarrier_AtomicExchange(ptr, new_value);
 }
 
-inline Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
-                                        Atomic32 increment) {
-  return FastInterlockedExchangeAdd(
-      reinterpret_cast<volatile LONG*>(ptr),
-      static_cast<LONG>(increment)) + increment;
-}
-
-inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr,
-                                          Atomic32 increment) {
-  return Barrier_AtomicIncrement(ptr, increment);
-}
-
 }  // namespace base::subtle
 }  // namespace base
 
@@ -306,18 +294,6 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
   return reinterpret_cast<Atomic64>(result);
 }
 
-inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
-                                        Atomic64 increment) {
-  return FastInterlockedExchangeAdd64(
-      reinterpret_cast<volatile LONGLONG*>(ptr),
-      static_cast<LONGLONG>(increment)) + increment;
-}
-
-inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
-                                          Atomic64 increment) {
-  return Barrier_AtomicIncrement(ptr, increment);
-}
-
 inline void NoBarrier_Store(volatile Atomic64* ptr, Atomic64 value) {
   *ptr = value;
 }
@@ -403,45 +379,6 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr,
   return new_value;  // Now it's the previous value.
 #else
   NotImplementedFatalError("NoBarrier_AtomicExchange");
-  return 0;
-#endif
-}
-
-inline Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr,
-                                          Atomic64 increment) {
-#if 0 // Not implemented
-  Atomic64 temp = increment;
-  __asm__ __volatile__(
-                       "0:\n\t"
-                       "movl (%3), %%ebx\n\t"    // Move 64-bit increment into
-                       "movl 4(%3), %%ecx\n\t"   // ecx:ebx
-                       "movl (%2), %%eax\n\t"    // Read contents of ptr into
-                       "movl 4(%2), %%edx\n\t"   // edx:eax
-                       "add %%eax, %%ebx\n\t"    // sum => ecx:ebx
-                       "adc %%edx, %%ecx\n\t"    // edx:eax still has old *ptr
-                       "lock; cmpxchg8b (%2)\n\t"// Attempt cmpxchg; if *ptr
-                       "jnz 0b\n\t"              // is no longer edx:eax, loop
-                       : "=A"(temp), "+m"(*ptr)
-                       : "D" (ptr), "S" (&increment)
-                       : "memory", "%ebx", "%ecx");
-  // temp now contains the previous value of *ptr
-  return temp + increment;
-#else
-  NotImplementedFatalError("NoBarrier_AtomicIncrement");
-  return 0;
-#endif
-}
-
-inline Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr,
-                                        Atomic64 increment) {
-#if 0 // Not implemented
-  Atomic64 new_val = NoBarrier_AtomicIncrement(ptr, increment);
-  if (AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug) {
-    __asm__ __volatile__("lfence" : : : "memory");
-  }
-  return new_val;
-#else
-  NotImplementedFatalError("Barrier_AtomicIncrement");
   return 0;
 #endif
 }

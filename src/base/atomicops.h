@@ -174,21 +174,6 @@ inline AtomicWord Release_AtomicExchange(volatile AtomicWord* ptr,
       reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
 }
 
-// Atomically increment *ptr by "increment".  Returns the new value of
-// *ptr with the increment applied.  This routine implies no memory
-// barriers.
-inline AtomicWord NoBarrier_AtomicIncrement(volatile AtomicWord* ptr,
-                                            AtomicWord increment) {
-  return NoBarrier_AtomicIncrement(
-      reinterpret_cast<volatile AtomicWordCastType*>(ptr), increment);
-}
-
-inline AtomicWord Barrier_AtomicIncrement(volatile AtomicWord* ptr,
-                                          AtomicWord increment) {
-  return Barrier_AtomicIncrement(
-      reinterpret_cast<volatile AtomicWordCastType*>(ptr), increment);
-}
-
 inline AtomicWord Acquire_CompareAndSwap(volatile AtomicWord* ptr,
                                          AtomicWord old_value,
                                          AtomicWord new_value) {
@@ -266,9 +251,6 @@ Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
 Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr, Atomic32 new_value);
 Atomic32 Acquire_AtomicExchange(volatile Atomic32* ptr, Atomic32 new_value);
 Atomic32 Release_AtomicExchange(volatile Atomic32* ptr, Atomic32 new_value);
-Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr, Atomic32 increment);
-Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
-                                 Atomic32 increment);
 Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
                                 Atomic32 old_value,
                                 Atomic32 new_value);
@@ -289,8 +271,6 @@ Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
 Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr, Atomic64 new_value);
 Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr, Atomic64 new_value);
 Atomic64 Release_AtomicExchange(volatile Atomic64* ptr, Atomic64 new_value);
-Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr, Atomic64 increment);
-Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr, Atomic64 increment);
 
 Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
                                 Atomic64 old_value,
