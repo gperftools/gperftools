@@ -456,6 +456,7 @@ inline int nanosleep(const struct timespec *req, struct timespec *rem) {
 #endif
 
 #ifndef __MINGW32__
+#if _MSC_VER < 1800
 inline long long int strtoll(const char *nptr, char **endptr, int base) {
     return _strtoi64(nptr, endptr, base);
 }
@@ -463,6 +464,7 @@ inline unsigned long long int strtoull(const char *nptr, char **endptr,
                                        int base) {
     return _strtoui64(nptr, endptr, base);
 }
+#endif
 inline long long int strtoq(const char *nptr, char **endptr, int base) {
     return _strtoi64(nptr, endptr, base);
 }

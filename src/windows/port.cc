@@ -41,6 +41,7 @@
 #include <string.h>    // for strlen(), memset(), memcmp()
 #include <assert.h>
 #include <stdarg.h>    // for va_list, va_start, va_end
+#include <algorithm>   // for std:{min,max}
 #include <windows.h>
 #include "port.h"
 #include "base/logging.h"
