@@ -464,10 +464,10 @@ inline unsigned long long int strtoull(const char *nptr, char **endptr,
                                        int base) {
     return _strtoui64(nptr, endptr, base);
 }
-#endif
 inline long long int strtoq(const char *nptr, char **endptr, int base) {
     return _strtoi64(nptr, endptr, base);
 }
+#endif
 inline unsigned long long int strtouq(const char *nptr, char **endptr,
                                       int base) {
     return _strtoui64(nptr, endptr, base);
