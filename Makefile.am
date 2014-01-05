@@ -264,7 +264,11 @@ libsysinfo_la_LIBADD += -lshlwapi
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
 TCMALLOC_CC =
 # windows has its own system for threads and system memory allocation.
+if HAVE_PTHREAD_DESPITE_ASKING_FOR
+MAYBE_THREADS_CC = src/maybe_threads.cc
+else
 MAYBE_THREADS_CC =
+endif
 SYSTEM_ALLOC_CC =
 else !MINGW
 # spinlock is the only code that uses atomicops.

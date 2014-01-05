@@ -348,6 +348,26 @@ AC_CHECK_DECLS(uname,,, [#include <sys/utsname.h>])
 # In fact, a lot of the code in this directory depends on pthreads
 ACX_PTHREAD
 
+AC_LANG_SAVE
+AC_LANG_CPLUSPLUS
+AC_MSG_CHECKING([whether pthread symbols are available in C++ without including pthread.h])
+acx_pthread_despite_asking_for=no
+AC_LINK_IFELSE(
+  [AC_LANG_PROGRAM([
+      #include <string>
+      #include <vector>
+  ],[
+      pthread_t th; pthread_join(th, 0);
+  ])],[
+    acx_pthread_despite_asking_for=yes
+    AC_DEFINE(HAVE_PTHREAD_DESPITE_ASKING_FOR, 1, [defined to 1 if pthread symbols are exposed even without include pthread.h])
+    AC_DEFINE(HAVE_PTHREAD, 1, [])
+  ])
+AC_MSG_RESULT([$acx_pthread_despite_asking_for])
+AC_LANG_RESTORE
+
+AM_CONDITIONAL(HAVE_PTHREAD_DESPITE_ASKING_FOR, test x"$acx_pthread_despite_asking_for" == xyes)
+
 # Find out what namespace 'normal' STL code lives in
 AC_CXX_STL_NAMESPACE
 

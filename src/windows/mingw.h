@@ -59,7 +59,9 @@
 // Some mingw distributions have a pthreads wrapper, but it doesn't
 // work as well as native windows spinlocks (at least for us).  So
 // pretend the pthreads wrapper doesn't exist, even when it does.
+#ifndef HAVE_PTHREAD_DESPITE_ASKING_FOR
 #undef HAVE_PTHREAD
+#endif
 
 #define HAVE_PID_T
 

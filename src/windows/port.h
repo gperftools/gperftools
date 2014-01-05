@@ -133,7 +133,14 @@ inline bool pthread_equal(pthread_t left, pthread_t right) {
   return left == right;
 }
 
+/*
+ * windows/port.h defines compatibility APIs for several .h files, which
+ * we therefore shouldn't be #including directly.  This hack keeps us from
+ * doing so.  TODO(csilvers): do something more principled.
+ */
+#define GOOGLE_MAYBE_THREADS_H_ 1
 /* This replaces maybe_threads.{h,cc} */
+
 EXTERN_C pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  /* port.cc */
 
 inline int perftools_pthread_key_create(pthread_key_t *pkey,
@@ -165,11 +172,12 @@ EXTERN_C int perftools_pthread_once(pthread_once_t *once_control,
                                     void (*init_routine)(void));
 
 #endif  /* __cplusplus */
-#endif  /* HAVE_PTHREAD */
 
 inline void sched_yield(void) {
   Sleep(0);
 }
+
+#endif  /* HAVE_PTHREAD */
 
 /*
  * __declspec(thread) isn't usable in a dll opened via LoadLibrary().
@@ -473,16 +481,6 @@ inline long long atoll(const char *nptr) {
 
 /* tcmalloc.cc calls this so we can patch VirtualAlloc() et al. */
 extern void PatchWindowsFunctions();
-
-// ----------------------------------- BUILD-SPECIFIC
-
-/*
- * windows/port.h defines compatibility APIs for several .h files, which
- * we therefore shouldn't be #including directly.  This hack keeps us from
- * doing so.  TODO(csilvers): do something more principled.
- */
-#define GOOGLE_MAYBE_THREADS_H_ 1
-
 
 #endif  /* _WIN32 */
 
