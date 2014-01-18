@@ -17,6 +17,8 @@ endif !WITH_STACK_TRACE
 # This is mostly based on configure options
 AM_CXXFLAGS =
 
+NO_BUILTIN_CXXFLAGS =
+
 # These are good warnings to turn on by default.  We also tell gcc
 # that malloc, free, realloc, mmap, etc. are not builtins (these flags
 # are supported since gcc 3.1.1).  gcc doesn't think most of them are
@@ -29,6 +31,8 @@ AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -fno-builtin-calloc -fno-builtin-cfree \
                -fno-builtin-memalign -fno-builtin-posix_memalign \
                -fno-builtin-valloc -fno-builtin-pvalloc
+
+NO_BUILTIN_CXXFLAGS += -fno-builtin
 
 # On i386, -mmmx is needed for the mmx-based instructions in
 # atomicops-internal-x86.h. Also as of gcc 4.6, -fomit-frame-pointer
@@ -527,7 +531,7 @@ WINDOWS_PROJECTS += vsprojects/tmu-static/tmu-static.vcproj
 tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                     src/tests/testutil.h src/tests/testutil.cc \
                                     $(TCMALLOC_UNITTEST_INCLUDES)
-tcmalloc_minimal_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_minimal_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_minimal_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 # We want libtcmalloc last on the link line, but due to a bug in
 # libtool involving convenience libs, they need to come last on the
@@ -542,13 +546,13 @@ tcmalloc_minimal_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) \
 TESTS += tcmalloc_minimal_large_unittest
 WINDOWS_PROJECTS += vsprojects/tcmalloc_minimal_large/tcmalloc_minimal_large_unittest.vcproj
 tcmalloc_minimal_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
-tcmalloc_minimal_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_minimal_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_minimal_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_minimal_large_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_minimal_large_heap_fragmentation_unittest
 tcmalloc_minimal_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
-tcmalloc_minimal_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_minimal_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
@@ -592,7 +596,7 @@ if !MINGW
 TESTS += system_alloc_unittest
 system_alloc_unittest_SOURCES = src/config_for_unittests.h \
                                 src/tests/system-alloc_unittest.cc
-system_alloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+system_alloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 system_alloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 system_alloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 endif !MINGW
@@ -607,7 +611,7 @@ packed_cache_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 TESTS += frag_unittest
 WINDOWS_PROJECTS += vsprojects/frag_unittest/frag_unittest.vcproj
 frag_unittest_SOURCES = src/tests/frag_unittest.cc src/config_for_unittests.h
-frag_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+frag_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 frag_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 frag_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
@@ -616,7 +620,7 @@ WINDOWS_PROJECTS += vsprojects/markidle_unittest/markidle_unittest.vcproj
 markidle_unittest_SOURCES = src/tests/markidle_unittest.cc \
                             src/config_for_unittests.h \
                             src/tests/testutil.h src/tests/testutil.cc
-markidle_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+markidle_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 markidle_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 markidle_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
@@ -677,7 +681,7 @@ memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
                             src/tcmalloc.h \
                             src/config_for_unittests.h \
                             src/tests/testutil.h src/tests/testutil.cc
-memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 memalign_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 endif !OSX
@@ -700,7 +704,7 @@ pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
                            src/config_for_unittests.h \
                            src/base/logging.h \
                            src/pagemap.h
-pagemap_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+pagemap_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 pagemap_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 pagemap_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
@@ -709,7 +713,7 @@ WINDOWS_PROJECTS += vsprojects/realloc_unittest/realloc_unittest.vcproj
 realloc_unittest_SOURCES = src/tests/realloc_unittest.cc \
                            src/config_for_unittests.h \
                            src/base/logging.h
-realloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+realloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 realloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 realloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
@@ -726,7 +730,7 @@ WINDOWS_PROJECTS += vsprojects/thread_dealloc_unittest/thread_dealloc_unittest.v
 thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
                                   src/config_for_unittests.h \
                                   src/tests/testutil.h src/tests/testutil.cc
-thread_dealloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+thread_dealloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
@@ -833,7 +837,7 @@ debugallocation_test.sh$(EXEEXT): $(top_srcdir)/$(debugallocation_test_sh_SOURCE
 # This is the sub-program used by debugallocation_test.sh
 noinst_PROGRAMS += debugallocation_test
 debugallocation_test_SOURCES = src/tests/debugallocation_test.cc
-debugallocation_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+debugallocation_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 debugallocation_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 debugallocation_test_LDADD = libtcmalloc_debug.la $(PTHREAD_LIBS)
 endif WITH_STACK_TRACE
@@ -927,7 +931,7 @@ tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                             src/tcmalloc.h \
                             src/tests/testutil.h src/tests/testutil.cc \
                             $(TCMALLOC_UNITTEST_INCLUDES)
-tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 # We want libtcmalloc last on the link line, but due to a bug in
 # libtool involving convenience libs, they need to come last on the
@@ -948,7 +952,7 @@ tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 tcmalloc_both_unittest_srcs = src/tests/tcmalloc_unittest.cc \
                               src/tests/testutil.h src/tests/testutil.cc \
                               $(TCMALLOC_UNITTEST_INCLUDES)
-tcmalloc_both_unittest_cflags = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_both_unittest_cflags = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_both_unittest_lflags = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 if WITH_CPU_PROFILER
 # We want libtcmalloc last on the link line, but due to a bug in
@@ -974,13 +978,13 @@ endif !OSX
 
 TESTS += tcmalloc_large_unittest
 tcmalloc_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
-tcmalloc_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_large_unittest_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_large_heap_fragmentation_unittest
 tcmalloc_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
-tcmalloc_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcmalloc_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 tcmalloc_large_heap_fragmentation_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_large_heap_fragmentation_unittest_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 
@@ -1045,7 +1049,7 @@ HEAP_PROFILER_UNITTEST_INCLUDES = src/config_for_unittests.h \
                                   src/gperftools/heap-profiler.h
 heap_profiler_unittest_SOURCES = src/tests/heap-profiler_unittest.cc \
                                  $(HEAP_PROFILER_UNITTEST_INCLUDES)
-heap_profiler_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+heap_profiler_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 heap_profiler_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 heap_profiler_unittest_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 
@@ -1087,7 +1091,7 @@ HEAP_CHECKER_UNITTEST_INCLUDES = src/config_for_unittests.h \
                                  $(LOGGING_INCLUDES)
 heap_checker_unittest_SOURCES = src/tests/heap-checker_unittest.cc \
                                 $(HEAP_CHECKER_UNITTEST_INCLUDES)
-heap_checker_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+heap_checker_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 heap_checker_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 # We want libtcmalloc last on the link line, but due to a bug in
 # libtool involving convenience libs, they need to come last on the
