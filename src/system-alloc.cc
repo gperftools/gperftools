@@ -524,15 +524,15 @@ bool TCMalloc_SystemRelease(void* start, size_t length) {
 
   // Round up the starting address and round down the ending address
   // to be page aligned:
-  new_start = (new_start + pagesize - 1) & ~pagemask;
-  new_end = new_end & ~pagemask;
+  new_start = new_end & ~pagemask;
+  new_end = (new_start + pagesize - 1) & ~pagemask;
 
   ASSERT((new_start & pagemask) == 0);
   ASSERT((new_end & pagemask) == 0);
   ASSERT(new_start >= reinterpret_cast<size_t>(start));
   ASSERT(new_end <= end);
 
-  if (new_end > new_start) {
+  if (new_end >= new_start) {
     int result;
     do {
       result = madvise(reinterpret_cast<char*>(new_start),
