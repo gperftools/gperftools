@@ -39,6 +39,36 @@
 
 namespace tcmalloc {
 
+#if defined(HAVE_FORK) && defined(HAVE_PTHREAD)
+// These following two functions are registered via pthread_atfork to make
+// sure the central_cache locks remain in a consisten state in the forked
+// version of the thread.
+
+static void CentralCacheLockAll()
+{
+  Static::pageheap_lock()->Lock();
+  for (int i = 0; i < kNumClasses; ++i)
+    Static::central_cache()[i].Lock();
+}
+
+static void CentralCacheUnlockAll()
+{
+  for (int i = 0; i < kNumClasses; ++i)
+    Static::central_cache()[i].Unlock();
+  Static::pageheap_lock()->Unlock();
+}
+#endif
+
+static inline void SetupAtForkLocksHandler()
+{
+#if defined(HAVE_FORK) && defined(HAVE_PTHREAD)
+  pthread_atfork(CentralCacheLockAll,    // parent calls before fork
+                 CentralCacheUnlockAll,  // parent calls after fork
+                 CentralCacheUnlockAll); // child calls after fork
+#endif
+}
+
+
 SpinLock Static::pageheap_lock_(SpinLock::LINKER_INITIALIZED);
 SizeMap Static::sizemap_;
 CentralFreeListPadded Static::central_cache_[kNumClasses];
@@ -48,6 +78,7 @@ Span Static::sampled_objects_;
 PageHeapAllocator<StackTraceTable::Bucket> Static::bucket_allocator_;
 StackTrace* Static::growth_stacks_ = NULL;
 PageHeap* Static::pageheap_ = NULL;
+
 
 void Static::InitStaticVars() {
   sizemap_.Init();
@@ -61,6 +92,8 @@ void Static::InitStaticVars() {
   for (int i = 0; i < kNumClasses; ++i) {
     central_cache_[i].Init(i);
   }
+  SetupAtForkLocksHandler();
+
   // It's important to have PageHeap allocated, not in static storage,
   // so that HeapLeakChecker does not consider all the byte patterns stored
   // in is caches as pointers that are sources of heap object liveness,

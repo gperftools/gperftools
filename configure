@@ -15114,6 +15114,17 @@ _ACEOF
 fi
 done
          # for turning off services when run as root
+for ac_func in fork
+do :
+  ac_fn_c_check_func "$LINENO" "fork" "ac_cv_func_fork"
+if test "x$ac_cv_func_fork" = xyes; then :
+  cat >>confdefs.h <<_ACEOF
+#define HAVE_FORK 1
+_ACEOF
+
+fi
+done
+            # for the pthread_atfork setup
 for ac_header in features.h
 do :
   ac_fn_c_check_header_mongrel "$LINENO" "features.h" "ac_cv_header_features_h" "$ac_includes_default"
