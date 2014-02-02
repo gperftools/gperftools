@@ -214,11 +214,21 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Never delay scavenging for more than the following number of
   // deallocated pages.  With 4K pages, this comes to 4GB of
   // deallocation.
+#ifndef TCMALLOC_LARGE_PAGES64K
   static const int kMaxReleaseDelay = 1 << 20;
+#else
+  // With 64K pages this come to 16M
+  static const int kMaxReleaseDelay = 1 << 8;
+#endif
 
   // If there is nothing to release, wait for so many pages before
   // scavenging again.  With 4K pages, this comes to 1GB of memory.
+#ifndef TCMALLOC_LARGE_PAGES64K
   static const int kDefaultReleaseDelay = 1 << 18;
+#else
+  // WIth 64K pages, this comes to 4MB
+  static const int kDefaultReleaseDelay = 1 << 6;
+#endif
 
   // Pick the appropriate map and cache types based on pointer size
   typedef MapSelector<kAddressBits>::Type PageMap;
