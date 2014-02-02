@@ -915,6 +915,12 @@ EOF
     or32:Linux:*:*)
 	echo or32-unknown-linux-gnu
 	exit ;;
+    ppcle:Linux:*:*)
+	echo powerpcle-unknown-linux-gnu
+	exit ;;
+    ppc64le:Linux:*:*)
+	echo powerpc64le-unknown-linux-gnu
+	exit ;;
     ppc:Linux:*:*)
 	echo powerpc-unknown-linux-gnu
 	exit ;;
