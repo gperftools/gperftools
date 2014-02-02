@@ -1,3 +1,23 @@
+POWERPC NOTES
+-------------
+
+This branch contains PowerPC specific performance tunings and
+platform fixes. Although some tests heap and cpu profiler tests fail,
+libtcmalloc works correctly.
+
+On newer distros with 64k page size, it is highly recommended
+to configure with '-DTCMALLOC_LARGE_PAGES64K' CXX flag. It turns the
+internal page allocation to use 64K page size and avoid more syscalls
+to allocate memory from OS.
+
+The default value of objects transfered between central list and
+thread cache is increased from 32 to 32768. This is a performance
+improvement, specially on programs that allocate lot of objects of
+the same size (like a std::map<int> with a large set of elements).
+The value can be change by setting the environment variable
+TCMALLOC_TRANSFER_NUM_OBJ.
+
+
 IMPORTANT NOTE FOR 64-BIT USERS
 -------------------------------
 There are known issues with some perftools functionality on x86_64
