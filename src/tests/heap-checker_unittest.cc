@@ -340,6 +340,7 @@ static void DoRunHidden(Closure* c, int n) {
     const int sz = 30;
     volatile int arr[sz];
     for (int i = 0; i < sz; ++i) arr[i] = 0;
+    (void)arr;
     (*wipe_stack_ptr)(n-1);
     sleep(0);  // undo -foptimize-sibling-calls
   }
@@ -570,7 +571,8 @@ static void TestHiddenPointer() {
   // the xor trick itself works, as without it nothing in this
   // test suite would work.  See the Hide/Unhide/*Hidden* set
   // of helper methods.
-  CHECK_NE(foo, *reinterpret_cast<void**>(&p));
+  void** rp = reinterpret_cast<void**>(&p);
+  CHECK_NE(foo, *rp);
 }
 
 // simple tests that deallocate what they allocated

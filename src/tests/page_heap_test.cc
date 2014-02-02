@@ -43,7 +43,6 @@ static void TestPageHeap_Stats() {
 
   // Split span 's1' into 's1', 's2'.  Delete 's2'
   tcmalloc::Span* s2 = ph->Split(s1, 128);
-  Length s2_len = s2->length;
   ph->Delete(s2);
   CheckStats(ph, 256, 128, 0);
 

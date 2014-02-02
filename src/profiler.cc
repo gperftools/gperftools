@@ -205,7 +205,7 @@ CpuProfiler::CpuProfiler()
   if (signal_number_str != NULL)
   {
     long int signal_number = strtol(signal_number_str, NULL, 10);
-	printf("<debug> signal_number=%d\n", signal_number);
+	printf("<debug> signal_number=%" PRId64 "\n", signal_number);
     if (signal_number >=1 && signal_number <=64)
     {
       sighandler_t old_signal_handler = signal(signal_number, CpuProfilerSwitch);
