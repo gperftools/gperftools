@@ -50,6 +50,16 @@
 // implementations on other archtectures will cause your code to break.  If you
 // do not know what you are doing, avoid these routines, and use a Mutex.
 //
+// These following lower-level operations are typically useful only to people
+// implementing higher-level synchronization operations like spinlocks,
+// mutexes, and condition-variables.  They combine CompareAndSwap(), a load, or
+// a store with appropriate memory-ordering instructions.  "Acquire" operations
+// ensure that no later memory access can be reordered ahead of the operation.
+// "Release" operations ensure that no previous memory access can be reordered
+// after the operation.  "Barrier" operations have both "Acquire" and "Release"
+// semantics.   A MemoryBarrier() has "Barrier" semantics, but does no memory
+// access.
+//
 // It is incorrect to make direct assignments to/from an atomic variable.
 // You should use one of the Load or Store routines.  The NoBarrier
 // versions are provided when no barriers are needed:
@@ -149,6 +159,18 @@ inline AtomicWord NoBarrier_AtomicExchange(volatile AtomicWord* ptr,
       reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
 }
 
+AtomicWord Acquire_AtomicExchange(volatile AtomicWord* ptr,
+                                  AtomicWord new_value) {
+  return Acquire_AtomicExchange(
+      reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
+}
+
+AtomicWord Release_AtomicExchange(volatile AtomicWord* ptr,
+                                  AtomicWord new_value) {
+  return Release_AtomicExchange(
+      reinterpret_cast<volatile AtomicWordCastType*>(ptr), new_value);
+}
+
 // Atomically increment *ptr by "increment".  Returns the new value of
 // *ptr with the increment applied.  This routine implies no memory
 // barriers.
@@ -164,17 +186,6 @@ inline AtomicWord Barrier_AtomicIncrement(volatile AtomicWord* ptr,
       reinterpret_cast<volatile AtomicWordCastType*>(ptr), increment);
 }
 
-// ------------------------------------------------------------------------
-// These following lower-level operations are typically useful only to people
-// implementing higher-level synchronization operations like spinlocks,
-// mutexes, and condition-variables.  They combine CompareAndSwap(), a load, or
-// a store with appropriate memory-ordering instructions.  "Acquire" operations
-// ensure that no later memory access can be reordered ahead of the operation.
-// "Release" operations ensure that no previous memory access can be reordered
-// after the operation.  "Barrier" operations have both "Acquire" and "Release"
-// semantics.   A MemoryBarrier() has "Barrier" semantics, but does no memory
-// access.
-// ------------------------------------------------------------------------
 inline AtomicWord Acquire_CompareAndSwap(volatile AtomicWord* ptr,
                                          AtomicWord old_value,
                                          AtomicWord new_value) {
@@ -250,6 +261,8 @@ Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
                                   Atomic32 old_value,
                                   Atomic32 new_value);
 Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr, Atomic32 new_value);
+Atomic32 Acquire_AtomicExchange(volatile Atomic32* ptr, Atomic32 new_value);
+Atomic32 Release_AtomicExchange(volatile Atomic32* ptr, Atomic32 new_value);
 Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32* ptr, Atomic32 increment);
 Atomic32 Barrier_AtomicIncrement(volatile Atomic32* ptr,
                                  Atomic32 increment);
@@ -271,6 +284,8 @@ Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
                                   Atomic64 old_value,
                                   Atomic64 new_value);
 Atomic64 NoBarrier_AtomicExchange(volatile Atomic64* ptr, Atomic64 new_value);
+Atomic64 Acquire_AtomicExchange(volatile Atomic64* ptr, Atomic64 new_value);
+Atomic64 Release_AtomicExchange(volatile Atomic64* ptr, Atomic64 new_value);
 Atomic64 NoBarrier_AtomicIncrement(volatile Atomic64* ptr, Atomic64 increment);
 Atomic64 Barrier_AtomicIncrement(volatile Atomic64* ptr, Atomic64 increment);
 

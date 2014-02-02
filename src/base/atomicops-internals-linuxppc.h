@@ -163,6 +163,26 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32 *ptr,
   return old_value;
 }
 
+inline Atomic32 Acquire_AtomicExchange(volatile Atomic32 *ptr,
+                                       Atomic32 new_value) {
+  Atomic32 old_value;
+  do {
+    old_value = *ptr;
+  } while (!OSAtomicCompareAndSwap32Acquire(old_value, new_value,
+                                            const_cast<Atomic32*>(ptr)));
+  return old_value;
+}
+
+inline Atomic32 Release_AtomicExchange(volatile Atomic32 *ptr,
+                                       Atomic32 new_value) {
+  Atomic32 old_value;
+  do {
+    old_value = *ptr;
+  } while (!OSAtomicCompareAndSwap32Release(old_value, new_value,
+                                            const_cast<Atomic32*>(ptr)));
+  return old_value;
+}
+
 inline Atomic32 NoBarrier_AtomicIncrement(volatile Atomic32 *ptr,
                                           Atomic32 increment) {
   return OSAtomicAdd32(increment, const_cast<Atomic32*>(ptr));
@@ -291,6 +311,26 @@ inline Atomic64 NoBarrier_AtomicExchange(volatile Atomic64 *ptr,
     old_value = *ptr;
   } while (!OSAtomicCompareAndSwap64(old_value, new_value,
                                      const_cast<Atomic64*>(ptr)));
+  return old_value;
+}
+
+inline Atomic64 Acquire_AtomicExchange(volatile Atomic64 *ptr,
+                                       Atomic64 new_value) {
+  Atomic64 old_value;
+  do {
+    old_value = *ptr;
+  } while (!OSAtomicCompareAndSwap64Acquire(old_value, new_value,
+                                            const_cast<Atomic64*>(ptr)));
+  return old_value;
+}
+
+inline Atomic64 Release_AtomicExchange(volatile Atomic64 *ptr,
+                                       Atomic64 new_value) {
+  Atomic64 old_value;
+  do {
+    old_value = *ptr;
+  } while (!OSAtomicCompareAndSwap64Release(old_value, new_value,
+                                            const_cast<Atomic64*>(ptr)));
   return old_value;
 }
 
