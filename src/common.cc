@@ -33,8 +33,27 @@
 #include "config.h"
 #include "common.h"
 #include "system-alloc.h"
+#include "base/commandlineflags.h"
 
 namespace tcmalloc {
+
+// Define the maximum number of object per classe type to transfer between
+// thread and central caches. Default is 32.
+static int32 FLAGS_tcmalloc_transfer_num_objects;
+
+static const int32 kDefaultTransferNumObjecs = 32768;
+
+// The init function is provided to explicit initialize the variable value
+// from the env. var to avoid C++ global construction that might defer its
+// initialization after a malloc/new call.
+static inline void InitTCMallocTransferNumObjects()
+{
+  if (UNLIKELY(FLAGS_tcmalloc_transfer_num_objects == 0)) {
+    const char *envval = getenv("TCMALLOC_TRANSFER_NUM_OBJ");
+    FLAGS_tcmalloc_transfer_num_objects = !envval ? kDefaultTransferNumObjecs :
+      strtol(envval, NULL, 10);
+  }
+}
 
 // Note: the following only works for "n"s that fit in 32-bits, but
 // that is fine since we only use it for small sizes.
@@ -90,13 +109,16 @@ int SizeMap::NumMoveSize(size_t size) {
   // - We go to the central freelist too often and we have to acquire
   //   its lock each time.
   // This value strikes a balance between the constraints above.
-  if (num > 32) num = 32;
+  if (num > FLAGS_tcmalloc_transfer_num_objects)
+    num = FLAGS_tcmalloc_transfer_num_objects;
 
   return num;
 }
 
 // Initialize the mapping arrays
 void SizeMap::Init() {
+  InitTCMallocTransferNumObjects();
+
   // Do some sanity checking on add_amount[]/shift_amount[]/class_array[]
   if (ClassIndex(0) < 0) {
     Log(kCrash, __FILE__, __LINE__,

@@ -898,8 +898,16 @@ LIBS_TO_WEAKEN += libtcmalloc.la
 
 ### Unittests
 
-TESTS += tcmalloc_unittest
-TCMALLOC_UNITTEST_INCLUDES = src/config_for_unittests.h \
+TESTS += tcmalloc_unittest.sh$(EXEEXT)
+tcmalloc_unittest_sh_SOURCES = src/tests/tcmalloc_unittest.sh
+noinst_SCRIPTS += $(tcmalloc_unittest_sh_SOURCES)
+tcmalloc_unittest.sh$(EXEEXT): $(top_srcdir)/$(tcmalloc_unittest_sh_SOURCES) \
+                               tcmalloc_unittest
+	rm -f $@
+	cp -p $(top_srcdir)/$(tcmalloc_unittest_sh_SOURCES) $@
+
+noinst_PROGRAMS += tcmalloc_unittest
+tcmalloc_unittest_INCLUDES = src/config_for_unittests.h \
                              src/gperftools/malloc_extension.h
 tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                             src/tcmalloc.h \

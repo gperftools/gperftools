@@ -84,13 +84,13 @@ TESTS = low_level_alloc_unittest$(EXEEXT) atomicops_unittest$(EXEEXT) \
 	stack_trace_table_test$(EXEEXT) \
 	thread_dealloc_unittest$(EXEEXT) $(am__EXEEXT_13) \
 	$(am__EXEEXT_14) $(am__EXEEXT_15) $(am__append_29) \
-	$(am__EXEEXT_16) $(am__EXEEXT_17) $(am__EXEEXT_18) \
-	$(am__EXEEXT_19) $(am__append_49) $(am__EXEEXT_20) \
-	$(am__append_58) $(am__append_60) $(am__EXEEXT_21) \
-	$(am__EXEEXT_22)
+	$(am__append_39) $(am__EXEEXT_16) $(am__EXEEXT_17) \
+	$(am__EXEEXT_18) $(am__append_49) $(am__EXEEXT_19) \
+	$(am__append_58) $(am__append_60) $(am__EXEEXT_20) \
+	$(am__EXEEXT_21)
 noinst_PROGRAMS = $(am__EXEEXT_1) $(am__EXEEXT_2) $(am__EXEEXT_3) \
 	$(am__EXEEXT_4) $(am__EXEEXT_5) $(am__EXEEXT_6) \
-	$(am__EXEEXT_7) $(am__EXEEXT_8) $(am__EXEEXT_23)
+	$(am__EXEEXT_7) $(am__EXEEXT_8) $(am__EXEEXT_22)
 bin_PROGRAMS =
 @MINGW_TRUE@am__append_8 = libwindows.la libspinlock.la
 
@@ -176,9 +176,16 @@ bin_PROGRAMS =
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_38 = libtcmalloc.la
 
 ### Unittests
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_39 = tcmalloc_unittest
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_40 = tcmalloc_both_unittest
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_41 =  \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_39 = tcmalloc_unittest.sh$(EXEEXT)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_40 = $(tcmalloc_unittest_sh_SOURCES) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(sampling_test_sh_SOURCES)
+
+# This is the sub-program used by sampling_test.sh
+# The -g is so pprof can get symbol information.
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_41 = tcmalloc_unittest \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampling_test
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_42 = tcmalloc_both_unittest
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_43 =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_large_unittest \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	raw_printer_test \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampler_test \
@@ -188,15 +195,10 @@ bin_PROGRAMS =
 # on, which it's not by default.  Use the "standard" value of 2^19.
 
 # These unittests often need to run binaries.  They're in the current dir
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_42 = TCMALLOC_SAMPLE_PARAMETER=524288 \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_44 = TCMALLOC_SAMPLE_PARAMETER=524288 \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	BINDIR=. \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	TMPDIR=/tmp/perftools
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_43 = vsprojects/sampler_test/sampler_test.vcproj
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_44 = $(sampling_test_sh_SOURCES)
-
-# This is the sub-program used by sampling_test.sh
-# The -g is so pprof can get symbol information.
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_45 = sampling_test
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__append_45 = vsprojects/sampler_test/sampler_test.vcproj
 
 # Tests the compatibility include-headers in google/.  Requires a function
 # defined in the heap-profiler, which is why the test lives here.
@@ -817,7 +819,7 @@ libwindows_la_OBJECTS = $(am_libwindows_la_OBJECTS)
 @MINGW_TRUE@am_libwindows_la_rpath =
 binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 @WITH_DEBUGALLOC_TRUE@@WITH_STACK_TRACE_TRUE@am__EXEEXT_1 = debugallocation_test$(EXEEXT)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_2 =  \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_2 = tcmalloc_unittest$(EXEEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampling_test$(EXEEXT)
 @WITH_HEAP_PROFILER_TRUE@am__EXEEXT_3 =  \
 @WITH_HEAP_PROFILER_TRUE@	heap-profiler_unittest$(EXEEXT)
@@ -837,24 +839,23 @@ binPROGRAMS_INSTALL = $(INSTALL_PROGRAM)
 @WITH_DEBUGALLOC_TRUE@	malloc_extension_debug_test$(EXEEXT)
 @MINGW_FALSE@@OSX_FALSE@@WITH_DEBUGALLOC_TRUE@am__EXEEXT_14 = memalign_debug_unittest$(EXEEXT)
 @WITH_DEBUGALLOC_TRUE@am__EXEEXT_15 = realloc_debug_unittest$(EXEEXT)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_16 = tcmalloc_unittest$(EXEEXT)
-@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_17 = tcmalloc_both_unittest$(EXEEXT)
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_18 = tcmalloc_large_unittest$(EXEEXT) \
+@OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_16 = tcmalloc_both_unittest$(EXEEXT)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_17 = tcmalloc_large_unittest$(EXEEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	raw_printer_test$(EXEEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampler_test$(EXEEXT) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampling_test.sh$(EXEEXT)
-@WITH_HEAP_PROFILER_TRUE@am__EXEEXT_19 =  \
+@WITH_HEAP_PROFILER_TRUE@am__EXEEXT_18 =  \
 @WITH_HEAP_PROFILER_TRUE@	heap-profiler_unittest.sh$(EXEEXT) \
 @WITH_HEAP_PROFILER_TRUE@	simple_compat_test$(EXEEXT)
-@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_20 = tcmalloc_debug_unittest$(EXEEXT) \
+@WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_19 = tcmalloc_debug_unittest$(EXEEXT) \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampler_debug_test$(EXEEXT) \
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	sampling_debug_test.sh$(EXEEXT)
-@WITH_CPU_PROFILER_TRUE@am__EXEEXT_21 = getpc_test$(EXEEXT) \
+@WITH_CPU_PROFILER_TRUE@am__EXEEXT_20 = getpc_test$(EXEEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiledata_unittest$(EXEEXT) \
 @WITH_CPU_PROFILER_TRUE@	profile_handler_unittest$(EXEEXT) \
 @WITH_CPU_PROFILER_TRUE@	profiler_unittest.sh$(EXEEXT)
-@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_22 = tcmalloc_and_profiler_unittest$(EXEEXT)
-am__EXEEXT_23 = low_level_alloc_unittest$(EXEEXT) \
+@WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__EXEEXT_21 = tcmalloc_and_profiler_unittest$(EXEEXT)
+am__EXEEXT_22 = low_level_alloc_unittest$(EXEEXT) \
 	atomicops_unittest$(EXEEXT) $(am__EXEEXT_9) \
 	tcmalloc_minimal_unittest$(EXEEXT) \
 	tcmalloc_minimal_large_unittest$(EXEEXT) $(am__append_17) \
@@ -868,10 +869,10 @@ am__EXEEXT_23 = low_level_alloc_unittest$(EXEEXT) \
 	stack_trace_table_test$(EXEEXT) \
 	thread_dealloc_unittest$(EXEEXT) $(am__EXEEXT_13) \
 	$(am__EXEEXT_14) $(am__EXEEXT_15) $(am__append_29) \
-	$(am__EXEEXT_16) $(am__EXEEXT_17) $(am__EXEEXT_18) \
-	$(am__EXEEXT_19) $(am__append_49) $(am__EXEEXT_20) \
-	$(am__append_58) $(am__append_60) $(am__EXEEXT_21) \
-	$(am__EXEEXT_22)
+	$(am__append_39) $(am__EXEEXT_16) $(am__EXEEXT_17) \
+	$(am__EXEEXT_18) $(am__append_49) $(am__EXEEXT_19) \
+	$(am__append_58) $(am__append_60) $(am__EXEEXT_20) \
+	$(am__EXEEXT_21)
 PROGRAMS = $(bin_PROGRAMS) $(noinst_PROGRAMS)
 am__addressmap_unittest_SOURCES_DIST =  \
 	src/tests/addressmap_unittest.cc src/addressmap-inl.h \
@@ -1397,11 +1398,9 @@ system_alloc_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(system_alloc_unittest_LDFLAGS) $(LDFLAGS) -o $@
 am__tcmalloc_and_profiler_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
-	src/tests/testutil.cc src/config_for_unittests.h \
-	src/gperftools/malloc_extension.h
+	src/tests/testutil.cc
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_40 = tcmalloc_and_profiler_unittest-tcmalloc_unittest.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_and_profiler_unittest-testutil.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_and_profiler_unittest-testutil.$(OBJEXT)
 @WITH_CPU_PROFILER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_and_profiler_unittest_OBJECTS = $(am__objects_40)
 tcmalloc_and_profiler_unittest_OBJECTS =  \
 	$(am_tcmalloc_and_profiler_unittest_OBJECTS)
@@ -1412,11 +1411,9 @@ tcmalloc_and_profiler_unittest_LINK = $(LIBTOOL) --tag=CXX \
 	$(tcmalloc_and_profiler_unittest_LDFLAGS) $(LDFLAGS) -o $@
 am__tcmalloc_both_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
-	src/tests/testutil.cc src/config_for_unittests.h \
-	src/gperftools/malloc_extension.h
+	src/tests/testutil.cc
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_41 = tcmalloc_both_unittest-tcmalloc_unittest.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_both_unittest-testutil.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_both_unittest-testutil.$(OBJEXT)
 @OSX_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_both_unittest_OBJECTS = $(am__objects_41)
 tcmalloc_both_unittest_OBJECTS = $(am_tcmalloc_both_unittest_OBJECTS)
 @WITH_CPU_PROFILER_FALSE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__DEPENDENCIES_4 = $(LIBTCMALLOC) \
@@ -1435,11 +1432,9 @@ tcmalloc_both_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(tcmalloc_both_unittest_LDFLAGS) $(LDFLAGS) -o $@
 am__tcmalloc_debug_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tcmalloc.h \
-	src/tests/testutil.h src/tests/testutil.cc \
-	src/config_for_unittests.h src/gperftools/malloc_extension.h
+	src/tests/testutil.h src/tests/testutil.cc
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am__objects_42 = tcmalloc_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_debug_unittest-testutil.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_debug_unittest-testutil.$(OBJEXT)
 @WITH_DEBUGALLOC_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_debug_unittest_OBJECTS = $(am__objects_42)
 tcmalloc_debug_unittest_OBJECTS =  \
 	$(am_tcmalloc_debug_unittest_OBJECTS)
@@ -1463,12 +1458,10 @@ tcmalloc_large_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(tcmalloc_large_unittest_LDFLAGS) $(LDFLAGS) -o $@
 am__tcmalloc_minimal_debug_unittest_SOURCES_DIST =  \
 	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
-	src/tests/testutil.cc src/config_for_unittests.h \
-	src/gperftools/malloc_extension.h
+	src/tests/testutil.cc
 am__objects_43 =  \
 	tcmalloc_minimal_debug_unittest-tcmalloc_unittest.$(OBJEXT) \
-	tcmalloc_minimal_debug_unittest-testutil.$(OBJEXT) \
-	$(am__objects_1)
+	tcmalloc_minimal_debug_unittest-testutil.$(OBJEXT)
 @WITH_DEBUGALLOC_TRUE@am_tcmalloc_minimal_debug_unittest_OBJECTS =  \
 @WITH_DEBUGALLOC_TRUE@	$(am__objects_43)
 tcmalloc_minimal_debug_unittest_OBJECTS =  \
@@ -1489,13 +1482,9 @@ tcmalloc_minimal_large_unittest_LINK = $(LIBTOOL) --tag=CXX \
 	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(tcmalloc_minimal_large_unittest_CXXFLAGS) $(CXXFLAGS) \
 	$(tcmalloc_minimal_large_unittest_LDFLAGS) $(LDFLAGS) -o $@
-am__tcmalloc_minimal_unittest_SOURCES_DIST =  \
-	src/tests/tcmalloc_unittest.cc src/tests/testutil.h \
-	src/tests/testutil.cc src/config_for_unittests.h \
-	src/gperftools/malloc_extension.h
 am_tcmalloc_minimal_unittest_OBJECTS =  \
 	tcmalloc_minimal_unittest-tcmalloc_unittest.$(OBJEXT) \
-	tcmalloc_minimal_unittest-testutil.$(OBJEXT) $(am__objects_1)
+	tcmalloc_minimal_unittest-testutil.$(OBJEXT)
 tcmalloc_minimal_unittest_OBJECTS =  \
 	$(am_tcmalloc_minimal_unittest_OBJECTS)
 tcmalloc_minimal_unittest_DEPENDENCIES = $(LIBTCMALLOC_MINIMAL) \
@@ -1505,11 +1494,9 @@ tcmalloc_minimal_unittest_LINK = $(LIBTOOL) --tag=CXX \
 	$(tcmalloc_minimal_unittest_CXXFLAGS) $(CXXFLAGS) \
 	$(tcmalloc_minimal_unittest_LDFLAGS) $(LDFLAGS) -o $@
 am__tcmalloc_unittest_SOURCES_DIST = src/tests/tcmalloc_unittest.cc \
-	src/tcmalloc.h src/tests/testutil.h src/tests/testutil.cc \
-	src/config_for_unittests.h src/gperftools/malloc_extension.h
+	src/tcmalloc.h src/tests/testutil.h src/tests/testutil.cc
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@am_tcmalloc_unittest_OBJECTS = tcmalloc_unittest-tcmalloc_unittest.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_unittest-testutil.$(OBJEXT) \
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(am__objects_1)
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	tcmalloc_unittest-testutil.$(OBJEXT)
 tcmalloc_unittest_OBJECTS = $(am_tcmalloc_unittest_OBJECTS)
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_DEPENDENCIES =  \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	$(LIBTCMALLOC) \
@@ -1519,6 +1506,11 @@ tcmalloc_unittest_LINK = $(LIBTOOL) --tag=CXX $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CXXLD) \
 	$(tcmalloc_unittest_CXXFLAGS) $(CXXFLAGS) \
 	$(tcmalloc_unittest_LDFLAGS) $(LDFLAGS) -o $@
+am__tcmalloc_unittest_sh_SOURCES_DIST =  \
+	src/tests/tcmalloc_unittest.sh
+am_tcmalloc_unittest_sh_OBJECTS =
+tcmalloc_unittest_sh_OBJECTS = $(am_tcmalloc_unittest_sh_OBJECTS)
+tcmalloc_unittest_sh_LDADD = $(LDADD)
 am_thread_dealloc_unittest_OBJECTS =  \
 	thread_dealloc_unittest-thread_dealloc_unittest.$(OBJEXT) \
 	thread_dealloc_unittest-testutil.$(OBJEXT)
@@ -1605,7 +1597,7 @@ SOURCES = $(liblogging_la_SOURCES) $(libprofiler_la_SOURCES) \
 	$(tcmalloc_minimal_debug_unittest_SOURCES) \
 	$(tcmalloc_minimal_large_unittest_SOURCES) \
 	$(tcmalloc_minimal_unittest_SOURCES) \
-	$(tcmalloc_unittest_SOURCES) \
+	$(tcmalloc_unittest_SOURCES) $(tcmalloc_unittest_sh_SOURCES) \
 	$(thread_dealloc_unittest_SOURCES)
 DIST_SOURCES = $(liblogging_la_SOURCES) \
 	$(am__libprofiler_la_SOURCES_DIST) \
@@ -1670,8 +1662,9 @@ DIST_SOURCES = $(liblogging_la_SOURCES) \
 	$(am__tcmalloc_large_unittest_SOURCES_DIST) \
 	$(am__tcmalloc_minimal_debug_unittest_SOURCES_DIST) \
 	$(tcmalloc_minimal_large_unittest_SOURCES) \
-	$(am__tcmalloc_minimal_unittest_SOURCES_DIST) \
+	$(tcmalloc_minimal_unittest_SOURCES) \
 	$(am__tcmalloc_unittest_SOURCES_DIST) \
+	$(am__tcmalloc_unittest_sh_SOURCES_DIST) \
 	$(thread_dealloc_unittest_SOURCES)
 man1dir = $(mandir)/man1
 NROFF = nroff
@@ -2022,13 +2015,13 @@ WINDOWS_PROJECTS = gperftools.sln \
 	vsprojects/realloc_unittest/realloc_unittest.vcproj \
 	vsprojects/stack_trace_table_test/stack_trace_table_test.vcproj \
 	vsprojects/thread_dealloc_unittest/thread_dealloc_unittest.vcproj \
-	$(am__append_43)
+	$(am__append_45)
 # TESTS_ENVIRONMENT sets environment variables for when you run unittest.
 # We always get "srcdir" set for free.
 # We'll add to this later, on a library-by-library basis.
-TESTS_ENVIRONMENT = $(am__append_15) $(am__append_42)
+TESTS_ENVIRONMENT = $(am__append_15) $(am__append_44)
 # All script tests should be added here
-noinst_SCRIPTS = $(am__append_18) $(am__append_30) $(am__append_44) \
+noinst_SCRIPTS = $(am__append_18) $(am__append_30) $(am__append_40) \
 	$(am__append_47) $(am__append_50) $(am__append_65)
 
 # This is my own var, used for extra libraries I make that I need installed
@@ -2506,7 +2499,8 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 @WITH_HEAP_CHECKER_TRUE@@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                       src/heap-checker-bcad.cc
 
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@LIBTCMALLOC = libtcmalloc.la
-@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@TCMALLOC_UNITTEST_INCLUDES = src/config_for_unittests.h \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_sh_SOURCES = src/tests/tcmalloc_unittest.sh
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_INCLUDES = src/config_for_unittests.h \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                             src/gperftools/malloc_extension.h
 
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
@@ -3104,6 +3098,9 @@ tcmalloc_minimal_unittest$(EXEEXT): $(tcmalloc_minimal_unittest_OBJECTS) $(tcmal
 tcmalloc_unittest$(EXEEXT): $(tcmalloc_unittest_OBJECTS) $(tcmalloc_unittest_DEPENDENCIES) 
 	@rm -f tcmalloc_unittest$(EXEEXT)
 	$(tcmalloc_unittest_LINK) $(tcmalloc_unittest_OBJECTS) $(tcmalloc_unittest_LDADD) $(LIBS)
+@WITH_HEAP_PROFILER_OR_CHECKER_FALSE@tcmalloc_unittest.sh$(EXEEXT): $(tcmalloc_unittest_sh_OBJECTS) $(tcmalloc_unittest_sh_DEPENDENCIES)
+@WITH_HEAP_PROFILER_OR_CHECKER_FALSE@	@rm -f tcmalloc_unittest.sh$(EXEEXT)
+@WITH_HEAP_PROFILER_OR_CHECKER_FALSE@	$(LINK) $(tcmalloc_unittest_sh_OBJECTS) $(tcmalloc_unittest_sh_LDADD) $(LIBS)
 thread_dealloc_unittest$(EXEEXT): $(thread_dealloc_unittest_OBJECTS) $(thread_dealloc_unittest_DEPENDENCIES) 
 	@rm -f thread_dealloc_unittest$(EXEEXT)
 	$(thread_dealloc_unittest_LINK) $(thread_dealloc_unittest_OBJECTS) $(thread_dealloc_unittest_LDADD) $(LIBS)
@@ -5328,6 +5325,10 @@ uninstall-man: uninstall-man1
 @WITH_DEBUGALLOC_TRUE@@WITH_STACK_TRACE_TRUE@                                  debugallocation_test
 @WITH_DEBUGALLOC_TRUE@@WITH_STACK_TRACE_TRUE@	rm -f $@
 @WITH_DEBUGALLOC_TRUE@@WITH_STACK_TRACE_TRUE@	cp -p $(top_srcdir)/$(debugallocation_test_sh_SOURCES) $@
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@tcmalloc_unittest.sh$(EXEEXT): $(top_srcdir)/$(tcmalloc_unittest_sh_SOURCES) \
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                               tcmalloc_unittest
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	rm -f $@
+@WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	cp -p $(top_srcdir)/$(tcmalloc_unittest_sh_SOURCES) $@
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@sampling_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@                           sampling_test
 @WITH_HEAP_PROFILER_OR_CHECKER_TRUE@	rm -f $@
