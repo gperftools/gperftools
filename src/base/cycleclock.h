@@ -50,7 +50,7 @@
 #include "base/arm_instruction_set_select.h"
 // base/sysinfo.h is really big and we don't want to include it unless
 // it is necessary.
-#if defined(__arm__) || defined(__mips__)
+#if defined(__arm__) || defined(__mips__) || defined(__aarch64__)
 # include "base/sysinfo.h"
 #endif
 #if defined(__MACH__) && defined(__APPLE__)
@@ -67,7 +67,7 @@
 extern "C" uint64 __rdtsc();
 #pragma intrinsic(__rdtsc)
 #endif
-#if defined(ARMV3) || defined(__mips__)
+#if defined(ARMV3) || defined(__mips__) || defined(__aarch64__)
 #include <sys/time.h>
 #endif
 
@@ -133,7 +133,7 @@ struct CycleClock {
     _asm rdtsc
 #elif defined(_MSC_VER)
     return __rdtsc();
-#elif defined(ARMV3)
+#elif defined(ARMV3) || defined(__aarch64__)
 #if defined(ARMV7)  // V7 is the earliest arch that has a standard cyclecount
     uint32 pmccntr;
     uint32 pmuseren;
