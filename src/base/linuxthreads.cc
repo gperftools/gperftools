@@ -370,10 +370,10 @@ static void ListerThread(struct ListerParams *args) {
       sig_num_threads     = num_threads;
       sig_pids            = pids;
       for (;;) {
-        struct kernel_dirent *entry;
+        struct KERNEL_DIRENT *entry;
         char buf[4096];
-        ssize_t nbytes = sys_getdents(proc, (struct kernel_dirent *)buf,
-                                      sizeof(buf));
+        ssize_t nbytes = GETDENTS(proc, (struct KERNEL_DIRENT *)buf,
+                                         sizeof(buf));
         if (nbytes < 0)
           goto failure;
         else if (nbytes == 0) {
@@ -389,9 +389,9 @@ static void ListerThread(struct ListerParams *args) {
           }
           break;
         }
-        for (entry = (struct kernel_dirent *)buf;
-             entry < (struct kernel_dirent *)&buf[nbytes];
-             entry = (struct kernel_dirent *)((char *)entry+entry->d_reclen)) {
+        for (entry = (struct KERNEL_DIRENT *)buf;
+             entry < (struct KERNEL_DIRENT *)&buf[nbytes];
+             entry = (struct KERNEL_DIRENT *)((char *)entry+entry->d_reclen)) {
           if (entry->d_ino != 0) {
             const char *ptr = entry->d_name;
             pid_t pid;
