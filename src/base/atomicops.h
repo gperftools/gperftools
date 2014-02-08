@@ -121,9 +121,6 @@
 #elif defined(__GNUC__) && GCC_VERSION >= 40700
 #include "base/atomicops-internals-gcc.h"
 #else
-// Assume x86 for now.  If you need to support a new architecture and
-// don't know how to implement atomic ops, you can probably get away
-// with using pthreads, since atomicops is only used by spinlock.h/cc
 #error You need to implement atomic operations for this architecture
 #endif
 
