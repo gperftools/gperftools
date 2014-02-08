@@ -102,7 +102,7 @@ void StacktraceArmDummyFunction() { __asm__ volatile(""); }
 //   int max_depth: the size of the result (and sizes) array(s)
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
-int GET_STACK_TRACE_OR_FRAMES {
+static int GET_STACK_TRACE_OR_FRAMES {
 #ifdef __GNUC__
   void **sp = reinterpret_cast<void**>(__builtin_frame_address(0));
 #else
@@ -115,6 +115,8 @@ int GET_STACK_TRACE_OR_FRAMES {
   // function so that the return address of this function is also
   // stored in the stack frame.  This works at least for gcc.
   StacktraceArmDummyFunction();
+
+  skip_count++; // skip parent frame due to indirection in stacktrace.cc
 
   int n = 0;
   while (sp && n < max_depth) {

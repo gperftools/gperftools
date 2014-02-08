@@ -388,6 +388,8 @@ case "$host" in
    ;;
 esac
 
+AC_CHECK_DECLS([backtrace], [], [], [#include <execinfo.h>])
+
 
 # For windows, this has a non-trivial value (__declspec(export)), but any
 # system that uses configure wants this to be the empty string.

@@ -1,11 +1,11 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -15,7 +15,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -54,49 +54,145 @@
 // Some code may do that.
 
 #include <config.h>
-#include <gperftools/stacktrace.h>
-#include "stacktrace_config.h"
+#include <stdlib.h> // for getenv
+#include <string.h> // for strcmp
+#include <stdio.h> // for fprintf
+#include "gperftools/stacktrace.h"
+#include "base/commandlineflags.h"
+#include "base/googleinit.h"
 
-#if defined(STACKTRACE_INL_HEADER)
 
-#define IS_STACK_FRAMES 0
-#define IS_WITH_CONTEXT 0
-#define GET_STACK_TRACE_OR_FRAMES \
-   GetStackTrace(void **result, int max_depth, int skip_count)
-#include STACKTRACE_INL_HEADER
-#undef IS_STACK_FRAMES
-#undef IS_WITH_CONTEXT
-#undef GET_STACK_TRACE_OR_FRAMES
+// we're using plain struct and not class to avoid any possible issues
+// during initialization. Struct of pointers is easy to init at
+// link-time.
+struct GetStackImplementation {
+  int (*GetStackFramesPtr)(void** result, int* sizes, int max_depth,
+                           int skip_count);
 
-#define IS_STACK_FRAMES 1
-#define IS_WITH_CONTEXT 0
-#define GET_STACK_TRACE_OR_FRAMES \
-  GetStackFrames(void **result, int *sizes, int max_depth, int skip_count)
-#include STACKTRACE_INL_HEADER
-#undef IS_STACK_FRAMES
-#undef IS_WITH_CONTEXT
-#undef GET_STACK_TRACE_OR_FRAMES
+  int (*GetStackFramesWithContextPtr)(void** result, int* sizes, int max_depth,
+                                      int skip_count, const void *uc);
 
-#define IS_STACK_FRAMES 0
-#define IS_WITH_CONTEXT 1
-#define GET_STACK_TRACE_OR_FRAMES \
-  GetStackTraceWithContext(void **result, int max_depth, \
-                           int skip_count, const void *ucp)
-#include STACKTRACE_INL_HEADER
-#undef IS_STACK_FRAMES
-#undef IS_WITH_CONTEXT
-#undef GET_STACK_TRACE_OR_FRAMES
+  int (*GetStackTracePtr)(void** result, int max_depth,
+                          int skip_count);
 
-#define IS_STACK_FRAMES 1
-#define IS_WITH_CONTEXT 1
-#define GET_STACK_TRACE_OR_FRAMES \
-  GetStackFramesWithContext(void **result, int *sizes, int max_depth, \
-                            int skip_count, const void *ucp)
-#include STACKTRACE_INL_HEADER
-#undef IS_STACK_FRAMES
-#undef IS_WITH_CONTEXT
-#undef GET_STACK_TRACE_OR_FRAMES
+  int (*GetStackTraceWithContextPtr)(void** result, int max_depth,
+                                  int skip_count, const void *uc);
 
+  const char *name;
+};
+
+#if HAVE_DECL_BACKTRACE
+#define STACKTRACE_INL_HEADER "stacktrace_generic-inl.h"
+#define GST_SUFFIX generic
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_generic
+#endif
+
+#if HAVE_LIBUNWIND_H
+#define STACKTRACE_INL_HEADER "stacktrace_libunwind-inl.h"
+#define GST_SUFFIX libunwind
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_libunwind
+#endif // HAVE_LIBUNWIND_H
+
+#if defined(__i386__) || defined(__x86_64__)
+#define STACKTRACE_INL_HEADER "stacktrace_x86-inl.h"
+#define GST_SUFFIX x86
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_x86
+#endif // i386 || x86_64
+
+#if defined(__ppc__) || defined(__PPC__)
+#define STACKTRACE_INL_HEADER "stacktrace_powerpc-inl.h"
+#define GST_SUFFIX ppc
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_ppc
+#endif
+
+#if defined(__arm__)
+#define STACKTRACE_INL_HEADER "stacktrace_arm-inl.h"
+#define GST_SUFFIX arm
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_arm
+#endif
+
+#ifdef TCMALLOC_ENABLE_INSTRUMENT_STACKTRACE
+#define STACKTRACE_INL_HEADER "stacktrace_instrument-inl.h"
+#define GST_SUFFIX instrument
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_instrument
+#endif
+
+// The Windows case -- probably cygwin and mingw will use one of the
+// x86-includes above, but if not, we can fall back to windows intrinsics.
+#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
+#define STACKTRACE_INL_HEADER "stacktrace_win32-inl.h"
+#define GST_SUFFIX win32
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_win32
+#endif
+
+static GetStackImplementation *all_impls[] = {
+#ifdef HAVE_GST_generic
+  &impl__generic,
+#endif
+#ifdef HAVE_GST_libunwind
+  &impl__libunwind,
+#endif
+#ifdef HAVE_GST_x86
+  &impl__x86,
+#endif
+#ifdef HAVE_GST_arm
+  &impl__arm,
+#endif
+#ifdef HAVE_GST_ppc
+  &impl__ppc,
+#endif
+#ifdef HAVE_GST_instrument
+  &impl__instrument,
+#endif
+#ifdef HAVE_GST_win32
+  &impl__win32,
+#endif
+  NULL
+};
+
+// ppc and i386 implementations prefer arch-specific asm implementations.
+// arm's asm implementation is broken
+#if defined(__i386__) || defined(__x86_64__) || defined(__ppc__) || defined(__PPC__)
+#if !defined(NO_FRAME_POINTER)
+#define TCMALLOC_DONT_PREFER_LIBUNWIND
+#endif
+#endif
+
+#if defined(HAVE_GST_instrument)
+static GetStackImplementation *get_stack_impl = &impl__instrument;
+#elif defined(HAVE_GST_win32)
+static GetStackImplementation *get_stack_impl = &impl__win32;
+#elif defined(HAVE_GST_x86) && defined(TCMALLOC_DONT_PREFER_LIBUNWIND)
+static GetStackImplementation *get_stack_impl = &impl__x86;
+#elif defined(HAVE_GST_ppc) && defined(TCMALLOC_DONT_PREFER_LIBUNWIND)
+static GetStackImplementation *get_stack_impl = &impl__ppc;
+#elif defined(HAVE_GST_libunwind)
+static GetStackImplementation *get_stack_impl = &impl__libunwind;
+#elif defined(HAVE_GST_arm)
+static GetStackImplementation *get_stack_impl = &impl__arm;
+#elif defined(HAVE_GST_generic)
+static GetStackImplementation *get_stack_impl = &impl__generic;
 #elif 0
 // This is for the benefit of code analysis tools that may have
 // trouble with the computed #include above.
@@ -106,6 +202,63 @@
 # include "stacktrace_powerpc-inl.h"
 # include "stacktrace_win32-inl.h"
 # include "stacktrace_arm-inl.h"
+# include "stacktrace_instrument-inl.h"
 #else
-# error Cannot calculate stack trace: will need to write for your environment
+#error Cannot calculate stack trace: will need to write for your environment
 #endif
+
+static int ATTRIBUTE_NOINLINE frame_forcer(int rv) {
+  return rv;
+}
+
+PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
+                                      int skip_count) {
+  return frame_forcer(get_stack_impl->GetStackFramesPtr(result, sizes, max_depth, skip_count));
+}
+
+PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth,
+                                                 int skip_count, const void *uc) {
+  return frame_forcer(get_stack_impl->GetStackFramesWithContextPtr(
+                        result, sizes, max_depth,
+                        skip_count, uc));
+}
+
+PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
+                                     int skip_count) {
+  return frame_forcer(get_stack_impl->GetStackTracePtr(result, max_depth, skip_count));
+}
+
+PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
+                                                int skip_count, const void *uc) {
+  return frame_forcer(get_stack_impl->GetStackTraceWithContextPtr(
+                        result, max_depth, skip_count, uc));
+}
+
+static void init_default_stack_impl_inner(void) {
+  char *val = getenv("TCMALLOC_STACKTRACE_METHOD");
+  if (!val || !*val) {
+    return;
+  }
+  for (GetStackImplementation **p = all_impls; *p; p++) {
+    GetStackImplementation *c = *p;
+    if (strcmp(c->name, val) == 0) {
+      get_stack_impl = c;
+      return;
+    }
+  }
+  fprintf(stderr, "Unknown or unsupported stacktrace method requested: %s. Ignoring it\n", val);
+}
+
+static void init_default_stack_impl(void) {
+  init_default_stack_impl_inner();
+  if (EnvToBool("TCMALLOC_STACKTRACE_METHOD_VERBOSE", false)) {
+    fprintf(stderr, "Chosen stacktrace method is %s\nSupported methods:\n", get_stack_impl->name);
+    for (GetStackImplementation **p = all_impls; *p; p++) {
+      GetStackImplementation *c = *p;
+      fprintf(stderr, "* %s\n", c->name);
+    }
+    fputs("\n", stderr);
+  }
+}
+
+REGISTER_MODULE_INITIALIZER(stacktrace_init_default_stack_impl, init_default_stack_impl());

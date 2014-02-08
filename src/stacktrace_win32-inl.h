@@ -71,22 +71,37 @@ static RtlCaptureStackBackTrace_Function* const RtlCaptureStackBackTrace_fn =
    (RtlCaptureStackBackTrace_Function*)
    GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlCaptureStackBackTrace");
 
-PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
-                                     int skip_count) {
+static int GetStackTrace_win32(void** result, int max_depth,
+                               int skip_count) {
   if (!RtlCaptureStackBackTrace_fn) {
     // TODO(csilvers): should we log an error here?
     return 0;     // can't find a stacktrace with no function to call
   }
-  return (int)RtlCaptureStackBackTrace_fn(skip_count + 2, max_depth,
+  return (int)RtlCaptureStackBackTrace_fn(skip_count + 3, max_depth,
                                           result, 0);
 }
 
-PERFTOOLS_DLL_DECL int GetStackFrames(void** /* pcs */,
-                                      int* /* sizes */,
-                                      int /* max_depth */,
-                                      int /* skip_count */) {
+static int not_implemented(void) {
   assert(0 == "Not yet implemented");
   return 0;
 }
+
+static int GetStackFrames_win32(void** /* pcs */,
+                                int* /* sizes */,
+                                int /* max_depth */,
+                                int /* skip_count */) {
+  return not_implemented();
+}
+
+static int GetStackFramesWithContext_win32(void** result, int* sizes, int max_depth,
+                                           int skip_count, const void *uc) {
+  return not_implemented();
+}
+
+static int GetStackTraceWithContext_win32(void** result, int max_depth,
+                                          int skip_count, const void *uc) {
+  return not_implemented();
+}
+
 
 #endif  // BASE_STACKTRACE_WIN32_INL_H_

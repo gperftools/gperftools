@@ -288,7 +288,7 @@ static void **NextStackFrame(void **old_sp, const void *uc) {
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 
-int GET_STACK_TRACE_OR_FRAMES {
+static int GET_STACK_TRACE_OR_FRAMES {
   void **sp;
 #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 2) || __llvm__
   // __builtin_frame_address(0) can return the wrong address on gcc-4.1.0-k8.
@@ -320,6 +320,8 @@ int GET_STACK_TRACE_OR_FRAMES {
 #else
 # error Using stacktrace_x86-inl.h on a non x86 architecture!
 #endif
+
+  skip_count++; // skip parent's frame due to indirection in stacktrace.cc
 
   int n = 0;
   while (sp && n < max_depth) {

@@ -126,7 +126,7 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 //   int max_depth: the size of the result (and sizes) array(s)
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
-int GET_STACK_TRACE_OR_FRAMES {
+static int GET_STACK_TRACE_OR_FRAMES {
   layout_ppc *current;
   int n;
 
@@ -139,8 +139,9 @@ int GET_STACK_TRACE_OR_FRAMES {
   StacktracePowerPCDummyFunction();
 
   n = 0;
+  skip_count++; // skip parent's frame due to indirection in
+                // stacktrace.cc
   while (current && n < max_depth) {
-    result[n] = current->return_addr;
 
     // The GetStackFrames routine is called when we are in some
     // informational context (the failure signal handler for example).
@@ -148,16 +149,21 @@ int GET_STACK_TRACE_OR_FRAMES {
     // that is as complete as possible (even if it contains a few
     // bogus entries in some rare cases).
     layout_ppc *next = NextStackFrame<!IS_STACK_FRAMES>(current);
-#if IS_STACK_FRAMES
-    if (next > current) {
-      sizes[n] = (uintptr_t)next - (uintptr_t)current;
+    if (skip_count > 0) {
+      skip_count--;
     } else {
-      // A frame-size of 0 is used to indicate unknown frame size.
-      sizes[n] = 0;
-    }
+      result[n] = current->return_addr;
+#if IS_STACK_FRAMES
+      if (next > current) {
+        sizes[n] = (uintptr_t)next - (uintptr_t)current;
+      } else {
+        // A frame-size of 0 is used to indicate unknown frame size.
+        sizes[n] = 0;
+      }
 #endif
+      n++;
+    }
     current = next;
-    n++;
   }
 
   // It's possible the second-last stack frame can't return
