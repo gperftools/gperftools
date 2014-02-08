@@ -102,8 +102,9 @@
                      + __GNUC_MINOR__ * 100           \
                      + __GNUC_PATCHLEVEL__)
 
-// TODO(csilvers): match piii, not just __i386.  Also, match k8
-#if defined(__MACH__) && defined(__APPLE__)
+#if defined(TCMALLOC_PREFER_GCC_ATOMICS) && defined(__GNUC__) && GCC_VERSION >= 40700
+#include "base/atomicops-internals-gcc.h"
+#elif defined(__MACH__) && defined(__APPLE__)
 #include "base/atomicops-internals-macosx.h"
 #elif defined(__GNUC__) && defined(ARMV6)
 #include "base/atomicops-internals-arm-v6plus.h"
