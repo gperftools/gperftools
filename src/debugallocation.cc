@@ -141,6 +141,12 @@ extern "C" int pthread_once(pthread_once_t *, void (*)(void))
 static void TracePrintf(int fd, const char *fmt, ...)
   __attribute__ ((__format__ (__printf__, 2, 3)));
 
+// Round "value" up to next "alignment" boundary.
+// Requires that "alignment" be a power of two.
+static intptr_t RoundUp(intptr_t value, intptr_t alignment) {
+  return (value + alignment - 1) & ~(alignment - 1);
+}
+
 // The do_* functions are defined in tcmalloc/tcmalloc.cc,
 // which is included before this file
 // when TCMALLOC_FOR_DEBUGALLOCATION is defined
@@ -349,8 +355,17 @@ class MallocBlock {
   static size_t real_malloced_size(size_t size) {
     return size + sizeof(MallocBlock);
   }
+
+  /*
+   * Here we assume size of page is kMinAlign aligned,
+   * so if size is MALLOC_ALIGNMENT aligned too, then we could
+   * guarantee return address is also kMinAlign aligned, because
+   * mmap return address at nearby page boundary on Linux.
+   */
   static size_t real_mmapped_size(size_t size) {
-    return size + MallocBlock::data_offset();
+    size_t tmp = size + MallocBlock::data_offset();
+    tmp = RoundUp(tmp, kMinAlign);
+    return tmp;
   }
 
   size_t real_size() {
@@ -1273,12 +1288,6 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW {
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kArrayNewType);
-}
-
-// Round "value" up to next "alignment" boundary.
-// Requires that "alignment" be a power of two.
-static intptr_t RoundUp(intptr_t value, intptr_t alignment) {
-  return (value + alignment - 1) & ~(alignment - 1);
 }
 
 // This is mostly the same as do_memalign in tcmalloc.cc.
