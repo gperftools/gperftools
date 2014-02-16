@@ -1226,8 +1226,19 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) __THROW {
   // return null
   if (p == NULL)  return NULL;
 
-  memcpy(p->data_addr(), old->data_addr(),
-         (old->data_size() < size) ? old->data_size() : size);
+  // if ptr was allocated via memalign, then old->data_size() is not
+  // start of user data. So we must be careful to copy only user-data
+  char *old_begin = (char *)old->data_addr();
+  char *old_end = old_begin + old->data_size();
+
+  ssize_t old_ssize = old_end - (char *)ptr;
+  // TODO: make FromRawPointer check for out-of-bounds offset values
+  CHECK_CONDITION(old_ssize >= 0);
+
+  size_t old_size = (size_t)old_ssize;
+  CHECK_CONDITION(old_size <= old->data_size());
+
+  memcpy(p->data_addr(), ptr, (old_size < size) ? old_size : size);
   MallocHook::InvokeDeleteHook(ptr);
   MallocHook::InvokeNewHook(p->data_addr(), size);
   DebugDeallocate(ptr, MallocBlock::kMallocType);

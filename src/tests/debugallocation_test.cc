@@ -33,6 +33,8 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <malloc.h> // for memalign
+#include <string.h> // for memcmp
 #include <vector>
 #include "gperftools/malloc_extension.h"
 #include "base/logging.h"
@@ -294,6 +296,22 @@ TEST(DebugAllocationTest, HugeAlloc) {
   a = malloc(kAlsoTooBig);
   EXPECT_EQ(NULL, a);
 #endif
+}
+
+// based on test program contributed by mikesart@gmail.com aka
+// mikesart@valvesoftware.com. See issue-464.
+TEST(DebugAllocationTest, ReallocAfterMemalloc) {
+  char stuff[50];
+  memset(stuff, 0x11, sizeof(stuff));
+  void *p = memalign(16, sizeof(stuff));
+  EXPECT_NE(p, NULL);
+  memcpy(stuff, p, sizeof(stuff));
+
+  p = realloc(p, sizeof(stuff) + 10);
+  EXPECT_NE(p, NULL);
+
+  int rv = memcmp(stuff, p, sizeof(stuff));
+  EXPECT_EQ(rv, 0);
 }
 
 int main(int argc, char** argv) {
