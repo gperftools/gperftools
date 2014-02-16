@@ -76,6 +76,11 @@
 #include "malloc_hook-inl.h"
 #include "symbolize.h"
 
+// NOTE: due to #define below, tcmalloc.cc will omit tc_XXX
+// definitions. So that debug implementations can be defined
+// instead. We're going to use do_malloc, do_free and other do_XXX
+// functions that are defined in tcmalloc.cc for actual memory
+// management
 #define TCMALLOC_USING_DEBUGALLOCATION
 #include "tcmalloc.cc"
 
@@ -146,17 +151,6 @@ static void TracePrintf(int fd, const char *fmt, ...)
 static intptr_t RoundUp(intptr_t value, intptr_t alignment) {
   return (value + alignment - 1) & ~(alignment - 1);
 }
-
-// The do_* functions are defined in tcmalloc/tcmalloc.cc,
-// which is included before this file
-// when TCMALLOC_FOR_DEBUGALLOCATION is defined
-// TODO(csilvers): get rid of these now that we are tied to tcmalloc.
-#define BASE_MALLOC_NEW    do_malloc
-#define BASE_MALLOC        do_malloc
-#define BASE_FREE          do_free
-#define BASE_MALLOC_STATS  do_malloc_stats
-#define BASE_MALLOPT       do_mallopt
-#define BASE_MALLINFO      do_mallinfo
 
 // ========================================================================= //
 
@@ -275,7 +269,7 @@ class MallocBlock {
   // setting the environment variable MALLOC_CHECK_ to 1 before you
   // start the program (see man malloc).
 
-  // We use either BASE_MALLOC or mmap to make the actual allocation. In
+  // We use either do_malloc or mmap to make the actual allocation. In
   // order to remember which one of the two was used for any block, we store an
   // appropriate magic word next to the block.
   static const int kMagicMalloc = 0xDEADBEEF;
@@ -292,7 +286,7 @@ class MallocBlock {
                     // should together occupy a multiple of 16 bytes. (At the
                     // moment, sizeof(size_t) == 4 or 8 depending on piii vs
                     // k8, and 4 of those sum to 16 or 32 bytes).
-                    // This, combined with BASE_MALLOC's alignment guarantees,
+                    // This, combined with do_malloc's alignment guarantees,
                     // ensures that SSE types can be stored into the returned
                     // block, at &size2_.
   size_t size1_;
@@ -391,8 +385,8 @@ class MallocBlock {
     // record us as allocated in the map
     alloc_map_lock_.Lock();
     if (!alloc_map_) {
-      void* p = BASE_MALLOC(sizeof(AllocMap));
-      alloc_map_ = new(p) AllocMap(BASE_MALLOC, BASE_FREE);
+      void* p = do_malloc(sizeof(AllocMap));
+      alloc_map_ = new(p) AllocMap(do_malloc, do_free);
     }
     alloc_map_->Insert(data_addr(), type);
     // initialize us
@@ -532,14 +526,10 @@ class MallocBlock {
       }
       b = (MallocBlock*) (p + (num_pages - 1) * pagesize - sz);
     } else {
-      b = (MallocBlock*) (type == kMallocType ?
-                          BASE_MALLOC(real_malloced_size(size)) :
-                          BASE_MALLOC_NEW(real_malloced_size(size)));
+      b = (MallocBlock*) do_malloc(real_malloced_size(size));
     }
 #else
-    b = (MallocBlock*) (type == kMallocType ?
-                        BASE_MALLOC(real_malloced_size(size)) :
-                        BASE_MALLOC_NEW(real_malloced_size(size)));
+    b = (MallocBlock*) do_malloc(real_malloced_size(size);
 #endif
 
     // It would be nice to output a diagnostic on allocation failure
@@ -619,7 +609,7 @@ class MallocBlock {
         free_queue_lock_.Unlock();
         for (int i = 0; i < num_entries; i++) {
           CheckForDanglingWrites(entries[i]);
-          BASE_FREE(entries[i].block);
+          do_free(entries[i].block);
         }
         num_entries = 0;
         free_queue_lock_.Lock();
@@ -629,7 +619,7 @@ class MallocBlock {
     free_queue_lock_.Unlock();
     for (int i = 0; i < num_entries; i++) {
       CheckForDanglingWrites(entries[i]);
-      BASE_FREE(entries[i].block);
+      do_free(entries[i].block);
     }
   }
 
@@ -1431,16 +1421,16 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) __THROW {
 
 // malloc_stats just falls through to the base implementation.
 extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) __THROW {
-  BASE_MALLOC_STATS();
+  do_malloc_stats();
 }
 
 extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) __THROW {
-  return BASE_MALLOPT(cmd, value);
+  return do_mallopt(cmd, value);
 }
 
 #ifdef HAVE_STRUCT_MALLINFO
 extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW {
-  return BASE_MALLINFO();
+  return do_mallinfo();
 }
 #endif
 
