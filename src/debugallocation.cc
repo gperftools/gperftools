@@ -735,14 +735,36 @@ class MallocBlock {
                      " deallocated; or else a word before the object has been"
                      " corrupted (memory stomping bug)", p);
     }
-    // If mb->offset_ is zero (common case), mb is the real header.  If
-    // mb->offset_ is non-zero, this block was allocated by memalign, and
-    // mb->offset_ is the distance backwards to the real header from mb,
-    // which is a fake header.  The following subtraction works for both zero
-    // and non-zero values.
-    return reinterpret_cast<MallocBlock *>(
-                reinterpret_cast<char *>(mb) - mb->offset_);
+    // If mb->offset_ is zero (common case), mb is the real header.
+    // If mb->offset_ is non-zero, this block was allocated by debug
+    // memallign implementation, and mb->offset_ is the distance
+    // backwards to the real header from mb, which is a fake header.
+    if (mb->offset_ == 0) {
+      return mb;
+    }
+
+    MallocBlock *main_block = reinterpret_cast<MallocBlock *>(
+      reinterpret_cast<char *>(mb) - mb->offset_);
+
+    if (main_block->offset_ != 0) {
+      RAW_LOG(FATAL, "memory corruption bug: offset_ field is corrupted."
+              " Need 0 but got %x",
+              (unsigned)(main_block->offset_));
+    }
+    if (main_block >= p) {
+      RAW_LOG(FATAL, "memory corruption bug: offset_ field is corrupted."
+              " Detected main_block address overflow: %x",
+              (unsigned)(mb->offset_));
+    }
+    if (main_block->size2_addr() < p) {
+      RAW_LOG(FATAL, "memory corruption bug: offset_ field is corrupted."
+              " It points below it's own main_block: %x",
+              (unsigned)(mb->offset_));
+    }
+
+    return main_block;
   }
+
   static const MallocBlock* FromRawPointer(const void* p) {
     // const-safe version: we just cast about
     return FromRawPointer(const_cast<void*>(p));
@@ -1247,7 +1269,6 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) __THROW {
   char *old_end = old_begin + old->data_size();
 
   ssize_t old_ssize = old_end - (char *)ptr;
-  // TODO: make FromRawPointer check for out-of-bounds offset values
   CHECK_CONDITION(old_ssize >= 0);
 
   size_t old_size = (size_t)old_ssize;
@@ -1341,6 +1362,9 @@ static void *do_debug_memalign(size_t alignment, size_t size) {
     // p is now end of fake header (beginning of client area),
     // and orig_p is the end of the real header, so offset_
     // is their difference.
+    //
+    // Note that other fields of fake_hdr are initialized with
+    // kMagicUninitializedByte
     fake_hdr->set_offset(reinterpret_cast<intptr_t>(p) - orig_p);
   }
   return p;
