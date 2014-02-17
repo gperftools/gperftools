@@ -72,13 +72,26 @@ extern "C" {
 static void *perftools_pthread_specific_vals[MAX_PERTHREAD_VALS];
 static int next_key;
 
+// NOTE: it's similar to bitcast defined in basic_types.h with
+// exception of ignoring sizes mismatch
+template <typename T1, typename T2>
+static T2 memcpy_cast(const T1 &input) {
+  T2 output;
+  size_t s = sizeof(input);
+  if (sizeof(output) < s) {
+    s = sizeof(output);
+  }
+  memcpy(&output, &input, s);
+  return output;
+}
+
 int perftools_pthread_key_create(pthread_key_t *key,
                                  void (*destr_function) (void *)) {
   if (pthread_key_create) {
     return pthread_key_create(key, destr_function);
   } else {
     assert(next_key < MAX_PERTHREAD_VALS);
-    *key = (pthread_key_t)(next_key++);
+    *key = memcpy_cast<int, pthread_key_t>(next_key++);
     return 0;
   }
 }
@@ -87,7 +100,7 @@ void *perftools_pthread_getspecific(pthread_key_t key) {
   if (pthread_getspecific) {
     return pthread_getspecific(key);
   } else {
-    return perftools_pthread_specific_vals[(int)key];
+    return perftools_pthread_specific_vals[memcpy_cast<pthread_key_t, int>(key)];
   }
 }
 
@@ -95,7 +108,7 @@ int perftools_pthread_setspecific(pthread_key_t key, void *val) {
   if (pthread_setspecific) {
     return pthread_setspecific(key, val);
   } else {
-    perftools_pthread_specific_vals[(int)key] = val;
+    perftools_pthread_specific_vals[memcpy_cast<pthread_key_t, int>(key)] = val;
     return 0;
   }
 }
