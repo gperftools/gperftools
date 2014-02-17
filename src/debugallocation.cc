@@ -1059,11 +1059,36 @@ class DebugMallocImplementation : public TCMallocImplementation {
   }
 
   virtual MallocExtension::Ownership GetOwnership(const void* p) {
-    if (p) {
-      const MallocBlock* mb = MallocBlock::FromRawPointer(p);
-      return TCMallocImplementation::GetOwnership(mb);
+    if (!p) {
+      // nobody owns NULL
+      return MallocExtension::kNotOwned;
     }
-    return MallocExtension::kNotOwned;   // nobody owns NULL
+
+    // FIXME: note that correct GetOwnership should not touch memory
+    // that is not owned by tcmalloc. Main implementation is using
+    // pagemap to discover if page in question is owned by us or
+    // not. But pagemap only has marks for first and last page of
+    // spans.  Note that if p was returned out of our memalign with
+    // big alignment, then it will point outside of marked pages. Also
+    // note that FromRawPointer call below requires touching memory
+    // before pointer in order to handle memalign-ed chunks
+    // (offset_). This leaves us with two options:
+    //
+    // * do FromRawPointer first and have possibility of crashing if
+    //   we're given not owned pointer
+    //
+    // * return incorrect ownership for those large memalign chunks
+    //
+    // I've decided to choose later, which appears to happen rarer and
+    // therefore is arguably a lesser evil
+
+    MallocExtension::Ownership rv = TCMallocImplementation::GetOwnership(p);
+    if (rv != MallocExtension::kOwned) {
+      return rv;
+    }
+
+    const MallocBlock* mb = MallocBlock::FromRawPointer(p);
+    return TCMallocImplementation::GetOwnership(mb);
   }
 
   virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
