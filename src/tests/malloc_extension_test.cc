@@ -40,8 +40,6 @@
 #include <gperftools/malloc_extension.h>
 #include <gperftools/malloc_extension_c.h>
 
-using STL_NAMESPACE::vector;
-
 int main(int argc, char** argv) {
   void* a = malloc(1000);
 
