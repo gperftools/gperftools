@@ -240,6 +240,7 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/atomicops-internals-arm-v6plus.h \
                     src/base/atomicops-internals-mips.h \
                     src/base/atomicops-internals-windows.h \
+                    src/base/atomicops-internals-gcc.h \
                     src/base/atomicops-internals-x86.h
 noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
@@ -351,6 +352,7 @@ S_STACKTRACE_INCLUDES = src/stacktrace_config.h \
 			src/stacktrace_powerpc-inl.h \
 			src/stacktrace_x86-inl.h \
 			src/stacktrace_win32-inl.h \
+			src/stacktrace_instrument-inl.h \
                         src/base/elf_mem_image.h \
                         src/base/vdso_support.h
 
@@ -592,6 +594,7 @@ endif MINGW
 addressmap_unittest_CXXFLAGS = -g $(AM_CXXFLAGS)
 addressmap_unittest_LDADD = liblogging.la
 
+WINDOWS_PROJECTS += vsprojects/system-alloc_unittest/system-alloc_unittest.vcproj
 if !MINGW
 TESTS += system_alloc_unittest
 system_alloc_unittest_SOURCES = src/config_for_unittests.h \
@@ -1417,5 +1420,6 @@ EXTRA_DIST = packages/rpm.sh packages/rpm/rpm.spec packages/deb.sh packages/deb 
              $(SCRIPTS) libtool \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              src/windows/config.h src/windows/gperftools/tcmalloc.h \
+             doc/pprof.see_also src/windows/TODO \
              $(WINDOWS_PROJECTS) \
              src/solaris/libstdc++.la
