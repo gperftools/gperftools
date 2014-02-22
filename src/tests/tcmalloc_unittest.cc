@@ -869,6 +869,23 @@ static size_t GetUnmappedBytes() {
 }
 #endif
 
+class AggressiveDecommitDisabler {
+  size_t old_value_;
+public:
+  AggressiveDecommitDisabler() {
+    MallocExtension *inst = MallocExtension::instance();
+    bool rv = inst->GetNumericProperty("tcmalloc.aggressive_memory_decommit", &old_value_);
+    CHECK_CONDITION(rv);
+    rv = inst->SetNumericProperty("tcmalloc.aggressive_memory_decommit", 0);
+    CHECK_CONDITION(rv);
+  }
+  ~AggressiveDecommitDisabler() {
+    MallocExtension *inst = MallocExtension::instance();
+    bool rv = inst->SetNumericProperty("tcmalloc.aggressive_memory_decommit", old_value_);
+    CHECK_CONDITION(rv);
+  }
+};
+
 static void TestReleaseToSystem() {
   // Debug allocation mode adds overhead to each allocation which
   // messes up all the equality tests here.  I just disable the
@@ -879,6 +896,8 @@ static void TestReleaseToSystem() {
 
   const double old_tcmalloc_release_rate = FLAGS_tcmalloc_release_rate;
   FLAGS_tcmalloc_release_rate = 0;
+
+  AggressiveDecommitDisabler disabler;
 
   static const int MB = 1048576;
   void* a = malloc(MB);
