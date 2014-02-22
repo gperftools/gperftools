@@ -67,17 +67,6 @@ void CentralCacheUnlockAll()
 }
 #endif
 
-static inline
-void SetupAtForkLocksHandler()
-{
-#if defined(HAVE_FORK) && defined(HAVE_PTHREAD)
-  pthread_atfork(CentralCacheLockAll,    // parent calls before fork
-                 CentralCacheUnlockAll,  // parent calls after fork
-                 CentralCacheUnlockAll); // child calls after fork
-#endif
-}
-
-
 SpinLock Static::pageheap_lock_(SpinLock::LINKER_INITIALIZED);
 SizeMap Static::sizemap_;
 CentralFreeListPadded Static::central_cache_[kNumClasses];
@@ -111,6 +100,25 @@ void Static::InitStaticVars() {
   Sampler::InitStatics();
 }
 
+
+#if defined(HAVE_FORK) && defined(HAVE_PTHREAD)
+
+static inline
+void SetupAtForkLocksHandler()
+{
+  pthread_atfork(CentralCacheLockAll,    // parent calls before fork
+                 CentralCacheUnlockAll,  // parent calls after fork
+                 CentralCacheUnlockAll); // child calls after fork
+}
 REGISTER_MODULE_INITIALIZER(tcmalloc_fork_handler, SetupAtForkLocksHandler());
+
+#endif
+
+static
+void SetupAggressiveDecommit()
+{
+  Static::pageheap()->SetAggressiveDecommit(EnvToBool("TCMALLOC_AGGRESSIVE_DECOMMIT", false));
+}
+REGISTER_MODULE_INITIALIZER(tcmalloc_setup_aggressive_decommit, SetupAggressiveDecommit());
 
 }  // namespace tcmalloc
