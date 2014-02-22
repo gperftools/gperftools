@@ -470,5 +470,5 @@ AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
 AC_OUTPUT
 
-AS_IF([test "$x86_no_fp_by_default" = yes && test "x$UNWIND_LIBS" = x],
+AS_IF([test "$x86_no_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x],
       [AC_MSG_WARN([No frame pointers and no libunwind. Expect backtrace capturing and unittests to fail])])
