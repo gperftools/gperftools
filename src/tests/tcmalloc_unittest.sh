@@ -44,11 +44,7 @@ TMPDIR=/tmp/tcmalloc_unittest
 rm -rf $TMPDIR || exit 2
 mkdir $TMPDIR || exit 3
 
-# $1: value of tcmalloc_unittest env. var.
-run_check_transfer_num_obj() {
-    [ -n "$1" ] && export TCMALLOC_TRANSFER_NUM_OBJ="$1"
-
-    echo -n "Testing $TCMALLOC_UNITTEST with TCMALLOC_TRANSFER_NUM_OBJ=$1 ... "
+run_unittest() {
     if $TCMALLOC_UNITTEST > $TMPDIR/output 2>&1; then
       echo "OK"
     else
@@ -61,8 +57,20 @@ run_check_transfer_num_obj() {
     fi
 }
 
+# $1: value of tcmalloc_unittest env. var.
+run_check_transfer_num_obj() {
+    [ -n "$1" ] && export TCMALLOC_TRANSFER_NUM_OBJ="$1"
+
+    echo -n "Testing $TCMALLOC_UNITTEST with TCMALLOC_TRANSFER_NUM_OBJ=$1 ... "
+    run_unittest
+}
+
 run_check_transfer_num_obj ""
 run_check_transfer_num_obj "40"
 run_check_transfer_num_obj "4096"
+
+echo -n "Testing $TCMALLOC_UNITTEST with TCMALLOC_AGGRESSIVE_DECOMMIT=t ... "
+
+TCMALLOC_AGGRESSIVE_DECOMMIT=t run_unittest
 
 echo "PASS"
