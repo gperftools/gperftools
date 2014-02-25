@@ -375,7 +375,7 @@ AC_LINK_IFELSE(
 AC_MSG_RESULT([$acx_pthread_despite_asking_for])
 AC_LANG_RESTORE
 
-AM_CONDITIONAL(HAVE_PTHREAD_DESPITE_ASKING_FOR, test x"$acx_pthread_despite_asking_for" == xyes)
+AM_CONDITIONAL(HAVE_PTHREAD_DESPITE_ASKING_FOR, test x"$acx_pthread_despite_asking_for" = xyes)
 
 # Find out what namespace 'normal' STL code lives in
 AC_CXX_STL_NAMESPACE
