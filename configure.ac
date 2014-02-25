@@ -207,8 +207,9 @@ fi
 # Some tests test the behavior of .so files, and only make sense for dynamic.
 AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 
-# We want to link in libunwind if it exists
+# We want to link in libunwind or libexecinfo if it exists
 AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind, UNWIND_LIBS=)
+AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)
 AC_SUBST(UNWIND_LIBS)
 
 # On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
