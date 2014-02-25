@@ -298,6 +298,7 @@ TEST(DebugAllocationTest, HugeAlloc) {
 #endif
 }
 
+#ifdef HAVE_MEMALIGN
 // based on test program contributed by mikesart@gmail.com aka
 // mikesart@valvesoftware.com. See issue-464.
 TEST(DebugAllocationTest, ReallocAfterMemalloc) {
@@ -313,6 +314,7 @@ TEST(DebugAllocationTest, ReallocAfterMemalloc) {
   int rv = memcmp(stuff, p, sizeof(stuff));
   EXPECT_EQ(rv, 0);
 }
+#endif
 
 int main(int argc, char** argv) {
   // If you run without args, we run the non-death parts of the test.
