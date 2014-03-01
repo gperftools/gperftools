@@ -31,4 +31,7 @@
 /* The code has moved to gperftools/.  Use that include-directory for
  * new code.
  */
+#ifdef __GNUC__
+#warning "google/heap-profiler.h is deprecated. Use gperftools/heap-profiler.h instead"
+#endif
 #include <gperftools/heap-profiler.h>
