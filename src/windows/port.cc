@@ -83,12 +83,6 @@ extern "C" PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len) {
 // -----------------------------------------------------------------------
 // Threads code
 
-// Declared (not extern "C") in thread_cache.h
-bool CheckIfKernelSupportsTLS() {
-  // TODO(csilvers): return true (all win's since win95, at least, support this)
-  return false;
-}
-
 // Windows doesn't support pthread_key_create's destr_function, and in
 // fact it's a bit tricky to get code to run when a thread exits.  This
 // is cargo-cult magic from http://www.codeproject.com/threads/tls.asp.

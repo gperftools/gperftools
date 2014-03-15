@@ -59,17 +59,6 @@
 
 namespace tcmalloc {
 
-// Even if we have support for thread-local storage in the compiler
-// and linker, the OS may not support it.  We need to check that at
-// runtime.  Right now, we have to keep a manual set of "bad" OSes.
-#if defined(HAVE_TLS)
-extern bool kernel_supports_tls;   // defined in thread_cache.cc
-void CheckIfKernelSupportsTLS();
-inline bool KernelSupportsTLS() {
-  return kernel_supports_tls;
-}
-#endif    // HAVE_TLS
-
 //-------------------------------------------------------------------
 // Data kept per thread
 //-------------------------------------------------------------------
@@ -395,12 +384,11 @@ inline void ThreadCache::Deallocate(void* ptr, size_t cl) {
 
 inline ThreadCache* ThreadCache::GetThreadHeap() {
 #ifdef HAVE_TLS
-  // __thread is faster, but only when the kernel supports it
-  if (KernelSupportsTLS())
-    return threadlocal_data_.heap;
-#endif
+  return threadlocal_data_.heap;
+#else
   return reinterpret_cast<ThreadCache *>(
       perftools_pthread_getspecific(heap_key_));
+#endif
 }
 
 inline ThreadCache* ThreadCache::GetCacheWhichMustBePresent() {

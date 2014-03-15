@@ -913,10 +913,6 @@ class TCMallocImplementation : public MallocExtension {
 static int tcmallocguard_refcount = 0;  // no lock needed: runs before main()
 TCMallocGuard::TCMallocGuard() {
   if (tcmallocguard_refcount++ == 0) {
-#ifdef HAVE_TLS    // this is true if the cc/ld/libc combo support TLS
-    // Check whether the kernel also supports TLS (needs to happen at runtime)
-    tcmalloc::CheckIfKernelSupportsTLS();
-#endif
     ReplaceSystemAlloc();    // defined in libc_override_*.h
     tc_free(tc_malloc(1));
     ThreadCache::InitTSD();
