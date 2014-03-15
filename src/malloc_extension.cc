@@ -51,6 +51,7 @@
 #include "gperftools/malloc_extension.h"
 #include "gperftools/malloc_extension_c.h"
 #include "maybe_threads.h"
+#include "base/googleinit.h"
 
 using STL_NAMESPACE::string;
 using STL_NAMESPACE::vector;
@@ -194,23 +195,27 @@ void MallocExtension::GetFreeListSizes(
 
 // The current malloc extension object.
 
-static pthread_once_t module_init = PTHREAD_ONCE_INIT;
-static MallocExtension* current_instance = NULL;
+static MallocExtension* current_instance;
 
 static void InitModule() {
+  if (current_instance != NULL) {
+    return;
+  }
   current_instance = new MallocExtension;
 #ifndef NO_HEAP_CHECK
   HeapLeakChecker::IgnoreObject(current_instance);
 #endif
 }
 
+REGISTER_MODULE_INITIALIZER(malloc_extension_init, InitModule())
+
 MallocExtension* MallocExtension::instance() {
-  perftools_pthread_once(&module_init, InitModule);
+  InitModule();
   return current_instance;
 }
 
 void MallocExtension::Register(MallocExtension* implementation) {
-  perftools_pthread_once(&module_init, InitModule);
+  InitModule();
   // When running under valgrind, our custom malloc is replaced with
   // valgrind's one and malloc extensions will not work.  (Note:
   // callers should be responsible for checking that they are the
