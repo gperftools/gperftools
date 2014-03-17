@@ -1079,10 +1079,15 @@ sub TempName {
 # Print profile data in packed binary format (64-bit) to standard out
 sub PrintProfileData {
   my $profile = shift;
-
+  my $big_endian = pack("L", 1) eq pack("N", 1);
   # print header (64-bit style)
   # (zero) (header-size) (version) (sample-period) (zero)
-  print pack('L*', 0, 0, 3, 0, 0, 0, 1, 0, 0, 0);
+  if ($big_endian) {
+    print pack('L*', 0, 0, 0, 3, 0, 0, 0, 1, 0, 0);
+  }
+  else {
+    print pack('L*', 0, 0, 3, 0, 0, 0, 1, 0, 0, 0);
+  }
 
   foreach my $k (keys(%{$profile})) {
     my $count = $profile->{$k};
@@ -1091,8 +1096,14 @@ sub PrintProfileData {
       my $depth = $#addrs + 1;
       # int(foo / 2**32) is the only reliable way to get rid of bottom
       # 32 bits on both 32- and 64-bit systems.
-      print pack('L*', $count & 0xFFFFFFFF, int($count / 2**32));
-      print pack('L*', $depth & 0xFFFFFFFF, int($depth / 2**32));
+      if ($big_endian) {
+        print pack('L*', int($count / 2**32), $count & 0xFFFFFFFF);
+        print pack('L*', int($depth / 2**32), $depth & 0xFFFFFFFF);
+      }
+      else {
+        print pack('L*', $count & 0xFFFFFFFF, int($count / 2**32));
+        print pack('L*', $depth & 0xFFFFFFFF, int($depth / 2**32));
+      }
 
       foreach my $full_addr (@addrs) {
         my $addr = $full_addr;
@@ -1103,7 +1114,12 @@ sub PrintProfileData {
         }
         my $low_addr = substr($addr, -8);       # get last 8 hex chars
         my $high_addr = substr($addr, -16, 8);  # get up to 8 more hex chars
-        print pack('L*', hex('0x' . $low_addr), hex('0x' . $high_addr));
+        if ($big_endian) {
+          print pack('L*', hex('0x' . $high_addr), hex('0x' . $low_addr));
+        }
+        else {
+          print pack('L*', hex('0x' . $low_addr), hex('0x' . $high_addr));
+        }
       }
     }
   }
