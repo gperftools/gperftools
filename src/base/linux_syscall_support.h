@@ -1810,6 +1810,17 @@ struct kernel_stat {
       long __ret, __err;
       {
 #if defined(__PPC64__)
+
+/* Stack frame offsets.  */
+#if _CALL_ELF != 2
+#define FRAME_MIN_SIZE         112
+#define FRAME_TOC_SAVE         40
+#else
+#define FRAME_MIN_SIZE         32
+#define FRAME_TOC_SAVE         24
+#endif
+
+
         register int (*__fn)(void *) __asm__ ("r3") = fn;
         register void *__cstack      __asm__ ("r4") = child_stack;
         register int __flags         __asm__ ("r5") = flags;
@@ -1829,7 +1840,7 @@ struct kernel_stat {
             /* set up stack frame for child                                  */
             "clrrdi %7, %7, 4\n\t"
             "li     0, 0\n\t"
-            "stdu   0, -112(%7)\n\t"
+            "stdu   0, -%13(%7)\n\t"
 
             /* fn, arg, child_stack are saved acrVoss the syscall             */
             "mr 28, %6\n\t"
@@ -1855,13 +1866,18 @@ struct kernel_stat {
             "bne-   cr1, 1f\n\t"
 
             /* Do the function call                                          */
-            "std   2, 40(1)\n\t"
+            "std   2, %14(1)\n\t"
+#if _CALL_ELF != 2
 	    "ld    0, 0(28)\n\t"
 	    "ld    2, 8(28)\n\t"
             "mtctr 0\n\t"
+#else
+            "mr    12, 28\n\t"
+            "mtctr 12\n\t"
+#endif
             "mr    3, 27\n\t"
             "bctrl\n\t"
-	    "ld    2, 40(1)\n\t"
+	    "ld    2, %14(1)\n\t"
 
             /* Call _exit(r3)                                                */
             "li 0, %5\n\t"
@@ -1875,7 +1891,7 @@ struct kernel_stat {
                 "i" (__NR_clone), "i" (__NR_exit),
                 "r" (__fn), "r" (__cstack), "r" (__flags),
                 "r" (__arg), "r" (__ptidptr), "r" (__newtls),
-                "r" (__ctidptr)
+                "r" (__ctidptr), "i" (FRAME_MIN_SIZE), "i" (FRAME_TOC_SAVE)
               : "cr0", "cr1", "memory", "ctr",
                 "r0", "r29", "r27", "r28");
 #else
