@@ -36,6 +36,7 @@
 
 #include <config.h>
 #include <windows.h>
+#include <algorithm> // std::min
 #include <gperftools/malloc_extension.h>
 #include "base/logging.h"
 #include "base/spinlock.h"
