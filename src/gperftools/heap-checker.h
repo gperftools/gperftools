@@ -240,9 +240,6 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   friend void NamedTwoDisabledLeaks();
   friend void* RunNamedDisabledLeaks(void*);
   friend void TestHeapLeakCheckerNamedDisabling();
-  // TODO(csilvers): remove this one, at least
-  friend int main(int, char**);
-
 
   // Actually implements IgnoreObject().
   static void DoIgnoreObject(const void* ptr);
