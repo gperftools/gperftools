@@ -122,32 +122,9 @@ class VDSOSupport {
   // page-aligned.
   static const void *vdso_base_;
 
-  // NOLINT on 'long' because these routines mimic kernel api.
-  // The 'cache' parameter may be used by some versions of the kernel,
-  // and should be NULL or point to a static buffer containing at
-  // least two 'long's.
-  static long InitAndGetCPU(unsigned *cpu, void *cache,     // NOLINT 'long'.
-                            void *unused);
-  static long GetCPUViaSyscall(unsigned *cpu, void *cache,  // NOLINT 'long'.
-                               void *unused);
-  typedef long (*GetCpuFn)(unsigned *cpu, void *cache,      // NOLINT 'long'.
-                           void *unused);
-
-  // This function pointer may point to InitAndGetCPU,
-  // GetCPUViaSyscall, or __vdso_getcpu at different stages of initialization.
-  static GetCpuFn getcpu_fn_;
-
-  friend int GetCPU(void);  // Needs access to getcpu_fn_.
-
   DISALLOW_COPY_AND_ASSIGN(VDSOSupport);
 };
 
-// Same as sched_getcpu() on later glibc versions.
-// Return current CPU, using (fast) __vdso_getcpu@LINUX_2.6 if present,
-// otherwise use syscall(SYS_getcpu,...).
-// May return -1 with errno == ENOSYS if the kernel doesn't
-// support SYS_getcpu.
-int GetCPU();
 }  // namespace base
 
 #endif  // HAVE_ELF_MEM_IMAGE

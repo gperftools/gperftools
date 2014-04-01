@@ -57,7 +57,6 @@ using base::subtle::MemoryBarrier;
 namespace base {
 
 const void *VDSOSupport::vdso_base_ = ElfMemImage::kInvalidBase;
-VDSOSupport::GetCpuFn VDSOSupport::getcpu_fn_ = &InitAndGetCPU;
 VDSOSupport::VDSOSupport()
     // If vdso_base_ is still set to kInvalidBase, we got here
     // before VDSOSupport::Init has been called. Call it now.
@@ -81,14 +80,12 @@ const void *VDSOSupport::Init() {
     // Valgrind zapping. So we check for Valgrind separately.
     if (RunningOnValgrind()) {
       vdso_base_ = NULL;
-      getcpu_fn_ = &GetCPUViaSyscall;
       return NULL;
     }
     int fd = open("/proc/self/auxv", O_RDONLY);
     if (fd == -1) {
       // Kernel too old to have a VDSO.
       vdso_base_ = NULL;
-      getcpu_fn_ = &GetCPUViaSyscall;
       return NULL;
     }
     ElfW(auxv_t) aux;
@@ -106,20 +103,6 @@ const void *VDSOSupport::Init() {
       vdso_base_ = NULL;
     }
   }
-  GetCpuFn fn = &GetCPUViaSyscall;  // default if VDSO not present.
-  if (vdso_base_) {
-    VDSOSupport vdso;
-    SymbolInfo info;
-    if (vdso.LookupSymbol("__vdso_getcpu", "LINUX_2.6", STT_FUNC, &info)) {
-      // Casting from an int to a pointer is not legal C++.  To emphasize
-      // this, we use a C-style cast rather than a C++-style cast.
-      fn = (GetCpuFn)(info.address);
-    }
-  }
-  // Subtle: this code runs outside of any locks; prevent compiler
-  // from assigning to getcpu_fn_ more than once.
-  base::subtle::MemoryBarrier();
-  getcpu_fn_ = fn;
   return vdso_base_;
 }
 
@@ -128,8 +111,6 @@ const void *VDSOSupport::SetBase(const void *base) {
   const void *old_base = vdso_base_;
   vdso_base_ = base;
   image_.Init(base);
-  // Also reset getcpu_fn_, so GetCPU could be tested with simulated VDSO.
-  getcpu_fn_ = &InitAndGetCPU;
   return old_base;
 }
 
@@ -143,33 +124,6 @@ bool VDSOSupport::LookupSymbol(const char *name,
 bool VDSOSupport::LookupSymbolByAddress(const void *address,
                                         SymbolInfo *info_out) const {
   return image_.LookupSymbolByAddress(address, info_out);
-}
-
-// NOLINT on 'long' because this routine mimics kernel api.
-long VDSOSupport::GetCPUViaSyscall(unsigned *cpu, void *, void *) { // NOLINT
-#if defined(__NR_getcpu)
-  return sys_getcpu(cpu, NULL, NULL);
-#else
-  // x86_64 never implemented sys_getcpu(), except as a VDSO call.
-  errno = ENOSYS;
-  return -1;
-#endif
-}
-
-// Use fast __vdso_getcpu if available.
-long VDSOSupport::InitAndGetCPU(unsigned *cpu, void *x, void *y) { // NOLINT
-  Init();
-  CHECK_NE(getcpu_fn_, &InitAndGetCPU); // << "Init() did not set getcpu_fn_";
-  return (*getcpu_fn_)(cpu, x, y);
-}
-
-// This function must be very fast, and may be called from very
-// low level (e.g. tcmalloc). Hence I avoid things like
-// GoogleOnceInit() and ::operator new.
-int GetCPU(void) {
-  unsigned cpu;
-  int ret_code = (*VDSOSupport::getcpu_fn_)(&cpu, NULL, NULL);
-  return ret_code == 0 ? cpu : ret_code;
 }
 
 // We need to make sure VDSOSupport::Init() is called before
