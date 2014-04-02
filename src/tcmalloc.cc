@@ -1735,4 +1735,10 @@ extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
   return MallocExtension::instance()->GetAllocatedSize(ptr);
 }
 
+extern "C" PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size)  __THROW {
+  void* result = do_malloc(size);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
 #endif  // TCMALLOC_USING_DEBUGALLOCATION

@@ -1132,6 +1132,11 @@ static int RunAllTests(int argc, char** argv) {
     free(p1);
     VerifyDeleteHookWasCalled();
 
+    p1 = tc_malloc_skip_new_handler(10);
+    CHECK(p1 != NULL);
+    VerifyNewHookWasCalled();
+    free(p1);
+    VerifyDeleteHookWasCalled();
 
     p1 = calloc(10, 2);
     CHECK(p1 != NULL);

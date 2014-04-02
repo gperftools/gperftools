@@ -1486,3 +1486,9 @@ extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) __THROW {
 extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) __THROW {
   return MallocExtension::instance()->GetAllocatedSize(ptr);
 }
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) __THROW {
+  void* result = DebugAllocate(size, MallocBlock::kMallocType);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
