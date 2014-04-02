@@ -1,11 +1,11 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright (c) 2007, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -15,7 +15,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -31,11 +31,11 @@
 // ---
 // Author: Craig Silverstein
 //
-// Produce stack trace.  I'm guessing (hoping!) the code is much like
-// for x86.  For apple machines, at least, it seems to be; see
-//    http://developer.apple.com/documentation/mac/runtimehtml/RTArch-59.html
-//    http://www.linux-foundation.org/spec/ELF/ppc64/PPC-elf64abi-1.9.html#STACK
-// Linux has similar code: http://patchwork.ozlabs.org/linuxppc/patch?id=8882
+// Produce stack trace.  ABI documentation reference can be found at:
+// * PowerPC32 ABI: https://www.power.org/documentation/
+// power-architecture-32-bit-abi-supplement-1-0-embeddedlinuxunified/
+// * PowerPC64 ABI:
+// http://www.linux-foundation.org/spec/ELF/ppc64/PPC-elf64abi-1.9.html#STACK
 
 #ifndef BASE_STACKTRACE_POWERPC_INL_H_
 #define BASE_STACKTRACE_POWERPC_INL_H_
@@ -45,14 +45,35 @@
 #include <stdint.h>   // for uintptr_t
 #include <stdlib.h>   // for NULL
 #include <gperftools/stacktrace.h>
+#include <base/vdso_support.h>
 
+#if defined(HAVE_SYS_UCONTEXT_H)
+#include <sys/ucontext.h>
+#elif defined(HAVE_UCONTEXT_H)
+#include <ucontext.h>  // for ucontext_t
+#endif
+typedef ucontext ucontext_t;
+
+// PowerPC64 Little Endian follows BE wrt. backchain, condition register,
+// and LR save area, so no need to adjust the reading struct.
 struct layout_ppc {
   struct layout_ppc *next;
-#if defined(__APPLE__) || (defined(__linux) && defined(__PPC64__))
+#ifdef __PPC64__
   long condition_register;
 #endif
   void *return_addr;
 };
+
+// Signal callbacks are handled by the vDSO symbol:
+//
+// * PowerPC64 Linux (arch/powerpc/kernel/vdso64/sigtramp.S):
+//   __kernel_sigtramp_rt64
+// * PowerPC32 Linux (arch/powerpc/kernel/vdso32/sigtramp.S):
+//   __kernel_sigtramp32
+//   __kernel_sigtramp_rt32
+//
+// So a backtrace may need to specially handling if the symbol readed is
+// the signal trampoline.
 
 // Given a pointer to a stack frame, locate and return the calling
 // stackframe, or return NULL if no stackframe can be found. Perform sanity
@@ -102,19 +123,6 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 # define LOAD "lwz"
 #endif
 
-#if defined(__linux__) && defined(__PPC__)
-# define TOP_STACK "%0,0(1)"
-#elif defined(__MACH__) && defined(__APPLE__)
-// Apple OS X uses an old version of gnu as -- both Darwin 7.9.0 (Panther)
-// and Darwin 8.8.1 (Tiger) use as 1.38.  This means we have to use a
-// different asm syntax.  I don't know quite the best way to discriminate
-// systems using the old as from the new one; I've gone with __APPLE__.
-// TODO(csilvers): use autoconf instead, to look for 'as --version' == 1 or 2
-# define TOP_STACK "%0,0(r1)"
-#endif
-
-
-
 // The following 4 functions are generated from the code below:
 //   GetStack{Trace,Frames}()
 //   GetStack{Trace,Frames}WithContext()
@@ -130,17 +138,35 @@ static int GET_STACK_TRACE_OR_FRAMES {
   layout_ppc *current;
   int n;
 
-  // Force GCC to spill LR.
-  asm volatile ("" : "=l"(current));
-
   // Get the address on top-of-stack
-  asm volatile (LOAD " " TOP_STACK : "=r"(current));
+  current = reinterpret_cast<layout_ppc*> (__builtin_frame_address (0));
+  // And ignore the current symbol
+  current = current->next;
 
   StacktracePowerPCDummyFunction();
 
   n = 0;
   skip_count++; // skip parent's frame due to indirection in
                 // stacktrace.cc
+
+  base::VDSOSupport vdso;
+  base::ElfMemImage::SymbolInfo rt_sigreturn_symbol_info;
+#ifdef __PPC64__
+  const void *sigtramp64_vdso = 0;
+  if (vdso.LookupSymbol("__kernel_sigtramp_rt64", "LINUX_2.6.15", STT_NOTYPE,
+                        &rt_sigreturn_symbol_info))
+    sigtramp64_vdso = rt_sigreturn_symbol_info.address;
+#else
+  const void *sigtramp32_vdso = 0;
+  if (vdso.LookupSymbol("__kernel_sigtramp32", "LINUX_2.6.15", STT_NOTYPE,
+                        &rt_sigreturn_symbol_info))
+    sigtramp32_vdso = rt_sigreturn_symbol_info.address;
+  const void *sigtramp32_rt_vdso = 0;
+  if (vdso.LookupSymbol("__kernel_sigtramp_rt32", "LINUX_2.6.15", STT_NOTYPE,
+                        &rt_sigreturn_symbol_info))
+    sigtramp32_rt_vdso = rt_sigreturn_symbol_info.address;
+#endif
+
   while (current && n < max_depth) {
 
     // The GetStackFrames routine is called when we are in some
@@ -153,6 +179,35 @@ static int GET_STACK_TRACE_OR_FRAMES {
       skip_count--;
     } else {
       result[n] = current->return_addr;
+#ifdef __PPC64__
+      if (sigtramp64_vdso && (sigtramp64_vdso == current->return_addr)) {
+        struct signal_frame_64 {
+          char dummy[128];
+          ucontext_t uc;
+        // We don't care about the rest, since the IP value is at 'uc' field.
+        } *sigframe = reinterpret_cast<signal_frame_64*>(current);
+        result[n] = (void*) sigframe->uc.uc_mcontext.gp_regs[PT_NIP];
+      }
+#else
+      if (sigtramp32_vdso && (sigtramp32_vdso == current->return_addr)) {
+        struct signal_frame_32 {
+          char dummy[64];
+          struct sigcontext sctx;
+          mcontext_t mctx;
+          // We don't care about the rest, since IP value is at 'mctx' field.
+        } *sigframe = reinterpret_cast<signal_frame_32*>(current);
+        result[n] = (void*) sigframe->mctx.gregs[PT_NIP];
+      } else if (sigtramp32_rt_vdso && (sigtramp32_rt_vdso == current->return_addr)) {
+        struct rt_signal_frame_32 {
+          char dummy[64 + 16];
+          siginfo_t info;
+          struct ucontext uc;
+          // We don't care about the rest, since IP value is at 'uc' field.A
+        } *sigframe = reinterpret_cast<rt_signal_frame_32*>(current);
+        result[n] = (void*) sigframe->uc.uc_mcontext.uc_regs->gregs[PT_NIP];
+      }
+#endif
+
 #if IS_STACK_FRAMES
       if (next > current) {
         sizes[n] = (uintptr_t)next - (uintptr_t)current;
