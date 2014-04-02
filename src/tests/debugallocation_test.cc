@@ -33,10 +33,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <malloc.h> // for memalign
 #include <string.h> // for memcmp
 #include <vector>
 #include "gperftools/malloc_extension.h"
+#include "gperftools/tcmalloc.h"
 #include "base/logging.h"
 
 using std::vector;
@@ -298,13 +298,12 @@ TEST(DebugAllocationTest, HugeAlloc) {
 #endif
 }
 
-#ifdef HAVE_MEMALIGN
 // based on test program contributed by mikesart@gmail.com aka
 // mikesart@valvesoftware.com. See issue-464.
-TEST(DebugAllocationTest, ReallocAfterMemalloc) {
+TEST(DebugAllocationTest, ReallocAfterMemalign) {
   char stuff[50];
   memset(stuff, 0x11, sizeof(stuff));
-  void *p = memalign(16, sizeof(stuff));
+  void *p = tc_memalign(16, sizeof(stuff));
   EXPECT_NE(p, NULL);
   memcpy(stuff, p, sizeof(stuff));
 
@@ -314,7 +313,6 @@ TEST(DebugAllocationTest, ReallocAfterMemalloc) {
   int rv = memcmp(stuff, p, sizeof(stuff));
   EXPECT_EQ(rv, 0);
 }
-#endif
 
 int main(int argc, char** argv) {
   // If you run without args, we run the non-death parts of the test.
