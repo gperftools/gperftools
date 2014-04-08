@@ -1267,7 +1267,7 @@ static void* Mmapper(uintptr_t* addr_after_mmap_call) {
 // On PPC64 the stacktrace returned by GetStatcTrace contains the function
 // address from .text segment while function pointers points to ODP entries.
 // The following code decodes the ODP to get the actual symbol address.
-#if defined(__linux) && defined(__PPC64__)
+#if defined(__linux) && defined(__PPC64__) && (_CALL_ELF != 2)
 static inline uintptr_t GetFunctionAddress (void* (*func)(uintptr_t*))
 {
   struct odp_entry_t {
