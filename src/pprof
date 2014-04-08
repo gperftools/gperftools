@@ -4987,6 +4987,7 @@ sub error {
 sub GetProcedureBoundariesViaNm {
   my $escaped_nm_command = shift;    # shell-escaped
   my $regexp = shift;
+  my $image = shift;
 
   my $symbol_table = {};
   open(NM, "$escaped_nm_command |") || error("$escaped_nm_command: $!\n");
@@ -5056,6 +5057,37 @@ sub GetProcedureBoundariesViaNm {
     $symbol_table->{$routine} = [HexExtend($last_start),
                                  HexExtend($last_start)];
   }
+
+  # Verify if addr2line can find the $sep_symbol.  If not, we use objdump
+  # to find the address for the $sep_symbol on code section which addr2line
+  # can find.
+  if (defined($sep_address)){
+    my $start_val = $sep_address;
+    my $addr2line = $obj_tool_map{"addr2line"};
+    my $cmd = ShellEscape($addr2line, "-f", "-C", "-e", $image, "-i");
+    open(FINI, "echo $start_val | $cmd  |")
+         || error("echo $start_val | $cmd: $!\n");
+    $_ = <FINI>;
+    s/\r?\n$//g;
+    my $fini = $_;
+    close(FINI);
+    if ($fini ne $sep_symbol){
+      my $objdump =  $obj_tool_map{"objdump"};
+      $cmd = ShellEscape($objdump, "-d", $image);
+      my $grep = ShellEscape("grep", $sep_symbol);
+      my $tail = ShellEscape("tail", "-n", "1");
+      open(FINI, "$cmd | $grep | $tail |")
+           || error("$cmd | $grep | $tail: $!\n");
+      s/\r//g; # turn windows-looking lines into unix-looking lines
+      my $data = <FINI>;
+      if (defined($data)){
+        ($start_val, $fini) = split(/ </,$data);
+      }
+      close(FINI);
+    }
+    $sep_address = HexExtend($start_val);
+  }
+
   return $symbol_table;
 }
 
@@ -5135,7 +5167,7 @@ sub GetProcedureBoundaries {
   }
 
   foreach my $nm_command (@nm_commands) {
-    my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp);
+    my $symbol_table = GetProcedureBoundariesViaNm($nm_command, $regexp, $image);
     return $symbol_table if (%{$symbol_table});
   }
   my $symbol_table = {};
