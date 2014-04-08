@@ -109,7 +109,11 @@ struct GetStackImplementation {
 #endif // i386 || x86_64
 
 #if defined(__ppc__) || defined(__PPC__)
-#define STACKTRACE_INL_HEADER "stacktrace_powerpc-inl.h"
+#if defined(__linux__)
+#define STACKTRACE_INL_HEADER "stacktrace_powerpc-linux-inl.h"
+#else
+#define STACKTRACE_INL_HEADER "stacktrace_powerpc-darwin-inl.h"
+#endif
 #define GST_SUFFIX ppc
 #include "stacktrace_impl_setup-inl.h"
 #undef GST_SUFFIX
