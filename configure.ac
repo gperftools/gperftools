@@ -81,6 +81,11 @@ if test "$enable_minimal" = yes; then
   enable_heap_profiler=no
   enable_heap_checker=no
 fi
+AC_ARG_ENABLE([stacktrace-via-backtrace],
+              [AS_HELP_STRING([--enable-stacktrace-via-backtrace],
+                              [enable use of backtrace() for stacktrace capturing (may deadlock)])],
+              [enable_backtrace=yes],
+              [])
 
 
 # Checks for programs.
@@ -394,8 +399,9 @@ case "$host" in
    ;;
 esac
 
-AC_CHECK_DECLS([backtrace], [], [], [#include <execinfo.h>])
-
+if test "x$enable_backtrace" = xyes; then
+  AC_CHECK_DECLS([backtrace], [], [], [#include <execinfo.h>])
+fi
 
 # For windows, this has a non-trivial value (__declspec(export)), but any
 # system that uses configure wants this to be the empty string.
@@ -471,5 +477,7 @@ AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
 AC_OUTPUT
 
-AS_IF([test "$x86_no_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x],
-      [AC_MSG_WARN([No frame pointers and no libunwind. Expect backtrace capturing and unittests to fail])])
+AS_IF([test "$x86_no_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x && test "x$enable_minimal" != xyes],
+      [AS_IF([test "x$enable_backtrace" = xyes],
+             [AC_MSG_WARN([No frame pointers and no libunwind. Expect backtrace capturing and unittests to fail])],
+             [AC_MSG_FAILURE([No frame pointers and no libunwind. The compilation will fail])])])
