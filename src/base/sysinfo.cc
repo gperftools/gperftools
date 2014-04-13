@@ -167,6 +167,12 @@ const char* GetenvBeforeMain(const char* name) {
   return NULL;                   // env var never found
 }
 
+extern "C" {
+  const char* TCMallocGetenvSafe(const char* name) {
+    return GetenvBeforeMain(name);
+  }
+}
+
 // This takes as an argument an environment-variable name (like
 // CPUPROFILE) whose value is supposed to be a file-path, and sets
 // path to that path, and returns true.  If the env var doesn't exist,

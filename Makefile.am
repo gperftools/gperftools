@@ -192,6 +192,7 @@ liblogging_la_SOURCES = src/base/logging.cc \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
+                   src/getenv_safe.h \
                    src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/cycleclock.h \
