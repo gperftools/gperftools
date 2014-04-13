@@ -38,6 +38,7 @@
 #include <algorithm>                    // for max, min
 #include "base/commandlineflags.h"      // for SpinLockHolder
 #include "base/spinlock.h"              // for SpinLockHolder
+#include "getenv_safe.h"                // for TCMallocGetenvSafe
 #include "central_freelist.h"           // for CentralFreeListPadded
 #include "maybe_threads.h"
 
@@ -313,9 +314,10 @@ int ThreadCache::GetSamplePeriod() {
 void ThreadCache::InitModule() {
   SpinLockHolder h(Static::pageheap_lock());
   if (!phinited) {
-    set_overall_thread_cache_size(
-      EnvToInt64("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES",
-                 kDefaultOverallThreadCacheSize));
+    const char *tcb = TCMallocGetenvSafe("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES");
+    if (tcb) {
+      set_overall_thread_cache_size(strtoll(tcb, NULL, 10));
+    }
     Static::InitStaticVars();
     threadcache_allocator.Init();
     phinited = 1;

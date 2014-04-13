@@ -36,6 +36,7 @@
 #include "common.h"
 #include "system-alloc.h"
 #include "base/spinlock.h"
+#include "getenv_safe.h" // TCMallocGetenvSafe
 
 namespace tcmalloc {
 
@@ -51,7 +52,7 @@ static const int32 kDefaultTransferNumObjecs = 32768;
 static inline void InitTCMallocTransferNumObjects()
 {
   if (UNLIKELY(FLAGS_tcmalloc_transfer_num_objects == 0)) {
-    const char *envval = getenv("TCMALLOC_TRANSFER_NUM_OBJ");
+    const char *envval = TCMallocGetenvSafe("TCMALLOC_TRANSFER_NUM_OBJ");
     FLAGS_tcmalloc_transfer_num_objects = !envval ? kDefaultTransferNumObjecs :
       strtol(envval, NULL, 10);
   }
