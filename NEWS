@@ -1,3 +1,83 @@
+== 19 Apr 2014 ==
+
+gperftools 2.2rc is out!
+
+Here are notable changes since 2.1:
+
+* a number of fixes for a number compilers and platforms. Notably
+  Visual Studio 2013, recent mingw with c++ threads and some OSX
+  fixes.
+
+* we now have mips and mips64 support! (courtesy of Jovan Zelincevic,
+  Jean Lee, user xiaoyur347 and others)
+
+* we now have aarch64 (aka arm64) support! (contributed by Riku
+  Voipio)
+
+* there's now support for ppc64-le (by Raphael Moreira Zinsly and
+  Adhemerval Zanella)
+
+* there's now some support of uclibc (contributed by user xiaoyur347)
+
+* google/ headers will now give you deprecation warning. They are
+  deprecated since 2.0
+
+* there's now new api: tc_malloc_skip_new_handler (ported from chromium
+  fork)
+
+* issue-557: added support for dumping heap profile via signal (by
+  Jean Lee)
+
+* issue-567: Petr Hosek contributed SysAllocator support for windows
+
+* Joonsoo Kim contributed several speedups for central freelist code
+
+* TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES environment variable now works
+
+* configure scripts are now using AM_MAINTAINER_MODE. It'll only
+  affect folks who modify source from .tar.gz and want automake to
+  automatically rebuild Makefile-s. See automake documentation for
+  that.
+
+* issue-586: detect main executable even if PIE is active (based on
+  patch by user themastermind1). Notably, it fixes profiler use with
+  ruby.
+
+* there is now support for switching backtrace capturing method at
+  runtime (via TCMALLOC_STACKTRACE_METHOD and
+  TCMALLOC_STACKTRACE_METHOD_VERBOSE environment variables)
+
+* there is new backtrace capturing method using -finstrument-functions
+  prologues contributed by user xiaoyur347
+
+* few cases of crashes/deadlocks in profiler were addressed. See
+  (famous) issue-66, issue-547 and issue-579.
+
+* issue-464 (memory corruption in debugalloc's realloc after
+  memallign) is now fixed
+
+* tcmalloc is now able to release memory back to OS on windows
+  (issue-489). The code was ported from chromium fork (by a number of
+  authors).
+
+* Together with issue-489 we ported chromium's "aggressive decommit"
+  mode. In this mode (settable via malloc extension and via
+  environment variable TCMALLOC_AGGRESSIVE_DECOMMIT), free pages are
+  returned back to OS immediately.
+
+* MallocExtension::instance() is now faster (based on patch by
+  Adhemerval Zanella)
+
+* issue-610 (hangs on windows in multibyte locales) is now fixed
+
+The following people helped with ideas or patches (based on git log,
+some contributions purely in bugtracker might be missing): Andrew
+C. Morrow, yurivict, Wang YanQing, Thomas Klausner,
+davide.italiano@10gen.com, Dai MIKURUBE, Joon-Sung Um, Jovan
+Zelincevic, Jean Lee, Petr Hosek, Ben Avison, drussel, Joonsoo Kim,
+Hannes Weisbach, xiaoyur347, Riku Voipio, Adhemerval Zanella, Raphael
+Moreira Zinsly
+
 == 30 July 2013 ==
 
 gperftools 2.1 is out!
