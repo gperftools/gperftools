@@ -548,13 +548,10 @@ bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
     if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i]) {
       // if origstub_fn_ is not NULL, it's left around from a previous
       // patch.  We need to set it to NULL for the new Patch call.
-      // Since we've patched Unpatch() not to delete origstub_fn_ (it
-      // causes problems in some contexts, though obviously not this
-      // one), we should delete it now, before setting it to NULL.
-      // NOTE: casting from a function to a pointer is contra the C++
-      //       spec.  It's not safe on IA64, but is on i386.  We use
-      //       a C-style cast here to emphasize this is not legal C++.
-      delete[] (char*)(origstub_fn_[i]);
+      //
+      // Note that origstub_fn_ was logically freed by
+      // PreamblePatcher::Unpatch, so we don't have to do anything
+      // about it.
       origstub_fn_[i] = NULL;   // Patch() will fill this in
       CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
                PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i],
