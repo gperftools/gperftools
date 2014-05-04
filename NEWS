@@ -1,3 +1,12 @@
+== 3 May 2014 ==
+
+gperftools 2.2 is out!
+
+Here are notable changes since 2.2rc:
+
+* issue 620 (crash on windows when c runtime dll is reloaded) was
+  fixed
+
 == 19 Apr 2014 ==
 
 gperftools 2.2rc is out!
