@@ -1,3 +1,15 @@
+== 21 Jun 2014 ==
+
+gperftools 2.2.1 is out!
+
+Here's list of fixes:
+
+* issue-626 was closed. Which fixes initialization statically linked
+  tcmalloc.
+
+* issue 628 was closed. It adds missing header file into source
+  tarball. This fixes for compilation on PPC Linux.
+
 == 3 May 2014 ==
 
 gperftools 2.2 is out!
