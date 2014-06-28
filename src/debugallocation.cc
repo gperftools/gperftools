@@ -529,7 +529,7 @@ class MallocBlock {
       b = (MallocBlock*) do_malloc(real_malloced_size(size));
     }
 #else
-    b = (MallocBlock*) do_malloc(real_malloced_size(size);
+    b = (MallocBlock*) do_malloc(real_malloced_size(size));
 #endif
 
     // It would be nice to output a diagnostic on allocation failure
