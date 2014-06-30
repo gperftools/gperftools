@@ -40,7 +40,7 @@
  * using one of the following methods:
  *
  *    1. Before starting the program, set the environment variable
- *       "PROFILE" to be the name of the file to which the profile
+ *       "CPUPROFILE" to be the name of the file to which the profile
  *       data should be written.
  *
  *    2. Programmatically, start and stop the profiler using the
