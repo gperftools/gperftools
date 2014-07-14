@@ -140,6 +140,8 @@ my @prefix_list = ();
 my $sep_symbol = '_fini';
 my $sep_address = undef;
 
+my @stackTraces;
+
 ##### Argument parsing #####
 
 sub usage_string {
@@ -191,6 +193,7 @@ Reporting Granularity:
 
 Output type:
    --text              Generate text report
+   --stacks            Generate stack traces similar to the heap profiler (requires --text)
    --callgrind         Generate callgrind format to stdout
    --gv                Generate Postscript and display
    --evince            Generate PDF and display
@@ -313,6 +316,7 @@ sub Init() {
   $main::opt_lib_prefix = "";
 
   $main::opt_text = 0;
+  $main::opt_stacks = 0;
   $main::opt_callgrind = 0;
   $main::opt_list = "";
   $main::opt_disasm = "";
@@ -383,6 +387,7 @@ sub Init() {
              "addresses!"     => \$main::opt_addresses,
              "files!"         => \$main::opt_files,
              "text!"          => \$main::opt_text,
+             "stacks!"        => \$main::opt_stacks,
              "callgrind!"     => \$main::opt_callgrind,
              "list=s"         => \$main::opt_list,
              "disasm=s"       => \$main::opt_disasm,
@@ -1174,6 +1179,25 @@ sub PrintText {
   my $flat = shift;
   my $cumulative = shift;
   my $line_limit = shift;
+
+  if ($main::opt_stacks && @stackTraces) {
+      foreach (sort { (split " ", $b)[1] <=> (split " ", $a)[1]; } @stackTraces) {
+	  print "$_\n" if $main::opt_debug;
+	  my ($n1, $s1, $n2, $s2, @addrs) = split;
+	  print "Leak of $s1 bytes in $n1 objects allocated from:\n";
+	  foreach my $pcstr (@addrs) {
+	      $pcstr =~ s/^0x//;
+	      my $sym;
+	      if (! defined $symbols->{$pcstr}) {
+		  $sym = "unknown";
+	      } else {
+		  $sym = "$symbols->{$pcstr}[0] $symbols->{$pcstr}[1]";
+	      }
+	      print "\t@ $pcstr $sym\n";
+	  }
+      }
+      print "\n";
+  }
 
   my $total = TotalProfile($flat);
 
@@ -4059,7 +4083,9 @@ sub ReadHeapProfile {
       }
 
       my @counts = ($n1, $s1, $n2, $s2);
-      AddEntries($profile, $pcs, FixCallerAddresses($stack), $counts[$index]);
+      $stack = FixCallerAddresses($stack);
+      push @stackTraces, "$n1 $s1 $n2 $s2 $stack";
+      AddEntries($profile, $pcs, $stack, $counts[$index]);
     }
   }
 
