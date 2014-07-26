@@ -753,6 +753,12 @@ sub RunWeb {
     return;
   }
 
+  if (`uname` =~ /MINGW/) {
+    # Windows(MinGW): open will use standard preference for SVG files.
+    system("cmd", "/c", "start", $fname);
+    return;
+  }
+
   # Some kind of Unix; try generic symlinks, then specific browsers.
   # (Stop once we find one.)
   # Works best if the browser is already running.
