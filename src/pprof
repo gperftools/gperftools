@@ -184,6 +184,7 @@ Options:
    --seconds=<n>       Length of time for dynamic profiles [default=30 secs]
    --add_lib=<file>    Read additional symbols and line info from the given library
    --lib_prefix=<dir>  Comma separated list of library path prefixes
+   --no_strip_temp     Do not strip template arguments from function names
 
 Reporting Granularity:
    --addresses         Report at address level
@@ -358,6 +359,9 @@ sub Init() {
   $main::opt_debug   = 0;
   $main::opt_test    = 0;
 
+  # Do not strip template argument in function names
+  $main::opt_no_strip_temp = 0;
+
   # These are undocumented flags used only by unittests.
   $main::opt_test_stride = 0;
 
@@ -420,6 +424,7 @@ sub Init() {
              "contentions!"   => \$main::opt_contentions,
              "mean_delay!"    => \$main::opt_mean_delay,
              "tools=s"        => \$main::opt_tools,
+             "no_strip_temp!" => \$main::opt_no_strip_temp,
              "test!"          => \$main::opt_test,
              "debug!"         => \$main::opt_debug,
              # Undocumented flags used only by unittests:
@@ -4850,7 +4855,10 @@ sub MapSymbolsWithNM {
 sub ShortFunctionName {
   my $function = shift;
   while ($function =~ s/\([^()]*\)(\s*const)?//g) { }   # Argument types
-  while ($function =~ s/<[^<>]*>//g)  { }    # Remove template arguments
+  $function =~ s/<[0-9a-f]*>$//g;                # Remove Address
+  if (!$main::opt_no_strip_temp) {
+      while ($function =~ s/<[^<>]*>//g)  { }   # Remove template arguments
+  }
   $function =~ s/^.*\s+(\w+::)/$1/;          # Remove leading type
   return $function;
 }
