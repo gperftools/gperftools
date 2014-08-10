@@ -516,6 +516,7 @@ sub Init() {
   # Remote profiling without a binary (using $SYMBOL_PAGE instead)
   if (@ARGV > 0) {
     if (IsProfileURL($ARGV[0])) {
+      printf STDERR "Using remote profile at $ARGV[0].\n";
       $main::use_symbol_page = 1;
     } elsif (IsSymbolizedProfileFile($ARGV[0])) {
       $main::use_symbolized_profile = 1;
