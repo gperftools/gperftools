@@ -449,13 +449,6 @@ AH_BOTTOM([
 AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
 AM_CONDITIONAL(OSX, expr $host : '.*-apple-darwin.*' >/dev/null 2>&1)
 
-# Redhat 7 (and below?) has sys/ucontext.h, but if you try to #include
-# it directly, the compiler gets upset.  So we pretend we don't have
-# it.
-if cat /etc/redhat-release 2>/dev/null | grep "Red Hat Linux release 7" >/dev/null 2>&1; then
-AC_DEFINE(HAVE_SYS_UCONTEXT_H, 0, [<sys/ucontext.h> is broken on redhat 7])
-fi
-
 # Export the --enable flags we set above.  We do this at the end so
 # other configure rules can enable or disable targets based on what
 # they find.
