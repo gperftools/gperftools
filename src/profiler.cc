@@ -356,9 +356,18 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
     // profile size unnecessarily.
     int depth = GetStackTraceWithContext(stack + 1, arraysize(stack) - 1,
                                          2, signal_ucontext);
-    depth++;  // To account for pc value in stack[0];
 
-    instance->collector_.Add(depth, stack);
+    void **used_stack;
+    if (stack[1] == stack[0]) {
+      // in case of libunwind we will have PC in stack[1].
+      // We don't want this double PC entry
+      used_stack = stack + 1;
+    } else {
+      used_stack = stack;
+      depth++;  // To account for pc value in stack[0];
+    }
+
+    instance->collector_.Add(depth, used_stack);
   }
 }
 
