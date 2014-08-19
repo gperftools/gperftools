@@ -124,6 +124,9 @@ const char* GetenvBeforeMain(const char* name) {
   if (__environ) {            // can exist but be NULL, if statically linked
     const int namelen = strlen(name);
     for (char** p = __environ; *p; p++) {
+      if (strlen(*p) < namelen) {
+        continue;
+      }
       if (!memcmp(*p, name, namelen) && (*p)[namelen] == '=')  // it's a match
         return *p + namelen+1;                                 // point after =
     }
