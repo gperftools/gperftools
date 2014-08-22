@@ -4768,6 +4768,12 @@ sub MapToSymbols {
 
     $filelinenum =~ s|\\|/|g; # turn windows-style paths into unix-style paths
 
+    # Remove discriminator markers as this comes after the line number and
+    # confuses the rest of this script.
+    $filelinenum =~ s/ \(discriminator \d+\)$//;
+    # Convert unknown line numbers into line 0.
+    $filelinenum =~ s/:\?$/:0/;
+
     my $pcstr = $pclist->[$count];
     my $function = ShortFunctionName($fullfunction);
     my $nms = $nm_symbols->{$pcstr};
