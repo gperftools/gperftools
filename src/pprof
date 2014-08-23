@@ -234,6 +234,7 @@ Call-graph Options:
                        (i.e. direct leak generators) more visible
 
 Miscellaneous:
+   --show_addresses    Always show addresses when applicable
    --tools=<prefix or binary:fullpath>[,...]   \$PATH for object tool pathnames
    --test              Run unit tests
    --help              This message
@@ -307,6 +308,7 @@ sub Init() {
 
   $main::opt_help = 0;
   $main::opt_version = 0;
+  $main::opt_show_addresses = 0;
 
   $main::opt_cum = 0;
   $main::opt_base = '';
@@ -2657,14 +2659,18 @@ sub TranslateStack {
       } elsif ($main::opt_lines) {
         if ($func eq '??' && $fileline eq '??:0') {
           push(@result, "$a");
-        } else {
+        } elsif (!$main::opt_show_addresses) {
           push(@result, "$func $fileline");
+        } else {
+          push(@result, "$func $fileline ($a)");
         }
       } elsif ($main::opt_functions) {
         if ($func eq '??') {
           push(@result, "$a");
-        } else {
+        } elsif (!$main::opt_show_addresses) {
           push(@result, $func);
+        } else {
+          push(@result, "$func ($a)");
         }
       } elsif ($main::opt_files) {
         if ($fileline eq '??:0' || $fileline eq '') {
