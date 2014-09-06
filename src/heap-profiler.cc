@@ -591,7 +591,27 @@ static void HeapProfilerInit() {
 
 // class used for finalization -- dumps the heap-profile at program exit
 struct HeapProfileEndWriter {
-  ~HeapProfileEndWriter() { HeapProfilerDump("Exiting"); }
+  ~HeapProfileEndWriter() {
+    char buf[128];
+    if (heap_profile) {
+      const HeapProfileTable::Stats& total = heap_profile->total();
+      const int64 inuse_bytes = total.alloc_size - total.free_size;
+
+      if ((inuse_bytes >> 20) > 0) {
+        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " MB in use"),
+                 inuse_bytes >> 20);
+      } else if ((inuse_bytes >> 10) > 0) {
+        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " kB in use"),
+                 inuse_bytes >> 10);
+      } else {
+        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " bytes in use"),
+                 inuse_bytes);
+      }
+    } else {
+      snprintf(buf, sizeof(buf), ("Exiting"));
+    }
+    HeapProfilerDump(buf);
+  }
 };
 
 // We want to make sure tcmalloc is up and running before starting the profiler
