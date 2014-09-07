@@ -46,6 +46,15 @@
 #include <list>
 #include <string>
 
+#if HAVE_LINUX_SIGEV_THREAD_ID
+// for timer_{create,settime} and associated typedefs & constants
+#include <time.h>
+// for sys_gettid
+#include "base/linux_syscall_support.h"
+// for perftools_pthread_key_create
+#include "maybe_threads.h"
+#endif
+
 #include "base/dynamic_annotations.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
@@ -144,6 +153,14 @@ class ProfileHandler {
   // Is profiling allowed at all?
   bool allowed_;
 
+  bool per_thread_timer_enabled_;
+
+#ifdef HAVE_LINUX_SIGEV_THREAD_ID
+  // this is used to destroy per-thread profiling timers on thread
+  // termination
+  pthread_key_t thread_timer_key;
+#endif
+
   // Whether or not the threading system provides interval timers that are
   // shared by all threads in a process.
   enum {
@@ -227,6 +244,83 @@ const int32 ProfileHandler::kDefaultFrequency;
 extern "C" int pthread_once(pthread_once_t *, void (*)(void))
     ATTRIBUTE_WEAK;
 
+#if HAVE_LINUX_SIGEV_THREAD_ID
+
+// We use weak alias to timer_create to avoid runtime dependency on
+// -lrt and in turn -lpthread.
+//
+// At runtime we detect if timer_create is available and if so we
+// can enable linux-sigev-thread mode of profiling
+extern "C" {
+  int timer_create(clockid_t clockid, struct sigevent *evp,
+                            timer_t *timerid)
+    ATTRIBUTE_WEAK;
+  int timer_delete(timer_t timerid)
+    ATTRIBUTE_WEAK;
+  int timer_settime(timer_t timerid, int flags,
+                    const struct itimerspec *value,
+                    struct itimerspec *ovalue)
+    ATTRIBUTE_WEAK;
+}
+
+struct timer_id_holder {
+  timer_t timerid;
+  timer_id_holder(timer_t _timerid) : timerid(_timerid) {}
+};
+
+extern "C" {
+  static void ThreadTimerDestructor(void *arg) {
+    if (!arg) {
+      return;
+    }
+    timer_id_holder *holder = static_cast<timer_id_holder *>(arg);
+    timer_delete(holder->timerid);
+    delete holder;
+  }
+}
+
+static void CreateThreadTimerKey(pthread_key_t *pkey) {
+  int rv = perftools_pthread_key_create(pkey, ThreadTimerDestructor);
+  if (rv) {
+    RAW_LOG(FATAL, "aborting due to pthread_key_create error: %s", strerror(rv));
+  }
+}
+
+static void StartLinuxThreadTimer(int timer_type, int32 frequency, pthread_key_t timer_key) {
+  int rv;
+  struct sigevent sevp;
+  timer_t timerid;
+  struct itimerspec its;
+  memset(&sevp, 0, sizeof(sevp));
+  sevp.sigev_notify = SIGEV_THREAD_ID;
+  sevp._sigev_un._tid = sys_gettid();
+  const int signal_number = (timer_type == ITIMER_PROF ? SIGPROF : SIGALRM);
+  sevp.sigev_signo = signal_number;
+  clockid_t clock = CLOCK_THREAD_CPUTIME_ID;
+  if (timer_type == ITIMER_REAL) {
+    clock = CLOCK_MONOTONIC;
+  }
+  rv = timer_create(clock, &sevp, &timerid);
+  if (rv) {
+    RAW_LOG(FATAL, "aborting due to timer_create error: %s", strerror(errno));
+  }
+
+  timer_id_holder *holder = new timer_id_holder(timerid);
+  rv = perftools_pthread_setspecific(timer_key, holder);
+  if (rv) {
+    RAW_LOG(FATAL, "aborting due to pthread_setspecific error: %s", strerror(rv));
+  }
+
+  its.it_interval.tv_sec = 0;
+  its.it_interval.tv_nsec = 1000000000 / frequency;
+  its.it_value = its.it_interval;
+  rv = timer_settime(timerid, 0, &its, 0);
+  if (rv) {
+    RAW_LOG(FATAL, "aborting due to timer_settime error: %s", strerror(errno));
+  }
+}
+#endif
+
 void ProfileHandler::Init() {
   instance_ = new ProfileHandler();
 }
@@ -249,6 +343,7 @@ ProfileHandler::ProfileHandler()
     : interrupts_(0),
       callback_count_(0),
       allowed_(true),
+      per_thread_timer_enabled_(false),
       timer_sharing_(TIMERS_UNTOUCHED) {
   SpinLockHolder cl(&control_lock_);
 
@@ -281,10 +376,29 @@ ProfileHandler::ProfileHandler()
   // Ignore signals until we decide to turn profiling on.  (Paranoia;
   // should already be ignored.)
   DisableHandler();
+
+#if HAVE_LINUX_SIGEV_THREAD_ID
+  if (getenv("CPUPROFILE_PER_THREAD_TIMERS")) {
+    if (timer_create && pthread_once) {
+      timer_sharing_ = TIMERS_SEPARATE;
+      CreateThreadTimerKey(&thread_timer_key);
+      per_thread_timer_enabled_ = true;
+    } else {
+      RAW_LOG(INFO,
+              "Not enabling linux-per-thread-timers mode due to lack of timer_create."
+              " Preload or link to librt.so for this to work");
+    }
+  }
+#endif
 }
 
 ProfileHandler::~ProfileHandler() {
   Reset();
+#ifdef HAVE_LINUX_SIGEV_THREAD_ID
+  if (per_thread_timer_enabled_) {
+    perftools_pthread_key_delete(thread_timer_key);
+  }
+#endif
 }
 
 void ProfileHandler::RegisterThread() {
@@ -421,6 +535,14 @@ void ProfileHandler::StartTimer() {
   if (!allowed_) {
     return;
   }
+
+#if HAVE_LINUX_SIGEV_THREAD_ID
+  if (per_thread_timer_enabled_) {
+    StartLinuxThreadTimer(timer_type_, frequency_, thread_timer_key);
+    return;
+  }
+#endif
+
   struct itimerval timer;
   timer.it_interval.tv_sec = 0;
   timer.it_interval.tv_usec = 1000000 / frequency_;
@@ -432,6 +554,10 @@ void ProfileHandler::StopTimer() {
   if (!allowed_) {
     return;
   }
+  if (per_thread_timer_enabled_) {
+    RAW_LOG(FATAL, "StopTimer cannot be called in linux-per-thread-timers mode");
+  }
+
   struct itimerval timer;
   memset(&timer, 0, sizeof timer);
   setitimer(timer_type_, &timer, 0);
@@ -439,6 +565,9 @@ void ProfileHandler::StopTimer() {
 
 bool ProfileHandler::IsTimerRunning() {
   if (!allowed_) {
+    return false;
+  }
+  if (per_thread_timer_enabled_) {
     return false;
   }
   struct itimerval current_timer;

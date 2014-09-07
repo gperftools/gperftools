@@ -465,6 +465,18 @@ AM_CONDITIONAL(WITH_STACK_TRACE, test "$enable_cpu_profiler" = yes -o \
                                       "$enable_heap_profiler" = yes -o \
                                       "$enable_heap_checker" = yes)
 
+have_linux_sigev_thread_id=no
+AC_MSG_CHECKING([for Linux SIGEV_THREAD_ID])
+AC_COMPILE_IFELSE(
+        [AC_LANG_PROGRAM([[#include <signal.h>
+                           #include <time.h>]],
+                         [[return SIGEV_THREAD_ID || CLOCK_THREAD_CPUTIME_ID || __linux;]])],
+        [AC_DEFINE(HAVE_LINUX_SIGEV_THREAD_ID, 1,
+                  [Define if this is Linux that has SIGEV_THREAD_ID])
+         have_linux_sigev_thread_id=yes
+         AC_MSG_RESULT([yes])],
+        [AC_MSG_RESULT([no])])
+
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])

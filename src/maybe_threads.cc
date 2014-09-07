@@ -60,6 +60,8 @@
 extern "C" {
   int pthread_key_create (pthread_key_t*, void (*)(void*))
       __THROW ATTRIBUTE_WEAK;
+  int pthread_key_delete (pthread_key_t)
+      __THROW ATTRIBUTE_WEAK;
   void *pthread_getspecific(pthread_key_t)
       __THROW ATTRIBUTE_WEAK;
   int pthread_setspecific(pthread_key_t, const void*)
@@ -92,6 +94,14 @@ int perftools_pthread_key_create(pthread_key_t *key,
   } else {
     assert(next_key < MAX_PERTHREAD_VALS);
     *key = memcpy_cast<int, pthread_key_t>(next_key++);
+    return 0;
+  }
+}
+
+int perftools_pthread_key_delete(pthread_key_t key) {
+  if (pthread_key_delete) {
+    return pthread_key_delete(key);
+  } else {
     return 0;
   }
 }
