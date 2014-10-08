@@ -3914,7 +3914,7 @@ sub ReadCPUProfile {
 
   # Parse map
   my $map = '';
-  seek(PROFILE, $i * 4, 0);
+  seek(PROFILE, $i * ($address_length / 2), 0);
   read(PROFILE, $map, (stat PROFILE)[7]);
 
   my $r = {};
