@@ -96,7 +96,7 @@ inline Atomic32 NoBarrier_AtomicExchange(volatile Atomic32* ptr,
 }
 
 inline void MemoryBarrier() {
-#if defined(__ARM_ARCH_6__) || defined(__ARM_ARCH_6J__) || defined(__ARM_ARCH_6K__) || defined(__ARM_ARCH_6Z__) || defined(__ARM_ARCH_6KZ__) || defined(__ARM_ARCH_6T2__)
+#if !defined(ARMV7)
   uint32_t dest = 0;
   __asm__ __volatile__("mcr p15,0,%0,c7,c10,5" :"=&r"(dest) : : "memory");
 #else
