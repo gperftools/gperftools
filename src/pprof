@@ -4395,6 +4395,7 @@ sub ParseLibraries {
   my $zero_offset = HexExtend("0");
 
   my $buildvar = "";
+  my $priorlib = "";
   foreach my $l (split("\n", $map)) {
     if ($l =~ m/^\s*build=(.*)$/) {
       $buildvar = $1;
@@ -4451,7 +4452,16 @@ sub ParseLibraries {
       }
     }
 
+    # If we find multiple executable segments for a single library, merge them
+    # into a single entry that spans the complete address range.
+    if ($lib eq $priorlib) {
+      my $prior = pop(@{$result});
+      $start = @$prior[1];
+      # TODO $offset may be wrong if .text is not in the final segment.
+    }
+
     push(@{$result}, [$lib, $start, $finish, $offset]);
+    $priorlib = $lib;
   }
 
   # Append special entry for additional library (not relocated)
