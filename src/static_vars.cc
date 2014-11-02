@@ -41,6 +41,7 @@
 #include "internal_logging.h"  // for CHECK_CONDITION
 #include "common.h"
 #include "sampler.h"           // for Sampler
+#include "getenv_safe.h"       // TCMallocGetenvSafe
 #include "base/googleinit.h"
 
 namespace tcmalloc {
@@ -96,7 +97,13 @@ void Static::InitStaticVars() {
   // in is caches as pointers that are sources of heap object liveness,
   // which leads to it missing some memory leaks.
   pageheap_ = new (MetaDataAlloc(sizeof(PageHeap))) PageHeap;
-  pageheap_->SetAggressiveDecommit(EnvToBool("TCMALLOC_AGGRESSIVE_DECOMMIT", false));
+
+  bool aggressive_decommit =
+    tcmalloc::commandlineflags::StringToBool(
+      TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"), false);
+
+  pageheap_->SetAggressiveDecommit(aggressive_decommit);
+
   DLL_Init(&sampled_objects_);
   Sampler::InitStatics();
 }

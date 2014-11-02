@@ -111,6 +111,40 @@
   }                                                                           \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead::FLAGS_##name
 
+// implemented in sysinfo.cc
+namespace tcmalloc {
+  namespace commandlineflags {
+
+    inline bool StringToBool(const char *value, bool def) {
+      if (!value) {
+        return def;
+      }
+      return memchr("tTyY1\0", value[0], 6) != NULL;
+    }
+
+    inline int StringToInt(const char *value, int def) {
+      if (!value) {
+        return def;
+      }
+      return strtol(value, NULL, 10);
+    }
+
+    inline long long StringToLongLong(const char *value, long long def) {
+      if (!value) {
+        return def;
+      }
+      return strtoll(value, NULL, 10);
+    }
+
+    inline double StringToDouble(const char *value, double def) {
+      if (!value) {
+        return def;
+      }
+      return strtod(value, NULL);
+    }
+  }
+}
+
 // These macros (could be functions, but I don't want to bother with a .cc
 // file), make it easier to initialize flags from the environment.
 
@@ -118,15 +152,15 @@
   (!getenv(envname) ? (dflt) : getenv(envname))
 
 #define EnvToBool(envname, dflt)   \
-  (!getenv(envname) ? (dflt) : memchr("tTyY1\0", getenv(envname)[0], 6) != NULL)
+  tcmalloc::commandlineflags::StringToBool(getenv(envname), dflt)
 
 #define EnvToInt(envname, dflt)  \
-  (!getenv(envname) ? (dflt) : strtol(getenv(envname), NULL, 10))
+  tcmalloc::commandlineflags::StringToInt(getenv(envname), dflt)
 
 #define EnvToInt64(envname, dflt)  \
-  (!getenv(envname) ? (dflt) : strtoll(getenv(envname), NULL, 10))
+  tcmalloc::commandlineflags::StringToLongLong(getenv(envname), dflt)
 
 #define EnvToDouble(envname, dflt)  \
-  (!getenv(envname) ? (dflt) : strtod(getenv(envname), NULL))
+  tcmalloc::commandlineflags::StringToDouble(getenv(envname), dflt)
 
 #endif  // BASE_COMMANDLINEFLAGS_H_
