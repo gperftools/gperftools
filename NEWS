@@ -1,3 +1,65 @@
+== 2 Nov 2014 ==
+
+gperftools 2.3rc is out!
+
+Most small improvements in this release were made to pprof tool.
+
+New experimental Linux-only (for now) cpu profiling mode is a notable
+big improvement.
+
+Here are notable changes since 2.2.1:
+
+* (issue-631) fixed debugallocation miscompilation on mmap-less
+  platforms (courtesy of user iamxujian)
+
+* (issue-630) reference to wrong PROFILE (vs. correct CPUPROFILE)
+  environment variable was fixed (courtesy of WenSheng He)
+
+* pprof now has option to display stack traces in output for heap
+  checker (courtesy of Michael Pasieka)
+
+* (issue-636) pprof web command now works on mingw
+
+* (issue-635) pprof now handles library paths that contain spaces
+  (courtesy of user mich...@sebesbefut.com)
+
+* (issue-637) pprof now has an option to not strip template arguments
+  (patch by jiakai)
+
+* (issue-644) possible out-of-bounds access in GetenvBeforeMain was
+  fixed (thanks to user abyss.7)
+
+* (issue-641) pprof now has an option --show_addresses (thanks to user
+  yurivict). New option prints instruction address in addition to
+  function name in stack traces
+
+* (issue-646) pprof now works around some issues of addr2line
+  reportedly when DWARF v4 format is used (patch by Adam McNeeney)
+
+* (issue-645) heap profiler exit message now includes remaining memory
+  allocated info (patch by user yurivict)
+
+* pprof code that finds location of /proc/<pid>/maps in cpu profile
+  files is now fixed (patch by Ricardo M. Correia)
+
+* (issue-654) pprof now handles "split text segments" feature of
+  Chromium for Android. (patch by simonb)
+
+* (issue-655) potential deadlock on windows caused by early call to
+  getenv in malloc initialization code was fixed (bug reported and fix
+  proposed by user zndmitry)
+
+* incorrect detection of arm 6zk instruction set support
+  (-mcpu=arm1176jzf-s) was fixed. (Reported by pedronavf on old
+  issue-493)
+
+* new cpu profiling mode on Linux is now implemented. It sets up
+  separate profiling timers for separate threads. Which improves
+  accuracy of profiling on Linux a lot. It is off by default. And is
+  enabled if both librt.f is loaded and CPUPROFILE_PER_THREAD_TIMERS
+  environment variable is set. But note that all threads need to be
+  registered via ProfilerRegisterThread.
+
 == 21 Jun 2014 ==
 
 gperftools 2.2.1 is out!
