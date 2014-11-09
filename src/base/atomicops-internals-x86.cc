@@ -67,9 +67,8 @@
 // Set the flags so that code will run correctly and conservatively
 // until InitGoogle() is called.
 struct AtomicOps_x86CPUFeatureStruct AtomicOps_Internalx86CPUFeatures = {
-  false,          // bug can't exist before process spawns multiple threads
   false,          // no SSE2
-  false,          // no cmpxchg16b
+  false           // no cmpxchg16b
 };
 
 // Initialize the AtomicOps_Internalx86CPUFeatures struct.
@@ -95,19 +94,6 @@ static void AtomicOps_Internalx86CPUFeaturesInit() {
   if (family == 0xf) {                  // use extended family and model fields
     family += (eax >> 20) & 0xff;
     model += ((eax >> 16) & 0xf) << 4;
-  }
-
-  // Opteron Rev E has a bug in which on very rare occasions a locked
-  // instruction doesn't act as a read-acquire barrier if followed by a
-  // non-locked read-modify-write instruction.  Rev F has this bug in 
-  // pre-release versions, but not in versions released to customers,
-  // so we test only for Rev E, which is family 15, model 32..63 inclusive.
-  if (strcmp(vendor, "AuthenticAMD") == 0 &&       // AMD
-      family == 15 &&
-      32 <= model && model <= 63) {
-    AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug = true;
-  } else {
-    AtomicOps_Internalx86CPUFeatures.has_amd_lock_mb_bug = false;
   }
 
   // edx bit 26 is SSE2 which we use to tell use whether we can use mfence
