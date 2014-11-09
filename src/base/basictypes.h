@@ -231,6 +231,12 @@ inline Dest bit_cast(const Source& source) {
 # define ATTRIBUTE_NOINLINE
 #endif
 
+#if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
+# define ATTRIBUTE_VISIBILITY_HIDDEN __attribute__((visibility("hidden")))
+#else
+# define ATTRIBUTE_VISIBILITY_HIDDEN
+#endif
+
 // Section attributes are supported for both ELF and Mach-O, but in
 // very different ways.  Here's the API we provide:
 // 1) ATTRIBUTE_SECTION: put this with the declaration of all functions
