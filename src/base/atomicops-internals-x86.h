@@ -38,6 +38,7 @@
 
 #ifndef BASE_ATOMICOPS_INTERNALS_X86_H_
 #define BASE_ATOMICOPS_INTERNALS_X86_H_
+#include "base/basictypes.h"
 
 typedef int32_t Atomic32;
 #define BASE_HAS_ATOMIC64 1  // Use only in tests and base/atomic*
@@ -55,6 +56,8 @@ struct AtomicOps_x86CPUFeatureStruct {
   bool has_sse2;            // Processor has SSE2.
   bool has_cmpxchg16b;      // Processor supports cmpxchg16b instruction.
 };
+
+ATTRIBUTE_VISIBILITY_HIDDEN
 extern struct AtomicOps_x86CPUFeatureStruct AtomicOps_Internalx86CPUFeatures;
 
 
