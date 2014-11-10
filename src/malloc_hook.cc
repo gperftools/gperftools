@@ -207,9 +207,9 @@ bool HookList<T>::Add(T value_as_t) {
     return false;
   }
   AtomicWord prev_num_hooks = base::subtle::Acquire_Load(&priv_end);
-  base::subtle::Release_Store(&priv_data[index], value);
+  base::subtle::NoBarrier_Store(&priv_data[index], value);
   if (prev_num_hooks <= index) {
-    base::subtle::Release_Store(&priv_end, index + 1);
+    base::subtle::NoBarrier_Store(&priv_end, index + 1);
   }
   return true;
 }
@@ -230,16 +230,16 @@ bool HookList<T>::Remove(T value_as_t) {
     return false;
   }
   SpinLockHolder l(&hooklist_spinlock);
-  AtomicWord hooks_end = base::subtle::Acquire_Load(&priv_end);
+  AtomicWord hooks_end = base::subtle::NoBarrier_Load(&priv_end);
   int index = 0;
   while (index < hooks_end && value_as_t != bit_cast<T>(
-             base::subtle::Acquire_Load(&priv_data[index]))) {
+             base::subtle::NoBarrier_Load(&priv_data[index]))) {
     ++index;
   }
   if (index == hooks_end) {
     return false;
   }
-  base::subtle::Release_Store(&priv_data[index], 0);
+  base::subtle::NoBarrier_Store(&priv_data[index], 0);
   FixupPrivEndLocked();
   return true;
 }
