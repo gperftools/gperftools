@@ -1091,7 +1091,7 @@ inline void* do_malloc_small(ThreadCache* heap, size_t size) {
   size_t cl = Static::sizemap()->SizeClass(size);
   size = Static::sizemap()->class_to_size(cl);
 
-  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
+  if (UNLIKELY(FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
     return DoSampledAllocation(size);
   } else {
     // The common case, and also the simplest.  This just pops the
