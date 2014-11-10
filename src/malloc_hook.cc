@@ -215,6 +215,16 @@ bool HookList<T>::Add(T value_as_t) {
 }
 
 template <typename T>
+void HookList<T>::FixupPrivEndLocked() {
+  AtomicWord hooks_end = base::subtle::NoBarrier_Load(&priv_end);
+  while ((hooks_end > 0) &&
+         (base::subtle::NoBarrier_Load(&priv_data[hooks_end - 1]) == 0)) {
+    --hooks_end;
+  }
+  base::subtle::NoBarrier_Store(&priv_end, hooks_end);
+}
+
+template <typename T>
 bool HookList<T>::Remove(T value_as_t) {
   if (value_as_t == 0) {
     return false;
@@ -230,15 +240,7 @@ bool HookList<T>::Remove(T value_as_t) {
     return false;
   }
   base::subtle::Release_Store(&priv_data[index], 0);
-  if (hooks_end == index + 1) {
-    // Adjust hooks_end down to the lowest possible value.
-    hooks_end = index;
-    while ((hooks_end > 0) &&
-           (base::subtle::Acquire_Load(&priv_data[hooks_end - 1]) == 0)) {
-      --hooks_end;
-    }
-    base::subtle::Release_Store(&priv_end, hooks_end);
-  }
+  FixupPrivEndLocked();
   return true;
 }
 
@@ -255,6 +257,21 @@ int HookList<T>::Traverse(T* output_array, int n) const {
     }
   }
   return actual_hooks_end;
+}
+
+template <typename T>
+T HookList<T>::ExchangeSingular(T value_as_t) {
+  AtomicWord value = bit_cast<AtomicWord>(value_as_t);
+  AtomicWord old_value;
+  SpinLockHolder l(&hooklist_spinlock);
+  old_value = base::subtle::NoBarrier_Load(&priv_data[kHookListSingularIdx]);
+  base::subtle::NoBarrier_Store(&priv_data[kHookListSingularIdx], value);
+  if (value != 0) {
+    base::subtle::NoBarrier_Store(&priv_end, kHookListSingularIdx + 1);
+  } else {
+    FixupPrivEndLocked();
+  }
+  return bit_cast<T>(old_value);
 }
 
 // Initialize a HookList (optionally with the given initial_value in index 0).

@@ -91,8 +91,12 @@ extern AtomicPtr<MallocHook::PreSbrkHook> presbrk_hook_;
 extern AtomicPtr<MallocHook::SbrkHook>    sbrk_hook_;
 // End DEPRECATED code.
 
-// Maximum of 7 hooks means that HookList is 8 words.
+// Capacity of 8 means that HookList is 9 words.
+static const int kHookListCapacity = 8;
+// last entry is reserved for deprecated "singular" hooks. So we have
+// 7 "normal" hooks per list
 static const int kHookListMaxValues = 7;
+static const int kHookListSingularIdx = 7;
 
 // HookList: a class that provides synchronized insertions and removals and
 // lockless traversal.  Most of the implementation is in malloc_hook.cc.
@@ -104,6 +108,8 @@ struct PERFTOOLS_DLL_DECL HookList {
   // blocking (acquires hooklist_spinlock).  Returns true on success; false
   // otherwise (failures include invalid value and no space left).
   bool Add(T value);
+
+  void FixupPrivEndLocked();
 
   // Removes the first entry matching value from the list.  Thread-safe and
   // blocking (acquires hooklist_spinlock).  Returns true on success; false
@@ -120,6 +126,14 @@ struct PERFTOOLS_DLL_DECL HookList {
     return base::subtle::NoBarrier_Load(&priv_end) == 0;
   }
 
+  // Used purely to handle deprecated singular hooks
+  T GetSingular() const {
+    const AtomicWord *place = &priv_data[kHookListSingularIdx];
+    return bit_cast<T>(base::subtle::NoBarrier_Load(place));
+  }
+
+  T ExchangeSingular(T new_val);
+
   // This internal data is not private so that the class is an aggregate and can
   // be initialized by the linker.  Don't access this directly.  Use the
   // INIT_HOOK_LIST macro in malloc_hook.cc.
@@ -127,8 +141,10 @@ struct PERFTOOLS_DLL_DECL HookList {
   // One more than the index of the last valid element in priv_data.  During
   // 'Remove' this may be past the last valid element in priv_data, but
   // subsequent values will be 0.
+  //
+  // Index kHookListCapacity-1 is reserved as 'deprecated' single hook pointer
   AtomicWord priv_end;
-  AtomicWord priv_data[kHookListMaxValues];
+  AtomicWord priv_data[kHookListCapacity];
 };
 
 extern HookList<MallocHook::NewHook> new_hooks_;
