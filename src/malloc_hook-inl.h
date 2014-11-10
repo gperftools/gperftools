@@ -102,16 +102,16 @@ struct PERFTOOLS_DLL_DECL HookList {
   AtomicWord priv_data[kHookListCapacity];
 };
 
-extern HookList<MallocHook::NewHook> new_hooks_;
-extern HookList<MallocHook::DeleteHook> delete_hooks_;
-extern HookList<MallocHook::PreMmapHook> premmap_hooks_;
-extern HookList<MallocHook::MmapHook> mmap_hooks_;
-extern HookList<MallocHook::MmapReplacement> mmap_replacement_;
-extern HookList<MallocHook::MunmapHook> munmap_hooks_;
-extern HookList<MallocHook::MunmapReplacement> munmap_replacement_;
-extern HookList<MallocHook::MremapHook> mremap_hooks_;
-extern HookList<MallocHook::PreSbrkHook> presbrk_hooks_;
-extern HookList<MallocHook::SbrkHook> sbrk_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::NewHook> new_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::DeleteHook> delete_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::PreMmapHook> premmap_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MmapHook> mmap_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MmapReplacement> mmap_replacement_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MunmapHook> munmap_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MunmapReplacement> munmap_replacement_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MremapHook> mremap_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::PreSbrkHook> presbrk_hooks_;
+ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::SbrkHook> sbrk_hooks_;
 
 } }  // namespace base::internal
 
