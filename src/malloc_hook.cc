@@ -158,32 +158,6 @@ extern "C" void MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
 
 namespace base { namespace internal {
 
-// The code below is DEPRECATED.
-template<typename PtrT>
-PtrT AtomicPtr<PtrT>::Exchange(PtrT new_val) {
-  base::subtle::MemoryBarrier();  // Release semantics.
-  // Depending on the system, NoBarrier_AtomicExchange(AtomicWord*)
-  // may have been defined to return an AtomicWord, Atomic32, or
-  // Atomic64.  We hide that implementation detail here with an
-  // explicit cast.  This prevents MSVC 2005, at least, from complaining.
-  PtrT old_val = reinterpret_cast<PtrT>(static_cast<AtomicWord>(
-      base::subtle::NoBarrier_AtomicExchange(
-          &data_,
-          reinterpret_cast<AtomicWord>(new_val))));
-  base::subtle::MemoryBarrier();  // And acquire semantics.
-  return old_val;
-}
-
-AtomicPtr<MallocHook::NewHook>    new_hook_ = { 0 };
-AtomicPtr<MallocHook::DeleteHook> delete_hook_ = { 0 };
-AtomicPtr<MallocHook::PreMmapHook> premmap_hook_ = { 0 };
-AtomicPtr<MallocHook::MmapHook>   mmap_hook_ = { 0 };
-AtomicPtr<MallocHook::MunmapHook> munmap_hook_ = { 0 };
-AtomicPtr<MallocHook::MremapHook> mremap_hook_ = { 0 };
-AtomicPtr<MallocHook::PreSbrkHook> presbrk_hook_ = { 0 };
-AtomicPtr<MallocHook::SbrkHook>   sbrk_hook_ = { 0 };
-// End of DEPRECATED code section.
-
 // This lock is shared between all implementations of HookList::Add & Remove.
 // The potential for contention is very small.  This needs to be a SpinLock and
 // not a Mutex since it's possible for Mutex locking to allocate memory (e.g.,
@@ -303,17 +277,6 @@ HookList<MallocHook::MunmapReplacement> munmap_replacement_ = { 0 };
 #undef INIT_HOOK_LIST
 
 } }  // namespace base::internal
-
-// The code below is DEPRECATED.
-using base::internal::new_hook_;
-using base::internal::delete_hook_;
-using base::internal::premmap_hook_;
-using base::internal::mmap_hook_;
-using base::internal::munmap_hook_;
-using base::internal::mremap_hook_;
-using base::internal::presbrk_hook_;
-using base::internal::sbrk_hook_;
-// End of DEPRECATED code section.
 
 using base::internal::kHookListMaxValues;
 using base::internal::new_hooks_;
@@ -460,49 +423,49 @@ int MallocHook_RemoveSbrkHook(MallocHook_SbrkHook hook) {
 extern "C"
 MallocHook_NewHook MallocHook_SetNewHook(MallocHook_NewHook hook) {
   RAW_VLOG(10, "SetNewHook(%p)", hook);
-  return new_hook_.Exchange(hook);
+  return new_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook) {
   RAW_VLOG(10, "SetDeleteHook(%p)", hook);
-  return delete_hook_.Exchange(hook);
+  return delete_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_PreMmapHook MallocHook_SetPreMmapHook(MallocHook_PreMmapHook hook) {
   RAW_VLOG(10, "SetPreMmapHook(%p)", hook);
-  return premmap_hook_.Exchange(hook);
+  return premmap_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_MmapHook MallocHook_SetMmapHook(MallocHook_MmapHook hook) {
   RAW_VLOG(10, "SetMmapHook(%p)", hook);
-  return mmap_hook_.Exchange(hook);
+  return mmap_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_MunmapHook MallocHook_SetMunmapHook(MallocHook_MunmapHook hook) {
   RAW_VLOG(10, "SetMunmapHook(%p)", hook);
-  return munmap_hook_.Exchange(hook);
+  return munmap_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_MremapHook MallocHook_SetMremapHook(MallocHook_MremapHook hook) {
   RAW_VLOG(10, "SetMremapHook(%p)", hook);
-  return mremap_hook_.Exchange(hook);
+  return mremap_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_PreSbrkHook MallocHook_SetPreSbrkHook(MallocHook_PreSbrkHook hook) {
   RAW_VLOG(10, "SetPreSbrkHook(%p)", hook);
-  return presbrk_hook_.Exchange(hook);
+  return presbrk_hooks_.ExchangeSingular(hook);
 }
 
 extern "C"
 MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook) {
   RAW_VLOG(10, "SetSbrkHook(%p)", hook);
-  return sbrk_hook_.Exchange(hook);
+  return sbrk_hooks_.ExchangeSingular(hook);
 }
 // End of DEPRECATED code section.
 
