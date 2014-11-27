@@ -51,6 +51,10 @@ case "$host" in
    *-darwin*) default_enable_heap_checker=no;;
 esac
 
+# Disable libunwind linking on ppc64 by default.
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __PPC64__])],
+                  [default_enable_libunwind=no], [default_enable_libunwind=yes])
+
 AC_ARG_ENABLE([cpu-profiler],
               [AS_HELP_STRING([--disable-cpu-profiler],
                               [do not build the cpu profiler])],
@@ -86,7 +90,11 @@ AC_ARG_ENABLE([stacktrace-via-backtrace],
                               [enable use of backtrace() for stacktrace capturing (may deadlock)])],
               [enable_backtrace=yes],
               [])
-
+AC_ARG_ENABLE([libunwind],
+              [AS_HELP_STRING([--enable-libunwind],
+                              [enable libunwind linking])],
+              [],
+              [enable_libunwind="$default_enable_libunwind"])
 
 # Checks for programs.
 AC_PROG_CXX
@@ -127,7 +135,6 @@ AC_CHECK_HEADERS(sys/malloc.h)  # where some versions of OS X put malloc.h
 AC_CHECK_HEADERS(malloc/malloc.h)  # another place OS X puts malloc.h (?)
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
-AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms?
@@ -211,10 +218,16 @@ fi
 # Some tests test the behavior of .so files, and only make sense for dynamic.
 AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 
-# We want to link in libunwind or libexecinfo if it exists
-AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind,
-             [AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)])
-AC_SUBST(UNWIND_LIBS)
+# We want to link in libunwind or libexecinfo if it it is enabled and exists.
+if test "$enable_libunwind" = yes; then
+  AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
+  AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind,
+               [AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)])
+  AC_SUBST(UNWIND_LIBS)
+else
+  AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)
+  AC_SUBST(UNWIND_LIBS)
+fi
 
 # On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
 AC_ARG_ENABLE(frame_pointers,
