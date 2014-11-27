@@ -156,8 +156,8 @@ int SymbolTable::Symbolize() {
         close(child_fds[j][0]);
         close(child_fds[j][1]);
         PrintError("Cannot create a socket pair");
-        return 0;
       }
+      return 0;
     } else {
       if ((child_fds[i][0] > 2) && (child_fds[i][1] > 2)) {
         if (child_in == NULL) {
