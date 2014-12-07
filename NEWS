@@ -15,6 +15,8 @@ Here are changes since 2.3rc:
 * libunwind integration is force-disabled for OSX. It was not used by
   default anyways. Fixes compilation issue I saw.
 
+== 2 Nov 2014 ==
+
 gperftools 2.3rc is out!
 
 Most small improvements in this release were made to pprof tool.
