@@ -1,4 +1,19 @@
-== 2 Nov 2014 ==
+== 7 Dec 2014 ==
+
+gperftools 2.3 is out!
+
+Here are changes since 2.3rc:
+
+* (issue 658) correctly close socketpair fds on failure (patch by glider)
+
+* libunwind integration can be disabled at configure time (patch by
+  Raphael Moreira Zinsly)
+
+* libunwind integration is disabled by default for ppc64 (patch by
+  Raphael Moreira Zinsly)
+
+* libunwind integration is force-disabled for OSX. It was not used by
+  default anyways. Fixes compilation issue I saw.
 
 gperftools 2.3rc is out!
 
