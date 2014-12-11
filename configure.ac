@@ -22,7 +22,6 @@ AM_INIT_AUTOMAKE([dist-zip])
 AC_CONFIG_HEADERS([src/config.h])
 
 AM_MAINTAINER_MODE()
-
 # Export the version information (for tc_version and friends)
 TC_VERSION_MAJOR=`expr "$PACKAGE_VERSION" : '\([[0-9]]*\)'`
 TC_VERSION_MINOR=`expr "$PACKAGE_VERSION" : '[[0-9]]*\.\([[0-9]]*\)'`
@@ -42,6 +41,8 @@ default_enable_heap_profiler=yes
 default_enable_heap_checker=yes
 default_enable_debugalloc=yes
 default_enable_minimal=no
+default_tcmalloc_pagesize=8
+default_tcmalloc_alignment=16
 need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
    *-mingw*) default_enable_minimal=yes; default_enable_debugalloc=no;
@@ -95,6 +96,40 @@ AC_ARG_ENABLE([libunwind],
                               [enable libunwind linking])],
               [],
               [enable_libunwind="$default_enable_libunwind"])
+AC_ARG_WITH([tcmalloc-pagesize],
+            [AS_HELP_STRING([--with-tcmalloc-pagesize],
+                            [Set the tcmalloc internal page size to 8K, 32K or 64K])],
+            [],
+            [with_tcmalloc_pagesize=$default_tcmalloc_pagesize])
+AC_ARG_WITH([tcmalloc-alignment],
+            [AS_HELP_STRING([--with-tcmalloc-alignment],
+                            [Set the tcmalloc internal page alignment to 8 or 16 bytes])],
+            [],
+            [with_tcmalloc_alignment=$default_tcmalloc_alignment])
+
+case "$with_tcmalloc_pagesize" in
+  8)
+       #Default tcmalloc page size.
+       ;;
+  32)
+       AC_DEFINE(TCMALLOC_32K_PAGES, 1,
+                 [Define 32K of internal pages size for tcmalloc]);;
+  64)
+       AC_DEFINE(TCMALLOC_64K_PAGES, 1,
+                 [Define 64K of internal pages size for tcmalloc]);;
+  *)
+       AC_MSG_WARN([${with_tcmalloc_pagesize}K size not supported, using default tcmalloc page size.])
+esac
+case "$with_tcmalloc_alignment" in
+  8)
+       AC_DEFINE(TCMALLOC_ALIGN_8BYTES, 1,
+                 [Define 8 bytes of internal pages alignment for tcmalloc]);;
+  16)
+       #Default tcmalloc page alignment.
+       ;;
+  *)
+       AC_MSG_WARN([${with_tcmalloc_alignment} bytes not supported, using default tcmalloc page alignment.])
+esac
 
 # Checks for programs.
 AC_PROG_CXX
