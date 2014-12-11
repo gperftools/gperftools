@@ -41,7 +41,6 @@ default_enable_heap_profiler=yes
 default_enable_heap_checker=yes
 default_enable_debugalloc=yes
 default_enable_minimal=no
-default_tcmalloc_pagesize=8
 default_tcmalloc_alignment=16
 need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
@@ -54,7 +53,10 @@ esac
 
 # Disable libunwind linking on ppc64 by default.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __PPC64__])],
-                  [default_enable_libunwind=no], [default_enable_libunwind=yes])
+                  [default_enable_libunwind=no
+                   default_tcmalloc_pagesize=64],
+                  [default_enable_libunwind=yes
+                   default_tcmalloc_pagesize=8])
 
 AC_ARG_ENABLE([cpu-profiler],
               [AS_HELP_STRING([--disable-cpu-profiler],
