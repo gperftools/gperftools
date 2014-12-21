@@ -383,6 +383,7 @@ sub Init() {
 
   GetOptions("help!"          => \$main::opt_help,
              "version!"       => \$main::opt_version,
+             "show_addresses!"=> \$main::opt_show_addresses,
              "cum!"           => \$main::opt_cum,
              "base=s"         => \$main::opt_base,
              "seconds=i"      => \$main::opt_seconds,
