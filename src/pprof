@@ -72,6 +72,7 @@ use strict;
 use warnings;
 use Getopt::Long;
 use Cwd;
+use POSIX;
 
 my $PPROF_VERSION = "2.0";
 
@@ -2982,7 +2983,14 @@ sub RemoveUninterestingFrames {
       foreach my $k (keys(%{$profile})) {
         my $count = $profile->{$k};
         my @addrs = split(/\n/, $k);
+        my $topaddr = POSIX::strtoul($addrs[0], 16);
         splice @addrs, 1, 1;
+        if ($#addrs > 1) {
+          my $subtopaddr = POSIX::strtoul($addrs[1], 16);
+          if ($subtopaddr + 1 == $topaddr) {
+            splice @addrs, 1, 1;
+          }
+        }
         my $reduced_path = join("\n", @addrs);
         AddEntry($result, $reduced_path, $count);
       }
