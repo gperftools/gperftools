@@ -235,6 +235,9 @@ Call-graph Options:
                        (i.e. direct leak generators) more visible
 
 Miscellaneous:
+   --no-auto-signal-frm Automatically drop 2nd frame that is always same (cpu-only)
+                       (assuming that it is artifact of bad stack captures
+                        which include signal handler frames)
    --show_addresses    Always show addresses when applicable
    --tools=<prefix or binary:fullpath>[,...]   \$PATH for object tool pathnames
    --test              Run unit tests
@@ -310,6 +313,7 @@ sub Init() {
   $main::opt_help = 0;
   $main::opt_version = 0;
   $main::opt_show_addresses = 0;
+  $main::opt_no_auto_signal_frames = 0;
 
   $main::opt_cum = 0;
   $main::opt_base = '';
@@ -385,6 +389,7 @@ sub Init() {
   GetOptions("help!"          => \$main::opt_help,
              "version!"       => \$main::opt_version,
              "show_addresses!"=> \$main::opt_show_addresses,
+             "no-auto-signal-frm!"=> \$main::opt_no_auto_signal_frames,
              "cum!"           => \$main::opt_cum,
              "base=s"         => \$main::opt_base,
              "seconds=i"      => \$main::opt_seconds,
@@ -2950,7 +2955,7 @@ sub RemoveUninterestingFrames {
                        'SpinLockHolder::~SpinLockHolder') {
       $skip{$vname} = 1;
     }
-  } elsif ($main::profile_type eq 'cpu') {
+  } elsif ($main::profile_type eq 'cpu' && !$main::opt_no_auto_signal_frames) {
     # Drop signal handlers used for CPU profile collection
     # TODO(dpeng): this should not be necessary; it's taken
     # care of by the general 2nd-pc mechanism below.
@@ -2978,6 +2983,10 @@ sub RemoveUninterestingFrames {
       my $func = '';
       if (exists($symbols->{$second_pc})) {
         $second_pc = $symbols->{$second_pc}->[0];
+      }
+      if ($main::opt_no_auto_signal_frames) {
+        print STDERR "All second stack frames are same: `$second_pc'.\nMight be stack trace capturing bug.\n";
+        last;
       }
       print STDERR "Removing $second_pc from all stack traces.\n";
       foreach my $k (keys(%{$profile})) {
