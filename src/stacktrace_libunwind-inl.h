@@ -58,7 +58,7 @@ extern "C" {
 // cases, we return 0 to indicate the situation.
 static __thread int recursive;
 
-#if (defined(__i386__) || defined(__x86_64__)) && defined(__GNU_LIBRARY__)
+#if defined(TCMALLOC_ENABLE_UNWIND_FROM_UCONTEXT) && (defined(__i386__) || defined(__x86_64__)) && defined(__GNU_LIBRARY__)
 #define BASE_STACKTRACE_UNW_CONTEXT_IS_UCONTEXT 1
 #endif
 
