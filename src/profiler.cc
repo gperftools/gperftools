@@ -349,19 +349,20 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
     // as the "pc" value in the signal handler context.
     stack[0] = GetPC(*reinterpret_cast<ucontext_t*>(signal_ucontext));
 
-    // We skip the top two stack trace entries (this function and one
-    // signal handler frame) since they are artifacts of profiling and
-    // should not be measured.  Other profiling related frames may be
-    // removed by "pprof" at analysis time.  Instead of skipping the top
-    // frames, we could skip nothing, but that would increase the
-    // profile size unnecessarily.
+    // We skip the top three stack trace entries (this function,
+    // SignalHandler::SignalHandler and one signal handler frame)
+    // since they are artifacts of profiling and should not be
+    // measured.  Other profiling related frames may be removed by
+    // "pprof" at analysis time.  Instead of skipping the top frames,
+    // we could skip nothing, but that would increase the profile size
+    // unnecessarily.
     int depth = GetStackTraceWithContext(stack + 1, arraysize(stack) - 1,
-                                         2, signal_ucontext);
+                                         3, signal_ucontext);
 
     void **used_stack;
     if (stack[1] == stack[0]) {
-      // in case of non-frame-pointer-based unwinding we will duplicate
-      // PC in stack[1], which we don't want
+      // in case of non-frame-pointer-based unwinding we will get
+      // duplicate of PC in stack[1], which we don't want
       used_stack = stack + 1;
     } else {
       used_stack = stack;
