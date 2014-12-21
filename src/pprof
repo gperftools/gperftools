@@ -672,6 +672,10 @@ sub Main() {
       if ($total != 0) {
         printf("Total: %s %s\n", Unparse($total), Units());
       }
+      if ($main::opt_stacks) {
+        printf("Stacks:\n\n");
+        PrintStacksForText($symbols, $profile);
+      }
       PrintText($symbols, $flat, $cumulative, -1);
     } elsif ($main::opt_raw) {
       PrintSymbolizedProfile($symbols, $profile, $main::prog);
@@ -2854,6 +2858,19 @@ sub ExtractCalls {
   }
 
   return $calls;
+}
+
+sub PrintStacksForText {
+  my $symbols = shift;
+  my $profile = shift;
+
+  while (my ($stack_trace, $count) = each %$profile) {
+    my @address = split(/\n/, $stack_trace);
+    for (my $i = 0; $i <= $#address; $i++) {
+      $address[$i] = sprintf("(%s) %s", $address[$i], ExtractSymbolLocation($symbols, $address[$i]));
+    }
+    printf("%-8d %s\n\n", $count, join("\n         ", @address));
+  }
 }
 
 sub RemoveUninterestingFrames {
