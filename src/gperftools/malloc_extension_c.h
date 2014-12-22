@@ -93,7 +93,7 @@ typedef enum {
 PERFTOOLS_DLL_DECL MallocExtension_Ownership MallocExtension_GetOwnership(const void* p);
 
 #ifdef __cplusplus
-}   // extern "C"
+}   /* extern "C" */
 #endif
 
 #endif /* _MALLOC_EXTENSION_C_H_ */
