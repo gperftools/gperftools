@@ -63,7 +63,8 @@ void TestDeleteHook(const void* ptr) {
 static
 void *forced_malloc(size_t size)
 {
-  void *rv = malloc(size);
+  extern void *tc_malloc(size_t);
+  void *rv = tc_malloc(size);
   if (!rv) {
     FAIL("malloc is not supposed to fail here");
   }
