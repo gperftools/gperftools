@@ -660,12 +660,10 @@ malloc_extension_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_extension_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_extension_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
-# This doesn't work with static linkage, because libtcmalloc.a isn't
-# happy with C linkage (it misses the stdc++ library).  Likewise with
-# mingw, which links foo.a even though it doesn't set ENABLE_STATIC.
-# TODO(csilvers): set enable_static=true in configure.ac:36?
+# This doesn't work with mingw, which links foo.a even though it
+# doesn't set ENABLE_STATIC.  TODO(csilvers): set enable_static=true
+# in configure.ac:36?
 if !MINGW
-if !ENABLE_STATIC
 TESTS += malloc_extension_c_test
 malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.c \
                                   src/gperftools/malloc_extension.h \
@@ -676,8 +674,7 @@ if GCC
 malloc_extension_c_test_CFLAGS += -ansi
 endif GCC
 malloc_extension_c_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS) -lstdc++
-endif !ENABLE_STATIC
+malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS) -lstdc++ -lm
 endif !MINGW
 
 if !MINGW
