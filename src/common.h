@@ -62,6 +62,19 @@ typedef uintptr_t Length;
 // Configuration
 //-------------------------------------------------------------------
 
+#if defined(TCMALLOC_ALIGN_8BYTES)
+// Unless we force to use 8 bytes alignment we use an alignment of
+// at least 16 bytes to statisfy requirements for some SSE types.
+// Keep in mind when using the 16 bytes alignment you can have a space
+// waste due alignment of 25%. (eg malloc of 24 bytes will get 32 bytes)
+static const size_t kMinAlign   = 8;
+// Number of classes created until reach page size 128.
+static const size_t kBaseClasses = 16;
+#else
+static const size_t kMinAlign   = 16;
+static const size_t kBaseClasses = 9;
+#endif
+
 // Using large pages speeds up the execution at a cost of larger memory use.
 // Deallocation may speed up by a factor as the page map gets 8x smaller, so
 // lookups in the page map result in fewer L2 cache misses, which translates to
@@ -70,28 +83,17 @@ typedef uintptr_t Length;
 // the thread cache allowance to avoid passing more free ranges to and from
 // central lists.  Also, larger pages are less likely to get freed.
 // These two factors cause a bounded increase in memory use.
-
-#if defined(TCMALLOC_LARGE_PAGES)
+#if defined(TCMALLOC_32K_PAGES)
 static const size_t kPageShift  = 15;
-static const size_t kNumClasses = 78;
-static const size_t kMinAlign   = 16;
-#elif defined(TCMALLOC_LARGE_PAGES64K)
+static const size_t kNumClasses = kBaseClasses + 69;
+#elif defined(TCMALLOC_64K_PAGES)
 static const size_t kPageShift  = 16;
-static const size_t kNumClasses = 82;
-static const size_t kMinAlign   = 16;
-#elif defined(TCMALLOC_ALIGN_8BYTES)
-static const size_t kPageShift  = 13;
-static const size_t kNumClasses = 95;
-// Unless we force to use 8 bytes alignment we use an alignment of
-// at least 16 bytes to statisfy requirements for some SSE types.
-// Keep in mind when using the 16 bytes alignment you can have a space
-// waste due alignment of 25%. (eg malloc of 24 bytes will get 32 bytes)
-static const size_t kMinAlign   = 8;
+static const size_t kNumClasses = kBaseClasses + 73;
 #else
 static const size_t kPageShift  = 13;
-static const size_t kNumClasses = 88;
-static const size_t kMinAlign   = 16;
+static const size_t kNumClasses = kBaseClasses + 79;
 #endif
+
 static const size_t kMaxThreadCacheSize = 4 << 20;
 
 static const size_t kPageSize   = 1 << kPageShift;

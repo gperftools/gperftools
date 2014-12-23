@@ -102,19 +102,19 @@ cost of using more space (due to internal fragmentation).
 Internally, tcmalloc divides its memory into "pages."  The default
 page size is chosen to minimize memory use by reducing fragmentation.
 The cost is that keeping track of these pages can cost tcmalloc time.
-We've added a new, experimental flag to tcmalloc that enables a larger
-page size.  In general, this will increase the memory needs of
-applications using tcmalloc.  However, in many cases it will speed up
-the applications as well, particularly if they allocate and free a lot
-of memory.  We've seen average speedups of 3-5% on Google
-applications.
+We've added a new flag to tcmalloc that enables a larger page size.
+In general, this will increase the memory needs of applications using
+tcmalloc.  However, in many cases it will speed up the applications
+as well, particularly if they allocate and free a lot of memory. We've
+seen average speedups of 3-5% on Google applications.
 
-This feature is still very experimental; it's not even a configure
-flag yet.  To build libtcmalloc with large pages, run
+To build libtcmalloc with large pages you need to use the
+--with-tcmalloc-pagesize=ARG configure flag, e.g.:
 
-   ./configure <normal flags> CXXFLAGS=-DTCMALLOC_LARGE_PAGES
+   ./configure <other flags> --with-tcmalloc-pagesize=32
 
-(or add -DTCMALLOC_LARGE_PAGES to your existing CXXFLAGS argument).
+The ARG argument can be 8, 32 or 64 which sets the internal page size to
+8K, 32K and 64K repectively. The default is 8K.
 
 
 *** SMALL TCMALLOC CACHES: TRADING SPACE FOR TIME
