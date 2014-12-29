@@ -1,3 +1,26 @@
+== 28 Dec 2014 ==
+
+gperftools 2.4rc is out!
+
+Here are changes since 2.3:
+
+* enabled aggressive decommit option by default. It was found to
+  significantly improve memory fragmentation with negligible impact on
+  performance. (Thanks to investigation work performed by Adhemerval
+  Zanella)
+
+* added ./configure flags for tcmalloc pagesize and tcmalloc
+  allocation alignment. Larger page sizes have been reported to
+  improve performance occasionally. (Patch by Raphael Moreira Zinsly)
+
+* sped-up hot-path of malloc/free. By about 5% on static library and
+  about 10% on shared library. Mainly due to more efficient checking
+  of malloc hooks.
+
+* improved stacktrace capturing in cpu profiler (due to issue found by
+  Arun Sharma). As part of that issue pprof's handling of cpu profiles
+  was also improved.
+
 == 7 Dec 2014 ==
 
 gperftools 2.3 is out!
