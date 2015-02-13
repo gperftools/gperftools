@@ -2837,7 +2837,7 @@ sub ExtractSymbolLocation {
   my $location = "??:0:unknown";
   if (exists $symbols->{$address}) {
     my $file = $symbols->{$address}->[1];
-    if ($file eq "?") {
+    if ($file eq "?" || $file eq ":0") {
       $file = "??:0"
     }
     $location = $file . ":" . $symbols->{$address}->[0];
