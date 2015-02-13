@@ -2829,6 +2829,32 @@ sub IsSecondPcAlwaysTheSame {
   return $second_pc;
 }
 
+sub ExtractSymbolLocationInlineStack {
+  my $symbols = shift;
+  my $address = shift;
+  my $stack = shift;
+  # 'addr2line' outputs "??:0" for unknown locations; we do the
+  # same to be consistent.
+  if (exists $symbols->{$address}) {
+    my @localinlinestack = @{$symbols->{$address}};
+    for (my $i = $#localinlinestack; $i > 0; $i-=3) {
+      my $file = $localinlinestack[$i-1];
+      my $fn = $localinlinestack[$i-2];
+      if ($file eq "?" || $file eq ":0") {
+        $file = "??:0";
+      }
+      my $suffix = "[inline]";
+      if ($i == 2) {
+        $suffix = "";
+      }
+      push (@$stack, $file.":".$fn.$suffix);
+    }
+  }
+  else {
+      push (@$stack, "??:0:unknown");
+  }
+}
+
 sub ExtractSymbolLocation {
   my $symbols = shift;
   my $address = shift;
@@ -2849,20 +2875,19 @@ sub ExtractSymbolLocation {
 sub ExtractCalls {
   my $symbols = shift;
   my $profile = shift;
-
   my $calls = {};
   while( my ($stack_trace, $count) = each %$profile ) {
     my @address = split(/\n/, $stack_trace);
-    my $destination = ExtractSymbolLocation($symbols, $address[0]);
-    AddEntry($calls, $destination, $count);
+    my @stack = ();
+    ExtractSymbolLocationInlineStack($symbols, $address[0], \@stack);
     for (my $i = 1; $i <= $#address; $i++) {
-      my $source = ExtractSymbolLocation($symbols, $address[$i]);
-      my $call = "$source -> $destination";
-      AddEntry($calls, $call, $count);
-      $destination = $source;
+      ExtractSymbolLocationInlineStack($symbols, $address[$i], \@stack);
+    }
+    AddEntry($calls, $stack[0], $count);
+    for (my $i = 1; $i < $#address; $i++) {
+      AddEntry($calls, "$stack[$i] -> $stack[$i-1]", $count);
     }
   }
-
   return $calls;
 }
 
