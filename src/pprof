@@ -4320,6 +4320,9 @@ sub DebuggingLibrary {
   if ($file =~ m|^/| && -f "/usr/lib/debug$file") {
     return "/usr/lib/debug$file";
   }
+  if ($file =~ m|^/| && -f "/usr/lib/debug$file.debug") {
+    return "/usr/lib/debug$file.debug";
+  }
   return undef;
 }
 
@@ -4762,6 +4765,12 @@ sub MapToSymbols {
 
   my $debug = 0;
 
+  # For libc (and other) libraries, the copy in /usr/lib/debug contains debugging symbols
+  my $debugging = DebuggingLibrary($image);
+  if ($debugging) {
+    $image = $debugging;
+  }
+
   # Ignore empty binaries
   if ($#{$pclist} < 0) { return; }
 
@@ -4815,7 +4824,7 @@ sub MapToSymbols {
   if ($debug) {
     print("----\n");
     system("cat", $main::tmpfile_sym);
-    print("----\n");
+    print("---- $cmd ---\n");
     system("$cmd < " . ShellEscape($main::tmpfile_sym));
     print("----\n");
   }
