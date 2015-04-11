@@ -110,7 +110,7 @@ static void MaybePrint(const char* var, const char* description) {
 }
 
 static void PrintAvailability(BOOL var, const char *description) {
-  printf("s: %s\n", description, (var ? "Available" : "Not available"));
+  printf("%s: %s\n", description, (var ? "Available" : "Not available"));
 }
 
 static void ShowSymbolInfo(HANDLE process, ULONG64 module_base) {
