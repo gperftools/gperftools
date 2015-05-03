@@ -1,7 +1,8 @@
 --- COMPILING
 
-This project has begun being ported to Windows.  A working solution
-file exists in this directory:
+This project has begun being ported to Windows, only tcmalloc_minimal
+is supported at this time.  A working solution file exists in this
+directory:
     gperftools.sln
 
 You can load this solution file into VC++ 7.1 (Visual Studio 2003) or
@@ -63,11 +64,12 @@ fragile), though more work to set up.  For details, see
 
 --- THE HEAP-PROFILER
 
-The heap-profiler has had a preliminary port to Windows.  It has not
-been well tested, and probably does not work at all when Frame Pointer
-Optimization (FPO) is enabled -- that is, in release mode.  The other
-features of perftools, such as the cpu-profiler and leak-checker, have
-not yet been ported to Windows at all.
+The heap-profiler has had a preliminary port to Windows but does not
+build on Windows by default.  It has not been well tested, and
+probably does not work at all when Frame Pointer Optimization (FPO) is
+enabled -- that is, in release mode.  The other features of perftools,
+such as the cpu-profiler and leak-checker, have not yet been ported to
+Windows at all.
 
 
 --- WIN64

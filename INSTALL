@@ -301,12 +301,14 @@ above, by linking in libtcmalloc_minimal.
 
 ** Windows  (MSVC, Cygwin, and MinGW):
 
-   Work on Windows is rather preliminary: we haven't found a good way
-   to get stack traces in release mode on windows (that is, when FPO
-   is enabled), so the heap profiling may not be reliable in that
-   case.  Also, heap-checking and CPU profiling do not yet work at
-   all.  But as in other ports, the basic tcmalloc library
-   functionality, overriding malloc and new and such (and even
+   Work on Windows is rather preliminary: only tcmalloc_minimal is
+   supported.
+
+   We haven't found a good way to get stack traces in release mode on
+   windows (that is, when FPO is enabled), so the heap profiling may
+   not be reliable in that case.  Also, heap-checking and CPU profiling
+   do not yet work at all.  But as in other ports, the basic tcmalloc
+   library functionality, overriding malloc and new and such (and even
    windows-specific functions like _aligned_malloc!), is working fine,
    at least with VC++ 7.1 (Visual Studio 2003) through VC++ 10.0,
    in both debug and release modes.  See README.windows for
