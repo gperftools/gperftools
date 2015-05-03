@@ -847,6 +847,18 @@ endif WITH_STACK_TRACE
 
 endif WITH_DEBUGALLOC
 
+noinst_PROGRAMS += malloc_bench malloc_bench_shared
+
+malloc_bench_SOURCES = benchmark/malloc_bench.cc
+malloc_bench_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
+malloc_bench_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS) -static
+malloc_bench_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
+
+malloc_bench_shared_SOURCES = benchmark/malloc_bench.cc
+malloc_bench_shared_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
+malloc_bench_shared_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+malloc_bench_shared_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
+
 
 ### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
 
