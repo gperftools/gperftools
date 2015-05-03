@@ -105,7 +105,7 @@ static inline void* do_mmap64(void *start, size_t length,
     // Fall back to old 32-bit offset mmap() call
     // Old syscall interface cannot handle six args, so pass in an array
     int32 args[6] = { (int32) start, (int32) length, prot, flags, fd,
-                      (off_t) offset };
+                      (int32)(off_t) offset };
     result = (void *)syscall(SYS_mmap, args);
   }
 #else
