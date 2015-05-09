@@ -85,6 +85,11 @@
 #include <AvailabilityMacros.h>
 #include <malloc/malloc.h>
 
+namespace tcmalloc {
+  void CentralCacheLockAll();
+  void CentralCacheUnlockAll();
+}
+
 // from AvailabilityMacros.h
 #if defined(MAC_OS_X_VERSION_10_6) && \
     MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
@@ -169,11 +174,11 @@ void mi_log(malloc_zone_t *zone, void *address) {
 }
 
 void mi_force_lock(malloc_zone_t *zone) {
-  // Hopefully unneeded by us!
+  tcmalloc::CentralCacheLockAll();
 }
 
 void mi_force_unlock(malloc_zone_t *zone) {
-  // Hopefully unneeded by us!
+  tcmalloc::CentralCacheUnlockAll();
 }
 
 void mi_statistics(malloc_zone_t *zone, malloc_statistics_t *stats) {

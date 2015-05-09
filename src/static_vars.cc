@@ -51,7 +51,6 @@ namespace tcmalloc {
 // sure the central_cache locks remain in a consisten state in the forked
 // version of the thread.
 
-static
 void CentralCacheLockAll()
 {
   Static::pageheap_lock()->Lock();
@@ -59,7 +58,6 @@ void CentralCacheLockAll()
     Static::central_cache()[i].Lock();
 }
 
-static
 void CentralCacheUnlockAll()
 {
   for (int i = 0; i < kNumClasses; ++i)
@@ -114,9 +112,11 @@ void Static::InitStaticVars() {
 static inline
 void SetupAtForkLocksHandler()
 {
+#if !defined(__APPLE__)
   pthread_atfork(CentralCacheLockAll,    // parent calls before fork
                  CentralCacheUnlockAll,  // parent calls after fork
                  CentralCacheUnlockAll); // child calls after fork
+#endif
 }
 REGISTER_MODULE_INITIALIZER(tcmalloc_fork_handler, SetupAtForkLocksHandler());
 
