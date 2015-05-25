@@ -147,6 +147,9 @@ class ProfileHandler {
   // ITIMER_PROF (which uses SIGPROF), or ITIMER_REAL (which uses SIGALRM)
   int timer_type_;
 
+  // Signal number for timer signal.
+  int signal_number_;
+
   // Counts the number of callbacks registered.
   int32 callback_count_ GUARDED_BY(control_lock_);
 
@@ -286,7 +289,8 @@ static void CreateThreadTimerKey(pthread_key_t *pkey) {
   }
 }
 
-static void StartLinuxThreadTimer(int timer_type, int32 frequency, pthread_key_t timer_key) {
+static void StartLinuxThreadTimer(int timer_type, int signal_number,
+                                  int32 frequency, pthread_key_t timer_key) {
   int rv;
   struct sigevent sevp;
   timer_t timerid;
@@ -294,7 +298,6 @@ static void StartLinuxThreadTimer(int timer_type, int32 frequency, pthread_key_t
   memset(&sevp, 0, sizeof(sevp));
   sevp.sigev_notify = SIGEV_THREAD_ID;
   sevp._sigev_un._tid = sys_gettid();
-  const int signal_number = (timer_type == ITIMER_PROF ? SIGPROF : SIGALRM);
   sevp.sigev_signo = signal_number;
   clockid_t clock = CLOCK_THREAD_CPUTIME_ID;
   if (timer_type == ITIMER_REAL) {
@@ -348,6 +351,7 @@ ProfileHandler::ProfileHandler()
   SpinLockHolder cl(&control_lock_);
 
   timer_type_ = (getenv("CPUPROFILE_REALTIME") ? ITIMER_REAL : ITIMER_PROF);
+  signal_number_ = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
 
   // Get frequency of interrupts (if specified)
   char junk;
@@ -364,11 +368,35 @@ ProfileHandler::ProfileHandler()
     return;
   }
 
+#if HAVE_LINUX_SIGEV_THREAD_ID
+  // Do this early because we might be overriding signal number.
+
+  const char *per_thread = getenv("CPUPROFILE_PER_THREAD_TIMERS");
+  const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
+
+  if (per_thread || signal_number) {
+    if (timer_create && pthread_once) {
+      timer_sharing_ = TIMERS_SEPARATE;
+      CreateThreadTimerKey(&thread_timer_key);
+      per_thread_timer_enabled_ = true;
+      // Override signal number if requested.
+      if (signal_number) {
+        signal_number_ = strtol(signal_number, NULL, 0);
+      }
+    } else {
+      RAW_LOG(INFO,
+              "Ignoring CPUPROFILE_PER_THREAD_TIMERS and\n"
+              " CPUPROFILE_TIMER_SIGNAL due to lack of timer_create().\n"
+              " Preload or link to librt.so for this to work");
+    }
+  }
+#endif
+
   // If something else is using the signal handler,
   // assume it has priority over us and stop.
   if (!IsSignalHandlerAvailable()) {
-    RAW_LOG(INFO, "Disabling profiler because %s handler is already in use.",
-                    timer_type_ == ITIMER_REAL ? "SIGALRM" : "SIGPROF");
+    RAW_LOG(INFO, "Disabling profiler because signal %d handler is already in use.",
+            signal_number_);
     allowed_ = false;
     return;
   }
@@ -377,19 +405,6 @@ ProfileHandler::ProfileHandler()
   // should already be ignored.)
   DisableHandler();
 
-#if HAVE_LINUX_SIGEV_THREAD_ID
-  if (getenv("CPUPROFILE_PER_THREAD_TIMERS")) {
-    if (timer_create && pthread_once) {
-      timer_sharing_ = TIMERS_SEPARATE;
-      CreateThreadTimerKey(&thread_timer_key);
-      per_thread_timer_enabled_ = true;
-    } else {
-      RAW_LOG(INFO,
-              "Not enabling linux-per-thread-timers mode due to lack of timer_create."
-              " Preload or link to librt.so for this to work");
-    }
-  }
-#endif
 }
 
 ProfileHandler::~ProfileHandler() {
@@ -538,7 +553,7 @@ void ProfileHandler::StartTimer() {
 
 #if HAVE_LINUX_SIGEV_THREAD_ID
   if (per_thread_timer_enabled_) {
-    StartLinuxThreadTimer(timer_type_, frequency_, thread_timer_key);
+    StartLinuxThreadTimer(timer_type_, signal_number_, frequency_, thread_timer_key);
     return;
   }
 #endif
@@ -584,8 +599,7 @@ void ProfileHandler::EnableHandler() {
   sa.sa_sigaction = SignalHandler;
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
-  const int signal_number = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
-  RAW_CHECK(sigaction(signal_number, &sa, NULL) == 0, "sigprof (enable)");
+  RAW_CHECK(sigaction(signal_number_, &sa, NULL) == 0, "sigprof (enable)");
 }
 
 void ProfileHandler::DisableHandler() {
@@ -596,14 +610,12 @@ void ProfileHandler::DisableHandler() {
   sa.sa_handler = SIG_IGN;
   sa.sa_flags = SA_RESTART;
   sigemptyset(&sa.sa_mask);
-  const int signal_number = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
-  RAW_CHECK(sigaction(signal_number, &sa, NULL) == 0, "sigprof (disable)");
+  RAW_CHECK(sigaction(signal_number_, &sa, NULL) == 0, "sigprof (disable)");
 }
 
 bool ProfileHandler::IsSignalHandlerAvailable() {
   struct sigaction sa;
-  const int signal_number = (timer_type_ == ITIMER_PROF ? SIGPROF : SIGALRM);
-  RAW_CHECK(sigaction(signal_number, NULL, &sa) == 0, "is-signal-handler avail");
+  RAW_CHECK(sigaction(signal_number_, NULL, &sa) == 0, "is-signal-handler avail");
 
   // We only take over the handler if the current one is unset.
   // It must be SIG_IGN or SIG_DFL, not some other function.

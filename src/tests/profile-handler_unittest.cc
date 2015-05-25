@@ -212,6 +212,11 @@ class ProfileHandlerTest {
     timer_separate_ = threads_have_separate_timers();
 #if HAVE_LINUX_SIGEV_THREAD_ID
     linux_per_thread_timers_mode_ = (getenv("CPUPROFILE_PER_THREAD_TIMERS") != NULL);
+    const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
+    if (signal_number) {
+      signal_number_ = strtol(signal_number, NULL, 0);
+      linux_per_thread_timers_mode_ = true;
+    }
 #endif
     Delay(kTimerResetInterval);
   }
