@@ -2094,9 +2094,11 @@ struct kernel_stat {
                        int,            c, long,   a)
   LSS_INLINE _syscall2(int,     fstat,           int,         f,
                       struct kernel_stat*,   b)
-  LSS_INLINE _syscall4(int,     futex,           int*,        a,
+  LSS_INLINE _syscall6(int,     futex,           int*,        a,
                        int,            o, int,    v,
-                      struct kernel_timespec*, t)
+                      struct kernel_timespec*, t,
+                       int*, a2,
+                       int, v3)
 #ifdef __NR_getdents64
     LSS_INLINE _syscall3(int,     getdents64,      int,         f,
                          struct kernel_dirent64*, d, int,    c)
