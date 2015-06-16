@@ -45,6 +45,7 @@ namespace {
 class Thread {
  public:
   Thread() : joinable_(false) { }
+  virtual ~Thread() { }
   void SetJoinable(bool value) { joinable_ = value; }
   void Start() {
     pthread_attr_t attr;
