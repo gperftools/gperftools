@@ -884,6 +884,9 @@ static void TracePrintf(int fd, const char *fmt, ...) {
   va_start(ap, fmt);
   const char *p = fmt;
   char numbuf[25];
+  if (fd < 0) {
+    return;
+  }
   numbuf[sizeof(numbuf)-1] = 0;
   while (*p != '\0') {              // until end of format string
     char *s = &numbuf[sizeof(numbuf)-1];
@@ -955,11 +958,20 @@ static void TracePrintf(int fd, const char *fmt, ...) {
 static int TraceFd() {
   static int trace_fd = -1;
   if (trace_fd == -1) {            // Open the trace file on the first call
-    trace_fd = open("/tmp/google.alloc", O_CREAT|O_TRUNC|O_WRONLY, 0666);
+    const char *val = getenv("TCMALLOC_TRACE_FILE");
+    bool fallback_to_stderr = false;
+    if (!val) {
+      val = "/tmp/google.alloc";
+      fallback_to_stderr = true;
+    }
+    trace_fd = open(val, O_CREAT|O_TRUNC|O_WRONLY, 0666);
     if (trace_fd == -1) {
-      trace_fd = 2;
-      TracePrintf(trace_fd,
-                  "Can't open /tmp/google.alloc.  Logging to stderr.\n");
+      if (fallback_to_stderr) {
+        trace_fd = 2;
+        TracePrintf(trace_fd, "Can't open %s.  Logging to stderr.\n", val);
+      } else {
+        TracePrintf(2, "Can't open %s.  Logging disabled.\n", val);
+      }
     }
     // Add a header to the log.
     TracePrintf(trace_fd, "Trace started: %lu\n",
