@@ -132,26 +132,26 @@ PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(
 /* Stop profiling. Can be started again with ProfilerStart(), but
  * the currently accumulated profiling data will be cleared.
  */
-PERFTOOLS_DLL_DECL void ProfilerStop();
+PERFTOOLS_DLL_DECL void ProfilerStop(void);
 
 /* Flush any currently buffered profiling state to the profile file.
  * Has no effect if the profiler has not been started.
  */
-PERFTOOLS_DLL_DECL void ProfilerFlush();
+PERFTOOLS_DLL_DECL void ProfilerFlush(void);
 
 
 /* DEPRECATED: these functions were used to enable/disable profiling
  * in the current thread, but no longer do anything.
  */
-PERFTOOLS_DLL_DECL void ProfilerEnable();
-PERFTOOLS_DLL_DECL void ProfilerDisable();
+PERFTOOLS_DLL_DECL void ProfilerEnable(void);
+PERFTOOLS_DLL_DECL void ProfilerDisable(void);
 
 /* Returns nonzero if profile is currently enabled, zero if it's not. */
-PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads();
+PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads(void);
 
 /* Routine for registering new threads with the profiler.
  */
-PERFTOOLS_DLL_DECL void ProfilerRegisterThread();
+PERFTOOLS_DLL_DECL void ProfilerRegisterThread(void);
 
 /* Stores state about profiler's current status into "*state". */
 struct ProfilerState {
