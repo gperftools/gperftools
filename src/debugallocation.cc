@@ -1193,7 +1193,7 @@ inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
   data.size = size;
   data.new_type = new_type;
   return handle_oom(retry_debug_allocate, &data,
-                    true, nothrow, true);
+                    true, nothrow);
 }
 
 inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
@@ -1205,7 +1205,7 @@ inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
   data.size = size;
   data.new_type = MallocBlock::kMallocType;
   return handle_oom(retry_debug_allocate, &data,
-                    false, true, true);
+                    false, true);
 }
 
 // Exported routines
@@ -1384,7 +1384,7 @@ inline void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
   data.align = align;
   data.size = size;
   return handle_oom(retry_debug_memalign, &data,
-                    false, true, false);
+                    false, true);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align, size_t size) __THROW {

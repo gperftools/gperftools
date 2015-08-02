@@ -1002,24 +1002,16 @@ namespace {
 
 typedef void* (*malloc_fn)(void *arg);
 
-void *maybe_set_enomem(bool set_errno) {
-  if (set_errno) {
-    errno = ENOMEM;
-  }
-  return NULL;
-}
-
 SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
 
 void* handle_oom(malloc_fn retry_fn,
                  void* retry_arg,
                  bool from_operator,
-                 bool nothrow,
-                 bool set_errno) {
+                 bool nothrow) {
   if (!from_operator && !tc_new_mode) {
     // we're out of memory in C library function (malloc etc) and no
     // "new mode" forced on us. Just return NULL
-    return maybe_set_enomem(set_errno);
+    return NULL;
   }
   // we're OOM in operator new or "new mode" is set. We might have to
   // call new_handle and maybe retry allocation.
@@ -1037,7 +1029,7 @@ void* handle_oom(malloc_fn retry_fn,
     }
 #if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
     if (!nh) {
-      return maybe_set_enomem(set_errno);
+      return NULL;
     }
     // Since exceptions are disabled, we don't really know if new_handler
     // failed.  Assume it will abort if it fails.
@@ -1046,7 +1038,7 @@ void* handle_oom(malloc_fn retry_fn,
     // If no new_handler is established, the allocation failed.
     if (!nh) {
       if (nothrow) {
-        return maybe_set_enomem(set_errno);
+        return NULL;
       }
       throw std::bad_alloc();
     }
@@ -1057,7 +1049,7 @@ void* handle_oom(malloc_fn retry_fn,
       (*nh)();
     } catch (const std::bad_alloc&) {
       if (!nothrow) throw;
-      return maybe_set_enomem(set_errno);
+      return NULL;
     }
 #endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
 
@@ -1096,28 +1088,18 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
 }
 
 inline void* do_malloc(size_t size);
-inline void* do_malloc_no_errno(size_t size);
 
-static void *retry_malloc_no_errno(void* size) {
-  return do_malloc_no_errno(reinterpret_cast<size_t>(size));
+static void *retry_malloc(void* size) {
+  return do_malloc(reinterpret_cast<size_t>(size));
 }
 
 inline void* do_malloc_or_cpp_alloc(size_t size) {
-  void *rv = do_malloc_no_errno(size);
+  void *rv = do_malloc(size);
   if (LIKELY(rv != NULL)) {
     return rv;
   }
-  return handle_oom(retry_malloc_no_errno, reinterpret_cast<void*>(size),
-                    false, true, true);
-}
-
-inline void* do_malloc_no_errno_or_cpp_alloc(size_t size) {
-  void *rv = do_malloc_no_errno(size);
-  if (LIKELY(rv != NULL)) {
-    return rv;
-  }
-  return handle_oom(retry_malloc_no_errno, reinterpret_cast<void *>(size),
-                    false, true, false);
+  return handle_oom(retry_malloc, reinterpret_cast<void *>(size),
+                    false, true);
 }
 
 void* do_memalign(size_t align, size_t size);
@@ -1137,7 +1119,7 @@ static void *maybe_do_cpp_memalign_slow(size_t align, size_t size) {
   data.align = align;
   data.size = size;
   return handle_oom(retry_do_memalign, &data,
-                    false, true, false);
+                    false, true);
 }
 
 inline void* do_memalign_or_cpp_memalign(size_t align, size_t size) {
@@ -1202,7 +1184,7 @@ inline void* do_malloc_small(ThreadCache* heap, size_t size) {
   }
 }
 
-inline void* do_malloc_no_errno(size_t size) {
+inline void* do_malloc(size_t size) {
   if (ThreadCache::have_tls &&
       LIKELY(size < ThreadCache::MinSizeForSlowPath())) {
     return do_malloc_small(ThreadCache::GetCacheWhichMustBePresent(), size);
@@ -1213,21 +1195,13 @@ inline void* do_malloc_no_errno(size_t size) {
   }
 }
 
-inline void* do_malloc(size_t size) {
-  void* ret = do_malloc_no_errno(size);
-  if (UNLIKELY(ret == NULL)) errno = ENOMEM;
-  return ret;
-}
-
 inline void* do_calloc(size_t n, size_t elem_size) {
   // Overflow check
   const size_t size = n * elem_size;
   if (elem_size != 0 && size / elem_size != n) return NULL;
 
-  void* result = do_malloc_no_errno_or_cpp_alloc(size);
-  if (result == NULL) {
-    errno = ENOMEM;
-  } else {
+  void* result = do_malloc_or_cpp_alloc(size);
+  if (result != NULL) {
     memset(result, 0, size);
   }
   return result;
@@ -1377,7 +1351,7 @@ inline void* do_realloc_with_callback(
     void* new_ptr = NULL;
 
     if (new_size > old_size && new_size < lower_bound_to_grow) {
-      new_ptr = do_malloc_no_errno_or_cpp_alloc(lower_bound_to_grow);
+      new_ptr = do_malloc_or_cpp_alloc(lower_bound_to_grow);
     }
     if (new_ptr == NULL) {
       // Either new_size is not a tiny increment, or last do_malloc failed.
@@ -1527,12 +1501,12 @@ inline struct mallinfo do_mallinfo() {
 #endif  // HAVE_STRUCT_MALLINFO
 
 inline void* cpp_alloc(size_t size, bool nothrow) {
-  void* p = do_malloc_no_errno(size);
+  void* p = do_malloc(size);
   if (LIKELY(p)) {
     return p;
   }
-  return handle_oom(retry_malloc_no_errno, reinterpret_cast<void *>(size),
-                    true, nothrow, true);
+  return handle_oom(retry_malloc, reinterpret_cast<void *>(size),
+                    true, nothrow);
 }
 
 }  // end unnamed namespace

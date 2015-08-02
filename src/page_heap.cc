@@ -35,6 +35,7 @@
 #ifdef HAVE_INTTYPES_H
 #include <inttypes.h>                   // for PRIuPTR
 #endif
+#include <errno.h>                      // for ENOMEM, errno
 #include <gperftools/malloc_extension.h>      // for MallocRange, etc
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
@@ -156,6 +157,12 @@ Span* PageHeap::New(Length n) {
   if (!GrowHeap(n)) {
     ASSERT(stats_.unmapped_bytes+ stats_.committed_bytes==stats_.system_bytes);
     ASSERT(Check());
+    // underlying SysAllocator likely set ENOMEM but we can get here
+    // due to EnsureLimit so we set it here too.
+    //
+    // Setting errno to ENOMEM here allows us to avoid dealing with it
+    // in fast-path.
+    errno = ENOMEM;
     return NULL;
   }
   return SearchFreeAndLargeLists(n);
