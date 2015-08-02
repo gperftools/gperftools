@@ -1427,9 +1427,6 @@ inline struct mallinfo do_mallinfo() {
 static SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
 
 inline void* cpp_alloc(size_t size, bool nothrow) {
-#ifdef PREANSINEW
-  return do_malloc(size);
-#else
   for (;;) {
     void* p = do_malloc_no_errno(size);
     if (UNLIKELY(p == NULL)) {  // allocation failed
@@ -1470,7 +1467,6 @@ inline void* cpp_alloc(size_t size, bool nothrow) {
     } else {  // allocation success
       return p;
     }
-#endif  // PREANSINEW
   }
 fail:
   errno = ENOMEM;
@@ -1480,9 +1476,6 @@ fail:
 void* cpp_memalign(size_t align, size_t size) {
   for (;;) {
     void* p = do_memalign(align, size);
-#ifdef PREANSINEW
-    return p;
-#else
     if (UNLIKELY(p == NULL)) {  // allocation failed
       // Get the current new handler.  NB: this function is not
       // thread-safe.  We make a feeble stab at making it so here, but
@@ -1519,7 +1512,6 @@ void* cpp_memalign(size_t align, size_t size) {
     } else {  // allocation success
       return p;
     }
-#endif  // PREANSINEW
   }
 }
 

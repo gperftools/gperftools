@@ -1177,9 +1177,6 @@ REGISTER_MODULE_DESTRUCTOR(debugallocation, {
 inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
   for (;;) {
     void* p = DebugAllocate(size, new_type);
-#ifdef PREANSINEW
-    return p;
-#else
     if (p == NULL) {  // allocation failed
       // Get the current new handler.  NB: this function is not
       // thread-safe.  We make a feeble stab at making it so here, but
@@ -1218,7 +1215,6 @@ inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
     } else {  // allocation success
       return p;
     }
-#endif  // PREANSINEW
   }
 }
 
@@ -1386,9 +1382,6 @@ static void *do_debug_memalign(size_t alignment, size_t size) {
 static void* debug_cpp_memalign(size_t align, size_t size) {
   for (;;) {
     void* p = do_debug_memalign(align, size);
-#ifdef PREANSINEW
-    return p;
-#else
     if (p == NULL) {  // allocation failed
       // Get the current new handler.  NB: this function is not
       // thread-safe.  We make a feeble stab at making it so here, but
@@ -1425,7 +1418,6 @@ static void* debug_cpp_memalign(size_t align, size_t size) {
     } else {  // allocation success
       return p;
     }
-#endif  // PREANSINEW
   }
 }
 
