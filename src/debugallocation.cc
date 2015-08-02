@@ -1169,58 +1169,43 @@ REGISTER_MODULE_DESTRUCTOR(debugallocation, {
 
 // ========================================================================= //
 
+struct debug_alloc_retry_data {
+  size_t size;
+  int new_type;
+};
+
+static void *retry_debug_allocate(void *arg) {
+  debug_alloc_retry_data *data = static_cast<debug_alloc_retry_data *>(arg);
+  return DebugAllocate(data->size, data->new_type);
+}
+
 // This is mostly the same a cpp_alloc in tcmalloc.cc.
 // TODO(csilvers): change Allocate() above to call cpp_alloc, so we
 // don't have to reproduce the logic here.  To make tc_new_mode work
 // properly, I think we'll need to separate out the logic of throwing
 // from the logic of calling the new-handler.
 inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
-  for (;;) {
-    void* p = DebugAllocate(size, new_type);
-    if (p == NULL) {  // allocation failed
-      // Get the current new handler.  NB: this function is not
-      // thread-safe.  We make a feeble stab at making it so here, but
-      // this lock only protects against tcmalloc interfering with
-      // itself, not with other libraries calling set_new_handler.
-      std::new_handler nh;
-      {
-        SpinLockHolder h(&set_new_handler_lock);
-        nh = std::set_new_handler(0);
-        (void) std::set_new_handler(nh);
-      }
-#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-      if (nh) {
-        // Since exceptions are disabled, we don't really know if new_handler
-        // failed.  Assume it will abort if it fails.
-        (*nh)();
-        continue;
-      }
-      return 0;
-#else
-      // If no new_handler is established, the allocation failed.
-      if (!nh) {
-        if (nothrow) return 0;
-        throw std::bad_alloc();
-      }
-      // Otherwise, try the new_handler.  If it returns, retry the
-      // allocation.  If it throws std::bad_alloc, fail the allocation.
-      // if it throws something else, don't interfere.
-      try {
-        (*nh)();
-      } catch (const std::bad_alloc&) {
-        if (!nothrow) throw;
-        return p;
-      }
-#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-    } else {  // allocation success
-      return p;
-    }
+  void* p = DebugAllocate(size, new_type);
+  if (p != NULL) {
+    return p;
   }
+  struct debug_alloc_retry_data data;
+  data.size = size;
+  data.new_type = new_type;
+  return handle_oom(retry_debug_allocate, &data,
+                    true, nothrow, true);
 }
 
 inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
-  return tc_new_mode ? debug_cpp_alloc(size, MallocBlock::kMallocType, true)
-                     : DebugAllocate(size, MallocBlock::kMallocType);
+  void* p = DebugAllocate(size, MallocBlock::kMallocType);
+  if (p != NULL) {
+    return p;
+  }
+  struct debug_alloc_retry_data data;
+  data.size = size;
+  data.new_type = MallocBlock::kMallocType;
+  return handle_oom(retry_debug_allocate, &data,
+                    false, true, true);
 }
 
 // Exported routines
@@ -1378,53 +1363,28 @@ static void *do_debug_memalign(size_t alignment, size_t size) {
   return p;
 }
 
-// This is mostly the same as cpp_memalign in tcmalloc.cc.
-static void* debug_cpp_memalign(size_t align, size_t size) {
-  for (;;) {
-    void* p = do_debug_memalign(align, size);
-    if (p == NULL) {  // allocation failed
-      // Get the current new handler.  NB: this function is not
-      // thread-safe.  We make a feeble stab at making it so here, but
-      // this lock only protects against tcmalloc interfering with
-      // itself, not with other libraries calling set_new_handler.
-      std::new_handler nh;
-      {
-        SpinLockHolder h(&set_new_handler_lock);
-        nh = std::set_new_handler(0);
-        (void) std::set_new_handler(nh);
-      }
-#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-      if (nh) {
-        // Since exceptions are disabled, we don't really know if new_handler
-        // failed.  Assume it will abort if it fails.
-        (*nh)();
-        continue;
-      }
-      return 0;
-#else
-      // If no new_handler is established, the allocation failed.
-      if (!nh)
-        return 0;
+struct memalign_retry_data {
+  size_t align;
+  size_t size;
+};
 
-      // Otherwise, try the new_handler.  If it returns, retry the
-      // allocation.  If it throws std::bad_alloc, fail the allocation.
-      // if it throws something else, don't interfere.
-      try {
-        (*nh)();
-      } catch (const std::bad_alloc&) {
-        return p;
-      }
-#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-    } else {  // allocation success
-      return p;
-    }
-  }
+static void *retry_debug_memalign(void *arg) {
+  memalign_retry_data *data = static_cast<memalign_retry_data *>(arg);
+  return do_debug_memalign(data->align, data->size);
 }
 
 inline void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
                                                      size_t size) {
-  return tc_new_mode ? debug_cpp_memalign(align, size)
-                     : do_debug_memalign(align, size);
+  void* p = do_debug_memalign(align, size);
+  if (p != NULL) {
+    return p;
+  }
+
+  struct memalign_retry_data data;
+  data.align = align;
+  data.size = size;
+  return handle_oom(retry_debug_memalign, &data,
+                    false, true, false);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align, size_t size) __THROW {

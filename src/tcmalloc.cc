@@ -1000,6 +1000,78 @@ static void* DoSampledAllocation(size_t size) {
 
 namespace {
 
+typedef void* (*malloc_fn)(void *arg);
+
+void *maybe_set_enomem(bool set_errno) {
+  if (set_errno) {
+    errno = ENOMEM;
+  }
+  return NULL;
+}
+
+SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
+
+void* handle_oom(malloc_fn retry_fn,
+                 void* retry_arg,
+                 bool from_operator,
+                 bool nothrow,
+                 bool set_errno) {
+  if (!from_operator && !tc_new_mode) {
+    // we're out of memory in C library function (malloc etc) and no
+    // "new mode" forced on us. Just return NULL
+    return maybe_set_enomem(set_errno);
+  }
+  // we're OOM in operator new or "new mode" is set. We might have to
+  // call new_handle and maybe retry allocation.
+
+  for (;;) {
+    // Get the current new handler.  NB: this function is not
+    // thread-safe.  We make a feeble stab at making it so here, but
+    // this lock only protects against tcmalloc interfering with
+    // itself, not with other libraries calling set_new_handler.
+    std::new_handler nh;
+    {
+      SpinLockHolder h(&set_new_handler_lock);
+      nh = std::set_new_handler(0);
+      (void) std::set_new_handler(nh);
+    }
+#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+    if (!nh) {
+      return maybe_set_enomem(set_errno);
+    }
+    // Since exceptions are disabled, we don't really know if new_handler
+    // failed.  Assume it will abort if it fails.
+    (*nh)();
+#else
+    // If no new_handler is established, the allocation failed.
+    if (!nh) {
+      if (nothrow) {
+        return maybe_set_enomem(set_errno);
+      }
+      throw std::bad_alloc();
+    }
+    // Otherwise, try the new_handler.  If it returns, retry the
+    // allocation.  If it throws std::bad_alloc, fail the allocation.
+    // if it throws something else, don't interfere.
+    try {
+      (*nh)();
+    } catch (const std::bad_alloc&) {
+      if (!nothrow) throw;
+      return maybe_set_enomem(set_errno);
+    }
+#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
+
+    // we get here if new_handler returns successfully. So we retry
+    // allocation.
+    void* rv = retry_fn(retry_arg);
+    if (rv != NULL) {
+      return rv;
+    }
+
+    // if allocation failed again we go to next loop iteration
+  }
+}
+
 // Copy of FLAGS_tcmalloc_large_alloc_report_threshold with
 // automatic increases factored in.
 static int64_t large_alloc_threshold =
@@ -1023,27 +1095,57 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
   write(STDERR_FILENO, buffer, strlen(buffer));
 }
 
-inline void* cpp_alloc(size_t size, bool nothrow);
 inline void* do_malloc(size_t size);
 inline void* do_malloc_no_errno(size_t size);
 
-// TODO(willchan): Investigate whether or not lining this much is harmful to
-// performance.
-// This is equivalent to do_malloc() except when tc_new_mode is set to true.
-// Otherwise, it will run the std::new_handler if set.
+static void *retry_malloc_no_errno(void* size) {
+  return do_malloc_no_errno(reinterpret_cast<size_t>(size));
+}
+
 inline void* do_malloc_or_cpp_alloc(size_t size) {
-  return tc_new_mode ? cpp_alloc(size, true) : do_malloc(size);
+  void *rv = do_malloc_no_errno(size);
+  if (LIKELY(rv != NULL)) {
+    return rv;
+  }
+  return handle_oom(retry_malloc_no_errno, reinterpret_cast<void*>(size),
+                    false, true, true);
 }
 
 inline void* do_malloc_no_errno_or_cpp_alloc(size_t size) {
-  return tc_new_mode ? cpp_alloc(size, true) : do_malloc_no_errno(size);
+  void *rv = do_malloc_no_errno(size);
+  if (LIKELY(rv != NULL)) {
+    return rv;
+  }
+  return handle_oom(retry_malloc_no_errno, reinterpret_cast<void *>(size),
+                    false, true, false);
 }
 
-void* cpp_memalign(size_t align, size_t size);
 void* do_memalign(size_t align, size_t size);
 
+struct retry_memaligh_data {
+  size_t align;
+  size_t size;
+};
+
+static void *retry_do_memalign(void *arg) {
+  retry_memaligh_data *data = static_cast<retry_memaligh_data *>(arg);
+  return do_memalign(data->align, data->size);
+}
+
+static void *maybe_do_cpp_memalign_slow(size_t align, size_t size) {
+  retry_memaligh_data data;
+  data.align = align;
+  data.size = size;
+  return handle_oom(retry_do_memalign, &data,
+                    false, true, false);
+}
+
 inline void* do_memalign_or_cpp_memalign(size_t align, size_t size) {
-  return tc_new_mode ? cpp_memalign(align, size) : do_memalign(align, size);
+  void *rv = do_memalign(align, size);
+  if (LIKELY(rv != NULL)) {
+    return rv;
+  }
+  return maybe_do_cpp_memalign_slow(align, size);
 }
 
 // Must be called with the page lock held.
@@ -1424,95 +1526,13 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // HAVE_STRUCT_MALLINFO
 
-static SpinLock set_new_handler_lock(SpinLock::LINKER_INITIALIZED);
-
 inline void* cpp_alloc(size_t size, bool nothrow) {
-  for (;;) {
-    void* p = do_malloc_no_errno(size);
-    if (UNLIKELY(p == NULL)) {  // allocation failed
-      // Get the current new handler.  NB: this function is not
-      // thread-safe.  We make a feeble stab at making it so here, but
-      // this lock only protects against tcmalloc interfering with
-      // itself, not with other libraries calling set_new_handler.
-      std::new_handler nh;
-      {
-        SpinLockHolder h(&set_new_handler_lock);
-        nh = std::set_new_handler(0);
-        (void) std::set_new_handler(nh);
-      }
-#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-      if (nh) {
-        // Since exceptions are disabled, we don't really know if new_handler
-        // failed.  Assume it will abort if it fails.
-        (*nh)();
-        continue;
-      }
-      goto fail;
-#else
-      // If no new_handler is established, the allocation failed.
-      if (!nh) {
-        if (nothrow) goto fail;
-        throw std::bad_alloc();
-      }
-      // Otherwise, try the new_handler.  If it returns, retry the
-      // allocation.  If it throws std::bad_alloc, fail the allocation.
-      // if it throws something else, don't interfere.
-      try {
-        (*nh)();
-      } catch (const std::bad_alloc&) {
-        if (!nothrow) throw;
-        goto fail;
-      }
-#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-    } else {  // allocation success
-      return p;
-    }
+  void* p = do_malloc_no_errno(size);
+  if (LIKELY(p)) {
+    return p;
   }
-fail:
-  errno = ENOMEM;
-  return 0;
-}
-
-void* cpp_memalign(size_t align, size_t size) {
-  for (;;) {
-    void* p = do_memalign(align, size);
-    if (UNLIKELY(p == NULL)) {  // allocation failed
-      // Get the current new handler.  NB: this function is not
-      // thread-safe.  We make a feeble stab at making it so here, but
-      // this lock only protects against tcmalloc interfering with
-      // itself, not with other libraries calling set_new_handler.
-      std::new_handler nh;
-      {
-        SpinLockHolder h(&set_new_handler_lock);
-        nh = std::set_new_handler(0);
-        (void) std::set_new_handler(nh);
-      }
-#if (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-      if (nh) {
-        // Since exceptions are disabled, we don't really know if new_handler
-        // failed.  Assume it will abort if it fails.
-        (*nh)();
-        continue;
-      }
-      return 0;
-#else
-      // If no new_handler is established, the allocation failed.
-      if (!nh)
-        return 0;
-
-      // Otherwise, try the new_handler.  If it returns, retry the
-      // allocation.  If it throws std::bad_alloc, fail the allocation.
-      // if it throws something else, don't interfere.
-      try {
-        (*nh)();
-      } catch (const std::bad_alloc&) {
-        return p;
-      }
-#endif  // (defined(__GNUC__) && !defined(__EXCEPTIONS)) || (defined(_HAS_EXCEPTIONS) && !_HAS_EXCEPTIONS)
-    } else {  // allocation success
-      return p;
-    }
-  }
+  return handle_oom(retry_malloc_no_errno, reinterpret_cast<void *>(size),
+                    true, nothrow, true);
 }
 
 }  // end unnamed namespace
