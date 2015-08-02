@@ -58,6 +58,9 @@ static const int kMaxCount = 100000;
 int* g_array[kMaxCount];              // an array of int-vectors
 
 static ATTRIBUTE_NOINLINE void Allocate(int start, int end, int size) {
+  // NOTE: we're using this to prevent gcc 5 from merging otherwise
+  // identical Allocate & Allocate2 functions.
+  VLOG(10, "Allocate");
   for (int i = start; i < end; ++i) {
     if (i < kMaxCount)
       g_array[i] = new int[size];
@@ -65,6 +68,7 @@ static ATTRIBUTE_NOINLINE void Allocate(int start, int end, int size) {
 }
 
 static ATTRIBUTE_NOINLINE void Allocate2(int start, int end, int size) {
+  VLOG(10, "Allocate2");
   for (int i = start; i < end; ++i) {
     if (i < kMaxCount)
       g_array[i] = new int[size];
