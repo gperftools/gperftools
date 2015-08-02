@@ -1241,12 +1241,24 @@ REGISTER_OBJ_MAKER(nesting_i1, Nesting::Inner* p = &((new Nesting())->i1);)
 REGISTER_OBJ_MAKER(nesting_i2, Nesting::Inner* p = &((new Nesting())->i2);)
 REGISTER_OBJ_MAKER(nesting_i3, Nesting::Inner* p = &((new Nesting())->i3);)
 
+void (* volatile init_forcer)(...);
+
 // allocate many objects reachable from global data
 static void TestHeapLeakCheckerLiveness() {
   live_leak_mutable.ptr = new(initialized) char[77];
   live_leak_templ_mutable.ptr = new(initialized) Array<char>();
   live_leak_templ_mutable.val = Array<char>();
 
+  // smart compiler may see that live_leak_mutable is not used
+  // anywhere so .ptr assignment is not used.
+  //
+  // We force compiler to assume that it is used by having function
+  // variable (set to 0 which hopefully won't be known to compiler)
+  // which gets address of those objects. So compiler has to assume
+  // that .ptr is used.
+  if (init_forcer) {
+    init_forcer(&live_leak_mutable, &live_leak_templ_mutable);
+  }
   TestObjMakers();
 }
 
