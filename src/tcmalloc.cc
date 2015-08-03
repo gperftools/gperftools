@@ -1087,21 +1087,6 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
   write(STDERR_FILENO, buffer, strlen(buffer));
 }
 
-inline void* do_malloc(size_t size);
-
-static void *retry_malloc(void* size) {
-  return do_malloc(reinterpret_cast<size_t>(size));
-}
-
-inline void* do_malloc_or_cpp_alloc(size_t size) {
-  void *rv = do_malloc(size);
-  if (LIKELY(rv != NULL)) {
-    return rv;
-  }
-  return handle_oom(retry_malloc, reinterpret_cast<void *>(size),
-                    false, true);
-}
-
 void* do_memalign(size_t align, size_t size);
 
 struct retry_memaligh_data {
@@ -1193,6 +1178,19 @@ inline void* do_malloc(size_t size) {
   } else {
     return do_malloc_pages(ThreadCache::GetCache(), size);
   }
+}
+
+static void *retry_malloc(void* size) {
+  return do_malloc(reinterpret_cast<size_t>(size));
+}
+
+inline void* do_malloc_or_cpp_alloc(size_t size) {
+  void *rv = do_malloc(size);
+  if (LIKELY(rv != NULL)) {
+    return rv;
+  }
+  return handle_oom(retry_malloc, reinterpret_cast<void *>(size),
+                    false, true);
 }
 
 inline void* do_calloc(size_t n, size_t elem_size) {
