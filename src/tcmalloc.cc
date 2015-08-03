@@ -132,6 +132,17 @@
 #include "tcmalloc_guard.h"    // for TCMallocGuard
 #include "thread_cache.h"      // for ThreadCache
 
+#ifdef __clang__
+// clang's apparent focus on code size somehow causes it to ignore
+// normal inline directives even for few functions which inlining is
+// key for performance. In order to get performance of clang's
+// generated code closer to normal, we're forcing inlining via
+// attribute.
+#define ALWAYS_INLINE inline __attribute__((always_inline))
+#else
+#define ALWAYS_INLINE inline
+#endif
+
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
 # define WIN32_DO_PATCHING 1
 #endif
@@ -1154,7 +1165,7 @@ inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
   return result;
 }
 
-inline void* do_malloc_small(ThreadCache* heap, size_t size) {
+ALWAYS_INLINE void* do_malloc_small(ThreadCache* heap, size_t size) {
   ASSERT(Static::IsInited());
   ASSERT(heap != NULL);
   size_t cl = Static::sizemap()->SizeClass(size);
@@ -1169,7 +1180,7 @@ inline void* do_malloc_small(ThreadCache* heap, size_t size) {
   }
 }
 
-inline void* do_malloc(size_t size) {
+ALWAYS_INLINE void* do_malloc(size_t size) {
   if (ThreadCache::have_tls &&
       LIKELY(size < ThreadCache::MinSizeForSlowPath())) {
     return do_malloc_small(ThreadCache::GetCacheWhichMustBePresent(), size);
@@ -1184,7 +1195,7 @@ static void *retry_malloc(void* size) {
   return do_malloc(reinterpret_cast<size_t>(size));
 }
 
-inline void* do_malloc_or_cpp_alloc(size_t size) {
+ALWAYS_INLINE void* do_malloc_or_cpp_alloc(size_t size) {
   void *rv = do_malloc(size);
   if (LIKELY(rv != NULL)) {
     return rv;
@@ -1193,7 +1204,7 @@ inline void* do_malloc_or_cpp_alloc(size_t size) {
                     false, true);
 }
 
-inline void* do_calloc(size_t n, size_t elem_size) {
+ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
   // Overflow check
   const size_t size = n * elem_size;
   if (elem_size != 0 && size / elem_size != n) return NULL;
@@ -1225,10 +1236,10 @@ inline void free_null_or_invalid(void* ptr, void (*invalid_free_fn)(void*)) {
 //
 // To maximize speed in the common case, we usually get here with
 // heap_must_be_valid being a manifest constant equal to true.
-inline void do_free_helper(void* ptr,
-                           void (*invalid_free_fn)(void*),
-                           ThreadCache* heap,
-                           bool heap_must_be_valid) {
+ALWAYS_INLINE void do_free_helper(void* ptr,
+                                  void (*invalid_free_fn)(void*),
+                                  ThreadCache* heap,
+                                  bool heap_must_be_valid) {
   ASSERT((Static::IsInited() && heap != NULL) || !heap_must_be_valid);
   if (!heap_must_be_valid && !Static::IsInited()) {
     // We called free() before malloc().  This can occur if the
@@ -1288,7 +1299,8 @@ inline void do_free_helper(void* ptr,
 //
 // We can usually detect the case where ptr is not pointing to a page that
 // tcmalloc is using, and in those cases we invoke invalid_free_fn.
-inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
+ALWAYS_INLINE void do_free_with_callback(void* ptr,
+                                         void (*invalid_free_fn)(void*)) {
   ThreadCache* heap = NULL;
   if (LIKELY(ThreadCache::IsFastPathAllowed())) {
     heap = ThreadCache::GetCacheWhichMustBePresent();
@@ -1300,7 +1312,7 @@ inline void do_free_with_callback(void* ptr, void (*invalid_free_fn)(void*)) {
 }
 
 // The default "do_free" that uses the default callback.
-inline void do_free(void* ptr) {
+ALWAYS_INLINE void do_free(void* ptr) {
   return do_free_with_callback(ptr, &InvalidFree);
 }
 
@@ -1329,7 +1341,7 @@ inline size_t GetSizeWithCallback(const void* ptr,
 
 // This lets you call back to a given function pointer if ptr is invalid.
 // It is used primarily by windows code which wants a specialized callback.
-inline void* do_realloc_with_callback(
+ALWAYS_INLINE void* do_realloc_with_callback(
     void* old_ptr, size_t new_size,
     void (*invalid_free_fn)(void*),
     size_t (*invalid_get_size_fn)(const void*)) {
@@ -1374,7 +1386,7 @@ inline void* do_realloc_with_callback(
   }
 }
 
-inline void* do_realloc(void* old_ptr, size_t new_size) {
+ALWAYS_INLINE void* do_realloc(void* old_ptr, size_t new_size) {
   return do_realloc_with_callback(old_ptr, new_size,
                                   &InvalidFree, &InvalidGetSizeForRealloc);
 }
