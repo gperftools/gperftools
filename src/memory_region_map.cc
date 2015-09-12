@@ -120,6 +120,7 @@
 
 #include "memory_region_map.h"
 
+#include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
 #include "malloc_hook-inl.h"
@@ -162,7 +163,8 @@ const void* MemoryRegionMap::saved_buckets_keys_[20][kMaxStackDepth];
 // Simple hook into execution of global object constructors,
 // so that we do not call pthread_self() when it does not yet work.
 static bool libpthread_initialized = false;
-static bool initializer = (libpthread_initialized = true, true);
+REGISTER_MODULE_INITIALIZER(libpthread_initialized_setter,
+                            libpthread_initialized = true);
 
 static inline bool current_thread_is(pthread_t should_be) {
   // Before main() runs, there's only one thread, so we're always that thread
