@@ -43,6 +43,7 @@
 #include "sampler.h"           // for Sampler
 #include "getenv_safe.h"       // TCMallocGetenvSafe
 #include "base/googleinit.h"
+#include "maybe_threads.h"
 
 namespace tcmalloc {
 
@@ -107,16 +108,15 @@ void Static::InitStaticVars() {
 }
 
 
-#if defined(HAVE_FORK) && defined(HAVE_PTHREAD)
+#if defined(HAVE_FORK) && defined(HAVE_PTHREAD) && !defined(__APPLE__)
 
 static inline
 void SetupAtForkLocksHandler()
 {
-#if !defined(__APPLE__)
-  pthread_atfork(CentralCacheLockAll,    // parent calls before fork
-                 CentralCacheUnlockAll,  // parent calls after fork
-                 CentralCacheUnlockAll); // child calls after fork
-#endif
+  perftools_pthread_atfork(
+    CentralCacheLockAll,    // parent calls before fork
+    CentralCacheUnlockAll,  // parent calls after fork
+    CentralCacheUnlockAll); // child calls after fork
 }
 REGISTER_MODULE_INITIALIZER(tcmalloc_fork_handler, SetupAtForkLocksHandler());
 

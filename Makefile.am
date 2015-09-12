@@ -482,10 +482,10 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
 # We #define NO_TCMALLOC_SAMPLES, since sampling is turned off for _minimal.
 libtcmalloc_minimal_internal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                            -DNO_HEAP_CHECK \
-                                           $(PTHREAD_CFLAGS) -DNDEBUG \
+                                           -DNDEBUG \
                                            $(AM_CXXFLAGS) $(NO_EXCEPTIONS)
-libtcmalloc_minimal_internal_la_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
-libtcmalloc_minimal_internal_la_LIBADD = $(PTHREAD_LIBS) $(LIBSPINLOCK) libmaybe_threads.la
+libtcmalloc_minimal_internal_la_LDFLAGS =  $(AM_LDFLAGS)
+libtcmalloc_minimal_internal_la_LIBADD =  $(LIBSPINLOCK) libmaybe_threads.la
 
 lib_LTLIBRARIES += libtcmalloc_minimal.la
 WINDOWS_PROJECTS += vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcproj
@@ -493,8 +493,8 @@ libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_MINIMAL_INCLUDES)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
 # -version-info gets passed to libtool
-libtcmalloc_minimal_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@ $(AM_LDFLAGS)
-libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la $(PTHREAD_LIBS)
+libtcmalloc_minimal_la_LDFLAGS = -version-info @TCMALLOC_SO_VERSION@ $(AM_LDFLAGS)
+libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la
 
 # For windows, we're playing around with trying to do some stacktrace
 # support even with libtcmalloc_minimal.  For everyone else, though,
