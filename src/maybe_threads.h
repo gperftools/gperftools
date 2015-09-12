@@ -51,4 +51,11 @@ int perftools_pthread_setspecific(pthread_key_t key, void *val);
 int perftools_pthread_once(pthread_once_t *ctl,
                            void  (*init_routine) (void));
 
+// Our wrapper for pthread_atfork. Does _nothing_ when there are no
+// threads. See static_vars.cc:SetupAtForkLocksHandler for only user
+// of this.
+void perftools_pthread_atfork(void (*before)(),
+                              void (*parent_after)(),
+                              void (*child_after)());
+
 #endif  /* GOOGLE_MAYBE_THREADS_H_ */
