@@ -54,7 +54,6 @@
 
 extern "C" void* _recalloc(void* p, size_t n, size_t size) {
   void* result = realloc(p, n * size);
-  memset(result, 0, n * size);
   return result;
 }
 
