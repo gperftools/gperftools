@@ -1582,8 +1582,8 @@ struct kernel_stat {
                               ".set reorder\n"                                \
                               : "=&r"(__v0), "+r" (__r7)                      \
                               : "i" (__NR_##name), "r"(__r4), "r"(__r5),      \
-                                "r"(__r6), "r" ((unsigned long)arg5),         \
-                                "r" ((unsigned long)arg6)                     \
+                                "r"(__r6), "m" ((unsigned long)arg5),         \
+                                "m" ((unsigned long)arg6)                     \
                               : MIPS_SYSCALL_CLOBBERS);                       \
         LSS_RETURN(type, __v0, __r7);                                         \
       }
