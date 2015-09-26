@@ -101,6 +101,16 @@ const int kMaxModules = 8182;
 // These are hard-coded, unfortunately. :-( They are also probably
 // compiler specific.  See get_mangled_names.cc, in this directory,
 // for instructions on how to update these names for your compiler.
+#ifdef _WIN64
+const char kMangledNew[] = "??2@YAPEAX_K@Z";
+const char kMangledNewArray[] = "??_U@YAPEAX_K@Z";
+const char kMangledDelete[] = "??3@YAXPEAX@Z";
+const char kMangledDeleteArray[] = "??_V@YAXPEAX@Z";
+const char kMangledNewNothrow[] = "??2@YAPEAX_KAEBUnothrow_t@std@@@Z";
+const char kMangledNewArrayNothrow[] = "??_U@YAPEAX_KAEBUnothrow_t@std@@@Z";
+const char kMangledDeleteNothrow[] = "??3@YAXPEAXAEBUnothrow_t@std@@@Z";
+const char kMangledDeleteArrayNothrow[] = "??_V@YAXPEAXAEBUnothrow_t@std@@@Z";
+#else
 const char kMangledNew[] = "??2@YAPAXI@Z";
 const char kMangledNewArray[] = "??_U@YAPAXI@Z";
 const char kMangledDelete[] = "??3@YAXPAX@Z";
@@ -109,6 +119,7 @@ const char kMangledNewNothrow[] = "??2@YAPAXIABUnothrow_t@std@@@Z";
 const char kMangledNewArrayNothrow[] = "??_U@YAPAXIABUnothrow_t@std@@@Z";
 const char kMangledDeleteNothrow[] = "??3@YAXPAXABUnothrow_t@std@@@Z";
 const char kMangledDeleteArrayNothrow[] = "??_V@YAXPAXABUnothrow_t@std@@@Z";
+#endif
 
 // This is an unused but exported symbol that we can use to tell the
 // MSVC linker to bring in libtcmalloc, via the /INCLUDE linker flag.
