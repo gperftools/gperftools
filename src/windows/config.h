@@ -24,7 +24,11 @@
 #undef WIN32_OVERRIDE_ALLOCATORS
 
 /* Define to 1 if your libc has a snprintf implementation */
+#if defined(_MSC_VER) && _MSC_VER >= 1900
+#define HAVE_SNPRINTF 1
+#else
 #undef HAVE_SNPRINTF
+#endif
 
 /* Define to 1 if compiler supports __builtin_stack_pointer */
 #undef HAVE_BUILTIN_STACK_POINTER
@@ -129,7 +133,11 @@
 #undef HAVE_SCHED_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
+#if defined(_MSC_VER) && _MSC_VER >= 1900
+#define HAVE_STDINT_H 1
+#else
 #undef HAVE_STDINT_H
+#endif
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
