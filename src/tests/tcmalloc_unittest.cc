@@ -1051,7 +1051,7 @@ static void TestErrno(void) {
   void* ret;
   if (kOSSupportsMemalign) {
     errno = 0;
-    Memalign(128, kTooBig);
+    ret = Memalign(128, kTooBig);
     EXPECT_EQ(NULL, ret);
     EXPECT_EQ(ENOMEM, errno);
   }
