@@ -60,7 +60,6 @@
 #include "base/commandlineflags.h"
 #include "base/dynamic_annotations.h"   // for RunningOnValgrind
 #include "base/logging.h"
-#include "base/cycleclock.h"
 
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
