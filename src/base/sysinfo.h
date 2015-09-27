@@ -70,13 +70,9 @@ extern const char* GetenvBeforeMain(const char* name);
 // reasons, as documented in sysinfo.cc.  path must have space PATH_MAX.
 extern bool GetUniquePathFromEnv(const char* env_name, char* path);
 
-extern int NumCPUs();
+extern int GetSystemCPUsCount();
 
 void SleepForMilliseconds(int milliseconds);
-
-// processor cycles per second of each processor.  Thread-safe.
-extern double CyclesPerSecond(void);
-
 
 //  Return true if we're running POSIX (e.g., NPTL on Linux) threads,
 //  as opposed to a non-POSIX thread library.  The thing that we care
