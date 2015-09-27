@@ -35,7 +35,7 @@
 #include <config.h>
 #include "base/spinlock.h"
 #include "base/spinlock_internal.h"
-#include "base/sysinfo.h"   /* for NumCPUs() */
+#include "base/sysinfo.h"   /* for GetSystemCPUsCount() */
 
 // NOTE on the Lock-state values:
 //
@@ -53,7 +53,7 @@ struct SpinLock_InitHelper {
   SpinLock_InitHelper() {
     // On multi-cpu machines, spin for longer before yielding
     // the processor or sleeping.  Reduces idle time significantly.
-    if (NumCPUs() > 1) {
+    if (GetSystemCPUsCount() > 1) {
       adaptive_spin_count = 1000;
     }
   }
