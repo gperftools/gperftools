@@ -114,7 +114,7 @@ void SpinLock::SlowLock() {
                                                         kSpinLockSleeper);
       if (lock_value == kSpinLockHeld) {
         // Successfully transitioned to kSpinLockSleeper.  Pass
-        // kSpinLockSleeper to the SpinLockWait routine to properly indicate
+        // kSpinLockSleeper to the SpinLockDelay routine to properly indicate
         // the last lock_value observed.
         lock_value = kSpinLockSleeper;
       } else if (lock_value == kSpinLockFree) {
