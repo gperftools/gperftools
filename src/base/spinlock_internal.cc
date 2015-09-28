@@ -57,26 +57,6 @@ namespace base { namespace internal { static int SuggestedDelayNS(int loop); }}
 namespace base {
 namespace internal {
 
-// See spinlock_internal.h for spec.
-int32 SpinLockWait(volatile Atomic32 *w, int n,
-                   const SpinLockWaitTransition trans[]) {
-  int32 v;
-  bool done = false;
-  for (int loop = 0; !done; loop++) {
-    v = base::subtle::Acquire_Load(w);
-    int i;
-    for (i = 0; i != n && v != trans[i].from; i++) {
-    }
-    if (i == n) {
-      SpinLockDelay(w, v, loop);     // no matching transition
-    } else if (trans[i].to == v ||   // null transition
-               base::subtle::Acquire_CompareAndSwap(w, v, trans[i].to) == v) {
-      done = trans[i].done;
-    }
-  }
-  return v;
-}
-
 // Return a suggested delay in nanoseconds for iteration number "loop"
 static int SuggestedDelayNS(int loop) {
   // Weak pseudo-random number generator to get some spread between threads
