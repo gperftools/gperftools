@@ -34,7 +34,6 @@
 
 #include <config.h>
 #include "base/spinlock.h"
-#include "base/synchronization_profiling.h"
 #include "base/spinlock_internal.h"
 #include "base/cycleclock.h"
 #include "base/sysinfo.h"   /* for NumCPUs() */
@@ -151,24 +150,6 @@ enum { PROFILE_TIMESTAMP_SHIFT = 7 };
 
 void SpinLock::SlowUnlock(uint64 wait_cycles) {
   base::internal::SpinLockWake(&lockword_, false);  // wake waiter if necessary
-
-  // Collect contentionz profile info, expanding the wait_cycles back out to
-  // the full value.  If wait_cycles is <= kSpinLockSleeper, then no wait
-  // was actually performed, so don't record the wait time.  Note, that the
-  // CalculateWaitCycles method adds in kSpinLockSleeper cycles
-  // unconditionally to guarantee the wait time is not kSpinLockFree or
-  // kSpinLockHeld.  The adding in of these small number of cycles may
-  // overestimate the contention by a slight amount 50% of the time.  However,
-  // if this code tried to correct for that addition by subtracting out the
-  // kSpinLockSleeper amount that would underestimate the contention slightly
-  // 50% of the time.  Both ways get the wrong answer, so the code
-  // overestimates to be more conservative. Overestimating also makes the code
-  // a little simpler.
-  //
-  if (wait_cycles > kSpinLockSleeper) {
-    base::SubmitSpinLockProfileData(this,
-                                    wait_cycles << PROFILE_TIMESTAMP_SHIFT);
-  }
 }
 
 inline int32 SpinLock::CalculateWaitCycles(int64 wait_start_time) {

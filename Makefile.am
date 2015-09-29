@@ -239,7 +239,6 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/spinlock_win32-inl.h \
                     src/base/spinlock_linux-inl.h \
                     src/base/spinlock_posix-inl.h \
-                    src/base/synchronization_profiling.h \
                     src/base/atomicops-internals-macosx.h \
                     src/base/atomicops-internals-linuxppc.h \
                     src/base/atomicops-internals-arm-generic.h \
