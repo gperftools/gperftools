@@ -92,13 +92,11 @@ class LOCKABLE SpinLock {
   //                 support this macro with 0 args (see thread_annotations.h)
   inline void Unlock() /*UNLOCK_FUNCTION()*/ {
     ANNOTATE_RWLOCK_RELEASED(this, 1);
-    uint64 wait_cycles = static_cast<uint64>(
+    uint64 prev_value = static_cast<uint64>(
         base::subtle::Release_AtomicExchange(&lockword_, kSpinLockFree));
-    if (wait_cycles != kSpinLockHeld) {
-      // Collect contentionz profile info, and speed the wakeup of any waiter.
-      // The wait_cycles value indicates how long this thread spent waiting
-      // for the lock.
-      SlowUnlock(wait_cycles);
+    if (prev_value != kSpinLockHeld) {
+      // Speed the wakeup of any waiter.
+      SlowUnlock();
     }
   }
 
@@ -118,9 +116,8 @@ class LOCKABLE SpinLock {
   volatile Atomic32 lockword_;
 
   void SlowLock();
-  void SlowUnlock(uint64 wait_cycles);
-  Atomic32 SpinLoop(int64 initial_wait_timestamp, Atomic32* wait_cycles);
-  inline int32 CalculateWaitCycles(int64 wait_start_time);
+  void SlowUnlock();
+  Atomic32 SpinLoop();
 
   DISALLOW_COPY_AND_ASSIGN(SpinLock);
 };
