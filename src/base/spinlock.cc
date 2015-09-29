@@ -35,19 +35,13 @@
 #include <config.h>
 #include "base/spinlock.h"
 #include "base/spinlock_internal.h"
-#include "base/cycleclock.h"
 #include "base/sysinfo.h"   /* for NumCPUs() */
 
 // NOTE on the Lock-state values:
 //
 //   kSpinLockFree represents the unlocked state
 //   kSpinLockHeld represents the locked state with no waiters
-//
-// Values greater than kSpinLockHeld represent the locked state with waiters,
-// where the value is the time the current lock holder had to
-// wait before obtaining the lock.  The kSpinLockSleeper state is a special
-// "locked with waiters" state that indicates that a sleeper needs to
-// be woken, but the thread that just released the lock didn't wait.
+//   kSpinLockSleeper represents the locked state with waiters
 
 static int adaptive_spin_count = 0;
 
@@ -72,33 +66,19 @@ static SpinLock_InitHelper init_helper;
 
 }  // unnamed namespace
 
-// Monitor the lock to see if its value changes within some time period
-// (adaptive_spin_count loop iterations).  A timestamp indicating
-// when the thread initially started waiting for the lock is passed in via
-// the initial_wait_timestamp value.  The total wait time in cycles for the
-// lock is returned in the wait_cycles parameter.  The last value read
+// Monitor the lock to see if its value changes within some time
+// period (adaptive_spin_count loop iterations). The last value read
 // from the lock is returned from the method.
-Atomic32 SpinLock::SpinLoop(int64 initial_wait_timestamp,
-                            Atomic32* wait_cycles) {
+Atomic32 SpinLock::SpinLoop() {
   int c = adaptive_spin_count;
   while (base::subtle::NoBarrier_Load(&lockword_) != kSpinLockFree && --c > 0) {
   }
-  Atomic32 spin_loop_wait_cycles = CalculateWaitCycles(initial_wait_timestamp);
-  Atomic32 lock_value =
-      base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
-                                           spin_loop_wait_cycles);
-  *wait_cycles = spin_loop_wait_cycles;
-  return lock_value;
+  return base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
+                                              kSpinLockSleeper);
 }
 
 void SpinLock::SlowLock() {
-  // The lock was not obtained initially, so this thread needs to wait for
-  // it.  Record the current timestamp in the local variable wait_start_time
-  // so the total wait time can be stored in the lockword once this thread
-  // obtains the lock.
-  int64 wait_start_time = CycleClock::Now();
-  Atomic32 wait_cycles;
-  Atomic32 lock_value = SpinLoop(wait_start_time, &wait_cycles);
+  Atomic32 lock_value = SpinLoop();
 
   int lock_wait_call_count = 0;
   while (lock_value != kSpinLockFree) {
@@ -122,7 +102,7 @@ void SpinLock::SlowLock() {
         // this thread obtains the lock.
         lock_value = base::subtle::Acquire_CompareAndSwap(&lockword_,
                                                           kSpinLockFree,
-                                                          wait_cycles);
+                                                          kSpinLockSleeper);
         continue;  // skip the delay at the end of the loop
       }
     }
@@ -132,33 +112,11 @@ void SpinLock::SlowLock() {
                                   ++lock_wait_call_count);
     // Spin again after returning from the wait routine to give this thread
     // some chance of obtaining the lock.
-    lock_value = SpinLoop(wait_start_time, &wait_cycles);
+    lock_value = SpinLoop();
   }
 }
 
-// The wait time for contentionz lock profiling must fit into 32 bits.
-// However, the lower 32-bits of the cycle counter wrap around too quickly
-// with high frequency processors, so a right-shift by 7 is performed to
-// quickly divide the cycles by 128.  Using these 32 bits, reduces the
-// granularity of time measurement to 128 cycles, and loses track
-// of wait time for waits greater than 109 seconds on a 5 GHz machine
-// [(2^32 cycles/5 Ghz)*128 = 109.95 seconds]. Waits this long should be
-// very rare and the reduced granularity should not be an issue given
-// processors in the Google fleet operate at a minimum of one billion
-// cycles/sec.
-enum { PROFILE_TIMESTAMP_SHIFT = 7 };
-
-void SpinLock::SlowUnlock(uint64 wait_cycles) {
-  base::internal::SpinLockWake(&lockword_, false);  // wake waiter if necessary
-}
-
-inline int32 SpinLock::CalculateWaitCycles(int64 wait_start_time) {
-  int32 wait_cycles = ((CycleClock::Now() - wait_start_time) >>
-                       PROFILE_TIMESTAMP_SHIFT);
-  // The number of cycles waiting for the lock is used as both the
-  // wait_cycles and lock value, so it can't be kSpinLockFree or
-  // kSpinLockHeld.  Make sure the value returned is at least
-  // kSpinLockSleeper.
-  wait_cycles |= kSpinLockSleeper;
-  return wait_cycles;
+void SpinLock::SlowUnlock() {
+  // wake waiter if necessary
+  base::internal::SpinLockWake(&lockword_, false);
 }
