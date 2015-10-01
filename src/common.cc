@@ -221,9 +221,9 @@ void SizeMap::Init() {
 static uint64_t metadata_system_bytes_ = 0;
 static const size_t kMetadataAllocChunkSize = 8*1024*1024;
 static const size_t kMetadataBigAllocThreshold = kMetadataAllocChunkSize / 8;
-// usually malloc uses larger alignments, but because metadata cannot
-// have and fancy simd types, aligning on pointer size seems fine
-static const size_t kMetadataAllignment = sizeof(void *);
+// As ThreadCache objects are allocated with MetaDataAlloc, and also
+// CACHELINE_ALIGNED, we must use the same alignment as TCMalloc_SystemAlloc.
+static const size_t kMetadataAllignment = sizeof(MemoryAligner);
 
 static char *metadata_chunk_alloc_;
 static size_t metadata_chunk_avail_;

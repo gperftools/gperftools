@@ -364,6 +364,12 @@ class AssignAttributeStartEnd {
 # define CACHELINE_ALIGNED
 #endif  // defined(HAVE___ATTRIBUTE__) && (__i386__ || __x86_64__)
 
+// Structure for discovering alignment
+union MemoryAligner {
+  void*  p;
+  double d;
+  size_t s;
+} CACHELINE_ALIGNED;
 
 // The following enum should be used only as a constructor argument to indicate
 // that the variable has static storage class, and that the constructor should

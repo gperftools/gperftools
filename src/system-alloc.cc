@@ -106,13 +106,6 @@ template <> bool CheckAddressBits<8 * sizeof(void*)>(uintptr_t ptr) {
 COMPILE_ASSERT(kAddressBits <= 8 * sizeof(void*),
                address_bits_larger_than_pointer_size);
 
-// Structure for discovering alignment
-union MemoryAligner {
-  void*  p;
-  double d;
-  size_t s;
-} CACHELINE_ALIGNED;
-
 static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
 
 #if defined(HAVE_MMAP) || defined(MADV_FREE)
