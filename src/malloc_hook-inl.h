@@ -44,6 +44,8 @@
 #include "base/basictypes.h"
 #include <gperftools/malloc_hook.h>
 
+#include "common.h" // for UNLIKELY
+
 namespace base { namespace internal {
 
 // Capacity of 8 means that HookList is 9 words.
@@ -121,7 +123,7 @@ inline MallocHook::NewHook MallocHook::GetNewHook() {
 }
 
 inline void MallocHook::InvokeNewHook(const void* p, size_t s) {
-  if (!base::internal::new_hooks_.empty()) {
+  if (UNLIKELY(!base::internal::new_hooks_.empty())) {
     InvokeNewHookSlow(p, s);
   }
 }
@@ -132,7 +134,7 @@ inline MallocHook::DeleteHook MallocHook::GetDeleteHook() {
 }
 
 inline void MallocHook::InvokeDeleteHook(const void* p) {
-  if (!base::internal::delete_hooks_.empty()) {
+  if (UNLIKELY(!base::internal::delete_hooks_.empty())) {
     InvokeDeleteHookSlow(p);
   }
 }
