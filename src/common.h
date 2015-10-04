@@ -194,15 +194,23 @@ class SizeMap {
       ((kMaxSize + 127 + (120 << 7)) >> 7) + 1;
   unsigned char class_array_[kClassArraySize];
 
+  static inline size_t SmallSizeClass(size_t s) {
+    return (static_cast<uint32_t>(s) + 7) >> 3;
+  }
+
+  static inline size_t LargeSizeClass(size_t s) {
+    return (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7;
+  }
+
   // Compute index of the class_array[] entry for a given size
-  static inline size_t ClassIndex(int s) {
+  static inline size_t ClassIndex(size_t s) {
     // Use unsigned arithmetic to avoid unnecessary sign extensions.
     ASSERT(0 <= s);
     ASSERT(s <= kMaxSize);
     if (LIKELY(s <= kMaxSmallSize)) {
-      return (static_cast<uint32_t>(s) + 7) >> 3;
+      return SmallSizeClass(s);
     } else {
-      return (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7;
+      return LargeSizeClass(s);
     }
   }
 
@@ -222,8 +230,21 @@ class SizeMap {
   // Initialize the mapping arrays
   void Init();
 
-  inline int SizeClass(int size) {
+  inline int SizeClass(size_t size) {
     return class_array_[ClassIndex(size)];
+  }
+
+  inline bool MaybeSizeClass(size_t size, size_t *size_class) {
+    size_t class_idx;
+    if (LIKELY(size <= kMaxSmallSize)) {
+      class_idx = SmallSizeClass(size);
+    } else if (size <= kMaxSize) {
+      class_idx = LargeSizeClass(size);
+    } else {
+      return false;
+    }
+    *size_class = class_array_[class_idx];
+    return true;
   }
 
   // Get the byte-size for a specified class
