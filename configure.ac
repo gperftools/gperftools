@@ -306,11 +306,16 @@ AM_CONDITIONAL(I386, test "$is_i386" = yes)
 AC_CACHE_CHECK([if the compiler supports -Wno-unused-result],
                perftools_cv_w_no_unused_result,
 	       [OLD_CFLAGS="$CFLAGS"
-	        CFLAGS="$CFLAGS -Wno-error -Wno-unused-result"
+	        CFLAGS="$CFLAGS -Wno-error -Wunused-result"
 		# gcc doesn't warn about unknown flags unless it's
 		# also warning for some other purpose, hence the
 		# divide-by-0.  (We use -Wno-error to make sure the
 		# divide-by-0 doesn't cause this test to fail!)
+                #
+                # Also gcc is giving only warning for unknown flags of
+                # -Wno-XXX form. So in order to detect support we're
+                # using -Wunused-result which will cause gcc to give
+                # error which we can detect.
 	        AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, return 1/0)],
 	                          perftools_cv_w_no_unused_result=yes,
                                   perftools_cv_w_no_unused_result=no)
