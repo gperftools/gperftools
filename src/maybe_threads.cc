@@ -48,6 +48,7 @@
 #include <string>
 #include "maybe_threads.h"
 #include "base/basictypes.h"
+#include "base/logging.h"
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
@@ -68,6 +69,10 @@ extern "C" {
       __THROW ATTRIBUTE_WEAK;
   int pthread_once(pthread_once_t *, void (*)(void))
       ATTRIBUTE_WEAK;
+  int pthread_atfork(void (*__prepare) (void),
+                     void (*__parent) (void),
+                     void (*__child) (void))
+    __THROW ATTRIBUTE_WEAK;
 }
 
 #define MAX_PERTHREAD_VALS 16
@@ -153,5 +158,14 @@ int perftools_pthread_once(pthread_once_t *ctl,
       ++*(char*)(ctl);        // make it so it's no longer equal to init
     }
     return 0;
+  }
+}
+
+void perftools_pthread_atfork(void (*before)(),
+                              void (*parent_after)(),
+                              void (*child_after)()) {
+  if (pthread_atfork) {
+    int rv = pthread_atfork(before, parent_after, child_after);
+    CHECK(rv == 0);
   }
 }

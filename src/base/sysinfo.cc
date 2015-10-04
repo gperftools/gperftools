@@ -60,7 +60,6 @@
 #include "base/commandlineflags.h"
 #include "base/dynamic_annotations.h"   // for RunningOnValgrind
 #include "base/logging.h"
-#include "base/cycleclock.h"
 
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
@@ -212,17 +211,6 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
   return true;
 }
 
-// ----------------------------------------------------------------------
-// CyclesPerSecond()
-// NumCPUs()
-//    It's important this not call malloc! -- they may be called at
-//    global-construct time, before we've set up all our proper malloc
-//    hooks and such.
-// ----------------------------------------------------------------------
-
-static double cpuinfo_cycles_per_second = 1.0;  // 0.0 might be dangerous
-static int cpuinfo_num_cpus = 1;  // Conservative guess
-
 void SleepForMilliseconds(int milliseconds) {
 #ifdef PLATFORM_WINDOWS
   _sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
@@ -236,301 +224,20 @@ void SleepForMilliseconds(int milliseconds) {
 #endif
 }
 
-// Helper function estimates cycles/sec by observing cycles elapsed during
-// sleep(). Using small sleep time decreases accuracy significantly.
-static int64 EstimateCyclesPerSecond(const int estimate_time_ms) {
-  assert(estimate_time_ms > 0);
-  if (estimate_time_ms <= 0)
-    return 1;
-  double multiplier = 1000.0 / (double)estimate_time_ms;  // scale by this much
-
-  const int64 start_ticks = CycleClock::Now();
-  SleepForMilliseconds(estimate_time_ms);
-  const int64 guess = int64(multiplier * (CycleClock::Now() - start_ticks));
-  return guess;
-}
-
-// ReadIntFromFile is only called on linux and cygwin platforms.
-#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
-// Helper function for reading an int from a file. Returns true if successful
-// and the memory location pointed to by value is set to the value read.
-static bool ReadIntFromFile(const char *file, int *value) {
-  bool ret = false;
-  int fd = open(file, O_RDONLY);
-  if (fd != -1) {
-    char line[1024];
-    char* err;
-    memset(line, '\0', sizeof(line));
-    read(fd, line, sizeof(line) - 1);
-    const int temp_value = strtol(line, &err, 10);
-    if (line[0] != '\0' && (*err == '\n' || *err == '\0')) {
-      *value = temp_value;
-      ret = true;
-    }
-    close(fd);
-  }
-  return ret;
-}
-#endif
-
-// WARNING: logging calls back to InitializeSystemInfo() so it must
-// not invoke any logging code.  Also, InitializeSystemInfo() can be
-// called before main() -- in fact it *must* be since already_called
-// isn't protected -- before malloc hooks are properly set up, so
-// we make an effort not to call any routines which might allocate
-// memory.
-
-static void InitializeSystemInfo() {
-  static bool already_called = false;   // safe if we run before threads
-  if (already_called)  return;
-  already_called = true;
-
-  bool saw_mhz = false;
-
-  if (RunningOnValgrind()) {
-    // Valgrind may slow the progress of time artificially (--scale-time=N
-    // option). We thus can't rely on CPU Mhz info stored in /sys or /proc
-    // files. Thus, actually measure the cps.
-    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(100);
-    saw_mhz = true;
-  }
-
-#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
-  char line[1024];
-  char* err;
-  int freq;
-
-  // If the kernel is exporting the tsc frequency use that. There are issues
-  // where cpuinfo_max_freq cannot be relied on because the BIOS may be
-  // exporintg an invalid p-state (on x86) or p-states may be used to put the
-  // processor in a new mode (turbo mode). Essentially, those frequencies
-  // cannot always be relied upon. The same reasons apply to /proc/cpuinfo as
-  // well.
-  if (!saw_mhz &&
-      ReadIntFromFile("/sys/devices/system/cpu/cpu0/tsc_freq_khz", &freq)) {
-      // The value is in kHz (as the file name suggests).  For example, on a
-      // 2GHz warpstation, the file contains the value "2000000".
-      cpuinfo_cycles_per_second = freq * 1000.0;
-      saw_mhz = true;
-  }
-
-  // If CPU scaling is in effect, we want to use the *maximum* frequency,
-  // not whatever CPU speed some random processor happens to be using now.
-  if (!saw_mhz &&
-      ReadIntFromFile("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq",
-                      &freq)) {
-    // The value is in kHz.  For example, on a 2GHz machine, the file
-    // contains the value "2000000".
-    cpuinfo_cycles_per_second = freq * 1000.0;
-    saw_mhz = true;
-  }
-
-  // Read /proc/cpuinfo for other values, and if there is no cpuinfo_max_freq.
-  const char* pname = "/proc/cpuinfo";
-  int fd = open(pname, O_RDONLY);
-  if (fd == -1) {
-    perror(pname);
-    if (!saw_mhz) {
-      cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
-    }
-    return;          // TODO: use generic tester instead?
-  }
-
-  double bogo_clock = 1.0;
-  bool saw_bogo = false;
-  int num_cpus = 0;
-  line[0] = line[1] = '\0';
-  int chars_read = 0;
-  do {   // we'll exit when the last read didn't read anything
-    // Move the next line to the beginning of the buffer
-    const int oldlinelen = strlen(line);
-    if (sizeof(line) == oldlinelen + 1)    // oldlinelen took up entire line
-      line[0] = '\0';
-    else                                   // still other lines left to save
-      memmove(line, line + oldlinelen+1, sizeof(line) - (oldlinelen+1));
-    // Terminate the new line, reading more if we can't find the newline
-    char* newline = strchr(line, '\n');
-    if (newline == NULL) {
-      const int linelen = strlen(line);
-      const int bytes_to_read = sizeof(line)-1 - linelen;
-      assert(bytes_to_read > 0);  // because the memmove recovered >=1 bytes
-      chars_read = read(fd, line + linelen, bytes_to_read);
-      line[linelen + chars_read] = '\0';
-      newline = strchr(line, '\n');
-    }
-    if (newline != NULL)
-      *newline = '\0';
-
-#if defined(__powerpc__) || defined(__ppc__)
-    // PowerPC cpus report the frequency in "clock" line
-    if (strncasecmp(line, "clock", sizeof("clock")-1) == 0) {
-      const char* freqstr = strchr(line, ':');
-      if (freqstr) {
-	// PowerPC frequencies are only reported as MHz (check 'show_cpuinfo'
-	// function at arch/powerpc/kernel/setup-common.c)
-	char *endp = strstr(line, "MHz");
-	if (endp) {
-	  *endp = 0;
-	  cpuinfo_cycles_per_second = strtod(freqstr+1, &err) * 1000000.0;
-          if (freqstr[1] != '\0' && *err == '\0' && cpuinfo_cycles_per_second > 0)
-            saw_mhz = true;
-	}
-      }
-#else
-    // When parsing the "cpu MHz" and "bogomips" (fallback) entries, we only
-    // accept postive values. Some environments (virtual machines) report zero,
-    // which would cause infinite looping in WallTime_Init.
-    if (!saw_mhz && strncasecmp(line, "cpu MHz", sizeof("cpu MHz")-1) == 0) {
-      const char* freqstr = strchr(line, ':');
-      if (freqstr) {
-        cpuinfo_cycles_per_second = strtod(freqstr+1, &err) * 1000000.0;
-        if (freqstr[1] != '\0' && *err == '\0' && cpuinfo_cycles_per_second > 0)
-          saw_mhz = true;
-      }
-    } else if (strncasecmp(line, "bogomips", sizeof("bogomips")-1) == 0) {
-      const char* freqstr = strchr(line, ':');
-      if (freqstr) {
-        bogo_clock = strtod(freqstr+1, &err) * 1000000.0;
-        if (freqstr[1] != '\0' && *err == '\0' && bogo_clock > 0)
-          saw_bogo = true;
-      }
-#endif
-    } else if (strncasecmp(line, "processor", sizeof("processor")-1) == 0) {
-      num_cpus++;  // count up every time we see an "processor :" entry
-    }
-  } while (chars_read > 0);
-  close(fd);
-
-  if (!saw_mhz) {
-    if (saw_bogo) {
-      // If we didn't find anything better, we'll use bogomips, but
-      // we're not happy about it.
-      cpuinfo_cycles_per_second = bogo_clock;
-    } else {
-      // If we don't even have bogomips, we'll use the slow estimation.
-      cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
-    }
-  }
-  if (cpuinfo_cycles_per_second == 0.0) {
-    cpuinfo_cycles_per_second = 1.0;   // maybe unnecessary, but safe
-  }
-  if (num_cpus > 0) {
-    cpuinfo_num_cpus = num_cpus;
-  }
-
-#elif defined __FreeBSD__
-  // For this sysctl to work, the machine must be configured without
-  // SMP, APIC, or APM support.  hz should be 64-bit in freebsd 7.0
-  // and later.  Before that, it's a 32-bit quantity (and gives the
-  // wrong answer on machines faster than 2^32 Hz).  See
-  //  http://lists.freebsd.org/pipermail/freebsd-i386/2004-November/001846.html
-  // But also compare FreeBSD 7.0:
-  //  http://fxr.watson.org/fxr/source/i386/i386/tsc.c?v=RELENG70#L223
-  //  231         error = sysctl_handle_quad(oidp, &freq, 0, req);
-  // To FreeBSD 6.3 (it's the same in 6-STABLE):
-  //  http://fxr.watson.org/fxr/source/i386/i386/tsc.c?v=RELENG6#L131
-  //  139         error = sysctl_handle_int(oidp, &freq, sizeof(freq), req);
-#if __FreeBSD__ >= 7
-  uint64_t hz = 0;
-#else
-  unsigned int hz = 0;
-#endif
-  size_t sz = sizeof(hz);
-  const char *sysctl_path = "machdep.tsc_freq";
-  if ( sysctlbyname(sysctl_path, &hz, &sz, NULL, 0) != 0 ) {
-    fprintf(stderr, "Unable to determine clock rate from sysctl: %s: %s\n",
-            sysctl_path, strerror(errno));
-    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
-  } else {
-    cpuinfo_cycles_per_second = hz;
-  }
-  // TODO(csilvers): also figure out cpuinfo_num_cpus
-
-#elif defined(PLATFORM_WINDOWS)
-# pragma comment(lib, "shlwapi.lib")  // for SHGetValue()
-  // In NT, read MHz from the registry. If we fail to do so or we're in win9x
-  // then make a crude estimate.
-  OSVERSIONINFO os;
-  os.dwOSVersionInfoSize = sizeof(os);
-  DWORD data, data_size = sizeof(data);
-  if (GetVersionEx(&os) &&
-      os.dwPlatformId == VER_PLATFORM_WIN32_NT &&
-      SUCCEEDED(SHGetValueA(HKEY_LOCAL_MACHINE,
-                         "HARDWARE\\DESCRIPTION\\System\\CentralProcessor\\0",
-                           "~MHz", NULL, &data, &data_size)))
-    cpuinfo_cycles_per_second = (int64)data * (int64)(1000 * 1000); // was mhz
-  else
-    cpuinfo_cycles_per_second = EstimateCyclesPerSecond(500); // TODO <500?
-
+int GetSystemCPUsCount()
+{
+#if defined(PLATFORM_WINDOWS)
   // Get the number of processors.
   SYSTEM_INFO info;
   GetSystemInfo(&info);
-  cpuinfo_num_cpus = info.dwNumberOfProcessors;
-
-#elif defined(__MACH__) && defined(__APPLE__)
-  // returning "mach time units" per second. the current number of elapsed
-  // mach time units can be found by calling uint64 mach_absolute_time();
-  // while not as precise as actual CPU cycles, it is accurate in the face
-  // of CPU frequency scaling and multi-cpu/core machines.
-  // Our mac users have these types of machines, and accuracy
-  // (i.e. correctness) trumps precision.
-  // See cycleclock.h: CycleClock::Now(), which returns number of mach time
-  // units on Mac OS X.
-  mach_timebase_info_data_t timebase_info;
-  mach_timebase_info(&timebase_info);
-  double mach_time_units_per_nanosecond =
-      static_cast<double>(timebase_info.denom) /
-      static_cast<double>(timebase_info.numer);
-  cpuinfo_cycles_per_second = mach_time_units_per_nanosecond * 1e9;
-
-  int num_cpus = 0;
-  size_t size = sizeof(num_cpus);
-  int numcpus_name[] = { CTL_HW, HW_NCPU };
-  if (::sysctl(numcpus_name, arraysize(numcpus_name), &num_cpus, &size, 0, 0)
-      == 0
-      && (size == sizeof(num_cpus)))
-    cpuinfo_num_cpus = num_cpus;
-
+  return  info.dwNumberOfProcessors;
 #else
-  // Generic cycles per second counter
-  cpuinfo_cycles_per_second = EstimateCyclesPerSecond(1000);
+  long rv = sysconf(_SC_NPROCESSORS_ONLN);
+  if (rv < 0) {
+    return 1;
+  }
+  return static_cast<int>(rv);
 #endif
-}
-
-double CyclesPerSecond(void) {
-  InitializeSystemInfo();
-  return cpuinfo_cycles_per_second;
-}
-
-int NumCPUs(void) {
-  InitializeSystemInfo();
-  return cpuinfo_num_cpus;
-}
-
-// ----------------------------------------------------------------------
-// HasPosixThreads()
-//      Return true if we're running POSIX (e.g., NPTL on Linux)
-//      threads, as opposed to a non-POSIX thread library.  The thing
-//      that we care about is whether a thread's pid is the same as
-//      the thread that spawned it.  If so, this function returns
-//      true.
-// ----------------------------------------------------------------------
-bool HasPosixThreads() {
-#if defined(__linux__)
-#ifndef _CS_GNU_LIBPTHREAD_VERSION
-#define _CS_GNU_LIBPTHREAD_VERSION 3
-#endif
-  char buf[32];
-  //  We assume that, if confstr() doesn't know about this name, then
-  //  the same glibc is providing LinuxThreads.
-  if (confstr(_CS_GNU_LIBPTHREAD_VERSION, buf, sizeof(buf)) == 0)
-    return false;
-  return strncmp(buf, "NPTL", 4) == 0;
-#elif defined(PLATFORM_WINDOWS) || defined(__CYGWIN__) || defined(__CYGWIN32__)
-  return false;
-#else  // other OS
-  return true;      //  Assume that everything else has Posix
-#endif  // else OS_LINUX
 }
 
 // ----------------------------------------------------------------------
