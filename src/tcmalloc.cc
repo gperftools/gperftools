@@ -1302,11 +1302,10 @@ ALWAYS_INLINE void do_free_helper(void* ptr,
 ALWAYS_INLINE void do_free_with_callback(void* ptr,
                                          void (*invalid_free_fn)(void*)) {
   ThreadCache* heap = NULL;
-  if (LIKELY(ThreadCache::IsFastPathAllowed())) {
-    heap = ThreadCache::GetCacheWhichMustBePresent();
+  heap = ThreadCache::GetCacheIfPresent();
+  if (LIKELY(heap)) {
     do_free_helper(ptr, invalid_free_fn, heap, true);
   } else {
-    heap = ThreadCache::GetCacheIfPresent();
     do_free_helper(ptr, invalid_free_fn, heap, false);
   }
 }
