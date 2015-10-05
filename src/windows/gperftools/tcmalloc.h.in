@@ -112,12 +112,14 @@ extern "C" {
   PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size,
                                           const std::nothrow_t&) __THROW;
   PERFTOOLS_DLL_DECL void tc_delete(void* p) __THROW;
+  PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) throw();
   PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p,
                                             const std::nothrow_t&) __THROW;
   PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
   PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
                                                const std::nothrow_t&) __THROW;
   PERFTOOLS_DLL_DECL void tc_deletearray(void* p) __THROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) throw();
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) __THROW;
 }

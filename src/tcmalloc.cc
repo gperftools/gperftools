@@ -1595,6 +1595,24 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) __THROW
   do_free_with_callback(ptr, &InvalidFree, true, size);
 }
 
+#if defined(__GNUC__) && !defined(WIN32)
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) throw()
+  __attribute__((alias("tc_free_sized")));
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) throw()
+  __attribute__((alias("tc_free_sized")));
+
+#else
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) throw() {
+  tc_free_sized(p, size);
+}
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) throw() {
+  tc_free_sized(p, size);
+}
+
+#endif
+
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t n,
                                               size_t elem_size) __THROW {
   void* result = do_calloc(n, elem_size);

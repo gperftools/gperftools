@@ -71,6 +71,13 @@ void operator delete(void* p, const std::nothrow_t& nt) __THROW
 void operator delete[](void* p, const std::nothrow_t& nt) __THROW
     ALIAS(tc_deletearray_nothrow);
 
+#ifdef ENABLE_SIZED_DELETE
+void operator delete(void *p, size_t size) throw()
+    ALIAS(tc_delete_sized);
+void operator delete[](void *p, size_t size) throw()
+    ALIAS(tc_deletearray_sized);
+#endif
+
 extern "C" {
   void* malloc(size_t size) __THROW               ALIAS(tc_malloc);
   void free(void* ptr) __THROW                    ALIAS(tc_free);
