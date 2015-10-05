@@ -1239,7 +1239,9 @@ inline void free_null_or_invalid(void* ptr, void (*invalid_free_fn)(void*)) {
 ALWAYS_INLINE void do_free_helper(void* ptr,
                                   void (*invalid_free_fn)(void*),
                                   ThreadCache* heap,
-                                  bool heap_must_be_valid) {
+                                  bool heap_must_be_valid,
+                                  bool use_hint,
+                                  size_t size_hint) {
   ASSERT((Static::IsInited() && heap != NULL) || !heap_must_be_valid);
   if (!heap_must_be_valid && !Static::IsInited()) {
     // We called free() before malloc().  This can occur if the
@@ -1252,7 +1254,12 @@ ALWAYS_INLINE void do_free_helper(void* ptr,
   }
   Span* span = NULL;
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
+  size_t cl;
+  if (use_hint && Static::sizemap()->MaybeSizeClass(size_hint, &cl)) {
+    goto non_zero;
+  }
+
+  cl = Static::pageheap()->GetSizeClassIfCached(p);
   if (UNLIKELY(cl == 0)) {
     span = Static::pageheap()->GetDescriptor(p);
     if (UNLIKELY(!span)) {
@@ -1269,8 +1276,10 @@ ALWAYS_INLINE void do_free_helper(void* ptr,
     cl = span->sizeclass;
     Static::pageheap()->CacheSizeClass(p, cl);
   }
+
   ASSERT(ptr != NULL);
   if (LIKELY(cl != 0)) {
+  non_zero:
     ASSERT(!Static::pageheap()->GetDescriptor(p)->sample);
     if (heap_must_be_valid || heap != NULL) {
       heap->Deallocate(ptr, cl);
@@ -1300,19 +1309,20 @@ ALWAYS_INLINE void do_free_helper(void* ptr,
 // We can usually detect the case where ptr is not pointing to a page that
 // tcmalloc is using, and in those cases we invoke invalid_free_fn.
 ALWAYS_INLINE void do_free_with_callback(void* ptr,
-                                         void (*invalid_free_fn)(void*)) {
+                                         void (*invalid_free_fn)(void*),
+                                         bool use_hint, size_t size_hint) {
   ThreadCache* heap = NULL;
   heap = ThreadCache::GetCacheIfPresent();
   if (LIKELY(heap)) {
-    do_free_helper(ptr, invalid_free_fn, heap, true);
+    do_free_helper(ptr, invalid_free_fn, heap, true, use_hint, size_hint);
   } else {
-    do_free_helper(ptr, invalid_free_fn, heap, false);
+    do_free_helper(ptr, invalid_free_fn, heap, false, use_hint, size_hint);
   }
 }
 
 // The default "do_free" that uses the default callback.
 ALWAYS_INLINE void do_free(void* ptr) {
-  return do_free_with_callback(ptr, &InvalidFree);
+  return do_free_with_callback(ptr, &InvalidFree, false, 0);
 }
 
 // NOTE: some logic here is duplicated in GetOwnership (above), for
@@ -1375,7 +1385,7 @@ ALWAYS_INLINE void* do_realloc_with_callback(
     // We could use a variant of do_free() that leverages the fact
     // that we already know the sizeclass of old_ptr.  The benefit
     // would be small, so don't bother.
-    do_free_with_callback(old_ptr, invalid_free_fn);
+    do_free_with_callback(old_ptr, invalid_free_fn, false, 0);
     return new_ptr;
   } else {
     // We still need to call hooks to report the updated size:
@@ -1574,6 +1584,15 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) __THROW {
 extern "C" PERFTOOLS_DLL_DECL void tc_free(void* ptr) __THROW {
   MallocHook::InvokeDeleteHook(ptr);
   do_free(ptr);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) __THROW {
+  if ((reinterpret_cast<uintptr_t>(ptr) & (kPageSize-1)) == 0) {
+    tc_free(ptr);
+    return;
+  }
+  MallocHook::InvokeDeleteHook(ptr);
+  do_free_with_callback(ptr, &InvalidFree, true, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t n,

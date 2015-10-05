@@ -81,6 +81,7 @@ extern "C" {
   PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) __THROW;
   PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) __THROW;
   PERFTOOLS_DLL_DECL void tc_free(void* ptr) __THROW;
+  PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) __THROW;
   PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) __THROW;
   PERFTOOLS_DLL_DECL void* tc_calloc(size_t nmemb, size_t size) __THROW;
   PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) __THROW;
