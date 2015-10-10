@@ -33,6 +33,9 @@
 # Author: Craig Silverstein
 
 BINDIR="${BINDIR:-.}"
+# We expect PPROF_PATH to be set in the environment.
+# If not, we set it to some reasonable value
+export PPROF_PATH="${PPROF_PATH:-$BINDIR/src/pprof}"
 
 if [ "x$1" = "x-h" -o "x$1" = "x--help" ]; then
   echo "USAGE: $0 [unittest dir]"
