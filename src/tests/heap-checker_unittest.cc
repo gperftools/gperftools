@@ -1338,8 +1338,8 @@ static void* Mallocer(uintptr_t* addr_after_malloc_call) {
   return r;
 }
 
-// to trick complier into preventing inlining
-static void* (*mallocer_addr)(uintptr_t* addr) = &Mallocer;
+// to trick compiler into preventing inlining
+static void* (* volatile mallocer_addr)(uintptr_t* addr) = &Mallocer;
 
 // non-static for friendship with HeapProfiler
 // TODO(maxim): expand this test to include
