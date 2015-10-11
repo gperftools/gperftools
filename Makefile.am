@@ -845,18 +845,23 @@ endif WITH_STACK_TRACE
 
 endif WITH_DEBUGALLOC
 
+if !MINGW
+noinst_LTLIBRARIES += librun_benchmark.la
+librun_benchmark_la_SOURCES = \
+	benchmark/run_benchmark.c benchmark/run_benchmark.h
+
 noinst_PROGRAMS += malloc_bench malloc_bench_shared
 
 malloc_bench_SOURCES = benchmark/malloc_bench.cc
 malloc_bench_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 malloc_bench_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS) -static
-malloc_bench_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
+malloc_bench_LDADD = librun_benchmark.la libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 malloc_bench_shared_SOURCES = benchmark/malloc_bench.cc
 malloc_bench_shared_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 malloc_bench_shared_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-malloc_bench_shared_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
-
+malloc_bench_shared_LDADD = librun_benchmark.la libtcmalloc_minimal.la $(PTHREAD_LIBS)
+endif !MINGW
 
 ### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
 
