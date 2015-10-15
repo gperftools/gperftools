@@ -1302,7 +1302,7 @@ sub PrintCallgrind {
     $filename = "&STDOUT";
   }
   open(CG, ">$filename");
-  printf CG ("events: Hits\n\n");
+  print CG ("events: Hits\n\n");
   foreach my $call ( map { $_->[0] }
                      sort { $a->[1] cmp $b ->[1] ||
                             $a->[2] <=> $b->[2] }
@@ -1318,14 +1318,14 @@ sub PrintCallgrind {
     # TODO(csilvers): for better compression, collect all the
     # caller/callee_files and functions first, before printing
     # anything, and only compress those referenced more than once.
-    printf CG CompressedCGName("fl", $caller_file, \%filename_to_index_map);
-    printf CG CompressedCGName("fn", $caller_function, \%fnname_to_index_map);
+    print CG CompressedCGName("fl", $caller_file, \%filename_to_index_map);
+    print CG CompressedCGName("fn", $caller_function, \%fnname_to_index_map);
     if (defined $6) {
-      printf CG CompressedCGName("cfl", $callee_file, \%filename_to_index_map);
-      printf CG CompressedCGName("cfn", $callee_function, \%fnname_to_index_map);
-      printf CG ("calls=$count $callee_line\n");
+      print CG CompressedCGName("cfl", $callee_file, \%filename_to_index_map);
+      print CG CompressedCGName("cfn", $callee_function, \%fnname_to_index_map);
+      print CG ("calls=$count $callee_line\n");
     }
-    printf CG ("$caller_line $count\n\n");
+    print CG ("$caller_line $count\n\n");
   }
 }
 
