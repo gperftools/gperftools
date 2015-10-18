@@ -177,7 +177,6 @@ using tcmalloc::StackTrace;
 using tcmalloc::Static;
 using tcmalloc::ThreadCache;
 
-DECLARE_int64(tcmalloc_sample_parameter);
 DECLARE_double(tcmalloc_release_rate);
 
 // For windows, the printf we use to report large allocs is
@@ -983,6 +982,7 @@ static inline void* SpanToMallocResult(Span *span) {
 }
 
 static void* DoSampledAllocation(size_t size) {
+#ifndef NO_TCMALLOC_SAMPLES
   // Grab the stack trace outside the heap lock
   StackTrace tmp;
   tmp.depth = GetStackTrace(tmp.stack, tcmalloc::kMaxStackDepth, 1);
@@ -1007,6 +1007,9 @@ static void* DoSampledAllocation(size_t size) {
   tcmalloc::DLL_Prepend(Static::sampled_objects(), span);
 
   return SpanToMallocResult(span);
+#else
+  abort();
+#endif
 }
 
 namespace {
@@ -1147,7 +1150,7 @@ inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
   Length num_pages = tcmalloc::pages(size);
   size = num_pages << kPageShift;
 
-  if ((FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
+  if (heap->SampleAllocation(size)) {
     result = DoSampledAllocation(size);
 
     SpinLockHolder h(Static::pageheap_lock());
@@ -1171,7 +1174,7 @@ ALWAYS_INLINE void* do_malloc_small(ThreadCache* heap, size_t size) {
   size_t cl = Static::sizemap()->SizeClass(size);
   size = Static::sizemap()->class_to_size(cl);
 
-  if (UNLIKELY(FLAGS_tcmalloc_sample_parameter > 0) && heap->SampleAllocation(size)) {
+  if (UNLIKELY(heap->SampleAllocation(size))) {
     return DoSampledAllocation(size);
   } else {
     // The common case, and also the simplest.  This just pops the
