@@ -530,8 +530,10 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
 
   bool found_non_null = false;
   for (int i = 0; i < kNumFunctions; i++) {
-    if (windows_fn_[i])
+    if (windows_fn_[i]){
       found_non_null = true;
+	  break;
+	}
   }
   if (!found_non_null)
     return false;
@@ -693,7 +695,9 @@ bool PatchAllModules() {
   HMODULE hModules[kMaxModules];  // max # of modules we support in one process
   if (!::EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
                             &num_modules)) {
-    num_modules = 0;
+	//qq325895369:must return to avoid double patching,otherwise,
+	//memory functions of tcmalloc self will alse be patched,then lead to dead loop!
+	return false;
   }
   // EnumProcessModules actually set the bytes written into hModules,
   // so we need to divide to make num_modules actually be a module-count.
@@ -765,13 +769,19 @@ bool PatchAllModules() {
       }
     }
 
+	//qq325895369:on windows os,the for loop above has already pathched all runtime lib, 
+	//delete following code fragment to avoid double patching,otherwise,
+	//memory functions of tcmalloc self will alse be patched,then lead to dead loop!
+#ifndef WIN32 
     // Now that we've dealt with the modules (dlls), update the main
     // executable.  We do this last because PatchMainExecutableLocked
     // wants to look at how other modules were patched.
+
     if (!main_executable.patched()) {
       PatchMainExecutableLocked();
       made_changes = true;
     }
+#endif
   }
   // TODO(csilvers): for this to be reliable, we need to also take
   // into account if we *would* have patched any modules had they not
