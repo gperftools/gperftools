@@ -21,6 +21,10 @@
 /autom4te.cache/
 /benchmark/.deps
 /benchmark/.dirstamp
+/binary_trees
+/binary_trees.exe
+/binary_trees_shared
+/binary_trees_shared.exe
 /compile
 /config.guess
 /config.log
