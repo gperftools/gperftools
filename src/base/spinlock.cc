@@ -64,6 +64,12 @@ struct SpinLock_InitHelper {
 // but nothing lock-intensive should be going on at that time.
 static SpinLock_InitHelper init_helper;
 
+inline void SpinlockPause(void) {
+#if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
+  __builtin_ia32_pause();
+#endif
+}
+
 }  // unnamed namespace
 
 // Monitor the lock to see if its value changes within some time
@@ -72,6 +78,7 @@ static SpinLock_InitHelper init_helper;
 Atomic32 SpinLock::SpinLoop() {
   int c = adaptive_spin_count;
   while (base::subtle::NoBarrier_Load(&lockword_) != kSpinLockFree && --c > 0) {
+    SpinlockPause();
   }
   return base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
                                               kSpinLockSleeper);
