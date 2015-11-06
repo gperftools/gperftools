@@ -146,7 +146,10 @@ public:
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
-static char sbrk_space[sizeof(SbrkSysAllocator)];
+static union {
+  char buf[sizeof(SbrkSysAllocator)];
+  void *ptr;
+} sbrk_space;
 
 class MmapSysAllocator : public SysAllocator {
 public:
@@ -154,7 +157,10 @@ public:
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
-static char mmap_space[sizeof(MmapSysAllocator)];
+static union {
+  char buf[sizeof(MmapSysAllocator)];
+  void *ptr;
+} mmap_space;
 
 class DevMemSysAllocator : public SysAllocator {
 public:
@@ -188,7 +194,10 @@ class DefaultSysAllocator : public SysAllocator {
   SysAllocator* allocs_[kMaxAllocators];
   const char* names_[kMaxAllocators];
 };
-static char default_space[sizeof(DefaultSysAllocator)];
+static union {
+  char buf[sizeof(DefaultSysAllocator)];
+  void *ptr;
+} default_space;
 static const char sbrk_name[] = "SbrkSysAllocator";
 static const char mmap_name[] = "MmapSysAllocator";
 
@@ -448,8 +457,8 @@ SysAllocator *tc_get_sysalloc_override(SysAllocator *def)
 
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
-  MmapSysAllocator *mmap = new (mmap_space) MmapSysAllocator();
-  SbrkSysAllocator *sbrk = new (sbrk_space) SbrkSysAllocator();
+  MmapSysAllocator *mmap = new (mmap_space.buf) MmapSysAllocator();
+  SbrkSysAllocator *sbrk = new (sbrk_space.buf) SbrkSysAllocator();
 
   // In 64-bit debug mode, place the mmap allocator first since it
   // allocates pointers that do not fit in 32 bits and therefore gives
@@ -458,7 +467,7 @@ void InitSystemAllocators(void) {
   // likely to look like pointers and therefore the conservative gc in
   // the heap-checker is less likely to misinterpret a number as a
   // pointer).
-  DefaultSysAllocator *sdef = new (default_space) DefaultSysAllocator();
+  DefaultSysAllocator *sdef = new (default_space.buf) DefaultSysAllocator();
   if (kDebugMode && sizeof(void*) > 4) {
     sdef->SetChildAllocator(mmap, 0, mmap_name);
     sdef->SetChildAllocator(sbrk, 1, sbrk_name);
