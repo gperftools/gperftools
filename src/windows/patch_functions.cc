@@ -814,7 +814,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
   // allocated by tcmalloc.  Note it calls the origstub_free from
   // *this* templatized instance of LibcInfo.  See "template
   // trickiness" above.
-  do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFree]);
+  do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 template<int T>
@@ -828,7 +828,7 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
   if (new_size == 0) {
     MallocHook::InvokeDeleteHook(old_ptr);
     do_free_with_callback(old_ptr,
-                          (void (*)(void*))origstub_fn_[kFree]);
+                          (void (*)(void*))origstub_fn_[kFree], false, 0);
     return NULL;
   }
   return do_realloc_with_callback(
@@ -862,13 +862,13 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete(void *p) {
   MallocHook::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree]);
+  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void *p) {
   MallocHook::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree]);
+  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 template<int T>
@@ -891,14 +891,14 @@ template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(
     void *p, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree]);
+  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
     void *p, const std::nothrow_t&) __THROW {
   MallocHook::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree]);
+  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 

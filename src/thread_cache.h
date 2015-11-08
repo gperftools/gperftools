@@ -417,7 +417,9 @@ inline ThreadCache* ThreadCache::GetCache() {
 // because we may be in the thread destruction code and may have
 // already cleaned up the cache for this thread.
 inline ThreadCache* ThreadCache::GetCacheIfPresent() {
+#ifndef HAVE_TLS
   if (!tsd_inited_) return NULL;
+#endif
   return GetThreadHeap();
 }
 

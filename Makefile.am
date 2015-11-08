@@ -48,6 +48,9 @@ endif GCC
 if HAVE_W_NO_UNUSED_RESULT
 AM_CXXFLAGS += -Wno-unused-result
 endif HAVE_W_NO_UNUSED_RESULT
+if HAVE_SIZED_DEALLOCATION
+AM_CXXFLAGS += -fsized-deallocation
+endif HAVE_SIZED_DEALLOCATION
 
 # The -no-undefined flag allows libtool to generate shared libraries for
 # Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.

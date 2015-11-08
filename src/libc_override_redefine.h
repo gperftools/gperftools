@@ -66,6 +66,12 @@ void operator delete(void* ptr, const std::nothrow_t& nt) __THROW {
 void operator delete[](void* ptr, const std::nothrow_t& nt) __THROW {
   return tc_deletearray_nothrow(ptr, nt);
 }
+
+#ifdef ENABLE_SIZED_DELETE
+void operator delete(void* p, size_t s) __THROW  { tc_delete_sized(p, s);     }
+void operator delete[](void* p, size_t s) __THROW{ tc_deletearray_sized(p);   }
+#endif
+
 extern "C" {
   void* malloc(size_t s) __THROW                 { return tc_malloc(s);       }
   void  free(void* p) __THROW                    { tc_free(p);                }
