@@ -54,13 +54,10 @@ fi
 
 HEAP_PROFILER="${1:-$BINDIR/heap-profiler_unittest}"
 PPROF="${2:-$PPROF_PATH}"
-TEST_TMPDIR=/tmp/heap_profile_info
+TEST_TMPDIR=`mktemp -d /tmp/heap-profiler_unittest.XXXXXX`
 
 # It's meaningful to the profiler, so make sure we know its state
 unset HEAPPROFILE
-
-rm -rf "$TEST_TMPDIR"
-mkdir "$TEST_TMPDIR" || exit 2
 
 num_failures=0
 
@@ -140,7 +137,7 @@ VerifyOutputContains "62 MB freed"
 # testing of the HeapProfileStart/Stop functionality.
 $HEAP_PROFILER >"$TEST_TMPDIR/output2" 2>&1
 
-rm -rf $TMPDIR      # clean up
+rm -rf $TEST_TMPDIR      # clean up
 
 if [ $num_failures = 0 ]; then
   echo "PASS"
