@@ -396,6 +396,12 @@ void ThreadCache::BecomeIdle() {
   DeleteCache(heap);
 }
 
+void ThreadCache::BecomeTemporarilyIdle() {
+  ThreadCache* heap = GetCacheIfPresent();
+  if (heap)
+    heap->Cleanup();
+}
+
 void ThreadCache::DestroyThreadCache(void* ptr) {
   // Note that "ptr" cannot be NULL since pthread promises not
   // to invoke the destructor on NULL values, but for safety,
