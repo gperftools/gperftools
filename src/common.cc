@@ -44,7 +44,7 @@ namespace tcmalloc {
 // thread and central caches.
 static int32 FLAGS_tcmalloc_transfer_num_objects;
 
-static const int32 kDefaultTransferNumObjecs = 32768;
+static const int32 kDefaultTransferNumObjecs = 512;
 
 // The init function is provided to explicit initialize the variable value
 // from the env. var to avoid C++ global construction that might defer its
