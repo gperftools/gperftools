@@ -66,9 +66,14 @@ class CentralFreeList {
   int RemoveRange(void **start, void **end, int N);
 
   // Returns the number of free objects in cache.
-  int length() {
+  size_t length() {
     SpinLockHolder h(&lock_);
     return counter_;
+  }
+
+  size_t get_num_spans() {
+    SpinLockHolder h(&lock_);
+    return num_spans_;
   }
 
   // Returns the number of free objects in the transfer cache.

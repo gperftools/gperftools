@@ -107,11 +107,26 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   virtual bool MallocMemoryStats(int* blocks, size_t* total,
                                  int histogram[kMallocHistogramSize]);
 
-  // Get a human readable description of the current state of the malloc
-  // data structures.  The state is stored as a null-terminated string
+  // Get a human readable description of the following malloc data structures.
+  // - Total inuse memory by application.
+  // - Free memory(thread, central and page heap),
+  // - Freelist of central cache, each class.
+  // - Page heap freelist.
+  // The state is stored as a null-terminated string
   // in a prefix of "buffer[0,buffer_length-1]".
   // REQUIRES: buffer_length > 0.
   virtual void GetStats(char* buffer, int buffer_length);
+
+  // Hold detail information about each class of malloc's central cache.
+  struct CentralCacheStats {
+    size_t class_size;
+    size_t inuse_memory;
+    size_t free_memory;
+  };
+
+  // Output current stats(class size, inuse, free) usage of
+  // each tcmalloc class.
+  virtual void GetCentralCacheStats(std::vector<CentralCacheStats>* v);
 
   // Outputs to "writer" a sample of live objects and the stack traces
   // that allocated these objects.  The format of the returned output
