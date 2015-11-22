@@ -493,6 +493,22 @@ static void PrintStats(int level) {
   delete[] buffer;
 }
 
+static void CopyCentralCacheStats(vector<MallocExtension::CentralCacheStats>* v){
+  for (int cl = 0; cl < kNumClasses; ++cl) {
+    MallocExtension::CentralCacheStats cc_stats;
+    const size_t inuse = Static::central_cache()[cl].get_num_spans();
+    const size_t free = Static::central_cache()[cl].length();
+    const size_t tc_free = Static::central_cache()[cl].tc_length();
+    const size_t size = Static::sizemap()->ByteSizeForClass(cl);
+    const size_t class_page = Static::sizemap()->class_to_pages(cl);
+
+    cc_stats.inuse_memory = (inuse * class_page) << kPageShift;
+    cc_stats.free_memory = free + tc_free;
+    cc_stats.class_size = size;
+    v->push_back(cc_stats);
+  }
+}
+
 static void** DumpHeapGrowthStackTraces() {
   // Count how much space we need
   int needed_slots = 0;
@@ -594,6 +610,13 @@ class TCMallocImplementation : public MallocExtension {
     } else {
       DumpStats(&printer, 2);
     }
+  }
+
+  virtual void GetCentralCacheStats(std::vector<CentralCacheStats>* v) {
+    v->clear();
+    std::vector<CentralCacheStats> temp(0);
+    v->swap(temp);
+    CopyCentralCacheStats(v);
   }
 
   // We may print an extra, tcmalloc-specific warning message here.

@@ -127,6 +127,12 @@ void MallocExtension::GetStats(char* buffer, int length) {
   buffer[0] = '\0';
 }
 
+void MallocExtension::GetCentralCacheStats(std::vector<CentralCacheStats>* v) {
+  v->clear();
+  std::vector<CentralCacheStats> temp(0);
+  v->swap(temp);
+}
+
 bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total,
                                        int histogram[kMallocHistogramSize]) {
   *blocks = 0;
