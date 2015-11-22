@@ -148,13 +148,13 @@ my @stackTraces;
 sub usage_string {
   return <<EOF;
 Usage:
-pprof [options] <program> <profiles>
+$0 [options] <program> <profiles>
    <profiles> is a space separated list of profile names.
-pprof [options] <symbolized-profiles>
+$0 [options] <symbolized-profiles>
    <symbolized-profiles> is a list of profile files where each file contains
    the necessary symbol mappings  as well as profile data (likely generated
    with --raw).
-pprof [options] <profile>
+$0 [options] <profile>
    <profile> is a remote form.  Symbols are obtained from host:port$SYMBOL_PAGE
 
    Each name can be:
@@ -165,9 +165,9 @@ pprof [options] <profile>
                          $GROWTH_PAGE, $CONTENTION_PAGE, /pprof/wall,
                          $CENSUSPROFILE_PAGE, or /pprof/filteredprofile.
    For instance:
-     pprof http://myserver.com:80$HEAP_PAGE
+     $0 http://myserver.com:80$HEAP_PAGE
    If /<service> is omitted, the service defaults to $PROFILE_PAGE (cpu profiling).
-pprof --symbols <program>
+$0 --symbols <program>
    Maps addresses to symbol names.  In this mode, stdin should be a
    list of library mappings, in the same format as is found in the heap-
    and cpu-profile files (this loosely matches that of /proc/self/maps
@@ -252,29 +252,29 @@ Environment Variables:
 
 Examples:
 
-pprof /bin/ls ls.prof
+$0 /bin/ls ls.prof
                        Enters "interactive" mode
-pprof --text /bin/ls ls.prof
+$0 --text /bin/ls ls.prof
                        Outputs one line per procedure
-pprof --web /bin/ls ls.prof
+$0 --web /bin/ls ls.prof
                        Displays annotated call-graph in web browser
-pprof --gv /bin/ls ls.prof
+$0 --gv /bin/ls ls.prof
                        Displays annotated call-graph via 'gv'
-pprof --gv --focus=Mutex /bin/ls ls.prof
+$0 --gv --focus=Mutex /bin/ls ls.prof
                        Restricts to code paths including a .*Mutex.* entry
-pprof --gv --focus=Mutex --ignore=string /bin/ls ls.prof
+$0 --gv --focus=Mutex --ignore=string /bin/ls ls.prof
                        Code paths including Mutex but not string
-pprof --list=getdir /bin/ls ls.prof
+$0 --list=getdir /bin/ls ls.prof
                        (Per-line) annotated source listing for getdir()
-pprof --disasm=getdir /bin/ls ls.prof
+$0 --disasm=getdir /bin/ls ls.prof
                        (Per-PC) annotated disassembly for getdir()
 
-pprof http://localhost:1234/
+$0 http://localhost:1234/
                        Enters "interactive" mode
-pprof --text localhost:1234
+$0 --text localhost:1234
                        Outputs one line per procedure for localhost:1234
-pprof --raw localhost:1234 > ./local.raw
-pprof --text ./local.raw
+$0 --raw localhost:1234 > ./local.raw
+$0 --text ./local.raw
                        Fetches a remote profile for later analysis and then
                        analyzes it in text mode.
 EOF
@@ -5161,7 +5161,7 @@ sub cleanup {
     }
     print STDERR "If you want to investigate this profile further, you can do:\n";
     print STDERR "\n";
-    print STDERR "  pprof \\\n";
+    print STDERR "  $0 \\\n";
     print STDERR "    $main::prog \\\n";
     print STDERR "    $main::collected_profile\n";
     print STDERR "\n";
