@@ -90,10 +90,10 @@ int main(int argc, char** argv) {
   char* buffer = new char[kBufSize];
   MallocExtension::instance()->GetStats(buffer, kBufSize);
 
-  std::vector<MallocExtension::CentralCacheStats> cc;
-  MallocExtension::instance()->GetCentralCacheStats(&cc);
+  const size_t num_class = MallocExtension::instance()->GetNumClasses();
+  struct MallocExtension::CentralCacheStats cc[num_class];
+  MallocExtension::instance()->GetCentralCacheStats(cc, num_class);
 
-  printf("%s \n",buffer);
   VLOG(1, "%s", buffer);
   delete[] buffer;
 

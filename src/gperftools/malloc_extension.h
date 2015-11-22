@@ -117,6 +117,9 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // REQUIRES: buffer_length > 0.
   virtual void GetStats(char* buffer, int buffer_length);
 
+  // Return number of classes tcmalloc has in central cache.
+  virtual size_t GetNumClasses();
+
   // Hold detail information about each class of malloc's central cache.
   struct CentralCacheStats {
     size_t class_size;
@@ -126,7 +129,14 @@ class PERFTOOLS_DLL_DECL MallocExtension {
 
   // Output current stats(class size, inuse, free) usage of
   // each tcmalloc class.
-  virtual void GetCentralCacheStats(std::vector<CentralCacheStats>* v);
+  // Statistic is stored in array of cc, size is the limit of array.
+  // Example, how to use this API from user application
+  // - const size_t num_class = MallocExtension::instance()->GetNumClasses();
+  // - struct MallocExtension::CentralCacheStats cc[num_class];
+  // - MallocExtension::instance()->GetCentralCacheStats(cc, num_class);
+  // - Iterate through num_classes from cc and get statistic of Central cache.
+  // REQUIRE: size to be equal to be kNumClasses
+  virtual void GetCentralCacheStats(struct CentralCacheStats* cc, size_t size);
 
   // Outputs to "writer" a sample of live objects and the stack traces
   // that allocated these objects.  The format of the returned output

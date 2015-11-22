@@ -493,19 +493,18 @@ static void PrintStats(int level) {
   delete[] buffer;
 }
 
-static void CopyCentralCacheStats(vector<MallocExtension::CentralCacheStats>* v){
-  for (int cl = 0; cl < kNumClasses; ++cl) {
-    MallocExtension::CentralCacheStats cc_stats;
+static void CopyCentralCacheStats(struct MallocExtension::CentralCacheStats* cc,
+		                  size_t size) {
+  for (unsigned int cl = 0; cl < size; ++cl) {
     const size_t inuse = Static::central_cache()[cl].get_num_spans();
     const size_t free = Static::central_cache()[cl].length();
     const size_t tc_free = Static::central_cache()[cl].tc_length();
     const size_t size = Static::sizemap()->ByteSizeForClass(cl);
     const size_t class_page = Static::sizemap()->class_to_pages(cl);
 
-    cc_stats.inuse_memory = (inuse * class_page) << kPageShift;
-    cc_stats.free_memory = free + tc_free;
-    cc_stats.class_size = size;
-    v->push_back(cc_stats);
+    cc[cl].inuse_memory = (inuse * class_page) << kPageShift;
+    cc[cl].free_memory = free + tc_free;
+    cc[cl].class_size = size;
   }
 }
 
@@ -612,11 +611,14 @@ class TCMallocImplementation : public MallocExtension {
     }
   }
 
-  virtual void GetCentralCacheStats(std::vector<CentralCacheStats>* v) {
-    v->clear();
-    std::vector<CentralCacheStats> temp(0);
-    v->swap(temp);
-    CopyCentralCacheStats(v);
+  virtual size_t GetNumClasses() {
+	return kNumClasses;
+  }
+
+  virtual void GetCentralCacheStats(struct CentralCacheStats* cc,
+		                    size_t size) {
+    ASSERT(size == kNumClasses);
+    CopyCentralCacheStats(cc, size);
   }
 
   // We may print an extra, tcmalloc-specific warning message here.
