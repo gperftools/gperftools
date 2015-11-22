@@ -395,6 +395,15 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // Like ReadStackTraces(), but returns stack traces that caused growth
   // in the address space size.
   virtual void** ReadHeapGrowthStackTraces();
+
+  // Returns the size in bytes of the calling threads cache.
+  virtual size_t GetThreadCacheSize();
+
+  // Like MarkThreadIdle, but does not destroy the internal data
+  // structures of the thread cache. When the thread resumes, it wil
+  // have an empty cache but will not need to pay to reconstruct the
+  // cache data structures.
+  virtual void MarkThreadTemporarilyIdle();
 };
 
 namespace base {

@@ -193,6 +193,14 @@ void MallocExtension::GetFreeListSizes(
   v->clear();
 }
 
+size_t MallocExtension::GetThreadCacheSize() {
+  return 0;
+}
+
+void MallocExtension::MarkThreadTemporarilyIdle() {
+  // Default implementation does nothing
+}
+
 // The current malloc extension object.
 
 static MallocExtension* current_instance;
@@ -369,6 +377,8 @@ C_SHIM(ReleaseFreeMemory, void, (void), ());
 C_SHIM(ReleaseToSystem, void, (size_t num_bytes), (num_bytes));
 C_SHIM(GetEstimatedAllocatedSize, size_t, (size_t size), (size));
 C_SHIM(GetAllocatedSize, size_t, (const void* p), (p));
+C_SHIM(GetThreadCacheSize, size_t, (void), ());
+C_SHIM(MarkThreadTemporarilyIdle, void, (void), ());
 
 // Can't use the shim here because of the need to translate the enums.
 extern "C"
