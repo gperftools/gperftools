@@ -66,7 +66,7 @@ static SpinLock_InitHelper init_helper;
 
 inline void SpinlockPause(void) {
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
-  __builtin_ia32_pause();
+  __asm__ __volatile__("rep; nop" : : );
 #endif
 }
 
