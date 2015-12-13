@@ -1598,7 +1598,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) __THROW
   do_free_with_callback(ptr, &InvalidFree, true, size);
 }
 
-#if defined(__GNUC__) && !defined(WIN32)
+#if defined(__GNUC__) && defined(__ELF__)
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) throw()
   __attribute__((alias("tc_free_sized")));
