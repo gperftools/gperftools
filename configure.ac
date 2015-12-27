@@ -31,6 +31,12 @@ AC_SUBST(TC_VERSION_MINOR)
 AC_SUBST(TC_VERSION_PATCH)
 AC_SUBST(PACKAGE_STRING)
 
+# docdir not defined by autoconf < 2.59c
+if test "$docdir" = ""; then
+   docdir='${datadir}/doc/${PACKAGE}-${VERSION}'
+fi
+AC_SUBST(docdir)
+
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
 # for a 'fully minimal' compile, which leaves out the stacktrace

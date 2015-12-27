@@ -136,7 +136,6 @@ googleinclude_HEADERS =				\
    src/google/stacktrace.h			\
    src/google/tcmalloc.h
 
-docdir = $(prefix)/share/doc/$(PACKAGE)-$(VERSION)
 # This is for HTML and other documentation you want to install.
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
