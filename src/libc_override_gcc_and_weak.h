@@ -55,7 +55,7 @@
 # error libc_override_gcc_and_weak.h is for gcc distributions only.
 #endif
 
-#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn)))
+#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn), used))
 
 void* operator new(size_t size) throw (std::bad_alloc)
     ALIAS(tc_new);
