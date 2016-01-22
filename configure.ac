@@ -51,6 +51,13 @@ case "$host" in
    *-darwin*) default_enable_heap_checker=no;;
 esac
 
+# Currently only backtrace works on s390x.
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __s390x__])],
+                  [default_enable_libunwind=no
+                   default_enable_backtrace=yes],
+                  [default_enable_libunwind=yes
+                   default_enable_backtrace=no])
+
 # Disable libunwind linking on ppc64 by default.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __PPC64__])],
                   [default_enable_libunwind=no
@@ -92,7 +99,7 @@ AC_ARG_ENABLE([stacktrace-via-backtrace],
               [AS_HELP_STRING([--enable-stacktrace-via-backtrace],
                               [enable use of backtrace() for stacktrace capturing (may deadlock)])],
               [enable_backtrace=yes],
-              [])
+              [enable_backtrace="$default_enable_backtrace"])
 AC_ARG_ENABLE([libunwind],
               [AS_HELP_STRING([--enable-libunwind],
                               [enable libunwind linking])],

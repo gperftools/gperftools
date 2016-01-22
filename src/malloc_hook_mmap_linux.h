@@ -119,6 +119,20 @@ static inline void* do_mmap64(void *start, size_t length,
 
 #define MALLOC_HOOK_HAVE_DO_MMAP64 1
 
+#elif defined(__s390x__)
+
+static inline void* do_mmap64(void *start, size_t length,
+                              int prot, int flags,
+                              int fd, __off64_t offset) __THROW {
+  // mmap on s390x uses the old syscall interface
+  unsigned long args[6] = { (unsigned long) start, (unsigned long) length,
+                            (unsigned long) prot, (unsigned long) flags,
+                            (unsigned long) fd, (unsigned long) offset };
+  return sys_mmap(args);
+}
+
+#define MALLOC_HOOK_HAVE_DO_MMAP64 1
+
 #endif  // #if defined(__x86_64__)
 
 
