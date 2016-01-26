@@ -8,13 +8,6 @@
 //
 //
 // This file contains the unit tests for profile-handler.h interface.
-//
-// It is linked into three separate unit tests:
-//     profile-handler_unittest tests basic functionality
-//     profile-handler_disable_test tests that the profiler
-//         is disabled with --install_signal_handlers=false
-//     profile-handler_conflict_test tests that the profiler
-//         is disabled when a SIGPROF handler is registered before InitGoogle.
 
 #include "config.h"
 #include "profile-handler.h"
@@ -32,12 +25,6 @@
 // Do we expect the profiler to be enabled?
 DEFINE_bool(test_profiler_enabled, true,
             "expect profiler to be enabled during tests");
-
-// Should we look at the kernel signal handler settings during the test?
-// Not if we're in conflict_test, because we can't distinguish its nop
-// handler from the real one.
-DEFINE_bool(test_profiler_signal_handler, true,
-            "check profiler signal handler during tests");
 
 namespace {
 
@@ -81,11 +68,8 @@ int kSleepInterval = 200000000;
 // reset.
 int kTimerResetInterval = 5000000;
 
-// Whether each thread has separate timers.
 static bool linux_per_thread_timers_mode_ = false;
-static bool timer_separate_ = false;
 static int timer_type_ = ITIMER_PROF;
-static int signal_number_ = SIGPROF;
 
 // Delays processing by the specified number of nano seconds. 'delay_ns'
 // must be less than the number of nano seconds in a second (1000000000).
@@ -108,51 +92,6 @@ bool IsTimerEnabled() {
   }
   return (current_timer.it_value.tv_sec != 0 ||
           current_timer.it_value.tv_usec != 0);
-}
-
-class VirtualTimerGetterThread : public Thread {
- public:
-  VirtualTimerGetterThread() {
-    memset(&virtual_timer_, 0, sizeof virtual_timer_);
-  }
-  struct itimerval virtual_timer_;
-
- private:
-  void Run() {
-    CHECK_EQ(0, getitimer(ITIMER_VIRTUAL, &virtual_timer_));
-  }
-};
-
-// This function checks whether the timers are shared between thread. This
-// function spawns a thread, so use it carefully when testing thread-dependent
-// behaviour.
-static bool threads_have_separate_timers() {
-  struct itimerval new_timer_val;
-
-  // Enable the virtual timer in the current thread.
-  memset(&new_timer_val, 0, sizeof new_timer_val);
-  new_timer_val.it_value.tv_sec = 1000000;  // seconds
-  CHECK_EQ(0, setitimer(ITIMER_VIRTUAL, &new_timer_val, NULL));
-
-  // Spawn a thread, get the virtual timer's value there.
-  VirtualTimerGetterThread thread;
-  thread.SetJoinable(true);
-  thread.Start();
-  thread.Join();
-
-  // Disable timer here.
-  memset(&new_timer_val, 0, sizeof new_timer_val);
-  CHECK_EQ(0, setitimer(ITIMER_VIRTUAL, &new_timer_val, NULL));
-
-  bool target_timer_enabled = (thread.virtual_timer_.it_value.tv_sec != 0 ||
-                               thread.virtual_timer_.it_value.tv_usec != 0);
-  if (!target_timer_enabled) {
-    LOG(INFO, "threads have separate timers");
-    return true;
-  } else {
-    LOG(INFO, "threads have shared timers");
-    return false;
-  }
 }
 
 // Dummy worker thread to accumulate cpu time.
@@ -181,16 +120,12 @@ class BusyThread : public Thread {
   void Run() {
     while (!stop_work()) {
     }
-    // If timers are separate, check that timer is enabled for this thread.
-    EXPECT_TRUE(linux_per_thread_timers_mode_ || !timer_separate_ || IsTimerEnabled());
   }
 };
 
 class NullThread : public Thread {
  private:
   void Run() {
-    // If timers are separate, check that timer is enabled for this thread.
-    EXPECT_TRUE(linux_per_thread_timers_mode_ || !timer_separate_ || IsTimerEnabled());
   }
 };
 
@@ -205,44 +140,33 @@ static void TickCounter(int sig, siginfo_t* sig_info, void *vuc,
 class ProfileHandlerTest {
  protected:
 
-  // Determines whether threads have separate timers.
+  // Determines the timer type.
   static void SetUpTestCase() {
     timer_type_ = (getenv("CPUPROFILE_REALTIME") ? ITIMER_REAL : ITIMER_PROF);
-    signal_number_ = (getenv("CPUPROFILE_REALTIME") ? SIGALRM : SIGPROF);
 
-    timer_separate_ = threads_have_separate_timers();
 #if HAVE_LINUX_SIGEV_THREAD_ID
     linux_per_thread_timers_mode_ = (getenv("CPUPROFILE_PER_THREAD_TIMERS") != NULL);
     const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
     if (signal_number) {
-      signal_number_ = strtol(signal_number, NULL, 0);
+      //signal_number_ = strtol(signal_number, NULL, 0);
       linux_per_thread_timers_mode_ = true;
+      Delay(kTimerResetInterval);
     }
 #endif
-    Delay(kTimerResetInterval);
   }
 
   // Sets up the profile timers and SIGPROF/SIGALRM handler in a known state.
   // It does the following:
-  // 1. Unregisters all the callbacks, stops the timer (if shared) and
-  //    clears out timer_sharing state in the ProfileHandler. This clears
-  //    out any state left behind by the previous test or during module
-  //    initialization when the test program was started.
-  // 2. Spawns two threads which will be registered with the ProfileHandler.
-  //    At this time ProfileHandler knows if the timers are shared.
+  // 1. Unregisters all the callbacks, stops the timer and clears out
+  //    timer_sharing state in the ProfileHandler. This clears out any state
+  //    left behind by the previous test or during module initialization when
+  //    the test program was started.
   // 3. Starts a busy worker thread to accumulate CPU usage.
   virtual void SetUp() {
     // Reset the state of ProfileHandler between each test. This unregisters
-    // all callbacks, stops timer (if shared) and clears timer sharing state.
+    // all callbacks and stops the timer.
     ProfileHandlerReset();
     EXPECT_EQ(0, GetCallbackCount());
-    VerifyDisabled();
-    // ProfileHandler requires at least two threads to be registerd to determine
-    // whether timers are shared.
-    RegisterThread();
-    RegisterThread();
-    // Now that two threads are started, verify that the signal handler is
-    // disabled and the timers are correctly enabled/disabled.
     VerifyDisabled();
     // Start worker to accumulate cpu usage.
     StartWorker();
@@ -252,15 +176,6 @@ class ProfileHandlerTest {
     ProfileHandlerReset();
     // Stops the worker thread.
     StopWorker();
-  }
-
-  // Starts a no-op thread that gets registered with the ProfileHandler. Waits
-  // for the thread to stop.
-  void RegisterThread() {
-    NullThread t;
-    t.SetJoinable(true);
-    t.Start();
-    t.Join();
   }
 
   // Starts a busy worker thread to accumulate cpu time. There should be only
@@ -280,14 +195,6 @@ class ProfileHandlerTest {
     busy_worker_->set_stop_work(true);
     busy_worker_->Join();
     delete busy_worker_;
-  }
-
-  // Checks whether SIGPROF/SIGALRM signal handler is enabled.
-  bool IsSignalEnabled() {
-    struct sigaction sa;
-    CHECK_EQ(sigaction(signal_number_, NULL, &sa), 0);
-    return ((sa.sa_handler == SIG_IGN) || (sa.sa_handler == SIG_DFL)) ?
-        false : true;
   }
 
   // Gets the number of callbacks registered with the ProfileHandler.
@@ -311,10 +218,6 @@ class ProfileHandlerTest {
     EXPECT_GT(GetCallbackCount(), 0);
     // Check that the profile timer is enabled.
     EXPECT_EQ(FLAGS_test_profiler_enabled, linux_per_thread_timers_mode_ || IsTimerEnabled());
-    // Check that the signal handler is enabled.
-    if (FLAGS_test_profiler_signal_handler) {
-      EXPECT_EQ(FLAGS_test_profiler_enabled, IsSignalEnabled());
-    }
     uint64 interrupts_before = GetInterruptCount();
     // Sleep for a bit and check that tick counter is making progress.
     int old_tick_count = tick_counter;
@@ -337,38 +240,18 @@ class ProfileHandlerTest {
     Delay(kSleepInterval);
     int new_tick_count = tick_counter;
     EXPECT_EQ(old_tick_count, new_tick_count);
-    // If no callbacks, signal handler and shared timer should be disabled.
+    // If no callbacks, timer should be disabled.
     if (GetCallbackCount() == 0) {
-      if (FLAGS_test_profiler_signal_handler) {
-        EXPECT_FALSE(IsSignalEnabled());
-      }
-      if (!linux_per_thread_timers_mode_) {
-        if (timer_separate_) {
-          EXPECT_TRUE(IsTimerEnabled());
-        } else {
-          EXPECT_FALSE(IsTimerEnabled());
-        }
-      }
+      EXPECT_FALSE(IsTimerEnabled());
     }
   }
 
-  // Verifies that the SIGPROF/SIGALRM interrupt handler is disabled and the
-  // timer, if shared, is disabled. Expects the worker to be running.
+  // Verifies that the timer is disabled. Expects the worker to be running.
   void VerifyDisabled() {
-    // Check that the signal handler is disabled.
-    if (FLAGS_test_profiler_signal_handler) {
-      EXPECT_FALSE(IsSignalEnabled());
-    }
     // Check that the callback count is 0.
     EXPECT_EQ(0, GetCallbackCount());
-    // Check that the timer is disabled if shared, enabled otherwise.
-    if (!linux_per_thread_timers_mode_) {
-      if (timer_separate_) {
-        EXPECT_TRUE(IsTimerEnabled());
-      } else {
-        EXPECT_FALSE(IsTimerEnabled());
-      }
-    }
+    // Check that the timer is disabled.
+    EXPECT_FALSE(IsTimerEnabled());
     // Verify that the ProfileHandler is not accumulating profile ticks.
     uint64 interrupts_before = GetInterruptCount();
     Delay(kSleepInterval);
@@ -460,14 +343,14 @@ TEST_F(ProfileHandlerTest, MultipleCallbacks) {
   VerifyUnregistration(second_tick_count);
   EXPECT_EQ(0, GetCallbackCount());
 
-  // Verify that the signal handler and timers are correctly disabled.
-  VerifyDisabled();
+  // Verify that the timers is correctly disabled.
+  if (!linux_per_thread_timers_mode_) VerifyDisabled();
 }
 
 // Verifies ProfileHandlerReset
 TEST_F(ProfileHandlerTest, Reset) {
   // Verify that the profile timer interrupt is disabled.
-  VerifyDisabled();
+  if (!linux_per_thread_timers_mode_) VerifyDisabled();
   int first_tick_count;
   RegisterCallback(&first_tick_count);
   VerifyRegistration(first_tick_count);
@@ -480,11 +363,11 @@ TEST_F(ProfileHandlerTest, Reset) {
   EXPECT_EQ(2, GetCallbackCount());
 
   // Reset the profile handler and verify that callback were correctly
-  // unregistered and timer/signal are disabled.
+  // unregistered and the timer is disabled.
   ProfileHandlerReset();
   VerifyUnregistration(first_tick_count);
   VerifyUnregistration(second_tick_count);
-  VerifyDisabled();
+  if (!linux_per_thread_timers_mode_) VerifyDisabled();
 }
 
 // Verifies that ProfileHandler correctly handles a case where a callback was
@@ -492,30 +375,20 @@ TEST_F(ProfileHandlerTest, Reset) {
 TEST_F(ProfileHandlerTest, RegisterCallbackBeforeThread) {
   // Stop the worker.
   StopWorker();
-  // Unregister all existing callbacks, stop the timer (if shared), disable
-  // the signal handler and reset the timer sharing state in the Profile
-  // Handler.
+  // Unregister all existing callbacks and stop the timer.
   ProfileHandlerReset();
   EXPECT_EQ(0, GetCallbackCount());
   VerifyDisabled();
 
-  // Start the worker. At this time ProfileHandler doesn't know if timers are
-  // shared as only one thread has registered so far.
+  // Start the worker.
   StartWorker();
-  // Register a callback and check that profile ticks are being delivered.
+  // Register a callback and check that profile ticks are being delivered and
+  // the timer is enabled.
   int tick_count;
   RegisterCallback(&tick_count);
   EXPECT_EQ(1, GetCallbackCount());
   VerifyRegistration(tick_count);
-
-  // Register a second thread and verify that timer and signal handler are
-  // correctly enabled.
-  RegisterThread();
-  EXPECT_EQ(1, GetCallbackCount());
   EXPECT_EQ(FLAGS_test_profiler_enabled, linux_per_thread_timers_mode_ || IsTimerEnabled());
-  if (FLAGS_test_profiler_signal_handler) {
-    EXPECT_EQ(FLAGS_test_profiler_enabled, IsSignalEnabled());
-  }
 }
 
 }  // namespace
