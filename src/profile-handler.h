@@ -32,15 +32,17 @@
  * Author: Nabeel Mian
  *
  * This module manages the cpu profile timers and the associated interrupt
- * handler. When enabled, all registered threads in the program are profiled.
- * (Note: if using linux 2.4 or earlier, you must use the Thread class, in
- * google3/thread, to ensure all threads are profiled.)
+ * handler. When enabled, all threads in the program are profiled.
  *
  * Any component interested in receiving a profile timer interrupt can do so by
  * registering a callback. All registered callbacks must be async-signal-safe.
  *
- * Note: This module requires the sole ownership of ITIMER_PROF timer and the
- * SIGPROF signal.
+ * Note: This module requires the sole ownership of the configured timer and
+ * signal. The timer defaults to ITIMER_PROF, can be changed to ITIMER_REAL by
+ * the environment variable CPUPROFILE_REALTIME, or is changed to a POSIX timer
+ * with CPUPROFILE_PER_THREAD_TIMERS. The signal defaults to SIGPROF/SIGALRM to
+ * match the choice of timer and can be set to an arbitrary value using
+ * CPUPROFILE_TIMER_SIGNAL with CPUPROFILE_PER_THREAD_TIMERS.
  */
 
 #ifndef BASE_PROFILE_HANDLER_H_
@@ -52,11 +54,6 @@
 #include "conflict-signal.h"
 #endif
 #include "base/basictypes.h"
-
-/* All this code should be usable from within C apps. */
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 /* Forward declaration. */
 struct ProfileHandlerToken;
@@ -141,9 +138,5 @@ struct ProfileHandlerState {
   bool allowed; /* Profiling is allowed */
 };
 void ProfileHandlerGetState(struct ProfileHandlerState* state);
-
-#ifdef __cplusplus
-}  /* extern "C" */
-#endif
 
 #endif  /* BASE_PROFILE_HANDLER_H_ */
