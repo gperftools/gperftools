@@ -2166,9 +2166,9 @@ struct kernel_stat {
                          int,                     t, int,       p)
   #endif
   #if defined(__x86_64__)
-    /* Need to make sure __off64_t isn't truncated to 32-bits under x32.  */
+    /* Need to make sure off64_t isn't truncated to 32-bits under x32.  */
     LSS_INLINE void* LSS_NAME(mmap)(void *s, size_t l, int p, int f, int d,
-                                    __off64_t o) {
+                                    off64_t o) {
       LSS_BODY(6, void*, mmap, LSS_SYSCALL_ARG(s), LSS_SYSCALL_ARG(l),
                                LSS_SYSCALL_ARG(p), LSS_SYSCALL_ARG(f),
                                LSS_SYSCALL_ARG(d), (uint64_t)(o));

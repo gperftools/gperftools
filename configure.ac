@@ -163,6 +163,7 @@ AC_HEADER_STDC
 AC_CHECK_TYPES([__int64])       # defined in some windows platforms
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
 AC_CHECK_TYPES([Elf32_Versym],,, [#include <elf.h>])   # for vdso_support.h
+AC_CHECK_FUNCS(__sbrk)		# for interception on glibc
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_FUNCS(fork)            # for the pthread_atfork setup
