@@ -157,7 +157,7 @@ Test 60 1 "Exiting .* because of .* leaks$" "" \
 
 # Test that we produce a reasonable textual leak report.
 Test 60 1 "MakeALeak" "" \
-          HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECK_TEST_NO_THREADS=1 \
+          HEAP_CHECKER_TEST_TEST_LEAK=1 HEAP_CHECKER_TEST_NO_THREADS=1 \
   || exit 10
 
 # Test that very early log messages are present and controllable:
