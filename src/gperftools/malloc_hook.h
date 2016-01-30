@@ -70,7 +70,7 @@
 #include <stddef.h>
 #include <sys/types.h>
 extern "C" {
-#include <gperftools/malloc_hook_c.h>  // a C version of the malloc_hook interface
+#include "malloc_hook_c.h"  // a C version of the malloc_hook interface
 }
 
 // Annoying stuff for windows -- makes sure clients can import these functions
