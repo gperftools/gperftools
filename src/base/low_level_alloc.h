@@ -43,6 +43,15 @@
 
 class LowLevelAlloc {
  public:
+  class PagesAllocator {
+  public:
+    virtual ~PagesAllocator();
+    virtual void *MapPages(int32 flags, size_t size) = 0;
+    virtual void UnMapPages(int32 flags, void *addr, size_t size) = 0;
+  };
+
+  static PagesAllocator *GetDefaultPagesAllocator(void);
+
   struct Arena;       // an arena from which memory may be allocated
 
   // Returns a pointer to a block of at least "request" bytes
@@ -89,6 +98,10 @@ class LowLevelAlloc {
     // Alloc/Free.
   };
   static Arena *NewArena(int32 flags, Arena *meta_data_arena);
+
+  // note: pages allocator will never be destroyed and allocated pages will never be freed
+  // When allocator is NULL, it's same as NewArena
+  static Arena *NewArenaWithCustomAlloc(int32 flags, Arena *meta_data_arena, PagesAllocator *allocator);
 
   // Destroys an arena allocated by NewArena and returns true,
   // provided no allocated blocks remain in the arena.

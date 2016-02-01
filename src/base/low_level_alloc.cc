@@ -57,6 +57,9 @@
 
 // A first-fit allocator with amortized logarithmic free() time.
 
+LowLevelAlloc::PagesAllocator::~PagesAllocator() {
+}
+
 // ---------------------------------------------------------------------------
 static const int kMaxLevel = 30;
 
@@ -196,6 +199,7 @@ struct LowLevelAlloc::Arena {
                           // (init under mu, then ro)
   size_t min_size;        // smallest allocation block size
                           // (init under mu, then ro)
+  PagesAllocator *allocator;
 };
 
 // The default arena, which is used when 0 is passed instead of an Arena
@@ -207,6 +211,17 @@ static struct LowLevelAlloc::Arena default_arena;
 // reporting even during arena creation.
 static struct LowLevelAlloc::Arena unhooked_arena;
 static struct LowLevelAlloc::Arena unhooked_async_sig_safe_arena;
+
+namespace {
+
+  class DefaultPagesAllocator : public LowLevelAlloc::PagesAllocator {
+  public:
+    virtual ~DefaultPagesAllocator() {};
+    virtual void *MapPages(int32 flags, size_t size);
+    virtual void UnMapPages(int32 flags, void *addr, size_t size);
+  };
+
+}
 
 // magic numbers to identify allocated and unallocated blocks
 static const intptr_t kMagicAllocated = 0x4c833e95;
@@ -289,12 +304,20 @@ static void ArenaInit(LowLevelAlloc::Arena *arena) {
       arena->flags = 0;   // other arenas' flags may be overridden by client,
                           // but unhooked_arena will have 0 in 'flags'.
     }
+    arena->allocator = LowLevelAlloc::GetDefaultPagesAllocator();
   }
 }
 
 // L < meta_data_arena->mu
 LowLevelAlloc::Arena *LowLevelAlloc::NewArena(int32 flags,
                                               Arena *meta_data_arena) {
+  return NewArenaWithCustomAlloc(flags, meta_data_arena, NULL);
+}
+
+// L < meta_data_arena->mu
+LowLevelAlloc::Arena *LowLevelAlloc::NewArenaWithCustomAlloc(int32 flags,
+                                                             Arena *meta_data_arena,
+                                                             PagesAllocator *allocator) {
   RAW_CHECK(meta_data_arena != 0, "must pass a valid arena");
   if (meta_data_arena == &default_arena) {
     if ((flags & LowLevelAlloc::kAsyncSignalSafe) != 0) {
@@ -308,6 +331,9 @@ LowLevelAlloc::Arena *LowLevelAlloc::NewArena(int32 flags,
     new (AllocWithArena(sizeof (*result), meta_data_arena)) Arena(0);
   ArenaInit(result);
   result->flags = flags;
+  if (allocator) {
+    result->allocator = allocator;
+  }
   return result;
 }
 
@@ -458,15 +484,7 @@ static void *DoAllocWithArena(size_t request, LowLevelAlloc::Arena *arena) {
       // mmap generous 64K chunks to decrease
       // the chances/impact of fragmentation:
       size_t new_pages_size = RoundUp(req_rnd, arena->pagesize * 16);
-      void *new_pages;
-      if ((arena->flags & LowLevelAlloc::kAsyncSignalSafe) != 0) {
-        new_pages = MallocHook::UnhookedMMap(0, new_pages_size,
-            PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-      } else {
-        new_pages = mmap(0, new_pages_size,
-            PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-      }
-      RAW_CHECK(new_pages != MAP_FAILED, "mmap error");
+      void *new_pages = arena->allocator->MapPages(arena->flags, new_pages_size);
       arena->mu.Lock();
       s = reinterpret_cast<AllocList *>(new_pages);
       s->header.size = new_pages_size;
@@ -520,4 +538,45 @@ void *LowLevelAlloc::AllocWithArena(size_t request, Arena *arena) {
 
 LowLevelAlloc::Arena *LowLevelAlloc::DefaultArena() {
   return &default_arena;
+}
+
+static DefaultPagesAllocator *default_pages_allocator;
+static union {
+  char chars[sizeof(DefaultPagesAllocator)];
+  void *ptr;
+} debug_pages_allocator_space;
+
+LowLevelAlloc::PagesAllocator *LowLevelAlloc::GetDefaultPagesAllocator(void) {
+  if (default_pages_allocator) {
+    return default_pages_allocator;
+  }
+  default_pages_allocator = new (debug_pages_allocator_space.chars) DefaultPagesAllocator();
+  return default_pages_allocator;
+}
+
+void *DefaultPagesAllocator::MapPages(int32 flags, size_t size) {
+  void *new_pages;
+  if ((flags & LowLevelAlloc::kAsyncSignalSafe) != 0) {
+    new_pages = MallocHook::UnhookedMMap(0, size,
+                                         PROT_WRITE|PROT_READ,
+                                         MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+  } else {
+    new_pages = mmap(0, size,
+                     PROT_WRITE|PROT_READ,
+                     MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+  }
+  RAW_CHECK(new_pages != MAP_FAILED, "mmap error");
+
+  return new_pages;
+}
+
+void DefaultPagesAllocator::UnMapPages(int32 flags, void *region, size_t size) {
+  int munmap_result;
+  if ((flags & LowLevelAlloc::kAsyncSignalSafe) == 0) {
+    munmap_result = munmap(region, size);
+  } else {
+    munmap_result = MallocHook::UnhookedMUnmap(region, size);
+  }
+  RAW_CHECK(munmap_result == 0,
+            "LowLevelAlloc::DeleteArena: munmap failed address");
 }
