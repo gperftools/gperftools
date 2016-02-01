@@ -197,6 +197,8 @@ static GetStackImplementation *all_impls[] = {
 #endif
 #endif
 
+static bool get_stack_impl_inited;
+
 #if defined(HAVE_GST_instrument)
 static GetStackImplementation *get_stack_impl = &impl__instrument;
 #elif defined(HAVE_GST_win32)
@@ -231,13 +233,52 @@ static int ATTRIBUTE_NOINLINE frame_forcer(int rv) {
   return rv;
 }
 
+static void init_default_stack_impl_inner(void);
+
+namespace tcmalloc {
+  bool EnterStacktraceScope(void);
+  void LeaveStacktraceScope(void);
+}
+
+namespace {
+  using tcmalloc::EnterStacktraceScope;
+  using tcmalloc::LeaveStacktraceScope;
+
+  class StacktraceScope {
+    bool stacktrace_allowed;
+  public:
+    StacktraceScope() {
+      stacktrace_allowed = true;
+      stacktrace_allowed = EnterStacktraceScope();
+    }
+    bool IsStacktraceAllowed() {
+      return stacktrace_allowed;
+    }
+    ~StacktraceScope() {
+      if (stacktrace_allowed) {
+        LeaveStacktraceScope();
+      }
+    }
+  };
+}
+
 PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
                                       int skip_count) {
+  StacktraceScope scope;
+  if (!scope.IsStacktraceAllowed()) {
+    return 0;
+  }
+  init_default_stack_impl_inner();
   return frame_forcer(get_stack_impl->GetStackFramesPtr(result, sizes, max_depth, skip_count));
 }
 
 PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth,
                                                  int skip_count, const void *uc) {
+  StacktraceScope scope;
+  if (!scope.IsStacktraceAllowed()) {
+    return 0;
+  }
+  init_default_stack_impl_inner();
   return frame_forcer(get_stack_impl->GetStackFramesWithContextPtr(
                         result, sizes, max_depth,
                         skip_count, uc));
@@ -245,16 +286,30 @@ PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int 
 
 PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
                                      int skip_count) {
+  StacktraceScope scope;
+  if (!scope.IsStacktraceAllowed()) {
+    return 0;
+  }
+  init_default_stack_impl_inner();
   return frame_forcer(get_stack_impl->GetStackTracePtr(result, max_depth, skip_count));
 }
 
 PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
                                                 int skip_count, const void *uc) {
+  StacktraceScope scope;
+  if (!scope.IsStacktraceAllowed()) {
+    return 0;
+  }
+  init_default_stack_impl_inner();
   return frame_forcer(get_stack_impl->GetStackTraceWithContextPtr(
                         result, max_depth, skip_count, uc));
 }
 
 static void init_default_stack_impl_inner(void) {
+  if (get_stack_impl_inited) {
+    return;
+  }
+  get_stack_impl_inited = true;
   char *val = getenv("TCMALLOC_STACKTRACE_METHOD");
   if (!val || !*val) {
     return;

@@ -376,6 +376,9 @@ libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)
 STACKTRACE_SYMBOLS = '(GetStackTrace|GetStackFrames|GetStackTraceWithContext|GetStackFramesWithContext)'
 libstacktrace_la_LDFLAGS = -export-symbols-regex $(STACKTRACE_SYMBOLS) $(AM_LDFLAGS)
 
+noinst_LTLIBRARIES += libfake_stacktrace_scope.la
+libfake_stacktrace_scope_la_SOURCES = src/fake_stacktrace_scope.cc
+
 ### Unittests
 TESTS += stacktrace_unittest
 STACKTRACE_UNITTEST_INCLUDES = src/config_for_unittests.h \
@@ -384,7 +387,7 @@ STACKTRACE_UNITTEST_INCLUDES = src/config_for_unittests.h \
                                $(LOGGING_INCLUDES)
 stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
                               $(STACKTRACE_UNITTEST_INCLUDES)
-stacktrace_unittest_LDADD = libstacktrace.la liblogging.la
+stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la
 
 ### Documentation
 dist_doc_DATA +=
@@ -900,12 +903,22 @@ S_TCMALLOC_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) \
                       src/base/sysinfo.h \
                       src/base/thread_lister.h \
                       src/heap-profile-table.h \
-                      src/heap-profile-stats.h
+                      src/heap-profile-stats.h \
+                      src/emergency_malloc.h
+
 SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
                        src/gperftools/heap-checker.h
 TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) \
 		    $(SG_TCMALLOC_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
+
+if BUILD_EMERGENCY_MALLOC
+EMERGENCY_MALLOC_CC = src/emergency_malloc.cc src/emergency_malloc_for_stacktrace.cc
+EMERGENCY_MALLOC_DEFINE = -DENABLE_EMERGENCY_MALLOC
+else !BUILD_EMERGENCY_MALLOC
+EMERGENCY_MALLOC_CC = src/fake_stacktrace_scope.cc
+EMERGENCY_MALLOC_DEFINE =
+endif !BUILD_EMERGENCY_MALLOC
 
 ### Making the library
 
@@ -920,15 +933,16 @@ libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   src/heap-profile-table.cc \
                                   src/heap-profiler.cc \
                                   src/raw_printer.cc \
+                                  $(EMERGENCY_MALLOC_CC) \
                                   src/memory_region_map.cc
 libtcmalloc_internal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG \
-                                   $(AM_CXXFLAGS) $(NO_EXCEPTIONS)
+                                   $(AM_CXXFLAGS) $(NO_EXCEPTIONS) $(EMERGENCY_MALLOC_DEFINE)
 libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 
 lib_LTLIBRARIES += libtcmalloc.la
 libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES)
-libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
+libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_la_LIBADD = libtcmalloc_internal.la libmaybe_threads.la $(PTHREAD_LIBS)
 
@@ -1270,7 +1284,7 @@ libprofiler_la_SOURCES = src/profiler.cc \
                          src/profile-handler.cc \
                          src/profiledata.cc \
                          $(CPU_PROFILER_INCLUDES)
-libprofiler_la_LIBADD = libstacktrace.la libmaybe_threads.la
+libprofiler_la_LIBADD = libstacktrace.la libmaybe_threads.la libfake_stacktrace_scope.la
 # We have to include ProfileData for profiledata_unittest
 CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \

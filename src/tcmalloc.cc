@@ -140,6 +140,8 @@
 #define ALWAYS_INLINE inline
 #endif
 
+#include "maybe_emergency_malloc.h"
+
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
 # define WIN32_DO_PATCHING 1
 #endif
@@ -274,6 +276,10 @@ static int tc_new_mode = 0;  // See tc_set_new_mode().
 // required) kind of exception handling for these routines.
 namespace {
 void InvalidFree(void* ptr) {
+  if (tcmalloc::IsEmergencyPtr(ptr)) {
+    tcmalloc::EmergencyFree(ptr);
+    return;
+  }
   Log(kCrash, __FILE__, __LINE__, "Attempt to free invalid pointer", ptr);
 }
 
@@ -1184,10 +1190,16 @@ ALWAYS_INLINE void* do_malloc_small(ThreadCache* heap, size_t size) {
 }
 
 ALWAYS_INLINE void* do_malloc(size_t size) {
-  if (ThreadCache::have_tls &&
-      LIKELY(size < ThreadCache::MinSizeForSlowPath())) {
-    return do_malloc_small(ThreadCache::GetCacheWhichMustBePresent(), size);
-  } else if (size <= kMaxSize) {
+  if (ThreadCache::have_tls) {
+    if (LIKELY(size < ThreadCache::MinSizeForSlowPath())) {
+      return do_malloc_small(ThreadCache::GetCacheWhichMustBePresent(), size);
+    }
+    if (UNLIKELY(ThreadCache::IsUseEmergencyMalloc())) {
+      return tcmalloc::EmergencyMalloc(size);
+    }
+  }
+
+  if (size <= kMaxSize) {
     return do_malloc_small(ThreadCache::GetCache(), size);
   } else {
     return do_malloc_pages(ThreadCache::GetCache(), size);
@@ -1618,12 +1630,18 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) th
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t n,
                                               size_t elem_size) PERFTOOLS_THROW {
+  if (ThreadCache::IsUseEmergencyMalloc()) {
+    return tcmalloc::EmergencyCalloc(n, elem_size);
+  }
   void* result = do_calloc(n, elem_size);
   MallocHook::InvokeNewHook(result, n * elem_size);
   return result;
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_THROW {
+  if (tcmalloc::IsEmergencyPtr(ptr)) {
+    return tcmalloc::EmergencyFree(ptr);
+  }
   MallocHook::InvokeDeleteHook(ptr);
   do_free(ptr);
 }
@@ -1639,6 +1657,9 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
     MallocHook::InvokeDeleteHook(old_ptr);
     do_free(old_ptr);
     return NULL;
+  }
+  if (UNLIKELY(tcmalloc::IsEmergencyPtr(old_ptr))) {
+    return tcmalloc::EmergencyRealloc(old_ptr, new_size);
   }
   return do_realloc(old_ptr, new_size);
 }

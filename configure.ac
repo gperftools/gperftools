@@ -390,6 +390,14 @@ AC_CACHE_CHECK([if target has _Unwind_Backtrace],
 AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
       [AC_DEFINE(HAVE_UNWIND_BACKTRACE, 1, [Whether <unwind.h> contains _Unwind_Backtrace])])
 
+AC_ARG_ENABLE([emergency-malloc],
+              [AS_HELP_STRING([--enable-emergency-malloc],
+                              [build emergency malloc feature])],
+              [enable_emergency_malloc="$enableval"],
+              [enable_emergency_malloc="$enable_backtrace"])
+
+AM_CONDITIONAL(BUILD_EMERGENCY_MALLOC, [test "x$enable_emergency_malloc" = xyes])
+
 # Defines PRIuS
 AC_COMPILER_CHARACTERISTICS
 
@@ -608,5 +616,5 @@ AS_IF([test "$x86_no_fp_by_default" = yes && test "x$enable_frame_pointers" != x
   [AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
     [AC_MSG_WARN([No frame pointers and no libunwind. Using experimental backtrace capturing via libgcc])],
     [AS_IF([test "x$enable_backtrace" = xyes],
-      [AC_MSG_WARN([No frame pointers and no libunwind. Expect backtrace capturing and unittests to fail])],
+      [AC_MSG_WARN([No frame pointers and no libunwind.  Using experimental backtrace()])],
       [AC_MSG_FAILURE([No frame pointers and no libunwind. The compilation will fail])])])])

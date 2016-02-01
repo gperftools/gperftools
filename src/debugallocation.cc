@@ -1213,12 +1213,18 @@ inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
 // Exported routines
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_THROW {
+  if (ThreadCache::IsUseEmergencyMalloc()) {
+    return tcmalloc::EmergencyMalloc(size);
+  }
   void* ptr = do_debug_malloc_or_debug_cpp_alloc(size);
   MallocHook::InvokeNewHook(ptr, size);
   return ptr;
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_THROW {
+  if (tcmalloc::IsEmergencyPtr(ptr)) {
+    return tcmalloc::EmergencyFree(ptr);
+  }
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
 }
@@ -1229,6 +1235,9 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOO
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOOLS_THROW {
+  if (ThreadCache::IsUseEmergencyMalloc()) {
+    return tcmalloc::EmergencyCalloc(count, size);
+  }
   // Overflow check
   const size_t total_size = count * size;
   if (size != 0 && total_size / size != count) return NULL;
@@ -1240,11 +1249,17 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOO
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_THROW {
+  if (tcmalloc::IsEmergencyPtr(ptr)) {
+    return tcmalloc::EmergencyFree(ptr);
+  }
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_THROW {
+  if (tcmalloc::IsEmergencyPtr(ptr)) {
+    return tcmalloc::EmergencyRealloc(ptr, size);
+  }
   if (ptr == NULL) {
     ptr = do_debug_malloc_or_debug_cpp_alloc(size);
     MallocHook::InvokeNewHook(ptr, size);
