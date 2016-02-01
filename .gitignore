@@ -69,6 +69,8 @@
 /malloc_bench.exe
 /malloc_bench_shared
 /malloc_bench_shared.exe
+/malloc_bench_shared_full
+/malloc_bench_shared_full.exe
 /malloc_extension_c_test
 /malloc_extension_debug_test
 /malloc_extension_test
