@@ -32,11 +32,17 @@
  */
 
 #include "config.h"
+
+#include "base/thread_lister.h"
+
 #include <stdio.h>         /* needed for NULL on some powerpc platforms (?!) */
+#include <sys/types.h>
+#include <unistd.h>        /* for getpid */
+
 #ifdef HAVE_SYS_PRCTL
 # include <sys/prctl.h>
 #endif
-#include "base/thread_lister.h"
+
 #include "base/linuxthreads.h"
 /* Include other thread listers here that define THREADS macro
  * only when they can provide a good implementation.
