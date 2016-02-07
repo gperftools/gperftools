@@ -334,7 +334,20 @@ AC_ARG_ENABLE([dynamic-sized-delete-support],
               [AS_HELP_STRING([--disable-dynamic-sized-delete-support],
                 [don't try to build run-time switch for sized delete operator])],
               [enable_dyn_sized_delete="$enableval"],
-              [enable_dyn_sized_delete=yes])
+              [enable_dyn_sized_delete=default])
+
+AS_IF([test "x$enable_dyn_sized_delete" = xdefault],
+      [AC_CACHE_CHECK(
+        [if the compiler supports ifunc attributes for target],
+        [perftools_cv_ifunc_result],
+        [AC_COMPILE_IFELSE(
+                 [AC_LANG_PROGRAM([
+                   void *resolve_foo() {return 0;}
+                   void foo() __attribute__((ifunc("resolve_foo")));
+                 ],[foo();])],
+                 [perftools_cv_ifunc_result=yes],
+                 [perftools_cv_ifunc_result=no])])]
+      [enable_dyn_sized_delete=$perftools_cv_ifunc_result])
 
 AS_IF([test "x$enable_dyn_sized_delete" = xyes],
       [AC_DEFINE([ENABLE_DYNAMIC_SIZED_DELETE], 1,
@@ -348,7 +361,9 @@ AC_ARG_ENABLE([sized-delete],
 AS_IF([test "x$enable_sized_delete" = xyes],
         [AC_DEFINE([ENABLE_SIZED_DELETE], 1, [Build sized deletion operators])
          AC_MSG_NOTICE([Will build sized deallocation operators])],
-      [AC_MSG_NOTICE([Will not build sized deallocation operators])])
+      [AS_IF([test "x$enable_dyn_sized_delete" = xyes],
+             [AC_MSG_NOTICE([Will build dynamically detected sized deallocation operators])],
+             [AC_MSG_NOTICE([Will not build sized deallocation operators])])])
 
 AS_IF([test "x$enable_sized_delete" = xyes -o "x$enable_dyn_sized_delete" = xyes],
       [AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
