@@ -59,19 +59,19 @@
 
 void* operator new(size_t size) throw (std::bad_alloc)
     ALIAS(tc_new);
-void operator delete(void* p) __THROW
+void operator delete(void* p) throw()
     ALIAS(tc_delete);
 void* operator new[](size_t size) throw (std::bad_alloc)
     ALIAS(tc_newarray);
-void operator delete[](void* p) __THROW
+void operator delete[](void* p) throw()
     ALIAS(tc_deletearray);
-void* operator new(size_t size, const std::nothrow_t& nt) __THROW
+void* operator new(size_t size, const std::nothrow_t& nt) throw()
     ALIAS(tc_new_nothrow);
-void* operator new[](size_t size, const std::nothrow_t& nt) __THROW
+void* operator new[](size_t size, const std::nothrow_t& nt) throw()
     ALIAS(tc_newarray_nothrow);
-void operator delete(void* p, const std::nothrow_t& nt) __THROW
+void operator delete(void* p, const std::nothrow_t& nt) throw()
     ALIAS(tc_delete_nothrow);
-void operator delete[](void* p, const std::nothrow_t& nt) __THROW
+void operator delete[](void* p, const std::nothrow_t& nt) throw()
     ALIAS(tc_deletearray_nothrow);
 
 #if defined(ENABLE_SIZED_DELETE)
