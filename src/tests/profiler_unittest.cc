@@ -46,7 +46,7 @@
 #include "base/simple_mutex.h"
 #include "tests/testutil.h"
 
-static int result = 0;
+static volatile int result = 0;
 static int g_iters = 0;   // argv[1]
 
 Mutex mutex(Mutex::LINKER_INITIALIZED);
