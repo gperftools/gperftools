@@ -266,6 +266,7 @@ if test "$enable_libunwind" = yes; then
   AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind,
                [AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)])
   AC_SUBST(UNWIND_LIBS)
+  will_use_libunwind=yes
 else
   AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)
   AC_SUBST(UNWIND_LIBS)
@@ -390,11 +391,19 @@ AC_CACHE_CHECK([if target has _Unwind_Backtrace],
 AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
       [AC_DEFINE(HAVE_UNWIND_BACKTRACE, 1, [Whether <unwind.h> contains _Unwind_Backtrace])])
 
+AS_IF([test "x$enable_backtrace" = xyes],
+      [default_emergency_malloc=yes],
+      [default_emergency_malloc=no])
+
+AS_IF([test "x$will_use_libunwind" = xyes],
+      [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __arm__])],
+                         [default_emergency_malloc=yes])])
+
 AC_ARG_ENABLE([emergency-malloc],
               [AS_HELP_STRING([--enable-emergency-malloc],
                               [build emergency malloc feature])],
               [enable_emergency_malloc="$enableval"],
-              [enable_emergency_malloc="$enable_backtrace"])
+              [enable_emergency_malloc="$default_emergency_malloc"])
 
 AM_CONDITIONAL(BUILD_EMERGENCY_MALLOC, [test "x$enable_emergency_malloc" = xyes])
 
