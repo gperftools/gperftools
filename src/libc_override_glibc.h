@@ -38,9 +38,6 @@
 
 #include <config.h>
 #include <features.h>     // for __GLIBC__
-#ifdef HAVE_SYS_CDEFS_H
-#include <sys/cdefs.h>    // for __THROW
-#endif
 #include <gperftools/tcmalloc.h>
 
 #ifndef __GLIBC__
