@@ -560,6 +560,8 @@ void MallocHook::InvokeSbrkHookSlow(const void* result, ptrdiff_t increment) {
 
 #undef INVOKE_HOOKS
 
+#ifndef NO_TCMALLOC_SAMPLES
+
 DEFINE_ATTRIBUTE_SECTION_VARS(google_malloc);
 DECLARE_ATTRIBUTE_SECTION_VARS(google_malloc);
   // actual functions are in debugallocation.cc or tcmalloc.cc
@@ -604,6 +606,8 @@ static inline void CheckInHookCaller() {
     checked_sections = true;
   }
 }
+
+#endif // !NO_TCMALLOC_SAMPLES
 
 // We can improve behavior/compactness of this function
 // if we pass a generic test function (with a generic arg)

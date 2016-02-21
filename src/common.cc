@@ -220,7 +220,6 @@ void SizeMap::Init() {
 // Metadata allocator -- keeps stats about how many bytes allocated.
 static uint64_t metadata_system_bytes_ = 0;
 static const size_t kMetadataAllocChunkSize = 8*1024*1024;
-static const size_t kMetadataBigAllocThreshold = kMetadataAllocChunkSize / 8;
 // As ThreadCache objects are allocated with MetaDataAlloc, and also
 // CACHELINE_ALIGNED, we must use the same alignment as TCMalloc_SystemAlloc.
 static const size_t kMetadataAllignment = sizeof(MemoryAligner);

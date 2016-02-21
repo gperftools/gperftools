@@ -45,8 +45,6 @@
 #include "base/logging.h"   // for perftools_vsnprintf
 #include "base/spinlock.h"              // for SpinLockHolder, SpinLock
 
-static const int kLogBufSize = 800;
-
 // Variables for storing crash output.  Allocated statically since we
 // may not be able to heap-allocate while crashing.
 static SpinLock crash_lock(base::LINKER_INITIALIZED);
