@@ -90,6 +90,15 @@ struct GetStackImplementation {
 #define HAVE_GST_generic
 #endif
 
+#ifdef HAVE_UNWIND_BACKTRACE
+#define STACKTRACE_INL_HEADER "stacktrace_libgcc-inl.h"
+#define GST_SUFFIX libgcc
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_libgcc
+#endif
+
 // libunwind uses __thread so we check for both libunwind.h and
 // __thread support
 #if defined(HAVE_LIBUNWIND_H) && defined(HAVE_TLS)
@@ -153,6 +162,9 @@ struct GetStackImplementation {
 #endif
 
 static GetStackImplementation *all_impls[] = {
+#ifdef HAVE_GST_libgcc
+  &impl__libgcc,
+#endif
 #ifdef HAVE_GST_generic
   &impl__generic,
 #endif
@@ -195,10 +207,12 @@ static GetStackImplementation *get_stack_impl = &impl__x86;
 static GetStackImplementation *get_stack_impl = &impl__ppc;
 #elif defined(HAVE_GST_libunwind)
 static GetStackImplementation *get_stack_impl = &impl__libunwind;
-#elif defined(HAVE_GST_arm)
-static GetStackImplementation *get_stack_impl = &impl__arm;
+#elif defined(HAVE_GST_libgcc)
+static GetStackImplementation *get_stack_impl = &impl__libgcc;
 #elif defined(HAVE_GST_generic)
 static GetStackImplementation *get_stack_impl = &impl__generic;
+#elif defined(HAVE_GST_arm)
+static GetStackImplementation *get_stack_impl = &impl__arm;
 #elif 0
 // This is for the benefit of code analysis tools that may have
 // trouble with the computed #include above.

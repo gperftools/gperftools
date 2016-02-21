@@ -380,6 +380,18 @@ AS_IF([test "x$enable_sized_delete" = xyes -o "x$enable_dyn_sized_delete" = xyes
 AM_CONDITIONAL(HAVE_SIZED_DEALLOCATION,
                test "$perftools_cv_sized_deallocation_result" = yes)
 
+AC_CACHE_CHECK([if target has _Unwind_Backtrace],
+               [perftools_cv_have_unwind_backtrace],
+               [AC_LANG_PUSH(C++)
+                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+                    [[#include <unwind.h>]],
+                    [[&_Unwind_Backtrace]])],
+                 [perftools_cv_have_unwind_backtrace=yes],
+                 [perftools_cv_have_unwind_backtrace=no])
+                AC_LANG_POP(C++)])
+AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
+      [AC_DEFINE(HAVE_UNWIND_BACKTRACE, 1, [Whether <unwind.h> contains _Unwind_Backtrace])])
+
 # Defines PRIuS
 AC_COMPILER_CHARACTERISTICS
 
@@ -595,6 +607,8 @@ AC_CONFIG_FILES([Makefile
 AC_OUTPUT
 
 AS_IF([test "$x86_no_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x && test "x$enable_minimal" != xyes],
-      [AS_IF([test "x$enable_backtrace" = xyes],
-             [AC_MSG_WARN([No frame pointers and no libunwind. Expect backtrace capturing and unittests to fail])],
-             [AC_MSG_FAILURE([No frame pointers and no libunwind. The compilation will fail])])])
+  [AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
+    [AC_MSG_WARN([No frame pointers and no libunwind. Using experimental backtrace capturing via libgcc])],
+    [AS_IF([test "x$enable_backtrace" = xyes],
+      [AC_MSG_WARN([No frame pointers and no libunwind. Expect backtrace capturing and unittests to fail])],
+      [AC_MSG_FAILURE([No frame pointers and no libunwind. The compilation will fail])])])])
