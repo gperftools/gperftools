@@ -175,8 +175,6 @@ AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_FUNCS(fork)            # for the pthread_atfork setup
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
-AC_CHECK_HEADERS(sys/malloc.h)  # where some versions of OS X put malloc.h
-AC_CHECK_HEADERS(malloc/malloc.h)  # another place OS X puts malloc.h (?)
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
