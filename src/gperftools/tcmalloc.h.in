@@ -37,16 +37,6 @@
 #define TCMALLOC_TCMALLOC_H_
 
 #include <stddef.h>                     // for size_t
-#ifdef HAVE_SYS_CDEFS_H
-#include <sys/cdefs.h>   // where glibc defines __THROW
-#endif
-
-// __THROW is defined in glibc systems.  It means, counter-intuitively,
-// "This function will never throw an exception."  It's an optional
-// optimization tool, but we may need to use it to match glibc prototypes.
-#ifndef __THROW    /* I guess we're not on a glibc system */
-# define __THROW   /* __THROW is just an optimization, so ok to make it "" */
-#endif
 
 // Define the version number so folks can check against it
 #define TC_VERSION_MAJOR  @TC_VERSION_MAJOR@
@@ -55,15 +45,15 @@
 #define TC_VERSION_STRING "gperftools @TC_VERSION_MAJOR@.@TC_VERSION_MINOR@@TC_VERSION_PATCH@"
 
 // For struct mallinfo, if it's defined.
-#ifdef HAVE_STRUCT_MALLINFO
-// Malloc can be in several places on older versions of OS X.
-# if defined(HAVE_MALLOC_H)
+#if @ac_cv_have_struct_mallinfo@
 # include <malloc.h>
-# elif defined(HAVE_SYS_MALLOC_H)
-# include <sys/malloc.h>
-# elif defined(HAVE_MALLOC_MALLOC_H)
-# include <malloc/malloc.h>
-# endif
+#endif
+
+// __THROW is defined in glibc systems.  It means, counter-intuitively,
+// "This function will never throw an exception."  It's an optional
+// optimization tool, but we may need to use it to match glibc prototypes.
+#ifndef __THROW    /* I guess we're not on a glibc system */
+# define __THROW   /* __THROW is just an optimization, so ok to make it "" */
 #endif
 
 // Annoying stuff for windows -- makes sure clients can import these functions
