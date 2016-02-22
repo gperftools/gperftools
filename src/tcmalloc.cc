@@ -1154,8 +1154,13 @@ inline void* do_malloc_pages(ThreadCache* heap, size_t size) {
   bool report_large;
 
   Length num_pages = tcmalloc::pages(size);
-  size = num_pages << kPageShift;
 
+  // NOTE: we're passing original size here as opposed to rounded-up
+  // size as we do in do_malloc_small. The difference is small here
+  // (at most 4k out of at least 256k). And not rounding up saves us
+  // from possibility of overflow, which rounding up could produce.
+  //
+  // See https://github.com/gperftools/gperftools/issues/723
   if (heap->SampleAllocation(size)) {
     result = DoSampledAllocation(size);
 
