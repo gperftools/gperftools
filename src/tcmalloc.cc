@@ -1590,6 +1590,10 @@ extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_THROW {
 
 #ifndef TCMALLOC_USING_DEBUGALLOCATION  // debugallocation.cc defines its own
 
+#if defined(__GNUC__) && defined(__ELF__) && !defined(TCMALLOC_NO_ALIASES)
+#define TC_ALIAS(name) __attribute__((alias(#name)))
+#endif
+
 // CAVEAT: The code structure below ensures that MallocHook methods are always
 //         called from the stack frame of the invoked allocation function.
 //         heap-checker.cc depends on this to start a stack trace from
@@ -1615,12 +1619,12 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOO
   do_free_with_callback(ptr, &InvalidFree, true, size);
 }
 
-#if defined(__GNUC__) && defined(__ELF__)
+#ifdef TC_ALIAS
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) throw()
-  __attribute__((alias("tc_free_sized")));
+  TC_ALIAS(tc_free_sized);
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) throw()
-  __attribute__((alias("tc_free_sized")));
+  TC_ALIAS(tc_free_sized);
 
 #else
 
@@ -1643,13 +1647,15 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t n,
   return result;
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_THROW {
-  if (tcmalloc::IsEmergencyPtr(ptr)) {
-    return tcmalloc::EmergencyFree(ptr);
-  }
+extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_THROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_free);
+#else
+{
   MallocHook::InvokeDeleteHook(ptr);
   do_free(ptr);
 }
+#endif
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
                                                size_t new_size) PERFTOOLS_THROW {
@@ -1686,20 +1692,34 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size, const std::nothr
   return p;
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_THROW {
+extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_THROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_free);
+#else
+{
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
+#endif
 
 // Standard C++ library implementations define and use this
 // (via ::operator delete(ptr, nothrow)).
 // But it's really the same as normal delete, so we just do the same thing.
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_THROW {
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_THROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_free);
+#else
+{
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
+#endif
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size)
+#ifdef TC_ALIAS
+TC_ALIAS(tc_new);
+#else
+{
   void* p = cpp_alloc(size, false);
   // We keep this next instruction out of cpp_alloc for a reason: when
   // it's in, and new just calls cpp_alloc, the optimizer may fold the
@@ -1709,23 +1729,39 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
+#endif
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&)
-    PERFTOOLS_THROW {
+    PERFTOOLS_THROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_new_nothrow);
+#else
+{
   void* p = cpp_alloc(size, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
+#endif
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_THROW {
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_THROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_free);
+#else
+{
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
+#endif
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_THROW {
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_THROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_free);
+#else
+{
   MallocHook::InvokeDeleteHook(p);
   do_free(p);
 }
+#endif
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align,
                                                 size_t size) PERFTOOLS_THROW {
