@@ -904,6 +904,7 @@ S_TCMALLOC_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) \
                       src/base/thread_lister.h \
                       src/heap-profile-table.h \
                       src/heap-profile-stats.h \
+                      src/maybe_emergency_malloc.h \
                       src/emergency_malloc.h
 
 SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
