@@ -1,3 +1,123 @@
+== 21 Feb 2015 ==
+
+gperftools 2.5rc is out!
+
+Here are major changes since 2.4:
+
+* we've moved to github!
+
+* Bryan Chan has contributed s390x support
+
+* stacktrace capturing via libgcc's _Unwind_Backtrace was implemented
+  (for architectures with missing or broken libunwind).
+
+* "emergency malloc" was implemented. Which unbreaks recursive calls
+  to malloc/free from stacktrace capturing functions (such us glib'c
+  backtrace() or libunwind on arm). It is enabled by
+  --enable-emergency-malloc configure flag or by default on arm when
+  --enable-stacktrace-via-backtrace is given. It is another fix for a
+  number common issues people had on platforms with missing or broken
+  libunwind.
+
+* C++14 sized-deallocation is now supported (on gcc 5 and recent
+  clangs). It is off by default and can be enabled at configure time
+  via --enable-sized-delete. On GNU/Linux it can also be enabled at
+  run-time by either TCMALLOC_ENABLE_SIZED_DELETE environment variable
+  or by defining tcmalloc_sized_delete_enabled function which should
+  return 1 to enable it.
+
+* we've lowered default value of transfer batch size to 512. Previous
+  value (bumped up in 2.1) was too high and caused performance
+  regression for some users. 512 should still give us performance
+  boost for workloads that need higher transfer batch size while not
+  penalizing other workloads too much.
+
+* Brian Silverman's patch finally stopped arming profiling timer
+  unless profiling is started.
+
+* Andrew Morrow has contributed support for obtaining cache size of the
+  current thread and softer idling (for use in MongoDB).
+
+* we've implemented few minor performance improvements, particularly
+  on malloc fast-path.
+
+A number of smaller fixes were made. Many of them were contributed:
+
+* issue that caused spurious profiler_unittest.sh failures was fixed.
+
+* Jonathan Lambrechts contributed improved callgrind format support to
+  pprof.
+
+* Matt Cross contributed better support for debug symbols in separate
+  files to pprof.
+
+* Matt Cross contributed support for printing collapsed stack frame
+  from pprof aimed at producing flame graphs.
+
+* Angus Gratton has contributed documentation fix mentioning that on
+  windows only tcmalloc_minimal is supported.
+
+* Anton Samokhvalov has made tcmalloc use mi_force_{un,}lock on OSX
+  instead of pthread_atfork. Which apparently fixes forking
+  issues tcmalloc had on OSX.
+
+* Milton Chiang has contributed support for building 32-bit gperftools
+  on arm8.
+
+* Patrick LoPresti has contributed support for specifying alternative
+  profiling signal via CPUPROFILE_TIMER_SIGNAL environment variable.
+
+* Paolo Bonzini has contributed support configuring filename for
+  sending malloc tracing output via TCMALLOC_TRACE_FILE environment
+  variable.
+
+* user spotrh has enabled use of futex on arm.
+
+* user mitchblank has contributed better declaration for arg-less
+  profiler functions.
+
+* Tom Conerly contributed proper freeing of memory allocated in
+  HeapProfileTable::FillOrderedProfile on error paths.
+
+* user fdeweerdt has contributed curl arguments handling fix in pprof
+
+* Frederik Mellbin fixed tcmalloc's idea of mangled new and delete
+  symbols on windows x64
+
+* Dair Grant has contributed cacheline alignment for ThreadCache
+  objects
+
+* Fredrik Mellbin has contributed updated windows/config.h for Visual
+  Studio 2015 and other windows fixes.
+
+* we're not linking libpthread to libtcmalloc_minimal anymore. Instead
+  libtcmalloc_minimal links to pthread symbols weakly. As a result
+  single-threaded programs remain single-threaded when linking to or
+  preloading libtcmalloc_minimal.so.
+
+* Boris Sazonov has contributed mips compilation fix and printf misue
+  in pprof.
+
+* Adhemerval Zanella has contributed alignment fixes for statically
+  allocated variables.
+
+* Jens Rosenboom has contributed fixes for heap-profiler_unittest.sh
+
+* gshirishfree has contributed better description for GetStats method.
+
+* cyshi has contributed spinlock pause fix.
+
+* Chris Mayo has contributed --docdir argument support for configure.
+
+* Duncan Sands has contributed fix for function aliases.
+
+* Simon Que contributed better include for malloc_hook_c.h
+
+* user wmamrak contributed struct timespec fix for Visual Studio 2015.
+
+* user ssubotin contributed typo in PrintAvailability code.
+
+
 == 10 Jan 2015 ==
 
 gperftools 2.4 is out! The code is exactly same as 2.4rc.
