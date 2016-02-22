@@ -119,6 +119,7 @@ int main(int argc, char** argv) {
   RunThread(&TestIdleUsage);
   RunThread(&TestAllocation);
   RunThread(&MultipleIdleCalls);
+  RunThread(&MultipleIdleNonIdlePhases);
   RunThread(&TestTemporarilyIdleUsage);
 
   printf("PASS\n");
