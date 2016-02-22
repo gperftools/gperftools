@@ -41,8 +41,8 @@
 /* Define the version number so folks can check against it */
 #define TC_VERSION_MAJOR  2
 #define TC_VERSION_MINOR  4
-#define TC_VERSION_PATCH  ""
-#define TC_VERSION_STRING "gperftools 2.4"
+#define TC_VERSION_PATCH  ".90"
+#define TC_VERSION_STRING "gperftools 2.4.90"
 
 #ifdef __cplusplus
 #define PERFTOOLS_THROW throw()
