@@ -1,7 +1,25 @@
-IMPORTANT NOTE FOR 64-BIT USERS
--------------------------------
-There are known issues with some perftools functionality on x86_64
-systems.  See 64-BIT ISSUES, below.
+gperftools
+----------
+(originally Google Performance Tools)
+
+The fastest malloc we’ve seen; works particularly well with threads
+and STL. Also: thread-friendly heap-checker, heap-profiler, and
+cpu-profiler.
+
+
+OVERVIEW
+---------
+
+gperftools is a collection of a high-performance multi-threaded
+malloc() implementation, plus some pretty nifty performance analysis
+tools.
+
+gperftools is distributed under the terms of the BSD License. Join our
+mailing list at gpeftools@googlegroups.com for updates.
+
+gperftools was original home for pprof program. But do note that
+original pprof (which is still included with gerftools) is now
+deprecated in favor of golang version at https://github.com/google/pprof
 
 
 TCMALLOC
