@@ -107,7 +107,7 @@ static int IntLog2(size_t size, size_t base) {
 
 // Return a random integer n:  p(n)=1/(2**n) if 1 <= n; p(n)=0 if n < 1.
 static int Random() {
-  static int32 r = 1;         // no locking---it's not critical
+  static uint32 r = 1;         // no locking---it's not critical
   ANNOTATE_BENIGN_RACE(&r, "benign race, not critical.");
   int result = 1;
   while ((((r = r*1103515245 + 12345) >> 30) & 1) == 0) {
