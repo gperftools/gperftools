@@ -318,14 +318,14 @@ TEST_F(ProfileHandlerTest, RegisterUnregisterCallback) {
 // Verifies that multiple callbacks can be registered.
 TEST_F(ProfileHandlerTest, MultipleCallbacks) {
   // Register first callback.
-  int first_tick_count;
+  int first_tick_count = 0;
   ProfileHandlerToken* token1 = RegisterCallback(&first_tick_count);
   // Check that callback was registered correctly.
   VerifyRegistration(first_tick_count);
   EXPECT_EQ(1, GetCallbackCount());
 
   // Register second callback.
-  int second_tick_count;
+  int second_tick_count = 0;
   ProfileHandlerToken* token2 = RegisterCallback(&second_tick_count);
   // Check that callback was registered correctly.
   VerifyRegistration(second_tick_count);
@@ -351,13 +351,13 @@ TEST_F(ProfileHandlerTest, MultipleCallbacks) {
 TEST_F(ProfileHandlerTest, Reset) {
   // Verify that the profile timer interrupt is disabled.
   if (!linux_per_thread_timers_mode_) VerifyDisabled();
-  int first_tick_count;
+  int first_tick_count = 0;
   RegisterCallback(&first_tick_count);
   VerifyRegistration(first_tick_count);
   EXPECT_EQ(1, GetCallbackCount());
 
   // Register second callback.
-  int second_tick_count;
+  int second_tick_count = 0;
   RegisterCallback(&second_tick_count);
   VerifyRegistration(second_tick_count);
   EXPECT_EQ(2, GetCallbackCount());
@@ -384,7 +384,7 @@ TEST_F(ProfileHandlerTest, RegisterCallbackBeforeThread) {
   StartWorker();
   // Register a callback and check that profile ticks are being delivered and
   // the timer is enabled.
-  int tick_count;
+  int tick_count = 0;
   RegisterCallback(&tick_count);
   EXPECT_EQ(1, GetCallbackCount());
   VerifyRegistration(tick_count);
