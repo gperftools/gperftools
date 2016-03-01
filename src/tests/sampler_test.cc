@@ -604,7 +604,7 @@ TEST(Sampler, arithmetic_1) {
     CHECK_GE(q, 0); // << rnd << "  " << prng_mod_power;
   }
   // Test some potentially out of bounds value for rnd
-  for (int i = 1; i <= 66; i++) {
+  for (int i = 1; i <= 63; i++) {
     rnd = one << i;
     double q = (rnd >> (prng_mod_power - 26)) + 1.0;
     LOG(INFO) << "rnd = " << rnd << " i=" << i << " q=" << q;
