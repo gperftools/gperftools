@@ -127,6 +127,13 @@ void operator delete(void *p, size_t size) throw()
 void operator delete[](void *p, size_t size) throw()
   __attribute__((ifunc("resolve_deletearray_sized")));
 
+#else /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
+
+void operator delete(void *p, size_t size) throw()
+  ALIAS(tc_delete);
+void operator delete[](void *p, size_t size) throw()
+  ALIAS(tc_deletearray);
+
 #endif /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
 
 extern "C" {

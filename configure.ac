@@ -351,17 +351,16 @@ AS_IF([test "x$enable_sized_delete" = xyes],
              [AC_MSG_NOTICE([Will build dynamically detected sized deallocation operators])],
              [AC_MSG_NOTICE([Will not build sized deallocation operators])])])
 
-AS_IF([test "x$enable_sized_delete" = xyes -o "x$enable_dyn_sized_delete" = xyes],
-      [AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
-                      perftools_cv_sized_deallocation_result,
-                      [AC_LANG_PUSH(C++)
-                       OLD_CXXFLAGS="$CXXFLAGS"
-                       CXXFLAGS="$CXXFLAGS -fsized-deallocation"
-                       AC_COMPILE_IFELSE([AC_LANG_PROGRAM(,)],
-                                         perftools_cv_sized_deallocation_result=yes,
-                                         perftools_cv_sized_deallocation_result=no)
-                       CXXFLAGS="$OLD_CXXFLAGS"
-                       AC_LANG_POP(C++)])])
+AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
+               [perftools_cv_sized_deallocation_result],
+               [AC_LANG_PUSH(C++)
+                OLD_CXXFLAGS="$CXXFLAGS"
+                CXXFLAGS="$CXXFLAGS -fsized-deallocation"
+                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(,)],
+                                  perftools_cv_sized_deallocation_result=yes,
+                                  perftools_cv_sized_deallocation_result=no)
+                CXXFLAGS="$OLD_CXXFLAGS"
+                AC_LANG_POP(C++)])
 
 AM_CONDITIONAL(HAVE_SIZED_DEALLOCATION,
                test "$perftools_cv_sized_deallocation_result" = yes)
