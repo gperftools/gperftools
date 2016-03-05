@@ -15,6 +15,8 @@
 
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
+/* used by tcmalloc.h */
+#define GPERFTOOLS_CONFIG_H_
 
 /* define this if you are linking tcmalloc statically and overriding the
  * default allocators.

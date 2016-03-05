@@ -622,6 +622,23 @@
 						RuntimeLibrary="2"/>
 				</FileConfiguration>
 			</File>
+			<File
+				RelativePath="..\..\src\fake_stacktrace_scope.cc">
+				<FileConfiguration
+					Name="Debug|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="3"/>
+				</FileConfiguration>
+				<FileConfiguration
+					Name="Release|Win32">
+					<Tool
+						Name="VCCLCompilerTool"
+						AdditionalIncludeDirectories="..\..\src\windows; ..\..\src"
+						RuntimeLibrary="2"/>
+				</FileConfiguration>
+			</File>
 		</Filter>
 		<Filter
 			Name="Header Files"

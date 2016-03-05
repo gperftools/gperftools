@@ -55,6 +55,7 @@
 #endif
 
 #ifndef PERFTOOLS_DLL_DECL
+#define PERFTOOLS_DLL_DECL_DEFINED
 # ifdef _WIN32
 #   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
 # else
@@ -127,7 +128,11 @@ extern "C" {
 #if !defined(GPERFTOOLS_CONFIG_H_)
 
 #undef PERFTOOLS_THROW
+
+#ifdef PERFTOOLS_DLL_DECL_DEFINED
 #undef PERFTOOLS_DLL_DECL
+#undef PERFTOOLS_DLL_DECL_DEFINED
+#endif
 
 #endif /* GPERFTOOLS_CONFIG_H_ */
 
