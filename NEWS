@@ -1,4 +1,14 @@
-== 21 Feb 2015 ==
+== 5 Mar 2016 ==
+
+gperftools 2.5rc2 is out!
+
+New release contains just few commits on top of first release
+candidate. One of them is build fix for Visual Studio. Another
+significant change is that dynamic sized delete is now disabled by
+default. It turned out that IFUNC relocations are not supporting our
+advanced use case on all platforms and in all cases.
+
+== 21 Feb 2016 ==
 
 gperftools 2.5rc is out!
 
