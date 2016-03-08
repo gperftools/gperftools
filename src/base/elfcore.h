@@ -41,7 +41,7 @@ extern "C" {
 /* We currently only support x86-32, x86-64, ARM, MIPS, PPC on Linux.
  * Porting to other related platforms should not be difficult.
  */
-#if (defined(__i386__) || defined(__x86_64__) || defined(__ARM_ARCH_3__) || \
+#if (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || \
      defined(__mips__) || defined(__PPC__)) && defined(__linux)
 
 #include <stdarg.h>
@@ -89,7 +89,7 @@ extern "C" {
     uint16_t  ss, __ss;
   #endif
   } i386_regs;
-#elif defined(__ARM_ARCH_3__)
+#elif defined(__arm__)
   typedef struct arm_regs {     /* General purpose registers                 */
     #define BP uregs[11]        /* Frame pointer                             */
     #define SP uregs[13]        /* Stack pointer                             */
@@ -245,7 +245,7 @@ extern "C" {
                        (f).uregs.gs_base = (r).gs_base;               \
                        (r)   = (f).uregs;                             \
                      } while (0)
-#elif defined(__ARM_ARCH_3__) && defined(__GNUC__)
+#elif defined(__arm__) && defined(__GNUC__)
   /* ARM calling conventions are a little more tricky. A little assembly
    * helps in obtaining an accurate snapshot of all registers.
    */
