@@ -38,6 +38,9 @@
 
 #include <stddef.h>
 #include <stdio.h>
+
+#define GPERFTOOLS_SUPPRESS_LEGACY_WARNING
+
 #include <google/heap-checker.h>
 #include <google/heap-profiler.h>
 #include <google/malloc_extension.h>

@@ -30,7 +30,7 @@
 /* The code has moved to gperftools/.  Use that include-directory for
  * new code.
  */
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(GPERFTOOLS_SUPPRESS_LEGACY_WARNING)
 #warning "google/stacktrace.h is deprecated. Use gperftools/stacktrace.h instead"
 #endif
 #include <gperftools/stacktrace.h>
