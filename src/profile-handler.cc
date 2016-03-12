@@ -492,8 +492,10 @@ void ProfileHandler::UpdateTimer(bool enable) {
   timer_running_ = enable;
 
   struct itimerval timer;
-  timer.it_interval.tv_sec = 0;
-  timer.it_interval.tv_usec = (enable ? (1000000 / frequency_) : 0);
+  static const int kMillion = 1000000;
+  int interval_usec = enable ? kMillion / frequency_ : 0;
+  timer.it_interval.tv_sec = interval_usec / kMillion;
+  timer.it_interval.tv_usec = interval_usec % kMillion;
   timer.it_value = timer.it_interval;
   setitimer(timer_type_, &timer, 0);
 }
