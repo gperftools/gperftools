@@ -29,6 +29,8 @@
 #include <stdio.h>
 #include <stdint.h>
 
+#include <algorithm>
+
 #include "run_benchmark.h"
 
 static void bench_fastpath_throughput(long iterations,
@@ -168,8 +170,47 @@ static void bench_fastpath_rnd_dependent(long iterations,
   }
 }
 
+static void *randomize_buffer[13<<20];
+
+
+void randomize_one_size_class(size_t size) {
+  int count = (100<<20) / size;
+  if (count * sizeof(randomize_buffer[0]) > sizeof(randomize_buffer)) {
+    abort();
+  }
+  for (int i = 0; i < count; i++) {
+    randomize_buffer[i] = malloc(size);
+  }
+  std::random_shuffle(randomize_buffer, randomize_buffer + count);
+  for (int i = 0; i < count; i++) {
+    free(randomize_buffer[i]);
+  }
+}
+
+void randomize_size_classes() {
+  randomize_one_size_class(8);
+  int i;
+  for (i = 16; i < 256; i += 16) {
+    randomize_one_size_class(i);
+  }
+  for (; i < 512; i += 32) {
+    randomize_one_size_class(i);
+  }
+  for (; i < 1024; i += 64) {
+    randomize_one_size_class(i);
+  }
+  for (; i < (4 << 10); i += 128) {
+    randomize_one_size_class(i);
+  }
+  for (; i < (32 << 10); i += 1024) {
+    randomize_one_size_class(i);
+  }
+}
+
 int main(void)
 {
+  randomize_size_classes();
+
   report_benchmark("bench_fastpath_throughput", bench_fastpath_throughput, 0);
   report_benchmark("bench_fastpath_dependent", bench_fastpath_dependent, 0);
   report_benchmark("bench_fastpath_simple", bench_fastpath_simple, 0);
