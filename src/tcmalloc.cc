@@ -1264,14 +1264,14 @@ ALWAYS_INLINE void* do_malloc_small(ThreadCache* heap, size_t size) {
   ASSERT(Static::IsInited());
   ASSERT(heap != NULL);
   size_t cl = Static::sizemap()->SizeClass(size);
-  size = Static::sizemap()->class_to_size(cl);
+  size_t allocated_size = Static::sizemap()->class_to_size(cl);
 
-  if (PREDICT_FALSE(heap->SampleAllocation(size))) {
+  if (PREDICT_FALSE(heap->SampleAllocation(allocated_size))) {
     return DoSampledAllocation(size);
   } else {
     // The common case, and also the simplest.  This just pops the
     // size-appropriate freelist, after replenishing it if it's empty.
-    return CheckedMallocResult(heap->Allocate(size, cl));
+    return CheckedMallocResult(heap->Allocate(allocated_size, cl));
   }
 }
 
