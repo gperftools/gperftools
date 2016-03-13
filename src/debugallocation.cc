@@ -1336,7 +1336,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_THROW {
   force_frame();
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) throw() {
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kNewType, size);
   force_frame();
@@ -1372,7 +1372,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_THROW {
   force_frame();
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) throw() {
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kArrayNewType, size);
   force_frame();

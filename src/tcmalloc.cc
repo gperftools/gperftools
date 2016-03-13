@@ -88,6 +88,11 @@
 //   goes from about 1100 ns to about 300 ns.
 
 #include "config.h"
+// At least for gcc on Linux/i386 and Linux/amd64 not adding throw()
+// to tc_xxx functions actually ends up generating better code.
+#ifdef __GNUC__
+#define PERFTOOLS_THROW
+#endif
 #include <gperftools/tcmalloc.h>
 
 #include <errno.h>                      // for ENOMEM, EINVAL, errno
@@ -208,6 +213,8 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   void tc_free(void* ptr) PERFTOOLS_THROW
       ATTRIBUTE_SECTION(google_malloc);
+  void tc_free_sized(void* ptr, size_t size) PERFTOOLS_THROW
+      ATTRIBUTE_SECTION(google_malloc);
   void* tc_realloc(void* ptr, size_t size) PERFTOOLS_THROW
       ATTRIBUTE_SECTION(google_malloc);
   void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_THROW
@@ -237,9 +244,13 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   void tc_delete(void* p) PERFTOOLS_THROW
       ATTRIBUTE_SECTION(google_malloc);
+  void tc_delete_sized(void* p, size_t size) PERFTOOLS_THROW
+      ATTRIBUTE_SECTION(google_malloc);
   void* tc_newarray(size_t size)
       ATTRIBUTE_SECTION(google_malloc);
   void tc_deletearray(void* p) PERFTOOLS_THROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_THROW
       ATTRIBUTE_SECTION(google_malloc);
 
   // And the nothrow variants of these:
@@ -1686,17 +1697,17 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOO
 
 #ifdef TC_ALIAS
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) throw()
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) PERFTOOLS_THROW
   TC_ALIAS(tc_free_sized);
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) throw()
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) PERFTOOLS_THROW
   TC_ALIAS(tc_free_sized);
 
 #else
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) throw() {
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void *p, size_t size) PERFTOOLS_THROW {
   tc_free_sized(p, size);
 }
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) throw() {
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void *p, size_t size) PERFTOOLS_THROW {
   tc_free_sized(p, size);
 }
 

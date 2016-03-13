@@ -49,7 +49,11 @@
 # include <malloc.h>
 #endif
 
-#ifdef __cplusplus
+#ifndef PERFTOOLS_THROW
+
+#if __cplusplus >= 201103L
+#define PERFTOOLS_THROW noexcept
+#elif defined(__cplusplus)
 #define PERFTOOLS_THROW throw()
 #else
 # ifdef __GNUC__
@@ -57,6 +61,8 @@
 # else
 #  define PERFTOOLS_THROW
 # endif
+#endif
+
 #endif
 
 #ifndef PERFTOOLS_DLL_DECL
@@ -118,14 +124,14 @@ extern "C" {
   PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size,
                                           const std::nothrow_t&) PERFTOOLS_THROW;
   PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) throw();
+  PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_THROW;
   PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p,
                                             const std::nothrow_t&) PERFTOOLS_THROW;
   PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
   PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
                                                const std::nothrow_t&) PERFTOOLS_THROW;
   PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) throw();
+  PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_THROW;
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) PERFTOOLS_THROW;
 }
