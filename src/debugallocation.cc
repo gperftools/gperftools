@@ -206,9 +206,10 @@ struct MallocBlockQueueEntry {
       // Adjust the number of frames to skip (4) if you change the
       // location of this call.
       num_deleter_pcs =
-          GetStackTrace(deleter_pcs,
-                        sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
-                        4);
+        MallocHook::GetCallerStackTrace(
+          deleter_pcs,
+          sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
+          4);
       deleter_threadid = pthread_self();
     } else {
       num_deleter_pcs = 0;
@@ -1213,6 +1214,19 @@ inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
 
 // Exported routines
 
+// frame forcer and force_frame exist only to prevent tail calls to
+// DebugDeallocate to be actually implemented as tail calls. This is
+// important because stack trace capturing in MallocBlockQueueEntry
+// relies on google_malloc section being on stack and tc_XXX functions
+// are in that section. So they must not jump to DebugDeallocate but
+// have to do call. frame_forcer call at the end of such functions
+// prevents tail calls to DebugDeallocate.
+static int frame_forcer;
+static void force_frame() {
+  int dummy = *(int volatile *)&frame_forcer;
+  (void)dummy;
+}
+
 extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_THROW {
   if (ThreadCache::IsUseEmergencyMalloc()) {
     return tcmalloc::EmergencyMalloc(size);
@@ -1228,11 +1242,13 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_THROW {
   }
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
+  force_frame();
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kMallocType, size);
+  force_frame();
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOOLS_THROW {
@@ -1255,6 +1271,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_THROW {
   }
   MallocHook::InvokeDeleteHook(ptr);
   DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
+  force_frame();
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_THROW {
@@ -1316,11 +1333,13 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size, const std::nothr
 extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kNewType, 0);
+  force_frame();
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) throw() {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kNewType, size);
+  force_frame();
 }
 
 // Some STL implementations explicitly invoke this.
@@ -1328,6 +1347,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) throw()
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kNewType, 0);
+  force_frame();
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
@@ -1349,11 +1369,13 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kArrayNewType, 0);
+  force_frame();
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) throw() {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kArrayNewType, size);
+  force_frame();
 }
 
 // Some STL implementations explicitly invoke this.
@@ -1361,6 +1383,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) th
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_THROW {
   MallocHook::InvokeDeleteHook(p);
   DebugDeallocate(p, MallocBlock::kArrayNewType, 0);
+  force_frame();
 }
 
 // This is mostly the same as do_memalign in tcmalloc.cc.
