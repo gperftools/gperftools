@@ -647,6 +647,14 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
     return 0;
   for (int i = 0; i < depth; ++i) {  // stack[0] is our immediate caller
     if (InHookCaller(stack[i])) {
+      // fast-path to slow-path calls may be implemented by compiler
+      // as non-tail calls. Causing two functions on stack trace to be
+      // inside google_malloc. In such case we're skipping to
+      // outermost such frame since this is where malloc stack frames
+      // really start.
+      while (i + 1 < depth && InHookCaller(stack[i+1])) {
+        i++;
+      }
       RAW_VLOG(10, "Found hooked allocator at %d: %p <- %p",
                    i, stack[i], stack[i+1]);
       i += 1;  // skip hook caller frame
