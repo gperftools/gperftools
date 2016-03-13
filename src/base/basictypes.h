@@ -273,7 +273,7 @@ inline void bit_store(Dest *dest, const Source *source) {
 //    ATTRIBUTE_SECTION are guaranteed to be between START and STOP.
 
 #if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
-# define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name)))
+# define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name))) __attribute__((noinline))
 
   // Weak section declaration to be used as a global declaration
   // for ATTRIBUTE_SECTION_START|STOP(name) to compile and link
