@@ -4572,7 +4572,11 @@ sub ParseLibraries {
     # into a single entry that spans the complete address range.
     if ($lib eq $priorlib) {
       my $prior = pop(@{$result});
-      $start = @$prior[1];
+      if ($start gt @$prior[1]) {
+        $start = @$prior[1];
+      } else {
+        $finish = @$prior[2];
+      }
       # TODO $offset may be wrong if .text is not in the final segment.
     }
 
