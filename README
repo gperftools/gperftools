@@ -18,7 +18,7 @@ gperftools is distributed under the terms of the BSD License. Join our
 mailing list at gpeftools@googlegroups.com for updates.
 
 gperftools was original home for pprof program. But do note that
-original pprof (which is still included with gerftools) is now
+original pprof (which is still included with gperftools) is now
 deprecated in favor of golang version at https://github.com/google/pprof
 
 
