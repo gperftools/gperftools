@@ -243,13 +243,30 @@ namespace tcmalloc {
 namespace {
   using tcmalloc::EnterStacktraceScope;
   using tcmalloc::LeaveStacktraceScope;
+  // A patch for isuess 775. https://github.com/gperftools/gperftools/issues/775
+  __thread bool is_entry = false; // A TLS variable is aimming to prevent GetStackTrace*() reentry, which will introduce deadlock.
+  bool EnterStacktraceScope_reentry_check(){
+    if (is_entry){          // which means GetStackTrace*() was called and not finished.
+        //printf("[reentry detection] GetStackTrace reentry is detected. Can not do GetStackTrace() now\n");
+        return false;       // It is unable to do get stack trace because reentry will introduce deadlock.
+    }else{                  // which means GetStackTrace*() was not called before.
+        is_entry = true;    // Setting a flag will indicate GetStackTrace*() will be called.
+        return true;        // It is safe to call GetStackTrace*()
+    }
+  }
 
+  void LeaveStacktraceScope_reentry_release(){
+    is_entry = false;       // It will leave GetStackTrace*(), so clear the flag.
+  }
   class StacktraceScope {
     bool stacktrace_allowed;
   public:
     StacktraceScope() {
       stacktrace_allowed = true;
       stacktrace_allowed = EnterStacktraceScope();
+      if (stacktrace_allowed){
+        stacktrace_allowed = EnterStacktraceScope_reentry_check(); // To check whether it is a reentry of GetStackTrace*()
+      }
     }
     bool IsStacktraceAllowed() {
       return stacktrace_allowed;
@@ -257,6 +274,7 @@ namespace {
     ~StacktraceScope() {
       if (stacktrace_allowed) {
         LeaveStacktraceScope();
+        LeaveStacktraceScope_reentry_release(); // GetStackTrace*() finished.
       }
     }
   };
