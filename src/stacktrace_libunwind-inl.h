@@ -47,6 +47,8 @@ extern "C" {
 #include <libunwind.h>
 }
 #include "gperftools/stacktrace.h"
+
+#include "base/basictypes.h"
 #include "base/logging.h"
 
 // Sometimes, we can try to get a stack trace from within a stack
@@ -56,7 +58,7 @@ extern "C" {
 // recursive request, we'd end up with infinite recursion or deadlock.
 // Luckily, it's safe to ignore those subsequent traces.  In such
 // cases, we return 0 to indicate the situation.
-static __thread int recursive;
+static __thread int recursive ATTR_INITIAL_EXEC;
 
 #if defined(TCMALLOC_ENABLE_UNWIND_FROM_UCONTEXT) && (defined(__i386__) || defined(__x86_64__)) && defined(__GNU_LIBRARY__)
 #define BASE_STACKTRACE_UNW_CONTEXT_IS_UCONTEXT 1

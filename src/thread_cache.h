@@ -259,12 +259,6 @@ class ThreadCache {
   // Since we don't really use dlopen in google code -- and using dlopen
   // on a malloc replacement is asking for trouble in any case -- that's
   // a good tradeoff for us.
-#ifdef HAVE___ATTRIBUTE__
-#define ATTR_INITIAL_EXEC __attribute__ ((tls_model ("initial-exec")))
-#else
-#define ATTR_INITIAL_EXEC
-#endif
-
 #ifdef HAVE_TLS
   struct ThreadLocalData {
     ThreadCache* heap;

@@ -192,6 +192,12 @@ struct CompileAssert {
 # define ATTRIBUTE_UNUSED
 #endif
 
+#if defined(HAVE___ATTRIBUTE__) && defined(HAVE_TLS)
+#define ATTR_INITIAL_EXEC __attribute__ ((tls_model ("initial-exec")))
+#else
+#define ATTR_INITIAL_EXEC
+#endif
+
 #define COMPILE_ASSERT(expr, msg)                               \
   typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] ATTRIBUTE_UNUSED
 
