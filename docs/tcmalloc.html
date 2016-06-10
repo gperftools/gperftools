@@ -390,7 +390,7 @@ threads. The raw data used to generate these graphs (the output of the
 </table>
 
 
-<ul> 
+<ul>
   <li> TCMalloc is much more consistently scalable than PTMalloc2 - for
        all thread counts &gt;1 it achieves ~7-9 million ops/sec for small
        allocations, falling to ~2 million ops/sec for larger
@@ -609,6 +609,61 @@ tries to allocate memory from the kernel.</p>
   <td>default: false</td>
   <td>
      If true, use MAP_PRIVATE when mapping via memfs, not MAP_SHARED.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_HUGETLB_MMAP_ENABLE</code></td>
+  <td>default: false</td>
+  <td>
+     If true, try allocating huge pages from the system. Note that
+     unlike the memfs allocator, this allocator does not require
+     hugetlbfs filesystem to be mounted.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_HUGETLB_MMAP_PAGE_SIZE_KB</code></td>
+  <td>default: 0</td>
+  <td>
+     The desired huge page size to use when requesting memory from system,
+     in KiB. The allocator will select the huge page size out of the page
+     sizes supported by the system so that the selected size does not exceed
+     this value. If 0 or unset, the default huge page size will be used.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_HUGETLB_MMAP_LIMIT_MB</code></td>
+  <td>default: 0</td>
+  <td>
+     Limit total hugetlb_mmap allocation size to specified number of MiB.
+     0 means "no limit".
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_HUGETLB_MMAP_LIMIT_MB</code></td>
+  <td>default: 0</td>
+  <td>
+     Limit total hugetlb_mmap allocation size to specified number of MiB.
+     0 means "no limit".
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_HUGETLB_MMAP_ABORT_ON_FAIL</code></td>
+  <td>default: false</td>
+  <td>
+     If true, abort() whenever hugetlb_mmap allocator fails to satisfy an allocation.
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>TCMALLOC_HUGETLB_MMAP_IGNORE_MMAP_FAIL</code></td>
+  <td>default: false</td>
+  <td>
+     If true, ignore failures from mmap in the hugetlb_mmap allocator.
   </td>
 </tr>
 
