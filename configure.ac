@@ -51,8 +51,8 @@ case "$host" in
    *-darwin*) default_enable_heap_checker=no;;
 esac
 
-# Currently only backtrace works on s390x.
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __s390x__])],
+# Currently only backtrace works on s390.
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __s390__])],
                   [default_enable_libunwind=no
                    default_enable_backtrace=yes],
                   [default_enable_libunwind=yes
