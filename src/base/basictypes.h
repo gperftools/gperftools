@@ -363,7 +363,7 @@ class AssignAttributeStartEnd {
 # elif (defined(__aarch64__))
 #   define CACHELINE_ALIGNED __attribute__((aligned(64)))
     // implementation specific, Cortex-A53 and 57 should have 64 bytes
-# elif (defined(__s390x__))
+# elif (defined(__s390__))
 #   define CACHELINE_ALIGNED __attribute__((aligned(256)))
 # else
 #   error Could not determine cache line length - unknown architecture
