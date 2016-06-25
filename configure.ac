@@ -31,6 +31,8 @@ AC_SUBST(TC_VERSION_MINOR)
 AC_SUBST(TC_VERSION_PATCH)
 AC_SUBST(PACKAGE_STRING)
 
+AX_GENERATE_CHANGELOG
+
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
 # for a 'fully minimal' compile, which leaves out the stacktrace
