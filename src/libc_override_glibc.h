@@ -109,26 +109,6 @@ static void* glibc_override_memalign(size_t align, size_t size,
   return tc_memalign(align, size);
 }
 
-// We should be using __malloc_initialize_hook here, like the #if 0
-// code below.  (See http://swoolley.org/man.cgi/3/malloc_hook.)
-// However, this causes weird linker errors with programs that link
-// with -static, so instead we just assign the vars directly at
-// static-constructor time.  That should serve the same effect of
-// making sure the hooks are set before the first malloc call the
-// program makes.
-#if 0
-#include <malloc.h>  // for __malloc_hook, etc.
-void glibc_override_malloc_init_hook(void) {
-  __malloc_hook = glibc_override_malloc;
-  __realloc_hook = glibc_override_realloc;
-  __free_hook = glibc_override_free;
-  __memalign_hook = glibc_override_memalign;
-}
-
-void (* MALLOC_HOOK_MAYBE_VOLATILE __malloc_initialize_hook)(void)
-    = &glibc_override_malloc_init_hook;
-#endif
-
 void* (* MALLOC_HOOK_MAYBE_VOLATILE __malloc_hook)(size_t, const void*)
     = &glibc_override_malloc;
 void* (* MALLOC_HOOK_MAYBE_VOLATILE __realloc_hook)(void*, size_t, const void*)
