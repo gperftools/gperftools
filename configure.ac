@@ -456,16 +456,6 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && ((__GNUC__ < 4) || (__
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
 
-# glibc's __malloc_hook/etc were declared volatile starting in glibc 2.14
-AC_MSG_CHECKING([if __malloc_hook is declared volatile])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([#include <malloc.h>
-void* (* volatile __malloc_hook)(size_t, const void*) = 0;],)],
-                  [AC_DEFINE(MALLOC_HOOK_MAYBE_VOLATILE, volatile,
-                             Define to 'volatile' if __malloc_hook is declared volatile)
-                   AC_MSG_RESULT([yes])],
-                  [AC_DEFINE(MALLOC_HOOK_MAYBE_VOLATILE, )
-                   AC_MSG_RESULT([no])])
-
 # Nanosleep requires extra libraries on some architectures (solaris).
 # This sets NANOSLEEP_LIBS.  nanosleep doesn't exist on mingw, which
 # is fine for us because we don't compile libspinlock, which uses it.
