@@ -171,7 +171,7 @@ PROFILESELECTED=1 -- if set, cpu-profiler will only profile regions of code
                      surrounded with ProfilerEnable()/ProfilerDisable().
 CPUPROFILE_FREQUENCY=x-- how many interrupts/second the cpu-profiler samples.
 
-TCMALLOC_DEBUG=<level> -- the higher level, the more messages malloc emits
+PERFTOOLS_VERBOSE=<level> -- the higher level, the more messages malloc emits
 MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 
 For a full list of variables, see the documentation pages:
