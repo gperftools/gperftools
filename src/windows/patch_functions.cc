@@ -193,7 +193,7 @@ class LibcInfo {
     // These are windows-only functions from malloc.h
     k_Msize, k_Expand,
     // A MS CRT "internal" function, implemented using _calloc_impl
-    k_CallocCrt,
+    k_CallocCrt, kFreeBase,
     kNumFunctions
   };
 
@@ -276,6 +276,7 @@ template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
 
   static void* Perftools_malloc(size_t size) __THROW;
   static void Perftools_free(void* ptr) __THROW;
+  static void Perftools_free_base(void* ptr) __THROW;
   static void* Perftools_realloc(void* ptr, size_t size) __THROW;
   static void* Perftools_calloc(size_t nmemb, size_t size) __THROW;
   static void* Perftools_new(size_t size);
@@ -417,7 +418,7 @@ const char* const LibcInfo::function_name_[] = {
   NULL,  // kMangledNewArrayNothrow,
   NULL,  // kMangledDeleteNothrow,
   NULL,  // kMangledDeleteArrayNothrow,
-  "_msize", "_expand", "_calloc_crt",
+  "_msize", "_expand", "_calloc_crt", "_free_base"
 };
 
 // For mingw, I can't patch the new/delete here, because the
@@ -449,6 +450,7 @@ const GenericFnPtr LibcInfo::static_fn_[] = {
   (GenericFnPtr)&::_msize,
   (GenericFnPtr)&::_expand,
   (GenericFnPtr)&::calloc,
+  (GenericFnPtr)&::free
 };
 
 template<int T> GenericFnPtr LibcInfoWithPatchFunctions<T>::origstub_fn_[] = {
@@ -472,6 +474,7 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   (GenericFnPtr)&Perftools__msize,
   (GenericFnPtr)&Perftools__expand,
   (GenericFnPtr)&Perftools_calloc,
+  (GenericFnPtr)&Perftools_free_base
 };
 
 /*static*/ WindowsInfo::FunctionInfo WindowsInfo::function_info_[] = {
@@ -815,6 +818,16 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
   // *this* templatized instance of LibcInfo.  See "template
   // trickiness" above.
   do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFree], false, 0);
+}
+
+template<int T>
+void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW{
+  MallocHook::InvokeDeleteHook(ptr);
+  // This calls the windows free if do_free decides ptr was not
+  // allocated by tcmalloc.  Note it calls the origstub_free from
+  // *this* templatized instance of LibcInfo.  See "template
+  // trickiness" above.
+  do_free_with_callback(ptr, (void(*)(void*))origstub_fn_[kFreeBase], false, 0);
 }
 
 template<int T>
