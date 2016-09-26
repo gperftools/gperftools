@@ -532,7 +532,7 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   for (int i = 0; i < kNumFunctions; i++) {
     if (windows_fn_[i]){
       found_non_null = true;
-	  break;
+      break;
 	}
   }
   if (!found_non_null)
@@ -769,19 +769,18 @@ bool PatchAllModules() {
       }
     }
 
-	//qq325895369:on windows os,the for loop above has already pathched all runtime lib, 
-	//delete following code fragment to avoid double patching,otherwise,
-	//memory functions of tcmalloc self will alse be patched,then lead to dead loop!
-#ifndef WIN32 
-    // Now that we've dealt with the modules (dlls), update the main
-    // executable.  We do this last because PatchMainExecutableLocked
-    // wants to look at how other modules were patched.
+    //qq325895369:on windows os,the for loop above has already pathched all runtime lib, 
+    //delete following code fragment to avoid double patching,otherwise,
+    //memory functions of tcmalloc self will alse be patched,then lead to dead loop!
 
-    if (!main_executable.patched()) {
-      PatchMainExecutableLocked();
-      made_changes = true;
-    }
-#endif
+    //// Now that we've dealt with the modules (dlls), update the main
+    //// executable.  We do this last because PatchMainExecutableLocked
+    //// wants to look at how other modules were patched.
+
+    //if (!main_executable.patched()) {
+    //  PatchMainExecutableLocked();
+    //  made_changes = true;
+    //}
   }
   // TODO(csilvers): for this to be reliable, we need to also take
   // into account if we *would* have patched any modules had they not
