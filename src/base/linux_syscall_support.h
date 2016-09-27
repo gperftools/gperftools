@@ -2560,10 +2560,6 @@ struct kernel_stat {
   #endif
   #if (defined(__aarch64__)) || \
       (defined(__mips__) && (_MIPS_ISA == _MIPS_ISA_MIPS64))
-    LSS_INLINE _syscall6(void*, mmap,              void*, s,
-                         size_t,                   l, int,               p,
-                         int,                      f, int,               d,
-                         __off64_t,                o)
     LSS_INLINE int LSS_NAME(sigaction)(int signum,
                                        const struct kernel_sigaction *act,
                                        struct kernel_sigaction *oldact) {
