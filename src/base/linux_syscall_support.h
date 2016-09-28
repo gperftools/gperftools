@@ -2779,9 +2779,7 @@ struct kernel_stat {
                                LSS_SYSCALL_ARG(d), (uint64_t)(o));
     }
   #else
-    /* Remaining 64-bit architectures. */
-    LSS_INLINE _syscall6(void*, mmap, void*, addr, size_t, length, int, prot,
-                         int, flags, int, fd, int64_t, offset)
+    #error "Unsupported 64-bit architecture"
   #endif
   #if defined(__i386__) || \
       defined(__PPC__) || \
