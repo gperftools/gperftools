@@ -229,6 +229,16 @@ inline Dest bit_cast(const Source& source) {
   return dest;
 }
 
+// bit_store<Dest,Source> implements the equivalent of
+// "dest = *reinterpret_cast<Dest*>(&source)".
+//
+// This prevents undefined behavior when the dest pointer is unaligned.
+template <class Dest, class Source>
+inline void bit_store(Dest *dest, const Source *source) {
+  COMPILE_ASSERT(sizeof(Dest) == sizeof(Source), bitcasting_unequal_sizes);
+  memcpy(dest, source, sizeof(Dest));
+}
+
 #ifdef HAVE___ATTRIBUTE__
 # define ATTRIBUTE_WEAK      __attribute__((weak))
 # define ATTRIBUTE_NOINLINE  __attribute__((noinline))
