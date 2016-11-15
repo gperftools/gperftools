@@ -49,7 +49,7 @@ the above flags :-) ).
 
 HEAP PROFILER
 -------------
-See doc/heap-profiler.html for information about how to use tcmalloc's
+See docs/heap-profiler.html for information about how to use tcmalloc's
 heap profiler and analyze its output.
 
 As a quick-start, do the following after installing this package:
@@ -74,7 +74,7 @@ see INSTALL for more details.  It is not currently available on Windows.
 
 HEAP CHECKER
 ------------
-See doc/heap-checker.html for information about how to use tcmalloc's
+See docs/heap-checker.html for information about how to use tcmalloc's
 heap checker.
 
 In order to catch all heap leaks, tcmalloc must be linked *last* into
@@ -102,7 +102,7 @@ for more details.
 
 CPU PROFILER
 ------------
-See doc/cpu-profiler.html for information about how to use the CPU
+See docs/cpu-profiler.html for information about how to use the CPU
 profiler and analyze its output.
 
 As a quick-start, do the following after installing this package:
@@ -175,9 +175,9 @@ PERFTOOLS_VERBOSE=<level> -- the higher level, the more messages malloc emits
 MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 
 For a full list of variables, see the documentation pages:
-   doc/cpuprofile.html
-   doc/heapprofile.html
-   doc/heap_checker.html
+   docs/cpuprofile.html
+   docs/heapprofile.html
+   docs/heap_checker.html
 
 
 COMPILING ON NON-LINUX SYSTEMS

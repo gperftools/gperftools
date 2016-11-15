@@ -34,7 +34,7 @@
 //
 // Module for detecing heap (memory) leaks.
 //
-// For full(er) information, see doc/heap_checker.html
+// For full(er) information, see docs/heap_checker.html
 //
 // This module can be linked into programs with
 // no slowdown caused by this unless you activate the leak-checker:
