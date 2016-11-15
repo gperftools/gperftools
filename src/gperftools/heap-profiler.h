@@ -33,7 +33,7 @@
  *
  * Module for heap-profiling.
  *
- * For full(er) information, see doc/heapprofile.html
+ * For full(er) information, see docs/heapprofile.html
  *
  * This module can be linked into your program with
  * no slowdown caused by this unless you activate the profiler

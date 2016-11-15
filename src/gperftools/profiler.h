@@ -33,7 +33,7 @@
  *
  * Module for CPU profiling based on periodic pc-sampling.
  *
- * For full(er) information, see doc/cpuprofile.html
+ * For full(er) information, see docs/cpuprofile.html
  *
  * This module is linked into your program with
  * no slowdown caused by this unless you activate the profiler

@@ -34,7 +34,7 @@
 // A malloc that uses a per-thread cache to satisfy small malloc requests.
 // (The time for malloc/free of a small object drops from 300 ns to 50 ns.)
 //
-// See doc/tcmalloc.html for a high-level
+// See docs/tcmalloc.html for a high-level
 // description of how this malloc works.
 //
 // SYNCHRONIZATION

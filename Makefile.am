@@ -178,7 +178,7 @@ EXTRA_INSTALL =
 
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
-dist_doc_DATA += doc/index.html doc/designstyle.css
+dist_doc_DATA += docs/index.html docs/designstyle.css
 
 
 ### ------- library routines, in src/base
@@ -411,8 +411,8 @@ pprof_unittest: $(top_srcdir)/src/pprof
 TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
 
 ### Documentation
-dist_man_MANS = doc/pprof.1
-dist_doc_DATA += doc/pprof_remote_servers.html
+dist_man_MANS = docs/pprof.1
+dist_doc_DATA += docs/pprof_remote_servers.html
 
 # On MSVC, we need our own versions of addr2line and nm to work with pprof.
 WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcproj
@@ -742,42 +742,42 @@ thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 ### Documentation
-dist_doc_DATA += doc/tcmalloc.html \
-                 doc/overview.gif \
-                 doc/pageheap.gif \
-                 doc/spanmap.gif \
-                 doc/threadheap.gif \
-                 doc/t-test1.times.txt \
-                 doc/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
-                 doc/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
-                 doc/tcmalloc-opspersec.vs.size.1.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.12.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.16.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.2.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.20.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.3.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.4.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.5.threads.png 		\
-                 doc/tcmalloc-opspersec.vs.size.8.threads.png
+dist_doc_DATA += docs/tcmalloc.html \
+                 docs/overview.gif \
+                 docs/pageheap.gif \
+                 docs/spanmap.gif \
+                 docs/threadheap.gif \
+                 docs/t-test1.times.txt \
+                 docs/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
+                 docs/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
+                 docs/tcmalloc-opspersec.vs.size.1.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.12.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.16.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.2.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.20.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.3.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.4.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.5.threads.png 		\
+                 docs/tcmalloc-opspersec.vs.size.8.threads.png
 
 # I don't know how to say "distribute the .dot files but don't install them";
 # noinst doesn't seem to work with data.  I separate them out anyway, in case
 # one day we figure it out.  Regardless, installing the dot files isn't the
 # end of the world.
-dist_doc_DATA += doc/overview.dot \
-                 doc/pageheap.dot \
-                 doc/spanmap.dot \
-                 doc/threadheap.dot
+dist_doc_DATA += docs/overview.dot \
+                 docs/pageheap.dot \
+                 docs/spanmap.dot \
+                 docs/threadheap.dot
 
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
@@ -1159,11 +1159,11 @@ endif WITH_HEAP_CHECKER
 
 ### Documentation (above and beyond tcmalloc_minimal documentation)
 if WITH_HEAP_PROFILER
-dist_doc_DATA += doc/heapprofile.html doc/heap-example1.png
+dist_doc_DATA += docs/heapprofile.html docs/heap-example1.png
 endif WITH_HEAP_PROFILER
 
 if WITH_HEAP_CHECKER
-dist_doc_DATA += doc/heap_checker.html
+dist_doc_DATA += docs/heap_checker.html
 endif WITH_HEAP_CHECKER
 
 
@@ -1354,12 +1354,12 @@ profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
 
 
 ### Documentation
-dist_doc_DATA += doc/cpuprofile.html \
-                 doc/cpuprofile-fileformat.html \
-                 doc/pprof-test-big.gif \
-                 doc/pprof-test.gif \
-                 doc/pprof-vsnprintf-big.gif \
-                 doc/pprof-vsnprintf.gif
+dist_doc_DATA += docs/cpuprofile.html \
+                 docs/cpuprofile-fileformat.html \
+                 docs/pprof-test-big.gif \
+                 docs/pprof-test.gif \
+                 docs/pprof-vsnprintf-big.gif \
+                 docs/pprof-vsnprintf.gif
 
 endif WITH_CPU_PROFILER
 
@@ -1472,6 +1472,6 @@ EXTRA_DIST = packages/rpm.sh packages/rpm/rpm.spec packages/deb.sh packages/deb 
              $(SCRIPTS) libtool \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              src/windows/config.h src/windows/gperftools/tcmalloc.h \
-             doc/pprof.see_also src/windows/TODO \
+             docs/pprof.see_also src/windows/TODO \
              $(WINDOWS_PROJECTS) \
              src/solaris/libstdc++.la
