@@ -204,7 +204,7 @@ Output type:
    --disasm=<regexp>   Generate disassembly of matching routines
    --symbols           Print demangled symbol names found at given addresses
    --dot               Generate DOT file to stdout
-   --ps                Generate Postcript to stdout
+   --ps                Generate Postscript to stdout
    --pdf               Generate PDF to stdout
    --svg               Generate SVG to stdout
    --gif               Generate GIF to stdout
