@@ -109,7 +109,7 @@ DEFINE_bool(malloc_page_fence,
             "with a guard page following the allocation (to catch buffer "
             "overruns right when they happen).");
 DEFINE_bool(malloc_page_fence_never_reclaim,
-            EnvToBool("TCMALLOC_PAGE_FRANCE_NEVER_RECLAIM", false),
+            EnvToBool("TCMALLOC_PAGE_FENCE_NEVER_RECLAIM", false),
             "Enables making the virtual address space inaccessible "
             "upon a deallocation instead of returning it and reusing later.");
 #else
