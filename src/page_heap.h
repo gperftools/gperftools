@@ -296,7 +296,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // some unused spans.
   bool EnsureLimit(Length n, bool allowRelease = true);
 
-  bool MayMergeSpans(Span *span, Span *other);
+  Span* CheckAndHandlePreMerge(Span *span, Span *other);
 
   // Number of pages to deallocate before doing more scavenging
   int64_t scavenge_counter_;
