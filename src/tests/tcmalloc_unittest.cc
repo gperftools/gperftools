@@ -91,6 +91,7 @@
 #include "base/simple_mutex.h"
 #include "gperftools/malloc_hook.h"
 #include "gperftools/malloc_extension.h"
+#include "gperftools/nallocx.h"
 #include "gperftools/tcmalloc.h"
 #include "thread_cache.h"
 #include "system-alloc.h"
@@ -1069,6 +1070,46 @@ static void TestErrno(void) {
   EXPECT_EQ(ENOMEM, errno);
 }
 
+
+#ifndef DEBUGALLOCATION
+// Ensure that nallocx works before main.
+struct GlobalNallocx {
+  GlobalNallocx() { CHECK_GT(nallocx(99, 0), 99); }
+} global_nallocx;
+
+#if defined(__GNUC__)
+
+// 101 is the max user priority.
+static void check_global_nallocx() __attribute__((constructor(101)));
+static void check_global_nallocx() { CHECK_GT(nallocx(99, 0), 99); }
+
+#endif // __GNUC__
+
+static void TestNAllocX() {
+  for (size_t size = 0; size <= (1 << 20); size += 7) {
+    size_t rounded = nallocx(size, 0);
+    ASSERT_GE(rounded, size);
+    void* ptr = malloc(size);
+    ASSERT_EQ(rounded, MallocExtension::instance()->GetAllocatedSize(ptr));
+    free(ptr);
+  }
+}
+
+static void TestNAllocXAlignment() {
+  for (size_t size = 0; size <= (1 << 20); size += 7) {
+    for (size_t align = 0; align < 10; align++) {
+      size_t rounded = nallocx(size, MALLOCX_LG_ALIGN(align));
+      ASSERT_GE(rounded, size);
+      ASSERT_EQ(rounded % (1 << align), 0);
+      void* ptr = memalign(1 << align, size);
+      ASSERT_EQ(rounded, MallocExtension::instance()->GetAllocatedSize(ptr));
+      free(ptr);
+    }
+  }
+}
+
+#endif // !DEBUGALLOCATION
+
 static int RunAllTests(int argc, char** argv) {
   // Optional argv[1] is the seed
   AllocatorState rnd(argc > 1 ? atoi(argv[1]) : 100);
@@ -1402,6 +1443,12 @@ static int RunAllTests(int argc, char** argv) {
   TestAggressiveDecommit();
   TestSetNewMode();
   TestErrno();
+
+// GetAllocatedSize under DEBUGALLOCATION returns the size that we asked for.
+#ifndef DEBUGALLOCATION
+  TestNAllocX();
+  TestNAllocXAlignment();
+#endif
 
   return 0;
 }

@@ -111,6 +111,7 @@
 
 #include <gperftools/malloc_extension.h>
 #include <gperftools/malloc_hook.h>         // for MallocHook
+#include <gperftools/nallocx.h>
 #include "base/basictypes.h"            // for int64
 #include "base/commandlineflags.h"      // for RegisterFlagValidator, etc
 #include "base/dynamic_annotations.h"   // for RunningOnValgrind
@@ -789,15 +790,7 @@ class TCMallocImplementation : public MallocExtension {
   virtual double GetMemoryReleaseRate() {
     return FLAGS_tcmalloc_release_rate;
   }
-  virtual size_t GetEstimatedAllocatedSize(size_t size) {
-    if (size <= kMaxSize) {
-      const size_t cl = Static::sizemap()->SizeClass(size);
-      const size_t alloc_size = Static::sizemap()->ByteSizeForClass(cl);
-      return alloc_size;
-    } else {
-      return tcmalloc::pages(size) << kPageShift;
-    }
-  }
+  virtual size_t GetEstimatedAllocatedSize(size_t size);
 
   // This just calls GetSizeWithCallback, but because that's in an
   // unnamed namespace, we need to move the definition below it in the
@@ -913,6 +906,79 @@ class TCMallocImplementation : public MallocExtension {
     }
   }
 };
+
+// Returns size class that is suitable for allocation of size bytes with
+// align alignment. Or 0, if there is no such size class.
+static uint32_t size_class_with_alignment(size_t size, size_t align) {
+  if (align >= kPageSize) {
+    return 0;
+  }
+  size_t cl;
+  if (!Static::sizemap()->MaybeSizeClass(size, &cl)) {
+    return 0;
+  }
+  // Search through acceptable size classes looking for one with
+  // enough alignment.  This depends on the fact that
+  // InitSizeClasses() currently produces several size classes that
+  // are aligned at powers of two.  We will waste time and space if
+  // we miss in the size class array, but that is deemed acceptable
+  // since memalign() should be used rarely.
+  while (cl < kNumClasses &&
+         ((Static::sizemap()->class_to_size(cl) & (align - 1)) != 0)) {
+    cl++;
+  }
+  if (cl == kNumClasses) {
+    return 0;
+  }
+  return cl;
+}
+
+// nallocx slow path. Moved to a separate function because
+// ThreadCache::InitModule is not inlined which would cause nallocx to
+// become non-leaf function with stack frame and stack spills.
+static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
+  if (UNLIKELY(!Static::IsInited())) ThreadCache::InitModule();
+
+  size_t align = static_cast<size_t>(1ull << (flags & 0x3f));
+  size_t cl = size_class_with_alignment(size, align);
+  if (cl) {
+    return Static::sizemap()->ByteSizeForClass(cl);
+  } else {
+    return tcmalloc::pages(size) << kPageShift;
+  }
+}
+
+// The nallocx function allocates no memory, but it performs the same size
+// computation as the malloc function, and returns the real size of the
+// allocation that would result from the equivalent malloc function call.
+// nallocx is a malloc extension originally implemented by jemalloc:
+// http://www.unix.com/man-page/freebsd/3/nallocx/
+extern "C" size_t tc_nallocx(size_t size, int flags) {
+  if (UNLIKELY(flags != 0)) {
+    return nallocx_slow(size, flags);
+  }
+  size_t cl;
+  // size class 0 is only possible if malloc is not yet initialized
+  if (Static::sizemap()->MaybeSizeClass(size, &cl) && cl != 0) {
+    return Static::sizemap()->ByteSizeForClass(cl);
+  } else {
+    return nallocx_slow(size, 0);
+  }
+}
+
+extern "C" size_t nallocx(size_t size, int flags)
+#ifdef TC_ALIAS
+  TC_ALIAS(tc_nallocx);
+#else
+{
+  return nallocx_slow(size, flags);
+}
+#endif
+
+
+size_t TCMallocImplementation::GetEstimatedAllocatedSize(size_t size) {
+  return tc_nallocx(size, 0);
+}
 
 // The constructor allocates an object to ensure that initialization
 // runs before main(), and therefore we do not have a chance to become
@@ -1355,17 +1421,24 @@ inline size_t GetSizeWithCallback(const void* ptr,
   size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
   if (cl != 0) {
     return Static::sizemap()->ByteSizeForClass(cl);
-  } else {
-    const Span *span = Static::pageheap()->GetDescriptor(p);
-    if (UNLIKELY(span == NULL)) {  // means we do not own this memory
-      return (*invalid_getsize_fn)(ptr);
-    } else if (span->sizeclass != 0) {
-      Static::pageheap()->CacheSizeClass(p, span->sizeclass);
-      return Static::sizemap()->ByteSizeForClass(span->sizeclass);
-    } else {
-      return span->length << kPageShift;
-    }
   }
+
+  const Span *span = Static::pageheap()->GetDescriptor(p);
+  if (UNLIKELY(span == NULL)) {  // means we do not own this memory
+    return (*invalid_getsize_fn)(ptr);
+  }
+
+  if (span->sizeclass != 0) {
+    Static::pageheap()->CacheSizeClass(p, span->sizeclass);
+    return Static::sizemap()->ByteSizeForClass(span->sizeclass);
+  }
+
+  if (span->sample) {
+    size_t orig_size = reinterpret_cast<StackTrace*>(span->objects)->size;
+    return tc_nallocx(orig_size, 0);
+  }
+
+  return span->length << kPageShift;
 }
 
 // This lets you call back to a given function pointer if ptr is invalid.
@@ -1444,23 +1517,11 @@ void* do_memalign(size_t align, size_t size) {
   // Allocate at least one byte to avoid boundary conditions below
   if (size == 0) size = 1;
 
-  if (size <= kMaxSize && align < kPageSize) {
-    // Search through acceptable size classes looking for one with
-    // enough alignment.  This depends on the fact that
-    // InitSizeClasses() currently produces several size classes that
-    // are aligned at powers of two.  We will waste time and space if
-    // we miss in the size class array, but that is deemed acceptable
-    // since memalign() should be used rarely.
-    int cl = Static::sizemap()->SizeClass(size);
-    while (cl < kNumClasses &&
-           ((Static::sizemap()->class_to_size(cl) & (align - 1)) != 0)) {
-      cl++;
-    }
-    if (cl < kNumClasses) {
-      ThreadCache* heap = ThreadCache::GetCache();
-      size = Static::sizemap()->class_to_size(cl);
-      return CheckedMallocResult(heap->Allocate(size, cl));
-    }
+  uint32_t cl = size_class_with_alignment(size, align);
+  if (cl != 0) {
+    ThreadCache* heap = ThreadCache::GetCache();
+    size = Static::sizemap()->class_to_size(cl);
+    return CheckedMallocResult(heap->Allocate(size, cl));
   }
 
   // We will allocate directly from the page heap
