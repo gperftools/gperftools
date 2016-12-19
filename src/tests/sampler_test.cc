@@ -48,7 +48,7 @@
 #include <algorithm>
 #include <vector>
 #include <string>
-#include <cmath>
+#include <math.h>
 #include "base/logging.h"
 #include "base/commandlineflags.h"
 #include "sampler.h"       // The Sampler class being tested
@@ -325,28 +325,6 @@ void TestLRand64Spread() {
 }
 
 
-// Test for Fastlog2 code
-// We care about the percentage error because we're using this
-// for choosing step sizes, so "close" is relative to the size of
-// the step we would get if we used the built-in log function
-TEST(Sampler, FastLog2) {
-  tcmalloc::Sampler sampler;
-  sampler.Init(1);
-  double max_ratio_error = 0;
-  for (double d = -1021.9; d < 1; d+= 0.13124235) {
-    double e = pow(2.0, d);
-    double truelog = log(e) / log(2.0);  // log_2(e)
-    double fastlog = sampler.FastLog2(e);
-    max_ratio_error = max(max_ratio_error,
-                          max(truelog/fastlog-1, fastlog/truelog-1));
-    CHECK_LE(max_ratio_error, 0.01);
-        //        << StringPrintf("d = %f, e=%f, truelog = %f, fastlog= %f\n",
-        //                        d, e, truelog, fastlog);
-  }
-  LOG(INFO) << StringPrintf("Fastlog2: max_ratio_error = %f\n",
-                            max_ratio_error);
-}
-
 // Futher tests
 
 bool CheckMean(size_t mean, int num_samples) {
@@ -392,11 +370,11 @@ TEST(Sampler, LargeAndSmallAllocs_CombinedTest) {
   int num_iters = 128*4*8;
   // Allocate in mixed chunks
   for (int i = 0; i < num_iters; i++) {
-    if (sampler.SampleAllocation(size_big)) {
+    if (!sampler.RecordAllocation(size_big)) {
       counter_big += 1;
     }
     for (int i = 0; i < 129; i++) {
-      if (sampler.SampleAllocation(size_small)) {
+      if (!sampler.RecordAllocation(size_small)) {
         counter_small += 1;
       }
     }
@@ -540,12 +518,9 @@ TEST(Sampler, bytes_until_sample_Overflow_Underflow) {
     uint64_t largest_prng_value = (static_cast<uint64_t>(1)<<48) - 1;
     double q = (largest_prng_value >> (prng_mod_power - 26)) + 1.0;
     LOG(INFO) << StringPrintf("q = %f\n", q);
-    LOG(INFO) << StringPrintf("FastLog2(q) = %f\n", sampler.FastLog2(q));
     LOG(INFO) << StringPrintf("log2(q) = %f\n", log(q)/log(2.0));
-    // Replace min(sampler.FastLog2(q) - 26, 0.0) with
-    // (sampler.FastLog2(q) - 26.000705) when using that optimization
     uint64_t smallest_sample_step
-        = static_cast<uint64_t>(min(sampler.FastLog2(q) - 26, 0.0)
+        = static_cast<uint64_t>(min(log2(q) - 26, 0.0)
                                 * sample_scaling + 1);
     LOG(INFO) << "Smallest sample step is " << smallest_sample_step;
     uint64_t cutoff = static_cast<uint64_t>(10)
@@ -558,10 +533,8 @@ TEST(Sampler, bytes_until_sample_Overflow_Underflow) {
     uint64_t smallest_prng_value = 0;
     q = (smallest_prng_value >> (prng_mod_power - 26)) + 1.0;
     LOG(INFO) << StringPrintf("q = %f\n", q);
-    // Replace min(sampler.FastLog2(q) - 26, 0.0) with
-    // (sampler.FastLog2(q) - 26.000705) when using that optimization
     uint64_t largest_sample_step
-        = static_cast<uint64_t>(min(sampler.FastLog2(q) - 26, 0.0)
+        = static_cast<uint64_t>(min(log2(q) - 26, 0.0)
                                 * sample_scaling + 1);
     LOG(INFO) << "Largest sample step is " << largest_sample_step;
     CHECK_LE(largest_sample_step, one<<63);

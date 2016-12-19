@@ -44,6 +44,7 @@
 #include <string.h>                     // for memcpy
 #include "base/basictypes.h"  // for ASSERT
 #include "internal_logging.h"  // for ASSERT
+#include "static_vars.h"
 
 namespace tcmalloc {
 
@@ -80,7 +81,7 @@ namespace tcmalloc {
 // a geometric with mean tcmalloc_sample_parameter. (ie. the
 // probability that at least one byte in the range is marked). This
 // is accurately given by the CDF of the corresponding exponential
-// distribution : 1 - e^(X/tcmalloc_sample_parameter_)
+// distribution : 1 - e^(-X/tcmalloc_sample_parameter_)
 // Independence of the byte marking ensures independence of
 // the sampling of each allocation.
 //
@@ -100,52 +101,114 @@ namespace tcmalloc {
 // only result in a single call to PickNextSamplingPoint.
 //-------------------------------------------------------------------
 
+class SamplerTest;
+
 class PERFTOOLS_DLL_DECL Sampler {
  public:
   // Initialize this sampler.
-  // Passing a seed of 0 gives a non-deterministic
-  // seed value given by casting the object ("this")
-  void Init(uint32_t seed);
-  void Cleanup();
+  void Init(uint64_t seed);
 
-  // Record allocation of "k" bytes.  Return true iff allocation
-  // should be sampled
-  bool SampleAllocation(size_t k);
+  // Record allocation of "k" bytes.  Return true if no further work
+  // is need, and false if allocation needed to be sampled.
+  bool RecordAllocation(size_t k);
+
+  // Same as above (but faster), except:
+  // a) REQUIRES(k < std::numeric_limits<ssize_t>::max())
+  // b) if this returns false, you must call RecordAllocation
+  //    to confirm if sampling truly needed.
+  //
+  // The point of this function is to only deal with common case of no
+  // sampling and let caller (which is in malloc fast-path) to
+  // "escalate" to fuller and slower logic only if necessary.
+  bool TryRecordAllocationFast(size_t k);
 
   // Generate a geometric with mean 512K (or FLAG_tcmalloc_sample_parameter)
-  size_t PickNextSamplingPoint();
-
-  // Initialize the statics for the Sampler class
-  static void InitStatics();
+  ssize_t PickNextSamplingPoint();
 
   // Returns the current sample period
-  int GetSamplePeriod();
+  static int GetSamplePeriod();
 
   // The following are public for the purposes of testing
   static uint64_t NextRandom(uint64_t rnd_);  // Returns the next prng value
-  static double FastLog2(const double & d);  // Computes Log2(x) quickly
-  static void PopulateFastLog2Table();  // Populate the lookup table
+
+  // C++03 requires that types stored in TLS be POD.  As a result, you must
+  // initialize these members to {0, 0, false} before using this class!
+  //
+  // TODO(ahh): C++11 support will let us make these private.
+
+  // Bytes until we sample next.
+  //
+  // More specifically when bytes_until_sample_ is X, we can allocate
+  // X bytes without triggering sampling; on the (X+1)th allocated
+  // byte, the containing allocation will be sampled.
+  //
+  // Always non-negative with only very brief exceptions (see
+  // DecrementFast{,Finish}, so casting to size_t is ok.
+  ssize_t bytes_until_sample_;
+  uint64_t rnd_;  // Cheap random number generator
+  bool initialized_;
 
  private:
-  size_t        bytes_until_sample_;    // Bytes until we sample next
-  uint64_t      rnd_;                   // Cheap random number generator
-
-  // Statics for the fast log
-  // Note that this code may not depend on anything in //util
-  // hence the duplication of functionality here
-  static const int kFastlogNumBits = 10;
-  static const int kFastlogMask = (1 << kFastlogNumBits) - 1;
-  static double log_table_[1<<kFastlogNumBits];  // Constant
+  friend class SamplerTest;
+  bool RecordAllocationSlow(size_t k);
 };
 
-inline bool Sampler::SampleAllocation(size_t k) {
-  if (bytes_until_sample_ < k) {
-    bytes_until_sample_ = PickNextSamplingPoint();
-    return true;
+inline bool Sampler::RecordAllocation(size_t k) {
+  // The first time we enter this function we expect bytes_until_sample_
+  // to be zero, and we must call SampleAllocationSlow() to ensure
+  // proper initialization of static vars.
+  ASSERT(Static::IsInited() || bytes_until_sample_ == 0);
+
+  // Note that we have to deal with arbitrarily large values of k
+  // here. Thus we're upcasting bytes_until_sample_ to unsigned rather
+  // than the other way around. And this is why this code cannot be
+  // merged with DecrementFast code below.
+  if (static_cast<size_t>(bytes_until_sample_) < k) {
+    bool result = RecordAllocationSlow(k);
+    ASSERT(Static::IsInited());
+    return result;
   } else {
     bytes_until_sample_ -= k;
+    ASSERT(Static::IsInited());
+    return true;
+  }
+}
+
+inline bool Sampler::TryRecordAllocationFast(size_t k) {
+  // For efficiency reason, we're testing bytes_until_sample_ after
+  // decrementing it by k. This allows compiler to do sub <reg>, <mem>
+  // followed by conditional jump on sign. But it is correct only if k
+  // is actually smaller than largest ssize_t value. Otherwise
+  // converting k to signed value overflows.
+  //
+  // It would be great for generated code to be sub <reg>, <mem>
+  // followed by conditional jump on 'carry', which would work for
+  // arbitrary values of k, but there seem to be no way to express
+  // that in C++.
+  //
+  // Our API contract explicitly states that only small values of k
+  // are permitted. And thus it makes sense to assert on that.
+  ASSERT(static_cast<ssize_t>(k) >= 0);
+
+  bytes_until_sample_ -= static_cast<ssize_t>(k);
+  if (PREDICT_FALSE(bytes_until_sample_ < 0)) {
+    // Note, we undo sampling counter update, since we're not actually
+    // handling slow path in the "needs sampling" case (calling
+    // RecordAllocationSlow to reset counter). And we do that in order
+    // to avoid non-tail calls in malloc fast-path. See also comments
+    // on declaration inside Sampler class.
+    //
+    // volatile is used here to improve compiler's choice of
+    // instuctions. We know that this path is very rare and that there
+    // is no need to keep previous value of bytes_until_sample_ in
+    // register. This helps compiler generate slightly more efficient
+    // sub <reg>, <mem> instruction for subtraction above.
+    volatile ssize_t *ptr =
+        const_cast<volatile ssize_t *>(&bytes_until_sample_);
+    *ptr += k;
     return false;
   }
+  return true;
 }
 
 // Inline functions which are public for testing purposes
@@ -154,25 +217,12 @@ inline bool Sampler::SampleAllocation(size_t k) {
 // pRNG is: aX+b mod c with a = 0x5DEECE66D, b =  0xB, c = 1<<48
 // This is the lrand64 generator.
 inline uint64_t Sampler::NextRandom(uint64_t rnd) {
-  const uint64_t prng_mult = 0x5DEECE66DLL;
+  const uint64_t prng_mult = 0x5DEECE66DULL;
   const uint64_t prng_add = 0xB;
   const uint64_t prng_mod_power = 48;
   const uint64_t prng_mod_mask =
-                ~((~static_cast<uint64_t>(0)) << prng_mod_power);
+      ~((~static_cast<uint64_t>(0)) << prng_mod_power);
   return (prng_mult * rnd + prng_add) & prng_mod_mask;
-}
-
-// Adapted from //util/math/fastmath.[h|cc] by Noam Shazeer
-// This mimics the VeryFastLog2 code in those files
-inline double Sampler::FastLog2(const double & d) {
-  ASSERT(d>0);
-  COMPILE_ASSERT(sizeof(d) == sizeof(uint64_t), DoubleMustBe64Bits);
-  uint64_t x;
-  memcpy(&x, &d, sizeof(x));   // we depend on the compiler inlining this
-  const uint32_t x_high = x >> 32;
-  const uint32_t y = x_high >> (20 - kFastlogNumBits) & kFastlogMask;
-  const int32_t exponent = ((x_high >> 20) & 0x7FF) - 1023;
-  return exponent + log_table_[y];
 }
 
 }  // namespace tcmalloc

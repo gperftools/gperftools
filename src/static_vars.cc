@@ -102,7 +102,6 @@ void Static::InitStaticVars() {
   inited_ = true;
 
   DLL_Init(&sampled_objects_);
-  Sampler::InitStatics();
 }
 
 

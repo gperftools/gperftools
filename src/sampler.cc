@@ -37,6 +37,7 @@
 
 #include <algorithm>  // For min()
 #include <math.h>
+#include <limits>
 #include "base/commandlineflags.h"
 
 using std::min;
@@ -57,34 +58,16 @@ DEFINE_int64(tcmalloc_sample_parameter,
 
 namespace tcmalloc {
 
-// Statics for Sampler
-double Sampler::log_table_[1<<kFastlogNumBits];
-
-// Populate the lookup table for FastLog2.
-// This approximates the log2 curve with a step function.
-// Steps have height equal to log2 of the mid-point of the step.
-void Sampler::PopulateFastLog2Table() {
-  for (int i = 0; i < (1<<kFastlogNumBits); i++) {
-    log_table_[i] = (log(1.0 + static_cast<double>(i+0.5)/(1<<kFastlogNumBits))
-                     / log(2.0));
-  }
-}
-
 int Sampler::GetSamplePeriod() {
   return FLAGS_tcmalloc_sample_parameter;
 }
 
 // Run this before using your sampler
-void Sampler::Init(uint32_t seed) {
+void Sampler::Init(uint64_t seed) {
+  ASSERT(seed != 0);
+
   // Initialize PRNG
-  if (seed != 0) {
-    rnd_ = seed;
-  } else {
-    rnd_ = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(this));
-    if (rnd_ == 0) {
-      rnd_ = 1;
-    }
-  }
+  rnd_ = seed;
   // Step it forward 20 times for good measure
   for (int i = 0; i < 20; i++) {
     rnd_ = NextRandom(rnd_);
@@ -93,10 +76,7 @@ void Sampler::Init(uint32_t seed) {
   bytes_until_sample_ = PickNextSamplingPoint();
 }
 
-// Initialize the Statics for the Sampler class
-void Sampler::InitStatics() {
-  PopulateFastLog2Table();
-}
+#define MAX_SSIZE (SIZE_MAX >> 1)
 
 // Generates a geometric variable with the specified mean (512K by default).
 // This is done by generating a random number between 0 and 1 and applying
@@ -109,7 +89,17 @@ void Sampler::InitStatics() {
 // -log_e(q)/m = x
 // log_2(q) * (-log_e(2) * 1/m) = x
 // In the code, q is actually in the range 1 to 2**26, hence the -26 below
-size_t Sampler::PickNextSamplingPoint() {
+ssize_t Sampler::PickNextSamplingPoint() {
+  if (FLAGS_tcmalloc_sample_parameter <= 0) {
+    // In this case, we don't want to sample ever, and the larger a
+    // value we put here, the longer until we hit the slow path
+    // again. However, we have to support the flag changing at
+    // runtime, so pick something reasonably large (to keep overhead
+    // low) but small enough that we'll eventually start to sample
+    // again.
+    return 16 << 20;
+  }
+
   rnd_ = NextRandom(rnd_);
   // Take the top 26 bits as the random number
   // (This plus the 1<<58 sampling bound give a max possible step of
@@ -119,13 +109,26 @@ size_t Sampler::PickNextSamplingPoint() {
   // under piii debug for some binaries.
   double q = static_cast<uint32_t>(rnd_ >> (prng_mod_power - 26)) + 1.0;
   // Put the computed p-value through the CDF of a geometric.
-  // For faster performance (save ~1/20th exec time), replace
-  // min(0.0, FastLog2(q) - 26)  by  (Fastlog2(q) - 26.000705)
-  // The value 26.000705 is used rather than 26 to compensate
-  // for inaccuracies in FastLog2 which otherwise result in a
-  // negative answer.
-  return static_cast<size_t>(min(0.0, (FastLog2(q) - 26)) * (-log(2.0)
-                             * FLAGS_tcmalloc_sample_parameter) + 1);
+  double interval =
+      (log2(q) - 26) * (-log(2.0) * FLAGS_tcmalloc_sample_parameter);
+
+  // Very large values of interval overflow ssize_t. If we happen to
+  // hit such improbable condition, we simply cheat and clamp interval
+  // to largest supported value.
+  return static_cast<ssize_t>(std::min<double>(interval, MAX_SSIZE));
+}
+
+bool Sampler::RecordAllocationSlow(size_t k) {
+  if (!initialized_) {
+    initialized_ = true;
+    Init(reinterpret_cast<uintptr_t>(this));
+    if (static_cast<size_t>(bytes_until_sample_) >= k) {
+      bytes_until_sample_ -= k;
+      return true;
+    }
+  }
+  bytes_until_sample_ = PickNextSamplingPoint();
+  return FLAGS_tcmalloc_sample_parameter <= 0;
 }
 
 }  // namespace tcmalloc
