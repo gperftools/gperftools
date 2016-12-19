@@ -51,7 +51,7 @@ namespace tcmalloc {
 
   static inline bool IsEmergencyPtr(const void *_ptr) {
     uintptr_t ptr = reinterpret_cast<uintptr_t>(_ptr);
-    return UNLIKELY((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted)
+    return PREDICT_FALSE((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted)
       && emergency_arena_start_shifted;
   }
 

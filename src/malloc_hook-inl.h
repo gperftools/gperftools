@@ -123,7 +123,7 @@ inline MallocHook::NewHook MallocHook::GetNewHook() {
 }
 
 inline void MallocHook::InvokeNewHook(const void* p, size_t s) {
-  if (UNLIKELY(!base::internal::new_hooks_.empty())) {
+  if (PREDICT_FALSE(!base::internal::new_hooks_.empty())) {
     InvokeNewHookSlow(p, s);
   }
 }
@@ -134,7 +134,7 @@ inline MallocHook::DeleteHook MallocHook::GetDeleteHook() {
 }
 
 inline void MallocHook::InvokeDeleteHook(const void* p) {
-  if (UNLIKELY(!base::internal::delete_hooks_.empty())) {
+  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     InvokeDeleteHookSlow(p);
   }
 }

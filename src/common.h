@@ -44,14 +44,6 @@
 #include "internal_logging.h"  // for ASSERT, etc
 #include "base/basictypes.h"   // for LIKELY, etc
 
-#ifdef HAVE_BUILTIN_EXPECT
-#define LIKELY(x) __builtin_expect(!!(x), 1)
-#define UNLIKELY(x) __builtin_expect(!!(x), 0)
-#else
-#define LIKELY(x) (x)
-#define UNLIKELY(x) (x)
-#endif
-
 // Type that can hold a page number
 typedef uintptr_t PageID;
 
@@ -207,7 +199,7 @@ class SizeMap {
     // Use unsigned arithmetic to avoid unnecessary sign extensions.
     ASSERT(0 <= s);
     ASSERT(s <= kMaxSize);
-    if (LIKELY(s <= kMaxSmallSize)) {
+    if (PREDICT_TRUE(s <= kMaxSmallSize)) {
       return SmallSizeClass(s);
     } else {
       return LargeSizeClass(s);
@@ -236,7 +228,7 @@ class SizeMap {
 
   inline bool MaybeSizeClass(size_t size, size_t *size_class) {
     size_t class_idx;
-    if (LIKELY(size <= kMaxSmallSize)) {
+    if (PREDICT_TRUE(size <= kMaxSmallSize)) {
       class_idx = SmallSizeClass(size);
     } else if (size <= kMaxSize) {
       class_idx = LargeSizeClass(size);

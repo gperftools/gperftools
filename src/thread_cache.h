@@ -347,7 +347,7 @@ inline int ThreadCache::HeapsInUse() {
 
 inline bool ThreadCache::SampleAllocation(size_t k) {
 #ifndef NO_TCMALLOC_SAMPLES
-  return UNLIKELY(FLAGS_tcmalloc_sample_parameter > 0) && sampler_.SampleAllocation(k);
+  return PREDICT_FALSE(FLAGS_tcmalloc_sample_parameter > 0) && sampler_.SampleAllocation(k);
 #else
   return false;
 #endif
@@ -358,7 +358,7 @@ inline void* ThreadCache::Allocate(size_t size, size_t cl) {
   ASSERT(size == Static::sizemap()->ByteSizeForClass(cl));
 
   FreeList* list = &list_[cl];
-  if (UNLIKELY(list->empty())) {
+  if (PREDICT_FALSE(list->empty())) {
     return FetchFromCentralCache(cl, size);
   }
   size_ -= size;
@@ -382,7 +382,7 @@ inline void ThreadCache::Deallocate(void* ptr, size_t cl) {
   // There are two relatively uncommon things that require further work.
   // In the common case we're done, and in that case we need a single branch
   // because of the bitwise-or trick that follows.
-  if (UNLIKELY((list_headroom | size_headroom) < 0)) {
+  if (PREDICT_FALSE((list_headroom | size_headroom) < 0)) {
     if (list_headroom < 0) {
       ListTooLong(list, cl);
     }
@@ -462,7 +462,7 @@ inline void ThreadCache::ResetUseEmergencyMalloc() {
 
 inline bool ThreadCache::IsUseEmergencyMalloc() {
 #if defined(HAVE_TLS) && defined(ENABLE_EMERGENCY_MALLOC)
-  return UNLIKELY(threadlocal_data_.use_emergency_malloc);
+  return PREDICT_FALSE(threadlocal_data_.use_emergency_malloc);
 #else
   return false;
 #endif

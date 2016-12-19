@@ -117,6 +117,14 @@ const  int64 kint64min =  ( (((uint64) kint32min) << 32) | 0 );
 #define PRINTABLE_PTHREAD(pthreadt) pthreadt
 #endif
 
+#ifdef HAVE_BUILTIN_EXPECT
+#define PREDICT_TRUE(x) __builtin_expect(!!(x), 1)
+#define PREDICT_FALSE(x) __builtin_expect(!!(x), 0)
+#else
+#define PREDICT_TRUE(x) (x)
+#define PREDICT_FALSE(x) (x)
+#endif
+
 // A macro to disallow the evil copy constructor and operator= functions
 // This should be used in the private: declarations for a class
 #define DISALLOW_EVIL_CONSTRUCTORS(TypeName)    \
