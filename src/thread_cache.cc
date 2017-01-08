@@ -304,6 +304,24 @@ void ThreadCache::InitTSD() {
 ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   // Initialize per-thread data if necessary
   ThreadCache* heap = NULL;
+
+  bool seach_condition = true;
+#ifdef HAVE_TLS
+  static __thread ThreadCache** current_heap_ptr;
+  if (tsd_inited_) {
+    // In most common case we're avoiding expensive linear search
+    // through all heaps (see below). Working TLS enables faster
+    // protection from malloc recursion in pthread_setspecific
+    seach_condition = false;
+
+    if (current_heap_ptr != NULL) {
+      // we're being recursively called by pthread_setspecific below.
+      return *current_heap_ptr;
+    }
+    current_heap_ptr = &heap;
+  }
+#endif
+
   {
     SpinLockHolder h(Static::pageheap_lock());
     // On some old glibc's, and on freebsd's libc (as of freebsd 8.1),
@@ -327,10 +345,12 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
     // This may be a recursive malloc call from pthread_setspecific()
     // In that case, the heap for this thread has already been created
     // and added to the linked list.  So we search for that first.
-    for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
-      if (h->tid_ == me) {
-        heap = h;
-        break;
+    if (seach_condition) {
+      for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
+        if (h->tid_ == me) {
+          heap = h;
+          break;
+        }
       }
     }
 
@@ -351,6 +371,9 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
 #endif
     heap->in_setspecific_ = false;
   }
+#ifdef HAVE_TLS
+  current_heap_ptr = NULL;
+#endif
   return heap;
 }
 
