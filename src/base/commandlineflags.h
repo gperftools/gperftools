@@ -119,7 +119,16 @@ namespace tcmalloc {
       if (!value) {
         return def;
       }
-      return memchr("tTyY1\0", value[0], 6) != NULL;
+      switch (value[0]) {
+      case 't':
+      case 'T':
+      case 'y':
+      case 'Y':
+      case '1':
+      case '\0':
+        return true;
+      }
+      return false;
     }
 
     inline int StringToInt(const char *value, int def) {
