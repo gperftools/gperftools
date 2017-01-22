@@ -110,6 +110,40 @@
 //    Some non-trivial getenv-related functions.
 // ----------------------------------------------------------------------
 
+// we reimplement memcmp and friends to avoid depending on any glibc
+// calls too early in the process lifetime. This allows us to use
+// GetenvBeforeMain from inside ifunc handler
+static int slow_memcmp(const void *_a, const void *_b, size_t n) {
+  const uint8_t *a = reinterpret_cast<const uint8_t *>(_a);
+  const uint8_t *b = reinterpret_cast<const uint8_t *>(_b);
+  while (n-- != 0) {
+    uint8_t ac = *a++;
+    uint8_t bc = *b++;
+    if (ac != bc) {
+      if (ac < bc) {
+        return -1;
+      }
+      return 1;
+    }
+  }
+  return 0;
+}
+
+static const char *slow_memchr(const char *s, int c, size_t n) {
+  uint8_t ch = static_cast<uint8_t>(c);
+  while (n--) {
+    if (*s++ == ch) {
+      return s - 1;
+    }
+  }
+  return 0;
+}
+
+static size_t slow_strlen(const char *s) {
+  const char *s2 = slow_memchr(s, '\0', static_cast<size_t>(-1));
+  return s2 - s;
+}
+
 // It's not safe to call getenv() in the malloc hooks, because they
 // might be called extremely early, before libc is done setting up
 // correctly.  In particular, the thread library may not be done
@@ -119,15 +153,12 @@
 // /proc/self/environ has a limit of how much data it exports (around
 // 8K), so it's not an ideal solution.
 const char* GetenvBeforeMain(const char* name) {
+  const int namelen = slow_strlen(name);
 #if defined(HAVE___ENVIRON)   // if we have it, it's declared in unistd.h
   if (__environ) {            // can exist but be NULL, if statically linked
-    const int namelen = strlen(name);
     for (char** p = __environ; *p; p++) {
-      if (strlen(*p) < namelen) {
-        continue;
-      }
-      if (!memcmp(*p, name, namelen) && (*p)[namelen] == '=')  // it's a match
-        return *p + namelen+1;                                 // point after =
+      if (!slow_memcmp(*p, name, namelen) && (*p)[namelen] == '=')
+        return *p + namelen+1;
     }
     return NULL;
   }
@@ -155,14 +186,14 @@ const char* GetenvBeforeMain(const char* name) {
     }
     safeclose(fd);
   }
-  const int namelen = strlen(name);
   const char* p = envbuf;
   while (*p != '\0') {    // will happen at the \0\0 that terminates the buffer
     // proc file has the format NAME=value\0NAME=value\0NAME=value\0...
-    const char* endp = (char*)memchr(p, '\0', sizeof(envbuf) - (p - envbuf));
+    const char* endp = (char*)slow_memchr(p, '\0',
+                                          sizeof(envbuf) - (p - envbuf));
     if (endp == NULL)            // this entry isn't NUL terminated
       return NULL;
-    else if (!memcmp(p, name, namelen) && p[namelen] == '=')    // it's a match
+    else if (!slow_memcmp(p, name, namelen) && p[namelen] == '=')    // it's a match
       return p + namelen+1;      // point after =
     p = endp + 1;
   }
