@@ -366,6 +366,7 @@ class ProfileDataTest {
     RUN(CollectTwoMatching);
     RUN(CollectTwoFlush);
     RUN(StartResetRestart);
+    RUN(StartStopNoOptionsEmpty);
     return 0;
   }
 };
