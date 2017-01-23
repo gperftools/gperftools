@@ -1109,6 +1109,16 @@ void* handle_oom(malloc_fn retry_fn,
                  void* retry_arg,
                  bool from_operator,
                  bool nothrow) {
+  // we hit out of memory condition, usually if it happens we've
+  // called sbrk or mmap and failed, and thus errno is set. But there
+  // is support for setting up custom system allocator or setting up
+  // page heap size limit, in which cases errno may remain
+  // untouched.
+  //
+  // So we set errno here. C++ operator new doesn't require ENOMEM to
+  // be set, but doesn't forbid it too (and often C++ oom does happen
+  // with ENOMEM set).
+  errno = ENOMEM;
   if (!from_operator && !tc_new_mode) {
     // we're out of memory in C library function (malloc etc) and no
     // "new mode" forced on us. Just return NULL
