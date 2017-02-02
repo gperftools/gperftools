@@ -315,7 +315,7 @@ static void ExtractStats(TCMallocStats* r, uint64_t* class_count,
                          PageHeap::LargeSpanStats* large_spans) {
   r->central_bytes = 0;
   r->transfer_bytes = 0;
-  for (int cl = 0; cl < kNumClasses; ++cl) {
+  for (int cl = 0; cl < Static::num_size_classes(); ++cl) {
     const int length = Static::central_cache()[cl].length();
     const int tc_length = Static::central_cache()[cl].tc_length();
     const size_t cache_overhead = Static::central_cache()[cl].OverheadBytes();
@@ -354,7 +354,7 @@ static double PagesToMiB(uint64_t pages) {
 // WRITE stats to "out"
 static void DumpStats(TCMalloc_Printer* out, int level) {
   TCMallocStats stats;
-  uint64_t class_count[kNumClasses];
+  uint64_t class_count[kClassSizesMax];
   PageHeap::SmallSpanStats small;
   PageHeap::LargeSpanStats large;
   if (level >= 2) {
@@ -421,7 +421,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("transfer cache, and central cache, by size class\n");
     out->printf("------------------------------------------------\n");
     uint64_t cumulative = 0;
-    for (int cl = 0; cl < kNumClasses; ++cl) {
+    for (int cl = 0; cl < Static::num_size_classes(); ++cl) {
       if (class_count[cl] > 0) {
         size_t cl_size = Static::sizemap()->ByteSizeForClass(cl);
         uint64_t class_bytes = class_count[cl] * cl_size;
@@ -831,7 +831,7 @@ class TCMallocImplementation : public MallocExtension {
 
     // central class information
     int64 prev_class_size = 0;
-    for (int cl = 1; cl < kNumClasses; ++cl) {
+    for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
       size_t class_size = Static::sizemap()->ByteSizeForClass(cl);
       MallocExtension::FreeListInfo i;
       i.min_object_size = prev_class_size + 1;
@@ -851,7 +851,7 @@ class TCMallocImplementation : public MallocExtension {
     }
 
     // Add stats from per-thread heaps
-    uint64_t class_count[kNumClasses];
+    uint64_t class_count[kClassSizesMax];
     memset(class_count, 0, sizeof(class_count));
     {
       SpinLockHolder h(Static::pageheap_lock());
@@ -860,7 +860,7 @@ class TCMallocImplementation : public MallocExtension {
     }
 
     prev_class_size = 0;
-    for (int cl = 1; cl < kNumClasses; ++cl) {
+    for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
       MallocExtension::FreeListInfo i;
       i.min_object_size = prev_class_size + 1;
       i.max_object_size = Static::sizemap()->ByteSizeForClass(cl);
@@ -925,11 +925,11 @@ static uint32_t size_class_with_alignment(size_t size, size_t align) {
   // are aligned at powers of two.  We will waste time and space if
   // we miss in the size class array, but that is deemed acceptable
   // since memalign() should be used rarely.
-  while (cl < kNumClasses &&
+  while (cl < Static::num_size_classes() &&
          ((Static::sizemap()->class_to_size(cl) & (align - 1)) != 0)) {
     cl++;
   }
-  if (cl == kNumClasses) {
+  if (cl == Static::num_size_classes()) {
     return 0;
   }
   return cl;

@@ -60,11 +60,8 @@ typedef uintptr_t Length;
 // Keep in mind when using the 16 bytes alignment you can have a space
 // waste due alignment of 25%. (eg malloc of 24 bytes will get 32 bytes)
 static const size_t kMinAlign   = 8;
-// Number of classes created until reach page size 128.
-static const size_t kBaseClasses = 16;
 #else
 static const size_t kMinAlign   = 16;
-static const size_t kBaseClasses = 9;
 #endif
 
 // Using large pages speeds up the execution at a cost of larger memory use.
@@ -77,14 +74,13 @@ static const size_t kBaseClasses = 9;
 // These two factors cause a bounded increase in memory use.
 #if defined(TCMALLOC_32K_PAGES)
 static const size_t kPageShift  = 15;
-static const size_t kNumClasses = kBaseClasses + 69;
 #elif defined(TCMALLOC_64K_PAGES)
 static const size_t kPageShift  = 16;
-static const size_t kNumClasses = kBaseClasses + 73;
 #else
 static const size_t kPageShift  = 13;
-static const size_t kNumClasses = kBaseClasses + 79;
 #endif
+
+static const size_t kClassSizesMax = 96;
 
 static const size_t kMaxThreadCacheSize = 4 << 20;
 
@@ -217,17 +213,19 @@ class SizeMap {
   // amortize the lock overhead for accessing the central list.  Making
   // it too big may temporarily cause unnecessary memory wastage in the
   // per-thread free list until the scavenger cleans up the list.
-  int num_objects_to_move_[kNumClasses];
+  int num_objects_to_move_[kClassSizesMax];
 
   int NumMoveSize(size_t size);
 
   // Mapping from size class to max size storable in that class
-  int32 class_to_size_[kNumClasses];
+  int32 class_to_size_[kClassSizesMax];
 
   // Mapping from size class to number of pages to allocate at a time
-  size_t class_to_pages_[kNumClasses];
+  size_t class_to_pages_[kClassSizesMax];
 
  public:
+  size_t num_size_classes;
+
   // Constructor should do nothing since we rely on explicit Init()
   // call, which may or may not be called before the constructor runs.
   SizeMap() { }

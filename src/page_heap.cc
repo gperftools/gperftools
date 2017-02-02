@@ -68,7 +68,7 @@ PageHeap::PageHeap()
       // Start scavenging at kMaxPages list
       release_index_(kMaxPages),
       aggressive_decommit_(false) {
-  COMPILE_ASSERT(kNumClasses <= (1 << PageMapCache::kValuebits), valuebits);
+  COMPILE_ASSERT(kClassSizesMax <= (1 << PageMapCache::kValuebits), valuebits);
   DLL_Init(&large_.normal);
   DLL_Init(&large_.returned);
   for (int i = 0; i < kMaxPages; i++) {

@@ -94,7 +94,7 @@ void ThreadCache::Init(pthread_t tid) {
   prev_ = NULL;
   tid_  = tid;
   in_setspecific_ = false;
-  for (size_t cl = 0; cl < kNumClasses; ++cl) {
+  for (size_t cl = 0; cl < Static::num_size_classes(); ++cl) {
     list_[cl].Init(Static::sizemap()->class_to_size(cl));
   }
 
@@ -105,7 +105,7 @@ void ThreadCache::Init(pthread_t tid) {
 
 void ThreadCache::Cleanup() {
   // Put unused memory back into central cache
-  for (int cl = 0; cl < kNumClasses; ++cl) {
+  for (int cl = 0; cl < Static::num_size_classes(); ++cl) {
     if (list_[cl].length() > 0) {
       ReleaseToCentralCache(&list_[cl], cl, list_[cl].length());
     }
@@ -210,7 +210,7 @@ void ThreadCache::Scavenge() {
   // that situation by dropping L/2 nodes from the free list.  This
   // may not release much memory, but if so we will call scavenge again
   // pretty soon and the low-water marks will be high on that call.
-  for (int cl = 0; cl < kNumClasses; cl++) {
+  for (int cl = 0; cl < Static::num_size_classes(); cl++) {
     FreeList* list = &list_[cl];
     const int lowmark = list->lowwatermark();
     if (lowmark > 0) {
@@ -492,7 +492,7 @@ void ThreadCache::GetThreadStats(uint64_t* total_bytes, uint64_t* class_count) {
   for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
     *total_bytes += h->Size();
     if (class_count) {
-      for (int cl = 0; cl < kNumClasses; ++cl) {
+      for (int cl = 0; cl < Static::num_size_classes(); ++cl) {
         class_count[cl] += h->freelist_length(cl);
       }
     }

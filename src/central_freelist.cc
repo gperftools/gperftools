@@ -152,14 +152,14 @@ bool CentralFreeList::EvictRandomSizeClass(
     int locked_size_class, bool force) {
   static int race_counter = 0;
   int t = race_counter++;  // Updated without a lock, but who cares.
-  if (t >= kNumClasses) {
-    while (t >= kNumClasses) {
-      t -= kNumClasses;
+  if (t >= Static::num_size_classes()) {
+    while (t >= Static::num_size_classes()) {
+      t -= Static::num_size_classes();
     }
     race_counter = t;
   }
   ASSERT(t >= 0);
-  ASSERT(t < kNumClasses);
+  ASSERT(t < Static::num_size_classes());
   if (t == locked_size_class) return false;
   return Static::central_cache()[t].ShrinkCache(locked_size_class, force);
 }

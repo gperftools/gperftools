@@ -62,6 +62,8 @@ class Static {
 
   static SizeMap* sizemap() { return &sizemap_; }
 
+  static unsigned num_size_classes() { return sizemap_.num_size_classes; }
+
   //////////////////////////////////////////////////////////////////////
   // In addition to the explicit initialization comment, the variables below
   // must be protected by pageheap_lock.
@@ -100,7 +102,7 @@ class Static {
   // can run their constructors.
 
   ATTRIBUTE_HIDDEN static SizeMap sizemap_;
-  ATTRIBUTE_HIDDEN static CentralFreeListPadded central_cache_[kNumClasses];
+  ATTRIBUTE_HIDDEN static CentralFreeListPadded central_cache_[kClassSizesMax];
   ATTRIBUTE_HIDDEN static PageHeapAllocator<Span> span_allocator_;
   ATTRIBUTE_HIDDEN static PageHeapAllocator<StackTrace> stacktrace_allocator_;
   ATTRIBUTE_HIDDEN static Span sampled_objects_;

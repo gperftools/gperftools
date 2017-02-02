@@ -321,7 +321,7 @@ class ThreadCache {
   // This class is laid out with the most frequently used fields
   // first so that hot elements are placed on the same cache line.
 
-  FreeList      list_[kNumClasses];     // Array indexed by size-class
+  FreeList      list_[kClassSizesMax];     // Array indexed by size-class
 
   // Thread cache size is max_size_ - size_left_. We use such indirect
   // representation to speed up some key operations.

@@ -55,13 +55,13 @@ namespace tcmalloc {
 void CentralCacheLockAll()
 {
   Static::pageheap_lock()->Lock();
-  for (int i = 0; i < kNumClasses; ++i)
+  for (int i = 0; i < Static::num_size_classes(); ++i)
     Static::central_cache()[i].Lock();
 }
 
 void CentralCacheUnlockAll()
 {
-  for (int i = 0; i < kNumClasses; ++i)
+  for (int i = 0; i < Static::num_size_classes(); ++i)
     Static::central_cache()[i].Unlock();
   Static::pageheap_lock()->Unlock();
 }
@@ -70,7 +70,7 @@ void CentralCacheUnlockAll()
 bool Static::inited_;
 SpinLock Static::pageheap_lock_(SpinLock::LINKER_INITIALIZED);
 SizeMap Static::sizemap_;
-CentralFreeListPadded Static::central_cache_[kNumClasses];
+CentralFreeListPadded Static::central_cache_[kClassSizesMax];
 PageHeapAllocator<Span> Static::span_allocator_;
 PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
@@ -87,7 +87,7 @@ void Static::InitStaticVars() {
   bucket_allocator_.Init();
   // Do a bit of sanitizing: make sure central_cache is aligned properly
   CHECK_CONDITION((sizeof(central_cache_[0]) % 64) == 0);
-  for (int i = 0; i < kNumClasses; ++i) {
+  for (int i = 0; i < num_size_classes(); ++i) {
     central_cache_[i].Init(i);
   }
 
