@@ -34,9 +34,11 @@ struct Node {
   Node(Node *l2, int i2, Node *r2) : l(l2), r(r2), i(i2) {}
   ~Node() { delete l; delete r; }
   int check() const {
-	  if (l)
-		return l->check() + i - r->check();
-	  else return i;
+    if (l) {
+      return l->check() + i - r->check();
+    } else {
+      return i;
+    }
   }
 };
 
