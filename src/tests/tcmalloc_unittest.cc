@@ -837,6 +837,19 @@ static void CheckRangeCallback(void* ptr, base::MallocRange::Type type,
   CHECK(state.matched);
 }
 
+static void SizeClassesCallback(void*, const base::MallocSizeClass* size_class) {
+  CHECK(size_class->bytes_per_obj*(size_class->num_thread_objs + size_class->num_central_objs +
+                                   size_class->num_transfer_objs) == size_class->free_bytes);
+  CHECK(size_class->free_bytes <= size_class->alloc_bytes);
+}
+
+static void CheckSizeClassesCallback(void) {
+  static const int MB = 1048576;
+  void* a = malloc(MB);
+  MallocExtension::instance()->SizeClasses(NULL, SizeClassesCallback);
+  free(a);
+}
+
 }
 
 static bool HaveSystemRelease =
@@ -860,6 +873,10 @@ static void TestRanges() {
   free(b);
   CheckRangeCallback(a, releasedType, MB);
   CheckRangeCallback(b, base::MallocRange::FREE, MB);
+}
+
+static void TestSizeClasses() {
+  CheckSizeClassesCallback();
 }
 
 #ifndef DEBUGALLOCATION
@@ -1398,6 +1415,7 @@ static int RunAllTests(int argc, char** argv) {
 
   TestHugeThreadCache();
   TestRanges();
+  TestSizeClasses();
   TestReleaseToSystem();
   TestAggressiveDecommit();
   TestSetNewMode();
