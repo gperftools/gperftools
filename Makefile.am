@@ -553,6 +553,20 @@ tcmalloc_minimal_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_minimal_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) \
                                   liblogging.la $(PTHREAD_LIBS)
 
+# lets make sure we exerice ASSERTs in at least in statically linked
+# configuration
+TESTS += tcm_min_asserts_unittest
+tcm_min_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
+                                    src/tests/testutil.h src/tests/testutil.cc \
+                                    $(libtcmalloc_minimal_internal_la_SOURCES) \
+                                    $(libtcmalloc_minimal_la_SOURCES) \
+                                    $(TCMALLOC_UNITTEST_INCLUDES)
+tcm_min_asserts_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES -DNO_HEAP_CHECK \
+                                    $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
+tcm_min_asserts_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+tcm_min_asserts_unittest_LDADD = $(LIBSPINLOCK) libmaybe_threads.la \
+                                  liblogging.la $(PTHREAD_LIBS)
+
 TESTS += tcmalloc_minimal_large_unittest
 WINDOWS_PROJECTS += vsprojects/tcmalloc_minimal_large/tcmalloc_minimal_large_unittest.vcproj
 tcmalloc_minimal_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
@@ -999,6 +1013,19 @@ tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 # implementations define their own malloc, and we need to go on the
 # first linkline to make sure our malloc 'wins'.
 tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
+
+# # lets make sure we exerice ASSERTs in at least in statically linked
+# # configuration
+# TESTS += tcm_asserts_unittest
+# tcm_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
+#                                 src/tests/testutil.h src/tests/testutil.cc \
+#                                 $(libtcmalloc_internal_la_SOURCES) \
+#                                 $(libtcmalloc_la_SOURCES) \
+#                                 $(TCMALLOC_UNITTEST_INCLUDES)
+# tcm_asserts_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
+# tcm_asserts_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+# tcm_asserts_unittest_LDADD = $(LIBSPINLOCK) libmaybe_threads.la libstacktrace.la \
+#                              liblogging.la $(PTHREAD_LIBS)
 
 # This makes sure it's safe to link in both tcmalloc and
 # tcmalloc_minimal.  (One would never do this on purpose, but perhaps
