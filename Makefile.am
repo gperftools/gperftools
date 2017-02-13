@@ -56,17 +56,6 @@ endif HAVE_SIZED_DEALLOCATION
 # Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
 AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
 
-# We know our low-level code cannot trigger an exception.  On some
-# systems, such as cygwin, it would be disastrous if they did, because
-# the exception handler might call malloc!  If our low-level routines
-# raised an exception within the malloc, they'd deadlock.  Luckily,
-# we control all this code, and do not need exceptions for it.
-if GCC
-NO_EXCEPTIONS = -fno-exceptions
-else !GCC
-NO_EXCEPTIONS =
-endif !GCC
-
 # These are x86-specific, having to do with frame-pointers.  In
 # particular, some x86_64 systems do not insert frame pointers by
 # default (all i386 systems that I know of, do.  I don't know about
@@ -464,10 +453,6 @@ perftoolsinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
 
 ### Making the library
 
-# As we describe at the top of this file, we want to turn off exceptions
-# for all files in this library -- except tcmalloc.cc which needs them
-# to fulfill its API.  Automake doesn't allow per-file CXXFLAGS, so we need
-# to separate into two libraries.
 noinst_LTLIBRARIES += libtcmalloc_minimal_internal.la
 libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           src/internal_logging.cc \
@@ -488,7 +473,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
 libtcmalloc_minimal_internal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                            -DNO_HEAP_CHECK \
                                            -DNDEBUG \
-                                           $(AM_CXXFLAGS) $(NO_EXCEPTIONS)
+                                           $(AM_CXXFLAGS)
 libtcmalloc_minimal_internal_la_LDFLAGS =  $(AM_LDFLAGS)
 libtcmalloc_minimal_internal_la_LIBADD =  $(LIBSPINLOCK) libmaybe_threads.la
 
@@ -797,9 +782,6 @@ dist_doc_DATA += docs/overview.dot \
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
 
-# Like tcmalloc.cc, debugallocation.cc needs exceptions to fulfill its
-# API.  Luckily, we can reuse everything else from tcmalloc_minimal.
-
 if WITH_DEBUGALLOC
 
 lib_LTLIBRARIES += libtcmalloc_minimal_debug.la
@@ -942,10 +924,6 @@ endif !BUILD_EMERGENCY_MALLOC
 
 ### Making the library
 
-# As we describe at the top of this file, we want to turn off exceptions
-# for all files in this library -- except tcmalloc.cc which needs them
-# to fulfill its API.  Automake doesn't allow per-file CXXFLAGS, so we need
-# to separate into two libraries.
 noinst_LTLIBRARIES += libtcmalloc_internal.la
 libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   $(TCMALLOC_INCLUDES) \
@@ -956,7 +934,7 @@ libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   $(EMERGENCY_MALLOC_CC) \
                                   src/memory_region_map.cc
 libtcmalloc_internal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG \
-                                   $(AM_CXXFLAGS) $(NO_EXCEPTIONS) $(EMERGENCY_MALLOC_DEFINE)
+                                   $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE)
 libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 
