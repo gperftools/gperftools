@@ -750,12 +750,12 @@ class TCMallocImplementation : public MallocExtension {
 
   virtual SysAllocator* GetSystemAllocator() {
     SpinLockHolder h(Static::pageheap_lock());
-    return sys_alloc;
+    return tcmalloc_sys_alloc;
   }
 
   virtual void SetSystemAllocator(SysAllocator* alloc) {
     SpinLockHolder h(Static::pageheap_lock());
-    sys_alloc = alloc;
+    tcmalloc_sys_alloc = alloc;
   }
 
   virtual void ReleaseToSystem(size_t num_bytes) {

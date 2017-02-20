@@ -122,7 +122,7 @@ static size_t pagesize = 0;
 #endif
 
 // The current system allocator
-SysAllocator* sys_alloc = NULL;
+SysAllocator* tcmalloc_sys_alloc = NULL;
 
 // Number of bytes taken from system.
 size_t TCMalloc_SystemTaken = 0;
@@ -484,7 +484,7 @@ void InitSystemAllocators(void) {
     sdef->SetChildAllocator(mmap, 1, mmap_name);
   }
 
-  sys_alloc = tc_get_sysalloc_override(sdef);
+  tcmalloc_sys_alloc = tc_get_sysalloc_override(sdef);
 }
 
 void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
@@ -507,7 +507,7 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
     actual_size = &actual_size_storage;
   }
 
-  void* result = sys_alloc->Alloc(size, actual_size, alignment);
+  void* result = tcmalloc_sys_alloc->Alloc(size, actual_size, alignment);
   if (result != NULL) {
     CHECK_CONDITION(
       CheckAddressBits<kAddressBits>(

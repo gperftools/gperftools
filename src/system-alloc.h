@@ -84,7 +84,7 @@ extern PERFTOOLS_DLL_DECL
 void TCMalloc_SystemCommit(void* start, size_t length);
 
 // The current system allocator.
-extern PERFTOOLS_DLL_DECL SysAllocator* sys_alloc;
+extern PERFTOOLS_DLL_DECL SysAllocator* tcmalloc_sys_alloc;
 
 // Number of bytes taken from system.
 extern PERFTOOLS_DLL_DECL size_t TCMalloc_SystemTaken;

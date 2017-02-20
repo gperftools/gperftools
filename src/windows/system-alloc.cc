@@ -46,7 +46,7 @@
 static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
 
 // The current system allocator declaration
-SysAllocator* sys_alloc = NULL;
+SysAllocator* tcmalloc_sys_alloc = NULL;
 // Number of bytes taken from system.
 size_t TCMalloc_SystemTaken = 0;
 
@@ -121,7 +121,7 @@ SysAllocator* tc_get_sysalloc_override(SysAllocator *def)
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
   VirtualSysAllocator *alloc = new (virtual_space) VirtualSysAllocator();
-  sys_alloc = tc_get_sysalloc_override(alloc);
+  tcmalloc_sys_alloc = tc_get_sysalloc_override(alloc);
 }
 
 extern PERFTOOLS_DLL_DECL
@@ -134,7 +134,7 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
     system_alloc_inited = true;
   }
 
-  void* result = sys_alloc->Alloc(size, actual_size, alignment);
+  void* result = tcmalloc_sys_alloc->Alloc(size, actual_size, alignment);
   if (result != NULL) {
     if (actual_size) {
       TCMalloc_SystemTaken += *actual_size;
