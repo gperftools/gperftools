@@ -1101,7 +1101,7 @@ static void TestNAllocXAlignment() {
       size_t rounded = nallocx(size, MALLOCX_LG_ALIGN(align));
       ASSERT_GE(rounded, size);
       ASSERT_EQ(rounded % (1 << align), 0);
-      void* ptr = memalign(1 << align, size);
+      void* ptr = tc_memalign(1 << align, size);
       ASSERT_EQ(rounded, MallocExtension::instance()->GetAllocatedSize(ptr));
       free(ptr);
     }
