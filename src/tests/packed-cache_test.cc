@@ -35,24 +35,43 @@
 #include "base/logging.h"
 #include "packed-cache-inl.h"
 
-static const int kHashbits = PackedCache<64, uint64>::kHashbits;
+static const int kHashbits = PackedCache<20>::kHashbits;
+
+template <int kKeybits>
+static size_t MustGet(const PackedCache<kKeybits>& cache, uintptr_t key) {
+  size_t rv;
+  CHECK(cache.TryGet(key, &rv));
+  return rv;
+}
+
+template <int kKeybits>
+static size_t Has(const PackedCache<kKeybits>& cache, uintptr_t key) {
+  size_t dummy;
+  return cache.TryGet(key, &dummy);
+}
 
 // A basic sanity test.
 void PackedCacheTest_basic() {
-  PackedCache<32, uint32> cache(0);
-  CHECK_EQ(cache.GetOrDefault(0, 1), 0);
+  PackedCache<20> cache;
+
+  CHECK(!Has(cache, 0));
   cache.Put(0, 17);
-  CHECK(cache.Has(0));
-  CHECK_EQ(cache.GetOrDefault(0, 1), 17);
+  CHECK(Has(cache, 0));
+  CHECK_EQ(MustGet(cache, 0), 17);
+
   cache.Put(19, 99);
-  CHECK(cache.Has(0) && cache.Has(19));
-  CHECK_EQ(cache.GetOrDefault(0, 1), 17);
-  CHECK_EQ(cache.GetOrDefault(19, 1), 99);
+  CHECK_EQ(MustGet(cache, 0), 17);
+  CHECK_EQ(MustGet(cache, 19), 99);
+
   // Knock <0, 17> out by using a conflicting key.
   cache.Put(1 << kHashbits, 22);
-  CHECK(!cache.Has(0));
-  CHECK_EQ(cache.GetOrDefault(0, 1), 1);
-  CHECK_EQ(cache.GetOrDefault(1 << kHashbits, 1), 22);
+  CHECK(!Has(cache, 0));
+  CHECK_EQ(MustGet(cache, 1 << kHashbits), 22);
+
+  cache.Invalidate(19);
+  CHECK(!Has(cache, 19));
+  CHECK(!Has(cache, 0));
+  CHECK(Has(cache, 1 << kHashbits));
 }
 
 int main(int argc, char **argv) {

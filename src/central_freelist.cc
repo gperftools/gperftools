@@ -340,7 +340,7 @@ void CentralFreeList::Populate() {
   // (Instead of being eager, we could just replace any stale info
   // about this span, but that seems to be no better in practice.)
   for (int i = 0; i < npages; i++) {
-    Static::pageheap()->CacheSizeClass(span->start + i, size_class_);
+    Static::pageheap()->SetCachedSizeClass(span->start + i, size_class_);
   }
 
   // Split the block into pieces and add to the free-list

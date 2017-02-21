@@ -64,7 +64,6 @@ namespace tcmalloc {
 
 PageHeap::PageHeap()
     : pagemap_(MetaDataAlloc),
-      pagemap_cache_(0),
       scavenge_counter_(0),
       // Start scavenging at kMaxPages list
       release_index_(kMaxPages),

@@ -821,8 +821,8 @@ class TCMallocImplementation : public MallocExtension {
     if ((p >> (kAddressBits - kPageShift)) > 0) {
       return kNotOwned;
     }
-    size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-    if (cl != 0) {
+    size_t cl;
+    if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
       return kOwned;
     }
     const Span *span = Static::pageheap()->GetDescriptor(p);
@@ -1054,9 +1054,11 @@ static TCMallocGuard module_enter_exit_hook;
 
 static inline bool CheckCachedSizeClass(void *ptr) {
   PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cached_value = Static::pageheap()->GetSizeClassIfCached(p);
-  return cached_value == 0 ||
-      cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
+  size_t cached_value;
+  if (!Static::pageheap()->TryGetSizeClass(p, &cached_value)) {
+    return true;
+  }
+  return cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
 }
 
 static inline void* CheckedMallocResult(void *result) {
@@ -1065,7 +1067,7 @@ static inline void* CheckedMallocResult(void *result) {
 }
 
 static inline void* SpanToMallocResult(Span *span) {
-  Static::pageheap()->CacheSizeClass(span->start, 0);
+  Static::pageheap()->InvalidateCachedSizeClass(span->start);
   return
       CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
 }
@@ -1372,8 +1374,7 @@ ALWAYS_INLINE void do_free_helper(void* ptr,
     goto non_zero;
   }
 
-  cl = Static::pageheap()->GetSizeClassIfCached(p);
-  if (PREDICT_FALSE(cl == 0)) {
+  if (!Static::pageheap()->TryGetSizeClass(p, &cl)) {
     span = Static::pageheap()->GetDescriptor(p);
     if (PREDICT_FALSE(!span)) {
       // span can be NULL because the pointer passed in is NULL or invalid
@@ -1387,7 +1388,9 @@ ALWAYS_INLINE void do_free_helper(void* ptr,
       return;
     }
     cl = span->sizeclass;
-    Static::pageheap()->CacheSizeClass(p, cl);
+    if (cl != 0) {
+      Static::pageheap()->SetCachedSizeClass(p, cl);
+    }
   }
 
   ASSERT(ptr != NULL);
@@ -1445,8 +1448,8 @@ inline size_t GetSizeWithCallback(const void* ptr,
   if (ptr == NULL)
     return 0;
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl = Static::pageheap()->GetSizeClassIfCached(p);
-  if (cl != 0) {
+  size_t cl;
+  if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
     return Static::sizemap()->ByteSizeForClass(cl);
   }
 
@@ -1456,7 +1459,6 @@ inline size_t GetSizeWithCallback(const void* ptr,
   }
 
   if (span->sizeclass != 0) {
-    Static::pageheap()->CacheSizeClass(p, span->sizeclass);
     return Static::sizemap()->ByteSizeForClass(span->sizeclass);
   }
 

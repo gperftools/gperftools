@@ -118,6 +118,7 @@
 #include <stdint.h>                     // for uintptr_t
 #endif
 #include "base/basictypes.h"
+#include "common.h"
 #include "internal_logging.h"
 
 // A safe way of doing "(1 << n) - 1" -- without worrying about overflow
@@ -128,12 +129,14 @@
 
 // The types K and V provide upper bounds on the number of valid keys
 // and values, but we explicitly require the keys to be less than
-// 2^kKeybits and the values to be less than 2^kValuebits.  The size of
-// the table is controlled by kHashbits, and the type of each entry in
-// the cache is T.  See also the big comment at the top of the file.
-template <int kKeybits, typename T>
+// 2^kKeybits and the values to be less than 2^kValuebits.  The size
+// of the table is controlled by kHashbits, and the type of each entry
+// in the cache is uintptr_t (native machine word).  See also the big
+// comment at the top of the file.
+template <int kKeybits>
 class PackedCache {
  public:
+  typedef uintptr_t T;
   typedef uintptr_t K;
   typedef size_t V;
 #ifdef TCMALLOC_SMALL_BUT_SLOW
@@ -143,15 +146,36 @@ class PackedCache {
   static const int kHashbits = 16;
 #endif
   static const int kValuebits = 7;
-  static const bool kUseWholeKeys = kKeybits + kValuebits <= 8 * sizeof(T);
+  // one bit after value bits
+  static const int kInvalidMask = 0x80;
 
-  explicit PackedCache(V initial_value) {
-    COMPILE_ASSERT(kKeybits <= sizeof(K) * 8, key_size);
-    COMPILE_ASSERT(kValuebits <= sizeof(V) * 8, value_size);
+  explicit PackedCache() {
+    COMPILE_ASSERT(kKeybits + kValuebits + 1 <= 8 * sizeof(T), use_whole_keys);
     COMPILE_ASSERT(kHashbits <= kKeybits, hash_function);
-    COMPILE_ASSERT(kKeybits - kHashbits + kValuebits <= kTbits,
-                   entry_size_must_be_big_enough);
-    Clear(initial_value);
+    COMPILE_ASSERT(kHashbits >= kValuebits + 1, small_values_space);
+    Clear();
+  }
+
+  bool TryGet(K key, V* out) const {
+    // As with other code in this class, we touch array_ as few times
+    // as we can.  Assuming entries are read atomically then certain
+    // races are harmless.
+    ASSERT(key == (key & kKeyMask));
+    T hash = Hash(key);
+    T expected_entry = key;
+    expected_entry &= ~N_ONES_(T, kHashbits);
+    T entry = array_[hash];
+    entry ^= expected_entry;
+    if (PREDICT_FALSE(entry >= (1 << kValuebits))) {
+      return false;
+    }
+    *out = static_cast<V>(entry);
+    return true;
+  }
+
+  void Clear() {
+    // sets 'invalid' bit in every byte, include value byte
+    memset(const_cast<T* >(array_), kInvalidMask, sizeof(array_));
   }
 
   void Put(K key, V value) {
@@ -160,71 +184,24 @@ class PackedCache {
     array_[Hash(key)] = KeyToUpper(key) | value;
   }
 
-  bool Has(K key) const {
+  void Invalidate(K key) {
     ASSERT(key == (key & kKeyMask));
-    return KeyMatch(array_[Hash(key)], key);
-  }
-
-  V GetOrDefault(K key, V default_value) const {
-    // As with other code in this class, we touch array_ as few times
-    // as we can.  Assuming entries are read atomically (e.g., their
-    // type is uintptr_t on most hardware) then certain races are
-    // harmless.
-    ASSERT(key == (key & kKeyMask));
-    T entry = array_[Hash(key)];
-    return KeyMatch(entry, key) ? EntryToValue(entry) : default_value;
-  }
-
-  void Clear(V value) {
-    ASSERT(value == (value & kValueMask));
-    for (int i = 0; i < 1 << kHashbits; i++) {
-      ASSERT(kUseWholeKeys || KeyToUpper(i) == 0);
-      array_[i] = kUseWholeKeys ? (value | KeyToUpper(i)) : value;
-    }
+    array_[Hash(key)] = KeyToUpper(key) | kInvalidMask;
   }
 
  private:
-  // We are going to pack a value and the upper part of a key (or a
-  // whole key) into an entry of type T.  The UPPER type is for the
-  // upper part of a key, after the key has been masked and shifted
-  // for inclusion in an entry.
-  typedef T UPPER;
-
-  static V EntryToValue(T t) { return t & kValueMask; }
-
-  // If we have space for a whole key, we just shift it left.
-  // Otherwise kHashbits determines where in a K to find the upper
-  // part of the key, and kValuebits determines where in the entry to
-  // put it.
-  static UPPER KeyToUpper(K k) {
-    if (kUseWholeKeys) {
-      return static_cast<T>(k) << kValuebits;
-    } else {
-      const int shift = kHashbits - kValuebits;
-      // Assume kHashbits >= kValuebits.  It'd be easy to lift this assumption.
-      return static_cast<T>(k >> shift) & kUpperMask;
-    }
+  // we just wipe all hash bits out of key. I.e. clear lower
+  // kHashbits. We rely on compiler knowing value of Hash(k).
+  static T KeyToUpper(K k) {
+    return static_cast<T>(k) ^ Hash(k);
   }
 
-  static size_t Hash(K key) {
-    return static_cast<size_t>(key) & N_ONES_(size_t, kHashbits);
+  static T Hash(K key) {
+    return static_cast<T>(key) & N_ONES_(size_t, kHashbits);
   }
-
-  // Does the entry match the relevant part of the given key?
-  static bool KeyMatch(T entry, K key) {
-    return kUseWholeKeys ?
-        (entry >> kValuebits == key) :
-        ((KeyToUpper(key) ^ entry) & kUpperMask) == 0;
-  }
-
-  static const int kTbits = 8 * sizeof(T);
-  static const int kUpperbits = kUseWholeKeys ? kKeybits : kKeybits - kHashbits;
 
   // For masking a K.
   static const K kKeyMask = N_ONES_(K, kKeybits);
-
-  // For masking a T.
-  static const T kUpperMask = N_ONES_(T, kUpperbits) << kValuebits;
 
   // For masking a V or a T.
   static const V kValueMask = N_ONES_(V, kValuebits);
