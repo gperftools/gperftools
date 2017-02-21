@@ -397,6 +397,12 @@ union MemoryAligner {
   size_t s;
 } CACHELINE_ALIGNED;
 
+#if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
+#define ATTRIBUTE_HIDDEN __attribute__((visibility("hidden")))
+#else
+#define ATTRIBUTE_HIDDEN
+#endif
+
 // The following enum should be used only as a constructor argument to indicate
 // that the variable has static storage class, and that the constructor should
 // do nothing to its state.  It indicates to the reader that it is legal to
