@@ -165,13 +165,6 @@ int AlignmentForSize(size_t size);
 // Size-class information + mapping
 class SizeMap {
  private:
-  // Number of objects to move between a per-thread list and a central
-  // list in one shot.  We want this to be not too small so we can
-  // amortize the lock overhead for accessing the central list.  Making
-  // it too big may temporarily cause unnecessary memory wastage in the
-  // per-thread free list until the scavenger cleans up the list.
-  int num_objects_to_move_[kNumClasses];
-
   //-------------------------------------------------------------------
   // Mapping from size to size_class and vice versa
   //-------------------------------------------------------------------
@@ -218,6 +211,13 @@ class SizeMap {
       return LargeSizeClass(s);
     }
   }
+
+  // Number of objects to move between a per-thread list and a central
+  // list in one shot.  We want this to be not too small so we can
+  // amortize the lock overhead for accessing the central list.  Making
+  // it too big may temporarily cause unnecessary memory wastage in the
+  // per-thread free list until the scavenger cleans up the list.
+  int num_objects_to_move_[kNumClasses];
 
   int NumMoveSize(size_t size);
 
