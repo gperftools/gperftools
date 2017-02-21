@@ -125,14 +125,27 @@ static const int kMaxDynamicFreeListLength = 8192;
 
 static const Length kMaxValidPages = (~static_cast<Length>(0)) >> kPageShift;
 
-#if defined __x86_64__
-// All current and planned x86_64 processors only look at the lower 48 bits
-// in virtual to physical address translation.  The top 16 are thus unused.
-// TODO(rus): Under what operating systems can we increase it safely to 17?
-// This lets us use smaller page maps.  On first allocation, a 36-bit page map
-// uses only 96 KB instead of the 4.5 MB used by a 52-bit page map.
+#if __aarch64__ || __x86_64__
+// All current x86_64 processors only look at the lower 48 bits in
+// virtual to physical address translation. The top 16 are all same as
+// bit 47. And bit 47 value 1 reserved for kernel-space addresses in
+// practice. So it is actually 47 usable bits from malloc
+// perspective. This lets us use faster two level page maps on this
+// architecture.
+//
+// There is very similar story on 64-bit arms except it has full 48
+// bits for user-space. Because of that, and because in principle OSes
+// can start giving some of highest-bit-set addresses to user-space,
+// we don't bother to limit x86 to 47 bits.
+//
+// As of now there are published plans to add more bits to x86-64
+// virtual address space, but since 48 bits has been norm for long
+// time and lots of software is relying on it, it will be opt-in from
+// OS perspective. So we can keep doing "48 bits" at least for now.
 static const int kAddressBits = (sizeof(void*) < 8 ? (8 * sizeof(void*)) : 48);
 #else
+// mipsen and ppcs have more general hardware so we have to support
+// full 64-bits of addresses.
 static const int kAddressBits = 8 * sizeof(void*);
 #endif
 
