@@ -403,6 +403,14 @@ union MemoryAligner {
 #define ATTRIBUTE_HIDDEN
 #endif
 
+#if defined(__GNUC__)
+#define ATTRIBUTE_ALWAYS_INLINE __attribute__((always_inline))
+#elif defined(_MSC_VER)
+#define ATTRIBUTE_ALWAYS_INLINE __forceinline
+#else
+#define ATTRIBUTE_ALWAYS_INLINE
+#endif
+
 // The following enum should be used only as a constructor argument to indicate
 // that the variable has static storage class, and that the constructor should
 // do nothing to its state.  It indicates to the reader that it is legal to
