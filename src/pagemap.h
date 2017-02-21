@@ -119,19 +119,18 @@ class TCMalloc_PageMap1 {
 template <int BITS>
 class TCMalloc_PageMap2 {
  private:
-  // Put 32 entries in the root and (2^BITS)/32 entries in each leaf.
-  static const int ROOT_BITS = 5;
-  static const int ROOT_LENGTH = 1 << ROOT_BITS;
-
-  static const int LEAF_BITS = BITS - ROOT_BITS;
+  static const int LEAF_BITS = (BITS + 1) / 2;
   static const int LEAF_LENGTH = 1 << LEAF_BITS;
+
+  static const int ROOT_BITS = BITS - LEAF_BITS;
+  static const int ROOT_LENGTH = 1 << ROOT_BITS;
 
   // Leaf node
   struct Leaf {
     void* values[LEAF_LENGTH];
   };
 
-  Leaf* root_[ROOT_LENGTH];             // Pointers to 32 child nodes
+  Leaf* root_[ROOT_LENGTH];             // Pointers to child nodes
   void* (*allocator_)(size_t);          // Memory allocator
 
  public:
@@ -182,11 +181,13 @@ class TCMalloc_PageMap2 {
 
   void PreallocateMoreMemory() {
     // Allocate enough to keep track of all possible pages
-    Ensure(0, 1 << BITS);
+    if (BITS < 20) {
+      Ensure(0, Number(1) << BITS);
+    }
   }
 
   void* Next(Number k) const {
-    while (k < (1 << BITS)) {
+    while (k < (Number(1) << BITS)) {
       const Number i1 = k >> LEAF_BITS;
       Leaf* leaf = root_[i1];
       if (leaf != NULL) {
