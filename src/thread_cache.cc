@@ -70,21 +70,20 @@ int ThreadCache::thread_heap_count_ = 0;
 ThreadCache* ThreadCache::next_memory_steal_ = NULL;
 #ifdef HAVE_TLS
 __thread ThreadCache::ThreadLocalData ThreadCache::threadlocal_data_
-    ATTR_INITIAL_EXEC
-    = {0, 0};
+    ATTR_INITIAL_EXEC CACHELINE_ALIGNED;
 #endif
 bool ThreadCache::tsd_inited_ = false;
 pthread_key_t ThreadCache::heap_key_;
 
 void ThreadCache::Init(pthread_t tid) {
-  size_ = 0;
+  size_left_ = 0;
 
   max_size_ = 0;
   IncreaseCacheLimitLocked();
   if (max_size_ == 0) {
     // There isn't enough memory to go around.  Just give the minimum to
     // this thread.
-    max_size_ = kMinThreadCacheSize;
+    SetMaxSize(kMinThreadCacheSize);
 
     // Take unclaimed_cache_space_ negative.
     unclaimed_cache_space_ -= kMinThreadCacheSize;
@@ -96,7 +95,7 @@ void ThreadCache::Init(pthread_t tid) {
   tid_  = tid;
   in_setspecific_ = false;
   for (size_t cl = 0; cl < kNumClasses; ++cl) {
-    list_[cl].Init();
+    list_[cl].Init(Static::sizemap()->class_to_size(cl));
   }
 
   uint32_t sampler_seed;
@@ -127,7 +126,7 @@ void* ThreadCache::FetchFromCentralCache(size_t cl, int32_t byte_size) {
 
   ASSERT((start == NULL) == (fetch_count == 0));
   if (--fetch_count >= 0) {
-    size_ += byte_size * fetch_count;
+    size_left_ -= byte_size * fetch_count;
     list->PushRange(fetch_count, SLL_Next(start), end);
   }
 
@@ -153,6 +152,8 @@ void* ThreadCache::FetchFromCentralCache(size_t cl, int32_t byte_size) {
 }
 
 void ThreadCache::ListTooLong(FreeList* list, size_t cl) {
+  size_left_ -= list->object_size();
+
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
   ReleaseToCentralCache(list, cl, batch_size);
 
@@ -174,6 +175,10 @@ void ThreadCache::ListTooLong(FreeList* list, size_t cl) {
       list->set_length_overages(0);
     }
   }
+
+  if (PREDICT_FALSE(size_left_ < 0)) {
+    Scavenge();
+  }
 }
 
 // Remove some objects of class "cl" from thread heap and add to central cache
@@ -194,7 +199,7 @@ void ThreadCache::ReleaseToCentralCache(FreeList* src, size_t cl, int N) {
   void *tail, *head;
   src->PopRange(N, &head, &tail);
   Static::central_cache()[cl].InsertRange(head, tail, N);
-  size_ -= delta_bytes;
+  size_left_ += delta_bytes;
 }
 
 // Release idle memory to the central cache
@@ -240,7 +245,7 @@ void ThreadCache::IncreaseCacheLimitLocked() {
   if (unclaimed_cache_space_ > 0) {
     // Possibly make unclaimed_cache_space_ negative.
     unclaimed_cache_space_ -= kStealAmount;
-    max_size_ += kStealAmount;
+    SetMaxSize(max_size_ + kStealAmount);
     return;
   }
   // Don't hold pageheap_lock too long.  Try to steal from 10 other
@@ -258,8 +263,8 @@ void ThreadCache::IncreaseCacheLimitLocked() {
         next_memory_steal_->max_size_ <= kMinThreadCacheSize) {
       continue;
     }
-    next_memory_steal_->max_size_ -= kStealAmount;
-    max_size_ += kStealAmount;
+    next_memory_steal_->SetMaxSize(next_memory_steal_->max_size_ - kStealAmount);
+    SetMaxSize(max_size_ + kStealAmount);
 
     next_memory_steal_ = next_memory_steal_->next_;
     return;
@@ -302,6 +307,10 @@ void ThreadCache::InitTSD() {
 }
 
 ThreadCache* ThreadCache::CreateCacheIfNecessary() {
+  if (!tsd_inited_) {
+    InitModule();
+  }
+
   // Initialize per-thread data if necessary
   ThreadCache* heap = NULL;
 
@@ -367,7 +376,7 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
 #ifdef HAVE_TLS
     // Also keep a copy in __thread for faster retrieval
     threadlocal_data_.heap = heap;
-    SetMinSizeForSlowPath(kMaxSize + 1);
+    threadlocal_data_.fast_path_heap = heap;
 #endif
     heap->in_setspecific_ = false;
   }
@@ -406,7 +415,7 @@ void ThreadCache::BecomeIdle() {
 #ifdef HAVE_TLS
   // Also update the copy in __thread
   threadlocal_data_.heap = NULL;
-  SetMinSizeForSlowPath(0);
+  threadlocal_data_.fast_path_heap = NULL;
 #endif
   heap->in_setspecific_ = false;
   if (GetThreadHeap() == heap) {
@@ -433,7 +442,7 @@ void ThreadCache::DestroyThreadCache(void* ptr) {
 #ifdef HAVE_TLS
   // Prevent fast path of GetThreadHeap() from returning heap.
   threadlocal_data_.heap = NULL;
-  SetMinSizeForSlowPath(0);
+  threadlocal_data_.fast_path_heap = NULL;
 #endif
   DeleteCache(reinterpret_cast<ThreadCache*>(ptr));
 }
@@ -471,7 +480,7 @@ void ThreadCache::RecomputePerThreadCacheSize() {
     // Increasing the total cache size should not circumvent the
     // slow-start growth of max_size_.
     if (ratio < 1.0) {
-        h->max_size_ = static_cast<size_t>(h->max_size_ * ratio);
+      h->SetMaxSize(h->max_size_ * ratio);
     }
     claimed += h->max_size_;
   }
@@ -500,3 +509,4 @@ void ThreadCache::set_overall_thread_cache_size(size_t new_size) {
 }
 
 }  // namespace tcmalloc
+

@@ -50,14 +50,26 @@ inline void SLL_SetNext(void *t, void *n) {
 }
 
 inline void SLL_Push(void **list, void *element) {
-  SLL_SetNext(element, *list);
+  void *next = *list;
   *list = element;
+  SLL_SetNext(element, next);
 }
 
 inline void *SLL_Pop(void **list) {
   void *result = *list;
   *list = SLL_Next(*list);
   return result;
+}
+
+inline bool SLL_TryPop(void **list, void **rv) {
+  void *result = *list;
+  if (!result) {
+    return false;
+  }
+  void *next = SLL_Next(*list);
+  *list = next;
+  *rv = result;
+  return true;
 }
 
 // Remove N elements from a linked list to which head points.  head will be

@@ -74,10 +74,6 @@ class ThreadCache {
   enum { have_tls = false };
 #endif
 
-  // All ThreadCache objects are kept in a linked list (for stats collection)
-  ThreadCache* next_;
-  ThreadCache* prev_;
-
   void Init(pthread_t tid);
   void Cleanup();
 
@@ -85,7 +81,7 @@ class ThreadCache {
   int freelist_length(size_t cl) const { return list_[cl].length(); }
 
   // Total byte size in cache
-  size_t Size() const { return size_; }
+  size_t Size() const { return max_size_ - size_left_; }
 
   // Allocate an object of the given size and class. The size given
   // must be the same as the size of the class in the size map.
@@ -100,22 +96,21 @@ class ThreadCache {
   // should be sampled
   bool SampleAllocation(size_t k);
 
+  bool TryRecordAllocationFast(size_t k);
+
   static void         InitModule();
   static void         InitTSD();
   static ThreadCache* GetThreadHeap();
   static ThreadCache* GetCache();
   static ThreadCache* GetCacheIfPresent();
+  static ThreadCache* GetFastPathCache();
   static ThreadCache* GetCacheWhichMustBePresent();
   static ThreadCache* CreateCacheIfNecessary();
   static void         BecomeIdle();
   static void         BecomeTemporarilyIdle();
-  static size_t       MinSizeForSlowPath();
-  static void         SetMinSizeForSlowPath(size_t size);
   static void         SetUseEmergencyMalloc();
   static void         ResetUseEmergencyMalloc();
   static bool         IsUseEmergencyMalloc();
-
-  static bool IsFastPathAllowed() { return MinSizeForSlowPath() != 0; }
 
   // Return the number of thread heaps in use.
   static inline int HeapsInUse();
@@ -157,18 +152,25 @@ class ThreadCache {
     uint16_t length_overages_;
 #endif
 
+    int32_t size_;
+
    public:
-    void Init() {
+    void Init(size_t size) {
       list_ = NULL;
       length_ = 0;
       lowater_ = 0;
       max_length_ = 1;
       length_overages_ = 0;
+      size_ = size;
     }
 
     // Return current length of list
     size_t length() const {
       return length_;
+    }
+
+    int32_t object_size() const {
+      return size_;
     }
 
     // Return the maximum length of the list.
@@ -200,9 +202,11 @@ class ThreadCache {
     int lowwatermark() const { return lowater_; }
     void clear_lowwatermark() { lowater_ = length_; }
 
-    void Push(void* ptr) {
+    uint32_t Push(void* ptr) {
+      uint32_t length = length_ + 1;
       SLL_Push(&list_, ptr);
-      length_++;
+      length_ = length;
+      return length;
     }
 
     void* Pop() {
@@ -210,6 +214,15 @@ class ThreadCache {
       length_--;
       if (length_ < lowater_) lowater_ = length_;
       return SLL_Pop(&list_);
+    }
+
+    bool TryPop(void **rv) {
+      if (SLL_TryPop(&list_, rv)) {
+        length_--;
+        if (PREDICT_FALSE(length_ < lowater_)) lowater_ = length_;
+        return true;
+      }
+      return false;
     }
 
     void* Next() {
@@ -233,12 +246,16 @@ class ThreadCache {
   // also adds some objects of that size class to this thread cache.
   void* FetchFromCentralCache(size_t cl, int32_t byte_size);
 
+  void ListTooLong(void* ptr, size_t cl);
+
   // Releases some number of items from src.  Adjusts the list's max_length
   // to eventually converge on num_objects_to_move(cl).
   void ListTooLong(FreeList* src, size_t cl);
 
   // Releases N items from this thread cache.
   void ReleaseToCentralCache(FreeList* src, size_t cl, int N);
+
+  void SetMaxSize(int32 new_max_size);
 
   // Increase max_size_ by reducing unclaimed_cache_space_ or by
   // reducing the max_size_ of some other thread.  In both cases,
@@ -261,19 +278,13 @@ class ThreadCache {
   // a good tradeoff for us.
 #ifdef HAVE_TLS
   struct ThreadLocalData {
+    ThreadCache* fast_path_heap;
     ThreadCache* heap;
-    // min_size_for_slow_path is 0 if heap is NULL or kMaxSize + 1 otherwise.
-    // The latter is the common case and allows allocation to be faster
-    // than it would be otherwise: typically a single branch will
-    // determine that the requested allocation is no more than kMaxSize
-    // and we can then proceed, knowing that global and thread-local tcmalloc
-    // state is initialized.
-    size_t min_size_for_slow_path;
-
     bool use_emergency_malloc;
-    size_t old_min_size_for_slow_path;
   };
-  static __thread ThreadLocalData threadlocal_data_ ATTR_INITIAL_EXEC;
+  static __thread ThreadLocalData threadlocal_data_
+    CACHELINE_ALIGNED ATTR_INITIAL_EXEC;
+
 #endif
 
   // Thread-specific key.  Initialization here is somewhat tricky
@@ -281,7 +292,7 @@ class ThreadCache {
   // is in a good enough state to handle pthread_keycreate().
   // Therefore, we use TSD keys only after tsd_inited is set to true.
   // Until then, we use a slow path to get the heap object.
-  static bool tsd_inited_;
+  static ATTRIBUTE_HIDDEN bool tsd_inited_;
   static pthread_key_t heap_key_;
 
   // Linked list of heap objects.  Protected by Static::pageheap_lock.
@@ -310,13 +321,17 @@ class ThreadCache {
   // This class is laid out with the most frequently used fields
   // first so that hot elements are placed on the same cache line.
 
-  size_t        size_;                  // Combined size of data
-  size_t        max_size_;              // size_ > max_size_ --> Scavenge()
+  FreeList      list_[kNumClasses];     // Array indexed by size-class
+
+  // Thread cache size is max_size_ - size_left_. We use such indirect
+  // representation to speed up some key operations.
+  //
+  // I.e. size_left_ < 0 --> Scavenge()
+  int32         size_left_;
+  int32         max_size_;
 
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
-
-  FreeList      list_[kNumClasses];     // Array indexed by size-class
 
   pthread_t     tid_;                   // Which thread owns it
   bool          in_setspecific_;        // In call to pthread_setspecific?
@@ -329,6 +344,12 @@ class ThreadCache {
 
   static void DeleteCache(ThreadCache* heap);
   static void RecomputePerThreadCacheSize();
+
+public:
+
+  // All ThreadCache objects are kept in a linked list (for stats collection)
+  ThreadCache* next_;
+  ThreadCache* prev_;
 
   // Ensure that this class is cacheline-aligned. This is critical for
   // performance, as false sharing would negate many of the benefits
@@ -345,48 +366,46 @@ inline int ThreadCache::HeapsInUse() {
   return threadcache_allocator.inuse();
 }
 
-inline bool ThreadCache::SampleAllocation(size_t k) {
-#ifndef NO_TCMALLOC_SAMPLES
-  return !sampler_.RecordAllocation(k);
-#else
-  return false;
-#endif
-}
-
 inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, size_t cl) {
-  ASSERT(size <= kMaxSize);
-  ASSERT(size == Static::sizemap()->ByteSizeForClass(cl));
-
   FreeList* list = &list_[cl];
-  if (PREDICT_FALSE(list->empty())) {
+
+#ifdef NO_TCMALLOC_SAMPLES
+  size = list->object_size();
+#endif
+
+  ASSERT(size <= kMaxSize);
+  ASSERT(size != 0);
+  ASSERT(size == 0 || size == Static::sizemap()->ByteSizeForClass(cl));
+
+  void* rv;
+  if (!list->TryPop(&rv)) {
     return FetchFromCentralCache(cl, size);
   }
-  size_ -= size;
-  return list->Pop();
+  size_left_ += size;
+  return rv;
 }
 
-inline void ThreadCache::Deallocate(void* ptr, size_t cl) {
+inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, size_t cl) {
+  ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
-  size_ += Static::sizemap()->ByteSizeForClass(cl);
-  ssize_t size_headroom = max_size_ - size_ - 1;
-
   // This catches back-to-back frees of allocs in the same size
   // class. A more comprehensive (and expensive) test would be to walk
   // the entire freelist. But this might be enough to find some bugs.
   ASSERT(ptr != list->Next());
 
-  list->Push(ptr);
-  ssize_t list_headroom =
-      static_cast<ssize_t>(list->max_length()) - list->length();
+  int32_t size_left = size_left_;
+  uint32_t length = list->Push(ptr);
 
-  // There are two relatively uncommon things that require further work.
-  // In the common case we're done, and in that case we need a single branch
-  // because of the bitwise-or trick that follows.
-  if (PREDICT_FALSE((list_headroom | size_headroom) < 0)) {
-    if (list_headroom < 0) {
-      ListTooLong(list, cl);
-    }
-    if (size_ >= max_size_) Scavenge();
+  if (PREDICT_FALSE(length > list->max_length())) {
+    ListTooLong(list, cl);
+    return;
+  }
+
+  int32_t object_size = list->object_size();
+  size_left_ = size_left -= object_size;
+
+  if (PREDICT_FALSE(size_left < 0)) {
+    Scavenge();
   }
 }
 
@@ -411,12 +430,14 @@ inline ThreadCache* ThreadCache::GetCacheWhichMustBePresent() {
 }
 
 inline ThreadCache* ThreadCache::GetCache() {
+#ifdef HAVE_TLS
+  ThreadCache* ptr = GetThreadHeap();
+#else
   ThreadCache* ptr = NULL;
-  if (!tsd_inited_) {
-    InitModule();
-  } else {
+  if (PREDICT_TRUE(tsd_inited_)) {
     ptr = GetThreadHeap();
   }
+#endif
   if (ptr == NULL) ptr = CreateCacheIfNecessary();
   return ptr;
 }
@@ -426,36 +447,30 @@ inline ThreadCache* ThreadCache::GetCache() {
 // already cleaned up the cache for this thread.
 inline ThreadCache* ThreadCache::GetCacheIfPresent() {
 #ifndef HAVE_TLS
-  if (!tsd_inited_) return NULL;
+  if (PREDICT_FALSE(!tsd_inited_)) return NULL;
 #endif
   return GetThreadHeap();
 }
 
-inline size_t ThreadCache::MinSizeForSlowPath() {
-#ifdef HAVE_TLS
-  return threadlocal_data_.min_size_for_slow_path;
+inline ThreadCache* ThreadCache::GetFastPathCache() {
+#ifndef HAVE_TLS
+  return GetCacheIfPresent();
 #else
-  return 0;
-#endif
-}
-
-inline void ThreadCache::SetMinSizeForSlowPath(size_t size) {
-#ifdef HAVE_TLS
-  threadlocal_data_.min_size_for_slow_path = size;
+  return threadlocal_data_.fast_path_heap;
 #endif
 }
 
 inline void ThreadCache::SetUseEmergencyMalloc() {
 #ifdef HAVE_TLS
-  threadlocal_data_.old_min_size_for_slow_path = threadlocal_data_.min_size_for_slow_path;
-  threadlocal_data_.min_size_for_slow_path = 0;
+  threadlocal_data_.fast_path_heap = NULL;
   threadlocal_data_.use_emergency_malloc = true;
 #endif
 }
 
 inline void ThreadCache::ResetUseEmergencyMalloc() {
 #ifdef HAVE_TLS
-  threadlocal_data_.min_size_for_slow_path = threadlocal_data_.old_min_size_for_slow_path;
+  ThreadCache *heap = threadlocal_data_.heap;
+  threadlocal_data_.fast_path_heap = heap;
   threadlocal_data_.use_emergency_malloc = false;
 #endif
 }
@@ -468,6 +483,33 @@ inline bool ThreadCache::IsUseEmergencyMalloc() {
 #endif
 }
 
+inline void ThreadCache::SetMaxSize(int32 new_max_size) {
+  int32 size = Size();
+  max_size_ = new_max_size;
+  size_left_ = max_size_ - size;
+}
+
+#ifndef NO_TCMALLOC_SAMPLES
+
+inline bool ThreadCache::SampleAllocation(size_t k) {
+  return !sampler_.RecordAllocation(k);
+}
+
+inline bool ThreadCache::TryRecordAllocationFast(size_t k) {
+  return sampler_.TryRecordAllocationFast(k);
+}
+
+#else
+
+inline bool ThreadCache::SampleAllocation(size_t k) {
+  return false;
+}
+
+inline bool ThreadCache::TryRecordAllocationFast(size_t k) {
+  return true;
+}
+
+#endif
 
 }  // namespace tcmalloc
 

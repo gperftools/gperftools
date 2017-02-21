@@ -805,9 +805,7 @@ bool PatchAllModules() {
 
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
-  void* result = do_malloc_or_cpp_alloc(size);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
+  return malloc_fast_path<tcmalloc::allocate_full_malloc_oom>(size);
 }
 
 template<int T>
@@ -860,16 +858,12 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(
 
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new(size_t size) {
-  void* p = cpp_alloc(size, false);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
+  return malloc_fast_path<tcmalloc::allocate_full_cpp_throw_oom>(size);
 }
 
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
-  void* p = cpp_alloc(size, false);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
+  return malloc_fast_path<tcmalloc::allocate_full_cpp_throw_oom>(size);
 }
 
 template<int T>
@@ -887,17 +881,13 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void *p) {
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new_nothrow(
     size_t size, const std::nothrow_t&) __THROW {
-  void* p = cpp_alloc(size, true);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
+  return malloc_fast_path<tcmalloc::allocate_full_cpp_nothrow_oom>(size);
 }
 
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(
     size_t size, const std::nothrow_t&) __THROW {
-  void* p = cpp_alloc(size, true);
-  MallocHook::InvokeNewHook(p, size);
-  return p;
+  return malloc_fast_path<tcmalloc::allocate_full_cpp_nothrow_oom>(size);
 }
 
 template<int T>
