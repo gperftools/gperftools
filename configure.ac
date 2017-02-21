@@ -358,9 +358,11 @@ AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                [AC_LANG_PUSH(C++)
                 OLD_CXXFLAGS="$CXXFLAGS"
                 CXXFLAGS="$CXXFLAGS -fsized-deallocation"
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(,)],
-                                  perftools_cv_sized_deallocation_result=yes,
-                                  perftools_cv_sized_deallocation_result=no)
+                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+                    [[#include <new>]],
+                    [[(::operator delete)(0, 256)]])],
+                 perftools_cv_sized_deallocation_result=yes,
+                 perftools_cv_sized_deallocation_result=no)
                 CXXFLAGS="$OLD_CXXFLAGS"
                 AC_LANG_POP(C++)])
 
