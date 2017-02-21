@@ -231,7 +231,7 @@ class ThreadCache {
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.
-  void* FetchFromCentralCache(size_t cl, size_t byte_size);
+  void* FetchFromCentralCache(size_t cl, int32_t byte_size);
 
   // Releases some number of items from src.  Adjusts the list's max_length
   // to eventually converge on num_objects_to_move(cl).

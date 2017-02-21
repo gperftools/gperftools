@@ -434,12 +434,12 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     uint64_t cumulative = 0;
     for (int cl = 0; cl < kNumClasses; ++cl) {
       if (class_count[cl] > 0) {
-        uint64_t class_bytes =
-            class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
+        size_t cl_size = Static::sizemap()->ByteSizeForClass(cl);
+        uint64_t class_bytes = class_count[cl] * cl_size;
         cumulative += class_bytes;
         out->printf("class %3d [ %8" PRIuS " bytes ] : "
                 "%8" PRIu64 " objs; %5.1f MiB; %5.1f cum MiB\n",
-                cl, Static::sizemap()->ByteSizeForClass(cl),
+                cl, cl_size,
                 class_count[cl],
                 class_bytes / MiB,
                 cumulative / MiB);

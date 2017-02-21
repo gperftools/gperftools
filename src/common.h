@@ -222,7 +222,7 @@ class SizeMap {
   int NumMoveSize(size_t size);
 
   // Mapping from size class to max size storable in that class
-  size_t class_to_size_[kNumClasses];
+  int32 class_to_size_[kNumClasses];
 
   // Mapping from size class to number of pages to allocate at a time
   size_t class_to_pages_[kNumClasses];
@@ -253,12 +253,12 @@ class SizeMap {
   }
 
   // Get the byte-size for a specified class
-  inline size_t ByteSizeForClass(size_t cl) {
+  inline int32 ByteSizeForClass(size_t cl) {
     return class_to_size_[cl];
   }
 
   // Mapping from size class to max size storable in that class
-  inline size_t class_to_size(size_t cl) {
+  inline int32 class_to_size(size_t cl) {
     return class_to_size_[cl];
   }
 
