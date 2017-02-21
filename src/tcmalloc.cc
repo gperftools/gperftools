@@ -1050,12 +1050,12 @@ static inline bool CheckCachedSizeClass(void *ptr) {
   return cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
 }
 
-static inline void* CheckedMallocResult(void *result) {
+static inline ATTRIBUTE_ALWAYS_INLINE void* CheckedMallocResult(void *result) {
   ASSERT(result == NULL || CheckCachedSizeClass(result));
   return result;
 }
 
-static inline void* SpanToMallocResult(Span *span) {
+static inline ATTRIBUTE_ALWAYS_INLINE void* SpanToMallocResult(Span *span) {
   Static::pageheap()->InvalidateCachedSizeClass(span->start);
   return
       CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));

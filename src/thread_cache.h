@@ -353,7 +353,7 @@ inline bool ThreadCache::SampleAllocation(size_t k) {
 #endif
 }
 
-inline void* ThreadCache::Allocate(size_t size, size_t cl) {
+inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, size_t cl) {
   ASSERT(size <= kMaxSize);
   ASSERT(size == Static::sizemap()->ByteSizeForClass(cl));
 
