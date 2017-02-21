@@ -67,6 +67,7 @@ void CentralCacheUnlockAll()
 }
 #endif
 
+bool Static::inited_;
 SpinLock Static::pageheap_lock_(SpinLock::LINKER_INITIALIZED);
 SizeMap Static::sizemap_;
 CentralFreeListPadded Static::central_cache_[kNumClasses];
@@ -75,8 +76,7 @@ PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
 PageHeapAllocator<StackTraceTable::Bucket> Static::bucket_allocator_;
 StackTrace* Static::growth_stacks_ = NULL;
-PageHeap* Static::pageheap_ = NULL;
-
+Static::PageHeapStorage Static::pageheap_;
 
 void Static::InitStaticVars() {
   sizemap_.Init();
@@ -91,17 +91,15 @@ void Static::InitStaticVars() {
     central_cache_[i].Init(i);
   }
 
-  // It's important to have PageHeap allocated, not in static storage,
-  // so that HeapLeakChecker does not consider all the byte patterns stored
-  // in is caches as pointers that are sources of heap object liveness,
-  // which leads to it missing some memory leaks.
-  pageheap_ = new (MetaDataAlloc(sizeof(PageHeap))) PageHeap;
+  new (&pageheap_.memory) PageHeap;
 
   bool aggressive_decommit =
     tcmalloc::commandlineflags::StringToBool(
       TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"), false);
 
-  pageheap_->SetAggressiveDecommit(aggressive_decommit);
+  pageheap()->SetAggressiveDecommit(aggressive_decommit);
+
+  inited_ = true;
 
   DLL_Init(&sampled_objects_);
   Sampler::InitStatics();

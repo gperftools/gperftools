@@ -67,7 +67,7 @@ class Static {
   // must be protected by pageheap_lock.
 
   // Page-level allocator.
-  static PageHeap* pageheap() { return pageheap_; }
+  static PageHeap* pageheap() { return reinterpret_cast<PageHeap *>(&pageheap_.memory); }
 
   static PageHeapAllocator<Span>* span_allocator() { return &span_allocator_; }
 
@@ -85,12 +85,13 @@ class Static {
   }
 
   // Check if InitStaticVars() has been run.
-  static bool IsInited() { return pageheap() != NULL; }
+  static bool IsInited() { return inited_; }
 
  private:
   // some unit tests depend on this and link to static vars
   // imperfectly. Thus we keep those unhidden for now. Thankfully
   // they're not performance-critical.
+  /* ATTRIBUTE_HIDDEN */ static bool inited_;
   /* ATTRIBUTE_HIDDEN */ static SpinLock pageheap_lock_;
 
   // These static variables require explicit initialization.  We cannot
@@ -111,7 +112,14 @@ class Static {
   // is stored in trace->stack[kMaxStackDepth-1].
   ATTRIBUTE_HIDDEN static StackTrace* growth_stacks_;
 
-  static PageHeap* pageheap_;
+  // PageHeap uses a constructor for initialization.  Like the members above,
+  // we can't depend on initialization order, so pageheap is new'd
+  // into this buffer.
+  union PageHeapStorage {
+    char memory[sizeof(PageHeap)];
+    uintptr_t extra;  // To force alignment
+  };
+  ATTRIBUTE_HIDDEN static PageHeapStorage pageheap_;
 };
 
 }  // namespace tcmalloc
