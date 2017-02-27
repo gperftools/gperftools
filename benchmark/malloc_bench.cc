@@ -45,7 +45,7 @@ static void bench_fastpath_throughput(long iterations,
     free(p);
     // this makes next iteration use different free list. So
     // subsequent iterations may actually overlap in time.
-    sz = (sz & 511) + 16;
+    sz = ((sz * 8191) & 511) + 16;
   }
 }
 
