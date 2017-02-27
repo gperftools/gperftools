@@ -205,7 +205,7 @@ struct kernel_dirent64 {
   long long          d_off;
   unsigned short     d_reclen;
   unsigned char      d_type;
-  char               d_name[256];
+  char               d_name[0];
 };
 
 /* include/linux/dirent.h                                                    */
@@ -213,7 +213,7 @@ struct kernel_dirent {
   long               d_ino;
   long               d_off;
   unsigned short     d_reclen;
-  char               d_name[256];
+  char               d_name[0];
 };
 
 /* include/linux/time.h                                                      */

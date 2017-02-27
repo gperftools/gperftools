@@ -388,9 +388,15 @@ static void ListerThread(struct ListerParams *args) {
             continue;
           }
           break;
+        } else if (nbytes < sizeof(struct KERNEL_DIRENT)) {
+          /* Couldn't read the header part of the first entry. Retry. */
+          added_entries = 0;
+          sys_lseek(proc, 0, SEEK_SET);
+          continue;
         }
         for (entry = (struct KERNEL_DIRENT *)buf;
-             entry < (struct KERNEL_DIRENT *)&buf[nbytes];
+             (entry < (struct KERNEL_DIRENT *)&buf[nbytes] &&
+              (char*)entry + entry->d_reclen <= &buf[nbytes]);
              entry = (struct KERNEL_DIRENT *)((char *)entry+entry->d_reclen)) {
           if (entry->d_ino != 0) {
             const char *ptr = entry->d_name;
