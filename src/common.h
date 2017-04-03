@@ -196,6 +196,21 @@ class SizeMap {
     return (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7;
   }
 
+  // If size is no more than kMaxSize, compute index of the
+  // class_array[] entry for it, putting the class index in output
+  // parameter idx and returning true. Otherwise return false.
+  static inline bool ATTRIBUTE_ALWAYS_INLINE ClassIndexMaybe(size_t s,
+                                                             uint32* idx) {
+    if (PREDICT_TRUE(s <= kMaxSmallSize)) {
+      *idx = (static_cast<uint32>(s) + 7) >> 3;
+      return true;
+    } else if (s <= kMaxSize) {
+      *idx = (static_cast<uint32>(s) + 127 + (120 << 7)) >> 7;
+      return true;
+    }
+    return false;
+  }
+
   // Compute index of the class_array[] entry for a given size
   static inline size_t ClassIndex(size_t s) {
     // Use unsigned arithmetic to avoid unnecessary sign extensions.
@@ -237,31 +252,30 @@ class SizeMap {
     return class_array_[ClassIndex(size)];
   }
 
-  inline bool MaybeSizeClass(size_t size, size_t *size_class) {
-    size_t class_idx;
-    if (PREDICT_TRUE(size <= kMaxSmallSize)) {
-      class_idx = SmallSizeClass(size);
-    } else if (size <= kMaxSize) {
-      class_idx = LargeSizeClass(size);
-    } else {
+  // Check if size is small enough to be representable by a size
+  // class, and if it is, put matching size class into *cl. Returns
+  // true iff matching size class was found.
+  inline bool ATTRIBUTE_ALWAYS_INLINE GetSizeClass(size_t size, uint32* cl) {
+    uint32 idx;
+    if (!ClassIndexMaybe(size, &idx)) {
       return false;
     }
-    *size_class = class_array_[class_idx];
+    *cl = class_array_[idx];
     return true;
   }
 
   // Get the byte-size for a specified class
-  inline int32 ByteSizeForClass(size_t cl) {
+  inline int32 ATTRIBUTE_ALWAYS_INLINE ByteSizeForClass(uint32 cl) {
     return class_to_size_[cl];
   }
 
   // Mapping from size class to max size storable in that class
-  inline int32 class_to_size(size_t cl) {
+  inline int32 class_to_size(uint32 cl) {
     return class_to_size_[cl];
   }
 
   // Mapping from size class to number of pages to allocate at a time
-  inline size_t class_to_pages(size_t cl) {
+  inline size_t class_to_pages(uint32 cl) {
     return class_to_pages_[cl];
   }
 
@@ -270,7 +284,7 @@ class SizeMap {
   // amortize the lock overhead for accessing the central list.  Making
   // it too big may temporarily cause unnecessary memory wastage in the
   // per-thread free list until the scavenger cleans up the list.
-  inline int num_objects_to_move(size_t cl) {
+  inline int num_objects_to_move(uint32 cl) {
     return num_objects_to_move_[cl];
   }
 };

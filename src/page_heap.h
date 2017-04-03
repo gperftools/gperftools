@@ -129,7 +129,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // specified size-class.
   // REQUIRES: span was returned by an earlier call to New()
   //           and has not yet been deleted.
-  void RegisterSizeClass(Span* span, size_t sc);
+  void RegisterSizeClass(Span* span, uint32 sc);
 
   // Split an allocated span into two spans: one of length "n" pages
   // followed by another span of length "span->length - n" pages.
@@ -194,16 +194,16 @@ class PERFTOOLS_DLL_DECL PageHeap {
   Length ReleaseAtLeastNPages(Length num_pages);
 
   // Reads and writes to pagemap_cache_ do not require locking.
-  bool TryGetSizeClass(PageID p, size_t* out) const {
+  bool TryGetSizeClass(PageID p, uint32* out) const {
     return pagemap_cache_.TryGet(p, out);
   }
-  void SetCachedSizeClass(PageID p, size_t cl) {
+  void SetCachedSizeClass(PageID p, uint32 cl) {
     ASSERT(cl != 0);
     pagemap_cache_.Put(p, cl);
   }
   void InvalidateCachedSizeClass(PageID p) { pagemap_cache_.Invalidate(p); }
-  size_t GetSizeClassOrZero(PageID p) const {
-    size_t cached_value;
+  uint32 GetSizeClassOrZero(PageID p) const {
+    uint32 cached_value;
     if (!TryGetSizeClass(p, &cached_value)) {
       cached_value = 0;
     }

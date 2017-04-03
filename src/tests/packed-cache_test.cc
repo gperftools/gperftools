@@ -39,14 +39,14 @@ static const int kHashbits = PackedCache<20>::kHashbits;
 
 template <int kKeybits>
 static size_t MustGet(const PackedCache<kKeybits>& cache, uintptr_t key) {
-  size_t rv;
+  uint32 rv;
   CHECK(cache.TryGet(key, &rv));
   return rv;
 }
 
 template <int kKeybits>
 static size_t Has(const PackedCache<kKeybits>& cache, uintptr_t key) {
-  size_t dummy;
+  uint32 dummy;
   return cache.TryGet(key, &dummy);
 }
 

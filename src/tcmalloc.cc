@@ -421,7 +421,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("transfer cache, and central cache, by size class\n");
     out->printf("------------------------------------------------\n");
     uint64_t cumulative = 0;
-    for (int cl = 0; cl < Static::num_size_classes(); ++cl) {
+    for (uint32 cl = 0; cl < Static::num_size_classes(); ++cl) {
       if (class_count[cl] > 0) {
         size_t cl_size = Static::sizemap()->ByteSizeForClass(cl);
         uint64_t class_bytes = class_count[cl] * cl_size;
@@ -810,7 +810,7 @@ class TCMallocImplementation : public MallocExtension {
     if ((p >> (kAddressBits - kPageShift)) > 0) {
       return kNotOwned;
     }
-    size_t cl;
+    uint32 cl;
     if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
       return kOwned;
     }
@@ -915,8 +915,8 @@ static uint32_t size_class_with_alignment(size_t size, size_t align) {
   if (align >= kPageSize) {
     return 0;
   }
-  size_t cl;
-  if (!Static::sizemap()->MaybeSizeClass(size, &cl)) {
+  uint32 cl;
+  if (!Static::sizemap()->GetSizeClass(size, &cl)) {
     return 0;
   }
   // Search through acceptable size classes looking for one with
@@ -942,7 +942,7 @@ static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
   if (PREDICT_FALSE(!Static::IsInited())) ThreadCache::InitModule();
 
   size_t align = static_cast<size_t>(1ull << (flags & 0x3f));
-  size_t cl = size_class_with_alignment(size, align);
+  uint32 cl = size_class_with_alignment(size, align);
   if (cl) {
     return Static::sizemap()->ByteSizeForClass(cl);
   } else {
@@ -960,9 +960,9 @@ size_t tc_nallocx(size_t size, int flags) {
   if (PREDICT_FALSE(flags != 0)) {
     return nallocx_slow(size, flags);
   }
-  size_t cl;
+  uint32 cl;
   // size class 0 is only possible if malloc is not yet initialized
-  if (Static::sizemap()->MaybeSizeClass(size, &cl) && cl != 0) {
+  if (Static::sizemap()->GetSizeClass(size, &cl) && cl != 0) {
     return Static::sizemap()->ByteSizeForClass(cl);
   } else {
     return nallocx_slow(size, 0);
@@ -1043,7 +1043,7 @@ static TCMallocGuard module_enter_exit_hook;
 
 static inline bool CheckCachedSizeClass(void *ptr) {
   PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cached_value;
+  uint32 cached_value;
   if (!Static::pageheap()->TryGetSizeClass(p, &cached_value)) {
     return true;
   }
@@ -1270,12 +1270,12 @@ ATTRIBUTE_ALWAYS_INLINE inline void* do_malloc(size_t size) {
 
   // note: it will force initialization of malloc if necessary
   ThreadCache* cache = ThreadCache::GetCache();
-  size_t cl;
+  uint32 cl;
 
   ASSERT(Static::IsInited());
   ASSERT(cache != NULL);
 
-  if (PREDICT_FALSE(!Static::sizemap()->MaybeSizeClass(size, &cl))) {
+  if (PREDICT_FALSE(!Static::sizemap()->GetSizeClass(size, &cl))) {
     return do_malloc_pages(cache, size);
   }
 
@@ -1345,7 +1345,7 @@ void do_free_with_callback(void* ptr,
   ThreadCache* heap = ThreadCache::GetCacheIfPresent();
 
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl;
+  uint32 cl;
 
 #ifndef NO_TCMALLOC_SAMPLES
   // we only pass size hint when ptr is not page aligned. Which
@@ -1353,7 +1353,7 @@ void do_free_with_callback(void* ptr,
   ASSERT(!use_hint || size_hint < kPageSize);
 #endif
 
-  if (!use_hint || PREDICT_FALSE(!Static::sizemap()->MaybeSizeClass(size_hint, &cl))) {
+  if (!use_hint || PREDICT_FALSE(!Static::sizemap()->GetSizeClass(size_hint, &cl))) {
     // if we're in sized delete, but size is too large, no need to
     // probe size cache
     bool cache_hit = !use_hint && Static::pageheap()->TryGetSizeClass(p, &cl);
@@ -1407,7 +1407,7 @@ inline size_t GetSizeWithCallback(const void* ptr,
   if (ptr == NULL)
     return 0;
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  size_t cl;
+  uint32 cl;
   if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
     return Static::sizemap()->ByteSizeForClass(cl);
   }
@@ -1726,8 +1726,8 @@ static void * malloc_fast_path(size_t size) {
     return AllocateFull(size);
   }
 
-  size_t cl;
-  if (PREDICT_FALSE(!Static::sizemap()->MaybeSizeClass(size, &cl))) {
+  uint32 cl;
+  if (PREDICT_FALSE(!Static::sizemap()->GetSizeClass(size, &cl))) {
     return AllocateFull(size);
   }
 

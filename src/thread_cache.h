@@ -78,15 +78,15 @@ class ThreadCache {
   void Cleanup();
 
   // Accessors (mostly just for printing stats)
-  int freelist_length(size_t cl) const { return list_[cl].length(); }
+  int freelist_length(uint32 cl) const { return list_[cl].length(); }
 
   // Total byte size in cache
   size_t Size() const { return max_size_ - size_left_; }
 
   // Allocate an object of the given size and class. The size given
   // must be the same as the size of the class in the size map.
-  void* Allocate(size_t size, size_t cl);
-  void Deallocate(void* ptr, size_t size_class);
+  void* Allocate(size_t size, uint32 cl);
+  void Deallocate(void* ptr, uint32 size_class);
 
   void Scavenge();
 
@@ -244,16 +244,16 @@ class ThreadCache {
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.
-  void* FetchFromCentralCache(size_t cl, int32_t byte_size);
+  void* FetchFromCentralCache(uint32 cl, int32_t byte_size);
 
-  void ListTooLong(void* ptr, size_t cl);
+  void ListTooLong(void* ptr, uint32 cl);
 
   // Releases some number of items from src.  Adjusts the list's max_length
   // to eventually converge on num_objects_to_move(cl).
-  void ListTooLong(FreeList* src, size_t cl);
+  void ListTooLong(FreeList* src, uint32 cl);
 
   // Releases N items from this thread cache.
-  void ReleaseToCentralCache(FreeList* src, size_t cl, int N);
+  void ReleaseToCentralCache(FreeList* src, uint32 cl, int N);
 
   void SetMaxSize(int32 new_max_size);
 
@@ -366,7 +366,7 @@ inline int ThreadCache::HeapsInUse() {
   return threadcache_allocator.inuse();
 }
 
-inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, size_t cl) {
+inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32 cl) {
   FreeList* list = &list_[cl];
 
 #ifdef NO_TCMALLOC_SAMPLES
@@ -385,7 +385,7 @@ inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, size_t c
   return rv;
 }
 
-inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, size_t cl) {
+inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
   ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
   // This catches back-to-back frees of allocs in the same size

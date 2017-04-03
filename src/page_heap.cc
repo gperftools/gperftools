@@ -513,7 +513,7 @@ bool PageHeap::EnsureLimit(Length n, bool withRelease)
   return takenPages + n <= limit;
 }
 
-void PageHeap::RegisterSizeClass(Span* span, size_t sc) {
+void PageHeap::RegisterSizeClass(Span* span, uint32 sc) {
   // Associate span object with all interior pages as well
   ASSERT(span->location == Span::IN_USE);
   ASSERT(GetDescriptor(span->start) == span);
