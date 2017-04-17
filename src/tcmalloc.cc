@@ -953,7 +953,8 @@ static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
 // allocation that would result from the equivalent malloc function call.
 // nallocx is a malloc extension originally implemented by jemalloc:
 // http://www.unix.com/man-page/freebsd/3/nallocx/
-extern "C" size_t tc_nallocx(size_t size, int flags) {
+extern "C" PERFTOOLS_DLL_DECL
+size_t tc_nallocx(size_t size, int flags) {
   if (UNLIKELY(flags != 0)) {
     return nallocx_slow(size, flags);
   }
@@ -966,7 +967,8 @@ extern "C" size_t tc_nallocx(size_t size, int flags) {
   }
 }
 
-extern "C" size_t nallocx(size_t size, int flags)
+extern "C" PERFTOOLS_DLL_DECL
+size_t nallocx(size_t size, int flags)
 #ifdef TC_ALIAS
   TC_ALIAS(tc_nallocx);
 #else

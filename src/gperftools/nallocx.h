@@ -2,10 +2,12 @@
 #define _NALLOCX_H_
 #include <stddef.h>
 
-#ifdef _WIN32
-#  define PERFTOOLS_NALLOCX_DLL_DECL  __declspec(dllimport)
-#else
-#  define PERFTOOLS_NALLOCX_DLL_DECL
+#ifndef PERFTOOLS_DLL_DECL
+# ifdef _WIN32
+#  define PERFTOOLS_DLL_DECL  __declspec(dllimport)
+# else
+#  define PERFTOOLS_DLL_DECL
+# endif
 #endif
 
 #ifdef __cplusplus
@@ -23,15 +25,13 @@ extern "C" {
  *
  * Note, we only support MALLOCX_LG_ALIGN flag and nothing else.
  */
-PERFTOOLS_NALLOCX_DLL_DECL size_t nallocx(size_t size, int flags);
+PERFTOOLS_DLL_DECL size_t nallocx(size_t size, int flags);
 
 /* same as above but never weak */
-PERFTOOLS_NALLOCX_DLL_DECL size_t tc_nallocx(size_t size, int flags);
+PERFTOOLS_DLL_DECL size_t tc_nallocx(size_t size, int flags);
 
 #ifdef __cplusplus
 }   /* extern "C" */
 #endif
-
-#undef PERFTOOLS_NALLOCX_DLL_DECL
 
 #endif /* _NALLOCX_H_ */
