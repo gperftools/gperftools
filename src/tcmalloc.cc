@@ -1010,6 +1010,8 @@ size_t TCMallocImplementation::GetEstimatedAllocatedSize(size_t size) {
 static int tcmallocguard_refcount = 0;  // no lock needed: runs before main()
 TCMallocGuard::TCMallocGuard() {
   if (tcmallocguard_refcount++ == 0) {
+    if (PREDICT_FALSE(!Static::IsInited())) ThreadCache::InitModule();
+
     ReplaceSystemAlloc();    // defined in libc_override_*.h
     tc_free(tc_malloc(1));
     ThreadCache::InitTSD();
