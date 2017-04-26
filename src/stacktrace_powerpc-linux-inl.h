@@ -44,6 +44,7 @@
 
 #include <stdint.h>   // for uintptr_t
 #include <stdlib.h>   // for NULL
+#include <signal.h>  // for siginfo_t
 #include <gperftools/stacktrace.h>
 #include <base/vdso_support.h>
 
