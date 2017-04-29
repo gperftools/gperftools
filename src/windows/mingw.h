@@ -63,6 +63,8 @@
 #undef HAVE_PTHREAD
 #endif
 
+#undef HAVE_FORK
+
 #define HAVE_PID_T
 
 #include "windows/port.h"

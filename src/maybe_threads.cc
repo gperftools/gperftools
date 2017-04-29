@@ -69,10 +69,12 @@ extern "C" {
       __THROW ATTRIBUTE_WEAK;
   int pthread_once(pthread_once_t *, void (*)(void))
       ATTRIBUTE_WEAK;
+#ifdef HAVE_FORK
   int pthread_atfork(void (*__prepare) (void),
                      void (*__parent) (void),
                      void (*__child) (void))
     __THROW ATTRIBUTE_WEAK;
+#endif
 }
 
 #define MAX_PERTHREAD_VALS 16
@@ -161,6 +163,8 @@ int perftools_pthread_once(pthread_once_t *ctl,
   }
 }
 
+#ifdef HAVE_FORK
+
 void perftools_pthread_atfork(void (*before)(),
                               void (*parent_after)(),
                               void (*child_after)()) {
@@ -169,3 +173,5 @@ void perftools_pthread_atfork(void (*before)(),
     CHECK(rv == 0);
   }
 }
+
+#endif
