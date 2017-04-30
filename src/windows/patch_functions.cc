@@ -995,16 +995,6 @@ BOOL WINAPI WindowsInfo::Perftools_UnmapViewOfFile(LPCVOID lpBaseAddress) {
               lpBaseAddress);
 }
 
-// g_load_map holds a copy of windows' refcount for how many times
-// each currently loaded module has been loaded and unloaded.  We use
-// it as an optimization when the same module is loaded more than
-// once: as long as the refcount stays above 1, we don't need to worry
-// about patching because it's already patched.  Likewise, we don't
-// need to unpatch until the refcount drops to 0.  load_map is
-// maintained in LoadLibraryExW and FreeLibrary, and only covers
-// modules explicitly loaded/freed via those interfaces.
-static std::map<HMODULE, int>* g_load_map = NULL;
-
 HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName,
                                                      HANDLE hFile,
                                                      DWORD dwFlags) {
