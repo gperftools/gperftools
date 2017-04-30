@@ -510,7 +510,7 @@ void* PreamblePatcher::AllocPageNear(void* target) {
         reinterpret_cast<__int64>(target) - val > INT_MAX) {
         // We're further than 2GB from the target
       break;
-    } else if (val <= NULL) {
+    } else if (val <= 0) {
       // Less than 0
       break;
     }
