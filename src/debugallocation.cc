@@ -619,7 +619,6 @@ class MallocBlock {
         free_queue_lock_.Lock();
       }
     }
-    RAW_CHECK(free_queue_size_ >= 0, "Free queue size went negative!");
     free_queue_lock_.Unlock();
     for (int i = 0; i < num_entries; i++) {
       CheckForDanglingWrites(entries[i]);
