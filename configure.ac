@@ -262,17 +262,14 @@ fi
 # Some tests test the behavior of .so files, and only make sense for dynamic.
 AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 
-# We want to link in libunwind or libexecinfo if it it is enabled and exists.
+# We want to link in libunwind if it is enabled and exists.
+UNWIND_LIBS=
 if test "$enable_libunwind" = yes; then
-  AC_CHECK_HEADERS(libunwind.h)   # for stacktrace
-  AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind,
-               [AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)])
-  AC_SUBST(UNWIND_LIBS)
-  will_use_libunwind=yes
-else
-  AC_CHECK_LIB(execinfo, backtrace, UNWIND_LIBS=-lexecinfo, UNWIND_LIBS=)
-  AC_SUBST(UNWIND_LIBS)
+  AC_CHECK_HEADERS([libunwind.h],
+                   [AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind)
+                    will_use_libunwind=yes])
 fi
+AC_SUBST(UNWIND_LIBS)
 
 # On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
 AC_ARG_ENABLE(frame_pointers,
@@ -533,6 +530,11 @@ esac
 
 if test "x$enable_backtrace" = xyes; then
   AC_CHECK_DECLS([backtrace], [], [], [#include <execinfo.h>])
+  save_LIBS=$LIBS
+  LIBS=$UNWIND_LIBS
+  AC_SEARCH_LIBS([backtrace], [execinfo])
+  UNWIND_LIBS=$LIBS
+  LIBS=$save_LIBS
 fi
 
 # For windows, this has a non-trivial value (__declspec(export)), but any
