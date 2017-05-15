@@ -1,5 +1,12 @@
 == 14 May 2017 ==
 
+gperftools 2.6rc2 is out!
+
+Just 2 small fixes on top of 2.6rc. Particularly, Rajalakshmi
+Srinivasaraghavan contributed build fix for ppc32.
+
+== 14 May 2017 ==
+
 gperftools 2.6rc is out!
 
 Highlights of this release are performance work on malloc fast-path
