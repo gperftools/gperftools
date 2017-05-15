@@ -1079,8 +1079,14 @@ struct GlobalNallocx {
 
 #if defined(__GNUC__)
 
+#if defined(__APPLE__)
+// llvm-gcc on older osex that I have access to, doesn't like arg-ful
+// constructor attribute.
+static void check_global_nallocx() __attribute__((constructor));
+#else
 // 101 is the max user priority.
 static void check_global_nallocx() __attribute__((constructor(101)));
+#endif
 static void check_global_nallocx() { CHECK_GT(nallocx(99, 0), 99); }
 
 #endif // __GNUC__
