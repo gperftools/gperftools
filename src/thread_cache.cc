@@ -308,6 +308,11 @@ void ThreadCache::InitTSD() {
 
 ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   if (!tsd_inited_) {
+#ifndef NDEBUG
+    // tests that freeing nullptr very early is working
+    free(NULL);
+#endif
+
     InitModule();
   }
 

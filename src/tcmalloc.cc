@@ -999,8 +999,6 @@ size_t TCMallocImplementation::GetEstimatedAllocatedSize(size_t size) {
 static int tcmallocguard_refcount = 0;  // no lock needed: runs before main()
 TCMallocGuard::TCMallocGuard() {
   if (tcmallocguard_refcount++ == 0) {
-    if (PREDICT_FALSE(!Static::IsInited())) ThreadCache::InitModule();
-
     ReplaceSystemAlloc();    // defined in libc_override_*.h
     tc_free(tc_malloc(1));
     ThreadCache::InitTSD();
@@ -1387,6 +1385,17 @@ void do_free_with_callback(void* ptr,
     ASSERT(Static::IsInited());
     // If we've hit initialized thread cache, so we're done.
     heap->Deallocate(ptr, cl);
+    return;
+  }
+
+  if (PREDICT_FALSE(!Static::IsInited())) {
+    // if free was called very early we've could have missed the case
+    // of invalid or nullptr free. I.e. because probing size classes
+    // cache could return bogus result (cl = 0 as of this
+    // writing). But since there is no way we could be dealing with
+    // ptr we've allocated, since successfull malloc implies IsInited,
+    // we can just call invalid_free_fn here.
+    free_null_or_invalid(ptr, invalid_free_fn);
     return;
   }
 
