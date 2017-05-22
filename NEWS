@@ -1,3 +1,10 @@
+== 21 May 2017 ==
+
+gperftools 2.6rc3 is out!
+
+gperftools compilation on older systems (e.g. rhel 5) was fixed. This
+was originally reported in github issue #888.
+
 == 14 May 2017 ==
 
 gperftools 2.6rc2 is out!
