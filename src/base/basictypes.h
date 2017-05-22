@@ -388,7 +388,13 @@ class AssignAttributeStartEnd {
 # endif
 #else
 # define CACHELINE_ALIGNED
-#endif  // defined(HAVE___ATTRIBUTE__) && (__i386__ || __x86_64__)
+#endif  // defined(HAVE___ATTRIBUTE__)
+
+#if defined(HAVE___ATTRIBUTE__ALIGNED_FN)
+#  define CACHELINE_ALIGNED_FN CACHELINE_ALIGNED
+#else
+#  define CACHELINE_ALIGNED_FN
+#endif
 
 // Structure for discovering alignment
 union MemoryAligner {

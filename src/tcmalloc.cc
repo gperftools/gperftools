@@ -1394,7 +1394,7 @@ void do_free_with_callback(void* ptr,
     // cache could return bogus result (cl = 0 as of this
     // writing). But since there is no way we could be dealing with
     // ptr we've allocated, since successfull malloc implies IsInited,
-    // we can just call invalid_free_fn here.
+    // we can just call "invalid free" handling code.
     free_null_or_invalid(ptr, invalid_free_fn);
     return;
   }
@@ -1749,12 +1749,12 @@ static void * malloc_fast_path(size_t size) {
   return CheckedMallocResult(cache->Allocate(allocated_size, cl));
 }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void* tc_malloc(size_t size) PERFTOOLS_THROW {
   return malloc_fast_path<tcmalloc::allocate_full_malloc_oom>(size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void tc_free(void* ptr) PERFTOOLS_THROW {
   if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     tcmalloc::invoke_hooks_and_free(ptr);
@@ -1763,7 +1763,7 @@ void tc_free(void* ptr) PERFTOOLS_THROW {
   do_free(ptr);
 }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void tc_free_sized(void *ptr, size_t size) PERFTOOLS_THROW {
   if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     tcmalloc::invoke_hooks_and_free(ptr);
@@ -1844,12 +1844,12 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr,
   return do_realloc(old_ptr, new_size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void* tc_new(size_t size) {
   return malloc_fast_path<tcmalloc::allocate_full_cpp_throw_oom>(size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
 void* tc_new_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_THROW {
   return malloc_fast_path<tcmalloc::allocate_full_cpp_nothrow_oom>(size);
 }

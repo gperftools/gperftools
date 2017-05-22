@@ -165,6 +165,22 @@ AC_PROG_LIBTOOL
 AC_C_INLINE
 AX_C___ATTRIBUTE__
 
+AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)
+AC_CACHE_VAL(ac_cv___attribute__aligned_fn, [
+  AC_TRY_COMPILE(
+    [#include <stdlib.h>
+     void foo(void) __attribute__((aligned(128)));
+     void foo(void) { exit(1); }],
+    [],
+    ac_cv___attribute__aligned_fn=yes,
+    ac_cv___attribute__aligned_fn=no
+  )])
+if test "$ac_cv___attribute__aligned_fn" = "yes"; then
+  AC_DEFINE(HAVE___ATTRIBUTE__ALIGNED_FN, 1, [define if your compiler supports alignment of functions])
+fi
+AC_MSG_RESULT($ac_cv___attribute__aligned_fn)
+
+
 # Check whether some low-level functions/files are available
 AC_HEADER_STDC
 
