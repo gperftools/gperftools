@@ -37,7 +37,6 @@
 
 #include <algorithm>  // For min()
 #include <math.h>
-#include <limits>
 #include "base/commandlineflags.h"
 
 using std::min;
@@ -76,7 +75,7 @@ void Sampler::Init(uint64_t seed) {
   bytes_until_sample_ = PickNextSamplingPoint();
 }
 
-#define MAX_SSIZE (SIZE_MAX >> 1)
+#define MAX_SSIZE (static_cast<ssize_t>(static_cast<size_t>(static_cast<ssize_t>(-1)) >> 1))
 
 // Generates a geometric variable with the specified mean (512K by default).
 // This is done by generating a random number between 0 and 1 and applying
