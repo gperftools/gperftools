@@ -229,7 +229,7 @@ class TCMalloc_PageMap3 {
     void* values[LEAF_LENGTH];
   };
 
-  Node* root_;                          // Root of radix tree
+  Node  root_;                          // Root of radix tree
   void* (*allocator_)(size_t);          // Memory allocator
 
   Node* NewNode() {
@@ -245,7 +245,7 @@ class TCMalloc_PageMap3 {
 
   explicit TCMalloc_PageMap3(void* (*allocator)(size_t)) {
     allocator_ = allocator;
-    root_ = NewNode();
+    memset(&root_, 0, sizeof(root_));
   }
 
   ATTRIBUTE_ALWAYS_INLINE
@@ -254,10 +254,10 @@ class TCMalloc_PageMap3 {
     const Number i2 = (k >> LEAF_BITS) & (INTERIOR_LENGTH-1);
     const Number i3 = k & (LEAF_LENGTH-1);
     if ((k >> BITS) > 0 ||
-        root_->ptrs[i1] == NULL || root_->ptrs[i1]->ptrs[i2] == NULL) {
+        root_.ptrs[i1] == NULL || root_.ptrs[i1]->ptrs[i2] == NULL) {
       return NULL;
     }
-    return reinterpret_cast<Leaf*>(root_->ptrs[i1]->ptrs[i2])->values[i3];
+    return reinterpret_cast<Leaf*>(root_.ptrs[i1]->ptrs[i2])->values[i3];
   }
 
   void set(Number k, void* v) {
@@ -265,7 +265,7 @@ class TCMalloc_PageMap3 {
     const Number i1 = k >> (LEAF_BITS + INTERIOR_BITS);
     const Number i2 = (k >> LEAF_BITS) & (INTERIOR_LENGTH-1);
     const Number i3 = k & (LEAF_LENGTH-1);
-    reinterpret_cast<Leaf*>(root_->ptrs[i1]->ptrs[i2])->values[i3] = v;
+    reinterpret_cast<Leaf*>(root_.ptrs[i1]->ptrs[i2])->values[i3] = v;
   }
 
   bool Ensure(Number start, size_t n) {
@@ -278,18 +278,18 @@ class TCMalloc_PageMap3 {
         return false;
 
       // Make 2nd level node if necessary
-      if (root_->ptrs[i1] == NULL) {
+      if (root_.ptrs[i1] == NULL) {
         Node* n = NewNode();
         if (n == NULL) return false;
-        root_->ptrs[i1] = n;
+        root_.ptrs[i1] = n;
       }
 
       // Make leaf node if necessary
-      if (root_->ptrs[i1]->ptrs[i2] == NULL) {
+      if (root_.ptrs[i1]->ptrs[i2] == NULL) {
         Leaf* leaf = reinterpret_cast<Leaf*>((*allocator_)(sizeof(Leaf)));
         if (leaf == NULL) return false;
         memset(leaf, 0, sizeof(*leaf));
-        root_->ptrs[i1]->ptrs[i2] = reinterpret_cast<Node*>(leaf);
+        root_.ptrs[i1]->ptrs[i2] = reinterpret_cast<Node*>(leaf);
       }
 
       // Advance key past whatever is covered by this leaf node
@@ -305,11 +305,11 @@ class TCMalloc_PageMap3 {
     while (k < (Number(1) << BITS)) {
       const Number i1 = k >> (LEAF_BITS + INTERIOR_BITS);
       const Number i2 = (k >> LEAF_BITS) & (INTERIOR_LENGTH-1);
-      if (root_->ptrs[i1] == NULL) {
+      if (root_.ptrs[i1] == NULL) {
         // Advance to next top-level entry
         k = (i1 + 1) << (LEAF_BITS + INTERIOR_BITS);
       } else {
-        Leaf* leaf = reinterpret_cast<Leaf*>(root_->ptrs[i1]->ptrs[i2]);
+        Leaf* leaf = reinterpret_cast<Leaf*>(root_.ptrs[i1]->ptrs[i2]);
         if (leaf != NULL) {
           for (Number i3 = (k & (LEAF_LENGTH-1)); i3 < LEAF_LENGTH; i3++) {
             if (leaf->values[i3] != NULL) {
