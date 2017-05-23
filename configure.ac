@@ -345,23 +345,10 @@ AM_CONDITIONAL(HAVE_W_NO_UNUSED_RESULT,
 	       test "$perftools_cv_w_no_unused_result" = yes)
 
 AC_ARG_ENABLE([dynamic-sized-delete-support],
-              [AS_HELP_STRING([--disable-dynamic-sized-delete-support],
-                [don't try to build run-time switch for sized delete operator])],
+              [AS_HELP_STRING([--enable-dynamic-sized-delete-support],
+                [try to build run-time switch for sized delete operator])],
               [enable_dyn_sized_delete="$enableval"],
-              [enable_dyn_sized_delete=default])
-
-AS_IF([test "x$enable_dyn_sized_delete" = xdefault],
-      [AC_CACHE_CHECK(
-        [if the compiler supports ifunc attributes for target],
-        [perftools_cv_ifunc_result],
-        [AC_COMPILE_IFELSE(
-                 [AC_LANG_PROGRAM([
-                   void *resolve_foo() {return 0;}
-                   void foo() __attribute__((ifunc("resolve_foo")));
-                 ],[foo();])],
-                 [perftools_cv_ifunc_result=yes],
-                 [perftools_cv_ifunc_result=no])])]
-      [enable_dyn_sized_delete=$perftools_cv_ifunc_result])
+              [enable_dyn_sized_delete=no])
 
 AS_IF([test "x$enable_dyn_sized_delete" = xyes],
       [AC_DEFINE([ENABLE_DYNAMIC_SIZED_DELETE], 1,
