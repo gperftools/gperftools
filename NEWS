@@ -1,3 +1,12 @@
+== 22 May 2017 ==
+
+gperftools 2.6rc4 is out!
+
+Dynamic sized delete is disabled by default again. There is no hope of
+it working with eager dynamic symbols resolution (-z now linker
+flag). More details in
+https://bugzilla.redhat.com/show_bug.cgi?id=1452813
+
 == 21 May 2017 ==
 
 gperftools 2.6rc3 is out!
