@@ -868,6 +868,8 @@ class TCMallocImplementation : public MallocExtension {
           class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
       i.type = kThreadCacheType;
       v->push_back(i);
+
+      prev_class_size = Static::sizemap()->ByteSizeForClass(cl);
     }
 
     // append page heap info
