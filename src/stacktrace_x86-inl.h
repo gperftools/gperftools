@@ -135,21 +135,6 @@ static int CountPushInstructions(const unsigned char *const addr) {
 }
 #endif
 
-// Get stack bottom of current thread
-static void* GetStackBottom() {
-  static __thread void* result;
-  if (!result) {
-    char frame;
-    uintptr_t page_size = getpagesize();
-    char* aligned_p = (char *)((uintptr_t)&frame & ~(page_size - 1));
-    while (msync(aligned_p, page_size, MS_ASYNC) != -1) {
-      aligned_p += page_size;  // x86 stack is growdown
-    }
-    result = aligned_p;
-  }
-  return result;
-}
-
 // Given a pointer to a stack frame, locate and return the calling
 // stackframe, or return NULL if no stackframe can be found. Perform sanity
 // checks (the strictness of which is controlled by the boolean parameter
@@ -271,20 +256,17 @@ static void **NextStackFrame(void **old_sp, const void *uc) {
   if ((uintptr_t)new_sp >= 0xffffe000) return NULL;
 #endif
 #ifdef HAVE_MMAP
-  if (!STRICT_UNWINDING) {
-    // Lax sanity checks cause a crash on AMD-based machines with
-    // VDSO-enabled kernels.
-    // Make an extra sanity check to insure new_sp is readable.
-    // Note: NextStackFrame<false>() is only called while the program
-    //       is already on its last leg, so it's ok to be slow here.
-    static int page_size = getpagesize();
-    void *new_sp_aligned = (void *)((uintptr_t)new_sp & ~(page_size - 1));
+  // Lax sanity checks cause a crash on AMD-based machines with
+  // VDSO-enabled kernels.
+  // Make an extra sanity check to insure new_sp is readable.
+  // Note: NextStackFrame<false>() is only called while the program
+  //       is already on its last leg, so it's ok to be slow here.
+  static int page_size = getpagesize();
+  void *new_sp_aligned = (void *)((uintptr_t)new_sp & ~(page_size - 1));
+  void *old_sp_aligned = (void *)((uintptr_t)old_sp & ~(page_size - 1));
+  // old_sp is readable, so new_sp must be readable if it is in the same page.
+  if (new_sp_aligned != old_sp_aligned) {
     if (msync(new_sp_aligned, page_size, MS_ASYNC) == -1)
-      return NULL;
-  } else {
-    // In some case returned invalid result also crash the whole process.
-    // This is a cheaper checking than above(msync), but is still work well.
-    if (new_sp > GetStackBottom())
       return NULL;
   }
 #endif
