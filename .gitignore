@@ -143,3 +143,5 @@
 /test-driver
 /thread_dealloc_unittest
 /thread_dealloc_unittest.exe
+/unwind_bench
+/unwind_bench.exe
