@@ -37,17 +37,63 @@
 #define TCMALLOC_SPAN_H_
 
 #include <config.h>
+#include <set>
 #include "common.h"
+#include "base/logging.h"
+#include "page_heap_allocator.h"
 
 namespace tcmalloc {
 
+struct SpanBestFitLess;
+struct Span;
+
+// Store a pointer to a span along with a cached copy of its length.
+// These are used as set elements to improve the performance of
+// comparisons during tree traversal: the lengths are inline with the
+// tree nodes and thus avoid expensive cache misses to dereference
+// the actual Span objects in most cases.
+struct SpanPtrWithLength {
+  explicit SpanPtrWithLength(Span* s);
+
+  Span* span;
+  Length length;
+};
+typedef std::set<SpanPtrWithLength, SpanBestFitLess, STLPageHeapAllocator<Span*, void> > SpanSet;
+
+// Comparator for best-fit search, with address order as a tie-breaker.
+struct SpanBestFitLess {
+  bool operator()(SpanPtrWithLength a, SpanPtrWithLength b);
+};
+
+// Wrapper which stores a SpanSet::iterator as a POD type.
+// This allows the iterator to be stored in a union below.
+struct SpanSetRevPtr {
+  char data[sizeof(SpanSet::iterator)];
+
+  SpanSet::iterator get_iterator() {
+    SpanSet::iterator ret;
+    memcpy(&ret, this, sizeof(ret));
+    return ret;
+  }
+
+  void set_iterator(const SpanSet::iterator& val) {
+    new (this) SpanSet::iterator(val);
+  }
+};
+
 // Information kept for a span (a contiguous run of pages).
 struct Span {
+  Span() {}
   PageID        start;          // Starting page number
   Length        length;         // Number of pages in span
   Span*         next;           // Used when in link list
   Span*         prev;           // Used when in link list
-  void*         objects;        // Linked list of free objects
+  union {
+    void*         objects;      // Linked list of free objects
+    SpanSetRevPtr rev_ptr;      // "pointer" (std::set iterator) to
+                                // SpanSet entry associated with this
+                                // Span.
+  };
   unsigned int  refcount : 16;  // Number of non-free objects
   unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
   unsigned int  location : 2;   // Is the span on a freelist, and if so, which?
@@ -70,6 +116,19 @@ void Event(Span* span, char op, int v = 0);
 #else
 #define Event(s,o,v) ((void) 0)
 #endif
+
+inline SpanPtrWithLength::SpanPtrWithLength(Span* s)
+    : span(s),
+      length(s->length) {
+}
+
+inline bool SpanBestFitLess::operator()(SpanPtrWithLength a, SpanPtrWithLength b) {
+  if (a.length < b.length)
+    return true;
+  if (a.length > b.length)
+    return false;
+  return a.span->start < b.span->start;
+}
 
 // Allocator/deallocator for spans
 Span* NewSpan(PageID p, Length len);
