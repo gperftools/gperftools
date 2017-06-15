@@ -205,6 +205,16 @@ void MallocExtension::MarkThreadTemporarilyIdle() {
 
 static MallocExtension* current_instance;
 
+#if (!defined(_WIN32) && !defined(__MINGW32__))
+// Provide a weak hook for __lsan_ignore_object, so that
+// if leak sanitizer is enabled, we can ignore the current_instance
+// heap allocation.
+extern "C" void __attribute__((weak)) __lsan_ignore_object(const void *);
+#else
+// Weak hooks aren't supported on windows, but neither is leak sanitizer.
+void (*__lsan_ignore_object)(const void *) = nullptr;
+#endif
+
 static void InitModule() {
   if (current_instance != NULL) {
     return;
@@ -213,6 +223,9 @@ static void InitModule() {
 #ifndef NO_HEAP_CHECK
   HeapLeakChecker::IgnoreObject(current_instance);
 #endif
+  if (__lsan_ignore_object) {
+    __lsan_ignore_object(current_instance);
+  }
 }
 
 REGISTER_MODULE_INITIALIZER(malloc_extension_init, InitModule())
