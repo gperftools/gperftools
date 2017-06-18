@@ -90,7 +90,7 @@
 #include "config.h"
 // At least for gcc on Linux/i386 and Linux/amd64 not adding throw()
 // to tc_xxx functions actually ends up generating better code.
-#ifdef __GNUC__
+#if defined(__GNUC__) && (__cplusplus < 201103L)
 #define PERFTOOLS_NOTHROW
 #endif
 #include <gperftools/tcmalloc.h>
