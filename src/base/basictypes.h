@@ -433,4 +433,11 @@ namespace base {
 enum LinkerInitialized { LINKER_INITIALIZED };
 }
 
+#if __cpp_noexcept_function_type >= 201510
+// Deprecated in C++17
+# define PERFTOOLS_THROW(...)
+#else
+# define PERFTOOLS_THROW(...) throw(__VA_ARGS__)
+#endif
+
 #endif  // _BASICTYPES_H_
