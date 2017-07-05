@@ -1,3 +1,18 @@
+== 4 July 2017 ==
+
+gperftools 2.6 is out!
+
+* Kim Gräsman contributed documentation update for HEAPPROFILESIGNAL
+  environment variable
+
+* KernelMaker contributed fix for population of min_object_size field
+  returned by MallocExtension::GetFreeListSizes
+
+* commit 8c3dc52fcfe0 "issue-654: [pprof] handle split text segments"
+  was reverted. Some OSX users reported issues with this commit. Given
+  our pprof implementation is strongly deprecated it is best to drop
+  recently introduced features rather than breaking it badly.
+
 == 22 May 2017 ==
 
 gperftools 2.6rc4 is out!

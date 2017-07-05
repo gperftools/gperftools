@@ -40,9 +40,9 @@
 
 /* Define the version number so folks can check against it */
 #define TC_VERSION_MAJOR  2
-#define TC_VERSION_MINOR  5
-#define TC_VERSION_PATCH  ".93"
-#define TC_VERSION_STRING "gperftools 2.5.93"
+#define TC_VERSION_MINOR  6
+#define TC_VERSION_PATCH  ""
+#define TC_VERSION_STRING "gperftools 2.6"
 
 #ifndef PERFTOOLS_THROW
 
