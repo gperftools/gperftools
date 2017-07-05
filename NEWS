@@ -13,6 +13,9 @@ gperftools 2.6 is out!
   our pprof implementation is strongly deprecated it is best to drop
   recently introduced features rather than breaking it badly.
 
+* Francis Ricci contributed improvement for interaction with leak
+  sanitizer.
+
 == 22 May 2017 ==
 
 gperftools 2.6rc4 is out!
