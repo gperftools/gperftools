@@ -79,8 +79,12 @@ TCMALLOC_FLAGS =
 if MINGW
 TCMALLOC_FLAGS += -Wl,-u__tcmalloc
 endif MINGW
+
+# We must allow the lsan weak hook to be undefined in tcmalloc itself (AM_LDFLAGS)
+# and in the libraries that use tcmalloc (TCMALLOC_FLAGS)
 if OSX
 AM_LDFLAGS += -Wl,-U,___lsan_ignore_object
+TCMALLOC_FLAGS += -Wl,-U,___lsan_ignore_object
 endif OSX
 
 # If we have objcopy, make malloc/free/etc weak symbols.  That way folks
@@ -944,13 +948,13 @@ libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   src/memory_region_map.cc
 libtcmalloc_internal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG \
                                    $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE)
-libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
+libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
 libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 
 lib_LTLIBRARIES += libtcmalloc.la
 libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES)
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE)
-libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
+libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@ $(AM_LDFLAGS)
 libtcmalloc_la_LIBADD = libtcmalloc_internal.la libmaybe_threads.la $(PTHREAD_LIBS)
 
 if WITH_HEAP_CHECKER
