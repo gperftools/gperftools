@@ -276,8 +276,11 @@ int ThreadCache::GetSamplePeriod() {
 }
 
 void ThreadCache::InitModule() {
-  SpinLockHolder h(Static::pageheap_lock());
-  if (!phinited) {
+  {
+    SpinLockHolder h(Static::pageheap_lock());
+    if (phinited) {
+      return;
+    }
     const char *tcb = TCMallocGetenvSafe("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES");
     if (tcb) {
       set_overall_thread_cache_size(strtoll(tcb, NULL, 10));
@@ -286,6 +289,10 @@ void ThreadCache::InitModule() {
     threadcache_allocator.Init();
     phinited = 1;
   }
+
+  // We do "late" part of initialization without holding lock since
+  // there is chance it'll recurse into malloc
+  Static::InitLateMaybeRecursive();
 }
 
 void ThreadCache::InitTSD() {
