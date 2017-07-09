@@ -1,3 +1,20 @@
+== 9 July 2017 ==
+
+gperftools 2.6.1 is out! This is mostly bug-fixes release.
+
+* issue #901: build issue on OSX introduced in last-time commit in 2.6
+  was fixed (contributed by Francis Ricci)
+
+* tcmalloc_minimal now works on 32-bit ABI of mips64. This is issue
+  #845. Much thanks to Adhemerval Zanella and github user mtone.
+
+* Romain Geissler contributed build fix for -std=c++17. This is pull
+  request #897.
+
+* As part of fixing issue #904, tcmalloc atfork handler is now
+  installed early. This should fix slight chance of hitting deadlocks
+  at fork in some cases.
+
 == 4 July 2017 ==
 
 gperftools 2.6 is out!
