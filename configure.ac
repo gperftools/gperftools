@@ -53,6 +53,27 @@ case "$host" in
    *-darwin*) default_enable_heap_checker=no;;
 esac
 
+# Helper shell functions
+exp2() {
+  p=$1
+  x=1
+  while test $p -gt 0; do
+    x=$((x*2))
+    p=$((p-1))
+  done
+  echo $x
+}
+
+log2() {
+  x=0
+  y=$(($1>>1))
+  while test $y -gt 0; do
+    x=$((x+1))
+    y=$((y>>1))
+  done
+  echo $x
+}
+
 # Currently only backtrace works on s390.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __s390__])],
                   [default_enable_libunwind=no
@@ -109,7 +130,7 @@ AC_ARG_ENABLE([libunwind],
               [enable_libunwind="$default_enable_libunwind"])
 AC_ARG_WITH([tcmalloc-pagesize],
             [AS_HELP_STRING([--with-tcmalloc-pagesize],
-                            [Set the tcmalloc internal page size to 8K, 32K or 64K])],
+                            [Set the tcmalloc internal page size, in kB, a power of 2])],
             [],
             [with_tcmalloc_pagesize=$default_tcmalloc_pagesize])
 AC_ARG_WITH([tcmalloc-alignment],
@@ -118,19 +139,12 @@ AC_ARG_WITH([tcmalloc-alignment],
             [],
             [with_tcmalloc_alignment=$default_tcmalloc_alignment])
 
-case "$with_tcmalloc_pagesize" in
-  8)
-       #Default tcmalloc page size.
-       ;;
-  32)
-       AC_DEFINE(TCMALLOC_32K_PAGES, 1,
-                 [Define 32K of internal pages size for tcmalloc]);;
-  64)
-       AC_DEFINE(TCMALLOC_64K_PAGES, 1,
-                 [Define 64K of internal pages size for tcmalloc]);;
-  *)
-       AC_MSG_WARN([${with_tcmalloc_pagesize}K size not supported, using default tcmalloc page size.])
-esac
+if test "$with_tcmalloc_pagesize" -ge 1 && test "$with_tcmalloc_pagesize" = $(exp2 $(log2 $with_tcmalloc_pagesize)); then
+   AC_DEFINE_UNQUOTED(TCMALLOC_LOG2_PAGE_SIZE, [(10 + $(log2 $with_tcmalloc_pagesize))],
+             [Define log2 of internal page size for tcmalloc])
+else
+   AC_MSG_ERROR([${with_tcmalloc_pagesize}K page size not supported, it should be a power of 2.])
+fi
 case "$with_tcmalloc_alignment" in
   8)
        AC_DEFINE(TCMALLOC_ALIGN_8BYTES, 1,
