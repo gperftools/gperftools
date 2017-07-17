@@ -162,6 +162,7 @@ extern "C" {
 #include <unistd.h>
 #include <linux/unistd.h>
 #include <endian.h>
+#include <fcntl.h>
 
 #ifdef __mips__
 /* Include definitions of the ABI currently in use.                          */
