@@ -102,7 +102,7 @@ static const char* GetProgramInvocationName() {
   size_t len = sizeof(program_invocation_name);
   static const int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
   if (!sysctl(name, 4, program_invocation_name, &len, NULL, 0))
-	  return program_invocation_name;
+    return program_invocation_name;
   return NULL;
 #else
   return NULL;   // figure out a way to get argv[0]
