@@ -889,6 +889,7 @@ static void TracePrintf(int fd, const char *fmt, ...) {
   const char *p = fmt;
   char numbuf[25];
   if (fd < 0) {
+    va_end(ap);
     return;
   }
   numbuf[sizeof(numbuf)-1] = 0;
