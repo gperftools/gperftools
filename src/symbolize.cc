@@ -238,6 +238,7 @@ int SymbolTable::Symbolize() {
       }
       write(child_in[1], pprof_buffer, strlen(pprof_buffer));
       close(child_in[1]);             // that's all we need to write
+      delete[] pprof_buffer;
 
       const int kSymbolBufferSize = kSymbolSize * symbolization_table_.size();
       int total_bytes_read = 0;
