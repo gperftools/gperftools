@@ -97,6 +97,7 @@ endif OSX
 if HAVE_OBJCOPY_WEAKEN
 WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree \
          -W memalign -W posix_memalign -W valloc -W pvalloc \
+         -W aligned_alloc \
          -W malloc_stats -W mallopt -W mallinfo -W nallocx \
          -W _Znwm -W _ZnwmRKSt9nothrow_t -W _Znam -W _ZnamRKSt9nothrow_t \
          -W _ZdlPv -W _ZdaPv \

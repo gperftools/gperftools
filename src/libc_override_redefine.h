@@ -71,6 +71,7 @@ extern "C" {
   void* calloc(size_t n, size_t s)               { return tc_calloc(n, s);    }
   void  cfree(void* p)                           { tc_cfree(p);               }
   void* memalign(size_t a, size_t s)             { return tc_memalign(a, s);  }
+  void* aligned_alloc(size_t a, size_t s)        { return tc_memalign(a, s);  }
   void* valloc(size_t s)                         { return tc_valloc(s);       }
   void* pvalloc(size_t s)                        { return tc_pvalloc(s);      }
   int posix_memalign(void** r, size_t a, size_t s)         {

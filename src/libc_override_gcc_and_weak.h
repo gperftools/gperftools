@@ -143,6 +143,7 @@ extern "C" {
   void* calloc(size_t n, size_t size) __THROW     ALIAS(tc_calloc);
   void cfree(void* ptr) __THROW                   ALIAS(tc_cfree);
   void* memalign(size_t align, size_t s) __THROW  ALIAS(tc_memalign);
+  void* aligned_alloc(size_t align, size_t s) __THROW ALIAS(tc_memalign);
   void* valloc(size_t size) __THROW               ALIAS(tc_valloc);
   void* pvalloc(size_t size) __THROW              ALIAS(tc_pvalloc);
   int posix_memalign(void** r, size_t a, size_t s) __THROW
