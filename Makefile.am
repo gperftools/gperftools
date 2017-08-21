@@ -881,11 +881,13 @@ malloc_bench_shared_full_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTI
 malloc_bench_shared_full_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_bench_shared_full_LDADD = librun_benchmark.la libtcmalloc.la $(PTHREAD_LIBS)
 
+if !OSX
 noinst_PROGRAMS += unwind_bench
 unwind_bench_SOURCES = benchmark/unwind_bench.cc benchmark/getcontext_light.cc
 unwind_bench_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 unwind_bench_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 unwind_bench_LDADD = librun_benchmark.la libtcmalloc.la $(PTHREAD_LIBS)
+endif !OSX
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
