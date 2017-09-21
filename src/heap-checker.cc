@@ -131,8 +131,8 @@ static bool IsDebuggerAttached(void) {    // only works under linux, probably
 
 // This is the default if you don't link in -lprofiler
 extern "C" {
-ATTRIBUTE_WEAK PERFTOOLS_DLL_DECL bool ProfilingIsEnabledForAllThreads();
-bool ProfilingIsEnabledForAllThreads() { return false; }
+ATTRIBUTE_WEAK PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads();
+int ProfilingIsEnabledForAllThreads() { return false; }
 }
 
 //----------------------------------------------------------------------
