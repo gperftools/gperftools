@@ -79,9 +79,6 @@ TCMALLOC_FLAGS =
 if MINGW
 TCMALLOC_FLAGS += -Wl,-u__tcmalloc
 endif MINGW
-if OSX
-AM_LDFLAGS += -Wl,-U,___lsan_ignore_object
-endif OSX
 
 # If we have objcopy, make malloc/free/etc weak symbols.  That way folks
 # can override our malloc if they want to (they can still use tc_malloc).
