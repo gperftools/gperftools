@@ -1388,7 +1388,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::no
 }
 
 // This is mostly the same as do_memalign in tcmalloc.cc.
-static void *do_debug_memalign(size_t alignment, size_t size) {
+static void *do_debug_memalign(size_t alignment, size_t size, int type) {
   // Allocate >= size bytes aligned on "alignment" boundary
   // "alignment" is a power of two.
   void *p = 0;
@@ -1398,7 +1398,7 @@ static void *do_debug_memalign(size_t alignment, size_t size) {
   // a further data_offset bytes for an additional fake header.
   size_t extra_bytes = data_offset + alignment - 1;
   if (size + extra_bytes < size) return NULL;         // Overflow
-  p = DebugAllocate(size + extra_bytes, MallocBlock::kMallocType);
+  p = DebugAllocate(size + extra_bytes, type);
   if (p != 0) {
     intptr_t orig_p = reinterpret_cast<intptr_t>(p);
     // Leave data_offset bytes for fake header, and round up to meet
@@ -1423,16 +1423,21 @@ static void *do_debug_memalign(size_t alignment, size_t size) {
 struct memalign_retry_data {
   size_t align;
   size_t size;
+  int type;
 };
 
 static void *retry_debug_memalign(void *arg) {
   memalign_retry_data *data = static_cast<memalign_retry_data *>(arg);
-  return do_debug_memalign(data->align, data->size);
+  return do_debug_memalign(data->align, data->size, data->type);
 }
 
+ATTRIBUTE_ALWAYS_INLINE
 inline void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
-                                                     size_t size) {
-  void* p = do_debug_memalign(align, size);
+                                                     size_t size,
+                                                     int type,
+                                                     bool from_operator,
+                                                     bool nothrow) {
+  void* p = do_debug_memalign(align, size, type);
   if (p != NULL) {
     return p;
   }
@@ -1440,12 +1445,13 @@ inline void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
   struct memalign_retry_data data;
   data.align = align;
   data.size = size;
+  data.type = type;
   return handle_oom(retry_debug_memalign, &data,
-                    false, true);
+                    from_operator, nothrow);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
-  void *p = do_debug_memalign_or_debug_cpp_memalign(align, size);
+  void *p = do_debug_memalign_or_debug_cpp_memalign(align, size, MallocBlock::kMallocType, false, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
@@ -1459,7 +1465,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
     return EINVAL;
   }
 
-  void* result = do_debug_memalign_or_debug_cpp_memalign(align, size);
+  void* result = do_debug_memalign_or_debug_cpp_memalign(align, size, MallocBlock::kMallocType, false, true);
   MallocHook::InvokeNewHook(result, size);
   if (result == NULL) {
     return ENOMEM;
@@ -1471,7 +1477,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) PERFTOOLS_NOTHROW {
   // Allocate >= size bytes starting on a page boundary
-  void *p = do_debug_memalign_or_debug_cpp_memalign(getpagesize(), size);
+  void *p = do_debug_memalign_or_debug_cpp_memalign(getpagesize(), size, MallocBlock::kMallocType, false, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
@@ -1484,10 +1490,72 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
   if (size == 0) {     // pvalloc(0) should allocate one page, according to
     size = pagesize;   // http://man.free4web.biz/man3/libmpatrol.3.html
   }
-  void *p = do_debug_memalign_or_debug_cpp_memalign(pagesize, size);
+  void *p = do_debug_memalign_or_debug_cpp_memalign(pagesize, size, MallocBlock::kMallocType, false, true);
   MallocHook::InvokeNewHook(p, size);
   return p;
 }
+
+#if defined(ENABLE_ALIGNED_NEW_DELETE)
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
+  void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kNewType, true, false);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align, const std::nothrow_t&) PERFTOOLS_NOTHROW {
+  void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kNewType, true, true);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
+  tc_delete(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t align) PERFTOOLS_NOTHROW {
+  // Reproduce actual size calculation done by do_debug_memalign
+  const size_t alignment = static_cast<size_t>(align);
+  const size_t data_offset = MallocBlock::data_offset();
+  const size_t extra_bytes = data_offset + alignment - 1;
+
+  tc_delete_sized(p, size + extra_bytes);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW {
+  tc_delete(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align) {
+  void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kArrayNewType, true, false);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t align, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+  void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kArrayNewType, true, true);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
+  tc_deletearray(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t align) PERFTOOLS_NOTHROW {
+  // Reproduce actual size calculation done by do_debug_memalign
+  const size_t alignment = static_cast<size_t>(align);
+  const size_t data_offset = MallocBlock::data_offset();
+  const size_t extra_bytes = data_offset + alignment - 1;
+
+  tc_deletearray_sized(p, size + extra_bytes);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW {
+  tc_deletearray(p);
+}
+
+#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
 
 // malloc_stats just falls through to the base implementation.
 extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW {
