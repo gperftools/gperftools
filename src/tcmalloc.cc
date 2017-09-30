@@ -165,6 +165,10 @@ using tcmalloc::ThreadCache;
 
 DECLARE_double(tcmalloc_release_rate);
 
+#if defined(__GNUC__) && defined(__ELF__) && !defined(TCMALLOC_NO_ALIASES)
+#define TC_ALIAS(name) __attribute__((alias(#name)))
+#endif
+
 // For windows, the printf we use to report large allocs is
 // potentially dangerous: it could cause a malloc that would cause an
 // infinite loop.  So by default we set the threshold to a huge number
@@ -254,6 +258,33 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
+
+#if defined(ENABLE_ALIGNED_NEW_DELETE)
+
+  void* tc_new_aligned(size_t size, std::align_val_t al)
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_delete_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_newarray_aligned(size_t size, std::align_val_t al)
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_deletearray_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+
+  // And the nothrow variants of these:
+  void* tc_new_aligned_nothrow(size_t size, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_delete_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+  void tc_deletearray_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+
+#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
 
   // Some non-standard extensions that we support.
 
@@ -1203,20 +1234,23 @@ static void *retry_do_memalign(void *arg) {
   return do_memalign(data->align, data->size);
 }
 
-static void *maybe_do_cpp_memalign_slow(size_t align, size_t size) {
+static void *maybe_do_cpp_memalign_slow(size_t align, size_t size,
+    bool from_operator, bool nothrow) {
   retry_memaligh_data data;
   data.align = align;
   data.size = size;
   return handle_oom(retry_do_memalign, &data,
-                    false, true);
+                    from_operator, nothrow);
 }
 
-inline void* do_memalign_or_cpp_memalign(size_t align, size_t size) {
+ATTRIBUTE_ALWAYS_INLINE
+inline void* do_memalign_or_cpp_memalign(size_t align, size_t size,
+    bool from_operator, bool nothrow) {
   void *rv = do_memalign(align, size);
   if (PREDICT_TRUE(rv != NULL)) {
     return rv;
   }
-  return maybe_do_cpp_memalign_slow(align, size);
+  return maybe_do_cpp_memalign_slow(align, size, from_operator, nothrow);
 }
 
 // Must be called with the page lock held.
@@ -1641,10 +1675,6 @@ extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_NOTHROW {
 
 #ifndef TCMALLOC_USING_DEBUGALLOCATION  // debugallocation.cc defines its own
 
-#if defined(__GNUC__) && defined(__ELF__) && !defined(TCMALLOC_NO_ALIASES)
-#define TC_ALIAS(name) __attribute__((alias(#name)))
-#endif
-
 // CAVEAT: The code structure below ensures that MallocHook methods are always
 //         called from the stack frame of the invoked allocation function.
 //         heap-checker.cc depends on this to start a stack trace from
@@ -1932,7 +1962,7 @@ TC_ALIAS(tc_free);
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align,
                                                 size_t size) PERFTOOLS_NOTHROW {
-  void* result = do_memalign_or_cpp_memalign(align, size);
+  void* result = do_memalign_or_cpp_memalign(align, size, false, true);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -1945,7 +1975,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
     return EINVAL;
   }
 
-  void* result = do_memalign_or_cpp_memalign(align, size);
+  void* result = do_memalign_or_cpp_memalign(align, size, false, true);
   MallocHook::InvokeNewHook(result, size);
   if (PREDICT_FALSE(result == NULL)) {
     return ENOMEM;
@@ -1955,12 +1985,89 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
   }
 }
 
+#if defined(ENABLE_ALIGNED_NEW_DELETE)
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
+  void* result = do_memalign_or_cpp_memalign(static_cast<size_t>(align), size, true, false);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align, const std::nothrow_t&) PERFTOOLS_NOTHROW {
+  void* result = do_memalign_or_cpp_memalign(static_cast<size_t>(align), size, true, true);
+  MallocHook::InvokeNewHook(result, size);
+  return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
+  tc_free(p);
+}
+
+// There is no easy way to obtain the actual size used by do_memalign to allocate aligned storage, so for now
+// just ignore the size. It might get useful in the future.
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t align) PERFTOOLS_NOTHROW {
+  tc_free(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW {
+  tc_free(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align)
+#ifdef TC_ALIAS
+TC_ALIAS(tc_new_aligned);
+#else
+{
+  return tc_new_aligned(size, align);
+}
+#endif
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t align, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_new_aligned_nothrow);
+#else
+{
+  return tc_new_aligned_nothrow(size, align, nt);
+}
+#endif
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_delete_aligned);
+#else
+{
+  tc_free(p);
+}
+#endif
+
+// There is no easy way to obtain the actual size used by do_memalign to allocate aligned storage, so for now
+// just ignore the size. It might get useful in the future.
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t align) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_delete_sized_aligned);
+#else
+{
+  tc_free(p);
+}
+#endif
+
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_delete_aligned_nothrow);
+#else
+{
+  tc_free(p);
+}
+#endif
+
+#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+
 static size_t pagesize = 0;
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) PERFTOOLS_NOTHROW {
   // Allocate page-aligned object of length >= size bytes
   if (pagesize == 0) pagesize = getpagesize();
-  void* result = do_memalign_or_cpp_memalign(pagesize, size);
+  void* result = do_memalign_or_cpp_memalign(pagesize, size, false, true);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }
@@ -1972,7 +2079,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
     size = pagesize;   // http://man.free4web.biz/man3/libmpatrol.3.html
   }
   size = (size + pagesize - 1) & ~(pagesize - 1);
-  void* result = do_memalign_or_cpp_memalign(pagesize, size);
+  void* result = do_memalign_or_cpp_memalign(pagesize, size, false, true);
   MallocHook::InvokeNewHook(result, size);
   return result;
 }

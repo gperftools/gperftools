@@ -144,6 +144,27 @@ static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
 
 #endif
 
+#if defined(ENABLE_ALIGNED_NEW_DELETE)
+
+#define OVERALIGNMENT 64
+
+struct overaligned_type
+{
+#if defined(__GNUC__)
+  __attribute__((__aligned__(OVERALIGNMENT)))
+#elif defined(_MSC_VER)
+  __declspec(align(OVERALIGNMENT))
+#else
+  alignas(OVERALIGNMENT)
+#endif
+  unsigned char data[OVERALIGNMENT * 2]; // make the object size different from
+                                         // alignment to make sure the correct
+                                         // values are passed to the new/delete
+                                         // implementation functions
+};
+
+#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
 // form of the name instead.
 #ifndef MAP_ANONYMOUS
@@ -1285,6 +1306,53 @@ static int RunAllTests(int argc, char** argv) {
     VerifyNewHookWasCalled();
     ::operator delete(p2, std::nothrow);
     VerifyDeleteHookWasCalled();
+
+#if defined(ENABLE_ALIGNED_NEW_DELETE)
+
+    overaligned_type* poveraligned = new overaligned_type;
+    CHECK(poveraligned != NULL);
+    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    delete poveraligned;
+    VerifyDeleteHookWasCalled();
+
+    poveraligned = new overaligned_type[10];
+    CHECK(poveraligned != NULL);
+    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    delete[] poveraligned;
+    VerifyDeleteHookWasCalled();
+
+    poveraligned = new(std::nothrow) overaligned_type;
+    CHECK(poveraligned != NULL);
+    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    delete poveraligned;
+    VerifyDeleteHookWasCalled();
+
+    poveraligned = new(std::nothrow) overaligned_type[10];
+    CHECK(poveraligned != NULL);
+    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    delete[] poveraligned;
+    VerifyDeleteHookWasCalled();
+
+    // Another way of calling operator new
+    p2 = static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT)));
+    CHECK(p2 != NULL);
+    CHECK((((size_t)p2) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    ::operator delete(p2, std::align_val_t(OVERALIGNMENT));
+    VerifyDeleteHookWasCalled();
+
+    p2 = static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT), std::nothrow));
+    CHECK(p2 != NULL);
+    CHECK((((size_t)p2) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    ::operator delete(p2, std::align_val_t(OVERALIGNMENT), std::nothrow);
+    VerifyDeleteHookWasCalled();
+
+#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
 
     // Try strdup(), which the system allocates but we must free.  If
     // all goes well, libc will use our malloc!
