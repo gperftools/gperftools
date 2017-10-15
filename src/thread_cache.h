@@ -323,8 +323,8 @@ class ThreadCache {
 
   FreeList      list_[kClassSizesMax];     // Array indexed by size-class
 
-  int32         size_;
-  int32         max_size_;
+  int32         size_;                     // Combined size of data
+  int32         max_size_;                 // size_ > max_size_ --> Scavenge()
 
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
@@ -395,7 +395,6 @@ inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl
 
   if (PREDICT_FALSE(length > list->max_length())) {
     ListTooLong(list, cl);
-    return;
   }
 
   if (size_ > max_size_) Scavenge();
