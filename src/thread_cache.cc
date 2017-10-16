@@ -76,7 +76,7 @@ bool ThreadCache::tsd_inited_ = false;
 pthread_key_t ThreadCache::heap_key_;
 
 void ThreadCache::Init(pthread_t tid) {
-  size_left_ = 0;
+  size_ = 0;
 
   max_size_ = 0;
   IncreaseCacheLimitLocked();
@@ -126,7 +126,7 @@ void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size) {
 
   ASSERT((start == NULL) == (fetch_count == 0));
   if (--fetch_count >= 0) {
-    size_left_ -= byte_size * fetch_count;
+    size_ += byte_size * fetch_count;
     list->PushRange(fetch_count, SLL_Next(start), end);
   }
 
@@ -152,7 +152,7 @@ void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size) {
 }
 
 void ThreadCache::ListTooLong(FreeList* list, uint32 cl) {
-  size_left_ -= list->object_size();
+  size_ += list->object_size();
 
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
   ReleaseToCentralCache(list, cl, batch_size);
@@ -176,7 +176,7 @@ void ThreadCache::ListTooLong(FreeList* list, uint32 cl) {
     }
   }
 
-  if (PREDICT_FALSE(size_left_ < 0)) {
+  if (PREDICT_FALSE(size_ > max_size_)) {
     Scavenge();
   }
 }
@@ -199,7 +199,7 @@ void ThreadCache::ReleaseToCentralCache(FreeList* src, uint32 cl, int N) {
   void *tail, *head;
   src->PopRange(N, &head, &tail);
   Static::central_cache()[cl].InsertRange(head, tail, N);
-  size_left_ += delta_bytes;
+  size_ -= delta_bytes;
 }
 
 // Release idle memory to the central cache
