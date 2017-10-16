@@ -385,19 +385,26 @@ inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl
   ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
   size_ += Static::sizemap()->ByteSizeForClass(cl);
+  ssize_t size_headroom = max_size_ - size_ - 1;
 
   // This catches back-to-back frees of allocs in the same size
   // class. A more comprehensive (and expensive) test would be to walk
   // the entire freelist. But this might be enough to find some bugs.
   ASSERT(ptr != list->Next());
 
-  uint32_t length = list->Push(ptr);
+  list->Push(ptr);
+  ssize_t list_headroom =
+      static_cast<ssize_t>(list->max_length()) - list->length();
 
-  if (PREDICT_FALSE(length > list->max_length())) {
-    ListTooLong(list, cl);
+  // There are two relatively uncommon things that require further work.
+  // In the common case we're done, and in that case we need a single branch
+  // because of the bitwise-or trick that follows.
+  if (PREDICT_FALSE((list_headroom | size_headroom) < 0)) {
+    if (list_headroom < 0) {
+      ListTooLong(list, cl);
+    }
+    if (size_ >= max_size_) Scavenge();
   }
-
-  if (size_ > max_size_) Scavenge();
 }
 
 inline ThreadCache* ThreadCache::GetThreadHeap() {
