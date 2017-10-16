@@ -81,7 +81,7 @@ class ThreadCache {
   int freelist_length(uint32 cl) const { return list_[cl].length(); }
 
   // Total byte size in cache
-  size_t Size() const { return max_size_ - size_left_; }
+  size_t Size() const { return size_; }
 
   // Allocate an object of the given size and class. The size given
   // must be the same as the size of the class in the size map.
@@ -323,12 +323,8 @@ class ThreadCache {
 
   FreeList      list_[kClassSizesMax];     // Array indexed by size-class
 
-  // Thread cache size is max_size_ - size_left_. We use such indirect
-  // representation to speed up some key operations.
-  //
-  // I.e. size_left_ < 0 --> Scavenge()
-  int32         size_left_;
-  int32         max_size_;
+  int32         size_;                     // Combined size of data
+  int32         max_size_;                 // size_ > max_size_ --> Scavenge()
 
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
@@ -381,31 +377,33 @@ inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32 c
   if (!list->TryPop(&rv)) {
     return FetchFromCentralCache(cl, size);
   }
-  size_left_ += size;
+  size_ -= size;
   return rv;
 }
 
 inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
   ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
+  size_ += Static::sizemap()->ByteSizeForClass(cl);
+  ssize_t size_headroom = max_size_ - size_ - 1;
+
   // This catches back-to-back frees of allocs in the same size
   // class. A more comprehensive (and expensive) test would be to walk
   // the entire freelist. But this might be enough to find some bugs.
   ASSERT(ptr != list->Next());
 
-  int32_t size_left = size_left_;
-  uint32_t length = list->Push(ptr);
+  list->Push(ptr);
+  ssize_t list_headroom =
+      static_cast<ssize_t>(list->max_length()) - list->length();
 
-  if (PREDICT_FALSE(length > list->max_length())) {
-    ListTooLong(list, cl);
-    return;
-  }
-
-  int32_t object_size = list->object_size();
-  size_left_ = size_left -= object_size;
-
-  if (PREDICT_FALSE(size_left < 0)) {
-    Scavenge();
+  // There are two relatively uncommon things that require further work.
+  // In the common case we're done, and in that case we need a single branch
+  // because of the bitwise-or trick that follows.
+  if (PREDICT_FALSE((list_headroom | size_headroom) < 0)) {
+    if (list_headroom < 0) {
+      ListTooLong(list, cl);
+    }
+    if (size_ >= max_size_) Scavenge();
   }
 }
 
@@ -484,9 +482,7 @@ inline bool ThreadCache::IsUseEmergencyMalloc() {
 }
 
 inline void ThreadCache::SetMaxSize(int32 new_max_size) {
-  int32 size = Size();
   max_size_ = new_max_size;
-  size_left_ = max_size_ - size;
 }
 
 #ifndef NO_TCMALLOC_SAMPLES
