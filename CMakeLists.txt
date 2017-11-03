@@ -14,22 +14,27 @@ set(default_build_minimal OFF)
 set(default_tcmalloc_alignment 16)
 set(need_nanosleep ON)
 
-set(host "${CMAKE_HOST_SYSTEM_NAME}")
-if(host MATCHES ".*-mingw.*")
+set(host string(TOLOWER "${CMAKE_SYSTEM_NAME}"))
+if(host MATCHES "freebsd")
+    set(FREEBSD ON)
+elseif(CMAKE_VERSION VERSION_LESS "3.2" AND host MATCHES "mingw")
+    set(MINGW ON)
+endif()
+
+if(MINGW)
     set(default_build_minimal ON)
     set(default_build_debugalloc OFF)
     set(need_nanosleep OFF)
-elseif(host MATCHES ".*-cygwin.*")
+elseif(CYGWIN)
     set(default_build_heap_checker OFF)
     set(default_build_cpu_profiler OFF)
-elseif(host MATCHES ".*-freebsd.*")
+elseif(host MATCHES "freebsd")
     set(default_build_heap_checker OFF)
-elseif(host MATCHES ".*-darwin.*")
+elseif(APPLE)
     set(default_build_heap_checker OFF)
 endif()
 
 include(CMakeDependentOption)
-include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(CheckCXXSourceCompiles)
 include(CheckCXXSymbolExists)
@@ -40,9 +45,11 @@ include(CheckTypeSize)
 include(CheckVariableExists)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
+include(DefineArchVariables)
 include(PCFromUContext)
 
-check_cxx_source_compiles("int main() { return __s390__; }" s390)
+define_arch_variables()
+
 if(s390)
     set(default_enable_libunwind OFF)
     set(default_enable_backtrace ON)
@@ -51,7 +58,6 @@ else()
     set(default_enable_backtrace OFF)
 endif()
 
-check_cxx_source_compiles("int main() { return __PPC64__; }" PPC64)
 if(PPC64)
     set(default_enable_libunwind OFF)
     set(default_tcmalloc_pagesize 64)
@@ -110,6 +116,20 @@ endif()
 # TODO: `target_add_definitions` for above (i.e. `TCMALLOC_32K_PAGES`,
 #       `TCMALLOC_ALIGN_8BYTES`)
 
+check_cxx_source_compiles("#include <stdlib.h>
+                           static void foo(void) __attribute__ ((unused));
+                           void foo(void) { exit(1); }"
+                          HAVE___ATTRIBUTE__)
+
+foreach(candidate IN "inline" "__inline" "__inline__" "")
+    check_cxx_source_compiles(
+        "static ${candidate} void foo() {}" candidate_compiled)
+    if(candidate_compiled)
+        set(inline "${candidate}")
+        break()
+    endif()
+endforeach()
+
 # TODO: Find `objcopy` with `--weaken` support
 
 check_type_size("__int64" __INT64 LANGUAGE CXX)
@@ -143,13 +163,13 @@ check_include_file_cxx("sys/cdefs.h" HAVE_SYS_CDEFS_H)
 check_include_file_cxx("features.h" HAVE_FEATURES_H)
 
 set(CMAKE_REQUIRED_DEFINITIONS -D_XOPEN_SOURCE=600)
-check_cxx_symbol_exists("cfree" "stdlib.h;malloc.h" HAVE_CFREE)
+check_cxx_symbol_exists("cfree" "stdlib.h;malloc.h" HAVE_DECL_CFREE)
 set(CMAKE_REQUIRED_DEFINITIONS)
-check_symbol_exists("posix_memalign" "stdlib.h;malloc.h" HAVE_POSIX_MEMALIGN)
-check_symbol_exists("memalign" "stdlib.h;malloc.h" HAVE_MEMALIGN)
-check_symbol_exists("valloc" "stdlib.h;malloc.h" HAVE_VALLOC)
-check_symbol_exists("pvalloc" "stdlib.h;malloc.h" HAVE_PVALLOC)
-check_symbol_exists("mmap" "stdlib.h;unistd.h;sys/mman.h;sys/param.h" HAVE_MMAP)
+check_cxx_symbol_exists("posix_memalign" "stdlib.h;malloc.h" HAVE_DECL_POSIX_MEMALIGN)
+check_cxx_symbol_exists("memalign" "stdlib.h;malloc.h" HAVE_DECL_MEMALIGN)
+check_cxx_symbol_exists("valloc" "stdlib.h;malloc.h" HAVE_DECL_VALLOC)
+check_cxx_symbol_exists("pvalloc" "stdlib.h;malloc.h" HAVE_DECL_PVALLOC)
+check_cxx_symbol_exists("mmap" "stdlib.h;unistd.h;sys/mman.h;sys/param.h" HAVE_DECL_MMAP)
 
 check_cxx_source_compiles(
     "#include <stdint.h>\nint main() { int32_t v1 = 0; intptr_t v2 = 0; return (&v1 - &v2); }"
@@ -174,7 +194,7 @@ cmake_dependent_option(
     gperftools_enable_frame_pointers
     "On x86_64 systems, compile with -fno-omit-frame-pointer (see INSTALL)"
     OFF
-    "CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL x86_64"
+    "x86_64"
     OFF)
 
 check_cxx_compiler_flag("-Wno-unused-result" HAVE_W_NO_UNUSED_RESULT)
@@ -202,7 +222,7 @@ else()
     set(default_emergency_malloc OFF)
 endif()
 
-if(will_use_libunwind AND CMAKE_HOST_SYSTEM_PROCESSOR STREQUAL "arm")
+if(will_use_libunwind AND arm)
     set(default_emergency_malloc ON)
 endif()
 
@@ -227,13 +247,10 @@ if(CMAKE_CXX_COMPILER STREQUAL "GNU" AND
 elseif(APPLE)
     message(WARNING "OSX __thread support is known to call malloc which makes "
                     "it unsafe to use from malloc replacement")
+elseif(MINGW)
+    message(WARNING "mingw doesn't really support tls")
 else()
-    check_cxx_symbol_exists("__MINGW32__" "" mingw32)
-    if(mingw32)
-        message(WARNING "mingw doesn't really support tls")
-    else()
-        check_cxx_source_compiles("static __thread int p = 0;" HAVE_TLS)
-    endif()
+    check_cxx_source_compiles("static __thread int p = 0;" HAVE_TLS)
 endif()
 
 if(need_nanosleep)
@@ -261,8 +278,27 @@ if(EXISTS /usr/sfw/lib/libstdc++.la)
     endif()
 endif()
 
-check_variable_exists("program_invocation_name" HAVE_PROGRAM_INVOCATION_NAME)
-
 check_cxx_source_compiles(
     "#include <string>\n#include <vector>\nint main() { pthread_t th; pthread_join(th, 0); return 0; }"
     HAVE_PTHREAD_DESPITE_ASKING_FOR)
+
+check_cxx_source_compiles(
+    "#include <vector>\nint main() { vector<int> t; return 0; }"
+    STL_NAMESPACE_NONE)
+if(STL_NAMESPACE_NONE)
+    set(STL_NAMESPACE "")
+else()
+    check_cxx_source_compiles(
+        "#include <vector>\nint main() { std::vector<int> t; return 0; }"
+        STL_NAMESPACE_STD)
+    if (STL_NAMESPACE_STD)
+        set(STL_NAMESPACE "std")
+    endif()
+endif()
+
+check_variable_exists("program_invocation_name" HAVE_PROGRAM_INVOCATION_NAME)
+
+if(MINGW)
+    check_cxx_symbol_exists("sleep" "unistd.h" HAVE_DECL_SLEEP)
+    check_cxx_symbol_exists("nanosleep" "time.h" HAVE_DECL_NANOSLEEP)
+endif()

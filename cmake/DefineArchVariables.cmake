@@ -1,0 +1,10 @@
+if(NOT COMMAND check_cxx_source_compiles)
+    include(CheckCXXSourceCompiles)
+endif()
+
+macro(define_arch_variables)
+    check_cxx_source_compiles("int main() { return __s390__; }" s390)
+    check_cxx_source_compiles("int main() { return __PPC64__; }" PPC64)
+    check_cxx_source_compiles("int main() { return __x86_64__; }" x86_64)
+    check_cxx_source_compiles("int main() { return __arm__; }" arm)
+endmacro()
