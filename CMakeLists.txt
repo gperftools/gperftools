@@ -15,11 +15,6 @@ set(default_tcmalloc_alignment 16)
 set(need_nanosleep ON)
 
 set(host string(TOLOWER "${CMAKE_SYSTEM_NAME}"))
-if(host MATCHES "freebsd")
-    set(FREEBSD ON)
-elseif(CMAKE_VERSION VERSION_LESS "3.2" AND host MATCHES "mingw")
-    set(MINGW ON)
-endif()
 
 if(MINGW)
     set(default_build_minimal ON)
@@ -45,10 +40,10 @@ include(CheckTypeSize)
 include(CheckVariableExists)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include(DefineArchVariables)
+include(DefineTargetVariables)
 include(PCFromUContext)
 
-define_arch_variables()
+define_target_variables()
 
 if(s390)
     set(default_enable_libunwind OFF)
@@ -83,12 +78,15 @@ cmake_dependent_option(
     gperftools_build_debugalloc "Build debugalloc" ${default_build_debugalloc}
     "NOT gperftools_build_minimal" OFF)
 
-option(gperftools_stacktrace_via_backtrace
+option(gperftools_enable_stacktrace_via_backtrace
        "Enable use of backtrace() for stacktrace capturing (may deadlock)"
        ${default_enable_backtrace})
 option(gperftools_enable_libunwind
        "Enable libunwind linking"
        ${default_enable_libunwind})
+
+set(enable_backtrace ${gperftools_enable_stacktrace_via_backtrace})
+set(enable_libunwind ${gperftools_enable_libunwind})
 
 set(gperftools_tcmalloc_pagesize ${default_tcmalloc_pagesize}
     CACHE STRING "Set the tcmalloc internal page size")
@@ -101,6 +99,10 @@ if(NOT gperftools_tcmalloc_pagesize STREQUAL "8" AND
         "setting to default value (${default_tcmalloc_pagesize})")
     set(gperftools_tcmalloc_pagesize ${default_tcmalloc_pagesize})
 endif()
+if (gperftools_tcmalloc_pagesize STREQUAL "32" OR
+    gperftools_tcmalloc_pagesize STREQUAL "64")
+    set(TCMALLOC_${gperftools_tcmalloc_pagesize}K_PAGES ON)
+endif()
 
 set(gperftools_tcmalloc_alignment ${default_tcmalloc_alignment}
     CACHE STRING "Set the tcmalloc allocation alignment")
@@ -112,20 +114,24 @@ if(NOT gperftools_tcmalloc_alignment STREQUAL "8" AND
         "setting to default value (${default_tcmalloc_alignment})")
     set(gperftools_tcmalloc_alignment ${default_tcmalloc_alignment})
 endif()
-
-# TODO: `target_add_definitions` for above (i.e. `TCMALLOC_32K_PAGES`,
-#       `TCMALLOC_ALIGN_8BYTES`)
+if(gperftools_tcmalloc_alignment STREQUAL "8")
+    set(TCMALLOC_ALIGN_8BYTES ON)
+endif()
 
 check_cxx_source_compiles("#include <stdlib.h>
                            static void foo(void) __attribute__ ((unused));
-                           void foo(void) { exit(1); }"
+                           void foo(void) { exit(1); }
+                           int main() { return 0; }"
                           HAVE___ATTRIBUTE__)
 
-foreach(candidate IN "inline" "__inline" "__inline__" "")
-    check_cxx_source_compiles(
-        "static ${candidate} void foo() {}" candidate_compiled)
-    if(candidate_compiled)
-        set(inline "${candidate}")
+set(inline)
+foreach(inline_keyword "inline" "__inline" "__inline__")
+    check_cxx_source_compiles("
+        static ${inline_keyword} void foo() {}
+        int main() { foo(); return 0; }"
+        have_${inline_keyword})
+    if(have_${inline_keyword})
+        set(inline ${inline_keyword})
         break()
     endif()
 endforeach()
@@ -142,16 +148,29 @@ check_function_exists("sbrk" HAVE_SBRK)
 check_function_exists("geteuid" HAVE_GETEUID)
 check_function_exists("fork" HAVE_FORK)
 check_include_file_cxx("features.h" HAVE_FEATURES_H)
+check_include_file_cxx("inttypes.h" HAVE_INTTYPES_H)
+check_include_file_cxx("stdint.h" HAVE_STDINT_H)
+check_include_file_cxx("stdlib.h" HAVE_STDLIB_H)
+check_include_file_cxx("strings.h" HAVE_STRINGS_H)
+check_include_file_cxx("string.h" HAVE_STRING_H)
+check_include_file_cxx("dlfcn.h" HAVE_DLFCN_H)
 check_include_file_cxx("malloc.h" HAVE_MALLOC_H)
+check_include_file_cxx("sys/malloc.h" HAVE_SYS_MALLOC_H)
+check_include_file_cxx("sys/param.h" HAVE_SYS_PARAM_H)
 check_include_file_cxx("glob.h" HAVE_GLOB_H)
 check_include_file_cxx("execinfo.h" HAVE_EXECINFO_H)
 check_include_file_cxx("unwind.h" HAVE_UNWIND_H)
+check_include_file_cxx("unistd.h" HAVE_UNISTD_H)
+check_include_file_cxx("valgrind.h" HAVE_VALGRIND_H)
 check_include_file_cxx("sched.h" HAVE_SCHED_H)
 check_include_file_cxx("conflict-signal.h" HAVE_CONFLICT_SIGNAL_H)
+check_include_file_cxx("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H)
 check_include_file_cxx("sys/prctl.h" HAVE_SYS_PRCTL_H)
 check_include_file_cxx("linux/ptrace.h" HAVE_LINUX_PTRACE_H)
 check_include_file_cxx("sys/syscall.h" HAVE_SYS_SYSCALL_H)
 check_include_file_cxx("sys/socket.h" HAVE_SYS_SOCKET_H)
+check_include_file_cxx("sys/stat.h" HAVE_SYS_STAT_H)
+check_include_file_cxx("sys/types.h" HAVE_SYS_TYPES_H)
 check_include_file_cxx("sys/wait.h" HAVE_SYS_WAIT_H)
 check_include_file_cxx("poll.h" HAVE_POLL_H)
 check_include_file_cxx("fcntl.h" HAVE_FCNTL_H)
@@ -160,7 +179,6 @@ check_include_file_cxx("pwd.h" HAVE_PWD_H)
 check_include_file_cxx("sys/resource.h" HAVE_SYS_RESOURCE_H)
 check_include_file_cxx("valgrind.h" HAVE_VALGRIND_H)
 check_include_file_cxx("sys/cdefs.h" HAVE_SYS_CDEFS_H)
-check_include_file_cxx("features.h" HAVE_FEATURES_H)
 
 set(CMAKE_REQUIRED_DEFINITIONS -D_XOPEN_SOURCE=600)
 check_cxx_symbol_exists("cfree" "stdlib.h;malloc.h" HAVE_DECL_CFREE)
@@ -169,22 +187,38 @@ check_cxx_symbol_exists("posix_memalign" "stdlib.h;malloc.h" HAVE_DECL_POSIX_MEM
 check_cxx_symbol_exists("memalign" "stdlib.h;malloc.h" HAVE_DECL_MEMALIGN)
 check_cxx_symbol_exists("valloc" "stdlib.h;malloc.h" HAVE_DECL_VALLOC)
 check_cxx_symbol_exists("pvalloc" "stdlib.h;malloc.h" HAVE_DECL_PVALLOC)
-check_cxx_symbol_exists("mmap" "stdlib.h;unistd.h;sys/mman.h;sys/param.h" HAVE_DECL_MMAP)
+check_cxx_symbol_exists("mmap" "stdlib.h;unistd.h;sys/mman.h;sys/param.h" HAVE_MMAP)
+check_cxx_symbol_exists("uname" "sys/utsname.h" HAVE_DECL_UNAME)
 
-check_cxx_source_compiles(
-    "#include <stdint.h>\nint main() { int32_t v1 = 0; intptr_t v2 = 0; return (&v1 - &v2); }"
+check_function_exists("snprintf" HAVE_SNPRINTF)
+
+if(WIN32)
+    set(HAVE_GETPAGESIZE ON)
+else()
+    check_function_exists("getpagesize" HAVE_GETPAGESIZE)
+endif()
+
+check_cxx_source_compiles("
+    #include <stdint.h>
+    int main()
+    {
+        int32_t v1 = 0;
+        intptr_t v2 = 0;
+        return (&v1 - &v2);
+    }"
     INT32_EQUALS_INTPTR)
 
-pc_from_ucontext(pc_field)
+pc_from_ucontext(PC_FROM_UCONTEXT_DEF)
 
 set(unwind_libs)
 if(gperftools_enable_libunwind)
     check_include_file_cxx("libunwind.h" HAVE_LIBUNWIND_H)
     find_library(libunwind_location NAMES unwind)
     if(libunwind_location)
-        check_library_exists(unwind backtrace ${libunwind_location} HAVE_LIBUNWIND)
+        check_library_exists(
+            unwind backtrace ${libunwind_location} have_libunwind)
     endif()
-    if(HAVE_LIBUNWIND)
+    if(have_libunwind)
         list(APPEND unwind_libs unwind)
         set(will_use_libunwind ON)
     endif()
@@ -211,10 +245,20 @@ if(gperftools_sized_delete)
     set(ENABLE_SIZED_DELETE 1)
 endif()
 
-check_cxx_compiler_flag("-fsized-deallocation" HAVE_SIZED_DEALLOCATION)
+check_cxx_compiler_flag("-fsized-deallocation" HAVE_SIZED_FREE_OPTION)
 
-check_cxx_source_compiles("include <unwind.h>\nint main() { &Unwind_Backtrace; return 0; }"
-                          HAVE_UNWIND_BACKTRACE)
+check_cxx_source_compiles(
+    "namespace abc { void foo() {} } int main() { abc::foo(); return 0; }"
+    HAVE_NAMESPACES)
+
+check_cxx_source_compiles("
+    include <unwind.h>
+    int main()
+    {
+        &_Unwind_Backtrace;
+        return 0;
+    }"
+    HAVE_UNWIND_BACKTRACE)
 
 if(enable_backtrace)
     set(default_emergency_malloc ON)
@@ -222,7 +266,7 @@ else()
     set(default_emergency_malloc OFF)
 endif()
 
-if(will_use_libunwind AND arm)
+if(will_use_libunwind AND ARM)
     set(default_emergency_malloc ON)
 endif()
 
@@ -231,14 +275,19 @@ option(gperftools_emergency_malloc
        ${default_emergency_malloc})
 
 check_cxx_source_compiles(
-    "int main() { void* sp = __buildin_stack_pointer(); return 0; }"
+    "int main() { void* sp = __builtin_stack_pointer(); return 0; }"
     HAVE_BUILTIN_STACK_POINTER)
 check_cxx_source_compiles(
     "int main() { return __builtin_expect(main != 0, 1); }"
     HAVE_BUILTIN_EXPECT)
 
-check_cxx_source_compiles(
-    "#include <unistd.h>\nint main() { char** env = __environ; return 0; }"
+check_cxx_source_compiles("
+    #include <unistd.h>
+    int main()
+    {
+        char** env = __environ;
+        return 0;
+    }"
     HAVE___ENVIRON)
 
 if(CMAKE_CXX_COMPILER STREQUAL "GNU" AND
@@ -255,7 +304,8 @@ endif()
 
 if(need_nanosleep)
     check_cxx_source_compiles(
-        "#include <time.h>\nint main() { static struct timespec ts; nanosleep(&ts, NULL); return 0; }"
+        "#include <time.h>
+         int main() { static struct timespec ts; nanosleep(&ts, NULL); return 0; }"
         nanosleep_ok)
     if(NOT nanosleep_ok)
         set(CMAKE_REQUIRED_LIBRARIES rt)
@@ -271,25 +321,60 @@ if(need_nanosleep)
     endif()
 endif()
 
+if(enable_backtrace)
+    check_cxx_symbol_exists("backtrace" "execinfo.h" HAVE_DECL_BACKTRACE)
+    check_function_exists("backtrace" backtrace_exists)
+    if(NOT backtrace_exists)
+        set(CMAKE_REQUIRED_LIBRARIES execinfo)
+        check_function_exists("backtrace" backtrace_exists)
+        message("backtrace_exists: ${backtrace_exists}")
+        set(CMAKE_REQUIRED_LIBRARIES)
+        if(backtrace_exists)
+            LIST(INSERT unwind_libs 0 execinfo)
+        endif()
+    endif()
+endif()
+
+find_package(Threads REQUIRED)
+set(HAVE_PTHREAD ${CMAKE_USE_PTHREADS_INIT})
+foreach(attr "PTHREAD_CREATE_JOINABLE" "PTHREAD_CREATE_UNDETACHED")
+    check_cxx_source_compiles("
+        #include <pthread.h>
+        int main() { int attr = ${attr}; return attr; }"
+        ${attr}_ATTR)
+    if(${attr}_ATTR)
+        set(PTHREAD_CREATE_JOINABLE ${attr})
+        break()
+    endif()
+endforeach()
+
+if(FreeBSD)
+    set(PTHREADS_CRASHES_IF_RUN_TOO_EARLY ON)
+endif()
+
 if(EXISTS /usr/sfw/lib/libstdc++.la)
     file(READ /usr/sfw/lib/libstdc++.la _ch LIMIT 1)
     if(string(LENGTH _ch) EQUAL 0)
-        # TODO: list(APPEND LIBS "src/solaris")
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Lsrc/solaris")
     endif()
 endif()
 
 check_cxx_source_compiles(
-    "#include <string>\n#include <vector>\nint main() { pthread_t th; pthread_join(th, 0); return 0; }"
+    "#include <string>
+     #include <vector>
+     int main() { pthread_t th; pthread_join(th, 0); return 0; }"
     HAVE_PTHREAD_DESPITE_ASKING_FOR)
 
 check_cxx_source_compiles(
-    "#include <vector>\nint main() { vector<int> t; return 0; }"
+    "#include <vector>
+     int main() { vector<int> t; return 0; }"
     STL_NAMESPACE_NONE)
 if(STL_NAMESPACE_NONE)
     set(STL_NAMESPACE "")
 else()
     check_cxx_source_compiles(
-        "#include <vector>\nint main() { std::vector<int> t; return 0; }"
+        "#include <vector>
+         int main() { std::vector<int> t; return 0; }"
         STL_NAMESPACE_STD)
     if (STL_NAMESPACE_STD)
         set(STL_NAMESPACE "std")
@@ -302,3 +387,14 @@ if(MINGW)
     check_cxx_symbol_exists("sleep" "unistd.h" HAVE_DECL_SLEEP)
     check_cxx_symbol_exists("nanosleep" "time.h" HAVE_DECL_NANOSLEEP)
 endif()
+
+if(LINUX)
+    check_cxx_source_compiles("
+        #include <signal.h>
+        #include <time.h>
+        int main() { return SIGEV_THREAD_ID || CLOCK_THREAD_CPUTIME_ID; }"
+        HAVE_LINUX_SIGEV_THREAD_ID)
+endif()
+
+configure_file(cmake/config.h.in ${CMAKE_BINARY_DIR}/config.h @ONLY)
+configure_file(cmake/tcmalloc.h.in ${CMAKE_BINARY_DIR}/gperftools/tcmalloc.h @ONLY)
