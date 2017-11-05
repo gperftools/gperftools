@@ -3,7 +3,7 @@ include(CheckIncludeFile)
 
 macro(pc_from_ucontext variable)
     set(HAVE_${variable} OFF)
-    check_include_file_cxx("ucontext.h" HAVE_UCONTEXT_H)
+    check_include_file("ucontext.h" HAVE_UCONTEXT_H)
     if(EXISTS /etc/redhat-release)
         set(redhat7_release_pattern "Red Hat Linux release 7")
         file(STRINGS /etc/redhat-release redhat_release_match
@@ -12,12 +12,12 @@ macro(pc_from_ucontext variable)
         if(redhat_release_match MATCHES ${redhat7_release_pattern})
             set(HAVE_SYS_UCONTEXT_H OFF)
         else()
-            check_include_file_cxx("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
+            check_include_file("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
         endif()
     else()
-        check_include_file_cxx("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
+        check_include_file("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
     endif()
-    check_include_file_cxx("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H)
+    check_include_file("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H)
 
     set(pc_fields
         "uc_mcontext.gregs[REG_PC]"  # Solaris x86 (32 + 64 bit)
@@ -51,7 +51,7 @@ macro(pc_from_ucontext variable)
     endif()
     foreach(pc_field IN LISTS pc_fields)
         string(MAKE_C_IDENTIFIER ${pc_field} pc_field_id)
-        check_cxx_source_compiles(
+        check_c_source_compiles(
             "#include <${_inc}>\nint main() { ucontext_t u; return u.${pc_field} == 0; }"
             HAVE_${pc_field_id})
         if(HAVE_${pc_field_id})
