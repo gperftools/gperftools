@@ -41,8 +41,8 @@
 /* Define the version number so folks can check against it */
 #define TC_VERSION_MAJOR  @PROJECT_VERSION_MAJOR@
 #define TC_VERSION_MINOR  @PROJECT_VERSION_MINOR@
-#define TC_VERSION_PATCH  "@PROJECT_VERSION_PATCH@"
-#define TC_VERSION_STRING "gperftools @TC_VERSION_MAJOR@.@TC_VERSION_MINOR@@TC_VERSION_PATCH@"
+#define TC_VERSION_PATCH  ".@PROJECT_VERSION_PATCH@"
+#define TC_VERSION_STRING "gperftools @PROJECT_VERSION@"
 
 /* For struct mallinfo, if it's defined. */
 #ifdef HAVE_STRUCT_MALLINFO
