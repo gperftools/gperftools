@@ -686,6 +686,7 @@ set(tcmalloc_minimal_headers
   src/malloc_hook_mmap_linux.h
   src/malloc_hook_mmap_freebsd.h)
 add_library(tcmalloc_minimal
+  ${tcmalloc_cc}
   src/common.cc
   src/internal_logging.cc
   ${system_alloc_cc}
@@ -716,4 +717,15 @@ if(BUILD_TESTING)
     src/tests/testutil.cc
     src/tests/testutil.h)
   target_link_libraries(tcmalloc_minimal_unittest PUBLIC tcmalloc_minimal)
+
+  add_executable(tcmalloc_minimal_large_unittest
+    src/tests/tcmalloc_large_unittest.cc
+    src/tests/testutil.cc
+    src/tests/testutil.h)
+  target_link_libraries(tcmalloc_minimal_large_unittest PUBLIC tcmalloc_minimal)
+
+  add_executable(tcmalloc_minimal_large_heap_fragmentation_unittest
+    src/tests/large_heap_fragmentation_unittest.cc)
+  target_link_libraries(
+    tcmalloc_minimal_large_heap_fragmentation_unittest PUBLIC tcmalloc_minimal)
 endif()
