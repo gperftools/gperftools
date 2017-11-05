@@ -14,27 +14,27 @@
 
 /* Define to 1 if you have the declaration of `cfree', and to 0 if you don't.
    */
-#cmakedefine HAVE_DECL_CFREE
+#cmakedefine01 HAVE_DECL_CFREE
 
 /* Define to 1 if you have the declaration of `memalign', and to 0 if you
    don't. */
-#cmakedefine HAVE_DECL_MEMALIGN
+#cmakedefine01 HAVE_DECL_MEMALIGN
 
 /* Define to 1 if you have the declaration of `posix_memalign', and to 0 if
    you don't. */
-#cmakedefine HAVE_DECL_POSIX_MEMALIGN
+#cmakedefine01 HAVE_DECL_POSIX_MEMALIGN
 
 /* Define to 1 if you have the declaration of `pvalloc', and to 0 if you
    don't. */
-#cmakedefine HAVE_DECL_PVALLOC
+#cmakedefine01 HAVE_DECL_PVALLOC
 
 /* Define to 1 if you have the declaration of `uname', and to 0 if you don't.
    */
-#cmakedefine HAVE_DECL_UNAME
+#cmakedefine01 HAVE_DECL_UNAME
 
 /* Define to 1 if you have the declaration of `valloc', and to 0 if you don't.
    */
-#cmakedefine HAVE_DECL_VALLOC
+#cmakedefine01 HAVE_DECL_VALLOC
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #cmakedefine HAVE_DLFCN_H
@@ -156,11 +156,11 @@
 /* Define to 1 if compiler supports __thread */
 #cmakedefine HAVE_TLS
 
-#cmakedefine HAVE_DECL_SLEEP
+#cmakedefine01 HAVE_DECL_SLEEP
 
-#cmakedefine HAVE_DECL_NANOSLEEP
+#cmakedefine01 HAVE_DECL_NANOSLEEP
 
-#cmakedefine HAVE_DECL_BACKTRACE
+#cmakedefine01 HAVE_DECL_BACKTRACE
 
 #cmakedefine HAVE_UNWIND_BACKTRACE
 
