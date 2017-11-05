@@ -653,7 +653,7 @@ if(with_stack_trace)
 
     add_custom_target(pprof_unittest
       COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/src/pprof -test
-      DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
+      VERBATIM)
   endif()
 endif()
 
@@ -714,8 +714,7 @@ endif()
 if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_unittest
     src/tests/tcmalloc_unittest.cc
-    src/tests/testutil.cc
-    src/tests/testutil.h)
+    src/tests/testutil.cc)
   target_link_libraries(tcmalloc_minimal_unittest PUBLIC tcmalloc_minimal)
 
   add_executable(tcmalloc_minimal_large_unittest
@@ -728,4 +727,124 @@ if(BUILD_TESTING)
     src/tests/large_heap_fragmentation_unittest.cc)
   target_link_libraries(
     tcmalloc_minimal_large_heap_fragmentation_unittest PUBLIC tcmalloc_minimal)
+
+  if(BUILD_SHARED_LIBS AND NOT MINGW)
+    add_custom_target(maybe_threads_unittest
+      COMMAND src/tests/maybe_threads_unittest.sh
+      VERBATIM)
+  endif()
+
+  if(MINGW)
+    set(port_src src/windows/port.cc)
+  endif()
+  add_executable(addressmap_unittest
+    src/tests/addressmap_unittest.cc
+    src/addressmap-inl.h
+    ${port_src})
+  target_link_libraries(addressmap_unittest PUBLIC sysinfo)
+
+  if(NOT MINGW)
+    add_executable(system_alloc_unittest src/tests/system-alloc_unittest.cc)
+    target_link_libraries(system_alloc_unittest PUBLIC tcmalloc_minimal)
+  endif()
+
+  add_executable(packed_cache_test src/tests/packed-cache_test.cc)
+  target_link_libraries(packed_cache_test PUBLIC tcmalloc_minimal)
+
+  add_executable(frag_unittest src/tests/frag_unittest.cc)
+  target_link_libraries(frag_unittest PUBLIC tcmalloc_minimal)
+
+  add_executable(markidle_unittest
+    src/tests/markidle_unittest.cc
+    src/tests/testutil.cc)
+  target_link_libraries(markidle_unittest PUBLIC tcmalloc_minimal)
+
+  add_executable(current_allocated_bytes_test
+    src/tests/current_allocated_bytes_test.cc)
+  target_link_libraries(current_allocated_bytes_test PUBLIC tcmalloc_minimal)
+
+  add_executable(malloc_hook_test
+    src/tests/malloc_hook_test.cc
+    src/tests/testutil.cc)
+  target_link_libraries(malloc_hook_test PUBLIC tcmalloc_minimal)
+
+  add_executable(malloc_extension_test
+    src/tests/malloc_extension_test.cc
+    src/tests/testutil.cc)
+  target_link_libraries(malloc_extension_test PUBLIC tcmalloc_minimal)
+
+  add_executable(malloc_extension_c_test src/tests/malloc_extension_c_test.c)
+  target_link_libraries(malloc_extension_c_test PUBLIC
+    tcmalloc_minimal stdc++ m)
+  if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    target_compile_options(malloc_extension_c_test PUBLIC "-ansi")
+  endif()
+
+  if(NOT MINGW AND NOT APPLE)
+    add_executable(memalign_unittest
+      src/tests/memalign_unittest.cc
+      src/tests/testutil.cc)
+    target_link_libraries(memalign_unittest PUBLIC tcmalloc_minimal)
+  endif()
+
+  add_executable(page_heap_test src/tests/page_heap_test.cc)
+  target_link_libraries(page_heap_test PUBLIC tcmalloc_minimal)
+
+  add_executable(pagemap_unittest src/tests/pagemap_unittest.cc)
+  target_link_libraries(pagemap_unittest PUBLIC tcmalloc_minimal)
+
+  add_executable(realloc_unittest src/tests/realloc_unittest.cc)
+  target_link_libraries(realloc_unittest PUBLIC tcmalloc_minimal)
+
+  add_executable(stack_trace_table_test src/tests/stack_trace_table_test.cc)
+  target_link_libraries(stack_trace_table_test PUBLIC tcmalloc_minimal)
+
+  add_executable(thread_dealloc_unittest
+    src/tests/thread_dealloc_unittest.cc
+    src/tests/testutil.cc)
+  target_link_libraries(thread_dealloc_unittest PUBLIC tcmalloc_minimal)
+endif()
+
+if(gperftools_build_debugalloc)
+  add_library(tcmalloc_minimal_debug src/debugallocation.cc)
+  target_compile_definitions(tcmalloc_minimal_debug PUBLIC
+    TCMALLOC_FOR_DEBUGALLOCATION)
+  target_link_libraries(tcmalloc_minimal_debug PUBLIC tcmalloc_minimal)
+
+  if(BUILD_TESTING)
+    add_executable(tcmalloc_minimal_debug_unittest
+      src/tests/tcmalloc_unittest.cc
+      src/tests/testutil.cc)
+    target_compile_definitions(tcmalloc_minimal_debug_unittest PUBLIC
+      DEBUGALLOCATION)
+    target_link_libraries(tcmalloc_minimal_debug_unittest PUBLIC
+      tcmalloc_minimal_debug)
+
+    add_executable(malloc_extension_debug_test
+      src/tests/malloc_extension_test.cc
+      src/tests/testutil.cc)
+    target_link_libraries(malloc_extension_debug_test PUBLIC
+      tcmalloc_minimal_debug)
+
+    if(NOT MINGW AND NOT APPLE)
+      add_executable(memalign_debug_unittest
+        src/tests/memalign_unittest.cc
+        src/tests/testutil.cc)
+      target_link_libraries(memalign_debug_unittest PUBLIC
+        tcmalloc_minimal_debug)
+    endif()
+
+    add_executable(realloc_debug_unittest src/tests/realloc_unittest.cc)
+    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug)
+
+    if(with_stack_trace)
+      add_executable(debugallocation_test src/tests/debugallocation_test.cc)
+      target_link_libraries(debugallocation_test PUBLIC tcmalloc_minimal_debug)
+
+      add_custom_target(debugallocation_test_sh
+        COMMAND src/tests/debugallocation_test.sh
+        DEPENDENCIES debugallocation_test
+        VERBATIM)
+    endif()
+  endif()
 endif()
