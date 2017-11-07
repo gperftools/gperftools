@@ -84,6 +84,9 @@ cmake_dependent_option(
   gperftools_build_debugalloc "Build debugalloc" ${default_build_debugalloc}
   "NOT gperftools_build_minimal" OFF)
 
+cmake_dependent_option(
+  gperftools_build_benchmark "Build benchmark" ON "NOT MINGW" OFF)
+
 option(gperftools_enable_stacktrace_via_backtrace
        "Enable use of backtrace() for stacktrace capturing (may deadlock)"
        ${default_enable_backtrace})
@@ -519,58 +522,22 @@ message(STATUS "libraries: ${libs}")
 message(STATUS "definitions: ${defs}")
 message(STATUS "options: ${options}")
 
-set(logging_headers
-  src/base/logging.h
-  src/base/commandlineflags.h
-  src/base/basictypes.h
-  src/base/dynamic_annotations.h
-  src/third_party/valgrind.h)
 add_library(logging
   src/base/logging.cc
-  src/base/dynamic_annotations.c
-  ${logging_headers})
+  src/base/dynamic_annotations.c)
 gperftools_add_target(logging)
 
-set(sysinfo_headers
-  src/base/sysinfo.h
-  src/getenv_safe.h
-  src/base/arm_instruction_set_select.h
-  src/base/basictypes.h)
 add_library(sysinfo
-  src/base/sysinfo.cc
-  ${sysinfo_headers})
+  src/base/sysinfo.cc)
 target_link_libraries(sysinfo PUBLIC logging ${nanosleep_libs})
 
-set(spinlock_headers
-  src/base/spinlock.h
-  src/base/spinlock_internal.h
-  src/base/spinlock_win32-inl.h
-  src/base/spinlock_linux-inl.h
-  src/base/spinlock_posix-inl.h
-  src/base/atomicops-internals-macosx.h
-  src/base/atomicops-internals-linuxppc.h
-  src/base/atomicops-internals-arm-generic.h
-  src/base/atomicops-internals-arm-v6plus.h
-  src/base/atomicops-internals-mips.h
-  src/base/atomicops-internals-windows.h
-  src/base/atomicops-internals-gcc.h
-  src/base/atomicops-internals-x86.h)
 add_library(spinlock
   src/base/spinlock.cc
   src/base/spinlock_internal.cc
-  src/base/atomicops-internals-x86.cc
-  ${spinlock_headers})
+  src/base/atomicops-internals-x86.cc)
 target_link_libraries(spinlock PUBLIC sysinfo ${nanosleep_libs})
 
-set(maybe_threads_headers src/maybe_threads.h)
-
 if(MINGW)
-  set(windows_headers
-    src/windows/port.h
-    src/windows/mingw.h
-    src/windows/mini_disassembler.h
-    src/windows/mini_disassembler_types.h
-    src/windows/preamble_patcher.h)
   add_library(windows
     src/windows/port.cc
     src/windows/system-alloc.cc
@@ -579,8 +546,7 @@ if(MINGW)
     src/windows/mini_disassembler.cc
     src/windows/patch_functions.cc
     src/windows/preamble_patcher.cc
-    src/windows/preamble_patcher_with_stub.cc
-    ${windows_headers})
+    src/windows/preamble_patcher_with_stub.cc)
   gperftools_add_target(windows)
   target_link_libraries(windows PUBLIC psapi)
 
@@ -588,7 +554,7 @@ if(MINGW)
   target_link_libraries(sysinfo PUBLIC shlwapi)
 
   if(have_pthread_despite_asking_for)
-    add_library(maybe_threads src/maybe_threads.cc ${maybe_threads_headers})
+    add_library(maybe_threads src/maybe_threads.cc)
     gperftools_add_target(maybe_threads)
     set(maybe_threads_lib maybe_threads)
   endif()
@@ -596,7 +562,7 @@ else()
   set(tcmalloc_cc "src/tcmalloc.cc")
   set(system_alloc_cc "src/system-alloc.cc")
 
-  add_library(maybe_threads src/maybe_threads.cc ${maybe_threads_headers})
+  add_library(maybe_threads src/maybe_threads.cc)
   gperftools_add_target(maybe_threads)
   set(maybe_threads_lib maybe_threads)
 endif()
@@ -615,38 +581,18 @@ if(BUILD_TESTING)
 endif()
 
 if(with_stack_trace)
-  set(stacktrace_headers
-    src/stacktrace_impl_setup-inl.h
-    src/stacktrace_generic-inl.h
-    src/stacktrace_libgcc-inl.h
-    src/stacktrace_libunwind-inl.h
-    src/stacktrace_arm-inl.h
-    src/stacktrace_powerpc-inl.h
-    src/stacktrace_powerpc-darwin-inl.h
-    src/stacktrace_powerpc-linux-inl.h
-    src/stacktrace_x86-inl.h
-    src/stacktrace_win32-inl.h
-    src/stacktrace_instrument-inl.h
-    src/base/elf_mem_image.h
-    src/base/vdso_support.h
-    src/gperftools/stacktrace.h)
   add_library(stacktrace
     src/stacktrace.cc
     src/base/elf_mem_image.cc
-    src/base/vdso_support.cc
-    ${stacktrace_headers})
+    src/base/vdso_support.cc)
   target_link_libraries(stacktrace PUBLIC unwind spinlock)
   gperftools_add_target(stacktrace)
 
   add_library(fake_stacktrace_scope src/fake_stacktrace_scope.cc)
 
   if(BUILD_TESTING)
-    set(stacktrace_unittest_headers
-      src/config_for_unittests.h
-      src/base/commandlineflags.h)
     add_executable(stacktrace_unittest
-      src/tests/stacktrace_unittest.cc
-      ${stacktrace_unittest_headers})
+      src/tests/stacktrace_unittest.cc)
     target_link_libraries(stacktrace_unittest PUBLIC
       stacktrace logging fake_stacktrace_scope)
     gperftools_add_target(stacktrace_unittest)
@@ -657,36 +603,7 @@ if(with_stack_trace)
   endif()
 endif()
 
-set(tcmalloc_minimal_headers
-  src/common.h
-  src/internal_logging.h
-  src/system-alloc.h
-  src/packed-cache-inl.h
-  src/tcmalloc_guard.h
-  src/base/commandlineflags.h
-  src/base/basictypes.h
-  src/pagemap.h
-  src/sampler.h
-  src/central_freelist.h
-  src/linked_list.h
-  src/libc_override.h
-  src/libc_override_gcc_and_weak.h
-  src/libc_override_glibc.h
-  src/libc_override_osx.h
-  src/libc_override_redefine.h
-  src/page_heap.h
-  src/page_heap_allocator.h
-  src/span.h
-  src/static_vars.h
-  src/symbolize.h
-  src/thread_cache.h
-  src/stack_trace_table.h
-  src/base/thread_annotations.h
-  src/malloc_hook-inl.h
-  src/malloc_hook_mmap_linux.h
-  src/malloc_hook_mmap_freebsd.h)
-add_library(tcmalloc_minimal
-  ${tcmalloc_cc}
+set(tcmalloc_minimal_internal_src
   src/common.cc
   src/internal_logging.cc
   ${system_alloc_cc}
@@ -700,16 +617,65 @@ add_library(tcmalloc_minimal
   src/symbolize.cc
   src/thread_cache.cc
   src/malloc_hook.cc
-  src/malloc_extension.cc
-  ${tcmalloc_minimal_headers})
-target_compile_definitions(tcmalloc_minimal PUBLIC
+  src/malloc_extension.cc)
+add_library(tcmalloc_minimal_internal ${tcmalloc_minimal_internal_src})
+target_compile_definitions(tcmalloc_minimal_internal PUBLIC
   NO_TCMALLOC_SAMPLES NO_HEAP_CHECK)
-target_link_libraries(tcmalloc_minimal PUBLIC
+target_link_libraries(tcmalloc_minimal_internal PUBLIC
   spinlock ${maybe_threads_lib} ${tcmalloc_lib_options})
 
+# Add tcmalloc.h here in case tcmalloc.cc isn't needed (i.e. MINGW).
+add_library(tcmalloc_minimal ${tcmalloc_cc} src/tcmalloc.h)
+target_link_libraries(tcmalloc_minimal PUBLIC tcmalloc_minimal_internal)
 if(MINGW)
   target_link_libraries(tcmalloc_minimal PUBLIC stacktrace)
 endif()
+
+if(gperftools_emergency_malloc)
+  set(emergency_malloc_cc
+    src/emergency_malloc.cc
+    src/emergency_malloc_for_stacktrace.cc)
+  set(emergency_malloc_def ENABLE_EMERGENCY_MALLOC)
+endif()
+
+if(gperftools_build_heap_checker)
+  set(heap_checker_src
+    src/base/thread_lister.c
+    src/base/linuxthreads.cc
+    src/heap-checker.cc
+    src/heap-checker-bcad.cc)
+else()
+  set(heap_checker_def NO_HEAP_CHECK)
+endif()
+
+add_library(tcmalloc_internal
+  ${tcmalloc_minimal_internal_src}
+  src/base/low_level_alloc.cc
+  src/heap-profile-table.cc
+  src/heap-profiler.cc
+  src/raw_printer.cc
+  ${emergency_malloc_cc}
+  src/memory_region_map.cc)
+if(emergency_malloc_def OR heap_checker_def)
+  target_compile_options(tcmalloc_internal PUBLIC
+    ${emergency_malloc_def} ${heap_checker_def})
+endif()
+target_link_libraries(tcmalloc_internal PUBLIC
+  stacktrace ${tcmalloc_lib_options})
+
+add_library(tcmalloc ${tcmalloc_cc} ${heap_checker_src})
+target_link_libraries(tcmalloc PUBLIC tcmalloc_internal ${maybe_threads_lib})
+
+add_library(tcmalloc_debug ${heap_checker_src})
+target_compile_definitions(tcmalloc_debug PUBLIC TCMALLOC_FOR_DEBUGALLOCATION)
+target_link_libraries(tcmalloc_debug PUBLIC tcmalloc)
+
+add_library(profiler
+  src/profiler.cc
+  src/profile-handler.cc
+  src/profiledata.cc)
+target_link_libraries(profiler PUBLIC
+  stacktrace ${maybe_threads_lib} fake_stacktrace_scope)
 
 if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_unittest
@@ -847,4 +813,12 @@ if(gperftools_build_debugalloc)
         VERBATIM)
     endif()
   endif()
+endif()
+
+if(gperftools_build_benchmark)
+  add_library(run_benchmark benchmark/run_benchmark.c benchmark/run_benchmark.h)
+  target_link_libraries(run_benchmark PUBLIC tcmalloc_minimal)
+
+  add_executable(malloc_bench benchmark/malloc_bench.cc)
+  target_link_libraries(malloc_bench PUBLIC run_benchmark)
 endif()
