@@ -71,18 +71,24 @@ option(
   gperftools_build_minimal
   "Build only tcmalloc-minimal (and maybe tcmalloc-minimal-debug)"
   ${default_build_minimal})
+if(NOT gperftools_build_minimal)
+  set(not_build_minimal ON)
+else()
+  set(not_build_minimal OFF)
+endif()
+
 cmake_dependent_option(
   gperftools_build_cpu_profiler "Build cpu-profiler" ${default_build_cpu_profiler}
-  "NOT gperftools_build_minimal" OFF)
+  "not_build_minimal" OFF)
 cmake_dependent_option(
   gperftools_build_heap_profiler "Build heap-profiler" ${default_build_heap_profiler}
-  "NOT gperftools_build_minimal" OFF)
+  "not_build_minimal" OFF)
 cmake_dependent_option(
   gperftools_build_heap_checker "Build heap-checker" ${default_build_heap_checker}
-  "NOT gperftools_build_minimal" OFF)
+  "not_build_minimal" OFF)
 cmake_dependent_option(
   gperftools_build_debugalloc "Build debugalloc" ${default_build_debugalloc}
-  "NOT gperftools_build_minimal" OFF)
+  "not_build_minimal" OFF)
 
 cmake_dependent_option(
   gperftools_build_benchmark "Build benchmark" ON "NOT MINGW" OFF)
@@ -468,11 +474,11 @@ set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
 list(APPEND inc $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 if(NOT with_stack_trace)
-  list(APPEND def NO_TCMALLOC_SAMPLES)
+  list(APPEND defs NO_TCMALLOC_SAMPLES)
 endif()
 
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-  list(APPEND options
+  list(APPEND flags
     -Wall -Wwrite-strings -Woverloaded-virtual
     -Wno-sign-compare
     -fno-builtin-malloc -fno-builtin-free -fno-builtin-realloc
@@ -481,22 +487,22 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     -fno-builtin-valloc -fno-builtin-pvalloc)
 
   if(i386)
-    list(APPEND options -mmmx -fno-omit-frame-pointer)
+    list(APPEND flags -mmmx -fno-omit-frame-pointer)
   endif()
 endif()
 
 if(have_w_no_unused_result)
-  list(APPEND options -Wno-unused-result)
+  list(APPEND flags -Wno-unused-result)
 endif()
 
 if(have_sized_deallocation)
-  list(APPEND options -fsized-deallocation)
+  list(APPEND flags -fsized-deallocation)
 endif()
 
 list(APPEND libs ${libstdcxx_la_linker_flag})
 
 if(gperftools_enable_frame_pointers)
-  list(APPEND options -fno-omit-frame-pointer)
+  list(APPEND flags -fno-omit-frame-pointer)
 elseif(NOT CMAKE_CXX_FLAGS MATCHES "-fno-omit-frame-pointer")
   list(APPEND defs NO_FRAME_POINTER)
 endif()
@@ -520,12 +526,16 @@ endif()
 message(STATUS "includes: ${inc}")
 message(STATUS "libraries: ${libs}")
 message(STATUS "definitions: ${defs}")
-message(STATUS "options: ${options}")
+message(STATUS "flags: ${flags}")
 
 add_library(logging
   src/base/logging.cc
   src/base/dynamic_annotations.c)
 gperftools_add_target(logging)
+target_include_directories(logging PUBLIC ${inc})
+target_compile_definitions(logging PUBLIC ${defs})
+target_compile_options(logging PUBLIC ${flags})
+target_link_libraries(logging PUBLIC ${libs})
 
 add_library(sysinfo
   src/base/sysinfo.cc)
@@ -603,7 +613,7 @@ if(with_stack_trace)
   endif()
 endif()
 
-set(tcmalloc_minimal_internal_src
+set(tcmalloc_src
   src/common.cc
   src/internal_logging.cc
   ${system_alloc_cc}
@@ -618,7 +628,7 @@ set(tcmalloc_minimal_internal_src
   src/thread_cache.cc
   src/malloc_hook.cc
   src/malloc_extension.cc)
-add_library(tcmalloc_minimal_internal ${tcmalloc_minimal_internal_src})
+add_library(tcmalloc_minimal_internal ${tcmalloc_src})
 target_compile_definitions(tcmalloc_minimal_internal PUBLIC
   NO_TCMALLOC_SAMPLES NO_HEAP_CHECK)
 target_link_libraries(tcmalloc_minimal_internal PUBLIC
@@ -626,6 +636,7 @@ target_link_libraries(tcmalloc_minimal_internal PUBLIC
 
 # Add tcmalloc.h here in case tcmalloc.cc isn't needed (i.e. MINGW).
 add_library(tcmalloc_minimal ${tcmalloc_cc} src/tcmalloc.h)
+target_compile_definitions(tcmalloc_minimal PUBLIC NO_TCMALLOC_SAMPLES)
 target_link_libraries(tcmalloc_minimal PUBLIC tcmalloc_minimal_internal)
 if(MINGW)
   target_link_libraries(tcmalloc_minimal PUBLIC stacktrace)
@@ -638,37 +649,46 @@ if(gperftools_emergency_malloc)
   set(emergency_malloc_def ENABLE_EMERGENCY_MALLOC)
 endif()
 
-if(gperftools_build_heap_checker)
-  set(heap_checker_src
-    src/base/thread_lister.c
-    src/base/linuxthreads.cc
-    src/heap-checker.cc
-    src/heap-checker-bcad.cc)
-else()
-  set(heap_checker_def NO_HEAP_CHECK)
+set(heap_checker_src
+  src/base/thread_lister.c
+  src/base/linuxthreads.cc
+  src/heap-checker.cc
+  src/heap-checker-bcad.cc)
+
+if(NOT gperftools_build_heap_checker)
+  set(no_heap_check_def NO_HEAP_CHECK)
 endif()
 
 add_library(tcmalloc_internal
-  ${tcmalloc_minimal_internal_src}
+  ${tcmalloc_src}
   src/base/low_level_alloc.cc
   src/heap-profile-table.cc
   src/heap-profiler.cc
   src/raw_printer.cc
   ${emergency_malloc_cc}
   src/memory_region_map.cc)
-if(emergency_malloc_def OR heap_checker_def)
+if(emergency_malloc_def OR no_heap_check_def)
   target_compile_options(tcmalloc_internal PUBLIC
-    ${emergency_malloc_def} ${heap_checker_def})
+    ${emergency_malloc_def} ${no_heap_check_def})
 endif()
 target_link_libraries(tcmalloc_internal PUBLIC
   stacktrace ${tcmalloc_lib_options})
 
-add_library(tcmalloc ${tcmalloc_cc} ${heap_checker_src})
+if(gperftools_build_heap_checker)
+  add_library(tcmalloc ${tcmalloc_cc} ${heap_checker_src})
+else()
+  add_library(tcmalloc ${tcmalloc_cc})
+endif()
 target_link_libraries(tcmalloc PUBLIC tcmalloc_internal ${maybe_threads_lib})
 
-add_library(tcmalloc_debug ${heap_checker_src})
-target_compile_definitions(tcmalloc_debug PUBLIC TCMALLOC_FOR_DEBUGALLOCATION)
-target_link_libraries(tcmalloc_debug PUBLIC tcmalloc)
+if(gperftools_build_debugalloc)
+  if(gperftools_build_heap_checker OR gperftools_build_heap_profiler)
+    add_library(tcmalloc_debug ${heap_checker_src})
+    target_compile_definitions(tcmalloc_debug PUBLIC
+      TCMALLOC_FOR_DEBUGALLOCATION)
+    target_link_libraries(tcmalloc_debug PUBLIC tcmalloc_internal)
+  endif()
+endif()
 
 add_library(profiler
   src/profiler.cc
@@ -816,9 +836,8 @@ if(gperftools_build_debugalloc)
 endif()
 
 if(gperftools_build_benchmark)
-  add_library(run_benchmark benchmark/run_benchmark.c benchmark/run_benchmark.h)
-  target_link_libraries(run_benchmark PUBLIC tcmalloc_minimal)
+  add_library(run_benchmark benchmark/run_benchmark.c)
 
   add_executable(malloc_bench benchmark/malloc_bench.cc)
-  target_link_libraries(malloc_bench PUBLIC run_benchmark)
+  target_link_libraries(malloc_bench PUBLIC run_benchmark tcmalloc_minimal)
 endif()
