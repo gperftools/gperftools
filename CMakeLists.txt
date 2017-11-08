@@ -31,7 +31,6 @@ elseif(APPLE)
   set(default_build_heap_checker OFF)
 endif()
 
-include(CMakeDependentOption)
 include(CheckCCompilerFlag)
 include(CheckCSourceCompiles)
 include(CheckCXXSourceCompiles)
@@ -41,6 +40,8 @@ include(CheckLibraryExists)
 include(CheckSymbolExists)
 include(CheckTypeSize)
 include(CheckVariableExists)
+include(CMakeDependentOption)
+include(CTest)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(CheckNoFPByDefault)
@@ -71,24 +72,19 @@ option(
   gperftools_build_minimal
   "Build only tcmalloc-minimal (and maybe tcmalloc-minimal-debug)"
   ${default_build_minimal})
-if(NOT gperftools_build_minimal)
-  set(not_build_minimal ON)
-else()
-  set(not_build_minimal OFF)
-endif()
 
 cmake_dependent_option(
   gperftools_build_cpu_profiler "Build cpu-profiler" ${default_build_cpu_profiler}
-  "not_build_minimal" OFF)
+  "NOT gperftools_build_minimal" OFF)
 cmake_dependent_option(
   gperftools_build_heap_profiler "Build heap-profiler" ${default_build_heap_profiler}
-  "not_build_minimal" OFF)
+  "NOT gperftools_build_minimal" OFF)
 cmake_dependent_option(
   gperftools_build_heap_checker "Build heap-checker" ${default_build_heap_checker}
-  "not_build_minimal" OFF)
+  "NOT gperftools_build_minimal" OFF)
 cmake_dependent_option(
   gperftools_build_debugalloc "Build debugalloc" ${default_build_debugalloc}
-  "not_build_minimal" OFF)
+  "NOT gperftools_build_minimal" OFF)
 
 cmake_dependent_option(
   gperftools_build_benchmark "Build benchmark" ON "NOT MINGW" OFF)
@@ -228,14 +224,16 @@ pc_from_ucontext(PC_FROM_UCONTEXT_DEF)
 
 if(gperftools_enable_libunwind)
   check_include_file("libunwind.h" HAVE_LIBUNWIND_H)
-  find_library(libunwind_location NAMES unwind)
-  if(libunwind_location)
-    check_library_exists(
-      unwind backtrace ${libunwind_location} have_libunwind)
-  endif()
-  if(have_libunwind)
-    set(unwind_libs unwind)
-    set(will_use_libunwind ON)
+  if(HAVE_LIBUNWIND_H)
+    find_library(libunwind_location NAMES unwind)
+    if(libunwind_location)
+      check_library_exists(
+        unwind backtrace ${libunwind_location} have_libunwind)
+    endif()
+    if(have_libunwind)
+      set(unwind_libs unwind)
+      set(will_use_libunwind ON)
+    endif()
   endif()
 endif()
 
@@ -368,7 +366,6 @@ if(enable_backtrace)
   if(NOT backtrace_exists)
     set(CMAKE_REQUIRED_LIBRARIES execinfo)
     check_function_exists("backtrace" backtrace_exists)
-    message("backtrace_exists: ${backtrace_exists}")
     set(CMAKE_REQUIRED_LIBRARIES)
     if(backtrace_exists)
       list(INSERT unwind_libs 0 execinfo)
@@ -532,10 +529,6 @@ add_library(logging
   src/base/logging.cc
   src/base/dynamic_annotations.c)
 gperftools_add_target(logging)
-target_include_directories(logging PUBLIC ${inc})
-target_compile_definitions(logging PUBLIC ${defs})
-target_compile_options(logging PUBLIC ${flags})
-target_link_libraries(logging PUBLIC ${libs})
 
 add_library(sysinfo
   src/base/sysinfo.cc)
@@ -647,6 +640,8 @@ if(gperftools_emergency_malloc)
     src/emergency_malloc.cc
     src/emergency_malloc_for_stacktrace.cc)
   set(emergency_malloc_def ENABLE_EMERGENCY_MALLOC)
+else()
+  set(emergency_malloc_cc src/fake_stacktrace_scope.cc)
 endif()
 
 set(heap_checker_src
@@ -676,6 +671,7 @@ target_link_libraries(tcmalloc_internal PUBLIC
 
 if(gperftools_build_heap_checker)
   add_library(tcmalloc ${tcmalloc_cc} ${heap_checker_src})
+  target_link_libraries(tcmalloc_internal PUBLIC tcmalloc)
 else()
   add_library(tcmalloc ${tcmalloc_cc})
 endif()
@@ -696,6 +692,75 @@ add_library(profiler
   src/profiledata.cc)
 target_link_libraries(profiler PUBLIC
   stacktrace ${maybe_threads_lib} fake_stacktrace_scope)
+
+if(gperftools_build_debugalloc)
+  add_library(tcmalloc_minimal_debug src/debugallocation.cc)
+  target_compile_definitions(tcmalloc_minimal_debug PUBLIC
+    TCMALLOC_FOR_DEBUGALLOCATION)
+  target_link_libraries(tcmalloc_minimal_debug PUBLIC tcmalloc_minimal)
+
+  if(BUILD_TESTING)
+    add_executable(tcmalloc_minimal_debug_unittest
+      src/tests/tcmalloc_unittest.cc
+      src/tests/testutil.cc)
+    target_compile_definitions(tcmalloc_minimal_debug_unittest PUBLIC
+      DEBUGALLOCATION)
+    target_link_libraries(tcmalloc_minimal_debug_unittest PUBLIC
+      tcmalloc_minimal_debug)
+
+    add_executable(malloc_extension_debug_test
+      src/tests/malloc_extension_test.cc
+      src/tests/testutil.cc)
+    target_link_libraries(malloc_extension_debug_test PUBLIC
+      tcmalloc_minimal_debug)
+
+    if(NOT MINGW AND NOT APPLE)
+      add_executable(memalign_debug_unittest
+        src/tests/memalign_unittest.cc
+        src/tests/testutil.cc)
+      target_link_libraries(memalign_debug_unittest PUBLIC
+        tcmalloc_minimal_debug)
+    endif()
+
+    add_executable(realloc_debug_unittest src/tests/realloc_unittest.cc)
+    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug)
+
+    if(with_stack_trace)
+      add_executable(debugallocation_test src/tests/debugallocation_test.cc)
+      target_link_libraries(debugallocation_test PUBLIC tcmalloc_minimal_debug)
+
+      add_custom_target(debugallocation_test_sh
+        COMMAND src/tests/debugallocation_test.sh
+        DEPENDENCIES debugallocation_test
+        VERBATIM)
+    endif()
+  endif()
+endif()
+
+if(gperftools_build_benchmark)
+  add_library(run_benchmark benchmark/run_benchmark.c)
+
+  add_executable(malloc_bench benchmark/malloc_bench.cc)
+  target_link_libraries(malloc_bench PUBLIC run_benchmark tcmalloc_minimal)
+
+  if(gperftools_build_heap_checker OR gperftools_build_heap_profiler)
+    add_executable(malloc_bench_full
+      benchmark/malloc_bench.cc ${emergency_malloc_cc})
+    target_link_libraries(malloc_bench_full PUBLIC
+      run_benchmark tcmalloc)
+
+    if(NOT APPLE)
+      add_executable(unwind_bench
+        benchmark/unwind_bench.cc
+        benchmark/getcontext_light.cc
+        ${emergency_malloc_cc})
+      target_link_libraries(unwind_bench PUBLIC run_benchmark tcmalloc)
+    endif()
+  endif()
+
+  add_executable(binary_trees benchmark/binary_trees.cc)
+  target_link_libraries(binary_trees PUBLIC tcmalloc_minimal)
+endif()
 
 if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_unittest
@@ -789,55 +854,4 @@ if(BUILD_TESTING)
     src/tests/thread_dealloc_unittest.cc
     src/tests/testutil.cc)
   target_link_libraries(thread_dealloc_unittest PUBLIC tcmalloc_minimal)
-endif()
-
-if(gperftools_build_debugalloc)
-  add_library(tcmalloc_minimal_debug src/debugallocation.cc)
-  target_compile_definitions(tcmalloc_minimal_debug PUBLIC
-    TCMALLOC_FOR_DEBUGALLOCATION)
-  target_link_libraries(tcmalloc_minimal_debug PUBLIC tcmalloc_minimal)
-
-  if(BUILD_TESTING)
-    add_executable(tcmalloc_minimal_debug_unittest
-      src/tests/tcmalloc_unittest.cc
-      src/tests/testutil.cc)
-    target_compile_definitions(tcmalloc_minimal_debug_unittest PUBLIC
-      DEBUGALLOCATION)
-    target_link_libraries(tcmalloc_minimal_debug_unittest PUBLIC
-      tcmalloc_minimal_debug)
-
-    add_executable(malloc_extension_debug_test
-      src/tests/malloc_extension_test.cc
-      src/tests/testutil.cc)
-    target_link_libraries(malloc_extension_debug_test PUBLIC
-      tcmalloc_minimal_debug)
-
-    if(NOT MINGW AND NOT APPLE)
-      add_executable(memalign_debug_unittest
-        src/tests/memalign_unittest.cc
-        src/tests/testutil.cc)
-      target_link_libraries(memalign_debug_unittest PUBLIC
-        tcmalloc_minimal_debug)
-    endif()
-
-    add_executable(realloc_debug_unittest src/tests/realloc_unittest.cc)
-    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug)
-
-    if(with_stack_trace)
-      add_executable(debugallocation_test src/tests/debugallocation_test.cc)
-      target_link_libraries(debugallocation_test PUBLIC tcmalloc_minimal_debug)
-
-      add_custom_target(debugallocation_test_sh
-        COMMAND src/tests/debugallocation_test.sh
-        DEPENDENCIES debugallocation_test
-        VERBATIM)
-    endif()
-  endif()
-endif()
-
-if(gperftools_build_benchmark)
-  add_library(run_benchmark benchmark/run_benchmark.c)
-
-  add_executable(malloc_bench benchmark/malloc_bench.cc)
-  target_link_libraries(malloc_bench PUBLIC run_benchmark tcmalloc_minimal)
 endif()
