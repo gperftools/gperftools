@@ -231,7 +231,7 @@ if(gperftools_enable_libunwind)
         unwind backtrace ${libunwind_location} have_libunwind)
     endif()
     if(have_libunwind)
-      set(unwind_libs unwind)
+      set(unwind_libs ${libunwind_location})
       set(will_use_libunwind ON)
     endif()
   endif()
@@ -448,7 +448,7 @@ if(gperftools_build_cpu_profiler OR
 endif()
 
 if(gperftools_enable_frame_pointers AND
-   unwind_libs STREQUAL "" AND
+   NOT unwind_libs AND
    NOT gperftools_build_minimal)
   if(HAVE_UNWIND_BACKTRACE)
     message(WARNING "No frame pointers and no libunwind. "
@@ -588,7 +588,7 @@ if(with_stack_trace)
     src/stacktrace.cc
     src/base/elf_mem_image.cc
     src/base/vdso_support.cc)
-  target_link_libraries(stacktrace PUBLIC unwind spinlock)
+  target_link_libraries(stacktrace PUBLIC ${unwind_libs} spinlock)
   gperftools_add_target(stacktrace)
 
   add_library(fake_stacktrace_scope src/fake_stacktrace_scope.cc)
@@ -663,7 +663,7 @@ add_library(tcmalloc_internal
   ${emergency_malloc_cc}
   src/memory_region_map.cc)
 if(emergency_malloc_def OR no_heap_check_def)
-  target_compile_options(tcmalloc_internal PUBLIC
+  target_compile_definitions(tcmalloc_internal PUBLIC
     ${emergency_malloc_def} ${no_heap_check_def})
 endif()
 target_link_libraries(tcmalloc_internal PUBLIC
