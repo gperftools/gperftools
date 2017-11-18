@@ -57,38 +57,38 @@
 
 #define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn), used))
 
-void* operator new(size_t size) throw (std::bad_alloc)
+void* operator new(size_t size) PERFTOOLS_THROW(std::bad_alloc)
     ALIAS(tc_new);
-void operator delete(void* p) throw()
+void operator delete(void* p) PERFTOOLS_NOTHROW
     ALIAS(tc_delete);
-void* operator new[](size_t size) throw (std::bad_alloc)
+void* operator new[](size_t size) PERFTOOLS_THROW(std::bad_alloc)
     ALIAS(tc_newarray);
-void operator delete[](void* p) throw()
+void operator delete[](void* p) PERFTOOLS_NOTHROW
     ALIAS(tc_deletearray);
-void* operator new(size_t size, const std::nothrow_t& nt) throw()
+void* operator new(size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
     ALIAS(tc_new_nothrow);
-void* operator new[](size_t size, const std::nothrow_t& nt) throw()
+void* operator new[](size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
     ALIAS(tc_newarray_nothrow);
-void operator delete(void* p, const std::nothrow_t& nt) throw()
+void operator delete(void* p, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
     ALIAS(tc_delete_nothrow);
-void operator delete[](void* p, const std::nothrow_t& nt) throw()
+void operator delete[](void* p, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
     ALIAS(tc_deletearray_nothrow);
 
 #if defined(ENABLE_SIZED_DELETE)
 
-void operator delete(void *p, size_t size) throw()
+void operator delete(void *p, size_t size) PERFTOOLS_NOTHROW
     ALIAS(tc_delete_sized);
-void operator delete[](void *p, size_t size) throw()
+void operator delete[](void *p, size_t size) PERFTOOLS_NOTHROW
     ALIAS(tc_deletearray_sized);
 
 #elif defined(ENABLE_DYNAMIC_SIZED_DELETE) && \
   (__GNUC__ * 100 + __GNUC_MINOR__) >= 405
 
-static void delegate_sized_delete(void *p, size_t s) throw() {
+static void delegate_sized_delete(void *p, size_t s) PERFTOOLS_NOTHROW {
   (operator delete)(p);
 }
 
-static void delegate_sized_deletearray(void *p, size_t s) throw() {
+static void delegate_sized_deletearray(void *p, size_t s) PERFTOOLS_NOTHROW {
   (operator delete[])(p);
 }
 
@@ -122,16 +122,16 @@ static void *resolve_deletearray_sized(void) {
 
 }
 
-void operator delete(void *p, size_t size) throw()
+void operator delete(void *p, size_t size) PERFTOOLS_NOTHROW
   __attribute__((ifunc("resolve_delete_sized")));
-void operator delete[](void *p, size_t size) throw()
+void operator delete[](void *p, size_t size) PERFTOOLS_NOTHROW
   __attribute__((ifunc("resolve_deletearray_sized")));
 
 #else /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
 
-void operator delete(void *p, size_t size) throw()
+void operator delete(void *p, size_t size) PERFTOOLS_NOTHROW
   ALIAS(tc_delete);
-void operator delete[](void *p, size_t size) throw()
+void operator delete[](void *p, size_t size) PERFTOOLS_NOTHROW
   ALIAS(tc_deletearray);
 
 #endif /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
@@ -143,6 +143,7 @@ extern "C" {
   void* calloc(size_t n, size_t size) __THROW     ALIAS(tc_calloc);
   void cfree(void* ptr) __THROW                   ALIAS(tc_cfree);
   void* memalign(size_t align, size_t s) __THROW  ALIAS(tc_memalign);
+  void* aligned_alloc(size_t align, size_t s) __THROW ALIAS(tc_memalign);
   void* valloc(size_t size) __THROW               ALIAS(tc_valloc);
   void* pvalloc(size_t size) __THROW              ALIAS(tc_pvalloc);
   int posix_memalign(void** r, size_t a, size_t s) __THROW

@@ -104,19 +104,43 @@ void Static::InitStaticVars() {
   DLL_Init(&sampled_objects_);
 }
 
+void Static::InitLateMaybeRecursive() {
+#if defined(HAVE_FORK) && defined(HAVE_PTHREAD) \
+  && !defined(__APPLE__) && !defined(TCMALLOC_NO_ATFORK)
+  // OSX has it's own way of handling atfork in malloc (see
+  // libc_override_osx.h).
+  //
+  // For other OSes we do pthread_atfork even if standard seemingly
+  // discourages pthread_atfork, asking apps to do only
+  // async-signal-safe calls between fork and exec.
+  //
+  // We're deliberately attempting to register atfork handlers as part
+  // of malloc initialization. So very early. This ensures that our
+  // handler is called last and that means fork will try to grab
+  // tcmalloc locks last avoiding possible issues with many other
+  // locks that are held around calls to malloc. I.e. if we don't do
+  // that, fork() grabbing malloc lock before such other lock would be
+  // prone to deadlock, if some other thread holds other lock and
+  // calls malloc.
+  //
+  // We still leave some way of disabling it via
+  // -DTCMALLOC_NO_ATFORK. It looks like on glibc even with fully
+  // static binaries malloc is really initialized very early. But I
+  // can see how combination of static linking and other libc-s could
+  // be less fortunate and allow some early app constructors to run
+  // before malloc is ever called.
 
-#if defined(HAVE_FORK) && defined(HAVE_PTHREAD) && !defined(__APPLE__)
-
-static inline
-void SetupAtForkLocksHandler()
-{
   perftools_pthread_atfork(
     CentralCacheLockAll,    // parent calls before fork
     CentralCacheUnlockAll,  // parent calls after fork
     CentralCacheUnlockAll); // child calls after fork
-}
-REGISTER_MODULE_INITIALIZER(tcmalloc_fork_handler, SetupAtForkLocksHandler());
-
 #endif
+
+#ifndef NDEBUG
+  // pthread_atfork above may malloc sometimes. Lets ensure we test
+  // that malloc works from here.
+  free(malloc(1));
+#endif
+}
 
 }  // namespace tcmalloc

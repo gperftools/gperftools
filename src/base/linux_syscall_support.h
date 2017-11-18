@@ -162,6 +162,7 @@ extern "C" {
 #include <unistd.h>
 #include <linux/unistd.h>
 #include <endian.h>
+#include <fcntl.h>
 
 #ifdef __mips__
 /* Include definitions of the ABI currently in use.                          */
@@ -310,7 +311,7 @@ struct kernel_sigaction {
 
 /* include/asm-{arm,i386,mips,ppc,s390}/stat.h                               */
 #ifdef __mips__
-#if _MIPS_SIM == _MIPS_SIM_ABI64
+#if (_MIPS_SIM == _MIPS_SIM_ABI64 || _MIPS_SIM == _MIPS_SIM_NABI32)
 struct kernel_stat {
 #else
 struct kernel_stat64 {
@@ -449,7 +450,8 @@ struct kernel_stat {
   unsigned long      __unused5;
   unsigned long      __unused6;
 };
-#elif (defined(__mips__) && _MIPS_SIM != _MIPS_SIM_ABI64)
+#elif defined(__mips__) \
+       && !(_MIPS_SIM == _MIPS_SIM_ABI64 || _MIPS_SIM == _MIPS_SIM_NABI32)
 struct kernel_stat {
   unsigned           st_dev;
   int                st_pad1[3];
@@ -682,7 +684,7 @@ struct kernel_stat {
 #define __NR_getcpu             (__NR_Linux + 312)
 #endif
 /* End of MIPS (old 32bit API) definitions */
-#elif  _MIPS_SIM == _MIPS_SIM_ABI64
+#elif (_MIPS_SIM == _MIPS_SIM_ABI64 || _MIPS_SIM == _MIPS_SIM_NABI32)
 #ifndef __NR_gettid
 #define __NR_gettid             (__NR_Linux + 178)
 #endif
@@ -2559,7 +2561,8 @@ struct kernel_stat {
     }
   #endif
   #if (defined(__aarch64__)) || \
-      (defined(__mips__) && (_MIPS_ISA == _MIPS_ISA_MIPS64))
+      (defined(__mips__) \
+       && (_MIPS_SIM == _MIPS_SIM_ABI64 || _MIPS_SIM == _MIPS_SIM_NABI32))
     LSS_INLINE int LSS_NAME(sigaction)(int signum,
                                        const struct kernel_sigaction *act,
                                        struct kernel_sigaction *oldact) {

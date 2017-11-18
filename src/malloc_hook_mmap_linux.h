@@ -52,7 +52,11 @@
 
 // I test for 64-bit first so I don't have to do things like
 // '#if (defined(__mips__) && !defined(__MIPS64__))' as a mips32 check.
-#if defined(__x86_64__) || defined(__PPC64__) || defined(__aarch64__) || (defined(_MIPS_SIM) && _MIPS_SIM == _ABI64) || defined(__s390__)
+#if defined(__x86_64__) \
+    || defined(__PPC64__) \
+    || defined(__aarch64__) \
+    || (defined(_MIPS_SIM) && (_MIPS_SIM == _ABI64 || _MIPS_SIM == _ABIN32)) \
+    || defined(__s390__)
 
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,

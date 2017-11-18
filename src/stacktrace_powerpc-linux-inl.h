@@ -53,7 +53,6 @@
 #elif defined(HAVE_UCONTEXT_H)
 #include <ucontext.h>  // for ucontext_t
 #endif
-typedef ucontext ucontext_t;
 
 // PowerPC64 Little Endian follows BE wrt. backchain, condition register,
 // and LR save area, so no need to adjust the reading struct.
@@ -202,7 +201,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
         struct rt_signal_frame_32 {
           char dummy[64 + 16];
           siginfo_t info;
-          struct ucontext uc;
+          ucontext_t uc;
           // We don't care about the rest, since IP value is at 'uc' field.A
         } *sigframe = reinterpret_cast<rt_signal_frame_32*>(current);
         result[n] = (void*) sigframe->uc.uc_mcontext.uc_regs->gregs[PT_NIP];

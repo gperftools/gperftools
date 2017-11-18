@@ -60,6 +60,7 @@
 #include "gperftools/stacktrace.h"
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"
+#include "getenv_safe.h"
 
 
 // we're using plain struct and not class to avoid any possible issues
@@ -310,7 +311,7 @@ static void init_default_stack_impl_inner(void) {
     return;
   }
   get_stack_impl_inited = true;
-  char *val = getenv("TCMALLOC_STACKTRACE_METHOD");
+  const char *val = TCMallocGetenvSafe("TCMALLOC_STACKTRACE_METHOD");
   if (!val || !*val) {
     return;
   }

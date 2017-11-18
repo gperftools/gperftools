@@ -1,3 +1,38 @@
+== 9 July 2017 ==
+
+gperftools 2.6.1 is out! This is mostly bug-fixes release.
+
+* issue #901: build issue on OSX introduced in last-time commit in 2.6
+  was fixed (contributed by Francis Ricci)
+
+* tcmalloc_minimal now works on 32-bit ABI of mips64. This is issue
+  #845. Much thanks to Adhemerval Zanella and github user mtone.
+
+* Romain Geissler contributed build fix for -std=c++17. This is pull
+  request #897.
+
+* As part of fixing issue #904, tcmalloc atfork handler is now
+  installed early. This should fix slight chance of hitting deadlocks
+  at fork in some cases.
+
+== 4 July 2017 ==
+
+gperftools 2.6 is out!
+
+* Kim Gräsman contributed documentation update for HEAPPROFILESIGNAL
+  environment variable
+
+* KernelMaker contributed fix for population of min_object_size field
+  returned by MallocExtension::GetFreeListSizes
+
+* commit 8c3dc52fcfe0 "issue-654: [pprof] handle split text segments"
+  was reverted. Some OSX users reported issues with this commit. Given
+  our pprof implementation is strongly deprecated it is best to drop
+  recently introduced features rather than breaking it badly.
+
+* Francis Ricci contributed improvement for interaction with leak
+  sanitizer.
+
 == 22 May 2017 ==
 
 gperftools 2.6rc4 is out!

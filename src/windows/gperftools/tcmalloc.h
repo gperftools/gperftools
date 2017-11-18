@@ -40,21 +40,21 @@
 
 /* Define the version number so folks can check against it */
 #define TC_VERSION_MAJOR  2
-#define TC_VERSION_MINOR  5
-#define TC_VERSION_PATCH  ".93"
-#define TC_VERSION_STRING "gperftools 2.5.93"
+#define TC_VERSION_MINOR  6
+#define TC_VERSION_PATCH  ".1"
+#define TC_VERSION_STRING "gperftools 2.6.1"
 
-#ifndef PERFTOOLS_THROW
+#ifndef PERFTOOLS_NOTHROW
 
 #if __cplusplus >= 201103L
-#define PERFTOOLS_THROW noexcept
+#define PERFTOOLS_NOTHROW noexcept
 #elif defined(__cplusplus)
-#define PERFTOOLS_THROW throw()
+#define PERFTOOLS_NOTHROW throw()
 #else
 # ifdef __GNUC__
-#  define PERFTOOLS_THROW __attribute__((__nothrow__))
+#  define PERFTOOLS_NOTHROW __attribute__((__nothrow__))
 # else
-#  define PERFTOOLS_THROW
+#  define PERFTOOLS_NOTHROW
 # endif
 #endif
 
@@ -81,25 +81,25 @@ extern "C" {
    * minor version, and patch-code (a string, usually "").
    */
   PERFTOOLS_DLL_DECL const char* tc_version(int* major, int* minor,
-                                            const char** patch) PERFTOOLS_THROW;
+                                            const char** patch) PERFTOOLS_NOTHROW;
 
-  PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_THROW;
+  PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW;
 
   PERFTOOLS_DLL_DECL void* tc_memalign(size_t __alignment,
-                                       size_t __size) PERFTOOLS_THROW;
+                                       size_t __size) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL int tc_posix_memalign(void** ptr,
-                                           size_t align, size_t size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void* tc_valloc(size_t __size) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t __size) PERFTOOLS_THROW;
+                                           size_t align, size_t size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void* tc_valloc(size_t __size) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t __size) PERFTOOLS_NOTHROW;
 
-  PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_THROW;
+  PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
 
   /*
    * This is an alias for MallocExtension::instance()->GetAllocatedSize().
@@ -108,31 +108,31 @@ extern "C" {
    *    glibc: malloc_usable_size()
    *    Windows: _msize()
    */
-  PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_THROW;
+  PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_NOTHROW;
 
 #ifdef __cplusplus
-  PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_THROW;
+  PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL void* tc_new(size_t size);
   PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size,
-                                          const std::nothrow_t&) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_THROW;
+                                          const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p,
-                                            const std::nothrow_t&) PERFTOOLS_THROW;
+                                            const std::nothrow_t&) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
   PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
-                                               const std::nothrow_t&) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_THROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_THROW;
+                                               const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
-                                                 const std::nothrow_t&) PERFTOOLS_THROW;
+                                                 const std::nothrow_t&) PERFTOOLS_NOTHROW;
 }
 #endif
 
 /* We're only un-defining for public */
 #if !defined(GPERFTOOLS_CONFIG_H_)
 
-#undef PERFTOOLS_THROW
+#undef PERFTOOLS_NOTHROW
 
 #endif /* GPERFTOOLS_CONFIG_H_ */
 

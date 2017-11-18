@@ -55,6 +55,7 @@ class Static {
 
   // Must be called before calling any of the accessors below.
   static void InitStaticVars();
+  static void InitLateMaybeRecursive();
 
   // Central cache -- an array of free-lists, one per size-class.
   // We have a separate lock per free-list to reduce contention.

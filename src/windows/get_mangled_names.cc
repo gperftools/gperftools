@@ -55,11 +55,11 @@
 static char m;   // some dummy memory so new doesn't return NULL.
 
 void* operator new(size_t size) { return &m; }
-void operator delete(void* p) throw() { }
+void operator delete(void* p) PERFTOOLS_NOTHROW { }
 void* operator new[](size_t size) { return &m; }
-void operator delete[](void* p) throw() { }
+void operator delete[](void* p) PERFTOOLS_NOTHROW { }
 
-void* operator new(size_t size, const std::nothrow_t&) throw() { return &m; }
-void operator delete(void* p, const std::nothrow_t&) throw() { }
-void* operator new[](size_t size, const std::nothrow_t&) throw() { return &m; }
-void operator delete[](void* p, const std::nothrow_t&) throw() { }
+void* operator new(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW { return &m; }
+void operator delete(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW { }
+void* operator new[](size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW { return &m; }
+void operator delete[](void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW { }

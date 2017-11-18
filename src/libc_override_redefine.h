@@ -43,25 +43,25 @@
 #define TCMALLOC_LIBC_OVERRIDE_REDEFINE_H_
 
 void* operator new(size_t size)                  { return tc_new(size);       }
-void operator delete(void* p) throw()            { tc_delete(p);              }
+void operator delete(void* p) PERFTOOLS_NOTHROW            { tc_delete(p);              }
 void* operator new[](size_t size)                { return tc_newarray(size);  }
-void operator delete[](void* p) throw()          { tc_deletearray(p);         }
-void* operator new(size_t size, const std::nothrow_t& nt) throw() {
+void operator delete[](void* p) PERFTOOLS_NOTHROW          { tc_deletearray(p);         }
+void* operator new(size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
   return tc_new_nothrow(size, nt);
 }
-void* operator new[](size_t size, const std::nothrow_t& nt) throw() {
+void* operator new[](size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
   return tc_newarray_nothrow(size, nt);
 }
-void operator delete(void* ptr, const std::nothrow_t& nt) throw() {
+void operator delete(void* ptr, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
   return tc_delete_nothrow(ptr, nt);
 }
-void operator delete[](void* ptr, const std::nothrow_t& nt) throw() {
+void operator delete[](void* ptr, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
   return tc_deletearray_nothrow(ptr, nt);
 }
 
 #ifdef ENABLE_SIZED_DELETE
-void operator delete(void* p, size_t s) throw()  { tc_delete_sized(p, s);     }
-void operator delete[](void* p, size_t s) throw(){ tc_deletearray_sized(p);   }
+void operator delete(void* p, size_t s) PERFTOOLS_NOTHROW  { tc_delete_sized(p, s);     }
+void operator delete[](void* p, size_t s) PERFTOOLS_NOTHROW{ tc_deletearray_sized(p);   }
 #endif
 
 extern "C" {
@@ -71,6 +71,7 @@ extern "C" {
   void* calloc(size_t n, size_t s)               { return tc_calloc(n, s);    }
   void  cfree(void* p)                           { tc_cfree(p);               }
   void* memalign(size_t a, size_t s)             { return tc_memalign(a, s);  }
+  void* aligned_alloc(size_t a, size_t s)        { return tc_memalign(a, s);  }
   void* valloc(size_t s)                         { return tc_valloc(s);       }
   void* pvalloc(size_t s)                        { return tc_pvalloc(s);      }
   int posix_memalign(void** r, size_t a, size_t s)         {

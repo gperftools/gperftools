@@ -60,6 +60,9 @@
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/sysinfo.h"
+#if defined(__FreeBSD__)
+#include <sys/sysctl.h>
+#endif
 
 using std::string;
 using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
@@ -94,6 +97,13 @@ static const char* GetProgramInvocationName() {
       return NULL;
   }
   return program_invocation_name;
+#elif defined(__FreeBSD__)
+  static char program_invocation_name[PATH_MAX];
+  size_t len = sizeof(program_invocation_name);
+  static const int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
+  if (!sysctl(name, 4, program_invocation_name, &len, NULL, 0))
+    return program_invocation_name;
+  return NULL;
 #else
   return NULL;   // figure out a way to get argv[0]
 #endif
@@ -238,6 +248,7 @@ int SymbolTable::Symbolize() {
       }
       write(child_in[1], pprof_buffer, strlen(pprof_buffer));
       close(child_in[1]);             // that's all we need to write
+      delete[] pprof_buffer;
 
       const int kSymbolBufferSize = kSymbolSize * symbolization_table_.size();
       int total_bytes_read = 0;
