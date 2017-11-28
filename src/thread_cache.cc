@@ -521,4 +521,3 @@ void ThreadCache::set_overall_thread_cache_size(size_t new_size) {
 }
 
 }  // namespace tcmalloc
-

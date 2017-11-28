@@ -384,7 +384,7 @@ inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32 c
 inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
   ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
-  
+
   // This catches back-to-back frees of allocs in the same size
   // class. A more comprehensive (and expensive) test would be to walk
   // the entire freelist. But this might be enough to find some bugs.
@@ -396,7 +396,7 @@ inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl
     ListTooLong(list, cl);
     return;
   }
-  
+
   size_ += list->object_size();
   if (PREDICT_FALSE(size_ > max_size_)){
     Scavenge();
