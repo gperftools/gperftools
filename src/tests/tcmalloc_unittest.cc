@@ -679,7 +679,7 @@ static void TestRealloc() {
 #endif
 }
 
-static void TestNewHandler() PERFTOOLS_THROW(std::bad_alloc) {
+static void TestNewHandler() {
   ++news_handled;
   throw std::bad_alloc();
 }

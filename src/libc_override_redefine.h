@@ -43,25 +43,25 @@
 #define TCMALLOC_LIBC_OVERRIDE_REDEFINE_H_
 
 void* operator new(size_t size)                  { return tc_new(size);       }
-void operator delete(void* p) PERFTOOLS_NOTHROW            { tc_delete(p);              }
+void operator delete(void* p) CPP_NOTHROW        { tc_delete(p);              }
 void* operator new[](size_t size)                { return tc_newarray(size);  }
-void operator delete[](void* p) PERFTOOLS_NOTHROW          { tc_deletearray(p);         }
-void* operator new(size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void operator delete[](void* p) CPP_NOTHROW      { tc_deletearray(p);         }
+void* operator new(size_t size, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_new_nothrow(size, nt);
 }
-void* operator new[](size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void* operator new[](size_t size, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_newarray_nothrow(size, nt);
 }
-void operator delete(void* ptr, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void operator delete(void* ptr, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_delete_nothrow(ptr, nt);
 }
-void operator delete[](void* ptr, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void operator delete[](void* ptr, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_deletearray_nothrow(ptr, nt);
 }
 
 #ifdef ENABLE_SIZED_DELETE
-void operator delete(void* p, size_t s) PERFTOOLS_NOTHROW  { tc_delete_sized(p, s);     }
-void operator delete[](void* p, size_t s) PERFTOOLS_NOTHROW{ tc_deletearray_sized(p, s); }
+void operator delete(void* p, size_t s) CPP_NOTHROW  { tc_delete_sized(p, s);     }
+void operator delete[](void* p, size_t s) CPP_NOTHROW{ tc_deletearray_sized(p, s);}
 #endif
 
 #if defined(ENABLE_ALIGNED_NEW_DELETE)
@@ -69,33 +69,33 @@ void operator delete[](void* p, size_t s) PERFTOOLS_NOTHROW{ tc_deletearray_size
 void* operator new(size_t size, std::align_val_t al) {
   return tc_new_aligned(size, al);
 }
-void operator delete(void* p, std::align_val_t al) PERFTOOLS_NOTHROW {
+void operator delete(void* p, std::align_val_t al) CPP_NOTHROW {
   tc_delete_aligned(p, al);
 }
 void* operator new[](size_t size, std::align_val_t al) {
   return tc_newarray_aligned(size, al);
 }
-void operator delete[](void* p, std::align_val_t al) PERFTOOLS_NOTHROW {
+void operator delete[](void* p, std::align_val_t al) CPP_NOTHROW {
   tc_deletearray_aligned(p, al);
 }
-void* operator new(size_t size, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void* operator new(size_t size, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_new_aligned_nothrow(size, al, nt);
 }
-void* operator new[](size_t size, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void* operator new[](size_t size, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_newarray_aligned_nothrow(size, al, nt);
 }
-void operator delete(void* ptr, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void operator delete(void* ptr, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_delete_aligned_nothrow(ptr, al, nt);
 }
-void operator delete[](void* ptr, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
+void operator delete[](void* ptr, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW {
   return tc_deletearray_aligned_nothrow(ptr, al, nt);
 }
 
 #ifdef ENABLE_SIZED_DELETE
-void operator delete(void* p, size_t s, std::align_val_t al) PERFTOOLS_NOTHROW {
+void operator delete(void* p, size_t s, std::align_val_t al) CPP_NOTHROW {
   tc_delete_sized_aligned(p, s, al);
 }
-void operator delete[](void* p, size_t s, std::align_val_t al) PERFTOOLS_NOTHROW {
+void operator delete[](void* p, size_t s, std::align_val_t al) CPP_NOTHROW {
   tc_deletearray_sized_aligned(p, s, al);
 }
 #endif

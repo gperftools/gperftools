@@ -58,6 +58,14 @@
 #endif
 #include <gperftools/tcmalloc.h>
 
+#if __cplusplus >= 201103L
+#define CPP_NOTHROW noexcept
+#define CPP_BADALLOC
+#else
+#define CPP_NOTHROW throw()
+#define CPP_BADALLOC throw(std::bad_alloc)
+#endif
+
 static void ReplaceSystemAlloc();  // defined in the .h files below
 
 // For windows, there are two ways to get tcmalloc.  If we're

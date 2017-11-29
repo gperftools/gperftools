@@ -57,38 +57,34 @@
 
 #define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn), used))
 
-void* operator new(size_t size) PERFTOOLS_THROW(std::bad_alloc)
-    ALIAS(tc_new);
-void operator delete(void* p) PERFTOOLS_NOTHROW
-    ALIAS(tc_delete);
-void* operator new[](size_t size) PERFTOOLS_THROW(std::bad_alloc)
-    ALIAS(tc_newarray);
-void operator delete[](void* p) PERFTOOLS_NOTHROW
-    ALIAS(tc_deletearray);
-void* operator new(size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
-    ALIAS(tc_new_nothrow);
-void* operator new[](size_t size, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
-    ALIAS(tc_newarray_nothrow);
-void operator delete(void* p, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
-    ALIAS(tc_delete_nothrow);
-void operator delete[](void* p, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
-    ALIAS(tc_deletearray_nothrow);
+void* operator new(size_t size) CPP_BADALLOC  ALIAS(tc_new);
+void operator delete(void* p) CPP_NOTHROW     ALIAS(tc_delete);
+void* operator new[](size_t size) CPP_BADALLOC ALIAS(tc_newarray);
+void operator delete[](void* p) CPP_NOTHROW   ALIAS(tc_deletearray);
+void* operator new(size_t size, const std::nothrow_t& nt) CPP_NOTHROW
+                                              ALIAS(tc_new_nothrow);
+void* operator new[](size_t size, const std::nothrow_t& nt) CPP_NOTHROW
+                                              ALIAS(tc_newarray_nothrow);
+void operator delete(void* p, const std::nothrow_t& nt) CPP_NOTHROW
+                                              ALIAS(tc_delete_nothrow);
+void operator delete[](void* p, const std::nothrow_t& nt) CPP_NOTHROW
+                                              ALIAS(tc_deletearray_nothrow);
 
 #if defined(ENABLE_SIZED_DELETE)
 
-void operator delete(void *p, size_t size) PERFTOOLS_NOTHROW
+void operator delete(void *p, size_t size) CPP_NOTHROW
     ALIAS(tc_delete_sized);
-void operator delete[](void *p, size_t size) PERFTOOLS_NOTHROW
+void operator delete[](void *p, size_t size) CPP_NOTHROW
     ALIAS(tc_deletearray_sized);
 
 #elif defined(ENABLE_DYNAMIC_SIZED_DELETE) && \
   (__GNUC__ * 100 + __GNUC_MINOR__) >= 405
 
-static void delegate_sized_delete(void *p, size_t s) PERFTOOLS_NOTHROW {
+static void delegate_sized_delete(void *p, size_t s) {
   (operator delete)(p);
 }
 
-static void delegate_sized_deletearray(void *p, size_t s) PERFTOOLS_NOTHROW {
+static void delegate_sized_deletearray(void *p, size_t s) {
   (operator delete[])(p);
 }
 
@@ -122,44 +118,44 @@ static void *resolve_deletearray_sized(void) {
 
 }
 
-void operator delete(void *p, size_t size) PERFTOOLS_NOTHROW
+void operator delete(void *p, size_t size) CPP_NOTHROW
   __attribute__((ifunc("resolve_delete_sized")));
-void operator delete[](void *p, size_t size) PERFTOOLS_NOTHROW
+void operator delete[](void *p, size_t size) CPP_NOTHROW
   __attribute__((ifunc("resolve_deletearray_sized")));
 
 #else /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
 
-void operator delete(void *p, size_t size) PERFTOOLS_NOTHROW
+void operator delete(void *p, size_t size) CPP_NOTHROW
   ALIAS(tc_delete);
-void operator delete[](void *p, size_t size) PERFTOOLS_NOTHROW
+void operator delete[](void *p, size_t size) CPP_NOTHROW
   ALIAS(tc_deletearray);
 
 #endif /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
 
 #if defined(ENABLE_ALIGNED_NEW_DELETE)
 
-void* operator new(size_t size, std::align_val_t al) PERFTOOLS_THROW(std::bad_alloc)
+void* operator new(size_t size, std::align_val_t al)
     ALIAS(tc_new_aligned);
-void operator delete(void* p, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete(void* p, std::align_val_t al) CPP_NOTHROW
     ALIAS(tc_delete_aligned);
-void* operator new[](size_t size, std::align_val_t al) PERFTOOLS_THROW(std::bad_alloc)
+void* operator new[](size_t size, std::align_val_t al)
     ALIAS(tc_newarray_aligned);
-void operator delete[](void* p, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete[](void* p, std::align_val_t al) CPP_NOTHROW
     ALIAS(tc_deletearray_aligned);
-void* operator new(size_t size, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
+void* operator new(size_t size, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW
     ALIAS(tc_new_aligned_nothrow);
-void* operator new[](size_t size, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
+void* operator new[](size_t size, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW
     ALIAS(tc_newarray_aligned_nothrow);
-void operator delete(void* p, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
+void operator delete(void* p, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW
     ALIAS(tc_delete_aligned_nothrow);
-void operator delete[](void* p, std::align_val_t al, const std::nothrow_t& nt) PERFTOOLS_NOTHROW
+void operator delete[](void* p, std::align_val_t al, const std::nothrow_t& nt) CPP_NOTHROW
     ALIAS(tc_deletearray_aligned_nothrow);
 
 #if defined(ENABLE_SIZED_DELETE)
 
-void operator delete(void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete(void *p, size_t size, std::align_val_t al) CPP_NOTHROW
     ALIAS(tc_delete_sized_aligned);
-void operator delete[](void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete[](void *p, size_t size, std::align_val_t al) CPP_NOTHROW
     ALIAS(tc_deletearray_sized_aligned);
 
 #else /* defined(ENABLE_SIZED_DELETE) */
@@ -167,11 +163,11 @@ void operator delete[](void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTH
 #if defined(ENABLE_DYNAMIC_SIZED_DELETE) && \
   (__GNUC__ * 100 + __GNUC_MINOR__) >= 405
 
-static void delegate_sized_aligned_delete(void *p, size_t s, std::align_val_t al) PERFTOOLS_NOTHROW {
+static void delegate_sized_aligned_delete(void *p, size_t s, std::align_val_t al) {
   (operator delete)(p, al);
 }
 
-static void delegate_sized_aligned_deletearray(void *p, size_t s, std::align_val_t al) PERFTOOLS_NOTHROW {
+static void delegate_sized_aligned_deletearray(void *p, size_t s, std::align_val_t al) {
   (operator delete[])(p, al);
 }
 
@@ -193,16 +189,16 @@ static void *resolve_deletearray_sized_aligned(void) {
 
 }
 
-void operator delete(void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete(void *p, size_t size, std::align_val_t al) CPP_NOTHROW
   __attribute__((ifunc("resolve_delete_sized_aligned")));
-void operator delete[](void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete[](void *p, size_t size, std::align_val_t al) CPP_NOTHROW
   __attribute__((ifunc("resolve_deletearray_sized_aligned")));
 
 #else /* defined(ENABLE_DYN_SIZED_DELETE) */
 
-void operator delete(void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete(void *p, size_t size, std::align_val_t al) CPP_NOTHROW
   ALIAS(tc_delete);
-void operator delete[](void *p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
+void operator delete[](void *p, size_t size, std::align_val_t al) CPP_NOTHROW
   ALIAS(tc_deletearray);
 
 #endif /* defined(ENABLE_DYN_SIZED_DELETE) */
