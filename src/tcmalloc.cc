@@ -165,6 +165,24 @@ using tcmalloc::ThreadCache;
 
 DECLARE_double(tcmalloc_release_rate);
 
+// Those common architectures are known to be safe w.r.t. aliasing function
+// with "extra" unused args to function with fewer arguments (e.g.
+// tc_delete_nothrow being aliased to tc_delete).
+//
+// Benefit of aliasing is relatively moderate. It reduces instruction
+// cache pressure a bit (not relevant for largely unused
+// tc_delete_nothrow, but is potentially relevant for
+// tc_delete_aligned (or sized)). It also used to be the case that gcc
+// 5+ optimization for merging identical functions kicked in and
+// "screwed" one of the otherwise identical functions with extra
+// jump. I am not able to reproduce that anymore.
+#if !defined(__i386__) && !defined(__x86_64__) && \
+    !defined(__ppc__) && !defined(__PPC__) && \
+    !defined(__aarch64__) && !defined(__mips__) && !defined(__arm__)
+#undef TCMALLOC_NO_ALIASES
+#define TCMALLOC_NO_ALIASES
+#endif
+
 #if defined(__GNUC__) && defined(__ELF__) && !defined(TCMALLOC_NO_ALIASES)
 #define TC_ALIAS(name) __attribute__((alias(#name)))
 #endif
@@ -1834,13 +1852,18 @@ void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
   return malloc_fast_path<tcmalloc::allocate_full_malloc_oom>(size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
-void tc_free(void* ptr) PERFTOOLS_NOTHROW {
+static ATTRIBUTE_ALWAYS_INLINE inline
+void free_fast_path(void *ptr) {
   if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     tcmalloc::invoke_hooks_and_free(ptr);
     return;
   }
   do_free(ptr);
+}
+
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
+void tc_free(void* ptr) PERFTOOLS_NOTHROW {
+  free_fast_path(ptr);
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
@@ -1898,11 +1921,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW
 TC_ALIAS(tc_free);
 #else
 {
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(ptr);
-    return;
-  }
-  do_free(ptr);
+  free_fast_path(ptr);
 }
 #endif
 
@@ -1939,11 +1958,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW
 TC_ALIAS(tc_free);
 #else
 {
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(p);
-    return;
-  }
-  do_free(p);
+  free_fast_path(p);
 }
 #endif
 
@@ -1987,24 +2002,16 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW
 TC_ALIAS(tc_free);
 #else
 {
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(p);
-    return;
-  }
-  do_free(p);
+  free_fast_path(p);
 }
 #endif
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW
 #ifdef TC_ALIAS
-TC_ALIAS(tc_free);
+TC_ALIAS(tc_delete_nothrow);
 #else
 {
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(p);
-    return;
-  }
-  do_free(p);
+  free_fast_path(p);
 }
 #endif
 
@@ -2047,19 +2054,34 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::ali
   return result;
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
-  tc_free(p);
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_delete);
+#else
+{
+  free_fast_path(p);
 }
+#endif
 
 // There is no easy way to obtain the actual size used by do_memalign to allocate aligned storage, so for now
 // just ignore the size. It might get useful in the future.
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t align) PERFTOOLS_NOTHROW {
-  tc_free(p);
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t align) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_delete);
+#else
+{
+  free_fast_path(p);
 }
+#endif
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  tc_free(p);
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW
+#ifdef TC_ALIAS
+TC_ALIAS(tc_delete);
+#else
+{
+  free_fast_path(p);
 }
+#endif
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align)
 #ifdef TC_ALIAS
@@ -2084,7 +2106,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_va
 TC_ALIAS(tc_delete_aligned);
 #else
 {
-  tc_free(p);
+  free_fast_path(p);
 }
 #endif
 
@@ -2095,7 +2117,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t 
 TC_ALIAS(tc_delete_sized_aligned);
 #else
 {
-  tc_free(p);
+  free_fast_path(p);
 }
 #endif
 
@@ -2104,7 +2126,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::
 TC_ALIAS(tc_delete_aligned_nothrow);
 #else
 {
-  tc_free(p);
+  free_fast_path(p);
 }
 #endif
 
