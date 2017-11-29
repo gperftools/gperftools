@@ -85,7 +85,7 @@ class ThreadCache {
 
   // Allocate an object of the given size and class. The size given
   // must be the same as the size of the class in the size map.
-  void* Allocate(size_t size, uint32 cl);
+  void* Allocate(size_t size, uint32 cl, void *(*oom_handler)(size_t size));
   void Deallocate(void* ptr, uint32 size_class);
 
   void Scavenge();
@@ -244,7 +244,8 @@ class ThreadCache {
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.
-  void* FetchFromCentralCache(uint32 cl, int32_t byte_size);
+  void* FetchFromCentralCache(uint32 cl, int32_t byte_size,
+                              void *(*oom_handler)(size_t size));
 
   void ListTooLong(void* ptr, uint32 cl);
 
@@ -362,7 +363,8 @@ inline int ThreadCache::HeapsInUse() {
   return threadcache_allocator.inuse();
 }
 
-inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32 cl) {
+inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(
+  size_t size, uint32 cl, void *(*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
 
 #ifdef NO_TCMALLOC_SAMPLES
@@ -375,7 +377,7 @@ inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32 c
 
   void* rv;
   if (!list->TryPop(&rv)) {
-    return FetchFromCentralCache(cl, size);
+    return FetchFromCentralCache(cl, size, oom_handler);
   }
   size_ -= size;
   return rv;

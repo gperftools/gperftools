@@ -114,7 +114,8 @@ void ThreadCache::Cleanup() {
 
 // Remove some objects of class "cl" from central cache and add to thread heap.
 // On success, return the first object for immediate use; otherwise return NULL.
-void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size) {
+void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size,
+                                         void *(*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
   ASSERT(list->empty());
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
@@ -124,7 +125,12 @@ void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size) {
   int fetch_count = Static::central_cache()[cl].RemoveRange(
       &start, &end, num_to_move);
 
-  ASSERT((start == NULL) == (fetch_count == 0));
+  if (fetch_count == 0) {
+    ASSERT(start == NULL);
+    return oom_handler(byte_size);
+  }
+  ASSERT(start != NULL);
+
   if (--fetch_count >= 0) {
     size_ += byte_size * fetch_count;
     list->PushRange(fetch_count, SLL_Next(start), end);

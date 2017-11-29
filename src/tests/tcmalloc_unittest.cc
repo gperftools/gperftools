@@ -180,6 +180,37 @@ DECLARE_double(tcmalloc_release_rate);
 DECLARE_int32(max_free_queue_size);     // in debugallocation.cc
 DECLARE_int64(tcmalloc_sample_parameter);
 
+struct OOMAbleSysAlloc : public SysAllocator {
+  SysAllocator *child;
+  int simulate_oom;
+
+  void* Alloc(size_t size, size_t* actual_size, size_t alignment) {
+    if (simulate_oom) {
+      return NULL;
+    }
+    return child->Alloc(size, actual_size, alignment);
+  }
+};
+
+static union {
+  char buf[sizeof(OOMAbleSysAlloc)];
+  void *ptr;
+} test_sys_alloc_space;
+
+static OOMAbleSysAlloc* get_test_sys_alloc() {
+  return reinterpret_cast<OOMAbleSysAlloc*>(&test_sys_alloc_space);
+}
+
+void setup_oomable_sys_alloc() {
+  SysAllocator *def = MallocExtension::instance()->GetSystemAllocator();
+
+  OOMAbleSysAlloc *alloc = get_test_sys_alloc();
+  new (alloc) OOMAbleSysAlloc;
+  alloc->child = def;
+
+  MallocExtension::instance()->SetSystemAllocator(alloc);
+}
+
 namespace testing {
 
 static const int FLAGS_numtests = 50000;
@@ -1130,11 +1161,46 @@ static void TestNAllocXAlignment() {
 
 #endif // !DEBUGALLOCATION
 
+static int saw_new_handler_runs;
+static void* volatile oom_test_last_ptr;
+
+static void test_new_handler() {
+  get_test_sys_alloc()->simulate_oom = false;
+  void *ptr = oom_test_last_ptr;
+  oom_test_last_ptr = NULL;
+  ::operator delete[](ptr);
+  saw_new_handler_runs++;
+}
+
+static ATTRIBUTE_NOINLINE void TestNewOOMHandling() {
+  setup_oomable_sys_alloc();
+
+  std::new_handler old = std::set_new_handler(test_new_handler);
+  get_test_sys_alloc()->simulate_oom = true;
+
+  ASSERT_EQ(saw_new_handler_runs, 0);
+
+  for (int i = 0; i < 10240; i++) {
+    oom_test_last_ptr = new char [512];
+    ASSERT_NE(oom_test_last_ptr, NULL);
+    if (saw_new_handler_runs) {
+      break;
+    }
+  }
+
+  ASSERT_GE(saw_new_handler_runs, 1);
+
+  get_test_sys_alloc()->simulate_oom = false;
+  std::set_new_handler(old);
+}
+
 static int RunAllTests(int argc, char** argv) {
   // Optional argv[1] is the seed
   AllocatorState rnd(argc > 1 ? atoi(argv[1]) : 100);
 
   SetTestResourceLimit();
+
+  TestNewOOMHandling();
 
   // TODO(odo):  This test has been disabled because it is only by luck that it
   // does not result in fragmentation.  When tcmalloc makes an allocation which
