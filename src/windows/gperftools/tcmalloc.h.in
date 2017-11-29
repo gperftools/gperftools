@@ -37,6 +37,9 @@
 #define TCMALLOC_TCMALLOC_H_
 
 #include <stddef.h>                     /* for size_t */
+#ifdef __cplusplus
+#include <new>                          /* for std::nothrow_t, std::align_val_t */
+#endif
 
 /* Define the version number so folks can check against it */
 #define TC_VERSION_MAJOR  @TC_VERSION_MAJOR@
@@ -69,10 +72,6 @@
 #endif
 
 #ifdef __cplusplus
-namespace std {
-struct nothrow_t;
-}
-
 extern "C" {
 #endif
   /*
@@ -126,6 +125,23 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
+
+#if @ac_cv_have_std_align_val_t@ && __cplusplus >= 201703L
+  PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t al);
+  PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t al,
+                                          const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t al,
+                                            const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t al);
+  PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t al,
+                                               const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t al,
+                                                 const std::nothrow_t&) PERFTOOLS_NOTHROW;
+#endif
 }
 #endif
 
