@@ -86,10 +86,16 @@ static void bench_fastpath_simple(long iterations,
 #define HAVE_SIZED_FREE_OPTION
 
 extern "C" void tc_free_sized(void *ptr, size_t size) __attribute__((weak));
+extern "C" void *tc_memalign(size_t align, size_t size) __attribute__((weak));
 
 static bool is_sized_free_available(void)
 {
   return tc_free_sized != NULL;
+}
+
+static bool is_memalign_available(void)
+{
+  return tc_memalign != NULL;
 }
 
 static void bench_fastpath_simple_sized(long iterations,
@@ -102,6 +108,23 @@ static void bench_fastpath_simple_sized(long iterations,
       abort();
     }
     tc_free_sized(p, sz);
+    // next iteration will use same free list as this iteration. So it
+    // should be prevent next iterations malloc to go too far before
+    // free done. But using same size will make free "too fast" since
+    // we'll hit size class cache.
+  }
+}
+
+static void bench_fastpath_memalign(long iterations,
+                                    uintptr_t param)
+{
+  size_t sz = static_cast<size_t>(param);
+  for (; iterations>0; iterations--) {
+    void *p = tc_memalign(32, sz);
+    if (!p) {
+      abort();
+    }
+    free(p);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
     // free done. But using same size will make free "too fast" since
@@ -251,6 +274,12 @@ int main(void)
     report_benchmark("bench_fastpath_simple_sized", bench_fastpath_simple_sized, 64);
     report_benchmark("bench_fastpath_simple_sized", bench_fastpath_simple_sized, 2048);
   }
+
+  if (is_memalign_available()) {
+    report_benchmark("bench_fastpath_memalign", bench_fastpath_memalign, 64);
+    report_benchmark("bench_fastpath_memalign", bench_fastpath_memalign, 2048);
+  }
+
 #endif
 
   for (int i = 8; i <= 512; i <<= 1) {
