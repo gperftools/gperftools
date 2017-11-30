@@ -236,7 +236,7 @@
 #define PACKAGE_NAME "gperftools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "gperftools 2.6.1"
+#define PACKAGE_STRING "gperftools 2.6.2"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "gperftools"
@@ -245,7 +245,7 @@
 #undef PACKAGE_URL
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.6.1"
+#define PACKAGE_VERSION "2.6.2"
 
 /* How to access the PC from a struct ucontext */
 #undef PC_FROM_UCONTEXT

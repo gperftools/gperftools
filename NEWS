@@ -1,3 +1,51 @@
+== 30 Nov 2017 ==
+gperftools 2.6.2 is out!
+
+Most notable change is recently added support for C++17 over-aligned
+allocation operators contributed by Andrey Semashev. I've extended his
+implemention to have roughly same performance as malloc/new. This
+release also has native support for C11 aligned_alloc.
+
+Rest is mostly bug fixes:
+
+* Jianbo Yang has contributed a fix for potentially severe data race
+  introduced by malloc fast-path work in gperftools 2.6. This race
+  could cause occasional violation of total thread cache size
+  constraint. See issue #929 for more details.
+
+* Correct behavior in out-of-memory condition in fast-path cases was
+  restored. This was another bug introduced by fast-path optimization
+  in gperftools 2.6 which caused operator new to silently return NULL
+  instead of doing correct C++ OOM handling (calling new_handler and
+  throwing bad_alloc).
+
+* Khem Raj has contributed couple build fixes for newer glibcs (ucontext_t vs
+  struct ucontext and loff_t definition)
+
+* Piotr Sikora has contributed build fix for OSX (not building unwind
+  benchmark). This was issue #910 (thanks to Yuriy Solovyov for
+  reporting it).
+
+* Dorin Lazăr has contributed fix for compiler warning
+
+* issue #912 (occasional deadlocking calling getenv too early on
+  windows) was fixed. Thanks to github user shangcangriluo for
+  reporting it.
+
+* Couple earlier lsan-related commits still causing occasional issues
+  linking on OSX has been reverted. See issue #901.
+
+* Volodimir Krylov has contributed GetProgramInvocationName for FreeBSD
+
+* changsu lee has contributed couple minor correctness fixes (missing
+  va_end() and missing free() call in rarely executed Symbolize path)
+
+* Andrew C. Morrow has contributed some more page heap stats. See issue
+  #935.
+
+* some cases of built-time warnings from various gcc/clang versions
+  about throw() declarations have been fixes.
+
 == 9 July 2017 ==
 
 gperftools 2.6.1 is out! This is mostly bug-fixes release.
