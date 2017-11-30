@@ -1006,30 +1006,34 @@ class TCMallocImplementation : public MallocExtension {
   }
 };
 
-// Returns size class that is suitable for allocation of size bytes with
-// align alignment. Or 0, if there is no such size class.
-static uint32_t size_class_with_alignment(size_t size, size_t align) {
-  if (align >= kPageSize) {
-    return 0;
+static inline ATTRIBUTE_ALWAYS_INLINE
+size_t align_size_up(size_t size, size_t align) {
+  ASSERT(align <= kPageSize);
+  size_t new_size = (size + align - 1) & ~(align - 1);
+  if (PREDICT_FALSE(new_size == 0)) {
+    // Note, new_size == 0 catches both integer overflow and size
+    // being 0.
+    if (size == 0) {
+      new_size = align;
+    } else {
+      new_size = size;
+    }
   }
-  uint32 cl;
-  if (!Static::sizemap()->GetSizeClass(size, &cl)) {
-    return 0;
+  return new_size;
+}
+
+// Puts in *cl size class that is suitable for allocation of size bytes with
+// align alignment. Returns true if such size class exists and false otherwise.
+static bool size_class_with_alignment(size_t size, size_t align, uint32_t* cl) {
+  if (PREDICT_FALSE(align > kPageSize)) {
+    return false;
   }
-  // Search through acceptable size classes looking for one with
-  // enough alignment.  This depends on the fact that
-  // InitSizeClasses() currently produces several size classes that
-  // are aligned at powers of two.  We will waste time and space if
-  // we miss in the size class array, but that is deemed acceptable
-  // since memalign() should be used rarely.
-  while (cl < Static::num_size_classes() &&
-         ((Static::sizemap()->class_to_size(cl) & (align - 1)) != 0)) {
-    cl++;
+  size = align_size_up(size, align);
+  if (PREDICT_FALSE(!Static::sizemap()->GetSizeClass(size, cl))) {
+    return false;
   }
-  if (cl == Static::num_size_classes()) {
-    return 0;
-  }
-  return cl;
+  ASSERT((Static::sizemap()->class_to_size(*cl) & (align - 1)) == 0);
+  return true;
 }
 
 // nallocx slow path. Moved to a separate function because
@@ -1039,8 +1043,9 @@ static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
   if (PREDICT_FALSE(!Static::IsInited())) ThreadCache::InitModule();
 
   size_t align = static_cast<size_t>(1ull << (flags & 0x3f));
-  uint32 cl = size_class_with_alignment(size, align);
-  if (cl) {
+  uint32 cl;
+  bool ok = size_class_with_alignment(size, align, &cl);
+  if (ok) {
     return Static::sizemap()->ByteSizeForClass(cl);
   } else {
     return tcmalloc::pages(size) << kPageShift;
@@ -1284,37 +1289,6 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
   }
   printer.printf("\n");
   write(STDERR_FILENO, buffer, strlen(buffer));
-}
-
-void* do_memalign(size_t align, size_t size);
-
-struct retry_memaligh_data {
-  size_t align;
-  size_t size;
-};
-
-static void *retry_do_memalign(void *arg) {
-  retry_memaligh_data *data = static_cast<retry_memaligh_data *>(arg);
-  return do_memalign(data->align, data->size);
-}
-
-static void *maybe_do_cpp_memalign_slow(size_t align, size_t size,
-    bool from_operator, bool nothrow) {
-  retry_memaligh_data data;
-  data.align = align;
-  data.size = size;
-  return handle_oom(retry_do_memalign, &data,
-                    from_operator, nothrow);
-}
-
-ATTRIBUTE_ALWAYS_INLINE
-inline void* do_memalign_or_cpp_memalign(size_t align, size_t size,
-    bool from_operator, bool nothrow) {
-  void *rv = do_memalign(align, size);
-  if (PREDICT_TRUE(rv != NULL)) {
-    return rv;
-  }
-  return maybe_do_cpp_memalign_slow(align, size, from_operator, nothrow);
 }
 
 // Must be called with the page lock held.
@@ -1594,47 +1568,19 @@ ATTRIBUTE_ALWAYS_INLINE inline void* do_realloc(void* old_ptr, size_t new_size) 
                                   &InvalidFree, &InvalidGetSizeForRealloc);
 }
 
-// For use by exported routines below that want specific alignments
-//
-// Note: this code can be slow for alignments > 16, and can
-// significantly fragment memory.  The expectation is that
-// memalign/posix_memalign/valloc/pvalloc will not be invoked very
-// often.  This requirement simplifies our implementation and allows
-// us to tune for expected allocation patterns.
-void* do_memalign(size_t align, size_t size) {
+static ATTRIBUTE_ALWAYS_INLINE inline
+void* do_memalign_pages(size_t align, size_t size) {
   ASSERT((align & (align - 1)) == 0);
-  ASSERT(align > 0);
+  ASSERT(align > kPageSize);
   if (size + align < size) return NULL;         // Overflow
-
-  // Fall back to malloc if we would already align this memory access properly.
-  if (align <= AlignmentForSize(size)) {
-    void* p = do_malloc(size);
-    ASSERT((reinterpret_cast<uintptr_t>(p) % align) == 0);
-    return p;
-  }
 
   if (PREDICT_FALSE(Static::pageheap() == NULL)) ThreadCache::InitModule();
 
   // Allocate at least one byte to avoid boundary conditions below
   if (size == 0) size = 1;
 
-  uint32_t cl = size_class_with_alignment(size, align);
-  if (cl != 0) {
-    ThreadCache* heap = ThreadCache::GetCache();
-    size = Static::sizemap()->class_to_size(cl);
-    return CheckedMallocResult(heap->Allocate(size, cl, nop_oom_handler));
-  }
-
   // We will allocate directly from the page heap
   SpinLockHolder h(Static::pageheap_lock());
-
-  if (align <= kPageSize) {
-    // Any page-level allocation will be fine
-    // TODO: We could put the rest of this page in the appropriate
-    // TODO: cache but it does not seem worth it.
-    Span* span = Static::pageheap()->New(tcmalloc::pages(size));
-    return PREDICT_FALSE(span == NULL) ? NULL : SpanToMallocResult(span);
-  }
 
   // Allocate extra pages and carve off an aligned portion
   const Length alloc = tcmalloc::pages(size + align);
@@ -1833,6 +1779,31 @@ static ATTRIBUTE_ALWAYS_INLINE inline void* dispatch_allocate_full(size_t size) 
   return allocate_full_malloc_oom(size);
 }
 
+struct retry_memalign_data {
+  size_t align;
+  size_t size;
+};
+
+static void *retry_do_memalign(void *arg) {
+  retry_memalign_data *data = static_cast<retry_memalign_data *>(arg);
+  return do_memalign_pages(data->align, data->size);
+}
+
+static ATTRIBUTE_SECTION(google_malloc)
+void* memalign_pages(size_t align, size_t size,
+                     bool from_operator, bool nothrow) {
+  void *rv = do_memalign_pages(align, size);
+  if (PREDICT_FALSE(rv == NULL)) {
+    retry_memalign_data data;
+    data.align = align;
+    data.size = size;
+    rv = handle_oom(retry_do_memalign, &data,
+                    from_operator, nothrow);
+  }
+  MallocHook::InvokeNewHook(rv, size);
+  return CheckedMallocResult(rv);
+}
+
 } // namespace tcmalloc
 
 // This is quick, fast-path-only implementation of malloc/new. It is
@@ -1874,6 +1845,26 @@ static void * malloc_fast_path(size_t size) {
   }
 
   return CheckedMallocResult(cache->Allocate(allocated_size, cl, OOMHandler));
+}
+
+template <void* OOMHandler(size_t)>
+ATTRIBUTE_ALWAYS_INLINE inline
+static void* memalign_fast_path(size_t align, size_t size) {
+  if (PREDICT_FALSE(align > kPageSize)) {
+    if (OOMHandler == tcmalloc::cpp_throw_oom) {
+      return tcmalloc::memalign_pages(align, size, true, false);
+    } else if (OOMHandler == tcmalloc::cpp_nothrow_oom) {
+      return tcmalloc::memalign_pages(align, size, true, true);
+    } else {
+      ASSERT(OOMHandler == tcmalloc::malloc_oom);
+      return tcmalloc::memalign_pages(align, size, false, true);
+    }
+  }
+
+  // Everything with alignment <= kPageSize we can easily delegate to
+  // regular malloc
+
+  return malloc_fast_path<OOMHandler>(align_size_up(size, align));
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
@@ -2044,11 +2035,9 @@ TC_ALIAS(tc_delete_nothrow);
 }
 #endif
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align,
-                                                size_t size) PERFTOOLS_NOTHROW {
-  void* result = do_memalign_or_cpp_memalign(align, size, false, true);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN
+void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
+  return memalign_fast_path<tcmalloc::malloc_oom>(align, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
@@ -2059,8 +2048,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
     return EINVAL;
   }
 
-  void* result = do_memalign_or_cpp_memalign(align, size, false, true);
-  MallocHook::InvokeNewHook(result, size);
+  void* result = tc_memalign(align, size);
   if (PREDICT_FALSE(result == NULL)) {
     return ENOMEM;
   } else {
@@ -2072,15 +2060,11 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
 #if defined(ENABLE_ALIGNED_NEW_DELETE)
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
-  void* result = do_memalign_or_cpp_memalign(static_cast<size_t>(align), size, true, false);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
+  return memalign_fast_path<tcmalloc::cpp_throw_oom>(static_cast<size_t>(align), size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  void* result = do_memalign_or_cpp_memalign(static_cast<size_t>(align), size, true, true);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
+  return memalign_fast_path<tcmalloc::cpp_nothrow_oom>(static_cast<size_t>(align), size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW
@@ -2117,7 +2101,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_
 TC_ALIAS(tc_new_aligned);
 #else
 {
-  return tc_new_aligned(size, align);
+  return memalign_fast_path<tcmalloc::cpp_throw_oom>(static_cast<size_t>(align), size);
 }
 #endif
 
@@ -2126,7 +2110,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std
 TC_ALIAS(tc_new_aligned_nothrow);
 #else
 {
-  return tc_new_aligned_nothrow(size, align, nt);
+  return memalign_fast_path<tcmalloc::cpp_nothrow_oom>(static_cast<size_t>(align), size);
 }
 #endif
 
@@ -2166,9 +2150,7 @@ static size_t pagesize = 0;
 extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) PERFTOOLS_NOTHROW {
   // Allocate page-aligned object of length >= size bytes
   if (pagesize == 0) pagesize = getpagesize();
-  void* result = do_memalign_or_cpp_memalign(pagesize, size, false, true);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
+  return tc_memalign(pagesize, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
@@ -2178,9 +2160,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
     size = pagesize;   // http://man.free4web.biz/man3/libmpatrol.3.html
   }
   size = (size + pagesize - 1) & ~(pagesize - 1);
-  void* result = do_memalign_or_cpp_memalign(pagesize, size, false, true);
-  MallocHook::InvokeNewHook(result, size);
-  return result;
+  return tc_memalign(pagesize, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW {

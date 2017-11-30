@@ -212,6 +212,21 @@ void SizeMap::Init() {
     }
   }
 
+  // Our fast-path aligned allocation functions rely on 'naturally
+  // aligned' sizes to produce aligned addresses. Lets check if that
+  // holds for size classes that we produced.
+  //
+  // I.e. we're checking that
+  //
+  // align = (1 << shift), malloc(i * align) % align == 0,
+  //
+  // for all align values up to kPageSize.
+  for (size_t align = kMinAlign; align <= kPageSize; align <<= 1) {
+    for (size_t size = align; size < kPageSize; size += align) {
+      CHECK_CONDITION(class_to_size_[SizeClass(size)] % align == 0);
+    }
+  }
+
   // Initialize the num_objects_to_move array.
   for (size_t cl = 1; cl  < num_size_classes; ++cl) {
     num_objects_to_move_[cl] = NumMoveSize(ByteSizeForClass(cl));
