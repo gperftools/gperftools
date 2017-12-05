@@ -385,7 +385,7 @@ AM_CONDITIONAL(HAVE_SIZED_DEALLOCATION,
 AC_CACHE_CHECK([if C++ compiler supports std::align_val_t without options],
                [perftools_cv_have_align_val_t],
                [AC_LANG_PUSH(C++)
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+                AC_LINK_IFELSE([AC_LANG_PROGRAM(
                     [[#include <new>]],
                     [[(::operator delete)((::operator new)(256, std::align_val_t(16)), std::align_val_t(16))]])],
                  perftools_cv_have_align_val_t=yes,
