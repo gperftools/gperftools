@@ -397,7 +397,7 @@ AC_CACHE_CHECK([if C++ compiler supports -faligned-new],
                [AC_LANG_PUSH(C++)
                 OLD_CXXFLAGS="$CXXFLAGS"
                 CXXFLAGS="$CXXFLAGS -faligned-new"
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+                AC_LINK_IFELSE([AC_LANG_PROGRAM(
                     [[#include <new>]],
                     [[(::operator delete)((::operator new)(256, std::align_val_t(16)), std::align_val_t(16))]])],
                  perftools_cv_have_f_aligned_new=yes,
