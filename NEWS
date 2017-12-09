@@ -1,3 +1,15 @@
+== 9 Dec 2017 ==
+gperftools 2.6.3 is out!
+
+Just two fixes were made in this release:
+
+* Stephan Zuercher has contributed a build fix for some recent XCode
+  versions. See issue #942 for more details.
+
+* assertion failure on some windows builds introduced by 2.6.2 was
+  fixed. Thanks to github user nkeemik for reporting it and testing
+  fix. See issue #944 for more details.
+
 == 30 Nov 2017 ==
 gperftools 2.6.2 is out!
 
