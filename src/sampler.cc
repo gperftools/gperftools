@@ -76,6 +76,7 @@ void Sampler::Init(uint64_t seed) {
 }
 
 #define MAX_SSIZE (static_cast<ssize_t>(static_cast<size_t>(static_cast<ssize_t>(-1)) >> 1))
+const double val_log2m26 = log(2.0) * 26;
 
 // Generates a geometric variable with the specified mean (512K by default).
 // This is done by generating a random number between 0 and 1 and applying
@@ -108,8 +109,10 @@ ssize_t Sampler::PickNextSamplingPoint() {
   // under piii debug for some binaries.
   double q = static_cast<uint32_t>(rnd_ >> (prng_mod_power - 26)) + 1.0;
   // Put the computed p-value through the CDF of a geometric.
+  // ((val_log2m26 - log(q)) * FLAGS_tcmalloc_sample_parameter) =
+  // (log2(q) - 26) * (-log(2.0) * FLAGS_tcmalloc_sample_parameter)
   double interval =
-      (log2(q) - 26) * (-log(2.0) * FLAGS_tcmalloc_sample_parameter);
+      ((val_log2m26 - log(q)) * FLAGS_tcmalloc_sample_parameter);
 
   // Very large values of interval overflow ssize_t. If we happen to
   // hit such improbable condition, we simply cheat and clamp interval
