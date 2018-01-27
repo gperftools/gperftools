@@ -28,7 +28,7 @@ If you'd rather link in a version of TCMalloc that does not include the heap pro
 
 TCMalloc assigns each thread a thread-local cache. Small allocations are satisfied from the thread-local cache. Objects are moved from central data structures into a thread-local cache as needed, and periodic garbage collections are used to migrate memory back from a thread-local cache into the central data structures.
 
-<center>![](overview.gif)</center>
+![](overview.gif)
 
 TCMalloc treats objects with size <= 256K ("small" objects) differently from larger objects. Large objects are allocated directly from the central heap using a page-level allocator (a page is a 8K aligned region of memory). I.e., a large object is always page-aligned and occupies an integral number of pages.
 
@@ -157,19 +157,12 @@ The PTMalloc2 package (now part of glibc) contains a unittest program `t-test1.c
 The graphs below show the performance of TCMalloc vs PTMalloc2 for several different metrics. Firstly, total operations (millions) per elapsed second vs max allocation size, for varying numbers of threads. The raw data used to generate these graphs (the output of the `time` utility) is available in `t-test1.times.txt`.
 
 <table>
-
 <tbody>
-
 <tr>
-
 <td>![](tcmalloc-opspersec.vs.size.1.threads.png)</td>
-
 <td>![](tcmalloc-opspersec.vs.size.2.threads.png)</td>
-
 <td>![](tcmalloc-opspersec.vs.size.3.threads.png)</td>
-
 </tr>
-
 <tr>
 
 <td>![](tcmalloc-opspersec.vs.size.4.threads.png)</td>
