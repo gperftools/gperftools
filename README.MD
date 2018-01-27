@@ -92,7 +92,7 @@ As a quick-start, do the following after installing this package:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPCHECK environment var set:
-     $ HEAPCHECK=1 <path/to/binary> [binary args]
+     <pre>$ HEAPCHECK=1 <path/to/binary> [binary args]</pre>
 
 Other values for HEAPCHECK: normal (equivalent to "1"), strict, draconian
 
@@ -112,10 +112,10 @@ As a quick-start, do the following after installing this package:
 
 1) Link your executable with -lprofiler
 2) Run your executable with the CPUPROFILE environment var set:
-     $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
+     <pre>$ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]</pre>
 3) Run pprof to analyze the CPU usage
-     $ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
-     $ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output
+     <pre>$ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output</pre>
+     <pre>$ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output</pre>
 
 There are other environment variables, besides CPUPROFILE, you can set
 to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
@@ -135,15 +135,15 @@ EVERYTHING IN ONE
 -----------------
 If you want the CPU profiler, heap profiler, and heap leak-checker to
 all be available for your application, you can do:
-   gcc -o myapp ... -lprofiler -ltcmalloc
+   <pre>gcc -o myapp ... -lprofiler -ltcmalloc</pre>
 
 However, if you have a reason to use the static versions of the
 library, this two-library linking won't work:
-   gcc -o myapp ... /usr/lib/libprofiler.a /usr/lib/libtcmalloc.a  # errors!
+   <pre>gcc -o myapp ... /usr/lib/libprofiler.a /usr/lib/libtcmalloc.a  # errors!</pre>
 
 Instead, use the special libtcmalloc_and_profiler library, which we
 make for just this purpose:
-   gcc -o myapp ... /usr/lib/libtcmalloc_and_profiler.a
+   <pre>gcc -o myapp ... /usr/lib/libtcmalloc_and_profiler.a</pre>
 
 
 CONFIGURATION OPTIONS
@@ -167,6 +167,7 @@ enable/disable features as well as tweak parameters.
 
 Here are some of the most important variables:
 
+```
 HEAPPROFILE=<pre> -- turns on heap profiling and dumps data using this prefix
 HEAPCHECK=<type>  -- turns on heap checking with strictness 'type'
 CPUPROFILE=<file> -- turns on cpu profiling and dumps data to this file.
@@ -176,6 +177,7 @@ CPUPROFILE_FREQUENCY=x-- how many interrupts/second the cpu-profiler samples.
 
 PERFTOOLS_VERBOSE=<level> -- the higher level, the more messages malloc emits
 MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
+```
 
 For a full list of variables, see the documentation pages:
    docs/cpuprofile.html
