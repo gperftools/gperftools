@@ -49,7 +49,7 @@ the above flags :-) ).
 
 HEAP PROFILER
 -------------
-See [Heap Profile docs](docs/heapprofile.html) for information about how to use tcmalloc's
+See [Heap Profile docs](docs/heapprofile.md) for information about how to use tcmalloc's
 heap profiler and analyze its output.
 
 As a quick-start, do the following after installing this package:
