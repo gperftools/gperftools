@@ -46,6 +46,9 @@ hooks with tcmalloc (using gperftools/malloc_hook.h).  The risk is
 lowest for folks who use tcmalloc_minimal (or, of course, who pass in
 the above flags :-) ).
 
+For more information about tcmalloc internals please refer to
+[Tcmalloc docs](docs/tcmalloc.md)
+
 
 HEAP PROFILER
 -------------
@@ -74,7 +77,7 @@ see INSTALL for more details.  It is not currently available on Windows.
 
 HEAP CHECKER
 ------------
-See docs/heap_checker.html for information about how to use tcmalloc's
+See [Heap Checker docs](docs/heap_checker.md) for information about how to use tcmalloc's
 heap checker.
 
 In order to catch all heap leaks, tcmalloc must be linked *last* into
@@ -176,8 +179,8 @@ MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 
 For a full list of variables, see the documentation pages:
    docs/cpuprofile.html
-   docs/heapprofile.html
-   docs/heap_checker.html
+   [Heap Profile docs](docs/heapprofile.md)
+   [Heap Checker docs](docs/heap_checker.md)
 
 
 COMPILING ON NON-LINUX SYSTEMS
