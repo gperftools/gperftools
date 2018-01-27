@@ -28,7 +28,7 @@ If you'd rather link in a version of TCMalloc that does not include the heap pro
 
 TCMalloc assigns each thread a thread-local cache. Small allocations are satisfied from the thread-local cache. Objects are moved from central data structures into a thread-local cache as needed, and periodic garbage collections are used to migrate memory back from a thread-local cache into the central data structures.
 
-![](overview.gif)
+<center><img src="overview.gif"></center>
 
 TCMalloc treats objects with size <= 256K ("small" objects) differently from larger objects. Large objects are allocated directly from the central heap using a page-level allocator (a page is a 8K aligned region of memory). I.e., a large object is always page-aligned and occupies an integral number of pages.
 
@@ -40,7 +40,7 @@ Each small object size maps to one of approximately 88 allocatable size-classes.
 
 A thread cache contains a singly linked list of free objects per size-class.
 
-<center>![](threadheap.gif)</center>
+<center><img src="threadheap.gif"></center>
 
 When allocating a small object: (1) We map its size to the corresponding size-class. (2) Look in the corresponding free list in the thread cache for the current thread. (3) If the free list is not empty, we remove the first object from the list and return it. When following this fast path, TCMalloc acquires no locks at all. This helps speed-up allocation significantly because a lock/unlock pair takes approximately 100 nanoseconds on a 2.8 GHz Xeon.
 
@@ -94,7 +94,7 @@ See also the section on [Garbage Collection](#Garbage_Collection) to see how it 
 
 A large object size (> 256K) is rounded up to a page size (8K) and is handled by a central page heap. The central page heap is again an array of free lists. For `i < 128`, the `k`th entry is a free list of runs that consist of `k` pages. The `128`th entry is a free list of runs that have length `>= 128` pages:
 
-<center>![](pageheap.gif)</center>
+<center><img src="pageheap.gif"></center>
 
 An allocation for `k` pages is satisfied by looking in the `k`th free list. If that free list is empty, we look in the next free list, and so forth. Eventually, we look in the last free list if necessary. If that fails, we fetch memory from the system (using `sbrk`, `mmap`, or by mapping in portions of `/dev/mem`).
 
@@ -106,7 +106,7 @@ The heap managed by TCMalloc consists of a set of pages. A run of contiguous pag
 
 A central array indexed by page number can be used to find the span to which a page belongs. For example, span _a_ below occupies 2 pages, span _b_ occupies 1 page, span _c_ occupies 5 pages and span _d_ occupies 3 pages.
 
-<center>![](spanmap.gif)</center>
+<center><img src="spanmap.gif"></center>
 
 In a 32-bit address space, the central array is represented by a a 2-level radix tree where the root contains 32 entries and each leaf contains 2^14 entries (a 32-bit address space has 2^19 8K pages, and the first level of tree divides the 2^19 pages by 2^5). This leads to a starting memory usage of 64KB of space (2^14*4 bytes) for the central array, which seems acceptable.
 
@@ -157,35 +157,23 @@ The PTMalloc2 package (now part of glibc) contains a unittest program `t-test1.c
 The graphs below show the performance of TCMalloc vs PTMalloc2 for several different metrics. Firstly, total operations (millions) per elapsed second vs max allocation size, for varying numbers of threads. The raw data used to generate these graphs (the output of the `time` utility) is available in `t-test1.times.txt`.
 
 <table>
-<tbody>
 <tr>
-<td>![](tcmalloc-opspersec.vs.size.1.threads.png)</td>
-<td>![](tcmalloc-opspersec.vs.size.2.threads.png)</td>
-<td>![](tcmalloc-opspersec.vs.size.3.threads.png)</td>
+  <td><img src="tcmalloc-opspersec.vs.size.1.threads.png"></td>
+  <td><img src="tcmalloc-opspersec.vs.size.2.threads.png"></td>
+  <td><img src="tcmalloc-opspersec.vs.size.3.threads.png"></td>
 </tr>
 <tr>
-
-<td>![](tcmalloc-opspersec.vs.size.4.threads.png)</td>
-
-<td>![](tcmalloc-opspersec.vs.size.5.threads.png)</td>
-
-<td>![](tcmalloc-opspersec.vs.size.8.threads.png)</td>
-
+  <td><img src="tcmalloc-opspersec.vs.size.4.threads.png"></td>
+  <td><img src="tcmalloc-opspersec.vs.size.5.threads.png"></td>
+  <td><img src="tcmalloc-opspersec.vs.size.8.threads.png"></td>
 </tr>
-
 <tr>
-
-<td>![](tcmalloc-opspersec.vs.size.12.threads.png)</td>
-
-<td>![](tcmalloc-opspersec.vs.size.16.threads.png)</td>
-
-<td>![](tcmalloc-opspersec.vs.size.20.threads.png)</td>
-
+  <td><img src="tcmalloc-opspersec.vs.size.12.threads.png"></td>
+  <td><img src="tcmalloc-opspersec.vs.size.16.threads.png"></td>
+  <td><img src="tcmalloc-opspersec.vs.size.20.threads.png"></td>
 </tr>
-
-</tbody>
-
 </table>
+
 
 *   TCMalloc is much more consistently scalable than PTMalloc2 - for all thread counts >1 it achieves ~7-9 million ops/sec for small allocations, falling to ~2 million ops/sec for larger allocations. The single-thread case is an obvious outlier, since it is only able to keep a single processor busy and hence can achieve fewer ops/sec. PTMalloc2 has a much higher variance on operations/sec - peaking somewhere around 4 million ops/sec for small allocations and falling to <1 million ops/sec for larger allocations.
 *   TCMalloc is faster than PTMalloc2 in the vast majority of cases, and particularly for small allocations. Contention between threads is less of a problem in TCMalloc.
@@ -195,41 +183,21 @@ The graphs below show the performance of TCMalloc vs PTMalloc2 for several diffe
 Next, operations (millions) per second of CPU time vs number of threads, for max allocation size 64 bytes - 128 Kbytes.
 
 <table>
-
-<tbody>
-
 <tr>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.64.bytes.png)</td>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.256.bytes.png)</td>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.1024.bytes.png)</td>
-
+  <td><img src="tcmalloc-opspercpusec.vs.threads.64.bytes.png"></td>
+  <td><img src="tcmalloc-opspercpusec.vs.threads.256.bytes.png"></td>
+  <td><img src="tcmalloc-opspercpusec.vs.threads.1024.bytes.png"></td>
 </tr>
-
 <tr>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.4096.bytes.png)</td>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.8192.bytes.png)</td>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.16384.bytes.png)</td>
-
+  <td><img src="tcmalloc-opspercpusec.vs.threads.4096.bytes.png"></td>
+  <td><img src="tcmalloc-opspercpusec.vs.threads.8192.bytes.png"></td>
+  <td><img src="tcmalloc-opspercpusec.vs.threads.16384.bytes.png"></td>
 </tr>
-
 <tr>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.32768.bytes.png)</td>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.65536.bytes.png)</td>
-
-<td>![](tcmalloc-opspercpusec.vs.threads.131072.bytes.png)</td>
-
+  <td><img src="tcmalloc-opspercpusec.vs.threads.32768.bytes.png"></td>
+  <td><img src="tcmalloc-opspercpusec.vs.threads.65536.bytes.png"></td>
+  <td><img src="tcmalloc-opspercpusec.vs.threads.131072.bytes.png"></td>
 </tr>
-
-</tbody>
-
 </table>
 
 Here we see again that TCMalloc is both more consistent and more efficient than PTMalloc2\. For max allocation sizes <32K, TCMalloc typically achieves ~2-2.5 million ops per second of CPU time with a large number of threads, whereas PTMalloc achieves generally 0.5-1 million ops per second of CPU time, with a lot of cases achieving much less than this figure. Above 32K max allocation size, TCMalloc drops to 1-1.5 million ops per second of CPU time, and PTMalloc drops almost to zero for large numbers of threads (i.e. with PTMalloc, lots of CPU time is being burned spinning waiting for locks in the heavily multi-threaded case).
