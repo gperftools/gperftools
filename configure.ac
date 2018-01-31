@@ -165,7 +165,7 @@ AC_PROG_LIBTOOL
 AC_C_INLINE
 AX_C___ATTRIBUTE__
 
-AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)
+AC_MSG_CHECKING([for __attribute__((aligned(N)) on functions])
 AC_CACHE_VAL(ac_cv___attribute__aligned_fn, [
   AC_TRY_COMPILE(
     [#include <stdlib.h>
@@ -561,7 +561,7 @@ AC_PROGRAM_INVOCATION_NAME
 # Make the install prefix available, to figure out where to look for pprof
 AC_INSTALL_PREFIX
 
-dnl only very recent mingw has sleep and nanosleep
+# only very recent mingw has sleep and nanosleep
 case "$host" in
    *-mingw*)
      AC_CHECK_DECLS([sleep], [], [], [#include <unistd.h>])
@@ -652,8 +652,12 @@ AC_COMPILE_IFELSE(
          AC_MSG_RESULT([yes])],
         [AC_MSG_RESULT([no])])
 
+# Check for presence of pandoc utility to convert Markdown to HTML
+AC_CHECK_PROG([HAS_PANDOC], [pandoc], [yes], [no])
+AM_CONDITIONAL([FOUND_CONVERTER_FOR_HTML], [test "x$HAS_PANDOC" = xyes])
+
 # Write generated configuration file
-AC_CONFIG_FILES([Makefile
+AC_CONFIG_FILES([Makefile docs/Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
 AC_OUTPUT
 
