@@ -14,23 +14,23 @@ This does _not_ turn on heap checking; it just inserts the code. For that reason
 
 Note: For security reasons, heap profiling will not write to a file -- and is thus not usable -- for setuid programs.
 
-### <a name="whole_program">Whole-program Heap Leak Checking</a>
+### Whole-program Heap Leak Checking
 
-The recommended way to use the heap checker is in "whole program" mode. In this case, the heap-checker starts tracking memory allocations before the start of `main()`, and checks again at program-exit. If it finds any memory leaks -- that is, any memory not pointed to by objects that are still "live" at program-exit -- it aborts the program (via `exit(1)`) and prints a message describing how to track down the memory leak (using [pprof](heapprofile.html#pprof)).
+The recommended way to use the heap checker is in "whole program" mode. In this case, the heap-checker starts tracking memory allocations before the start of `main()`, and checks again at program-exit. If it finds any memory leaks -- that is, any memory not pointed to by objects that are still "live" at program-exit -- it aborts the program (via `exit(1)`) and prints a message describing how to track down the memory leak (using [pprof](heapprofile.md#pprof)).
 
 The heap-checker records the stack trace for each allocation while it is active. This causes a significant increase in memory usage, in addition to slowing your program down.
 
 Here's how to run a program with whole-program heap checking:
 
-1.  Define the environment variable HEAPCHECK to the [type of heap-checking](#types) to do. For instance, to heap-check `/usr/local/bin/my_binary_compiled_with_tcmalloc`:
+1.  Define the environment variable HEAPCHECK to the [type of heap-checking](#flavors-of-heap-checking) to do. For instance, to heap-check `/usr/local/bin/my_binary_compiled_with_tcmalloc`:
 
     <pre>% env HEAPCHECK=normal /usr/local/bin/my_binary_compiled_with_tcmalloc</pre>
 
 No other action is required.
 
-Note that since the heap-checker uses the heap-profiling framework internally, it is not possible to run both the heap-checker and [heap profiler](heapprofile.html) at the same time.
+Note that since the heap-checker uses the heap-profiling framework internally, it is not possible to run both the heap-checker and [heap profiler](heapprofile.md) at the same time.
 
-#### <a name="types">Flavors of Heap Checking</a>
+#### Flavors of Heap Checking
 
 These are the legal values when running a whole-program heap check:
 
@@ -56,7 +56,7 @@ In addition, there are two other possible modes:
 
 `as-is` is the most flexible mode; it allows you to specify the various [knobs](#options) of the heap checker explicitly. `local` activates the [explicit heap-check instrumentation](#explicit), but does not turn on any whole-program leak checking.
 
-#### <a name="tweaking">Tweaking whole-program checking</a>
+#### Tweaking whole-program checking
 
 In some cases you want to check the whole program for memory leaks, but waiting for after `main()` exits to do the first whole-program leak check is waiting too long: e.g. in a long-running server one might wish to simply periodically check for leaks while the server is running. In this case, you can call the static method `NoGlobalLeaks()`, to verify no global leaks have happened as of that point in the program.
 
@@ -64,9 +64,7 @@ Alternately, doing the check after `main()` exits might be too late. Perhaps you
 
 Finally, there's a helper macro for "strict" and "draconian" modes, which require all global memory to be freed before program exit. This freeing can be time-consuming and is often unnecessary, since libc cleans up all memory at program-exit for you. If you want the benefits of "strict"/"draconian" modes without the cost of all that freeing, look at `REGISTER_HEAPCHECK_CLEANUP` (in `heap-checker.h`). This macro allows you to mark specific cleanup code as active only when the heap-checker is turned on.
 
-### <a name="explicit">Explicit (Partial-program) Heap Leak Checking</a>
-
-<a name="explicit">
+### Explicit (Partial-program) Heap Leak Checking
 
 Instead of whole-program checking, you can check certain parts of your code to verify they do not have memory leaks. This check verifies that between two parts of a program, no memory is allocated without being freed.
 
@@ -74,13 +72,14 @@ To use this kind of checking code, bracket the code you want checked by creating
 
 Here's an example:
 
-<pre>  HeapLeakChecker heap_checker("test_foo");
+```
+  HeapLeakChecker heap_checker("test_foo");
   {
     code that exercises some foo functionality;
     this code should not leak memory;
   }
   if (!heap_checker.NoLeaks()) assert(NULL == "heap memory leak");
-</pre>
+```
 
 Note that adding in the `HeapLeakChecker` object merely instruments the code for leak-checking. To actually turn on this leak-checking on a particular run of the executable, you must still run with the heap-checker turned on:
 
@@ -88,150 +87,94 @@ Note that adding in the `HeapLeakChecker` object merely instruments the code for
 
 If you want to do whole-program leak checking in addition to this manual leak checking, you can run in `normal` or some other mode instead: they'll run the "local" checks in addition to the whole-program check.
 
-</a>
 
-### <a name="explicit"></a><a name="disable">Disabling Heap-checking of Known Leaks</a>
+### Disabling Heap-checking of Known Leaks
 
 Sometimes your code has leaks that you know about and are willing to accept. You would like the heap checker to ignore them when checking your program. You can do this by bracketing the code in question with an appropriate heap-checking construct:
 
-<pre>   ...
+```
+   ...
    {
      HeapLeakChecker::Disabler disabler;
      <leaky code>
    }
    ...
-</pre>
+```
 
 Any objects allocated by `leaky code` (including inside any routines called by `leaky code`) and any objects reachable from such objects are not reported as leaks.
 
 Alternately, you can use `IgnoreObject()`, which takes a pointer to an object to ignore. That memory, and everything reachable from it (by following pointers), is ignored for the purposes of leak checking. You can call `UnIgnoreObject()` to undo the effects of `IgnoreObject()`.
 
-### <a name="options">Tuning the Heap Checker</a>
+### Tuning the Heap Checker
 
-<a name="options"></a>
-
-<a name="options">The heap leak checker has many options, some that trade off running time and accuracy, and others that increase the sensitivity at the risk of returning false positives. For most uses, the range covered by the</a> [heap-check flavors](#types) is enough, but in specialized cases more control can be helpful.
+The heap leak checker has many options, some that trade off running time and accuracy, and others that increase the sensitivity at the risk of returning false positives. For most uses, the range covered by the [heap-check flavors](#flavors-of-heap-checking) is enough, but in specialized cases more control can be helpful.
 
 These options are specified via environment varaiables.
 
-This first set of options controls sensitivity and accuracy. These options are ignored unless you run the heap checker in [as-is](#types) mode.
+This first set of options controls sensitivity and accuracy. These options are ignored unless you run the heap checker in [as-is](#flavors-of-heap-checking) mode:
 
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_AFTER_DESTRUCTORS`</td>
-
+<td><pre>HEAP_CHECK_AFTER_DESTRUCTORS</pre></td>
 <td>Default: false</td>
-
 <td>When true, do the final leak check after all other global destructors have run. When false, do it after all `REGISTER_HEAPCHECK_CLEANUP`, typically much earlier in the global-destructor process.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_IGNORE_THREAD_LIVE`</td>
-
+<td><pre>HEAP_CHECK_IGNORE_THREAD_LIVE</pre></td>
 <td>Default: true</td>
-
 <td>If true, ignore objects reachable from thread stacks and registers (that is, do not report them as leaks).</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_IGNORE_GLOBAL_LIVE`</td>
-
+<td><pre>HEAP_CHECK_IGNORE_GLOBAL_LIVE</pre></td>
 <td>Default: true</td>
-
 <td>If true, ignore objects reachable from global variables and data (that is, do not report them as leaks).</td>
-
 </tr>
-
 </tbody>
-
 </table>
 
-These options modify the behavior of whole-program leak checking.
+These options modify the behavior of whole-program leak checking:
 
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_MAX_LEAKS`</td>
-
+<td><pre>HEAP_CHECK_MAX_LEAKS</pre></td>
 <td>Default: 20</td>
-
 <td>The maximum number of leaks to be printed to stderr (all leaks are still emitted to file output for pprof to visualize). If negative or zero, print all the leaks found.</td>
-
 </tr>
-
 </tbody>
-
 </table>
 
-These options apply to all types of leak checking.
+These options apply to all types of leak checking:
 
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_IDENTIFY_LEAKS`</td>
-
+<td><pre>HEAP_CHECK_IDENTIFY_LEAKS</pre></td>
 <td>Default: false</td>
-
 <td>If true, generate the addresses of the leaked objects in the generated memory leak profile files.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_TEST_POINTER_ALIGNMENT`</td>
-
+<td><pre>HEAP_CHECK_TEST_POINTER_ALIGNMENT</pre></td>
 <td>Default: false</td>
-
 <td>If true, check all leaks to see if they might be due to the use of unaligned pointers.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_POINTER_SOURCE_ALIGNMENT`</td>
-
+<td><pre>HEAP_CHECK_POINTER_SOURCE_ALIGNMENT</pre></td>
 <td>Default: sizeof(void*)</td>
-
 <td>Alignment at which all pointers in memory are supposed to be located. Use 1 if any alignment is ok.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`PPROF_PATH`</td>
-
+<td><pre>PPROF_PATH</pre></td>
 <td>Default: pprof</td>
-
 <td>The location of the `pprof` executable.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_CHECK_DUMP_DIRECTORY`</td>
-
+<td><pre>HEAP_CHECK_DUMP_DIRECTORY</pre></td>
 <td>Default: /tmp</td>
-
 <td>Where the heap-profile files are kept while the program is running.</td>
-
 </tr>
-
 </tbody>
-
 </table>
 
 ### Tips for Handling Detected Leaks
@@ -242,7 +185,7 @@ If the leak is a real leak, you should fix it!
 
 If you are sure that the reported leaks are not dangerous and there is no good way to fix them, then you can use `HeapLeakChecker::Disabler` and/or `HeapLeakChecker::IgnoreObject()` to disable heap-checking for certain parts of the codebase.
 
-In "strict" or "draconian" mode, leaks may be due to incomplete cleanup in the destructors of global variables. If you don't wish to augment the cleanup routines, but still want to run in "strict" or "draconian" mode, consider using [`REGISTER_HEAPCHECK_CLEANUP`](#tweaking).
+In "strict" or "draconian" mode, leaks may be due to incomplete cleanup in the destructors of global variables. If you don't wish to augment the cleanup routines, but still want to run in "strict" or "draconian" mode, consider using [REGISTER_HEAPCHECK_CLEANUP](#tweaking-whole-program-checking).
 
 ### Hints for Debugging Detected Leaks
 
@@ -259,7 +202,7 @@ A more rare but even more puzzling problem can be use of not properly aligned po
 
 When a `HeapLeakChecker` object is constructed, it dumps a memory-usage profile named `<prefix>.<name>-beg.heap` to a temporary directory. When `NoLeaks()` is called (for whole-program checking, this happens automatically at program-exit), it dumps another profile, named `<prefix>.<name>-end.heap`. (`<prefix>` is typically determined automatically, and `<name>` is typically `argv[0]`.) It then compares the two profiles. If the second profile shows more memory use than the first, the `NoLeaks()` function will return false. For "whole program" profiling, this will cause the executable to abort (via `exit(1)`). In all cases, it will print a message on how to process the dumped profiles to locate leaks.
 
-#### <a name="live">Detecting Live Objects</a>
+#### Detecting Live Objects
 
 At any point during a program's execution, all memory that is accessible at that time is considered "live." This includes global variables, and also any memory that is reachable by following pointers from a global variable. It also includes all memory reachable from the current stack frame and from current CPU registers (this captures local variables). Finally, it includes the thread equivalents of these: thread-local storage and thread heaps, memory reachable from thread-local storage and thread heaps, and memory reachable from thread CPU registers.
 
@@ -269,11 +212,12 @@ The liveness flood attempts to treat any properly aligned byte sequences as poin
 
 As a result of this simple approach, it's possible (though unlikely) for the flood to be inexact and occasionally result in leaked objects being erroneously determined to be live. For instance, random bit patterns can happen to look like pointers to leaked heap objects. More likely, stale pointer data not corresponding to any live program variables can be still present in memory regions, especially in thread stacks. For instance, depending on how the local `malloc` is implemented, it may reuse a heap object address:
 
-<pre>    char* p = new char[1];   // new might return 0x80000000, say.
+```
+    char* p = new char[1];   // new might return 0x80000000, say.
     delete p;
     new char[1];             // new might return 0x80000000 again
     // This last new is a leak, but doesn't seem it: p looks like it points to it
-</pre>
+```
 
 In other words, imprecisions in the liveness flood mean that for any heap leak check we might miss some memory leaks. This means that for local leak checks, we might report a memory leak in the local area, even though the leak actually happened before the `HeapLeakChecker` object was constructed. Note that for whole-program checks, a leak report _does_ always correspond to a real leak (since there's no "before" to have created a false-live object).
 
@@ -293,14 +237,13 @@ Also, `thread_lister` only works for Linux pthreads; leak checking is unlikely t
 
 As mentioned in the discussion of liveness flooding, thread-stack liveness determination might mis-classify as reachable objects that very recently became unreachable (leaked). This can happen when the pointers to now-logically-unreachable objects are present in the active thread stack frame. In other words, trivial code like the following might not produce the expected leak checking outcome depending on how the compiled code works with the stack:
 
-<pre>  int* foo = new int [20];
+```
+  int* foo = new int [20];
   HeapLeakChecker check("a_check");
   foo = NULL;
   // May fail to trigger.
   if (!heap_checker.NoLeaks()) assert(NULL == "heap memory leak");
-</pre>
-
-* * *
+```
 
 <address>Maxim Lifantsev  
 Last modified: Fri Jul 13 13:14:33 PDT 2007</address>

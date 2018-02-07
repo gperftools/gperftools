@@ -1,8 +1,32 @@
 # TCMalloc : Thread-Caching Malloc
 
-<address>Sanjay Ghemawat</address>
+## Summary 
 
-## <a name="motivation">Motivation</a>
+- [Motivation](#section-id-3)
+- [Usage](#section-id-11)
+- [Overview](#section-id-25)
+- [Small Object Allocation](#section-id-35)
+    - [Sizing Thread Cache Free Lists](#section-id-49)
+- [Large Object Allocation](#section-id-92)
+- [Spans](#section-id-102)
+- [Deallocation](#section-id-114)
+- [Central Free Lists for Small Objects](#section-id-120)
+- [Garbage Collection of Thread Caches](#section-id-128)
+- [Performance Notes](#section-id-148)
+    - [PTMalloc2 unittest](#section-id-150)
+- [Modifying Runtime Behavior](#section-id-204)
+- [Modifying Behavior In Code](#section-id-290)
+    - [Releasing Memory Back to the System](#section-id-294)
+    - [Memory Introspection](#section-id-303)
+    - [Generic Tcmalloc Status](#section-id-315)
+- [Caveats](#section-id-359)
+  
+
+
+
+<div id='section-id-3'/>
+
+## Motivation
 
 TCMalloc is faster than the glibc 2.3 malloc (available as a separate library called ptmalloc2) and other mallocs that I have tested. ptmalloc2 takes approximately 300 nanoseconds to execute a malloc/free pair on a 2.8 GHz P4 (for small objects). The TCMalloc implementation takes approximately 50 nanoseconds for the same operation pair. Speed is important for a malloc implementation because if malloc is not fast enough, application writers are inclined to write their own custom free lists on top of malloc. This can lead to extra complexity, and more memory usage unless the application writer is very careful to appropriately size the free lists and scavenge idle objects out of the free list.
 
@@ -10,7 +34,9 @@ TCMalloc also reduces lock contention for multi-threaded programs. For small obj
 
 Another benefit of TCMalloc is space-efficient representation of small objects. For example, N 8-byte objects can be allocated while using space approximately `8N * 1.01` bytes. I.e., a one-percent space overhead. ptmalloc2 uses a four-byte header for each object and (I think) rounds up the size to a multiple of 8 bytes and ends up using `16N` bytes.
 
-## <a name="Usage">Usage</a>
+<div id='section-id-11'/>
+
+## Usage
 
 To use TCMalloc, just link TCMalloc into your application via the "-ltcmalloc" linker flag.
 
@@ -20,11 +46,13 @@ You can use TCMalloc in applications you didn't compile yourself, by using LD_PR
 
 LD_PRELOAD is tricky, and we don't necessarily recommend this mode of usage.
 
-TCMalloc includes a [heap checker](heap_checker.html) and [heap profiler](heapprofile.html) as well.
+TCMalloc includes a [heap checker](heap_checker.md) and [heap profiler](heapprofile.md) as well.
 
 If you'd rather link in a version of TCMalloc that does not include the heap profiler and checker (perhaps to reduce binary size for a static binary), you can link in `libtcmalloc_minimal` instead.
 
-## <a name="Overview">Overview</a>
+<div id='section-id-25'/>
+
+## Overview
 
 TCMalloc assigns each thread a thread-local cache. Small allocations are satisfied from the thread-local cache. Objects are moved from central data structures into a thread-local cache as needed, and periodic garbage collections are used to migrate memory back from a thread-local cache into the central data structures.
 
@@ -34,7 +62,9 @@ TCMalloc treats objects with size <= 256K ("small" objects) differently from lar
 
 A run of pages can be carved up into a sequence of small objects, each equally sized. For example a run of one page (4K) can be carved up into 32 objects of size 128 bytes each.
 
-## <a name="Small_Object_Allocation">Small Object Allocation</a>
+<div id='section-id-35'/>
+
+## Small Object Allocation
 
 Each small object size maps to one of approximately 88 allocatable size-classes. For example, all allocations in the range 961 to 1024 bytes are rounded up to 1024\. The size-classes are spaced so that small sizes are separated by 8 bytes, larger sizes by 16 bytes, even larger sizes by 32 bytes, and so forth. The maximal spacing is controlled so that not too much space is wasted when an allocation request falls just past the end of a size class and has to be rounded up to the next class.
 
@@ -48,7 +78,9 @@ If the free list is empty: (1) We fetch a bunch of objects from a central free l
 
 If the central free list is also empty: (1) We allocate a run of pages from the central page allocator. (2) Split the run into a set of objects of this size-class. (3) Place the new objects on the central free list. (4) As before, move some of these objects to the thread-local free list.
 
-### <a name="Sizing_Thread_Cache_Free_Lists">Sizing Thread Cache Free Lists</a>
+<div id='section-id-49'/>
+
+### Sizing Thread Cache Free Lists
 
 It is important to size the thread cache free lists correctly. If the free list is too small, we'll need to go to the central free list too often. If the free list is too big, we'll waste memory as objects sit idle in the free list.
 
@@ -58,7 +90,8 @@ To size the free lists appropriately, we use a slow-start algorithm to determine
 
 The psuedo-code below illustrates this slow-start algorithm. Note that `num_objects_to_move` is specific to each size class. By moving a list of objects with a well-known length, the central cache can efficiently pass these lists between thread caches. If a thread cache wants fewer than `num_objects_to_move`, the operation on the central free list has linear time complexity. The downside of always using `num_objects_to_move` as the number of objects to transfer to and from the central cache is that it wastes memory in threads that don't need all of those objects.
 
-<pre>Start each freelist max_length at 1.
+```
+Start each freelist max_length at 1.
 
 Allocation
   if freelist empty {
@@ -86,11 +119,13 @@ Deallocation
       }
     }
   }
-</pre>
+```
 
-See also the section on [Garbage Collection](#Garbage_Collection) to see how it affects the `max_length`.
+See also the section on [Garbage Collection](#garbage-collection-of-thread-caches) to see how it affects the `max_length`.
 
-## <a name="Large_Object_Allocation">Large Object Allocation</a>
+<div id='section-id-92'/>
+
+## Large Object Allocation
 
 A large object size (> 256K) is rounded up to a page size (8K) and is handled by a central page heap. The central page heap is again an array of free lists. For `i < 128`, the `k`th entry is a free list of runs that consist of `k` pages. The `128`th entry is a free list of runs that have length `>= 128` pages:
 
@@ -100,7 +135,9 @@ An allocation for `k` pages is satisfied by looking in the `k`th free list. If t
 
 If an allocation for `k` pages is satisfied by a run of pages of length > `k`, the remainder of the run is re-inserted back into the appropriate free list in the page heap.
 
-## <a name="Spans">Spans</a>
+<div id='section-id-102'/>
+
+## Spans
 
 The heap managed by TCMalloc consists of a set of pages. A run of contiguous pages is represented by a `Span` object. A span can either be _allocated_, or _free_. If free, the span is one of the entries in a page heap linked-list. If allocated, it is either a large object that has been handed off to the application, or a run of pages that have been split up into a sequence of small objects. If split into small objects, the size-class of the objects is recorded in the span.
 
@@ -112,11 +149,15 @@ In a 32-bit address space, the central array is represented by a a 2-level radix
 
 On 64-bit machines, we use a 3-level radix tree.
 
-## <a name="Deallocation">Deallocation</a>
+<div id='section-id-114'/>
+
+## Deallocation
 
 When an object is deallocated, we compute its page number and look it up in the central array to find the corresponding span object. The span tells us whether or not the object is small, and its size-class if it is small. If the object is small, we insert it into the appropriate free list in the current thread's thread cache. If the thread cache now exceeds a predetermined size (2MB by default), we run a garbage collector that moves unused objects from the thread cache into central free lists.
 
 If the object is large, the span tells us the range of pages covered by the object. Suppose this range is `[p,q]`. We also lookup the spans for pages `p-1` and `q+1`. If either of these neighboring spans are free, we coalesce them with the `[p,q]` span. The resulting span is inserted into the appropriate free list in the page heap.
+
+<div id='section-id-120'/>
 
 ## Central Free Lists for Small Objects
 
@@ -126,7 +167,9 @@ An object is allocated from a central free list by removing the first entry from
 
 An object is returned to a central free list by adding it to the linked list of its containing span. If the linked list length now equals the total number of small objects in the span, this span is now completely free and is returned to the page heap.
 
-## <a name="Garbage_Collection">Garbage Collection of Thread Caches</a>
+<div id='section-id-128'/>
+
+## Garbage Collection of Thread Caches
 
 Garbage collecting objects from a thread cache keeps the size of the cache under control and returns unused objects to the central free lists. Some threads need large caches to perform well while others can get by with little or no cache at all. When a thread cache goes over its `max_size`, garbage collection kicks in and then the thread competes with the other threads for a larger cache.
 
@@ -134,7 +177,7 @@ Garbage collection is run only during a deallocation. We walk over all free list
 
 The number of objects to be moved from a free list is determined using a per-list low-water-mark `L`. `L` records the minimum length of the list since the last garbage collection. Note that we could have shortened the list by `L` objects at the last garbage collection without requiring any extra accesses to the central list. We use this past history as a predictor of future accesses and move `L/2` objects from the thread cache free list to the corresponding central free list. This algorithm has the nice property that if a thread stops using a particular size, all objects of that size will quickly move from the thread cache to the central free list where they can be used by other threads.
 
-If a thread consistently deallocates more objects of a certain size than it allocates, this `L/2` behavior will cause at least `L/2` objects to always sit in the free list. To avoid wasting memory this way, we shrink the maximum length of the freelist to converge on `num_objects_to_move` (see also [Sizing Thread Cache Free Lists](#Sizing_Thread_Cache_Free_Lists)).
+If a thread consistently deallocates more objects of a certain size than it allocates, this `L/2` behavior will cause at least `L/2` objects to always sit in the free list. To avoid wasting memory this way, we shrink the maximum length of the freelist to converge on `num_objects_to_move` (see also [Sizing Thread Cache Free Lists](#sizing-thread-cache-free-lists)).
 
 <pre>Garbage Collection
   if (L != 0 && max_length > num_objects_to_move) {
@@ -146,7 +189,11 @@ The fact that the thread cache went over its `max_size` is an indication that th
 
 Each thread cache starts with a small `max_size` (e.g. 64KB) so that idle threads won't pre-allocate memory they don't need. Each time the cache runs a garbage collection, it will also try to grow its `max_size`. If the sum of the thread cache sizes is less than --tcmalloc_max_total_thread_cache_bytes, `max_size` grows easily. If not, thread cache 1 will try to steal from thread cache 2 (picked round-robin) by decreasing thread cache 2's `max_size`. In this way, threads that are more active will steal memory from other threads more often than they are have memory stolen from themselves. Mostly idle threads end up with small caches and active threads end up with big caches. Note that this stealing can cause the sum of the thread cache sizes to be greater than --tcmalloc_max_total_thread_cache_bytes until thread cache 2 deallocates some memory to trigger a garbage collection.
 
-## <a name="performance">Performance Notes</a>
+<div id='section-id-148'/>
+
+## Performance Notes
+
+<div id='section-id-150'/>
 
 ### PTMalloc2 unittest
 
@@ -202,269 +249,174 @@ Next, operations (millions) per second of CPU time vs number of threads, for max
 
 Here we see again that TCMalloc is both more consistent and more efficient than PTMalloc2\. For max allocation sizes <32K, TCMalloc typically achieves ~2-2.5 million ops per second of CPU time with a large number of threads, whereas PTMalloc achieves generally 0.5-1 million ops per second of CPU time, with a lot of cases achieving much less than this figure. Above 32K max allocation size, TCMalloc drops to 1-1.5 million ops per second of CPU time, and PTMalloc drops almost to zero for large numbers of threads (i.e. with PTMalloc, lots of CPU time is being burned spinning waiting for locks in the heavily multi-threaded case).
 
-## <a name="runtime">Modifying Runtime Behavior</a>
+<div id='section-id-204'/>
+
+## Modifying Runtime Behavior
 
 You can more finely control the behavior of the tcmalloc via environment variables.
 
 Generally useful flags:
 
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`TCMALLOC_SAMPLE_PARAMETER`</td>
-
+<td><pre>TCMALLOC_SAMPLE_PARAMETER</pre></td>
 <td>default: 0</td>
-
 <td>The approximate gap between sampling actions. That is, we take one sample approximately once every `tcmalloc_sample_parmeter` bytes of allocation. This sampled heap information is available via `MallocExtension::GetHeapSample()` or `MallocExtension::ReadStackTraces()`. A reasonable value is 524288.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_RELEASE_RATE`</td>
-
+<td><pre>TCMALLOC_RELEASE_RATE</pre></td>
 <td>default: 1.0</td>
-
 <td>Rate at which we release unused memory to the system, via `madvise(MADV_DONTNEED)`, on systems that support it. Zero means we never release memory back to the system. Increase this flag to return memory faster; decrease it to return memory slower. Reasonable rates are in the range [0,10].</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_LARGE_ALLOC_REPORT_THRESHOLD`</td>
-
+<td><pre>TCMALLOC_LARGE_ALLOC_REPORT_THRESHOLD</pre></td>
 <td>default: 1073741824</td>
-
 <td>Allocations larger than this value cause a stack trace to be dumped to stderr. The threshold for dumping stack traces is increased by a factor of 1.125 every time we print a message so that the threshold automatically goes up by a factor of ~1000 every 60 messages. This bounds the amount of extra logging generated by this flag. Default value of this flag is very large and therefore you should see no extra logging unless the flag is overridden.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES`</td>
-
+<td><pre>TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES</pre></td>
 <td>default: 16777216</td>
-
 <td>Bound on the total amount of bytes allocated to thread caches. This bound is not strict, so it is possible for the cache to go over this bound in certain circumstances. This value defaults to 16MB. For applications with many threads, this may not be a large enough cache, which can affect performance. If you suspect your application is not scaling to many threads due to lock contention in TCMalloc, you can try increasing this value. This may improve performance, at a cost of extra memory use by TCMalloc. See [Garbage Collection](#Garbage_Collection) for more details.</td>
-
 </tr>
-
 </tbody>
-
 </table>
-
 Advanced "tweaking" flags, that control more precisely how tcmalloc tries to allocate memory from the kernel.
-
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`TCMALLOC_SKIP_MMAP`</td>
-
+<td><pre>TCMALLOC_SKIP_MMAP</pre></td>
 <td>default: false</td>
-
 <td>If true, do not try to use `mmap` to obtain memory from the kernel.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_SKIP_SBRK`</td>
-
+<td><pre>TCMALLOC_SKIP_SBRK</pre></td>
 <td>default: false</td>
-
 <td>If true, do not try to use `sbrk` to obtain memory from the kernel.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_DEVMEM_START`</td>
-
+<td><pre>TCMALLOC_DEVMEM_START</pre></td>
 <td>default: 0</td>
-
 <td>Physical memory starting location in MB for `/dev/mem` allocation. Setting this to 0 disables `/dev/mem` allocation.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_DEVMEM_LIMIT`</td>
-
+<td><pre>TCMALLOC_DEVMEM_LIMIT</pre></td>
 <td>default: 0</td>
-
 <td>Physical memory limit location in MB for `/dev/mem` allocation. Setting this to 0 means no limit.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_DEVMEM_DEVICE`</td>
-
+<td><pre>TCMALLOC_DEVMEM_DEVICE</pre></td>
 <td>default: /dev/mem</td>
-
 <td>Device to use for allocating unmanaged memory.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_MEMFS_MALLOC_PATH`</td>
-
+<td><pre>TCMALLOC_MEMFS_MALLOC_PATH</pre></td>
 <td>default: ""</td>
-
 <td>If set, specify a path where hugetlbfs or tmpfs is mounted. This may allow for speedier allocations.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_MEMFS_LIMIT_MB`</td>
-
+<td><pre>TCMALLOC_MEMFS_LIMIT_MB</pre></td>
 <td>default: 0</td>
-
 <td>Limit total memfs allocation size to specified number of MB. 0 means "no limit".</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_MEMFS_ABORT_ON_FAIL`</td>
-
+<td><pre>TCMALLOC_MEMFS_ABORT_ON_FAIL</pre></td>
 <td>default: false</td>
-
 <td>If true, abort() whenever memfs_malloc fails to satisfy an allocation.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_MEMFS_IGNORE_MMAP_FAIL`</td>
-
+<td><pre>TCMALLOC_MEMFS_IGNORE_MMAP_FAIL</pre></td>
 <td>default: false</td>
-
 <td>If true, ignore failures from mmap.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`TCMALLOC_MEMFS_MAP_PRVIATE`</td>
-
+<td><pre>TCMALLOC_MEMFS_MAP_PRIVATE</pre></td>
 <td>default: false</td>
-
 <td>If true, use MAP_PRIVATE when mapping via memfs, not MAP_SHARED.</td>
-
 </tr>
-
 </tbody>
-
 </table>
 
-## <a name="compiletime">Modifying Behavior In Code</a>
+<div id='section-id-290'/>
+
+## Modifying Behavior In Code
 
 The `MallocExtension` class, in `malloc_extension.h`, provides a few knobs that you can tweak in your program, to affect tcmalloc's behavior.
 
+<div id='section-id-294'/>
+
 ### Releasing Memory Back to the System
 
-By default, tcmalloc will release no-longer-used memory back to the kernel gradually, over time. The [tcmalloc_release_rate](#runtime) flag controls how quickly this happens. You can also force a release at a given point in the progam execution like so:
+By default, tcmalloc will release no-longer-used memory back to the kernel gradually, over time. The [tcmalloc_release_rate](#modifying-runtime-behavior) flag controls how quickly this happens. You can also force a release at a given point in the progam execution like so:
 
 <pre>   MallocExtension::instance()->ReleaseFreeMemory();
 </pre>
 
 You can also call `SetMemoryReleaseRate()` to change the `tcmalloc_release_rate` value at runtime, or `GetMemoryReleaseRate` to see what the current release rate is.
 
+<div id='section-id-303'/>
+
 ### Memory Introspection
 
 There are several routines for getting a human-readable form of the current memory usage:
 
-<pre>   MallocExtension::instance()->GetStats(buffer, buffer_length);
+```
+   MallocExtension::instance()->GetStats(buffer, buffer_length);
    MallocExtension::instance()->GetHeapSample(&string);
    MallocExtension::instance()->GetHeapGrowthStacks(&string);
-</pre>
+```
 
 The last two create files in the same format as the heap-profiler, and can be passed as data files to pprof. The first is human-readable and is meant for debugging.
+
+<div id='section-id-315'/>
 
 ### Generic Tcmalloc Status
 
 TCMalloc has support for setting and retrieving arbitrary 'properties':
 
-<pre>   MallocExtension::instance()->SetNumericProperty(property_name, value);
+```
+   MallocExtension::instance()->SetNumericProperty(property_name, value);
    MallocExtension::instance()->GetNumericProperty(property_name, &value);
-</pre>
+```
 
 It is possible for an application to set and get these properties, but the most useful is when a library sets the properties so the application can read them. Here are the properties TCMalloc defines; you can access them with a call like `MallocExtension::instance()->GetNumericProperty("generic.heap_size", &value);`:
 
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`generic.current_allocated_bytes`</td>
-
+<td><pre>generic.current_allocated_bytes</pre></td>
 <td>Number of bytes used by the application. This will not typically match the memory use reported by the OS, because it does not include TCMalloc overhead or memory fragmentation.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`generic.heap_size`</td>
-
+<td><pre>generic.heap_size</pre></td>
 <td>Bytes of system memory reserved by TCMalloc.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`tcmalloc.pageheap_free_bytes`</td>
-
+<td><pre>tcmalloc.pageheap_free_bytes</pre></td>
 <td>Number of bytes in free, mapped pages in page heap. These bytes can be used to fulfill allocation requests. They always count towards virtual memory usage, and unless the underlying memory is swapped out by the OS, they also count towards physical memory usage.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`tcmalloc.pageheap_unmapped_bytes`</td>
-
+<td><pre>tcmalloc.pageheap_unmapped_bytes</pre></td>
 <td>Number of bytes in free, unmapped pages in page heap. These are bytes that have been released back to the OS, possibly by one of the MallocExtension "Release" calls. They can be used to fulfill allocation requests, but typically incur a page fault. They always count towards virtual memory usage, and depending on the OS, typically do not count towards physical memory usage.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`tcmalloc.slack_bytes`</td>
-
+<td><pre>tcmalloc.slack_bytes</pre></td>
 <td>Sum of pageheap_free_bytes and pageheap_unmapped_bytes. Provided for backwards compatibility only. Do not use.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`tcmalloc.max_total_thread_cache_bytes`</td>
-
+<td><pre>tcmalloc.max_total_thread_cache_bytes</pre></td>
 <td>A limit to how much memory TCMalloc dedicates for small objects. Higher numbers trade off more memory use for -- in some situations -- improved efficiency.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`tcmalloc.current_total_thread_cache_bytes`</td>
-
+<td><pre>tcmalloc.current_total_thread_cache_bytes</pre></td>
 <td>A measure of some of the memory TCMalloc is using (for small objects).</td>
-
 </tr>
-
 </tbody>
-
 </table>
 
-## <a name="caveats">Caveats</a>
+<div id='section-id-359'/>
+
+## Caveats
 
 For some systems, TCMalloc may not work correctly with applications that aren't linked against `libpthread.so` (or the equivalent on your OS). It should work on Linux using glibc 2.3, but other OS/libc combinations have not been tested.
 
@@ -472,7 +424,6 @@ TCMalloc may be somewhat more memory hungry than other mallocs, (but tends not t
 
 Don't try to load TCMalloc into a running binary (e.g., using JNI in Java programs). The binary will have allocated some objects using the system malloc, and may try to pass them to TCMalloc for deallocation. TCMalloc will not be able to handle such objects.
 
-* * *
 
 <address>Sanjay Ghemawat, Paul Menage  
 Last modified: Sat Feb 24 13:11:38 PST 2007 (csilvers)</address>

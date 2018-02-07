@@ -35,117 +35,80 @@ For security reasons, heap profiling will not write to a file -- and is thus not
 You can more finely control the behavior of the heap profiler via environment variables.
 
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`HEAP_PROFILE_ALLOCATION_INTERVAL`</td>
-
+<td><pre>HEAP_PROFILE_ALLOCATION_INTERVAL</pre></td>
 <td>default: 1073741824 (1 Gb)</td>
-
 <td>Dump heap profiling information each time the specified number of bytes has been allocated by the program.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_PROFILE_INUSE_INTERVAL`</td>
-
+<td><pre>HEAP_PROFILE_INUSE_INTERVAL</pre></td>
 <td>default: 104857600 (100 Mb)</td>
-
 <td>Dump heap profiling information whenever the high-water memory usage mark increases by the specified number of bytes.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_PROFILE_TIME_INTERVAL`</td>
-
+<td><pre>HEAP_PROFILE_TIME_INTERVAL</pre></td>
 <td>default: 0</td>
-
 <td>Dump heap profiling information each time the specified number of seconds has elapsed.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAPPROFILESIGNAL`</td>
-
+<td><pre>HEAPPROFILESIGNAL</pre></td>
 <td>default: disabled</td>
-
 <td>Dump heap profiling information whenever the specified signal is sent to the process.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_PROFILE_MMAP`</td>
-
+<td><pre>HEAP_PROFILE_MMAP</pre></td>
 <td>default: false</td>
-
 <td>Profile `mmap`, `mremap` and `sbrk` calls in addition to `malloc`, `calloc`, `realloc`, and `new`. **NOTE:** this causes the profiler to profile calls internal to tcmalloc, since tcmalloc and friends use mmap and sbrk internally for allocations. One partial solution is to filter these allocations out when running `pprof`, with something like `pprof --ignore='DoAllocWithArena|SbrkSysAllocator::Alloc|MmapSysAllocator::Alloc`.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_PROFILE_ONLY_MMAP`</td>
-
+<td><pre>HEAP_PROFILE_ONLY_MMAP</pre></td>
 <td>default: false</td>
-
 <td>Only profile `mmap`, `mremap`, and `sbrk` calls; do not profile `malloc`, `calloc`, `realloc`, or `new`.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`HEAP_PROFILE_MMAP_LOG`</td>
-
+<td><pre>HEAP_PROFILE_MMAP_LOG</pre></td>
 <td>default: false</td>
-
 <td>Log `mmap`/`munmap` calls.</td>
-
 </tr>
-
 </tbody>
-
 </table>
 
 ### Checking for Leaks
 
-You can use the heap profiler to manually check for leaks, for instance by reading the profiler output and looking for large allocations. However, for that task, it's easier to use the [automatic heap-checking facility](heap_checker.html) built into tcmalloc.
+You can use the heap profiler to manually check for leaks, for instance by reading the profiler output and looking for large allocations. However, for that task, it's easier to use the [automatic heap-checking facility](heap_checker.md) built into tcmalloc.
 
-## <a name="pprof">Analyzing the Output</a>
+## Analyzing the Output
 
 If heap-profiling is turned on in a program, the program will periodically write profiles to the filesystem. The sequence of profiles will be named:
 
-<pre>           <prefix>.0000.heap
+```
+           <prefix>.0000.heap
            <prefix>.0001.heap
            <prefix>.0002.heap
            ...
-</pre>
+```
 
 where `<prefix>` is the filename-prefix supplied when running the code (e.g. via the `HEAPPROFILE` environment variable). Note that if the supplied prefix does not start with a `/`, the profile files will be written to the program's working directory.
 
-The profile output can be viewed by passing it to the `pprof` tool -- the same tool that's used to analyze [CPU profiles](cpuprofile.html).
+The profile output can be viewed by passing it to the `pprof` tool -- the same tool that's used to analyze [CPU profiles](cpuprofile.md).
 
 Here are some examples. These examples assume the binary is named `gfs_master`, and a sequence of heap profile files can be found in files named:
 
-<pre>  /tmp/profile.0001.heap
+```
+  /tmp/profile.0001.heap
   /tmp/profile.0002.heap
   ...
   /tmp/profile.0100.heap
-</pre>
+```
 
 #### Why is a process so big
 
-<pre>    % pprof --gv gfs_master /tmp/profile.0100.heap
-</pre>
+<pre>    % pprof --gv gfs_master /tmp/profile.0100.heap</pre>
 
 This command will pop-up a `gv` window that displays the profile information as a directed graph. Here is a portion of the resulting output:
 
-<center>![](heap-example1.png)</center>
+![](heap-example1.png)
 
 A few explanations:
 
@@ -163,7 +126,8 @@ The memory-usage in `/tmp/profile.0004.heap` will be subtracted from the memory-
 
 #### Text display
 
-<pre>% pprof --text gfs_master /tmp/profile.0100.heap
+```
+   % pprof --text gfs_master /tmp/profile.0100.heap
    255.6  24.7%  24.7%    255.6  24.7% GFS_MasterChunk::AddServer
    184.6  17.8%  42.5%    298.8  28.8% GFS_MasterChunkTable::Create
    176.2  17.0%  59.5%    729.9  70.5% GFS_MasterChunkTable::UpdateState
@@ -171,7 +135,7 @@ The memory-usage in `/tmp/profile.0004.heap` will be subtracted from the memory-
     76.3   7.4%  83.3%     76.3   7.4% __default_alloc_template::_S_chunk_alloc
     49.5   4.8%  88.0%     49.5   4.8% hashtable::resize
    ...
-</pre>
+```
 
 *   The first column contains the direct memory use in MB.
 *   The fourth column contains memory use by the procedure and all of its callees.
@@ -195,47 +159,26 @@ Similarly, the following command will omit all paths subset of the call-graph. A
 All of the previous examples have displayed the amount of in-use space. I.e., the number of bytes that have been allocated but not freed. You can also get other types of information by supplying a flag to `pprof`:
 
 <center>
-
 <table frame="box" rules="sides" cellpadding="5" width="100%">
-
 <tbody>
-
 <tr valign="top">
-
-<td>`--inuse_space`</td>
-
+<td><pre>--inuse_space</pre></td>
 <td>Display the number of in-use megabytes (i.e. space that has been allocated but not freed). This is the default.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`--inuse_objects`</td>
-
+<td><pre>--inuse_objects</pre></td>
 <td>Display the number of in-use objects (i.e. number of objects that have been allocated but not freed).</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`--alloc_space`</td>
-
+<td><pre>--alloc_space</pre></td>
 <td>Display the number of allocated megabytes. This includes the space that has since been de-allocated. Use this if you want to find the main allocation sites in the program.</td>
-
 </tr>
-
 <tr valign="top">
-
-<td>`--alloc_objects`</td>
-
+<td><pre>--alloc_objects</pre></td>
 <td>Display the number of allocated objects. This includes the objects that have since been de-allocated. Use this if you want to find the main allocation sites in the program.</td>
-
 </tr>
-
 </tbody>
-
 </table>
-
 </center>
 
 #### Interactive mode
@@ -251,6 +194,5 @@ By default -- if you don't specify any flags to the contrary -- pprof runs in in
 *   If your program forks, the children will also be profiled (since they inherit the same HEAPPROFILE setting). Each process is profiled separately; to distinguish the child profiles from the parent profile and from each other, all children will have their process-id attached to the HEAPPROFILE name.
 *   Due to a hack we make to work around a possible gcc bug, your profiles may end up named strangely if the first character of your HEAPPROFILE variable has ascii value greater than 127. This should be exceedingly rare, but if you need to use such a name, just set prepend `./` to your filename: `HEAPPROFILE=./Ägypten`.
 
-* * *
 
 <address>Sanjay Ghemawat</address>
