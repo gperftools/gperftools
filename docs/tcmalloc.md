@@ -281,7 +281,9 @@ Generally useful flags:
 </tr>
 </tbody>
 </table>
-Advanced "tweaking" flags, that control more precisely how tcmalloc tries to allocate memory from the kernel.
+
+Advanced "tweaking" flags, that control more precisely how tcmalloc tries to allocate memory from the kernel:
+
 <table frame="box" rules="sides" cellpadding="5" width="100%">
 <tbody>
 <tr valign="top">
@@ -424,6 +426,11 @@ TCMalloc may be somewhat more memory hungry than other mallocs, (but tends not t
 
 Don't try to load TCMalloc into a running binary (e.g., using JNI in Java programs). The binary will have allocated some objects using the system malloc, and may try to pass them to TCMalloc for deallocation. TCMalloc will not be able to handle such objects.
 
+---
 
-<address>Sanjay Ghemawat, Paul Menage  
-Last modified: Sat Feb 24 13:11:38 PST 2007 (csilvers)</address>
+<address>
+Sanjay Ghemawat, Paul Menage  
+Last modified: Feb 2018
+</address>
+
+[Link to main documentation readme](readme.md)

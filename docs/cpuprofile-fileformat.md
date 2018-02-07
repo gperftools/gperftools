@@ -187,7 +187,11 @@ Unrecognized lines should be ignored by analysis tools.
 
 When processing the paths see in mapping lines, occurrences of <tt>$build</tt> followed by a non-word character (i.e., characters other than underscore or alphanumeric characters), should be replaced by the path given on the last build specifier line.
 
-* * *
+---
 
-<address>Chris Demetriou  
-Last modified: Mon Aug 27 12:18:26 PDT 2007 (cgd)</address>
+<address>
+Chris Demetriou  
+Last modified: Feb 2018
+</address>
+
+[Link to main documentation readme](readme.md)

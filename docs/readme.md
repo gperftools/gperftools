@@ -1,8 +1,13 @@
 # Gperftools documentation
 
-*   [thread-caching malloc](tcmalloc.md)
-*   [heap-checking using tcmalloc](heap_checker.md)
-*   [heap-profiling using tcmalloc](heapprofile.md)
-*   [CPU profiler](cpuprofile.md)
+This file links all documentation available for gperftools project:
 
-Last modified: Thu Feb 2 14:40:47 PST 2012
+*   [Thread-caching malloc](tcmalloc.md)
+*   [Heap-checking using tcmalloc](heap_checker.md)
+*   [Heap-profiling using tcmalloc](heap_profiler.md)
+*   [CPU profiler](cpuprofile.md)
+*   [CPU profiler file format](cpuprofile-fileformat.md)
+
+---
+
+Last modified: Feb, 2018

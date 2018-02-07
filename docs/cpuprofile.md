@@ -293,6 +293,12 @@ The dropped edges and nodes account for some count mismatches in the display. Fo
 *   If your program forks, the children will also be profiled (since they inherit the same CPUPROFILE setting). Each process is profiled separately; to distinguish the child profiles from the parent profile and from each other, all children will have their process-id appended to the CPUPROFILE name.
 *   Due to a hack we make to work around a possible gcc bug, your profiles may end up named strangely if the first character of your CPUPROFILE variable has ascii value greater than 127. This should be exceedingly rare, but if you need to use such a name, just set prepend `./` to your filename: `CPUPROFILE=./Ägypten`.
 
+---
 
-<address>Sanjay Ghemawat
-Last modified: Fri May 9 14:41:29 PDT 2008</address>
+<address>
+Sanjay Ghemawat
+Last modified: Feb 2018
+</address>
+
+[Link to main documentation readme](readme.md)
+

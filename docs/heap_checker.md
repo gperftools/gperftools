@@ -245,5 +245,11 @@ As mentioned in the discussion of liveness flooding, thread-stack liveness deter
   if (!heap_checker.NoLeaks()) assert(NULL == "heap memory leak");
 ```
 
-<address>Maxim Lifantsev  
-Last modified: Fri Jul 13 13:14:33 PDT 2007</address>
+---
+
+<address>
+Maxim Lifantsev
+Last modified: Feb 2018
+</address>
+
+[Link to main documentation readme](readme.md)

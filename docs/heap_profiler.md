@@ -194,5 +194,11 @@ By default -- if you don't specify any flags to the contrary -- pprof runs in in
 *   If your program forks, the children will also be profiled (since they inherit the same HEAPPROFILE setting). Each process is profiled separately; to distinguish the child profiles from the parent profile and from each other, all children will have their process-id attached to the HEAPPROFILE name.
 *   Due to a hack we make to work around a possible gcc bug, your profiles may end up named strangely if the first character of your HEAPPROFILE variable has ascii value greater than 127. This should be exceedingly rare, but if you need to use such a name, just set prepend `./` to your filename: `HEAPPROFILE=./Ägypten`.
 
+---
 
-<address>Sanjay Ghemawat</address>
+<address>
+Sanjay Ghemawat
+Last modified: Feb 2018
+</address>
+
+[Link to main documentation readme](readme.md)

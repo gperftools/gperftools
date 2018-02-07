@@ -148,5 +148,10 @@ The other reason this is the most difficult request to implement, is that the ap
 
 `pprof` itself does just this for local profiles (not ones that talk to remote servers); look at the subroutine `GetProcedureBoundaries`.
 
+----
 
-Last modified: Mon Jun 12 21:30:14 PDT 2006
+<address>
+Last modified: Feb 2018
+</address>
+
+[Link to main documentation readme](readme.md)
