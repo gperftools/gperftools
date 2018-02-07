@@ -133,7 +133,7 @@ googleinclude_HEADERS =				\
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README README_windows.txt \
+dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README.md README_windows.txt \
                 TODO ChangeLog.old
 
 # The libraries (.so's) you want to install
@@ -171,8 +171,10 @@ EXTRA_INSTALL =
 
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
-dist_doc_DATA += docs/index.html docs/designstyle.css
-
+SUBDIRS = docs
+if FOUND_CONVERTER_FOR_HTML
+dist_doc_DATA += docs/readme.html docs/designstyle.css
+endif FOUND_CONVERTER_FOR_HTML
 
 ### ------- library routines, in src/base
 
@@ -405,7 +407,9 @@ TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
 
 ### Documentation
 dist_man_MANS = docs/pprof.1
+if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/pprof_remote_servers.html
+endif FOUND_CONVERTER_FOR_HTML
 
 # On MSVC, we need our own versions of addr2line and nm to work with pprof.
 WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcproj
@@ -746,6 +750,7 @@ thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 
 ### Documentation
+if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/tcmalloc.html \
                  docs/overview.gif \
                  docs/pageheap.gif \
@@ -773,6 +778,7 @@ dist_doc_DATA += docs/tcmalloc.html \
                  docs/tcmalloc-opspersec.vs.size.4.threads.png 		\
                  docs/tcmalloc-opspersec.vs.size.5.threads.png 		\
                  docs/tcmalloc-opspersec.vs.size.8.threads.png
+endif FOUND_CONVERTER_FOR_HTML
 
 # I don't know how to say "distribute the .dot files but don't install them";
 # noinst doesn't seem to work with data.  I separate them out anyway, in case
@@ -1181,11 +1187,15 @@ endif WITH_HEAP_CHECKER
 
 ### Documentation (above and beyond tcmalloc_minimal documentation)
 if WITH_HEAP_PROFILER
+if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/heapprofile.html docs/heap-example1.png
+endif FOUND_CONVERTER_FOR_HTML
 endif WITH_HEAP_PROFILER
 
 if WITH_HEAP_CHECKER
+if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/heap_checker.html
+endif FOUND_CONVERTER_FOR_HTML
 endif WITH_HEAP_CHECKER
 
 
@@ -1376,13 +1386,14 @@ profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
 
 
 ### Documentation
+if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/cpuprofile.html \
                  docs/cpuprofile-fileformat.html \
                  docs/pprof-test-big.gif \
                  docs/pprof-test.gif \
                  docs/pprof-vsnprintf-big.gif \
                  docs/pprof-vsnprintf.gif
-
+endif FOUND_CONVERTER_FOR_HTML
 endif WITH_CPU_PROFILER
 
 
