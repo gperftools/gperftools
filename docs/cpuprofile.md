@@ -120,7 +120,7 @@ Tip: if you use a debug build the output will include file and line number infor
 
 In the various graphical modes of pprof, the output is a call graph annotated with timing information, like so:
 
-[](pprof-test-big.gif)
+<img src="images/pprof-test-big.gif">
 
 Each node represents a procedure. The directed edges indicate caller to callee relations. Each node is formatted as follows:
 
@@ -166,7 +166,7 @@ You can ask pprof to generate a display focused on a particular piece of the pro
 % pprof --gv --focus=vsnprintf /tmp/profiler2_unittest test.prof
 ```
 
-[](pprof-vsnprintf-big.gif)
+<img src="images/pprof-vsnprintf-big.gif">
 
 Similarly, you can supply the `--ignore` option to ignore samples that match a specified regular expression. E.g., if you are interested in everything except calls to `snprintf()`, you can say:
 
@@ -229,7 +229,7 @@ In the presence of inlined calls, the samples associated with inlined code tend 
 ##### Reporting Granularity
 
 By default, pprof produces one entry per procedure. However you can use one of the following options to change the granularity of the output. The `--files` option seems to be particularly useless, and may be removed eventually.
-<center>
+
 <table frame="box" rules="sides" cellpadding="5" width="100%">
 <tbody>
 <tr valign="top">
@@ -250,7 +250,6 @@ By default, pprof produces one entry per procedure. However you can use one of t
 </tr>
 </tbody>
 </table>
-</center>
 
 ##### Controlling the Call Graph Display
 

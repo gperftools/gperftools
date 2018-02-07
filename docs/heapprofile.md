@@ -108,7 +108,7 @@ Here are some examples. These examples assume the binary is named `gfs_master`, 
 
 This command will pop-up a `gv` window that displays the profile information as a directed graph. Here is a portion of the resulting output:
 
-![](heap-example1.png)
+![](images/heap-example1.png)
 
 A few explanations:
 
