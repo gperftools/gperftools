@@ -173,7 +173,7 @@ EXTRA_INSTALL =
 
 SUBDIRS = docs
 if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/readme.html docs/designstyle.css
+dist_doc_DATA += docs/readme.html
 endif FOUND_CONVERTER_FOR_HTML
 
 ### ------- library routines, in src/base
@@ -752,42 +752,42 @@ thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 ### Documentation
 if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/tcmalloc.html \
-                 docs/overview.gif \
-                 docs/pageheap.gif \
-                 docs/spanmap.gif \
-                 docs/threadheap.gif \
                  docs/t-test1.times.txt \
-                 docs/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
-                 docs/tcmalloc-opspersec.vs.size.1.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.12.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.16.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.2.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.20.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.3.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.4.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.5.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.8.threads.png
+                 docs/images/overview.gif \
+                 docs/images/pageheap.gif \
+                 docs/images/spanmap.gif \
+                 docs/images/threadheap.gif \
+                 docs/images/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
+                 docs/images/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
+                 docs/images/tcmalloc-opspersec.vs.size.1.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.12.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.16.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.2.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.20.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.3.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.4.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.5.threads.png 		\
+                 docs/images/tcmalloc-opspersec.vs.size.8.threads.png
 endif FOUND_CONVERTER_FOR_HTML
 
 # I don't know how to say "distribute the .dot files but don't install them";
 # noinst doesn't seem to work with data.  I separate them out anyway, in case
 # one day we figure it out.  Regardless, installing the dot files isn't the
 # end of the world.
-dist_doc_DATA += docs/overview.dot \
-                 docs/pageheap.dot \
-                 docs/spanmap.dot \
-                 docs/threadheap.dot
+dist_doc_DATA += docs/images/overview.dot \
+                 docs/images/pageheap.dot \
+                 docs/images/spanmap.dot \
+                 docs/images/threadheap.dot
 
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
@@ -1188,7 +1188,7 @@ endif WITH_HEAP_CHECKER
 ### Documentation (above and beyond tcmalloc_minimal documentation)
 if WITH_HEAP_PROFILER
 if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/heapprofile.html docs/heap-example1.png
+dist_doc_DATA += docs/heap_profiler.html docs/images/heap-example1.png
 endif FOUND_CONVERTER_FOR_HTML
 endif WITH_HEAP_PROFILER
 
@@ -1389,10 +1389,10 @@ profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
 if FOUND_CONVERTER_FOR_HTML
 dist_doc_DATA += docs/cpuprofile.html \
                  docs/cpuprofile-fileformat.html \
-                 docs/pprof-test-big.gif \
-                 docs/pprof-test.gif \
-                 docs/pprof-vsnprintf-big.gif \
-                 docs/pprof-vsnprintf.gif
+                 docs/images/pprof-test-big.gif \
+                 docs/images/pprof-test.gif \
+                 docs/images/pprof-vsnprintf-big.gif \
+                 docs/images/pprof-vsnprintf.gif
 endif FOUND_CONVERTER_FOR_HTML
 endif WITH_CPU_PROFILER
 
