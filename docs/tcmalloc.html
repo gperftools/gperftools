@@ -196,22 +196,35 @@ Deallocation
 See also the section on <a href="#Garbage_Collection">Garbage Collection</a>
 to see how it affects the <code>max_length</code>.
 
-<h2><A NAME="Large_Object_Allocation">Large Object Allocation</A></h2>
+<h2><A NAME="Medium_Object_Allocation">Medium Object Allocation</A></h2>
 
-<p>A large object size (&gt; 256K) is rounded up to a page size (8K)
-and is handled by a central page heap.  The central page heap is again
-an array of free lists.  For <code>i &lt; 128</code>, the
-<code>k</code>th entry is a free list of runs that consist of
-<code>k</code> pages.  The <code>128</code>th entry is a free list of
-runs that have length <code>&gt;= 128</code> pages: </p>
+<p>A medium object size (256K &le; size &le; 1MB) is rounded up to a page
+size (8K) and is handled by a central page heap. The central page heap
+includes an array of 128 free lists.  The <code>k</code>th entry is a
+free list of runs that consist of <code>k</code> pages:</p>
 <center><img src="pageheap.gif"></center>
 
 <p>An allocation for <code>k</code> pages is satisfied by looking in
 the <code>k</code>th free list.  If that free list is empty, we look
-in the next free list, and so forth.  Eventually, we look in the last
-free list if necessary.  If that fails, we fetch memory from the
-system (using <code>sbrk</code>, <code>mmap</code>, or by mapping in
-portions of <code>/dev/mem</code>).</p>
+in the next free list, and so forth.  If no medium-object free list
+can satisfy the allocation, the allocation is treated as a large object.
+
+
+<h2><A NAME="Large_Object_Allocation">Large Object Allocation</A></h2>
+
+Allocations of 1MB or more are considered large allocations. Spans
+of free memory which can satisfy these allocations are tracked in
+a red-black tree sorted by size. Allocations follow the <em>best-fit</em>
+algorithm: the tree is searched to find the smallest span of free
+space which is larger than the requested allocation. The allocation
+is carved out of that span, and the remaining space is reinserted
+either into the large object tree or possibly into one of the smaller
+free-lists as appropriate.
+
+If no span of free memory is located that can fit the requested
+allocation, we fetch memory from the system (using <code>sbrk</code>,
+<code>mmap</code>, or by mapping in portions of
+<code>/dev/mem</code>).</p>
 
 <p>If an allocation for <code>k</code> pages is satisfied by a run
 of pages of length &gt; <code>k</code>, the remainder of the
