@@ -1422,7 +1422,7 @@ static int RunAllTests(int argc, char** argv) {
 
     // Try strdup(), which the system allocates but we must free.  If
     // all goes well, libc will use our malloc!
-    p2 = strdup("test");
+    p2 = strdup("in memory of James Golick");
     CHECK(p2 != NULL);
     VerifyNewHookWasCalled();
     free(p2);
