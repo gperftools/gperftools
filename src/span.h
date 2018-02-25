@@ -65,22 +65,6 @@ struct SpanBestFitLess {
   bool operator()(SpanPtrWithLength a, SpanPtrWithLength b) const;
 };
 
-// Wrapper which stores a SpanSet::iterator as a POD type.
-// This allows the iterator to be stored in a union below.
-struct SpanSetRevPtr {
-  char data[sizeof(SpanSet::iterator)];
-
-  SpanSet::iterator get_iterator() {
-    SpanSet::iterator ret;
-    memcpy(&ret, this, sizeof(ret));
-    return ret;
-  }
-
-  void set_iterator(const SpanSet::iterator& val) {
-    new (this) SpanSet::iterator(val);
-  }
-};
-
 // Information kept for a span (a contiguous run of pages).
 struct Span {
   PageID        start;          // Starting page number
@@ -88,15 +72,26 @@ struct Span {
   Span*         next;           // Used when in link list
   Span*         prev;           // Used when in link list
   union {
-    void*         objects;      // Linked list of free objects
-    SpanSetRevPtr rev_ptr;      // "pointer" (std::set iterator) to
-                                // SpanSet entry associated with this
-                                // Span.
+    void* objects;              // Linked list of free objects
+
+    // Span may contain iterator pointing back at SpanSet entry of
+    // this span into set of large spans. It is used to quickly delete
+    // spans from those sets. span_iter_space is space for such
+    // iterator which lifetime is controlled explicitly.
+    char span_iter_space[sizeof(SpanSet::iterator)];
   };
   unsigned int  refcount : 16;  // Number of non-free objects
   unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
   unsigned int  location : 2;   // Is the span on a freelist, and if so, which?
   unsigned int  sample : 1;     // Sampled object?
+  bool          has_span_iter : 1; // Iff span_iter_space has valid
+                                   // iterator. Only for debug builds.
+
+  // Sets iterator stored in span_iter_space.
+  // Requires has_span_iter == 0.
+  void SetSpanSetIterator(const SpanSet::iterator& iter);
+  // Copies out and destroys iterator stored in span_iter_space.
+  SpanSet::iterator ExtractSpanSetIterator();
 
 #undef SPAN_HISTORY
 #ifdef SPAN_HISTORY
@@ -127,6 +122,26 @@ inline bool SpanBestFitLess::operator()(SpanPtrWithLength a, SpanPtrWithLength b
   if (a.length > b.length)
     return false;
   return a.span->start < b.span->start;
+}
+
+inline void Span::SetSpanSetIterator(const SpanSet::iterator& iter) {
+  ASSERT(!has_span_iter);
+  has_span_iter = 1;
+
+  new (span_iter_space) SpanSet::iterator(iter);
+}
+
+inline SpanSet::iterator Span::ExtractSpanSetIterator() {
+  typedef SpanSet::iterator iterator_type;
+
+  ASSERT(has_span_iter);
+  has_span_iter = 0;
+
+  iterator_type* this_iter =
+    reinterpret_cast<iterator_type*>(span_iter_space);
+  iterator_type retval = *this_iter;
+  this_iter->~iterator_type();
+  return retval;
 }
 
 // Allocator/deallocator for spans

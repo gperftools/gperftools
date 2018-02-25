@@ -409,8 +409,7 @@ void PageHeap::PrependToFreeList(Span* span) {
     std::pair<SpanSet::iterator, bool> p =
         set->insert(SpanPtrWithLength(span));
     ASSERT(p.second); // We never have duplicates since span->start is unique.
-    span->rev_ptr.set_iterator(p.first);
-    ASSERT(span->rev_ptr.get_iterator()->span == span);
+    span->SetSpanSetIterator(p.first);
     return;
   }
 
@@ -433,9 +432,10 @@ void PageHeap::RemoveFromFreeList(Span* span) {
     SpanSet *set = &large_normal_;
     if (span->location == Span::ON_RETURNED_FREELIST)
       set = &large_returned_;
-    ASSERT(span->rev_ptr.get_iterator()->span == span);
-    ASSERT(set->find(SpanPtrWithLength(span)) == span->rev_ptr.get_iterator());
-    set->erase(span->rev_ptr.get_iterator());
+    SpanSet::iterator iter = span->ExtractSpanSetIterator();
+    ASSERT(iter->span == span);
+    ASSERT(set->find(SpanPtrWithLength(span)) == iter);
+    set->erase(iter);
   } else {
     DLL_Remove(span);
   }
