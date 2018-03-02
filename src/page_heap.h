@@ -196,6 +196,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   bool CheckExpensive();
   bool CheckList(Span* list, Length min_pages, Length max_pages,
                  int freelist);  // ON_NORMAL_FREELIST or ON_RETURNED_FREELIST
+  bool CheckSet(SpanSet *s, Length min_pages, int freelist);
 
   // Try to release at least num_pages for reuse by the OS.  Returns
   // the actual number of pages released, which may be less than
@@ -264,8 +265,12 @@ class PERFTOOLS_DLL_DECL PageHeap {
     Span        returned;
   };
 
-  // List of free spans of length >= kMaxPages
-  SpanList large_;
+  // Sets of spans with length >= kMaxPages.
+  //
+  // Rather than using a linked list, we use sets here for efficient
+  // best-fit search.
+  SpanSet large_normal_;
+  SpanSet large_returned_;
 
   // Array mapping from span length to a doubly linked list of free spans
   SpanList free_[kMaxPages];
@@ -317,9 +322,12 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // IncrementalScavenge(n) is called whenever n pages are freed.
   void IncrementalScavenge(Length n);
 
-  // Release the last span on the normal portion of this list.
-  // Return the length of that span or zero if release failed.
-  Length ReleaseLastNormalSpan(SpanList* slist);
+  // Attempts to decommit 's' and move it to the returned freelist.
+  //
+  // Returns the length of the Span or zero if release failed.
+  //
+  // REQUIRES: 's' must be on the NORMAL freelist.
+  Length ReleaseSpan(Span *s);
 
   // Checks if we are allowed to take more memory from the system.
   // If limit is reached and allowRelease is true, tries to release

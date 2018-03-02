@@ -109,6 +109,71 @@ class PageHeapAllocator {
   int inuse_;
 };
 
+// STL-compatible allocator which forwards allocations to a PageHeapAllocator.
+//
+// Like PageHeapAllocator, this requires external synchronization. To avoid multiple
+// separate STLPageHeapAllocator<T> from sharing the same underlying PageHeapAllocator<T>,
+// the |LockingTag| template argument should be used. Template instantiations with
+// different locking tags can safely be used concurrently.
+template <typename T, class LockingTag>
+class STLPageHeapAllocator {
+ public:
+  typedef size_t     size_type;
+  typedef ptrdiff_t  difference_type;
+  typedef T*         pointer;
+  typedef const T*   const_pointer;
+  typedef T&         reference;
+  typedef const T&   const_reference;
+  typedef T          value_type;
+
+  template <class T1> struct rebind {
+    typedef STLPageHeapAllocator<T1, LockingTag> other;
+  };
+
+  STLPageHeapAllocator() { }
+  STLPageHeapAllocator(const STLPageHeapAllocator&) { }
+  template <class T1> STLPageHeapAllocator(const STLPageHeapAllocator<T1, LockingTag>&) { }
+  ~STLPageHeapAllocator() { }
+
+  pointer address(reference x) const { return &x; }
+  const_pointer address(const_reference x) const { return &x; }
+
+  size_type max_size() const { return size_t(-1) / sizeof(T); }
+
+  void construct(pointer p, const T& val) { ::new(p) T(val); }
+  void construct(pointer p) { ::new(p) T(); }
+  void destroy(pointer p) { p->~T(); }
+
+  // There's no state, so these allocators are always equal
+  bool operator==(const STLPageHeapAllocator&) const { return true; }
+  bool operator!=(const STLPageHeapAllocator&) const { return false; }
+
+  pointer allocate(size_type n, const void* = 0) {
+    if (!underlying_.initialized) {
+      underlying_.allocator.Init();
+      underlying_.initialized = true;
+    }
+
+    CHECK_CONDITION(n == 1);
+    return underlying_.allocator.New();
+  }
+  void deallocate(pointer p, size_type n) {
+    CHECK_CONDITION(n == 1);
+    underlying_.allocator.Delete(p);
+  }
+
+ private:
+  struct Storage {
+    explicit Storage(base::LinkerInitialized x) {}
+    PageHeapAllocator<T> allocator;
+    bool initialized;
+  };
+  static Storage underlying_;
+};
+
+template<typename T, class LockingTag>
+typename STLPageHeapAllocator<T, LockingTag>::Storage STLPageHeapAllocator<T, LockingTag>::underlying_(base::LINKER_INITIALIZED);
+
 }  // namespace tcmalloc
 
 #endif  // TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
