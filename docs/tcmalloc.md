@@ -7,7 +7,8 @@
 - [Overview](#section-id-25)
 - [Small Object Allocation](#section-id-35)
     - [Sizing Thread Cache Free Lists](#section-id-49)
-- [Large Object Allocation](#section-id-92)
+- [Medium Object Allocation](#section-id-92)
+- [Large Object Allocation](#section-id-93)
 - [Spans](#section-id-102)
 - [Deallocation](#section-id-114)
 - [Central Free Lists for Small Objects](#section-id-120)
@@ -125,13 +126,24 @@ See also the section on [Garbage Collection](#garbage-collection-of-thread-cache
 
 <div id='section-id-92'/>
 
-## Large Object Allocation
+## Medium Object Allocation
 
-A large object size (> 256K) is rounded up to a page size (8K) and is handled by a central page heap. The central page heap is again an array of free lists. For `i < 128`, the `k`th entry is a free list of runs that consist of `k` pages. The `128`th entry is a free list of runs that have length `>= 128` pages:
+A medium object size (256K <= size <= 1MB) is rounded up to a page size (8K) and is handled by a central page heap. 
+The central page heap includes an array of 128 free lists.  The <code>k</code>th entry is a free list of runs that consist of <code>k</code> pages:
 
 <center><img src="images/pageheap.gif"></center>
 
-An allocation for `k` pages is satisfied by looking in the `k`th free list. If that free list is empty, we look in the next free list, and so forth. Eventually, we look in the last free list if necessary. If that fails, we fetch memory from the system (using `sbrk`, `mmap`, or by mapping in portions of `/dev/mem`).
+An allocation for `k` pages is satisfied by looking in the `k`th free list. If that free list is empty, we look 
+in the next free list, and so forth.  If no medium-object free list can satisfy the allocation, the allocation 
+is treated as a large object.
+
+<div id='section-id-93'/>
+
+## Large Object Allocation
+
+Allocations of 1MB or more are considered large allocations. Spans of free memory which can satisfy these allocations are tracked in a red-black tree sorted by size. Allocations follow the <em>best-fit</em> algorithm: the tree is searched to find the smallest span of free space which is larger than the requested allocation. The allocation is carved out of that span, and the remaining space is reinserted either into the large object tree or possibly into one of the smaller free-lists as appropriate.
+
+If no span of free memory is located that can fit the requested allocation, we fetch memory from the system (using <code>sbrk</code>, <code>mmap</code>, or by mapping in portions of <code>/dev/mem</code>).</p>
 
 If an allocation for `k` pages is satisfied by a run of pages of length > `k`, the remainder of the run is re-inserted back into the appropriate free list in the page heap.
 
