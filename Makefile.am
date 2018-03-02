@@ -172,9 +172,6 @@ EXTRA_INSTALL =
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
 SUBDIRS = docs
-if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/readme.html
-endif FOUND_CONVERTER_FOR_HTML
 
 ### ------- library routines, in src/base
 
@@ -384,9 +381,6 @@ stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
                               $(STACKTRACE_UNITTEST_INCLUDES)
 stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la
 
-### Documentation
-dist_doc_DATA +=
-
 endif WITH_STACK_TRACE
 
 ### ------- pprof
@@ -404,12 +398,6 @@ pprof_unittest: $(top_srcdir)/src/pprof
 
 # Let unittests find pprof if they need to run it
 TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
-
-### Documentation
-dist_man_MANS = docs/pprof.1
-if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/pprof_remote_servers.html
-endif FOUND_CONVERTER_FOR_HTML
 
 # On MSVC, we need our own versions of addr2line and nm to work with pprof.
 WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcproj
@@ -748,46 +736,6 @@ thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
 thread_dealloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
-
-### Documentation
-if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/tcmalloc.html \
-                 docs/t-test1.times.txt \
-                 docs/images/overview.gif \
-                 docs/images/pageheap.gif \
-                 docs/images/spanmap.gif \
-                 docs/images/threadheap.gif \
-                 docs/images/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
-                 docs/images/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
-                 docs/images/tcmalloc-opspersec.vs.size.1.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.12.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.16.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.2.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.20.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.3.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.4.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.5.threads.png 		\
-                 docs/images/tcmalloc-opspersec.vs.size.8.threads.png
-endif FOUND_CONVERTER_FOR_HTML
-
-# I don't know how to say "distribute the .dot files but don't install them";
-# noinst doesn't seem to work with data.  I separate them out anyway, in case
-# one day we figure it out.  Regardless, installing the dot files isn't the
-# end of the world.
-dist_doc_DATA += docs/images/overview.dot \
-                 docs/images/pageheap.dot \
-                 docs/images/spanmap.dot \
-                 docs/images/threadheap.dot
 
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
@@ -1185,18 +1133,6 @@ heap_checker_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
 endif WITH_HEAP_CHECKER
 
-### Documentation (above and beyond tcmalloc_minimal documentation)
-if WITH_HEAP_PROFILER
-if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/heap_profiler.html docs/images/heap-example1.png
-endif FOUND_CONVERTER_FOR_HTML
-endif WITH_HEAP_PROFILER
-
-if WITH_HEAP_CHECKER
-if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/heap_checker.html
-endif FOUND_CONVERTER_FOR_HTML
-endif WITH_HEAP_CHECKER
 
 
 ### ------- tcmalloc with debugallocation
@@ -1383,17 +1319,6 @@ profiler4_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 profiler4_unittest_LDADD = -lstacktrace -lprofiler $(PTHREAD_LIBS)
 # We depend on -lprofiler but haven't yet said how to build it.  Do so now.
 profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
-
-
-### Documentation
-if FOUND_CONVERTER_FOR_HTML
-dist_doc_DATA += docs/cpuprofile.html \
-                 docs/cpuprofile-fileformat.html \
-                 docs/images/pprof-test-big.gif \
-                 docs/images/pprof-test.gif \
-                 docs/images/pprof-vsnprintf-big.gif \
-                 docs/images/pprof-vsnprintf.gif
-endif FOUND_CONVERTER_FOR_HTML
 endif WITH_CPU_PROFILER
 
 
