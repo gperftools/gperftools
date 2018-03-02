@@ -655,6 +655,8 @@ AC_COMPILE_IFELSE(
 # Check for presence of pandoc utility to convert Markdown to HTML
 AC_CHECK_PROG([HAS_PANDOC], [pandoc], [yes], [no])
 AM_CONDITIONAL([FOUND_CONVERTER_FOR_HTML], [test "x$HAS_PANDOC" = xyes])
+AS_IF([test "x$HAS_PANDOC" = xyes],,
+        AC_MSG_NOTICE([Will not convert Markdown documentation to HTML]))
 
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile docs/Makefile
