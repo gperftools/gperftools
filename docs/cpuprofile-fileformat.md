@@ -19,7 +19,7 @@ The binary data is expressed in terms of "slots." These are words large enough t
 
 The binary header format is show below. Values written by the profiler, along with requirements currently enforced by the analysis tools, are shown in parentheses.
 
-<table summary="Header Format" frame="box" rules="sides" cellpadding="5" width="50%">
+<table summary="Header Format" frame="box" rules="sides" cellpadding="5">
 <tbody>
 <tr>
 <th width="30%">slot</th>
@@ -94,7 +94,8 @@ The profiling tools examine the contents of the file and use the expected locati
 ## Binary Profile Records
 
 The binary profile record format is shown below.
-<table summary="Profile Record Format" frame="box" rules="sides" cellpadding="5" width="50%">
+
+<table summary="Profile Record Format" frame="box" rules="sides" cellpadding="5">
 <tbody>
 <tr>
 <th width="30%">slot</th>
@@ -143,7 +144,7 @@ In this example, 5 ticks were received at PC 0xa0000, whose function had been ca
 
 The binary trailer consists of three slots of data with fixed values, shown below.
 
-<table summary="Trailer Format" frame="box" rules="sides" cellpadding="5" width="50%">
+<table summary="Trailer Format" frame="box" rules="sides" cellpadding="5">
 <tbody>
 <tr>
 <th width="30%">slot</th>
