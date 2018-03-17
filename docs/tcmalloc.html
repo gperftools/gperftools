@@ -201,7 +201,7 @@ to see how it affects the <code>max_length</code>.
 <p>A medium object size (256K &le; size &le; 1MB) is rounded up to a page
 size (8K) and is handled by a central page heap. The central page heap
 includes an array of 128 free lists.  The <code>k</code>th entry is a
-free list of runs that consist of <code>k</code> pages:</p>
+free list of runs that consist of <code>k + 1</code> pages:</p>
 <center><img src="pageheap.gif"></center>
 
 <p>An allocation for <code>k</code> pages is satisfied by looking in

@@ -80,15 +80,15 @@ Span* PageHeap::SearchFreeAndLargeLists(Length n) {
   ASSERT(n > 0);
 
   // Find first size >= n that has a non-empty list
-  for (Length s = n; s < kMaxPages; s++) {
-    Span* ll = &free_[s].normal;
+  for (Length s = n; s <= kMaxPages; s++) {
+    Span* ll = &free_[s - 1].normal;
     // If we're lucky, ll is non-empty, meaning it has a suitable span.
     if (!DLL_IsEmpty(ll)) {
       ASSERT(ll->next->location == Span::ON_NORMAL_FREELIST);
       return Carve(ll->next, n);
     }
     // Alternatively, maybe there's a usable returned span.
-    ll = &free_[s].returned;
+    ll = &free_[s - 1].returned;
     if (!DLL_IsEmpty(ll)) {
       // We did not call EnsureLimit before, to avoid releasing the span
       // that will be taken immediately back.
@@ -402,7 +402,7 @@ void PageHeap::PrependToFreeList(Span* span) {
   else
     stats_.unmapped_bytes += (span->length << kPageShift);
 
-  if (span->length >= kMaxPages) {
+  if (span->length > kMaxPages) {
     SpanSet *set = &large_normal_;
     if (span->location == Span::ON_RETURNED_FREELIST)
       set = &large_returned_;
@@ -413,7 +413,7 @@ void PageHeap::PrependToFreeList(Span* span) {
     return;
   }
 
-  SpanList* list = &free_[span->length];
+  SpanList* list = &free_[span->length - 1];
   if (span->location == Span::ON_NORMAL_FREELIST) {
     DLL_Prepend(&list->normal, span);
   } else {
@@ -428,7 +428,7 @@ void PageHeap::RemoveFromFreeList(Span* span) {
   } else {
     stats_.unmapped_bytes -= (span->length << kPageShift);
   }
-  if (span->length >= kMaxPages) {
+  if (span->length > kMaxPages) {
     SpanSet *set = &large_normal_;
     if (span->location == Span::ON_RETURNED_FREELIST)
       set = &large_returned_;
@@ -562,9 +562,9 @@ void PageHeap::RegisterSizeClass(Span* span, uint32 sc) {
 }
 
 void PageHeap::GetSmallSpanStats(SmallSpanStats* result) {
-  for (int s = 0; s < kMaxPages; s++) {
-    result->normal_length[s] = DLL_Length(&free_[s].normal);
-    result->returned_length[s] = DLL_Length(&free_[s].returned);
+  for (int i = 0; i < kMaxPages; i++) {
+    result->normal_length[i] = DLL_Length(&free_[i].normal);
+    result->returned_length[i] = DLL_Length(&free_[i].returned);
   }
 }
 
@@ -685,18 +685,16 @@ bool PageHeap::GrowHeap(Length n) {
 }
 
 bool PageHeap::Check() {
-  ASSERT(free_[0].normal.next == &free_[0].normal);
-  ASSERT(free_[0].returned.next == &free_[0].returned);
   return true;
 }
 
 bool PageHeap::CheckExpensive() {
   bool result = Check();
-  CheckSet(&large_normal_, kMaxPages, Span::ON_NORMAL_FREELIST);
-  CheckSet(&large_returned_, kMaxPages, Span::ON_RETURNED_FREELIST);
-  for (Length s = 1; s < kMaxPages; s++) {
-    CheckList(&free_[s].normal, s, s, Span::ON_NORMAL_FREELIST);
-    CheckList(&free_[s].returned, s, s, Span::ON_RETURNED_FREELIST);
+  CheckSet(&large_normal_, kMaxPages + 1, Span::ON_NORMAL_FREELIST);
+  CheckSet(&large_returned_, kMaxPages + 1, Span::ON_RETURNED_FREELIST);
+  for (int s = 1; s <= kMaxPages; s++) {
+    CheckList(&free_[s - 1].normal, s, s, Span::ON_NORMAL_FREELIST);
+    CheckList(&free_[s - 1].returned, s, s, Span::ON_RETURNED_FREELIST);
   }
   return result;
 }
