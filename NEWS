@@ -1,3 +1,23 @@
+== 18 Mar 2018 ==
+gperftools 2.7rc is out!
+
+Changes:
+
+* Most notable change in this release is that very large allocations
+  (>1MiB) are now handled be O(log n) implementation. This is
+  contributed by Todd Lipcon based on earlier work by Aliaksei
+  Kandratsenka and James Golick. Special thanks to Alexey Serbin for
+  contributing OSX fix for that commit.
+
+* detection of sized deallocation support is improved. Which should
+  fix another set of issues building on OSX. Much thanks to Alexey
+  Serbin for reporting the issue, suggesting a fix and verifying it.
+
+* Todd Lipcon made a change to extend page heaps freelists to 1 MiB
+  (up from 1MiB - 8KiB). This may help a little for some workloads.
+
+* Ishan Arora contributed typo fix to docs
+
 == 9 Dec 2017 ==
 gperftools 2.6.3 is out!
 
