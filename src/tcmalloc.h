@@ -56,15 +56,15 @@
 #if !HAVE_CFREE_SYMBOL
 extern "C" void cfree(void* ptr) __THROW;
 #endif
-#if !HAVE_POSIX_MEMALIGN_SYMBOL
+#if !HAVE_DECL_POSIX_MEMALIGN
 extern "C" int posix_memalign(void** ptr, size_t align, size_t size) __THROW;
 #endif
-#if !HAVE_MEMALIGN_SYMBOL
+#if !HAVE_DECL_MEMALIGN
 extern "C" void* memalign(size_t __alignment, size_t __size) __THROW;
 #endif
-#if !HAVE_VALLOC_SYMBOL
+#if !HAVE_DECL_VALLOC
 extern "C" void* valloc(size_t __size) __THROW;
 #endif
-#if !HAVE_PVALLOC_SYMBOL
+#if !HAVE_DECL_PVALLOC
 extern "C" void* pvalloc(size_t __size) __THROW;
 #endif
