@@ -517,9 +517,9 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
 
     total_normal += large.normal_pages;
     total_returned += large.returned_pages;
-    out->printf(">128   large * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
+    out->printf(">%-5u large * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
                 "; unmapped: %6.1f MiB; %6.1f MiB cum\n",
-                kMaxPages,
+                static_cast<unsigned int>(kMaxPages),
                 static_cast<unsigned int>(large.spans),
                 PagesToMiB(large.normal_pages + large.returned_pages),
                 PagesToMiB(total_normal + total_returned),
