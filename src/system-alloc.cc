@@ -100,13 +100,11 @@ using tcmalloc::Log;
 namespace {
 
 // Check that no bit is set at position ADDRESS_BITS or higher.
-template <int ADDRESS_BITS> bool CheckAddressBits(uintptr_t ptr) {
-  return (ptr >> ADDRESS_BITS) == 0;
-}
-
-// Specialize for the bit width of a pointer to avoid undefined shift.
-template <> bool CheckAddressBits<8 * sizeof(void*)>(uintptr_t ptr) {
-  return true;
+bool CheckAddressBits(uintptr_t ptr) {
+  if (kAddressBits == 8 * sizeof(void*)) {
+    return true;
+  }
+  return (ptr >> kAddressBits) == 0;
 }
 
 }  // Anonymous namespace to avoid name conflicts on "CheckAddressBits".
@@ -510,8 +508,7 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   void* result = tcmalloc_sys_alloc->Alloc(size, actual_size, alignment);
   if (result != NULL) {
     CHECK_CONDITION(
-      CheckAddressBits<kAddressBits>(
-        reinterpret_cast<uintptr_t>(result) + *actual_size - 1));
+      CheckAddressBits(reinterpret_cast<uintptr_t>(result) + *actual_size - 1));
     TCMalloc_SystemTaken += *actual_size;
   }
   return result;
