@@ -157,6 +157,8 @@ namespace tcmalloc {
 // These macros (could be functions, but I don't want to bother with a .cc
 // file), make it easier to initialize flags from the environment.
 
+#if defined(ENABLE_PROFILING)
+
 #define EnvToString(envname, dflt)   \
   (!getenv(envname) ? (dflt) : getenv(envname))
 
@@ -171,5 +173,15 @@ namespace tcmalloc {
 
 #define EnvToDouble(envname, dflt)  \
   tcmalloc::commandlineflags::StringToDouble(getenv(envname), dflt)
+
+#else  // defined(ENABLE_PROFILING)
+
+#define EnvToString(envname, dflt) (dflt)
+#define EnvToBool(envname, dflt) (dflt)
+#define EnvToInt(envname, dflt) (dflt)
+#define EnvToInt64(envname, dflt) (dflt)
+#define EnvToDouble(envname, dflt) (dflt)
+
+#endif  // defined(ENABLE_PROFILING)
 
 #endif  // BASE_COMMANDLINEFLAGS_H_
