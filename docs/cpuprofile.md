@@ -1,7 +1,5 @@
 % Gperftools CPU Profiler
 
-# Gperftools CPU Profiler
-
 This is the CPU profiler we use at Google. There are three parts to using it: linking the library into an application, running the code, and analyzing the output.
 
 On the off-chance that you should need to understand it, the CPU profiler data file format is documented separately, [here](cpuprofile-fileformat.md).

@@ -1,4 +1,4 @@
-# Google CPU Profiler Binary Data File Format
+% Google CPU Profiler Binary Data File Format
 
 This file documents the binary data file format produced by the Google CPU Profiler. For information about using the CPU Profiler, see [its user guide](cpuprofile.md).
 
