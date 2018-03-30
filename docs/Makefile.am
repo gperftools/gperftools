@@ -58,13 +58,20 @@ ADDITIONAL_IMAGE_DOTFILES = \
 # default folder for Automake projects' data, like e.g. /usr/local/share/doc/gperftools
 dist_doc_DATA = $(MARKDOWN_DOCUMENTATION)
 
+# We also need to list the image files. Actually we don't want them to go into
+#  /usr/local/share/doc/gperftools
+# but rather in /usr/local/share/doc/gperftools/images (see install-data-hook below)
+# but if we don't list them in dist_doc_DATA they will not be packaged when running
+# "make dist" !
+dist_doc_DATA += $(ADDITIONAL_IMAGES) $(ADDITIONAL_IMAGE_DOTFILES)
+
 # If we are not compiling with stacktrace support, pprof is worthless
 if WITH_STACK_TRACE
 dist_man_MANS = pprof.1
 endif
 
 if FOUND_CONVERTER_FOR_HTML
-MARKDOWN = pandoc --from markdown_github --to html --standalone
+MARKDOWN = pandoc --from markdown_github+pandoc_title_block --to html --standalone
 
 # Rule to convert markdown to HTML in 2 steps:
 # 1) convert markdown to HTML:
