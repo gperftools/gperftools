@@ -1,3 +1,5 @@
+% Gperftools CPU Profiler
+
 # Gperftools CPU Profiler
 
 This is the CPU profiler we use at Google. There are three parts to using it: linking the library into an application, running the code, and analyzing the output.
@@ -45,7 +47,7 @@ You can more finely control the behavior of the CPU profiler via environment var
 <table frame="box" rules="sides" cellpadding="5" width="100%">
 <tbody>
 <tr valign="top">
-<td><pre>CPUPROFILE_FREQUENCY=_x_</pre></td>
+<td><pre>CPUPROFILE_FREQUENCY=<i>x</i></pre></td>
 <td>default: 100</td>
 <td>How many interrupts/second the cpu-profiler samples.</td>
 </tr>
@@ -183,6 +185,8 @@ By default -- if you don't specify any flags to the contrary -- pprof runs in in
 For a complete list of pprof options, you can run `pprof --help`.
 
 ##### Output Type
+
+pprof can produce different output types:
 
 <center>
 <table frame="box" rules="sides" cellpadding="5" width="100%">

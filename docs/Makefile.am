@@ -13,7 +13,6 @@ MARKDOWN_DOCUMENTATION = \
 	cpuprofile.md \
 	heap_checker.md \
 	heap_profiler.md \
-	pprof_remote_servers.md \
 	readme.md \
 	tcmalloc.md
 
@@ -49,7 +48,7 @@ ADDITIONAL_IMAGES = \
 	images/tcmalloc-opspersec.vs.size.5.threads.png 			\
 	images/tcmalloc-opspersec.vs.size.8.threads.png
 
-ADDITIONAL_IMAGE_SOURCES = \
+ADDITIONAL_IMAGE_DOTFILES = \
 	images/overview.dot \
 	images/pageheap.dot \
 	images/spanmap.dot \
@@ -78,7 +77,6 @@ HTML_FILES = \
 	cpuprofile.html \
 	heap_checker.html \
 	heap_profiler.html \
-	pprof_remote_servers.html \
 	readme.html \
 	tcmalloc.html
 
@@ -92,5 +90,5 @@ endif
 # like e.g. /usr/local/share/doc/gperftools/images
 install-data-hook:
 	mkdir -p ${docdir}/images
-	cp -fv $(ADDITIONAL_IMAGES) $(ADDITIONAL_IMAGE_SOURCES) ${docdir}/images
+	cp -fv $(ADDITIONAL_IMAGES) $(ADDITIONAL_IMAGE_DOTFILES) ${docdir}/images
 	
