@@ -3,7 +3,7 @@ rankdir=LR
 node [shape=box, width=0.3, height=0.3]
 nodesep=.05
 
-heap [shape=record, height=3, label="<f0>1 page|<f1>2 pages|<f2>3 pages|...|<f127>127 pages"]
+heap [shape=record, height=3, label="<f0>1 page|<f1>2 pages|<f2>3 pages|...|<f128>128 pages"]
 O0 [shape=record, label=""]
 O1 [shape=record, label=""]
 O2 [shape=record, label="{|}"]
@@ -20,6 +20,6 @@ sep4 [shape=plaintext, label="..."]
 heap:f0 -> O0 -> O1 -> sep1
 heap:f1 -> O2 -> O3 -> sep2
 heap:f2 -> O4 -> O5 -> sep3
-heap:f127 -> O6 -> O7 -> sep4
+heap:f128 -> O6 -> O7 -> sep4
 
 }

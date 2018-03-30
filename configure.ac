@@ -4,11 +4,11 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ([2.59])
 
-AC_INIT([gperftools],[2.6.3],[gperftools@googlegroups.com])
+AC_INIT([gperftools],[2.6.90],[gperftools@googlegroups.com])
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-TCMALLOC_SO_VERSION=9:1:5
-PROFILER_SO_VERSION=4:16:4
+TCMALLOC_SO_VERSION=9:2:5
+PROFILER_SO_VERSION=4:17:4
 
 AC_SUBST(TCMALLOC_SO_VERSION)
 AC_SUBST(PROFILER_SO_VERSION)
@@ -364,16 +364,17 @@ AS_IF([test "x$enable_sized_delete" = xyes],
          AC_MSG_NOTICE([Will build sized deallocation operators])],
       [AS_IF([test "x$enable_dyn_sized_delete" = xyes],
              [AC_MSG_NOTICE([Will build dynamically detected sized deallocation operators])],
-             [AC_MSG_NOTICE([Will not build sized deallocation operators])])])
+             [AC_MSG_NOTICE([Will build sized deallocation operators that ignore size])])])
 
 AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                [perftools_cv_sized_deallocation_result],
                [AC_LANG_PUSH(C++)
                 OLD_CXXFLAGS="$CXXFLAGS"
                 CXXFLAGS="$CXXFLAGS -fsized-deallocation"
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
-                    [[#include <new>]],
-                    [[(::operator delete)(0, 256)]])],
+                AC_LINK_IFELSE([AC_LANG_PROGRAM(
+                    [[#include <new>
+#include <stddef.h>]],
+                    [[static void (* volatile ptr)(void *, size_t) = ::operator delete; (*ptr)(0, 256);]])],
                  perftools_cv_sized_deallocation_result=yes,
                  perftools_cv_sized_deallocation_result=no)
                 CXXFLAGS="$OLD_CXXFLAGS"

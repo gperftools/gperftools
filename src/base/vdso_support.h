@@ -61,7 +61,11 @@
 
 #ifdef HAVE_ELF_MEM_IMAGE
 
+// This matches the same conditions of stacktrace_x86-inl.h, the only client of
+// vdso_support, to avoid static initializers.
+#if defined(__linux__) && defined(__i386__)
 #define HAVE_VDSO_SUPPORT 1
+#endif
 
 #include <stdlib.h>     // for NULL
 

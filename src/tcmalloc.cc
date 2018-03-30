@@ -143,6 +143,7 @@
 #undef small
 
 using STL_NAMESPACE::max;
+using STL_NAMESPACE::min;
 using STL_NAMESPACE::numeric_limits;
 using STL_NAMESPACE::vector;
 
@@ -496,9 +497,9 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("------------------------------------------------\n");
     uint64_t total_normal = 0;
     uint64_t total_returned = 0;
-    for (int s = 0; s < kMaxPages; s++) {
-      const int n_length = small.normal_length[s];
-      const int r_length = small.returned_length[s];
+    for (int s = 1; s <= kMaxPages; s++) {
+      const int n_length = small.normal_length[s - 1];
+      const int r_length = small.returned_length[s - 1];
       if (n_length + r_length > 0) {
         uint64_t n_pages = s * n_length;
         uint64_t r_pages = s * r_length;
@@ -517,8 +518,9 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
 
     total_normal += large.normal_pages;
     total_returned += large.returned_pages;
-    out->printf(">255   large * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
+    out->printf(">%-5u large * %6u spans ~ %6.1f MiB; %6.1f MiB cum"
                 "; unmapped: %6.1f MiB; %6.1f MiB cum\n",
+                static_cast<unsigned int>(kMaxPages),
                 static_cast<unsigned int>(large.spans),
                 PagesToMiB(large.normal_pages + large.returned_pages),
                 PagesToMiB(total_normal + total_returned),
@@ -990,17 +992,17 @@ class TCMallocImplementation : public MallocExtension {
     v->push_back(span_info);
 
     // small spans
-    for (int s = 1; s < kMaxPages; s++) {
+    for (int s = 1; s <= kMaxPages; s++) {
       MallocExtension::FreeListInfo i;
       i.max_object_size = (s << kPageShift);
       i.min_object_size = ((s - 1) << kPageShift);
 
       i.type = kPageHeapType;
-      i.total_bytes_free = (s << kPageShift) * small.normal_length[s];
+      i.total_bytes_free = (s << kPageShift) * small.normal_length[s - 1];
       v->push_back(i);
 
       i.type = kPageHeapUnmappedType;
-      i.total_bytes_free = (s << kPageShift) * small.returned_length[s];
+      i.total_bytes_free = (s << kPageShift) * small.returned_length[s - 1];
       v->push_back(i);
     }
   }
@@ -1531,7 +1533,9 @@ ATTRIBUTE_ALWAYS_INLINE inline void* do_realloc_with_callback(
   //    . If we need to grow, grow to max(new_size, old_size * 1.X)
   //    . Don't shrink unless new_size < old_size * 0.Y
   // X and Y trade-off time for wasted space.  For now we do 1.25 and 0.5.
-  const size_t lower_bound_to_grow = old_size + old_size / 4ul;
+  const size_t min_growth = min(old_size / 4ul,
+      (std::numeric_limits<size_t>::max)() - old_size);  // Avoid overflow.
+  const size_t lower_bound_to_grow = old_size + min_growth;
   const size_t upper_bound_to_shrink = old_size / 2ul;
   if ((new_size > old_size) || (new_size < upper_bound_to_shrink)) {
     // Need to reallocate.

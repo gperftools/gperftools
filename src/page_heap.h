@@ -178,6 +178,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   struct SmallSpanStats {
     // For each free list of small spans, the length (in spans) of the
     // normal and returned free lists for that size.
+    //
+    // NOTE: index 'i' accounts the number of spans of length 'i + 1'.
     int64 normal_length[kMaxPages];
     int64 returned_length[kMaxPages];
   };
@@ -265,7 +267,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
     Span        returned;
   };
 
-  // Sets of spans with length >= kMaxPages.
+  // Sets of spans with length > kMaxPages.
   //
   // Rather than using a linked list, we use sets here for efficient
   // best-fit search.
@@ -273,6 +275,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   SpanSet large_returned_;
 
   // Array mapping from span length to a doubly linked list of free spans
+  //
+  // NOTE: index 'i' stores spans of length 'i + 1'.
   SpanList free_[kMaxPages];
 
   // Statistics on system, free, and unmapped bytes
