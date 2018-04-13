@@ -138,7 +138,7 @@ but waiting for after <code>main()</code> exits to do the first
 whole-program leak check is waiting too long: e.g. in a long-running
 server one might wish to simply periodically check for leaks while the
 server is running.  In this case, you can call the static method
-<code>NoGlobalLeaks()</code>, to verify no global leaks have happened
+<code>HeapLeakChecker::NoGlobalLeaks()</code>, to verify no global leaks have happened
 as of that point in the program.</p>
 
 <p>Alternately, doing the check after <code>main()</code> exits might
@@ -146,8 +146,8 @@ be too late.  Perhaps you have some objects that are known not to
 clean up properly at exit.  You'd like to do the "at exit" check
 before those objects are destroyed (since while they're live, any
 memory they point to will not be considered a leak).  In that case,
-you can call <code>NoGlobalLeaks()</code> manually, near the end of
-<code>main()</code>, and then call <code>CancelGlobalCheck()</code> to
+you can call <code>HeapLeakChecker::NoGlobalLeaks()</code> manually, near the end of
+<code>main()</code>, and then call <code>HeapLeakChecker::CancelGlobalCheck()</code> to
 turn off the automatic post-<code>main()</code> check.</p>
 
 <p>Finally, there's a helper macro for "strict" and "draconian" modes,
