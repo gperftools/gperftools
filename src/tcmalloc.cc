@@ -1691,6 +1691,10 @@ extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_NOTHROW {
   return old_mode;
 }
 
+extern "C" PERFTOOLS_DLL_DECL int tc_query_new_mode() PERFTOOLS_NOTHROW {
+  return tc_new_mode;
+}
+
 #ifndef TCMALLOC_USING_DEBUGALLOCATION  // debugallocation.cc defines its own
 
 // CAVEAT: The code structure below ensures that MallocHook methods are always

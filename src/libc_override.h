@@ -58,7 +58,7 @@
 #endif
 #include <gperftools/tcmalloc.h>
 
-#if __cplusplus >= 201103L
+#if __cplusplus >= 201103L || (defined(_MSC_VER) && _MSC_VER >= 1900)
 #define CPP_NOTHROW noexcept
 #define CPP_BADALLOC
 #else
