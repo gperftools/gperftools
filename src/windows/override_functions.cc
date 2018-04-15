@@ -52,26 +52,55 @@
 
 #include "tcmalloc.cc"
 
-extern "C" void* _recalloc(void* p, size_t n, size_t size) {
+extern "C" {
+
+void* _malloc_base(size_t size) {
+  return malloc(size);
+}
+
+void _free_base(void* p) {
+  free(p);
+}
+
+void* _calloc_base(size_t n, size_t size) {
+  return calloc(n, size);
+}
+
+void* _recalloc(void* p, size_t n, size_t size) {
   void* result = realloc(p, n * size);
   memset(result, 0, n * size);
   return result;
 }
 
-extern "C" void* _calloc_impl(size_t n, size_t size) {
+void* _calloc_impl(size_t n, size_t size) {
   return calloc(n, size);
 }
 
-extern "C" size_t _msize(void* p) {
+size_t _msize(void* p) {
   return MallocExtension::instance()->GetAllocatedSize(p);
 }
 
-extern "C" intptr_t _get_heap_handle() {
+HANDLE __acrt_heap = nullptr;
+
+bool __acrt_initialize_heap() {
+  new TCMallocGuard();
+  return true;
+}
+
+bool __acrt_uninitialize_heap(bool) {
+  return true;
+}
+
+intptr_t _get_heap_handle() {
   return 0;
 }
 
+HANDLE __acrt_getheap() {
+  return __acrt_heap;
+}
+
 // The CRT heap initialization stub.
-extern "C" int _heap_init() {
+int _heap_init() {
   // We intentionally leak this object.  It lasts for the process
   // lifetime.  Trying to teardown at _heap_term() is so late that
   // you can't do anything useful anyway.
@@ -80,12 +109,24 @@ extern "C" int _heap_init() {
 }
 
 // The CRT heap cleanup stub.
-extern "C" void _heap_term() {
+void _heap_term() {
 }
 
-extern "C" int _set_new_mode(int flag) {
+// We set this to 1 because part of the CRT uses a check of _crtheap != 0
+// to test whether the CRT has been initialized.  Once we've ripped out
+// the allocators from libcmt, we need to provide this definition so that
+// the rest of the CRT is still usable.
+void* _crtheap = reinterpret_cast<void*>(1);
+
+int _set_new_mode(int flag) {
   return tc_set_new_mode(flag);
 }
+
+int _query_new_mode() {
+  return tc_query_new_mode();
+}
+
+}  // extern "C"
 
 #ifndef NDEBUG
 #undef malloc
@@ -115,9 +156,3 @@ extern "C" void* _calloc_dbg(size_t n, size_t size, int, const char*, int) {
   return calloc(n, size);
 }
 #endif  // NDEBUG
-
-// We set this to 1 because part of the CRT uses a check of _crtheap != 0
-// to test whether the CRT has been initialized.  Once we've ripped out
-// the allocators from libcmt, we need to provide this definition so that
-// the rest of the CRT is still usable.
-extern "C" void* _crtheap = reinterpret_cast<void*>(1);
