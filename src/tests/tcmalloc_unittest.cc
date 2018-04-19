@@ -69,7 +69,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#if defined HAVE_STDINT_H
+#ifdef HAVE_STDINT_H
 #include <stdint.h>        // for intptr_t
 #endif
 #include <sys/types.h>     // for size_t
@@ -1376,6 +1376,20 @@ static int RunAllTests(int argc, char** argv) {
     ::operator delete(p2, std::nothrow);
     VerifyDeleteHookWasCalled();
 
+#ifdef ENABLE_SIZED_DELETE
+    p2 = new char;
+    CHECK(p2 != NULL);
+    VerifyNewHookWasCalled();
+    ::operator delete(p2, sizeof(char));
+    VerifyDeleteHookWasCalled();
+
+    p2 = new char[100];
+    CHECK(p2 != NULL);
+    VerifyNewHookWasCalled();
+    ::operator delete[](p2, sizeof(char) * 100);
+    VerifyDeleteHookWasCalled();
+#endif
+
 #if defined(ENABLE_ALIGNED_NEW_DELETE)
 
     overaligned_type* poveraligned = new overaligned_type;
@@ -1420,6 +1434,22 @@ static int RunAllTests(int argc, char** argv) {
     VerifyNewHookWasCalled();
     ::operator delete(p2, std::align_val_t(OVERALIGNMENT), std::nothrow);
     VerifyDeleteHookWasCalled();
+
+#ifdef ENABLE_SIZED_DELETE
+    poveraligned = new overaligned_type;
+    CHECK(poveraligned != NULL);
+    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    ::operator delete(poveraligned, sizeof(overaligned_type), std::align_val_t(OVERALIGNMENT));
+    VerifyDeleteHookWasCalled();
+
+    poveraligned = new overaligned_type[10];
+    CHECK(poveraligned != NULL);
+    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    VerifyNewHookWasCalled();
+    ::operator delete[](poveraligned, sizeof(overaligned_type) * 10, std::align_val_t(OVERALIGNMENT));
+    VerifyDeleteHookWasCalled();
+#endif
 
 #endif // defined(ENABLE_ALIGNED_NEW_DELETE)
 
