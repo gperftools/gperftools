@@ -862,7 +862,10 @@ noinst_PROGRAMS += malloc_bench malloc_bench_shared \
 
 malloc_bench_SOURCES = benchmark/malloc_bench.cc
 malloc_bench_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
-malloc_bench_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS) -static
+malloc_bench_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+if ENABLE_STATIC
+malloc_bench_LDFLAGS += -static
+endif ENABLE_STATIC
 malloc_bench_LDADD = librun_benchmark.la libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 malloc_bench_shared_SOURCES = benchmark/malloc_bench.cc
@@ -890,7 +893,10 @@ endif WITH_HEAP_PROFILER_OR_CHECKER
 
 binary_trees_SOURCES = benchmark/binary_trees.cc
 binary_trees_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
-binary_trees_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS) -static
+binary_trees_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+if ENABLE_STATIC
+binary_trees_LDFLAGS += -static
+endif ENABLE_STATIC
 binary_trees_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 binary_trees_shared_SOURCES = benchmark/binary_trees.cc
