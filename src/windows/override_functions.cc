@@ -53,8 +53,26 @@
 #include "tcmalloc.cc"
 
 extern "C" void* _recalloc(void* p, size_t n, size_t size) {
-  void* result = realloc(p, n * size);
-  memset(result, 0, n * size);
+  const size_t prev_size = tc_malloc_size(p);
+  const size_t new_size = n * size;
+
+  // Overflow check
+  if (size != 0 && new_size / size != n) return NULL;
+
+  if (p == NULL) {
+    void* result = calloc(1, new_size);
+    return result;
+  }
+
+  // Shrinking, no need to set new memory to zero
+  if (prev_size > new_size) {
+    void* result = realloc(p, new_size);
+    return result;
+  }
+
+  void* result = calloc(1, new_size);
+  memcpy(result, p, prev_size);
+  free(p);
   return result;
 }
 
