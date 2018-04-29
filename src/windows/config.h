@@ -258,7 +258,7 @@
 #define PACKAGE_NAME "gperftools"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "gperftools 2.6.90"
+#define PACKAGE_STRING "gperftools 2.7"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "gperftools"
@@ -267,7 +267,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "2.6.90"
+#define PACKAGE_VERSION "2.7"
 
 /* How to access the PC from a struct ucontext */
 /* #undef PC_FROM_UCONTEXT */
@@ -330,7 +330,7 @@
 /* #undef TCMALLOC_ALIGN_8BYTES */
 
 /* Version number of package */
-#define VERSION "2.6.90"
+#define VERSION "2.7"
 
 /* C99 says: define this to get the PRI... macros from stdint.h */
 #ifndef __STDC_FORMAT_MACROS
