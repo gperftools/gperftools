@@ -1,14 +1,30 @@
-gperftools
-----------
+# gperftools
+
 (originally Google Performance Tools)
 
 The fastest malloc we’ve seen; works particularly well with threads
 and STL. Also: thread-friendly heap-checker, heap-profiler, and
 cpu-profiler.
 
+## Summary 
 
-OVERVIEW
----------
+- [OVERVIEW](#section-id-10)
+- [TCMALLOC](#section-id-25)
+- [HEAP PROFILER](#section-id-54)
+- [HEAP CHECKER](#section-id-79)
+- [CPU PROFILER](#section-id-107)
+- [EVERYTHING IN ONE](#section-id-135)
+- [CONFIGURATION OPTIONS](#section-id-150)
+- [ENVIRONMENT VARIABLES](#section-id-158)
+- [COMPILING ON NON-LINUX SYSTEMS](#section-id-189)
+- [PERFORMANCE](#section-id-200)
+- [OLD SYSTEM ISSUES](#section-id-216)
+- [64-BIT ISSUES](#section-id-231)
+
+
+<div id='section-id-10'/>
+
+## OVERVIEW
 
 gperftools is a collection of a high-performance multi-threaded
 malloc() implementation, plus some pretty nifty performance analysis
@@ -23,8 +39,10 @@ original pprof (which is still included with gperftools) is now
 deprecated in favor of golang version at https://github.com/google/pprof
 
 
-TCMALLOC
---------
+<div id='section-id-25'/>
+
+## TCMALLOC
+
 Just link in -ltcmalloc or -ltcmalloc_minimal to get the advantages of
 tcmalloc -- a replacement for malloc and new.  See below for some
 environment variables you can use with tcmalloc, as well.
@@ -52,8 +70,10 @@ For more information about tcmalloc internals please refer to
 [Tcmalloc docs](docs/tcmalloc.md)
 
 
-HEAP PROFILER
--------------
+<div id='section-id-54'/>
+
+## HEAP PROFILER
+
 See [Heap Profile docs](docs/heap_profiler.md) for information about how to use tcmalloc's
 heap profiler and analyze its output.
 
@@ -61,10 +81,18 @@ As a quick-start, do the following after installing this package:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPPROFILE environment var set:
+
+```
      $ HEAPPROFILE=/tmp/heapprof <path/to/binary> [binary args]
+```
+
 3) Run pprof to analyze the heap usage
+
+
+```
      $ pprof <path/to/binary> /tmp/heapprof.0045.heap  # run 'ls' to see options
      $ pprof --gv <path/to/binary> /tmp/heapprof.0045.heap
+```
 
 You can also use LD_PRELOAD to heap-profile an executable that you
 didn't compile.
@@ -77,8 +105,10 @@ The heap profiler is available on all unix-based systems we've tested;
 see INSTALL for more details.  It is not currently available on Windows.
 
 
-HEAP CHECKER
-------------
+<div id='section-id-79'/>
+
+## HEAP CHECKER
+
 See [Heap Checker docs](docs/heap_checker.md) for information about how to use tcmalloc's
 heap checker.
 
@@ -94,7 +124,10 @@ As a quick-start, do the following after installing this package:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPCHECK environment var set:
-     <pre>$ HEAPCHECK=1 <path/to/binary> [binary args]</pre>
+
+```
+     $ HEAPCHECK=1 <path/to/binary> [binary args]
+```
 
 Other values for HEAPCHECK: normal (equivalent to "1"), strict, draconian
 
@@ -105,8 +138,10 @@ The heap checker is only available on Linux at this time; see INSTALL
 for more details.
 
 
-CPU PROFILER
-------------
+<div id='section-id-107'/>
+
+## CPU PROFILER
+
 See [CPU Profile docs](docs/cpuprofile.md) for information about how to use the CPU
 profiler and analyze its output.
 
@@ -114,10 +149,14 @@ As a quick-start, do the following after installing this package:
 
 1) Link your executable with -lprofiler
 2) Run your executable with the CPUPROFILE environment var set:
-     <pre>$ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]</pre>
+```
+     $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
+```
 3) Run pprof to analyze the CPU usage
-     <pre>$ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output</pre>
-     <pre>$ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output</pre>
+```
+     $ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
+     $ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output
+```
 
 There are other environment variables, besides CPUPROFILE, you can set
 to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
@@ -133,31 +172,43 @@ NOTE: CPU profiling doesn't work after fork (unless you immediately
       (hopefully perftools 1.2).
 
 
-EVERYTHING IN ONE
------------------
+<div id='section-id-135'/>
+
+## EVERYTHING IN ONE
+
 If you want the CPU profiler, heap profiler, and heap leak-checker to
 all be available for your application, you can do:
-   <pre>gcc -o myapp ... -lprofiler -ltcmalloc</pre>
+```
+   gcc -o myapp ... -lprofiler -ltcmalloc
+```
 
 However, if you have a reason to use the static versions of the
 library, this two-library linking won't work:
-   <pre>gcc -o myapp ... /usr/lib/libprofiler.a /usr/lib/libtcmalloc.a  # errors!</pre>
+```
+   gcc -o myapp ... /usr/lib/libprofiler.a /usr/lib/libtcmalloc.a  # errors!
+```
 
 Instead, use the special libtcmalloc_and_profiler library, which we
 make for just this purpose:
-   <pre>gcc -o myapp ... /usr/lib/libtcmalloc_and_profiler.a</pre>
+```
+   gcc -o myapp ... /usr/lib/libtcmalloc_and_profiler.a
+```
 
 
-CONFIGURATION OPTIONS
----------------------
+<div id='section-id-150'/>
+
+## CONFIGURATION OPTIONS
+
 For advanced users, there are several flags you can pass to
 './configure' that tweak tcmalloc performace.  (These are in addition
 to the environment variables you can set at runtime to affect
 tcmalloc, described below.)  See the INSTALL file for details.
 
 
-ENVIRONMENT VARIABLES
----------------------
+<div id='section-id-158'/>
+
+## ENVIRONMENT VARIABLES
+
 The cpu profiler, heap checker, and heap profiler will lie dormant,
 using no memory or CPU, until you turn them on.  (Thus, there's no
 harm in linking -lprofiler into every application, and also -ltcmalloc
@@ -182,13 +233,15 @@ MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 ```
 
 For a full list of variables, see the documentation pages:
-   [CPU Profile docs](docs/cpuprofile.md)
-   [Heap Profile docs](docs/heapprofile.md)
-   [Heap Checker docs](docs/heap_checker.md)
+  - [CPU Profile docs](docs/cpuprofile.md)
+  - [Heap Profile docs](docs/heapprofile.md)
+  - [Heap Checker docs](docs/heap_checker.md)
 
 
-COMPILING ON NON-LINUX SYSTEMS
-------------------------------
+<div id='section-id-189'/>
+
+## COMPILING ON NON-LINUX SYSTEMS
+
 
 Perftools was developed and tested on x86 Linux systems, and it works
 in its full generality only on those systems.  However, we've
@@ -198,16 +251,17 @@ functionality in tcmalloc_minimal to Windows.  See INSTALL for details.
 See README_windows.txt for details on the Windows port.
 
 
-PERFORMANCE
------------
+<div id='section-id-200'/>
+
+## PERFORMANCE
 
 If you're interested in some third-party comparisons of tcmalloc to
 other malloc libraries, here are a few web pages that have been
 brought to our attention.  The first discusses the effect of using
 various malloc libraries on OpenLDAP.  The second compares tcmalloc to
 win32's malloc.
-  http://www.highlandsun.com/hyc/malloc/
-  http://gaiacrtn.free.fr/articles/win32perftools.html
+  - http://www.highlandsun.com/hyc/malloc/
+  - http://gaiacrtn.free.fr/articles/win32perftools.html
 
 It's possible to build tcmalloc in a way that trades off faster
 performance (particularly for deletes) at the cost of more memory
@@ -215,12 +269,16 @@ fragmentation (that is, more unusable memory on your system).  See the
 INSTALL file for details.
 
 
-OLD SYSTEM ISSUES
------------------
+<div id='section-id-216'/>
+
+## OLD SYSTEM ISSUES
+
 
 When compiling perftools on some old systems, like RedHat 8, you may
 get an error like this:
+```
     ___tls_get_addr: symbol not found
+```
 
 This means that you have a system where some parts are updated enough
 to support Thread Local Storage, but others are not.  The perftools
@@ -230,8 +288,9 @@ that error.  To fix it, just comment out (or delete) the line
 in your config.h file before building.
 
 
-64-BIT ISSUES
--------------
+<div id='section-id-231'/>
+
+## 64-BIT ISSUES
 
 There are two issues that can cause program hangs or crashes on x86_64
 64-bit systems, which use the libunwind library to get stack-traces.
