@@ -2221,17 +2221,23 @@ struct kernel_stat {
         LSS_REG(0, arg1); LSS_BODY(type, name, "r"(__x0));                    \
       }
     #undef _syscall2
-    #define _syscall2(type, name, type1, arg1, type2, arg2)                   \
+    #define _syscall2_long(type, name, svc, type1, arg1, type2, arg2)         \
       type LSS_NAME(name)(type1 arg1, type2 arg2) {                           \
         LSS_REG(0, arg1); LSS_REG(1, arg2);                                   \
-        LSS_BODY(type, name, "r"(__x0), "r"(__x1));                           \
+        LSS_BODY(type, svc, "r"(__x0), "r"(__x1));                            \
       }
+    #define _syscall2(type, name, type1, arg1, type2, arg2)                   \
+            _syscall2_long(type, name, name, type1, arg1, type2, arg2)
     #undef _syscall3
-    #define _syscall3(type, name, type1, arg1, type2, arg2, type3, arg3)      \
+    #define _syscall3_long(type, name, svc, type1, arg1, type2, arg2,         \
+                           type3, arg3)                                       \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3) {               \
         LSS_REG(0, arg1); LSS_REG(1, arg2); LSS_REG(2, arg3);                 \
-        LSS_BODY(type, name, "r"(__x0), "r"(__x1), "r"(__x2));                \
+        LSS_BODY(type, svc, "r"(__x0), "r"(__x1), "r"(__x2));                 \
       }
+    #define _syscall3(type, name, type1, arg1, type2, arg2, type3, arg3)      \
+            _syscall3_long(type, name, name, type1, arg1, type2, arg2,        \
+                           type3, arg3)
     #undef _syscall4
     #define _syscall4(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4)  \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4) {   \
@@ -2250,15 +2256,19 @@ struct kernel_stat {
                              "r"(__x4));                                      \
       }
     #undef _syscall6
-    #define _syscall6(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4,  \
-                      type5,arg5,type6,arg6)                                  \
+    #define _syscall6_long(type,name,svc,type1,arg1,type2,arg2,type3,arg3,    \
+                           type4,arg4,type5,arg5,type6,arg6)                  \
       type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4,     \
                           type5 arg5, type6 arg6) {                           \
         LSS_REG(0, arg1); LSS_REG(1, arg2); LSS_REG(2, arg3);                 \
         LSS_REG(3, arg4); LSS_REG(4, arg5); LSS_REG(5, arg6);                 \
-        LSS_BODY(type, name, "r"(__x0), "r"(__x1), "x"(__x2), "r"(__x3),      \
+        LSS_BODY(type, svc, "r"(__x0), "r"(__x1), "x"(__x2), "r"(__x3),       \
                              "r"(__x4), "r"(__x5));                           \
       }
+    #define _syscall6(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4,  \
+                      type5,arg5,type6,arg6)                                  \
+            _syscall6_long(type,name,name,type1,arg1,type2,arg2,type3,arg3,   \
+                           type4,arg4,type5,arg5,type6,arg6)
     /* clone function adapted from glibc 2.18 clone.S                       */
     LSS_INLINE int LSS_NAME(clone)(int (*fn)(void *), void *child_stack,
                                    int flags, void *arg, int *parent_tidptr,
@@ -2456,10 +2466,22 @@ struct kernel_stat {
   #define __NR__mremap __NR_mremap
   LSS_INLINE _syscall1(int,     close,           int,         f)
   LSS_INLINE _syscall1(int,     _exit,           int,         e)
+#if defined(__aarch64__) && defined (__ILP32__)
+  /* aarch64_ilp32 uses fcntl64 for sys_fcntl() */
+  LSS_INLINE _syscall3_long(int,     fcntl,      fcntl64,     int,         f,
+                       int,            c, long,   a)
+#else
   LSS_INLINE _syscall3(int,     fcntl,           int,         f,
                        int,            c, long,   a)
+#endif
+#if defined(__aarch64__) && defined (__ILP32__)
+  /* aarch64_ilp32 uses fstat64 for sys_fstat() */
+  LSS_INLINE _syscall2_long(int,     fstat,       fstat64,    int,         f,
+                      struct kernel_stat*,   b)
+#else
   LSS_INLINE _syscall2(int,     fstat,           int,         f,
                       struct kernel_stat*,   b)
+#endif
   LSS_INLINE _syscall6(int,     futex,           int*,        a,
                        int,            o, int,    v,
                       struct kernel_timespec*, t,
@@ -2487,6 +2509,10 @@ struct kernel_stat {
       _LSS_BODY(3, off_t, lseek, off_t, LSS_SYSCALL_ARG(f), (uint64_t)(o),
                                         LSS_SYSCALL_ARG(w));
     }
+  #elif defined(__aarch64__) && defined (__ILP32__)
+    /* aarch64_ilp32 uses llseek for sys_lseek() */
+    LSS_INLINE _syscall3_long(off_t,   lseek,       llseek,    int,         f,
+                         off_t,          o, int,    w)
   #else
     LSS_INLINE _syscall3(off_t,   lseek,           int,         f,
                          off_t,          o, int,    w)
@@ -2777,6 +2803,10 @@ struct kernel_stat {
                                LSS_SYSCALL_ARG(p), LSS_SYSCALL_ARG(f),
                                LSS_SYSCALL_ARG(d), (uint64_t)(o));
     }
+  #elif defined(__aarch64__) && defined (__ILP32__)
+    /* aarch64_ilp32 uses mmap2 for sys_mmap() */
+    LSS_INLINE _syscall6_long(void*, mmap, mmap2, void*, addr, size_t, length,
+                              int, prot, int, flags, int, fd, int64_t, offset)
   #else
     /* Remaining 64-bit architectures. */
     LSS_INLINE _syscall6(void*, mmap, void*, addr, size_t, length, int, prot,

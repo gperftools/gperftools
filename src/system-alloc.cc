@@ -96,18 +96,14 @@ static const bool kDebugMode = true;
 using tcmalloc::kLog;
 using tcmalloc::Log;
 
-// Anonymous namespace to avoid name conflicts on "CheckAddressBits".
-namespace {
-
 // Check that no bit is set at position ADDRESS_BITS or higher.
-bool CheckAddressBits(uintptr_t ptr) {
-  if (kAddressBits == 8 * sizeof(void*)) {
-    return true;
-  }
-  return (ptr >> kAddressBits) == 0;
+static bool CheckAddressBits(uintptr_t ptr) {
+  bool always_ok = (kAddressBits == 8 * sizeof(void*));
+  // this is a bit insane but otherwise we get compiler warning about
+  // shifting right by word size even if this code is dead :(
+  int shift_bits = always_ok ? 0 : kAddressBits;
+  return always_ok || ((ptr >> shift_bits) == 0);
 }
-
-}  // Anonymous namespace to avoid name conflicts on "CheckAddressBits".
 
 COMPILE_ASSERT(kAddressBits <= 8 * sizeof(void*),
                address_bits_larger_than_pointer_size);

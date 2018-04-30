@@ -152,7 +152,7 @@ extern "C" {
   void* mremap(void* old_addr, size_t old_size, size_t new_size,
                int flags, ...) __THROW
     ATTRIBUTE_SECTION(malloc_hook);
-  void* sbrk(ptrdiff_t increment) __THROW
+  void* sbrk(intptr_t increment) __THROW
     ATTRIBUTE_SECTION(malloc_hook);
 }
 
@@ -208,9 +208,9 @@ extern "C" void* mremap(void* old_addr, size_t old_size, size_t new_size,
 
 #ifndef __UCLIBC__
 // libc's version:
-extern "C" void* __sbrk(ptrdiff_t increment);
+extern "C" void* __sbrk(intptr_t increment);
 
-extern "C" void* sbrk(ptrdiff_t increment) __THROW {
+extern "C" void* sbrk(intptr_t increment) __THROW {
   MallocHook::InvokePreSbrkHook(increment);
   void *result = __sbrk(increment);
   MallocHook::InvokeSbrkHook(result, increment);

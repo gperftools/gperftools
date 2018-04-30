@@ -340,6 +340,7 @@ inline int snprintf(char *str, size_t size, const char *format, ...) {
 }
 #endif
 
+#ifndef HAVE_INTTYPES_H
 #define PRIx64  "I64x"
 #define SCNx64  "I64x"
 #define PRId64  "I64d"
@@ -351,6 +352,7 @@ inline int snprintf(char *str, size_t size, const char *format, ...) {
 #else
 # define PRIuPTR "lu"
 # define PRIxPTR "lx"
+#endif
 #endif
 
 /* ----------------------------------- FILE IO */

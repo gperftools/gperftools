@@ -43,9 +43,9 @@
 
 /* Define the version number so folks can check against it */
 #define TC_VERSION_MAJOR  2
-#define TC_VERSION_MINOR  6
-#define TC_VERSION_PATCH  ".90"
-#define TC_VERSION_STRING "gperftools 2.6.90"
+#define TC_VERSION_MINOR  7
+#define TC_VERSION_PATCH  ""
+#define TC_VERSION_STRING "gperftools 2.7"
 
 #ifndef PERFTOOLS_NOTHROW
 
@@ -126,7 +126,7 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
 
-#if 0 && __cplusplus >= 201703L
+#if defined(__cpp_aligned_new) || (defined(_MSVC_LANG) && _MSVC_LANG > 201402L)
   PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t al);
   PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t al,
                                           const std::nothrow_t&) PERFTOOLS_NOTHROW;

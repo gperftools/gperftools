@@ -1,3 +1,41 @@
+== 29 Apr 2018 ==
+gperftools 2.7 is out!
+
+Few people contributed minor, but important fixes since rc.
+
+Changes:
+
+* bug in span stats printing introduced by new scalable page heap
+  change was fixed.
+
+* Christoph Müllner has contributed couple warnings fixes and initial
+  support for aarch64_ilp32 architecture.
+
+* Ben Dang contributed documentation fix for heap checker.
+
+* Fabrice Fontaine contributed fixed for linking benchmarks with
+  --disable-static.
+
+* Holy Wu has added sized deallocation unit tests.
+
+* Holy Wu has enabled support of sized deallocation (c++14) on recent
+  MSVC.
+
+* Holy Wu has fixed MSVC build in WIN32_OVERRIDE_ALLOCATORS mode. This
+  closed issue #716.
+
+* Holy Wu has contributed cleanup of config.h used on windows.
+
+* Mao Huang has contributed couple simple tcmalloc changes from
+  chromium code base. Making our tcmalloc forks a tiny bit closer.
+
+* issue #946 that caused compilation failures on some Linux clang
+  installations has been fixed. Much thanks to github user htuch for
+  helping to diagnose issue and proposing a fix.
+
+* Tulio Magno Quites Machado Filho has contributed build-time fix for
+  PPC (for problem introduced in one of commits since RC).
+
 == 18 Mar 2018 ==
 gperftools 2.7rc is out!
 

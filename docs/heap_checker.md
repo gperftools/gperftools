@@ -6,7 +6,7 @@ This is the heap checker we use at Google to detect memory leaks in C++ programs
 
 The heap-checker is part of tcmalloc, so to install the heap checker into your executable, add `-ltcmalloc` to the link-time step for your executable. Also, while we don't necessarily recommend this form of usage, it's possible to add in the profiler at run-time using `LD_PRELOAD`:
 
-<pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" <binary></binary></pre>
+<pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" &lt;binary&gt;</pre>
 
 This does _not_ turn on heap checking; it just inserts the code. For that reason, it's practical to just always link `-ltcmalloc` into a binary while developing; that's what we do at Google. (However, since any user can turn on the profiler by setting an environment variable, it's not necessarily recommended to install heapchecker-linked binaries into a production, running system.) Note that if you wish to use the heap checker, you must also use the tcmalloc memory-allocation library. There is no way currently to use the heap checker separate from tcmalloc.
 
@@ -58,9 +58,9 @@ In addition, there are two other possible modes:
 
 #### Tweaking whole-program checking
 
-In some cases you want to check the whole program for memory leaks, but waiting for after `main()` exits to do the first whole-program leak check is waiting too long: e.g. in a long-running server one might wish to simply periodically check for leaks while the server is running. In this case, you can call the static method `NoGlobalLeaks()`, to verify no global leaks have happened as of that point in the program.
+In some cases you want to check the whole program for memory leaks, but waiting for after `main()` exits to do the first whole-program leak check is waiting too long: e.g. in a long-running server one might wish to simply periodically check for leaks while the server is running. In this case, you can call the static method `HeapLeakChecker::NoGlobalLeaks()`, to verify no global leaks have happened as of that point in the program.
 
-Alternately, doing the check after `main()` exits might be too late. Perhaps you have some objects that are known not to clean up properly at exit. You'd like to do the "at exit" check before those objects are destroyed (since while they're live, any memory they point to will not be considered a leak). In that case, you can call `NoGlobalLeaks()` manually, near the end of `main()`, and then call `CancelGlobalCheck()` to turn off the automatic post-`main()` check.
+Alternately, doing the check after `main()` exits might be too late. Perhaps you have some objects that are known not to clean up properly at exit. You'd like to do the "at exit" check before those objects are destroyed (since while they're live, any memory they point to will not be considered a leak). In that case, you can call `HeapLeakChecker::NoGlobalLeaks()` manually, near the end of `main()`, and then call `HeapLeakChecker::CancelGlobalCheck()` to turn off the automatic post-`main()` check.
 
 Finally, there's a helper macro for "strict" and "draconian" modes, which require all global memory to be freed before program exit. This freeing can be time-consuming and is often unnecessary, since libc cleans up all memory at program-exit for you. If you want the benefits of "strict"/"draconian" modes without the cost of all that freeing, look at `REGISTER_HEAPCHECK_CLEANUP` (in `heap-checker.h`). This macro allows you to mark specific cleanup code as active only when the heap-checker is turned on.
 

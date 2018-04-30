@@ -4,11 +4,11 @@
 # make sure we're interpreted by some minimal autoconf
 AC_PREREQ([2.59])
 
-AC_INIT([gperftools],[2.6.90],[gperftools@googlegroups.com])
+AC_INIT([gperftools],[2.7],[gperftools@googlegroups.com])
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
 # http://www.gnu.org/software/libtool/manual/html_node/Updating-version-info.html
-TCMALLOC_SO_VERSION=9:2:5
-PROFILER_SO_VERSION=4:17:4
+TCMALLOC_SO_VERSION=9:3:5
+PROFILER_SO_VERSION=4:18:4
 
 AC_SUBST(TCMALLOC_SO_VERSION)
 AC_SUBST(PROFILER_SO_VERSION)
