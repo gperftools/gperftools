@@ -133,7 +133,7 @@ googleinclude_HEADERS =				\
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README README_windows.txt \
+dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README.md README_windows.txt \
                 TODO ChangeLog.old
 
 # The libraries (.so's) you want to install
@@ -171,8 +171,7 @@ EXTRA_INSTALL =
 
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
-dist_doc_DATA += docs/index.html docs/designstyle.css
-
+SUBDIRS = docs
 
 ### ------- library routines, in src/base
 
@@ -382,9 +381,6 @@ stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
                               $(STACKTRACE_UNITTEST_INCLUDES)
 stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la
 
-### Documentation
-dist_doc_DATA +=
-
 endif WITH_STACK_TRACE
 
 ### ------- pprof
@@ -402,10 +398,6 @@ pprof_unittest: $(top_srcdir)/src/pprof
 
 # Let unittests find pprof if they need to run it
 TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
-
-### Documentation
-dist_man_MANS = docs/pprof.1
-dist_doc_DATA += docs/pprof_remote_servers.html
 
 # On MSVC, we need our own versions of addr2line and nm to work with pprof.
 WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcproj
@@ -744,44 +736,6 @@ thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
 thread_dealloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
-
-### Documentation
-dist_doc_DATA += docs/tcmalloc.html \
-                 docs/overview.gif \
-                 docs/pageheap.gif \
-                 docs/spanmap.gif \
-                 docs/threadheap.gif \
-                 docs/t-test1.times.txt \
-                 docs/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
-                 docs/tcmalloc-opspersec.vs.size.1.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.12.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.16.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.2.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.20.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.3.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.4.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.5.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.8.threads.png
-
-# I don't know how to say "distribute the .dot files but don't install them";
-# noinst doesn't seem to work with data.  I separate them out anyway, in case
-# one day we figure it out.  Regardless, installing the dot files isn't the
-# end of the world.
-dist_doc_DATA += docs/overview.dot \
-                 docs/pageheap.dot \
-                 docs/spanmap.dot \
-                 docs/threadheap.dot
 
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
@@ -1185,14 +1139,6 @@ heap_checker_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
 endif WITH_HEAP_CHECKER
 
-### Documentation (above and beyond tcmalloc_minimal documentation)
-if WITH_HEAP_PROFILER
-dist_doc_DATA += docs/heapprofile.html docs/heap-example1.png
-endif WITH_HEAP_PROFILER
-
-if WITH_HEAP_CHECKER
-dist_doc_DATA += docs/heap_checker.html
-endif WITH_HEAP_CHECKER
 
 
 ### ------- tcmalloc with debugallocation
@@ -1379,16 +1325,6 @@ profiler4_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 profiler4_unittest_LDADD = -lstacktrace -lprofiler $(PTHREAD_LIBS)
 # We depend on -lprofiler but haven't yet said how to build it.  Do so now.
 profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
-
-
-### Documentation
-dist_doc_DATA += docs/cpuprofile.html \
-                 docs/cpuprofile-fileformat.html \
-                 docs/pprof-test-big.gif \
-                 docs/pprof-test.gif \
-                 docs/pprof-vsnprintf-big.gif \
-                 docs/pprof-vsnprintf.gif
-
 endif WITH_CPU_PROFILER
 
 

@@ -15,10 +15,10 @@ AC_SUBST(PROFILER_SO_VERSION)
 
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
-AC_CONFIG_SRCDIR(README)
+AC_CONFIG_SRCDIR(README.md)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
-AM_INIT_AUTOMAKE([dist-zip])
+AM_INIT_AUTOMAKE([dist-zip foreign])
 AC_CONFIG_HEADERS([src/config.h])
 
 AM_MAINTAINER_MODE()
@@ -165,7 +165,7 @@ AC_PROG_LIBTOOL
 AC_C_INLINE
 AX_C___ATTRIBUTE__
 
-AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)
+AC_MSG_CHECKING([for __attribute__((aligned(N)) on functions])
 AC_CACHE_VAL(ac_cv___attribute__aligned_fn, [
   AC_TRY_COMPILE(
     [#include <stdlib.h>
@@ -562,7 +562,7 @@ AC_PROGRAM_INVOCATION_NAME
 # Make the install prefix available, to figure out where to look for pprof
 AC_INSTALL_PREFIX
 
-dnl only very recent mingw has sleep and nanosleep
+# only very recent mingw has sleep and nanosleep
 case "$host" in
    *-mingw*)
      AC_CHECK_DECLS([sleep], [], [], [#include <unistd.h>])
@@ -653,8 +653,14 @@ AC_COMPILE_IFELSE(
          AC_MSG_RESULT([yes])],
         [AC_MSG_RESULT([no])])
 
+# Check for presence of pandoc utility to convert Markdown to HTML
+AC_CHECK_PROG([HAS_PANDOC], [pandoc], [yes], [no])
+AM_CONDITIONAL([FOUND_CONVERTER_FOR_HTML], [test "x$HAS_PANDOC" = xyes])
+AS_IF([test "x$HAS_PANDOC" = xyes],,
+        AC_MSG_NOTICE([Will not convert Markdown documentation to HTML]))
+
 # Write generated configuration file
-AC_CONFIG_FILES([Makefile
+AC_CONFIG_FILES([Makefile docs/Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
 AC_OUTPUT
 
