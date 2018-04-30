@@ -1,14 +1,41 @@
-% Gperftools CPU Profiler
+# Gperftools CPU Profiler
 
 This is the CPU profiler we use at Google. There are three parts to using it: linking the library into an application, running the code, and analyzing the output.
 
 On the off-chance that you should need to understand it, the CPU profiler data file format is documented separately, [here](cpuprofile-fileformat.md).
+
+
+## Summary 
+
+- [Linking in the Library](#section-id-7)
+- [Running the Code](#section-id-13)
+  - [Modifying Runtime Behavior](#section-id-41)
+- [Analyzing the Output](#section-id-60)
+    - [Analyzing Text Output](#section-id-89)
+    - [Analyzing Callgrind Output](#section-id-106)
+    - [Node Information](#section-id-119)
+    - [Edge Information](#section-id-141)
+    - [Meta Information](#section-id-147)
+    - [Focus and Ignore](#section-id-161)
+    - [Interactive mode](#section-id-177)
+    - [pprof Options](#section-id-181)
+      - [Output Type](#section-id-185)
+      - [Reporting Granularity](#section-id-231)
+      - [Controlling the Call Graph Display](#section-id-256)
+- [Caveats](#section-id-289)
+
+
+
+
+<div id='section-id-7'/>
 
 ## Linking in the Library
 
 To install the CPU profiler into your executable, add `-lprofiler` to the link-time step for your executable. (It's also probably possible to add in the profiler at run-time using `LD_PRELOAD`, e.g. `% env LD_PRELOAD="/usr/lib/libprofiler.so" <binary>`, but this isn't necessarily recommended.)
 
 This does _not_ turn on CPU profiling; it just inserts the code. For that reason, it's practical to just always link `-lprofiler` into a binary while developing; that's what we do at Google. (However, since any user can turn on the profiler by setting an environment variable, it's not necessarily recommended to install profiler-linked binaries into a production, running system.)
+
+<div id='section-id-13'/>
 
 ## Running the Code
 
@@ -38,6 +65,8 @@ For security reasons, CPU profiling will not write to a file -- and is thus not 
 
 See the include-file `gperftools/profiler.h` for advanced-use functions, including `ProfilerFlush()` and `ProfilerStartWithOptions()`.
 
+<div id='section-id-41'/>
+
 ### Modifying Runtime Behavior
 
 You can more finely control the behavior of the CPU profiler via environment variables.
@@ -56,6 +85,8 @@ You can more finely control the behavior of the CPU profiler via environment var
 </tr>
 </tbody>
 </table>
+
+<div id='section-id-60'/>
 
 ## Analyzing the Output
 
@@ -86,6 +117,8 @@ Here are some ways to call pprof. These are described in more detail below.
                        Outputs the call information in callgrind format
 ```
 
+<div id='section-id-89'/>
+
 #### Analyzing Text Output
 
 Text mode has lines of output that look like this:
@@ -103,6 +136,8 @@ Here is how to interpret the columns:
 5.  Percentage of profiling samples in this function and its callees
 6.  Function name
 
+<div id='section-id-106'/>
+
 #### Analyzing Callgrind Output
 
 Use [kcachegrind](http://kcachegrind.sourceforge.net) to analyze your callgrind output:
@@ -115,6 +150,8 @@ Use [kcachegrind](http://kcachegrind.sourceforge.net) to analyze your callgrind 
 The cost is specified in 'hits', i.e. how many times a function appears in the recorded call stack information. The 'calls' from function a to b record how many times function b was found in the stack traces directly below function a.
 
 Tip: if you use a debug build the output will include file and line number information and kcachegrind will show an annotated source code view.
+
+<div id='section-id-119'/>
 
 #### Node Information
 
@@ -138,11 +175,15 @@ For instance, the timing information for test_main_thread() indicates that 155 u
 
 The size of the node is proportional to the local count. The percentage displayed in the node corresponds to the count divided by the total run time of the program (that is, the cumulative count for `main()`).
 
+<div id='section-id-141'/>
+
 #### Edge Information
 
 An edge from one node to another indicates a caller to callee relationship. Each edge is labelled with the time spent by the callee on behalf of the caller. E.g, the edge from `test_main_thread()` to `snprintf()` indicates that of the 200 samples in `test_main_thread()`, 37 are because of calls to `snprintf()`.
 
 Note that `test_main_thread()` has an edge to `vsnprintf()`, even though `test_main_thread()` doesn't call that function directly. This is because the code was compiled with `-O2`; the profile reflects the optimized control flow.
+
+<div id='section-id-147'/>
 
 #### Meta Information
 
@@ -157,6 +198,8 @@ The top of the display should contain some meta information like:
 ```
 
 This section contains the name of the program, and the total samples collected during the profiling run. If the `--focus` option is on (see the [Focus](#focus-and-ignore) section below), the legend also contains the number of samples being shown in the focused display. Furthermore, some unimportant nodes and edges are dropped to reduce clutter. The characteristics of the dropped nodes and edges are also displayed in the legend.
+
+<div id='section-id-161'/>
 
 #### Focus and Ignore
 
@@ -174,13 +217,19 @@ Similarly, you can supply the `--ignore` option to ignore samples that match a s
 % pprof --gv --ignore=snprintf /tmp/profiler2_unittest test.prof
 ```
 
+<div id='section-id-177'/>
+
 #### Interactive mode
 
 By default -- if you don't specify any flags to the contrary -- pprof runs in interactive mode. At the `(pprof)` prompt, you can run many of the commands described above. You can type `help` for a list of what commands are available in interactive mode.
 
+<div id='section-id-181'/>
+
 #### pprof Options
 
 For a complete list of pprof options, you can run `pprof --help`.
+
+<div id='section-id-185'/>
 
 ##### Output Type
 
@@ -228,6 +277,8 @@ In the presence of inlined calls, the samples associated with inlined code tend 
 </table>
 </center>
 
+<div id='section-id-231'/>
+
 ##### Reporting Granularity
 
 By default, pprof produces one entry per procedure. However you can use one of the following options to change the granularity of the output. The `--files` option seems to be particularly useless, and may be removed eventually.
@@ -252,6 +303,8 @@ By default, pprof produces one entry per procedure. However you can use one of t
 </tr>
 </tbody>
 </table>
+
+<div id='section-id-256'/>
 
 ##### Controlling the Call Graph Display
 
@@ -285,6 +338,8 @@ Some nodes and edges are dropped to reduce clutter in the output display. The fo
 </center>
 
 The dropped edges and nodes account for some count mismatches in the display. For example, the cumulative count for `snprintf()` in the first diagram above was 41\. However the local count (1) and the count along the outgoing edges (12+1+20+6) add up to only 40.
+
+<div id='section-id-289'/>
 
 ## Caveats
 

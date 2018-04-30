@@ -1,8 +1,21 @@
-% Google CPU Profiler Binary Data File Format
+# Google CPU Profiler Binary Data File Format
 
 This file documents the binary data file format produced by the Google CPU Profiler. For information about using the CPU Profiler, see [its user guide](cpuprofile.md).
 
 The profiler source code, which generates files using this format, is at `src/profiler.cc`.
+
+## Summary 
+
+- [CPU Profile Data File Structure](#section-id-7)
+- [Binary Header](#section-id-18)
+- [Binary Profile Records](#section-id-94)
+  - [Example](#section-id-125)
+- [Binary Trailer](#section-id-143)
+- [Text List of Mapped Objects](#section-id-170)
+
+
+
+<div id='section-id-7'/>
 
 ## CPU Profile Data File Structure
 
@@ -14,6 +27,8 @@ CPU profile data files each consist of four parts, in order:
 *   Text list of mapped objects
 
 The binary data is expressed in terms of "slots." These are words large enough to hold the program's pointer type, i.e., for 32-bit programs they are 4 bytes in size, and for 64-bit programs they are 8 bytes. They are stored in the profile data file in the native byte order (i.e., little-endian for x86 and x86_64).
+
+<div id='section-id-18'/>
 
 ## Binary Header
 
@@ -91,6 +106,8 @@ The contents are shown in terms of slots, and in terms of 4-byte words in the pr
 
 The profiling tools examine the contents of the file and use the expected locations and values of the header words field to detect whether the file is 32-bit or 64-bit.
 
+<div id='section-id-94'/>
+
 ## Binary Profile Records
 
 The binary profile record format is shown below.
@@ -122,6 +139,8 @@ Note that multiple profile records can be emitted by the profiler having an iden
 
 **Note:** Some profile analysis tools terminate if they see _any_ profile record with a call chain with its first entry having the address 0\. (This is similar to the binary trailer.)
 
+<div id='section-id-125'/>
+
 ### Example
 
 This example shows the slots contained in a sample profile record.
@@ -139,6 +158,8 @@ This example shows the slots contained in a sample profile record.
 </table>
 
 In this example, 5 ticks were received at PC 0xa0000, whose function had been called by the function containing 0xc0000, which had been called from the function containing 0xe0000.
+
+<div id='section-id-143'/>
 
 ## Binary Trailer
 
@@ -166,6 +187,8 @@ The binary trailer consists of three slots of data with fixed values, shown belo
 </table>
 
 Note that this is the same data that would contained in a profile record with sample count = 0, num_pcs = 1, and a one-element call chain containing the address 0.
+
+<div id='section-id-170'/>
 
 ## Text List of Mapped Objects
 

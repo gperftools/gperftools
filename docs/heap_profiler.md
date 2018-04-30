@@ -10,13 +10,33 @@ The profiling system instruments all allocations and frees. It keeps track of va
 
 There are three parts to using it: linking the library into an application, running the code, and analyzing the output.
 
+## Summary 
+
+- [Linking in the Library](#section-id-13)
+- [Running the Code](#section-id-21)
+  - [Modifying Runtime Behavior](#section-id-33)
+  - [Checking for Leaks](#section-id-77)
+- [Analyzing the Output](#section-id-81)
+    - [Why is a process so big](#section-id-105)
+    - [Comparing Profiles](#section-id-118)
+    - [Text display](#section-id-127)
+    - [Ignoring or focusing on specific regions](#section-id-145)
+    - [Total allocations + object-level information](#section-id-157)
+    - [Interactive mode](#section-id-184)
+- [Caveats](#section-id-188)
+
+
+<div id='section-id-13'/>
+
 ## Linking in the Library
 
 To install the heap profiler into your executable, add `-ltcmalloc` to the link-time step for your executable. Also, while we don't necessarily recommend this form of usage, it's possible to add in the profiler at run-time using `LD_PRELOAD`:
 
-<pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" <binary></pre>
+<pre>% env LD_PRELOAD="/usr/lib/libtcmalloc.so" &lt;binary&gt;</pre>
 
 This does _not_ turn on heap profiling; it just inserts the code. For that reason, it's practical to just always link `-ltcmalloc` into a binary while developing; that's what we do at Google. (However, since any user can turn on the profiler by setting an environment variable, it's not necessarily recommended to install profiler-linked binaries into a production, running system.) Note that if you wish to use the heap profiler, you must also use the tcmalloc memory-allocation library. There is no way currently to use the heap profiler separate from tcmalloc.
+
+<div id='section-id-21'/>
 
 ## Running the Code
 
@@ -29,6 +49,8 @@ There are several alternatives to actually turn on heap profiling for a given ru
 2.  In your code, bracket the code you want profiled in calls to `HeapProfilerStart()` and `HeapProfilerStop()`. (These functions are declared in `<gperftools/heap-profiler.h>`.) `HeapProfilerStart()` will take the profile-filename-prefix as an argument. Then, as often as you'd like before calling `HeapProfilerStop()`, you can use `HeapProfilerDump()` or `GetHeapProfile()` to examine the profile. In case it's useful, `IsHeapProfilerRunning()` will tell you whether you've already called HeapProfilerStart() or not.
 
 For security reasons, heap profiling will not write to a file -- and is thus not usable -- for setuid programs.
+
+<div id='section-id-33'/>
 
 ### Modifying Runtime Behavior
 
@@ -74,9 +96,13 @@ You can more finely control the behavior of the heap profiler via environment va
 </tbody>
 </table>
 
+<div id='section-id-77'/>
+
 ### Checking for Leaks
 
 You can use the heap profiler to manually check for leaks, for instance by reading the profiler output and looking for large allocations. However, for that task, it's easier to use the [automatic heap-checking facility](heap_checker.md) built into tcmalloc.
+
+<div id='section-id-81'/>
 
 ## Analyzing the Output
 
@@ -102,6 +128,8 @@ Here are some examples. These examples assume the binary is named `gfs_master`, 
   /tmp/profile.0100.heap
 ```
 
+<div id='section-id-105'/>
+
 #### Why is a process so big
 
 <pre>    % pprof --gv gfs_master /tmp/profile.0100.heap</pre>
@@ -115,6 +143,8 @@ A few explanations:
 *   `GFS_MasterChunk::AddServer` accounts for 255.6 MB of the live memory, which is 25% of the total live memory.
 *   `GFS_MasterChunkTable::UpdateState` is directly accountable for 176.2 MB of the live memory (i.e., it directly allocated 176.2 MB that has not been freed yet). Furthermore, it and its callees are responsible for 729.9 MB. The labels on the outgoing edges give a good indication of the amount allocated by each callee.
 
+<div id='section-id-118'/>
+
 #### Comparing Profiles
 
 You often want to skip allocations during the initialization phase of a program so you can find gradual memory leaks. One simple way to do this is to compare two profiles -- both collected after the program has been running for a while. Specify the name of the first profile using the `--base` option. For example:
@@ -123,6 +153,8 @@ You often want to skip allocations during the initialization phase of a program 
 </pre>
 
 The memory-usage in `/tmp/profile.0004.heap` will be subtracted from the memory-usage in `/tmp/profile.0100.heap` and the result will be displayed.
+
+<div id='section-id-127'/>
 
 #### Text display
 
@@ -142,6 +174,8 @@ The memory-usage in `/tmp/profile.0004.heap` will be subtracted from the memory-
 *   The second and fifth columns are just percentage representations of the numbers in the first and fourth columns.
 *   The third column is a cumulative sum of the second column (i.e., the `k`th entry in the third column is the sum of the first `k` entries in the second column.)
 
+<div id='section-id-145'/>
+
 #### Ignoring or focusing on specific regions
 
 The following command will give a graphical display of a subset of the call-graph. Only paths in the call-graph that match the regular expression `DataBuffer` are included:
@@ -153,6 +187,8 @@ Similarly, the following command will omit all paths subset of the call-graph. A
 
 <pre>% pprof --gv --ignore=DataBuffer gfs_master /tmp/profile.0100.heap
 </pre>
+
+<div id='section-id-157'/>
 
 #### Total allocations + object-level information
 
@@ -181,9 +217,13 @@ All of the previous examples have displayed the amount of in-use space. I.e., th
 </table>
 </center>
 
+<div id='section-id-184'/>
+
 #### Interactive mode
 
 By default -- if you don't specify any flags to the contrary -- pprof runs in interactive mode. At the `(pprof)` prompt, you can run many of the commands described above. You can type `help` for a list of what commands are available in interactive mode.
+
+<div id='section-id-188'/>
 
 ## Caveats
 
