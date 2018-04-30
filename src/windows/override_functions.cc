@@ -66,10 +66,25 @@ void* _calloc_base(size_t n, size_t size) {
   return calloc(n, size);
 }
 
-void* _recalloc(void* p, size_t n, size_t size) {
-  void* result = realloc(p, n * size);
-  memset(result, 0, n * size);
-  return result;
+void* _recalloc(void* old_ptr, size_t n, size_t size) {
+  // Ensure that (n * size) does not overflow
+  if (!(n == 0 || (std::numeric_limits<size_t>::max)() / n >= size)) {
+    errno = ENOMEM;
+    return NULL;
+  }
+
+  const size_t old_size = tc_malloc_size(old_ptr);
+  const size_t new_size = n * size;
+
+  void* new_ptr = realloc(old_ptr, new_size);
+
+  // If the reallocation succeeded and the new block is larger, zero-fill the
+  // new bytes:
+  if (new_ptr != NULL && new_size > old_size) {
+    memset(static_cast<char*>(new_ptr) + old_size, 0, tc_nallocx(new_size, 0) - old_size);
+  }
+
+  return new_ptr;
 }
 
 void* _calloc_impl(size_t n, size_t size) {
