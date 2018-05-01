@@ -36,6 +36,9 @@
 /debugallocation_test
 /debugallocation_test.sh
 /depcomp
+/docs/*.html
+/docs/Makefile
+/docs/Makefile.in
 /frag_unittest
 /frag_unittest.exe
 /getpc_test
