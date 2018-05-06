@@ -76,7 +76,7 @@ MARKDOWN = pandoc --from markdown_github+pandoc_title_block --to html --standalo
 # Rule to convert markdown to HTML in 2 steps:
 # 1) convert markdown to HTML:
 # 2) convert markdown references to HTML ones:
-%.html: %.md
+.md.html:
 	$(MARKDOWN) $< --output $@ ; sed -i 's@href="\(.*\).md"@href="\1.html"@g' $@
 
 HTML_FILES = \
@@ -98,4 +98,4 @@ endif
 install-data-hook:
 	mkdir -p ${docdir}/images
 	cp -fv $(ADDITIONAL_IMAGES) $(ADDITIONAL_IMAGE_DOTFILES) ${docdir}/images
-	
+

@@ -133,7 +133,7 @@ googleinclude_HEADERS =				\
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README.md README_windows.txt \
+dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README_windows.txt \
                 TODO ChangeLog.old
 
 # The libraries (.so's) you want to install
