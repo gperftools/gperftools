@@ -1272,9 +1272,11 @@ void* handle_oom(malloc_fn retry_fn,
 
 // Copy of FLAGS_tcmalloc_large_alloc_report_threshold with
 // automatic increases factored in.
+#ifdef ENABLE_LARGE_ALLOC_REPORT
 static int64_t large_alloc_threshold =
   (kPageSize > FLAGS_tcmalloc_large_alloc_report_threshold
    ? kPageSize : FLAGS_tcmalloc_large_alloc_report_threshold);
+#endif
 
 static void ReportLargeAlloc(Length num_pages, void* result) {
   StackTrace stack;
@@ -1295,6 +1297,7 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
 
 // Must be called with the page lock held.
 inline bool should_report_large(Length num_pages) {
+#ifdef ENABLE_LARGE_ALLOC_REPORT
   const int64 threshold = large_alloc_threshold;
   if (threshold > 0 && num_pages >= (threshold >> kPageShift)) {
     // Increase the threshold by 1/8 every time we generate a report.
@@ -1303,6 +1306,7 @@ inline bool should_report_large(Length num_pages) {
                              ? threshold + threshold/8 : 8ll<<30);
     return true;
   }
+#endif
   return false;
 }
 

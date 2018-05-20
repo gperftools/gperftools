@@ -653,6 +653,15 @@ AC_COMPILE_IFELSE(
          AC_MSG_RESULT([yes])],
         [AC_MSG_RESULT([no])])
 
+# Disable large allocation report by default.
+AC_ARG_ENABLE([large-alloc-report],
+              [AS_HELP_STRING([--enable-large-alloc-report],
+                              [report very large allocations to stderr])],
+              [enable_large_alloc_report="$enableval"],
+              [enable_large_alloc_report=no])
+AS_IF([test "x$enable_large_alloc_report" = xyes],
+      [AC_DEFINE([ENABLE_LARGE_ALLOC_REPORT], 1, [report large allocation])])
+
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
