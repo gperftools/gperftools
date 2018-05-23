@@ -50,9 +50,10 @@ the above flags :-) ).
 QUICK INSTALLATION (linux)
 --------------------------
 
-sudo apt-get install google-perftools graphviz
+sudo apt-get install google-perftools
+sudo apt-get install gv graphviz # Only required for graphical chart output from pprof
 
-Note: graphical chart output from pprog requires graphvis.  If only textual output is needed, this package can be skipped.
+Note: graphical chart output from pprog requires the "dot" package, which is included in graphvis, and "gv" (ghostview).
 
 
 HEAP PROFILER
