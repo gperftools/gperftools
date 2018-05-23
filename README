@@ -47,12 +47,20 @@ lowest for folks who use tcmalloc_minimal (or who, of course, compile with
 the above flags :-) ).
 
 
+QUICK INSTALLATION (linux)
+--------------------------
+
+sudo apt-get install google-perftools graphviz
+
+Note: graphical chart output from pprog requires graphvis.  If only textual output is needed, this package can be skipped.
+
+
 HEAP PROFILER
 -------------
 See docs/heapprofile.html for information about how to use tcmalloc's
 heap profiler and analyze its output.
 
-As a quick-start, do the following after installing this package:
+As a quick-start, do the following after installing:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPPROFILE environment var set:
@@ -109,7 +117,7 @@ As a quick-start, here is one way to do so after having installed the gperftools
      $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
 3) Run google-pprof to analyze the CPU usage eg.:
      $ google-pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
-     $ google-pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical chart output - requires "graphviz" package to be installed
+     $ google-pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical chart output
 
 There are other environment variables, besides CPUPROFILE, you can set
 to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
