@@ -1315,7 +1315,7 @@ libprofiler_la_SOURCES = src/profiler.cc \
                          $(CPU_PROFILER_INCLUDES)
 libprofiler_la_LIBADD = libstacktrace.la libmaybe_threads.la libfake_stacktrace_scope.la
 # We have to include ProfileData for profiledata_unittest
-CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler)'
+CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler|GetStackTrace|GetStackFrames|GetStackTraceWithContext|GetStackFramesWithContext)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \
                          -version-info @PROFILER_SO_VERSION@
 
