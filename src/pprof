@@ -1310,7 +1310,7 @@ sub PrintCallgrind {
                            [$_, $1, $2] }
                      keys %$calls ) {
     my $count = int($calls->{$call});
-    $call =~ /([^:]+):(\d+):([^ ]+)( -> ([^:]+):(\d+):(.+))?/;
+    $call =~ /([^:]+):(\d+):(.+?(?= ->)|.+)( -> ([^:]+):(\d+):(.+))?/;
     my ( $caller_file, $caller_line, $caller_function,
          $callee_file, $callee_line, $callee_function ) =
        ( $1, $2, $3, $5, $6, $7 );
@@ -4992,8 +4992,8 @@ sub ShortFunctionName {
   $function =~ s/<[0-9a-f]*>$//g;                # Remove Address
   if (!$main::opt_no_strip_temp) {
       while ($function =~ s/<[^<>]*>//g)  { }   # Remove template arguments
+      $function =~ s/^.*\s+(\w+::)/$1/;         # Remove leading type
   }
-  $function =~ s/^.*\s+(\w+::)/$1/;          # Remove leading type
   return $function;
 }
 
