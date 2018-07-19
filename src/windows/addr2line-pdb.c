@@ -35,9 +35,17 @@
  * c:\websymbols without asking.
  */
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
+
+#ifndef _CRT_SECURE_NO_WARNINGS
 #define _CRT_SECURE_NO_WARNINGS
+#endif
+
+#ifndef _CRT_SECURE_NO_DEPRECATE
 #define _CRT_SECURE_NO_DEPRECATE
+#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -93,7 +101,7 @@ int main(int argc, char *argv[]) {
 
   if (!SymInitialize(process, NULL, FALSE)) {
     error = GetLastError();
-    fprintf(stderr, "SymInitialize returned error : %d\n", error);
+    fprintf(stderr, "SymInitialize returned error : %lu\n", error);
     return 1;
   }
 
@@ -107,13 +115,13 @@ int main(int argc, char *argv[]) {
     strcat(search, ";" WEBSYM);
   } else {
     error = GetLastError();
-    fprintf(stderr, "SymGetSearchPath returned error : %d\n", error);
+    fprintf(stderr, "SymGetSearchPath returned error : %lu\n", error);
     rv = 1;                   /* An error, but not a fatal one */
     strcpy(search, WEBSYM);   /* Use a default value */
   }
   if (!SymSetSearchPath(process, search)) {
     error = GetLastError();
-    fprintf(stderr, "SymSetSearchPath returned error : %d\n", error);
+    fprintf(stderr, "SymSetSearchPath returned error : %lu\n", error);
     rv = 1;                   /* An error, but not a fatal one */
   }
 
@@ -122,7 +130,7 @@ int main(int argc, char *argv[]) {
   if (!module_base) {
     /* SymLoadModuleEx failed */
     error = GetLastError();
-    fprintf(stderr, "SymLoadModuleEx returned error : %d for %s\n",
+    fprintf(stderr, "SymLoadModuleEx returned error : %lu for %s\n",
             error, filename);
     SymCleanup(process);
     return 1;
