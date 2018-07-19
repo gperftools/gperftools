@@ -57,8 +57,8 @@
 #define WEBSYM "SRV*c:\\websymbols*http://msdl.microsoft.com/download/symbols"
 
 void usage() {
-  fprintf(stderr, "usage: "
-          "addr2line-pdb [-f|--functions] [-C|--demangle] [-e filename]\n");
+  fprintf(stderr, "usage: addr2line-pdb "
+          "[-f|--functions] [-C|--demangle] [-e|--exe filename]\n");
   fprintf(stderr, "(Then list the hex addresses on stdin, one per line)\n");
 }
 
@@ -81,7 +81,8 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "--demangle") == 0 ||
                strcmp(argv[i], "-C") == 0) {
       symopts |= SYMOPT_UNDNAME;
-    } else if (strcmp(argv[i], "-e") == 0) {
+    } else if (strcmp(argv[i], "--exe") == 0 ||
+               strcmp(argv[i], "-e") == 0) {
       if (i + 1 >= argc) {
         fprintf(stderr, "FATAL ERROR: -e must be followed by a filename\n");
         return 1;
