@@ -361,7 +361,7 @@ double StandardDeviationsErrorInSample(
 }
 
 TEST(Sampler, LargeAndSmallAllocs_CombinedTest) {
-  tcmalloc::Sampler sampler;
+  tcmalloc::Sampler sampler{0, 0, false};
   sampler.Init(1);
   int counter_big = 0;
   int counter_small = 0;
