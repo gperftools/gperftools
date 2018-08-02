@@ -41,6 +41,7 @@
 #include "base/spinlock.h"
 #include "central_freelist.h"
 #include "common.h"
+#include "guarded_page_allocator.h"
 #include "page_heap.h"
 #include "page_heap_allocator.h"
 #include "span.h"
@@ -71,6 +72,13 @@ class Static {
 
   // Page-level allocator.
   static PageHeap* pageheap() { return reinterpret_cast<PageHeap *>(&pageheap_.memory); }
+
+  // Linker initialized, so this lock can be accessed at any time.
+  static SpinLock* guardedpage_lock() { return &guardedpage_lock_; }
+
+  static GuardedPageAllocator* guardedpage_allocator() {
+    return &guardedpage_allocator_;
+  }
 
   static PageHeapAllocator<Span>* span_allocator() { return &span_allocator_; }
 
@@ -104,6 +112,8 @@ class Static {
 
   ATTRIBUTE_HIDDEN static SizeMap sizemap_;
   ATTRIBUTE_HIDDEN static CentralFreeListPadded central_cache_[kClassSizesMax];
+  ATTRIBUTE_HIDDEN static SpinLock guardedpage_lock_;
+  ATTRIBUTE_HIDDEN static GuardedPageAllocator guardedpage_allocator_;
   ATTRIBUTE_HIDDEN static PageHeapAllocator<Span> span_allocator_;
   ATTRIBUTE_HIDDEN static PageHeapAllocator<StackTrace> stacktrace_allocator_;
   ATTRIBUTE_HIDDEN static Span sampled_objects_;

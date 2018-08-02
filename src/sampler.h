@@ -43,8 +43,11 @@
 #endif
 #include <string.h>                     // for memcpy
 #include "base/basictypes.h"  // for ASSERT
+#include "base/commandlineflags.h"
 #include "internal_logging.h"  // for ASSERT
 #include "static_vars.h"
+
+DECLARE_int32(tcmalloc_guarded_sample_parameter);
 
 namespace tcmalloc {
 
@@ -122,8 +125,15 @@ class PERFTOOLS_DLL_DECL Sampler {
   // "escalate" to fuller and slower logic only if necessary.
   bool TryRecordAllocationFast(size_t k);
 
+  // If the guarded sampling point has been reached, selects a new sampling
+  // point and returns true.  Otherwise returns false.
+  bool ShouldSampleGuardedAllocation();
+
   // Generate a geometric with mean 512K (or FLAG_tcmalloc_sample_parameter)
   ssize_t PickNextSamplingPoint();
+
+  // Generates a geometric with mean FLAGS_tcmalloc_guarded_sample_parameter.
+  ssize_t PickNextGuardedSamplingPoint();
 
   // Returns the current sample period
   static int GetSamplePeriod();
@@ -151,6 +161,10 @@ class PERFTOOLS_DLL_DECL Sampler {
  private:
   friend class SamplerTest;
   bool RecordAllocationSlow(size_t k);
+  ssize_t GetGeometricVariable(ssize_t mean);
+
+  // Number of sampled allocations until we do a guarded allocation.
+  ssize_t allocs_until_guarded_sample_;
 };
 
 inline bool Sampler::RecordAllocation(size_t k) {
@@ -209,6 +223,16 @@ inline bool Sampler::TryRecordAllocationFast(size_t k) {
     return false;
   }
   return true;
+}
+
+inline bool Sampler::ShouldSampleGuardedAllocation() {
+  if (FLAGS_tcmalloc_guarded_sample_parameter < 0) return false;
+  allocs_until_guarded_sample_--;
+  if (PREDICT_FALSE(allocs_until_guarded_sample_ < 0)) {
+    allocs_until_guarded_sample_ = PickNextGuardedSamplingPoint();
+    return true;
+  }
+  return false;
 }
 
 // Inline functions which are public for testing purposes

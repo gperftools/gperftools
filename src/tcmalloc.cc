@@ -1163,6 +1163,26 @@ static inline ATTRIBUTE_ALWAYS_INLINE void* SpanToMallocResult(Span *span) {
       CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
 }
 
+#ifndef NO_TCMALLOC_SAMPLES
+// If this allocation can be guarded, and if it's time to do a guarded sample,
+// returns a guarded allocation Span.  Otherwise returns nullptr.
+//
+// The returned Span satisfies the alignment constraint since
+// GuardedPageAllocator always aligns its allocations to kPageSize.
+static Span* TrySampleGuardedAllocation(size_t size, Length num_pages) {
+  if (num_pages == 1 &&
+      ThreadCache::GetCache()->ShouldSampleGuardedAllocation()) {
+    if (void* guarded_alloc = Static::guardedpage_allocator()->Allocate(size)) {
+      const PageID p = reinterpret_cast<uintptr_t>(guarded_alloc) >> kPageShift;
+      Span* span = tcmalloc::NewSpan(p, num_pages);
+      Static::pageheap()->RecordSpan(span);
+      return span;
+    }
+  }
+  return nullptr;
+}
+#endif
+
 static void* DoSampledAllocation(size_t size) {
 #ifndef NO_TCMALLOC_SAMPLES
   // Grab the stack trace outside the heap lock
@@ -1172,7 +1192,13 @@ static void* DoSampledAllocation(size_t size) {
 
   SpinLockHolder h(Static::pageheap_lock());
   // Allocate span
-  Span *span = Static::pageheap()->New(tcmalloc::pages(size == 0 ? 1 : size));
+  Span* span = NULL;
+  Length num_pages = tcmalloc::pages(size == 0 ? 1 : size);
+  if (Span* guarded_span = TrySampleGuardedAllocation(size, num_pages)) {
+    span = guarded_span;
+  } else {
+    span = Static::pageheap()->New(num_pages);
+  }
   if (PREDICT_FALSE(span == NULL)) {
     return NULL;
   }
@@ -1411,7 +1437,12 @@ static ATTRIBUTE_NOINLINE void do_free_pages(Span* span, void* ptr) {
     Static::stacktrace_allocator()->Delete(st);
     span->objects = NULL;
   }
-  Static::pageheap()->Delete(span);
+  if (Static::guardedpage_allocator()->PointerIsMine(ptr)) {
+    Static::guardedpage_allocator()->Deallocate(ptr);
+    tcmalloc::DeleteSpan(span);
+  } else {
+    Static::pageheap()->Delete(span);
+  }
 }
 
 // Helper for the object deletion (free, delete, etc.).  Inputs:

@@ -98,6 +98,8 @@ class ThreadCache {
 
   bool TryRecordAllocationFast(size_t k);
 
+  bool ShouldSampleGuardedAllocation();
+
   static void         InitModule();
   static void         InitTSD();
   static ThreadCache* GetThreadHeap();
@@ -504,6 +506,10 @@ inline bool ThreadCache::TryRecordAllocationFast(size_t k) {
 }
 
 #endif
+
+inline bool ThreadCache::ShouldSampleGuardedAllocation() {
+  return sampler_.ShouldSampleGuardedAllocation();
+}
 
 }  // namespace tcmalloc
 

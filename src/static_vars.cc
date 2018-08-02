@@ -77,6 +77,8 @@ Span Static::sampled_objects_;
 PageHeapAllocator<StackTraceTable::Bucket> Static::bucket_allocator_;
 StackTrace* Static::growth_stacks_ = NULL;
 Static::PageHeapStorage Static::pageheap_;
+SpinLock Static::guardedpage_lock_(SpinLock::LINKER_INITIALIZED);
+GuardedPageAllocator Static::guardedpage_allocator_;
 
 void Static::InitStaticVars() {
   sizemap_.Init();
@@ -98,6 +100,8 @@ void Static::InitStaticVars() {
       TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"), false);
 
   pageheap()->SetAggressiveDecommit(aggressive_decommit);
+
+  guardedpage_allocator_.Init(GuardedPageAllocator::kGpaMaxPages);
 
   inited_ = true;
 

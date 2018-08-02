@@ -55,6 +55,14 @@ DEFINE_int64(tcmalloc_sample_parameter,
              "This must be between 1 and 2^58.");
 #endif
 
+// The approximate number of samples between guarded allocations.  So
+// approximately every tcmalloc_guarded_sample_parameter samples, a guarded
+// allocation will occur.
+DEFINE_int32(tcmalloc_guarded_sample_parameter,
+             EnvToInt("TCMALLOC_GUARDED_SAMPLE_PARAMETER", -1),
+             "The approximate number of samples between guarded allocations. "
+             "Values less than 0 disable guarded allocations.");
+
 namespace tcmalloc {
 
 int Sampler::GetSamplePeriod() {
@@ -71,23 +79,13 @@ void Sampler::Init(uint64_t seed) {
   for (int i = 0; i < 20; i++) {
     rnd_ = NextRandom(rnd_);
   }
-  // Initialize counter
+  // Initialize counters
   bytes_until_sample_ = PickNextSamplingPoint();
+  allocs_until_guarded_sample_ = PickNextGuardedSamplingPoint();
 }
 
 #define MAX_SSIZE (static_cast<ssize_t>(static_cast<size_t>(static_cast<ssize_t>(-1)) >> 1))
 
-// Generates a geometric variable with the specified mean (512K by default).
-// This is done by generating a random number between 0 and 1 and applying
-// the inverse cumulative distribution function for an exponential.
-// Specifically: Let m be the inverse of the sample period, then
-// the probability distribution function is m*exp(-mx) so the CDF is
-// p = 1 - exp(-mx), so
-// q = 1 - p = exp(-mx)
-// log_e(q) = -mx
-// -log_e(q)/m = x
-// log_2(q) * (-log_e(2) * 1/m) = x
-// In the code, q is actually in the range 1 to 2**26, hence the -26 below
 ssize_t Sampler::PickNextSamplingPoint() {
   if (FLAGS_tcmalloc_sample_parameter <= 0) {
     // In this case, we don't want to sample ever, and the larger a
@@ -98,7 +96,33 @@ ssize_t Sampler::PickNextSamplingPoint() {
     // again.
     return 16 << 20;
   }
+  return GetGeometricVariable(FLAGS_tcmalloc_sample_parameter);
+}
 
+ssize_t Sampler::PickNextGuardedSamplingPoint() {
+  if (FLAGS_tcmalloc_guarded_sample_parameter < 0) {
+    // Guarded sampling is disabled but could be turned on at run time.  So we
+    // return a sampling point (default mean=100) in case guarded sampling is
+    // later enabled.  Since the flag is also checked in
+    // ShouldSampleGuardedAllocation(), guarded sampling is still guaranteed
+    // not to run until it is enabled.
+    return GetGeometricVariable(/*mean=*/100);
+  }
+  return GetGeometricVariable(FLAGS_tcmalloc_guarded_sample_parameter);
+}
+
+// Generates a geometric variable with the specified mean.
+// This is done by generating a random number between 0 and 1 and applying
+// the inverse cumulative distribution function for an exponential.
+// Specifically: Let m be the inverse of the sample period, then
+// the probability distribution function is m*exp(-mx) so the CDF is
+// p = 1 - exp(-mx), so
+// q = 1 - p = exp(-mx)
+// log_e(q) = -mx
+// -log_e(q)/m = x
+// log_2(q) * (-log_e(2) * 1/m) = x
+// In the code, q is actually in the range 1 to 2**26, hence the -26 below
+ssize_t Sampler::GetGeometricVariable(ssize_t mean) {
   rnd_ = NextRandom(rnd_);
   // Take the top 26 bits as the random number
   // (This plus the 1<<58 sampling bound give a max possible step of
@@ -108,8 +132,7 @@ ssize_t Sampler::PickNextSamplingPoint() {
   // under piii debug for some binaries.
   double q = static_cast<uint32_t>(rnd_ >> (prng_mod_power - 26)) + 1.0;
   // Put the computed p-value through the CDF of a geometric.
-  double interval =
-      (log2(q) - 26) * (-log(2.0) * FLAGS_tcmalloc_sample_parameter);
+  double interval = (log2(q) - 26) * (-log(2.0) * mean);
 
   // Very large values of interval overflow ssize_t. If we happen to
   // hit such improbable condition, we simply cheat and clamp interval

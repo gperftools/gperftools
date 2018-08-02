@@ -438,6 +438,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/libc_override_redefine.h \
                               src/page_heap.h \
                               src/page_heap_allocator.h \
+                              src/guarded_page_allocator.h \
                               src/span.h \
                               src/static_vars.h \
                               src/symbolize.h \
@@ -464,6 +465,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           src/memfs_malloc.cc \
                                           src/central_freelist.cc \
                                           src/page_heap.cc \
+                                          src/guarded_page_allocator.cc \
                                           src/sampler.cc \
                                           src/span.cc \
                                           src/stack_trace_table.cc \
@@ -695,6 +697,19 @@ memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
 memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 memalign_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+
+TESTS += guarded_page_allocator_test.sh
+guarded_page_allocator_test_sh_SOURCES = src/tests/guarded_page_allocator_test.sh
+noinst_SCRIPTS += $(guarded_page_allocator_test_sh_SOURCES)
+guarded_page_allocator_test.sh: $(top_srcdir)/$(guarded_page_allocator_test_sh_SOURCES) guarded_page_allocator_test
+	rm -f $@
+	cp -p $(top_srcdir)/$(guarded_page_allocator_test_sh_SOURCES) $@
+
+noinst_PROGRAMS += guarded_page_allocator_test
+guarded_page_allocator_test_SOURCES = src/tests/guarded_page_allocator_test.cc
+guarded_page_allocator_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+guarded_page_allocator_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+guarded_page_allocator_test_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 endif !OSX
 endif !MINGW
 

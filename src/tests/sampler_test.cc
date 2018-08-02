@@ -114,6 +114,7 @@ template<typename T> class scoped_array {
 // kSigmas=4:    ~99.993666%
 static const double kSigmas = 4;
 static const size_t kSamplingInterval = 512*1024;
+static const size_t kGuardedSamplingInterval = 100;
 
 // Tests that GetSamplePeriod returns the expected value
 // which is 1<<19
@@ -260,6 +261,29 @@ TEST(Sampler, TestNextRandom_MultipleValues) {
   TestNextRandom(10000);  // Make sure there's no systematic error
 }
 
+void TestSampleAndersonDarling(int sample_period,
+                               std::vector<uint64_t>* sample) {
+  // First sort them...
+  sort(sample->begin(), sample->end());
+  int n = sample->size();
+  std::vector<double> random_sample(n);
+  // Convert them to uniform random numbers
+  // by applying the geometric CDF
+  for (int i = 0; i < n; i++) {
+    random_sample[i] =
+        1 - exp(-static_cast<double>((*sample)[i]) / sample_period);
+  }
+  // Now compute the Anderson-Darling statistic
+  double geom_ad_pvalue = AndersonDarlingTest(n, random_sample.data());
+  LOG(INFO) << StringPrintf(
+      "pvalue for geometric AndersonDarlingTest "
+      "with n= %d is p= %f\n",
+      n, geom_ad_pvalue);
+  CHECK_GT(min(geom_ad_pvalue, 1 - geom_ad_pvalue), 0.0001);
+  //          << "PickNextSamplingPoint does not produce good "
+  //             "geometric/exponential random numbers\n";
+}
+
 // Tests that PickNextSamplePeriod generates
 // geometrically distributed random numbers.
 // First converts to uniforms then applied the
@@ -267,7 +291,7 @@ TEST(Sampler, TestNextRandom_MultipleValues) {
 void TestPickNextSample(int n) {
   tcmalloc::Sampler sampler;
   sampler.Init(1);
-  scoped_array<uint64_t> int_random_sample(new uint64_t[n]);
+  std::vector<uint64_t> int_random_sample(n);
   int sample_period = sampler.GetSamplePeriod();
   int ones_count = 0;
   for (int i = 0; i < n; i++) {
@@ -278,22 +302,7 @@ void TestPickNextSample(int n) {
     }
     CHECK_LT(ones_count, 4); // << " out of " << i << " samples.";
   }
-  // First sort them...
-  sort(int_random_sample.get(), int_random_sample.get() + n);
-  scoped_array<double> random_sample(new double[n]);
-  // Convert them to uniform random numbers
-  // by applying the geometric CDF
-  for (int i = 0; i < n; i++) {
-    random_sample[i] = 1 - exp(-static_cast<double>(int_random_sample[i])
-                           / sample_period);
-  }
-  // Now compute the Anderson-Darling statistic
-  double geom_ad_pvalue = AndersonDarlingTest(n, random_sample.get());
-  LOG(INFO) << StringPrintf("pvalue for geometric AndersonDarlingTest "
-                             "with n= %d is p= %f\n", n, geom_ad_pvalue);
-  CHECK_GT(min(geom_ad_pvalue, 1 - geom_ad_pvalue), 0.0001);
-      //          << "PickNextSamplingPoint does not produce good "
-      //             "geometric/exponential random numbers\n";
+  TestSampleAndersonDarling(sample_period, &int_random_sample);
 }
 
 TEST(Sampler, TestPickNextSample_MultipleValues) {
@@ -303,6 +312,23 @@ TEST(Sampler, TestPickNextSample_MultipleValues) {
   TestPickNextSample(10000);  // Make sure there's no systematic error
 }
 
+void TestPickNextGuardedSample(int n) {
+  tcmalloc::Sampler sampler;
+  sampler.Init(1);
+  std::vector<uint64_t> int_random_sample(n);
+  for (int i = 0; i < n; i++) {
+    int_random_sample[i] = 1 + sampler.PickNextGuardedSamplingPoint();
+    CHECK_GE(int_random_sample[i], 1);
+  }
+  TestSampleAndersonDarling(kGuardedSamplingInterval, &int_random_sample);
+}
+
+TEST(Sampler, TestPickNextGuardedSample_MultipleValues) {
+  TestPickNextGuardedSample(10);  // Make sure the first few are good (enough)
+  TestPickNextGuardedSample(100);
+  TestPickNextGuardedSample(1000);
+  TestPickNextGuardedSample(10000);  // Make sure there's no systematic error
+}
 
 // This is superceeded by the Anderson-Darling Test
 // and it not run now.
@@ -327,16 +353,20 @@ void TestLRand64Spread() {
 
 // Futher tests
 
-bool CheckMean(size_t mean, int num_samples) {
+void CheckMean(size_t mean, int num_samples, bool guarded) {
   tcmalloc::Sampler sampler;
   sampler.Init(1);
   size_t total = 0;
   for (int i = 0; i < num_samples; i++) {
-    total += sampler.PickNextSamplingPoint();
+    if (guarded) {
+      total += sampler.PickNextGuardedSamplingPoint();
+    } else {
+      total += sampler.PickNextSamplingPoint();
+    }
   }
   double empirical_mean = total / static_cast<double>(num_samples);
   double expected_sd = mean / pow(num_samples * 1.0, 0.5);
-  return(fabs(mean-empirical_mean) < expected_sd * kSigmas);
+  EXPECT_LT(fabs(mean - empirical_mean), expected_sd * kSigmas);
 }
 
 // Prints a sequence so you can look at the distribution
@@ -392,9 +422,26 @@ TEST(Sampler, LargeAndSmallAllocs_CombinedTest) {
   CHECK_LE(fabs(small_allocs_sds), kSigmas);
 }
 
+TEST(Sampler, TestShouldSampleGuardedAllocation) {
+  tcmalloc::Sampler sampler;
+  sampler.Init(1);
+  int counter = 0;
+  int num_iters = 10000;
+  for (int i = 0; i < num_iters; i++) {
+    if (sampler.ShouldSampleGuardedAllocation()) {
+      counter++;
+    }
+  }
+  double sd = StandardDeviationsErrorInSample(num_iters, counter,
+                                              /*alloc_size=*/1,
+                                              kGuardedSamplingInterval);
+  EXPECT_LE(fabs(sd), kSigmas);
+}
+
 // Tests whether the mean is about right over 1000 samples
 TEST(Sampler, IsMeanRight) {
-  CHECK(CheckMean(kSamplingInterval, 1000));
+  CheckMean(kSamplingInterval, 1000, /*guarded=*/false);
+  CheckMean(kGuardedSamplingInterval, 1000, /*guarded=*/true);
 }
 
 // This flag is for the OldSampler class to use
@@ -627,5 +674,6 @@ DECLARE_int64(tcmalloc_sample_parameter);
 int main(int argc, char **argv) {
   if (FLAGS_tcmalloc_sample_parameter == 0)
     FLAGS_tcmalloc_sample_parameter = 524288;
+  FLAGS_tcmalloc_guarded_sample_parameter = kGuardedSamplingInterval;
   return RUN_ALL_TESTS();
 }

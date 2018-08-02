@@ -200,6 +200,15 @@ class PERFTOOLS_DLL_DECL PageHeap {
                  int freelist);  // ON_NORMAL_FREELIST or ON_RETURNED_FREELIST
   bool CheckSet(SpanSet *s, Length min_pages, int freelist);
 
+  bool Ensure(PageID p, size_t n) { return pagemap_.Ensure(p, n); }
+
+  void RecordSpan(Span* span) {
+    pagemap_.set(span->start, span);
+    if (span->length > 1) {
+      pagemap_.set(span->start + span->length - 1, span);
+    }
+  }
+
   // Try to release at least num_pages for reuse by the OS.  Returns
   // the actual number of pages released, which may be less than
   // num_pages if there weren't enough pages to release. The result
@@ -294,13 +303,6 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // to the client.  After all that, decrease free_pages_ by n and
   // return span.
   Span* Carve(Span* span, Length n);
-
-  void RecordSpan(Span* span) {
-    pagemap_.set(span->start, span);
-    if (span->length > 1) {
-      pagemap_.set(span->start + span->length - 1, span);
-    }
-  }
 
   // Allocate a large span of length == n.  If successful, returns a
   // span of exactly the specified length.  Else, returns NULL.
