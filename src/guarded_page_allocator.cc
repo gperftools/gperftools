@@ -293,7 +293,7 @@ static void SegvHandler(int signo, siginfo_t *info, void *context) {
             info->si_addr, &alloc_trace, &dealloc_trace);
     if (error != GuardedPageAllocator::ErrorType::kUnknown) {
       Log(kLog, __FILE__, __LINE__,
-          "*** go/gwp-asan has detected a memory error ***");
+          "*** TCMalloc has detected a memory error ***");
       Log(kLog, __FILE__, __LINE__,
           "Error originates from memory allocated at:");
       DumpStackTrace(alloc_trace);
