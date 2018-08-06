@@ -36,6 +36,7 @@ BINDIR="${BINDIR:-.}"
 # We expect PPROF_PATH to be set in the environment.
 # If not, we set it to some reasonable value
 export PPROF_PATH="${PPROF_PATH:-$BINDIR/src/pprof}"
+export TCMALLOC_GUARDED_SAMPLE_PARAMETER=100  # Enable GWP-ASan
 
 GUARDED_PAGE_ALLOCATOR_TEST="${1:-$BINDIR/guarded_page_allocator_test}"
 

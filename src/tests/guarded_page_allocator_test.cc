@@ -39,11 +39,8 @@
 #include <set>
 #include <thread>
 
-#include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "common.h"
-
-DECLARE_int32(tcmalloc_guarded_sample_parameter);
 
 namespace {
 
@@ -273,8 +270,6 @@ int main(int argc, char *argv[]) {
   GpaPointerIsMine();
   GpaThreadedAllocCount();
   GpaThreadedHighContention();
-
-  FLAGS_tcmalloc_guarded_sample_parameter = 100;
 
   TcMallocUnderflowReadDetected();
   TcMallocOverflowReadDetected();

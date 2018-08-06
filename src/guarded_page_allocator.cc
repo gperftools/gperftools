@@ -42,6 +42,7 @@
 #include <algorithm>
 
 #include "base/basictypes.h"
+#include "base/commandlineflags.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
@@ -322,6 +323,7 @@ static void SegvHandler(int signo, siginfo_t *info, void *context) {
 
 // Registers SegvHandler() during module initialization.
 static void RegisterSegvHandler() {
+  if (EnvToInt("TCMALLOC_GUARDED_SAMPLE_PARAMETER", -1) < 0) return;
   struct sigaction new_sa = {};
   int err = sigaction(SIGSEGV, nullptr, &new_sa);
   ASSERT(err != -1);
