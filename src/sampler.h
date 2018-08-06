@@ -105,6 +105,8 @@ class SamplerTest;
 
 class PERFTOOLS_DLL_DECL Sampler {
  public:
+  constexpr Sampler() {}
+
   // Initialize this sampler.
   void Init(uint64_t seed);
 
@@ -144,13 +146,13 @@ class PERFTOOLS_DLL_DECL Sampler {
   //
   // Always non-negative with only very brief exceptions (see
   // DecrementFast{,Finish}, so casting to size_t is ok.
-  ssize_t bytes_until_sample_;
-  uint64_t rnd_;  // Cheap random number generator
-  bool initialized_;
-
  private:
   friend class SamplerTest;
   bool RecordAllocationSlow(size_t k);
+
+  ssize_t bytes_until_sample_{};
+  uint64_t rnd_{};  // Cheap random number generator
+  bool initialized_{};
 };
 
 inline bool Sampler::RecordAllocation(size_t k) {
