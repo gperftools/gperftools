@@ -1152,8 +1152,8 @@ static union {
 
 REGISTER_MODULE_INITIALIZER(debugallocation, {
 #if (__cplusplus >= 201103L)
-    COMPILE_ASSERT(alignof(debug_malloc_implementation_space) >= alignof(DebugMallocImplementation),
-                   debug_malloc_implementation_space_is_not_properly_aligned);
+    static_assert(alignof(decltype(debug_malloc_implementation_space)) >= alignof(DebugMallocImplementation),
+                  "DebugMallocImplementation is expected to need just word alignment");
 #endif
   // Either we or valgrind will control memory management.  We
   // register our extension if we're the winner. Otherwise let
