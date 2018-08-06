@@ -149,6 +149,8 @@ AC_PROG_CPP
 AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
 AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
 
+AX_CXX_COMPILE_STDCXX(11, ext, mandatory)
+
 # Check if we have an objcopy installed that supports -W
 AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
 AS_IF([test -n "$OBJCOPY"], [dnl
@@ -465,14 +467,6 @@ AC_MSG_CHECKING([for __builtin_stack_pointer()])
 AC_LINK_IFELSE([AC_LANG_PROGRAM(, [void *sp = __builtin_stack_pointer()])],
                [AC_DEFINE(HAVE_BUILTIN_STACK_POINTER, 1,
                       Define to 1 if compiler supports __builtin_stack_pointer)
-                AC_MSG_RESULT([yes])],
-               [AC_MSG_RESULT([no])])
-
-# Check for __builtin_expect()
-AC_MSG_CHECKING([for __builtin_expect()])
-AC_LINK_IFELSE([AC_LANG_PROGRAM(, return __builtin_expect(main != 0, 1))],
-               [AC_DEFINE(HAVE_BUILTIN_EXPECT, 1,
-                          Define to 1 if compiler supports __builtin_expect)
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
 

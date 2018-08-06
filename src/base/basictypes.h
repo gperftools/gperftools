@@ -117,7 +117,7 @@ const  int64 kint64min =  ( (((uint64) kint32min) << 32) | 0 );
 #define PRINTABLE_PTHREAD(pthreadt) pthreadt
 #endif
 
-#ifdef HAVE_BUILTIN_EXPECT
+#if defined(__GNUC__)
 #define PREDICT_TRUE(x) __builtin_expect(!!(x), 1)
 #define PREDICT_FALSE(x) __builtin_expect(!!(x), 0)
 #else

@@ -30,8 +30,8 @@
  * ---
  * Author: Joi Sigurdsson
  *
- * Opcode decoding maps.  Based on the IA-32 Intel® Architecture
- * Software Developer’s Manual Volume 2: Instruction Set Reference.  Idea
+ * Opcode decoding maps.  Based on the IA-32 IntelÂ® Architecture
+ * Software Developer's Manual Volume 2: Instruction Set Reference.  Idea
  * for how to lay out the tables in memory taken from the implementation
  * in the Bastard disassembly environment.
  */
