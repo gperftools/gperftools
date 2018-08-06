@@ -31,6 +31,8 @@
 // ---
 // Author: Matt Morehouse
 
+#if defined(__GNUC__) && defined(__linux__)
+
 #include "guarded_page_allocator.h"
 
 #include <fcntl.h>
@@ -337,3 +339,5 @@ static void RegisterSegvHandler() {
 REGISTER_MODULE_INITIALIZER(tcmalloc_segv_handler, RegisterSegvHandler());
 
 }  // namespace tcmalloc
+
+#endif  // defined(__GNUC__) && defined(__linux__)

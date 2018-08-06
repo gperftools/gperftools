@@ -77,6 +77,7 @@ namespace tcmalloc {
 //     return 0;
 //   }
 class GuardedPageAllocator {
+#if defined(__GNUC__) && defined(__linux__)
  public:
   // Maximum number of pages this class can allocate.
   static constexpr size_t kGpaMaxPages = 64;
@@ -216,6 +217,34 @@ class GuardedPageAllocator {
 
   // Flag to control whether we can return allocations or not.
   bool allow_allocations_;
+#else
+ public:
+  static constexpr size_t kGpaMaxPages = 64;
+
+  enum class ErrorType {
+    kUseAfterFree,
+    kBufferUnderflow,
+    kBufferOverflow,
+    kUnknown,
+  };
+
+  constexpr GuardedPageAllocator() {}
+  GuardedPageAllocator(const GuardedPageAllocator &) = delete;
+  GuardedPageAllocator &operator=(const GuardedPageAllocator &) = delete;
+  ~GuardedPageAllocator() = default;
+
+  void Init(size_t num_pages) {}
+  void Destroy() {}
+  void *Allocate(size_t size) { return nullptr; }
+  void Deallocate(void *ptr) {}
+  size_t GetRequestedSize(const void *ptr) const { return 0; }
+  ErrorType GetStackTraces(const void *ptr, StackTrace *alloc_trace,
+                           StackTrace *dealloc_trace) const {
+    return ErrorType::kUnknown;
+  }
+  inline bool PointerIsMine(const void *ptr) const { return false; }
+  void AllowAllocations() {}
+#endif  // defined(__GNUC__) && defined(__linux__)
 };
 
 }  // namespace tcmalloc
