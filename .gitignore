@@ -41,6 +41,8 @@
 /getpc_test
 /gperftools-*.tar.gz
 /gperftools-*.zip
+/guarded_page_allocator_test
+/guarded_page_allocator_test.sh
 /heap-checker-death_unittest.sh
 /heap-checker_debug_unittest
 /heap-checker_debug_unittest.sh
