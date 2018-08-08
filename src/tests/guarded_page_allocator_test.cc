@@ -31,6 +31,8 @@
 // ---
 // Author: Matt Morehouse
 
+#if defined(__GNUC__) && defined(__linux__)
+
 #include "guarded_page_allocator.h"
 
 #include <time.h>
@@ -279,3 +281,10 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "DONE\n");
   return 0;
 }
+
+#else
+int main(int argc, char *argv[]) {
+  fprintf(stderr, "DONE\n");
+  return 0;
+}
+#endif  // defined(__GNUC__) && defined(__linux__)
