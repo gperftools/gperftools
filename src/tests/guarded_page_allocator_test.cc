@@ -251,12 +251,11 @@ void TcMallocStackTraceCorrect() {
       ValidUse();
     }
   };
+  EXPECT_DEATH(
+      RepeatValidUseAndUseAfterFree(),
+      "Error originates from memory allocated at:{{4}}@.*UseAfterFree");
   EXPECT_DEATH(RepeatValidUseAndUseAfterFree(),
-               "Error originates from memory allocated at:\\\\n.*\\\\n?.*\\\\n?"
-               ".*\\\\n?.*@.*UseAfterFree");
-  EXPECT_DEATH(RepeatValidUseAndUseAfterFree(),
-               "The memory was freed at:\\\\n.*\\\\n?.*\\\\n?\\\\n?"
-               ".*@.*UseAfterFree");
+               "The memory was freed at:{{4}}@.*UseAfterFree");
 }
 
 }  // namespace

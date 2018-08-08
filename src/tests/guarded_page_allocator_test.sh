@@ -44,6 +44,28 @@ PrintRemainingOutput() {
   while read line; do echo "$line"; done
 }
 
+# Returns 0 if my_regex matches against my_output.  Otherwise returns 1.
+#
+# If my_regex has the form "regex1{{num_lines}}regex2", then returns 0 only if
+# regex1 matches against my_output AND regex2 also matches my_output within
+# num_lines after the regex1 match.
+MultilineGrep() {
+  my_regex="$1"
+  my_output="$2"
+  if echo "$my_regex" | grep "{{[0-9]*}}"; then
+    # Multiline regex
+    first_regex="$(echo "$my_regex" | grep -o "^[^{]*")"
+    num_lines="$(echo "$my_regex" | grep -o "{{[0-9]*}}" | grep -o "[0-9]*")"
+    second_regex="$(echo "$my_regex" | grep -o "}}.*$" | grep -o "[^}]*$")"
+    echo "$my_output" \
+      | grep -A"$num_lines" "$first_regex" \
+      | grep -o "$second_regex"
+  else
+    # Single line regex
+    echo "$my_output" | grep -o "$my_regex"
+  fi
+}
+
 # Return 0 if death test crashes with expected regex
 # Return 1 if death test crashes with wrong regex
 # Return 2 if death test doesn't crash
@@ -63,10 +85,10 @@ RunDeathTest() {
         break
       fi
     done
-    [[ "$is_death_test" = false ]] && return 3
+    [ "$is_death_test" = false ] && return 3
     remaining_output="$(PrintRemainingOutput)"
     echo "$remaining_output" | tail -n1 | grep "DONE" && return 2
-    echo "$remaining_output" | grep -zoP "$regex"
+    MultilineGrep "$regex" "$remaining_output"
   }
 }
 
@@ -76,15 +98,15 @@ while :; do
   echo -n "Running death test $death_test_num..."
   RunDeathTest $death_test_num
   death_test_status=$?
-  if [[ $death_test_status == 0 ]]; then
+  if [ "$death_test_status" = 0 ]; then
     echo "OK"
-  elif [[ $death_test_status == 1 ]]; then
+  elif [ "$death_test_status" = 1 ]; then
     echo "FAILED. Output mismatch"
     num_failures=$(expr $num_failures + 1)
-  elif [[ $death_test_status == 2 ]]; then
+  elif [ "$death_test_status" = 2 ]; then
     echo "FAILED. No crash"
     num_failures=$(expr $num_failures + 1)
-  elif [[ $death_test_status == 3 ]]; then
+  elif [ "$death_test_status" = 3 ]; then
     echo "done with death tests"
     break
   else
@@ -94,7 +116,7 @@ while :; do
   death_test_num=$(expr $death_test_num + 1)
 done
 
-if [[ "$num_failures" = 0 ]]; then
+if [ "$num_failures" = 0 ]; then
   echo "PASS"
 else
   echo "Failed with $num_failures failures"
