@@ -78,10 +78,7 @@ RunDeathTest() {
       if echo "$line" | grep "EXPECT_DEATH"; then
         is_death_test=true
         read regex_line
-        if echo "$regex_line" | grep "Expected regex:"; then
-          has_regex=true
-          regex="$(expr "$regex_line" : "Expected regex:\(.*\)")"
-        fi
+        regex="$(expr "$regex_line" : "Expected regex:\(.*\)")"
         break
       fi
     done
