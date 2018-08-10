@@ -526,7 +526,6 @@ LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 
 TESTS += tcmalloc_minimal_unittest
 WINDOWS_PROJECTS += vsprojects/tcmalloc_minimal_unittest/tcmalloc_minimal_unittest.vcxproj
-WINDOWS_PROJECTS += vsprojects/tmu-static/tmu-static.vcxproj
 tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                     src/tests/testutil.h src/tests/testutil.cc \
                                     $(TCMALLOC_UNITTEST_INCLUDES)
