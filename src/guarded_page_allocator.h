@@ -91,7 +91,7 @@ class GuardedPageAllocator {
 
   constexpr GuardedPageAllocator()
       : free_pages_(0ULL),
-        data_(),
+        data_{},
         pages_base_addr_(0),
         pages_end_addr_(0),
         first_page_addr_(0),

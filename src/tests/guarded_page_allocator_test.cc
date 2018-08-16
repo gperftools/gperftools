@@ -86,6 +86,11 @@ struct GpaWrapper {
   tcmalloc::GuardedPageAllocator gpa_;
 };
 
+void GpaHasConstexprConstructor() {
+  constexpr tcmalloc::GuardedPageAllocator gpa;
+  EXPECT_FALSE(gpa.PointerIsMine(nullptr));
+}
+
 void GpaSingleAllocDealloc() {
   GpaWrapper w;
   char *buf = reinterpret_cast<char *>(w.gpa_.Allocate(PageSize()));
@@ -264,6 +269,7 @@ int main(int argc, char *argv[]) {
   ASSERT_TRUE(argc > 1);
   test_to_run = atoi(argv[1]);
 
+  GpaHasConstexprConstructor();
   GpaSingleAllocDealloc();
   GpaAllocDeallocAllPages(1);
   GpaAllocDeallocAllPages(kMaxGpaPages / 2);
