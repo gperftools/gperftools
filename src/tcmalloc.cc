@@ -121,8 +121,8 @@
 #include "base/spinlock.h"              // for SpinLockHolder
 #include "central_freelist.h"  // for CentralFreeListPadded
 #include "common.h"            // for StackTrace, kPageShift, etc
+#include "free_list.h"         // for FL_Init
 #include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc
-#include "linked_list.h"       // for SLL_SetNext
 #include "malloc_hook-inl.h"       // for MallocHook::InvokeNewHook, etc
 #include "page_heap.h"         // for PageHeap, PageHeap::Stats
 #include "page_heap_allocator.h"  // for PageHeapAllocator
@@ -1484,7 +1484,7 @@ void do_free_with_callback(void* ptr,
   }
 
   // Otherwise, delete directly into central cache
-  tcmalloc::SLL_SetNext(ptr, NULL);
+  tcmalloc::FL_Init(ptr);
   Static::central_cache()[cl].InsertRange(ptr, ptr, 1);
 }
 

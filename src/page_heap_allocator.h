@@ -37,6 +37,7 @@
 #include <stddef.h>                     // for NULL, size_t
 
 #include "common.h"            // for MetaDataAlloc
+#include "free_list.h"         // for FL_Push/FL_Pop
 #include "internal_logging.h"  // for ASSERT
 
 namespace tcmalloc {
@@ -63,8 +64,7 @@ class PageHeapAllocator {
     // Consult free list
     void* result;
     if (free_list_ != NULL) {
-      result = free_list_;
-      free_list_ = *(reinterpret_cast<void**>(result));
+      result = FL_Pop(&free_list_);
     } else {
       if (free_avail_ < sizeof(T)) {
         // Need more room. We assume that MetaDataAlloc returns
@@ -87,8 +87,7 @@ class PageHeapAllocator {
   }
 
   void Delete(T* p) {
-    *(reinterpret_cast<void**>(p)) = free_list_;
-    free_list_ = p;
+    FL_Push(&free_list_, p);
     inuse_--;
   }
 

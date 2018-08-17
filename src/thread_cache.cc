@@ -133,7 +133,10 @@ void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size,
 
   if (--fetch_count >= 0) {
     size_ += byte_size * fetch_count;
-    list->PushRange(fetch_count, SLL_Next(start), end);
+    // Pop the top of the list and add the rest to the freelist.
+    void* second = start;
+    start = FL_Pop(&second);
+    list->PushRange(fetch_count, second, end);
   }
 
   // Increase max length slowly up to batch_size.  After that,

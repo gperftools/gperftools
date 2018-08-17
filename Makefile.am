@@ -437,6 +437,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/pagemap.h \
                               src/sampler.h \
                               src/central_freelist.h \
+                              src/free_list.h \
                               src/linked_list.h \
                               src/libc_override.h \
                               src/libc_override_gcc_and_weak.h \
@@ -470,6 +471,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           $(SYSTEM_ALLOC_CC) \
                                           src/memfs_malloc.cc \
                                           src/central_freelist.cc \
+                                          src/free_list.cc \
                                           src/page_heap.cc \
                                           src/sampler.cc \
                                           src/span.cc \
@@ -796,13 +798,15 @@ if WITH_DEBUGALLOC
 
 lib_LTLIBRARIES += libtcmalloc_minimal_debug.la
 libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc \
-                                       $(TCMALLOC_MINIMAL_INCLUDES)
+                                       $(libtcmalloc_minimal_internal_la_SOURCES)
 libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS) \
-                                        -DTCMALLOC_FOR_DEBUGALLOCATION
+                                        -DNO_HEAP_CHECK \
+                                        -DTCMALLOC_FOR_DEBUGALLOCATION \
+                                        -DTCMALLOC_USE_DOUBLYLINKED_FREELIST
 # version_info gets passed to libtool
 libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS) \
                                        -version-info @TCMALLOC_SO_VERSION@
-libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
+libtcmalloc_minimal_debug_la_LIBADD = $(LIBSPINLOCK) libmaybe_threads.la
 
 LIBS_TO_WEAKEN += libtcmalloc_minimal_debug.la
 
@@ -1207,13 +1211,22 @@ if WITH_DEBUGALLOC
 if WITH_HEAP_PROFILER_OR_CHECKER
 
 lib_LTLIBRARIES += libtcmalloc_debug.la
-libtcmalloc_debug_la_SOURCES = src/debugallocation.cc $(HEAP_CHECKER_SOURCES) \
-                               $(TCMALLOC_INCLUDES)
+libtcmalloc_debug_la_SOURCES = src/debugallocation.cc \
+                               $(HEAP_CHECKER_SOURCES) \
+                               $(libtcmalloc_minimal_internal_la_SOURCES) \
+                               $(TCMALLOC_INCLUDES) \
+                               src/base/low_level_alloc.cc \
+                               src/heap-profile-table.cc \
+                               src/heap-profiler.cc \
+                               src/raw_printer.cc \
+                               $(EMERGENCY_MALLOC_CC) \
+                               src/memory_region_map.cc
 libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) \
-                                -DTCMALLOC_FOR_DEBUGALLOCATION
+                                -DTCMALLOC_FOR_DEBUGALLOCATION \
+                                -DTCMALLOC_USE_DOUBLYLINKED_FREELIST
 libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS) \
                                -version-info @TCMALLOC_SO_VERSION@
-libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
+libtcmalloc_debug_la_LIBADD = libstacktrace.la libmaybe_threads.la $(PTHREAD_LIBS)
 
 LIBS_TO_WEAKEN += libtcmalloc_debug.la
 

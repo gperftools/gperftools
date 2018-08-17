@@ -136,7 +136,7 @@ void SizeMap::Init() {
   int sc = 1;   // Next size class to assign
   int alignment = kAlignment;
   CHECK_CONDITION(kAlignment <= kMinAlign);
-  for (size_t size = kAlignment; size <= kMaxSize; size += alignment) {
+  for (size_t size = kMinClassSize; size <= kMaxSize; size += alignment) {
     alignment = AlignmentForSize(size);
     CHECK_CONDITION((size % alignment) == 0);
 
