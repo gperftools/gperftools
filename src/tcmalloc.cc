@@ -1152,15 +1152,15 @@ static inline bool CheckCachedSizeClass(void *ptr) {
   return cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
 }
 
-static inline ATTRIBUTE_ALWAYS_INLINE void* CheckedMallocResult(void *result) {
+static inline ATTRIBUTE_ALWAYS_INLINE void* CheckedMallocResult(void* result) {
   ASSERT(result == NULL || CheckCachedSizeClass(result));
   return result;
 }
 
 static inline ATTRIBUTE_ALWAYS_INLINE void* SpanToMallocResult(Span *span) {
   Static::pageheap()->InvalidateCachedSizeClass(span->start);
-  return
-      CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
+  return CheckedMallocResult(
+      reinterpret_cast<void*>(span->start << kPageShift));
 }
 
 static void* DoSampledAllocation(size_t size) {
@@ -1368,7 +1368,8 @@ ATTRIBUTE_ALWAYS_INLINE inline void* do_malloc(size_t size) {
 
   // The common case, and also the simplest.  This just pops the
   // size-appropriate freelist, after replenishing it if it's empty.
-  return CheckedMallocResult(cache->Allocate(allocated_size, cl, nop_oom_handler));
+  return CheckedMallocResult(
+      cache->Allocate(allocated_size, cl, nop_oom_handler));
 }
 
 static void *retry_malloc(void* size) {
@@ -1404,6 +1405,13 @@ inline void free_null_or_invalid(void* ptr, void (*invalid_free_fn)(void*)) {
 }
 
 static ATTRIBUTE_NOINLINE void do_free_pages(Span* span, void* ptr) {
+  // Check to see if the object is in use.
+  CHECK_CONDITION_PRINT(span->location == Span::IN_USE,
+                        "Object was not in-use");
+  CHECK_CONDITION_PRINT(
+      span->start << kPageShift == reinterpret_cast<uintptr_t>(ptr),
+      "Pointer is not pointing to the start of a span");
+
   SpinLockHolder h(Static::pageheap_lock());
   if (span->sample) {
     StackTrace* st = reinterpret_cast<StackTrace*>(span->objects);

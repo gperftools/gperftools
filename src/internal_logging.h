@@ -114,12 +114,21 @@ do {                                                                     \
   }                                                                      \
 } while (0)
 
+#define CHECK_CONDITION_PRINT(cond, str)                            \
+  do {                                                              \
+    if (!(cond)) {                                                  \
+      ::tcmalloc::Log(::tcmalloc::kCrash, __FILE__, __LINE__, str); \
+    }                                                               \
+  } while (0)
+
 // Our own version of assert() so we can avoid hanging by trying to do
 // all kinds of goofy printing while holding the malloc lock.
 #ifndef NDEBUG
 #define ASSERT(cond) CHECK_CONDITION(cond)
+#define ASSERT_PRINT(cond, str) CHECK_CONDITION_PRINT(cond, str)
 #else
 #define ASSERT(cond) ((void) 0)
+#define ASSERT_PRINT(cond, str) ((void)0)
 #endif
 
 // Print into buffer
