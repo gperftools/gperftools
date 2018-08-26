@@ -392,7 +392,10 @@ endif WITH_STACK_TRACE
 # If we are not compiling with stacktrace support, pprof is worthless
 if WITH_STACK_TRACE
 
-bin_SCRIPTS = src/pprof
+bin_SCRIPTS = pprof-symbolize
+
+pprof-symbolize : $(top_srcdir)/src/pprof
+	cp -p $(top_srcdir)/src/pprof $@
 
 ### Unittests
 
@@ -403,9 +406,13 @@ pprof_unittest: $(top_srcdir)/src/pprof
 # Let unittests find pprof if they need to run it
 TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
 
-### Documentation
+if INSTALL_PPROF
+bin_SCRIPTS += src/pprof
 dist_man_MANS = docs/pprof.1
 dist_doc_DATA += docs/pprof_remote_servers.html
+endif INSTALL_PPROF
+
+### Documentation
 
 # On MSVC, we need our own versions of addr2line and nm to work with pprof.
 WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcxproj

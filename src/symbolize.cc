@@ -72,7 +72,7 @@ using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
 // a more-permanent copy that won't ever get destroyed.
 static char* get_pprof_path() {
   static char* result = ([] () {
-      string pprof_string = EnvToString("PPROF_PATH", "pprof");
+      string pprof_string = EnvToString("PPROF_PATH", "pprof-symbolize");
       return strdup(pprof_string.c_str());
     })();
 
