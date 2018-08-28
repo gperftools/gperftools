@@ -74,7 +74,6 @@ CentralFreeListPadded Static::central_cache_[kClassSizesMax];
 PageHeapAllocator<Span> Static::span_allocator_;
 PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
-PageHeapAllocator<StackTraceTable::Bucket> Static::bucket_allocator_;
 StackTrace* Static::growth_stacks_ = NULL;
 Static::PageHeapStorage Static::pageheap_;
 
@@ -84,7 +83,6 @@ void Static::InitStaticVars() {
   span_allocator_.New(); // Reduce cache conflicts
   span_allocator_.New(); // Reduce cache conflicts
   stacktrace_allocator_.Init();
-  bucket_allocator_.Init();
   // Do a bit of sanitizing: make sure central_cache is aligned properly
   CHECK_CONDITION((sizeof(central_cache_[0]) % 64) == 0);
   for (int i = 0; i < num_size_classes(); ++i) {
