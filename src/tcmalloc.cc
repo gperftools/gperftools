@@ -711,6 +711,14 @@ class TCMallocImplementation : public MallocExtension {
       return true;
     }
 
+    if (strcmp(name, "generic.total_physical_bytes") == 0) {
+      TCMallocStats stats;
+      ExtractStats(&stats, NULL, NULL, NULL);
+      *value = stats.pageheap.system_bytes + stats.metadata_bytes -
+               stats.pageheap.unmapped_bytes;
+      return true;
+    }
+
     if (strcmp(name, "tcmalloc.slack_bytes") == 0) {
       // Kept for backwards compatibility.  Now defined externally as:
       //    pageheap_free_bytes + pageheap_unmapped_bytes.
