@@ -916,13 +916,13 @@ class TCMallocImplementation : public MallocExtension {
   }
 
   virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
-    static const char* kCentralCacheType = "tcmalloc.central";
-    static const char* kTransferCacheType = "tcmalloc.transfer";
-    static const char* kThreadCacheType = "tcmalloc.thread";
-    static const char* kPageHeapType = "tcmalloc.page";
-    static const char* kPageHeapUnmappedType = "tcmalloc.page_unmapped";
-    static const char* kLargeSpanType = "tcmalloc.large";
-    static const char* kLargeUnmappedSpanType = "tcmalloc.large_unmapped";
+    static const char kCentralCacheType[] = "tcmalloc.central";
+    static const char kTransferCacheType[] = "tcmalloc.transfer";
+    static const char kThreadCacheType[] = "tcmalloc.thread";
+    static const char kPageHeapType[] = "tcmalloc.page";
+    static const char kPageHeapUnmappedType[] = "tcmalloc.page_unmapped";
+    static const char kLargeSpanType[] = "tcmalloc.large";
+    static const char kLargeUnmappedSpanType[] = "tcmalloc.large_unmapped";
 
     v->clear();
 
