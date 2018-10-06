@@ -207,7 +207,7 @@ extern "C" void* mremap(void* old_addr, size_t old_size, size_t new_size,
   return result;
 }
 
-#ifndef __UCLIBC__
+#ifdef HAVE___SBRK
 // libc's version:
 extern "C" void* __sbrk(intptr_t increment);
 
