@@ -137,7 +137,8 @@ static inline void* do_mmap64(void *start, size_t length,
 // malloc_hook section,
 // so that MallocHook::GetCallerStackTrace can function accurately:
 
-// Make sure mmap doesn't get #define'd away by <sys/mman.h>
+// Make sure mmap64 and mmap doesn't get #define'd away by <sys/mman.h>
+# undef mmap64
 # undef mmap
 
 extern "C" {
