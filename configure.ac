@@ -462,6 +462,14 @@ AC_ARG_ENABLE([emergency-malloc],
 
 AM_CONDITIONAL(BUILD_EMERGENCY_MALLOC, [test "x$enable_emergency_malloc" = xyes])
 
+AC_ARG_WITH([benchmarks],
+            [AS_HELP_STRING([--without-benchmarks],
+                            [do not build benchmarks])],
+            [],
+            [with_benchmarks=yes])
+
+AM_CONDITIONAL(WITH_BENCHMARKS, [test "x$with_benchmarks" = xyes])
+
 # Defines PRIuS
 AC_COMPILER_CHARACTERISTICS
 

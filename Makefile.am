@@ -858,6 +858,7 @@ endif WITH_STACK_TRACE
 
 endif WITH_DEBUGALLOC
 
+if WITH_BENCHMARKS
 if !MINGW
 noinst_LTLIBRARIES += librun_benchmark.la
 librun_benchmark_la_SOURCES = \
@@ -902,6 +903,7 @@ binary_trees_shared_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) $(NO_BUILTIN_CXX
 binary_trees_shared_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 binary_trees_shared_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 endif !MINGW
+endif WITH_BENCHMARKS
 
 ### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
 
