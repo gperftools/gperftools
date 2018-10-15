@@ -91,9 +91,17 @@ void Static::InitStaticVars() {
 
   new (&pageheap_.memory) PageHeap;
 
+#if defined(ENABLE_AGRESSIVE_DECOMMIT_BY_DEFAULT)
+  const bool kDefaultAgressiveDecommit = true;
+#else
+  const bool kDefaultAgressiveDecommit = false;
+#endif
+
+
   bool aggressive_decommit =
     tcmalloc::commandlineflags::StringToBool(
-      TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"), false);
+      TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"),
+                         kDefaultAgressiveDecommit);
 
   pageheap()->SetAggressiveDecommit(aggressive_decommit);
 
