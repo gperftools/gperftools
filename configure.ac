@@ -667,6 +667,17 @@ AC_ARG_ENABLE([large-alloc-report],
 AS_IF([test "x$enable_large_alloc_report" = xyes],
       [AC_DEFINE([ENABLE_LARGE_ALLOC_REPORT], 1, [report large allocation])])
 
+# Enable aggressive decommit by default
+AC_ARG_ENABLE([aggressive-decommit-by-default],
+              [AS_HELP_STRING([--enable-aggressive-decommit-by-default],
+                              [enable aggressive decommit by default])],
+              [enable_aggressive_decommit_by_default="$enableval"],
+              [enable_aggressive_decommit_by_default=no])
+AS_IF([test "x$enable_aggressive_decommit_by_default" = xyes],
+      [AC_DEFINE([ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT],
+                 1,
+                 [enable aggressive decommit by default])])
+
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
