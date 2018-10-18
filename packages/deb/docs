@@ -3,7 +3,7 @@ COPYING
 ChangeLog
 INSTALL
 NEWS
-README
+README.md
 TODO
 docs/cpuprofile.html
 docs/cpuprofile-fileformat.html

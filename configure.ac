@@ -15,7 +15,7 @@ AC_SUBST(PROFILER_SO_VERSION)
 
 # The argument here is just something that should be in the current directory
 # (for sanity checking)
-AC_CONFIG_SRCDIR(README)
+AC_CONFIG_SRCDIR(README.md)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
 AM_INIT_AUTOMAKE([dist-zip])
