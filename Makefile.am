@@ -20,6 +20,9 @@ AM_CXXFLAGS =
 
 NO_BUILTIN_CXXFLAGS =
 
+# The appropriate readme file is markdown
+README: README.md
+
 # These are good warnings to turn on by default.  We also tell gcc
 # that malloc, free, realloc, mmap, etc. are not builtins (these flags
 # are supported since gcc 3.1.1).  gcc doesn't think most of them are
