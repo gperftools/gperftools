@@ -109,7 +109,7 @@ AC_ARG_ENABLE([libunwind],
               [enable_libunwind="$default_enable_libunwind"])
 AC_ARG_WITH([tcmalloc-pagesize],
             [AS_HELP_STRING([--with-tcmalloc-pagesize],
-                            [Set the tcmalloc internal page size to 8K, 32K or 64K])],
+                            [Set the tcmalloc internal page size to 4K, 8K, 16K, 32K, 64K, 128K or 256K])],
             [],
             [with_tcmalloc_pagesize=$default_tcmalloc_pagesize])
 AC_ARG_WITH([tcmalloc-alignment],
@@ -119,15 +119,22 @@ AC_ARG_WITH([tcmalloc-alignment],
             [with_tcmalloc_alignment=$default_tcmalloc_alignment])
 
 case "$with_tcmalloc_pagesize" in
+  4)
+       AC_DEFINE(TCMALLOC_PAGE_SIZE_SHIFT, 12);;
   8)
        #Default tcmalloc page size.
        ;;
+  16)
+       AC_DEFINE(TCMALLOC_PAGE_SIZE_SHIFT, 14);;
   32)
-       AC_DEFINE(TCMALLOC_32K_PAGES, 1,
-                 [Define 32K of internal pages size for tcmalloc]);;
+       AC_DEFINE(TCMALLOC_PAGE_SIZE_SHIFT, 15);;
   64)
-       AC_DEFINE(TCMALLOC_64K_PAGES, 1,
-                 [Define 64K of internal pages size for tcmalloc]);;
+       AC_DEFINE(TCMALLOC_PAGE_SIZE_SHIFT, 16);;
+  128)
+       AC_DEFINE(TCMALLOC_PAGE_SIZE_SHIFT, 17);;
+  256)
+       AC_DEFINE(TCMALLOC_PAGE_SIZE_SHIFT, 18,
+                 [Define internal page size for tcmalloc as number of left bitshift]);;
   *)
        AC_MSG_WARN([${with_tcmalloc_pagesize}K size not supported, using default tcmalloc page size.])
 esac
