@@ -334,7 +334,7 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
 
   bool seach_condition = true;
 #ifdef HAVE_TLS
-  static __thread ThreadCache** current_heap_ptr;
+  static __thread ThreadCache** current_heap_ptr ATTR_INITIAL_EXEC;
   if (tsd_inited_) {
     // In most common case we're avoiding expensive linear search
     // through all heaps (see below). Working TLS enables faster
