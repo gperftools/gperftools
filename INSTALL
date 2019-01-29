@@ -113,8 +113,9 @@ To build libtcmalloc with large pages you need to use the
 
    ./configure <other flags> --with-tcmalloc-pagesize=32
 
-The ARG argument can be 8, 32 or 64 which sets the internal page size to
-8K, 32K and 64K repectively. The default is 8K.
+The ARG argument can be 4, 8, 16, 32, 64, 128 or 256 which sets the
+internal page size to 4K, 8K, 16K, 32K, 64K, 128K and 256K respectively.
+The default is 8K.
 
 
 *** SMALL TCMALLOC CACHES: TRADING SPACE FOR TIME
