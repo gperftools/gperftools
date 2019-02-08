@@ -20,6 +20,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
      AC_CHECK_HEADERS(sys/ucontext.h)       # ucontext on OS X 10.6 (at least)
    fi
    AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
+   AC_CHECK_HEADERS(asm/ptrace.h)           # get ptrace macros, e.g. PT_NIP
    AC_MSG_CHECKING([how to access the program counter from a struct ucontext])
    pc_fields="           uc_mcontext.gregs[[REG_PC]]"  # Solaris x86 (32 + 64 bit)
    pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
@@ -53,9 +54,18 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
                                            How to access the PC from a struct ucontext)
                         AC_MSG_RESULT([$pc_field])
                         pc_field_found=true)
+       elif test "x$ac_cv_header_asm_ptrace_h" = xyes -a "x$ac_cv_header_sys_ucontext_h" = xyes; then
+         AC_TRY_COMPILE([#define _GNU_SOURCE 1
+                         #include <asm/ptrace.h>
+                         #include <sys/ucontext.h>],
+                        [ucontext_t u; return u.$pc_field == 0;],
+                        AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
+                                           How to access the PC from a struct ucontext)
+                        AC_MSG_RESULT([$pc_field])
+                        pc_field_found=true)
        elif test "x$ac_cv_header_sys_ucontext_h" = xyes; then
          AC_TRY_COMPILE([#define _GNU_SOURCE 1
-                         #include <sys/ucontext.h>],
+                        #include <sys/ucontext.h>],
                         [ucontext_t u; return u.$pc_field == 0;],
                         AC_DEFINE_UNQUOTED(PC_FROM_UCONTEXT, $pc_field,
                                            How to access the PC from a struct ucontext)
