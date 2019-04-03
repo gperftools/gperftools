@@ -146,7 +146,7 @@ make for just this purpose:
 CONFIGURATION OPTIONS
 ---------------------
 For advanced users, there are several flags you can pass to
-'./configure' that tweak tcmalloc performace.  (These are in addition
+'./configure' that tweak tcmalloc performance.  (These are in addition
 to the environment variables you can set at runtime to affect
 tcmalloc, described below.)  See the INSTALL file for details.
 
@@ -268,7 +268,7 @@ annotations', which make it easy to recognize a signal frame.  Some OS
 distributions, such as Fedora and gentoo 2007.0, already have added
 cfi annotations to their libc.  A future version of libunwind should
 recognize these annotations; these systems should not see any
-crashses.
+crashes.
 
 Workarounds: If you see problems with crashes when running the
 cpu-profiler, consider inserting ProfilerStart()/ProfilerStop() into
