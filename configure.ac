@@ -234,31 +234,11 @@ else
   AC_SUBST(ac_cv_have_struct_mallinfo, 0)
 fi
 
-# We need to check for mmap.  cygwin supports mmap, but the autoconf
-# test doesn't work on cygwin:
-#    http://www.cygwin.com/ml/cygwin/2002-04/msg00412.html
-# This workaround comes from
-#    http://cygwin.com/ml/cygwin/2004-11/msg00138.html
-case "$host" in
-  *-*-mingw*)
-               dnl mingw doesn't have mmap, not worth
-               dnl checking. Especially given that mingw can be a
-               dnl cross-compiler
-               ;;
-  *-*-cygwin*)
-	       ac_cv_func_mmap_fixed_mapped=yes
-               AC_DEFINE(HAVE_MMAP, 1,
-                         [Define to 1 if you have a working `mmap' system call.])
-               ;;
-            *) if test "$cross_compiling" = yes; then
-                 ac_cv_func_mmap_fixed_mapped=yes
-                 AC_DEFINE(HAVE_MMAP, 1,
-                           [Define to 1 if you have a working `mmap' system call.])
-               else
-                 AC_FUNC_MMAP
-               fi
-               ;;
-esac
+# We hardcode HAVE_MMAP to 1. There are no interesting systems anymore
+# without functional mmap. And our windows builds aren't using
+# autoconf. So we keep HAVE_MMAP define, but only to distingush
+# windows and rest.
+AC_DEFINE(HAVE_MMAP, 1, [Define to 1 if you have a working `mmap' system call.])
 
 # If AtomicWord != Atomic32, we need to define two versions of all the
 # atomicops functions.  If they're the same, we want to define only one.
