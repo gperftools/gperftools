@@ -100,6 +100,20 @@ int main(int argc, char** argv) {
     }
   }
 
+#if (defined(_MSC_VER) || defined(__MINGW32__)) && !defined(PERFTOOLS_NO_ALIGNED_MALLOC)
+  for (int src_size = 0; src_size >= 0; src_size = NextSize(src_size)) {
+    for (int dst_size = 0; dst_size >= 0; dst_size = NextSize(dst_size)) {
+      unsigned char* src = (unsigned char*) _aligned_malloc(src_size, 16);
+      Fill(src, src_size);
+      unsigned char* dst = (unsigned char*)_aligned_realloc(src, dst_size, 16);
+      CHECK(Valid(dst, min(src_size, dst_size)));
+      Fill(dst, dst_size);
+      CHECK(Valid(dst, dst_size));
+      if (dst != NULL) _aligned_free(dst);
+    }
+  }
+#endif
+
   // Now make sure realloc works correctly even when we overflow the
   // packed cache, so some entries are evicted from the cache.
   // The cache has 2^12 entries, keyed by page number.
@@ -119,6 +133,24 @@ int main(int argc, char** argv) {
   }
   CHECK_EQ(kNumEntries/2 * (kNumEntries - 1), sum);  // assume kNE is even
   free(p);
+
+#if (defined(_MSC_VER) || defined(__MINGW32__)) && !defined(PERFTOOLS_NO_ALIGNED_MALLOC)
+  p = (int**)_aligned_malloc(sizeof(*p) * kNumEntries, 16);
+  sum = 0;
+  for (int i = 0; i < kNumEntries; i++) {
+    p[i] = (int*)_aligned_malloc(8192, 16);   // no page size is likely to be bigger
+    p[i][1000] = i;                           // use memory deep in the heart of p
+  }
+  for (int i = 0; i < kNumEntries; i++) {
+    p[i] = (int*)_aligned_realloc(p[i], 9000, 16);
+  }
+  for (int i = 0; i < kNumEntries; i++) {
+    sum += p[i][1000];
+    _aligned_free(p[i]);
+  }
+  CHECK_EQ(kNumEntries/2 * (kNumEntries - 1), sum);  // assume kNE is even
+  _aligned_free(p);
+#endif
 
   printf("PASS\n");
   return 0;
