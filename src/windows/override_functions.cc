@@ -91,11 +91,23 @@ void* _calloc_impl(size_t n, size_t size) {
   return calloc(n, size);
 }
 
-size_t _msize(void* p) {
-  return MallocExtension::instance()->GetAllocatedSize(p);
+size_t _msize_base(void* ptr) {
+  return tc_malloc_size(ptr);
 }
 
-HANDLE __acrt_heap = nullptr;
+size_t _msize(void* ptr) {
+  return _msize_base(ptr);
+}
+
+void* _expand_base(void*, size_t) {
+  return NULL;
+}
+
+void* _expand(void*, size_t) {
+  return NULL;
+}
+
+HANDLE __acrt_heap = NULL;
 
 bool __acrt_initialize_heap() {
   new TCMallocGuard();
