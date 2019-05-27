@@ -123,6 +123,10 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // therefore be passed to "pprof". This function is equivalent to
   // ReadStackTraces. The main difference is that this function returns
   // serialized data appropriately formatted for use by the pprof tool.
+  //
+  // Since gperftools 2.8 heap samples are not de-duplicated by the
+  // library anymore.
+  //
   // NOTE: by default, tcmalloc does not do any heap sampling, and this
   //       function will always return an empty sample.  To get useful
   //       data from GetHeapSample, you must also set the environment
@@ -162,6 +166,14 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   //            current_allocated_bytes +
   //            fragmentation +
   //            freed memory regions
+  //      This property is not writable.
+  //
+  //  "generic.total_physical_bytes"
+  //      Estimate of total bytes of the physical memory usage by the
+  //      allocator ==
+  //            current_allocated_bytes +
+  //            fragmentation +
+  //            metadata
   //      This property is not writable.
   //
   // tcmalloc

@@ -18,12 +18,8 @@
 /* used by tcmalloc.h */
 #define GPERFTOOLS_CONFIG_H_
 
-/* define this if you are linking tcmalloc statically and overriding the
- * default allocators.
- * For instructions on how to use this mode, see
- * http://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
- */
-/* #undef WIN32_OVERRIDE_ALLOCATORS */
+/* Enable aggressive decommit by default */
+/* #undef ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT */
 
 /* Build new/delete operators for overaligned types */
 /* #undef ENABLE_ALIGNED_NEW_DELETE */
@@ -31,11 +27,14 @@
 /* Build runtime detection for sized delete */
 /* #undef ENABLE_DYNAMIC_SIZED_DELETE */
 
+/* Report large allocation */
+/* #undef ENABLE_LARGE_ALLOC_REPORT */
+
 /* Build sized deletion operators */
 /* #undef ENABLE_SIZED_DELETE */
 
-/* Define to 1 if compiler supports __builtin_expect */
-/* #undef HAVE_BUILTIN_EXPECT */
+/* Define to 1 if you have the <asm/ptrace.h> header file. */
+/* #undef HAVE_ASM_PTRACE_H */
 
 /* Define to 1 if compiler supports __builtin_stack_pointer */
 /* #undef HAVE_BUILTIN_STACK_POINTER */
@@ -102,9 +101,6 @@
 
 /* Define to 1 if you have the `geteuid' function. */
 /* #undef HAVE_GETEUID */
-
-/* Define to 1 if you have the `getpagesize' function. */
-#define HAVE_GETPAGESIZE 1   /* we define it in windows/port.cc */
 
 /* Define to 1 if you have the <glob.h> header file. */
 /* #undef HAVE_GLOB_H */
@@ -180,9 +176,6 @@
 /* Define to 1 if you have the <sys/cdefs.h> header file. */
 /* #undef HAVE_SYS_CDEFS_H */
 
-/* Define to 1 if you have the <sys/param.h> header file. */
-/* #undef HAVE_SYS_PARAM_H */
-
 /* Define to 1 if you have the <sys/prctl.h> header file. */
 /* #undef HAVE_SYS_PRCTL_H */
 
@@ -236,6 +229,9 @@
 
 /* Define to 1 if the system has the type `__int64'. */
 #define HAVE___INT64 1
+
+/* Define to 1 if you have the `__sbrk' function. */
+/* #undef HAVE___SBRK */
 
 /* prefix where we look for installed files */
 /* #undef INSTALL_PREFIX */

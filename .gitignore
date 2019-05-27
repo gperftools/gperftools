@@ -89,6 +89,7 @@
 /page_heap_test.exe
 /pagemap_unittest
 /pagemap_unittest.exe
+/pprof-symbolize
 /profile_handler_unittest
 /profiledata_unittest
 /profiler1_unittest
@@ -143,5 +144,3 @@
 /test-driver
 /thread_dealloc_unittest
 /thread_dealloc_unittest.exe
-/unwind_bench
-/unwind_bench.exe

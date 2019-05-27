@@ -31,8 +31,8 @@
  * Author: Joi Sigurdsson
  *
  * Table of relevant information about how to decode the ModR/M byte.
- * Based on information in the IA-32 Intel® Architecture
- * Software Developer’s Manual Volume 2: Instruction Set Reference.
+ * Based on information in the IA-32 IntelÂ® Architecture
+ * Software Developer's Manual Volume 2: Instruction Set Reference.
  */
 
 #include "mini_disassembler.h"
