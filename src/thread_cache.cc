@@ -278,7 +278,7 @@ void ThreadCache::IncreaseCacheLimitLocked() {
 }
 
 int ThreadCache::GetSamplePeriod() {
-  return sampler_.GetSamplePeriod();
+  return Sampler::GetSamplePeriod();
 }
 
 void ThreadCache::InitModule() {
