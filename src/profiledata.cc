@@ -282,14 +282,7 @@ void ProfileData::Add(int depth, const void* const* stack) {
   for (int a = 0; a < kAssociativity; a++) {
     Entry* e = &bucket->entry[a];
     if (e->depth == depth) {
-      bool match = true;
-      for (int i = 0; i < depth; i++) {
-        if (e->stack[i] != reinterpret_cast<Slot>(stack[i])) {
-          match = false;
-          break;
-        }
-      }
-      if (match) {
+      if (!memcpy(e->stack, stack, sizeof(Slot) * depth)) {
         e->count++;
         done = true;
         break;
@@ -313,9 +306,7 @@ void ProfileData::Add(int depth, const void* const* stack) {
     // Use the newly evicted entry
     e->depth = depth;
     e->count = 1;
-    for (int i = 0; i < depth; i++) {
-      e->stack[i] = reinterpret_cast<Slot>(stack[i]);
-    }
+    memcpy(e->stack, stack, sizeof(Slot) * depth)
   }
 }
 
