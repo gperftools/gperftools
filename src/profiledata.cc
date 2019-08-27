@@ -306,7 +306,7 @@ void ProfileData::Add(int depth, const void* const* stack) {
     // Use the newly evicted entry
     e->depth = depth;
     e->count = 1;
-    memcpy(e->stack, stack, sizeof(Slot) * depth)
+    memcpy(e->stack, stack, sizeof(Slot) * depth);
   }
 }
 
