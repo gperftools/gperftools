@@ -282,7 +282,7 @@ void ProfileData::Add(int depth, const void* const* stack) {
   for (int a = 0; a < kAssociativity; a++) {
     Entry* e = &bucket->entry[a];
     if (e->depth == depth) {
-      if (!memcpy(e->stack, stack, sizeof(Slot) * depth)) {
+      if (!memcmp(e->stack, stack, sizeof(Slot) * depth)) {
         e->count++;
         done = true;
         break;
