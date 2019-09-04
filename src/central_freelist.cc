@@ -42,6 +42,11 @@
 using std::min;
 using std::max;
 
+DEFINE_int32(tcmalloc_enable_prefetch_slots,
+             EnvToInt("TCMALLOC_PREFETCH_SLOTS", 0),
+             "Enable prefetch multi tcslots from pageheap"
+);
+
 namespace tcmalloc {
 
 void CentralFreeList::Init(size_t cl) {
@@ -271,6 +276,29 @@ int CentralFreeList::RemoveRange(void **start, void **end, int N) {
       if (!n) break;
       result += n;
       SLL_PushRange(start, head, tail);
+    }
+  }
+  int prefetch = FLAGS_tcmalloc_enable_prefetch_slots;
+  while (--prefetch > 0 && MakeCacheSpace())
+  {
+    int slot = used_slots_++;
+    ASSERT(slot >=0);
+    ASSERT(slot < max_cache_size_);
+    TCEntry *entry = &tc_slots_[slot];
+    void* head = NULL;
+    void* tail = NULL;
+    int n;
+    n = FetchFromOneSpans(Static::sizemap()->num_objects_to_move(size_class_), &head, &tail);
+    if (n == Static::sizemap()->num_objects_to_move(size_class_))
+    {
+        entry->head = head;
+        entry->tail = tail;
+    }
+    else
+    {
+        ReleaseListToSpans(head);
+        used_slots_--;
+        break;
     }
   }
   lock_.Unlock();
