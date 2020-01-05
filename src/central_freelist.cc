@@ -117,7 +117,7 @@ void CentralFreeList::ReleaseToSpans(void* object) {
   if (false) {
     // Check that object does not occur in list
     int got = 0;
-    for (void* p = span->objects; p != NULL; p = *((void**) p)) {
+    for (void* p = span->objects; p != NULL; p = SLL_Next(p)) {
       ASSERT(p != object);
       got++;
     }
@@ -143,7 +143,7 @@ void CentralFreeList::ReleaseToSpans(void* object) {
     }
     lock_.Lock();
   } else {
-    *(reinterpret_cast<void**>(object)) = span->objects;
+    SLL_SetNext(object, span->objects);
     span->objects = object;
   }
 }
@@ -298,7 +298,7 @@ int CentralFreeList::FetchFromOneSpans(int N, void **start, void **end) {
   curr = span->objects;
   do {
     prev = curr;
-    curr = *(reinterpret_cast<void**>(curr));
+    curr = SLL_Next(curr);
   } while (++result < N && curr != NULL);
 
   if (curr == NULL) {
@@ -345,19 +345,22 @@ void CentralFreeList::Populate() {
 
   // Split the block into pieces and add to the free-list
   // TODO: coloring of objects to avoid cache conflicts?
-  void** tail = &span->objects;
   char* ptr = reinterpret_cast<char*>(span->start << kPageShift);
   char* limit = ptr + (npages << kPageShift);
   const size_t size = Static::sizemap()->ByteSizeForClass(size_class_);
-  int num = 0;
+  int num = 1;
+  // Special case for the first element
+  span->objects = ptr;
+  void* tail = ptr;
+  ptr += size;
   while (ptr + size <= limit) {
-    *tail = ptr;
-    tail = reinterpret_cast<void**>(ptr);
+    SLL_SetNext(tail, ptr);
+    tail = ptr;
     ptr += size;
     num++;
   }
   ASSERT(ptr <= limit);
-  *tail = NULL;
+  SLL_SetNext(tail, NULL);
   span->refcount = 0; // No sub-object in use yet
 
   // Add span to list of non-empty spans

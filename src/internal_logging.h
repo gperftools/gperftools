@@ -109,8 +109,9 @@ extern PERFTOOLS_DLL_DECL void (*log_message_writer)(const char* msg, int length
 #undef CHECK_CONDITION
 #define CHECK_CONDITION(cond)                                            \
 do {                                                                     \
-  if (!(cond)) {                                                         \
+  if (PREDICT_FALSE(!(cond))) {                                          \
     ::tcmalloc::Log(::tcmalloc::kCrash, __FILE__, __LINE__, #cond);      \
+    UNREACHABLE;                                                         \
   }                                                                      \
 } while (0)
 

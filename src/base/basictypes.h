@@ -120,9 +120,11 @@ const  int64 kint64min =  ( (((uint64) kint32min) << 32) | 0 );
 #if defined(__GNUC__)
 #define PREDICT_TRUE(x) __builtin_expect(!!(x), 1)
 #define PREDICT_FALSE(x) __builtin_expect(!!(x), 0)
+#define UNREACHABLE __builtin_unreachable();
 #else
 #define PREDICT_TRUE(x) (x)
 #define PREDICT_FALSE(x) (x)
+#define UNREACHABLE
 #endif
 
 // A macro to disallow the evil copy constructor and operator= functions

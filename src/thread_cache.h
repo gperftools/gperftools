@@ -226,7 +226,7 @@ class ThreadCache {
     }
 
     void* Next() {
-      return SLL_Next(&list_);
+      return SLL_Next(list_);
     }
 
     void PushRange(int N, void *start, void *end) {
@@ -390,7 +390,7 @@ inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl
   // This catches back-to-back frees of allocs in the same size
   // class. A more comprehensive (and expensive) test would be to walk
   // the entire freelist. But this might be enough to find some bugs.
-  ASSERT(ptr != list->Next());
+  ASSERT(list->empty() || ptr != list->Next());
 
   uint32_t length = list->Push(ptr);
 
