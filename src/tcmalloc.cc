@@ -468,18 +468,25 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("Total size of freelists for per-thread caches,\n");
     out->printf("transfer cache, and central cache, by size class\n");
     out->printf("------------------------------------------------\n");
-    uint64_t cumulative = 0;
-    for (uint32 cl = 0; cl < Static::num_size_classes(); ++cl) {
+    uint64_t cumulative_bytes = 0;
+    uint64_t cumulative_overhead = 0;
+    for (int cl = 0; cl < kNumClasses; ++cl) {
       if (class_count[cl] > 0) {
-        size_t cl_size = Static::sizemap()->ByteSizeForClass(cl);
-        uint64_t class_bytes = class_count[cl] * cl_size;
-        cumulative += class_bytes;
+        const uint64_t class_bytes =
+            class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
+        cumulative_bytes += class_bytes;
+        const uint64_t class_overhead =
+            Static::central_cache()[cl].OverheadBytes();
+        cumulative_overhead += class_overhead;
         out->printf("class %3d [ %8" PRIuS " bytes ] : "
-                "%8" PRIu64 " objs; %5.1f MiB; %5.1f cum MiB\n",
-                cl, cl_size,
+                "%8" PRIu64 " objs; %5.1f MiB; %5.1f cum MiB; "
+                "%8.3f overhead MiB; %8.3f cum overhead MiB\n",
+                cl, Static::sizemap()->ByteSizeForClass(cl),
                 class_count[cl],
                 class_bytes / MiB,
-                cumulative / MiB);
+                cumulative_bytes / MiB,
+                class_overhead / MiB,
+                cumulative_overhead / MiB);
       }
     }
 
