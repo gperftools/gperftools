@@ -470,10 +470,10 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("------------------------------------------------\n");
     uint64_t cumulative_bytes = 0;
     uint64_t cumulative_overhead = 0;
-    for (int cl = 0; cl < kNumClasses; ++cl) {
+    for (uint32 cl = 0; cl < Static::num_size_classes(); ++cl) {
       if (class_count[cl] > 0) {
-        const uint64_t class_bytes =
-            class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
+        size_t cl_size = Static::sizemap()->ByteSizeForClass(cl);
+        const uint64_t class_bytes = class_count[cl] * cl_size;
         cumulative_bytes += class_bytes;
         const uint64_t class_overhead =
             Static::central_cache()[cl].OverheadBytes();
@@ -481,7 +481,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
         out->printf("class %3d [ %8" PRIuS " bytes ] : "
                 "%8" PRIu64 " objs; %5.1f MiB; %5.1f cum MiB; "
                 "%8.3f overhead MiB; %8.3f cum overhead MiB\n",
-                cl, Static::sizemap()->ByteSizeForClass(cl),
+                cl, cl_size,
                 class_count[cl],
                 class_bytes / MiB,
                 cumulative_bytes / MiB,
