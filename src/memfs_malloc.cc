@@ -75,6 +75,13 @@ DEFINE_int64(memfs_malloc_limit_mb,
              EnvToInt("TCMALLOC_MEMFS_LIMIT_MB", 0),
              "Limit total allocation size to the "
              "specified number of MiB.  0 == no limit.");
+DEFINE_int64(memfs_malloc_prealloc_mb,
+             EnvToInt("TCMALLOC_MEMFS_PREALLOC_MB", 0),
+             "Allocate specified amount at initialization. "
+             "0 == no preallocation.");
+DEFINE_int64(memfs_malloc_prealloc_align,
+             EnvToInt("TCMALLOC_MEMFS_PREALLOC_ALIGN", 0),
+             "Minimum byte alignment of preallocated block.");
 DEFINE_bool(memfs_malloc_abort_on_fail,
             EnvToBool("TCMALLOC_MEMFS_ABORT_ON_FAIL", false),
             "abort() whenever memfs_malloc fails to satisfy an allocation "
@@ -85,6 +92,9 @@ DEFINE_bool(memfs_malloc_ignore_mmap_fail,
 DEFINE_bool(memfs_malloc_map_private,
             EnvToBool("TCMALLOC_MEMFS_MAP_PRIVATE", false),
 	    "Use MAP_PRIVATE with mmap");
+DEFINE_bool(memfs_malloc_map_populate,
+            EnvToBool("TCMALLOC_MEMFS_MAP_POPULATE", false),
+            "Use MAP_POPULATE with mmap");
 
 // Hugetlbfs based allocator for tcmalloc
 class HugetlbSysAllocator: public SysAllocator {
@@ -94,6 +104,8 @@ public:
       big_page_size_(0),
       hugetlb_fd_(-1),
       hugetlb_base_(0),
+      prealloc_base(NULL),
+      prealloc_size(0),
       fallback_(fallback) {
   }
 
@@ -108,6 +120,9 @@ private:
   int64 big_page_size_;
   int hugetlb_fd_;       // file descriptor for hugetlb
   off_t hugetlb_base_;
+
+  void* prealloc_base;
+  off_t prealloc_size;
 
   SysAllocator* fallback_;  // Default system allocator to fall back to.
 };
@@ -137,6 +152,24 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
                          new_alignment) * new_alignment;
   if (aligned_size < size) {
     return fallback_->Alloc(size, actual_size, alignment);
+  }
+
+  // Check if we can return the preallocated block; this is feasible if
+  // the requested alignment matches the preallocated block.
+  if (prealloc_base && aligned_size <= prealloc_size) {
+    if (((uintptr_t)prealloc_base % new_alignment) == 0)
+    {
+      void *base = prealloc_base;
+      if (actual_size)
+        *actual_size = prealloc_size;
+      prealloc_base = NULL;
+      prealloc_size = 0;
+      return base;
+    }
+    else {
+      Log(kLog, __FILE__, __LINE__,
+          "HugetlbSysAllocator: preallocate failed due to alignment");
+    }
   }
 
   void* result = AllocInternal(aligned_size, actual_size, new_alignment);
@@ -191,7 +224,8 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
   // therefore  size + extra < (1<<NBITS)
   void *result;
   result = mmap(0, size + extra, PROT_WRITE|PROT_READ,
-                FLAGS_memfs_malloc_map_private ? MAP_PRIVATE : MAP_SHARED,
+                (FLAGS_memfs_malloc_map_private ? MAP_PRIVATE : MAP_SHARED) |
+                (FLAGS_memfs_malloc_map_populate ? MAP_POPULATE : 0),
                 hugetlb_fd_, hugetlb_base_);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
     if (!FLAGS_memfs_malloc_ignore_mmap_fail) {
@@ -255,6 +289,29 @@ bool HugetlbSysAllocator::Initialize() {
   hugetlb_fd_ = hugetlb_fd;
   big_page_size_ = page_size;
   failed_ = false;
+
+  const off_t limit = FLAGS_memfs_malloc_limit_mb * 1024 * 1024;
+  const off_t prealloc = FLAGS_memfs_malloc_prealloc_mb * 1024 * 1024;
+
+  if (prealloc > 0) {
+    if (limit <= 0 || prealloc <= limit) {
+      size_t actual_size = 0;
+      prealloc_base = Alloc(prealloc, &actual_size,
+                            FLAGS_memfs_malloc_prealloc_align);
+      if (prealloc_base != NULL) {
+        prealloc_size = actual_size;
+      }
+      else {
+        Log(kLog, __FILE__, __LINE__,
+            "warning: memfs_malloc_prealloc_mb: failed to preallocate");
+      }
+    }
+    else {
+      Log(kLog, __FILE__, __LINE__,
+          "warning: memfs_malloc_prealloc_mb exceeds allocation limit");
+    }
+  }
+
   return true;
 }
 
