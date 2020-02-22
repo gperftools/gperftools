@@ -112,6 +112,9 @@ DEFINE_bool(malloc_page_fence_never_reclaim,
             EnvToBool("TCMALLOC_PAGE_FENCE_NEVER_RECLAIM", false),
             "Enables making the virtual address space inaccessible "
             "upon a deallocation instead of returning it and reusing later.");
+DEFINE_bool(malloc_page_fence_readable,
+            EnvToBool("TCMALLOC_PAGE_FENCE_READABLE", false),
+            "Permits reads to the page fence.");
 #else
 DEFINE_bool(malloc_page_fence, false, "Not usable (requires mmap)");
 DEFINE_bool(malloc_page_fence_never_reclaim, false, "Not usable (required mmap)");
@@ -508,6 +511,7 @@ class MallocBlock {
     }
     MallocBlock* b = NULL;
     const bool use_malloc_page_fence = FLAGS_malloc_page_fence;
+    const bool malloc_page_fence_readable = FLAGS_malloc_page_fence_readable;
 #ifdef HAVE_MMAP
     if (use_malloc_page_fence) {
       // Put the block towards the end of the page and make the next page
@@ -526,7 +530,8 @@ class MallocBlock {
                 strerror(errno));
       }
       // Mark the page after the block inaccessible
-      if (mprotect(p + (num_pages - 1) * pagesize, pagesize, PROT_NONE)) {
+      if (mprotect(p + (num_pages - 1) * pagesize, pagesize,
+                   PROT_NONE|(malloc_page_fence_readable ? PROT_READ : 0))) {
         RAW_LOG(FATAL, "Guard page setup failed: %s", strerror(errno));
       }
       b = (MallocBlock*) (p + (num_pages - 1) * pagesize - sz);
