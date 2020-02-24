@@ -40,6 +40,7 @@
 #include <stddef.h>
 #include "common.h"
 
+#ifdef TCMALLOC_USE_SLL_SAFE_LINKING
 // Safe-Linking:
 // Use randomness from ASLR (mmap_base) to protect the single-linked
 // lists used by the heap. Together with allocation alignment checks,
@@ -47,17 +48,26 @@
 // the Safe-Unlinking in the double-linked lists of dlmalloc / ptmalloc.
 #define PROTECT_PTR(pos, ptr)     reinterpret_cast<void*>((reinterpret_cast<uintptr_t>(pos) >> kPageShift) ^ reinterpret_cast<uintptr_t>(ptr))
 #define REVEAL_PTR(pos, ptr)      PROTECT_PTR(pos, ptr)
+#endif
 
 namespace tcmalloc {
 
 inline void *SLL_Next(void *t) {
+#ifdef TCMALLOC_USE_SLL_SAFE_LINKING
   void * result = REVEAL_PTR(t, *(reinterpret_cast<void**>(t)));
   CHECK_CONDITION((reinterpret_cast<uintptr_t>(result) % kAlignment) == 0);
   return result;
+#else
+  return *(reinterpret_cast<void**>(t));
+#endif
 }
 
 inline void SLL_SetNext(void *t, void *n) {
+#ifdef TCMALLOC_USE_SLL_SAFE_LINKING
   *(reinterpret_cast<void**>(t)) = PROTECT_PTR(t, n);
+#else
+  *(reinterpret_cast<void**>(t)) = n;
+#endif
 }
 
 inline void SLL_Push(void **list, void *element) {
