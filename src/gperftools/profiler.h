@@ -162,6 +162,10 @@ struct ProfilerState {
 };
 PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(struct ProfilerState* state);
 
+/* Returns the current stack trace, to be called from a SIGPROF handler. */
+PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(
+    void** result, int max_depth, int skip_count, const void *uc);
+
 #ifdef __cplusplus
 }  // extern "C"
 #endif

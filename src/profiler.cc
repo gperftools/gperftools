@@ -402,6 +402,11 @@ extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(
   CpuProfiler::instance_.GetCurrentState(state);
 }
 
+extern "C" PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(
+    void** result, int max_depth, int skip_count, const void *uc) {
+  return GetStackTraceWithContext(result, max_depth, skip_count, uc);
+}
+
 #else  // OS_CYGWIN
 
 // ITIMER_PROF doesn't work under cygwin.  ITIMER_REAL is available, but doesn't
@@ -419,6 +424,10 @@ extern "C" int ProfilerStartWithOptions(const char *fname,
 extern "C" void ProfilerStop() { }
 extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
   memset(state, 0, sizeof(*state));
+}
+extern "C" int ProfilerGetStackTrace(
+    void** result, int max_depth, int skip_count, const void *uc) {
+  return 0;
 }
 
 #endif  // OS_CYGWIN
