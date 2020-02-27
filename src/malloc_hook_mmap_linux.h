@@ -61,7 +61,13 @@
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,
                               int fd, off64_t offset) __THROW {
+#if defined(__s390__)
+  long args[6] = { (long)start, (long)length, (long)prot, (long)flags,
+                   (long)fd, (long)offset };
+  return (void*)syscall(SYS_mmap, args);
+#else
   return (void*)syscall(SYS_mmap, start, length, prot, flags, fd, offset);
+#endif
 }
 
 #define MALLOC_HOOK_HAVE_DO_MMAP64 1
