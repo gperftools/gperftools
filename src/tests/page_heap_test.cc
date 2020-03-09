@@ -11,14 +11,18 @@
 
 #include <memory>
 
+#include "base/logging.h"
+#include "base/spinlock.h"
+#include "common.h"
 #include "page_heap.h"
 #include "system-alloc.h"
-#include "base/logging.h"
-#include "common.h"
+#include "static_vars.h"
 
 DECLARE_int64(tcmalloc_heap_limit_mb);
 
 namespace {
+
+using tcmalloc::Static;
 
 // The system will only release memory if the block size is equal or hight than
 // system page size.
@@ -44,6 +48,7 @@ static void CheckStats(const tcmalloc::PageHeap* ph,
 
 static void TestPageHeap_Stats() {
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  SpinLockHolder h(Static::pageheap_lock());
 
   // Empty page heap
   CheckStats(ph.get(), 0, 0, 0);
@@ -79,6 +84,8 @@ static void AllocateAllPageTables() {
   // Make a separate PageHeap from the main test so the test can start without
   // any pages in the lists.
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  SpinLockHolder h(Static::pageheap_lock());
+
   tcmalloc::Span *spans[kNumberMaxPagesSpans * 2];
   for (int i = 0; i < kNumberMaxPagesSpans; ++i) {
     spans[i] = ph->New(kMaxPages);
@@ -100,6 +107,7 @@ static void TestPageHeap_Limit() {
   AllocateAllPageTables();
 
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  SpinLockHolder h(Static::pageheap_lock());
 
   CHECK_EQ(kMaxPages, 1 << (20 - kPageShift));
 
@@ -188,6 +196,8 @@ static void TestPageHeap_Limit() {
 }  // namespace
 
 int main(int argc, char **argv) {
+  Static::InitStaticVars();
+
   TestPageHeap_Stats();
   TestPageHeap_Limit();
   printf("PASS\n");
