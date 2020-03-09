@@ -1,3 +1,95 @@
+== 8 Mar 2018 ==
+gperftools 2.8rc is out!
+
+Here are notable changes:
+
+* building code now requires c++11 or later. Bundled MSVC project was
+  converted to Visual Studio 2015.
+
+* User obones contributed fix for windows x64 TLS callbacks. This
+  fixed leak of thread caches on thread exists in 64-bit windows.
+
+* releasing memory back to kernel is now made with page heap lock
+  dropped.
+
+* HoluWu contributed fix for correct malloc patching on debug builds
+  on windows. This configuration previously crashed.
+
+* Romain Geissler contributed fix for tls access during early tls
+  initialization on dlopen.
+
+* large allocation reports are now silenced by default. Since not all
+  programs want their stderr polluted by those messages. Contributed
+  by Junhao Li.
+
+* HolyWu contributed improvements to MSVC project files. Notably,
+  there is now project for "overriding" version of tcmalloc.
+
+* MS-specific _recalloc is now correctly zeroing only malloced
+  part. This fix was contributed by HolyWu.
+
+* Brian Silverman contributed correctness fix to sampler_test.
+
+* Gabriel Marin ported few fixes from chromium's fork. As part of
+  those fixes, we reduced number of static initializers (forbidden in
+  chromium). Also we now syscalls via syscall function instead of
+  reimplementing direct way to make syscalls on each platform.
+
+* Brian Silverman fixed flakiness in page heap test.
+
+* There is now configure flag to skip installing perl pprof, since
+  external golang pprof is much superior. --disable-deprecated-pprof
+  is the flag.
+
+* Fabric Fontaine contributed fixes to drop use of nonstandard
+  __off64_t type.
+
+* Fabrice Fontaine contributed build fix to check for presence of
+  nonstandard __sbrk functions. It is only used by mmap hooks code and
+  (rightfully) not available on musl.
+
+* Fabrice Fontaine contributed build fix around mmap64 macro and
+  function conflict in same cases.
+
+* there is now configure time option to enable aggressive decommit by
+  default. Contributed by Laurent
+  Stacul. --enable-aggressive-decommit-by-default is the flag.
+
+* Tulio Magno Quites Machado Filho contributed build fixes for ppc
+  around ucontext access.
+
+* User pkubaj contributed couple build fixes for FreeBSD/ppc.
+
+* configure now always assumes we have mmap. This fixes configure
+  failures on some linux guests inside virtualbox. This fixed issue
+  #1008.
+
+* User shipujin contributed syscall support fixes for mips64 (big and
+  little endian).
+
+* Henrik Edin contributed configurable support for wide range of
+  malloc page sizes. 4K, 8K, 16K, 32K, 64K, 128K and 256K are now
+  supported via existing --with-tcmalloc-pagesize flag to configure.
+
+* Jon Kohler added overheads fields to per-size-class textual
+  stats. Stats that are available via
+  MallocExtension::instance()->GetStats().
+
+* tcmalloc can now avoid fallback from memfs to default sys
+  allocator. TCMALLOC_MEMFS_DISABLE_FALLBACK switches this on. This
+  was contributed by Jon Kohler.
+
+* Ilya Leoshkevich fixed mmap syscall support on s390.
+
+* Todd Lipcon contributed small build warning fix.
+
+* User prehistoricpenguin contributed misc source file mode fixes (we
+  still had few few c++ files marked executable).
+
+* User invalid_ms_user contributed fix for typo.
+
+* Jakub Wilk contributed typos fixes.
+
 == 29 Apr 2018 ==
 gperftools 2.7 is out!
 
