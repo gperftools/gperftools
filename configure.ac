@@ -242,10 +242,13 @@ else
 fi
 
 # We hardcode HAVE_MMAP to 1. There are no interesting systems anymore
-# without functional mmap. And our windows builds aren't using
-# autoconf. So we keep HAVE_MMAP define, but only to distingush
-# windows and rest.
-AC_DEFINE(HAVE_MMAP, 1, [Define to 1 if you have a working `mmap' system call.])
+# without functional mmap. And our windows (except mingw) builds
+# aren't using autoconf. So we keep HAVE_MMAP define, but only to
+# distingush windows and rest.
+case "$host" in
+   *-mingw*) ;;
+   *) AC_DEFINE(HAVE_MMAP, 1, [Define to 1 if you have a working `mmap' system call.])
+esac
 
 # If AtomicWord != Atomic32, we need to define two versions of all the
 # atomicops functions.  If they're the same, we want to define only one.
