@@ -1,8 +1,9 @@
-<!DOCTYPE HTML PUBLIC "-//IETF//DTD HTML//EN">
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
 <HTML>
 
 <HEAD>
   <link rel="stylesheet" href="designstyle.css">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <title>Gperftools CPU Profiler</title>
 </HEAD>
 
@@ -45,10 +46,9 @@ system.)</p>
 
 <H1>Running the Code</H1>
 
-<p>There are several alternatives to actually turn on CPU profiling
-for a given run of an executable:</p>
+<p>There are 3 different ways to turn on CPU profiling for a given run of an executable:</p>
 
-<ol>
+<ol type="1">
   <li> <p>Define the environment variable CPUPROFILE to the filename
        to dump the profile to.  For instance, if you had a version of
        <code>/bin/ls</code> that had been linked against libprofiler,
@@ -69,11 +69,14 @@ for a given run of an executable:</p>
        generate the profile:</p>
        <pre>% killall -12 chrome</pre>
   </li>
-  <li> <p>In your code, bracket the code you want profiled in calls to
-       <code>ProfilerStart()</code> and <code>ProfilerStop()</code>.
-       (These functions are declared in <code>&lt;gperftools/profiler.h&gt;</code>.)
-       <code>ProfilerStart()</code> will take
-       the profile-filename as an argument.</p>
+  <li> <p>In your program, you can prefix and suffix the specific code you want profiled with calls to
+       <code>ProfilerStart()</code> and <code>ProfilerStop()</code> respectively
+       (these functions are declared in <code>&lt;gperftools/profiler.h&gt;</code>).
+       <code>ProfilerStart()</code> requires the profiler-output filename as an argument.<br>
+       eg.:<br>
+       <code>ProfilerStart("output.log");<br>
+       std::cout &lt;&lt; "Test" &lt;&lt; std::endl;<br>
+       ProfilerStop();</code></p>
   </li>
 </ol>
 
@@ -92,12 +95,12 @@ advanced-use functions, including <code>ProfilerFlush()</code> and
 <code>ProfilerStartWithOptions()</code>.</p>
 
 
-<H2>Modifying Runtime Behavior</H2>
+<H3>Modifying Runtime Behavior</H3>
 
 <p>You can more finely control the behavior of the CPU profiler via
 environment variables.</p>
 
-<table frame=box rules=sides cellpadding=5 width=100%>
+<table frame=box rules=cols cellpadding=5 width=100%>
 
 <tr valign=top>
   <td><code>CPUPROFILE_FREQUENCY=<i>x</i></code></td>
@@ -131,31 +134,31 @@ and others show the data in the form of a dependency graph.</p>
 
 <p>pprof <b>requires</b> <code>perl5</code> to be installed to run.
 It also requires <code>dot</code> to be installed for any of the
-graphical output routines, and <code>gv</code> to be installed for
-<code>--gv</code> mode (described below).
+graphical output routines, and <code>gv</code> (ghostview) to be installed for
+<code>--gv</code> mode (described below). <code>dot</code> is also included in the <code>graphvis</code> package.
 </p>
 
 <p>Here are some ways to call pprof.  These are described in more
 detail below.</p>
 
 <pre>
-% pprof /bin/ls ls.prof
+% google-pprof /bin/ls ls.prof
                        Enters "interactive" mode
-% pprof --text /bin/ls ls.prof
+% google-pprof --text /bin/ls ls.prof
                        Outputs one line per procedure
-% pprof --gv /bin/ls ls.prof
-                       Displays annotated call-graph via 'gv'
-% pprof --gv --focus=Mutex /bin/ls ls.prof
+% google-pprof --gv /bin/ls ls.prof
+                       Displays annotated call-graph via gv
+% google-pprof --gv --focus=Mutex /bin/ls ls.prof
                        Restricts to code paths including a .*Mutex.* entry
-% pprof --gv --focus=Mutex --ignore=string /bin/ls ls.prof
+% google-pprof --gv --focus=Mutex --ignore=string /bin/ls ls.prof
                        Code paths including Mutex but not string
-% pprof --list=getdir /bin/ls ls.prof
+% google-pprof --list=getdir /bin/ls ls.prof
                        (Per-line) annotated source listing for getdir()
-% pprof --disasm=getdir /bin/ls ls.prof
+% google-pprof --disasm=getdir /bin/ls ls.prof
                        (Per-PC) annotated disassembly for getdir()
-% pprof --text localhost:1234
+% google-pprof --text localhost:1234
                        Outputs one line per procedure for localhost:1234
-% pprof --callgrind /bin/ls ls.prof
+% google-pprof --callgrind /bin/ls ls.prof
                        Outputs the call information in callgrind format
 </pre>
 
@@ -169,12 +172,12 @@ detail below.</p>
 
 <p>Here is how to interpret the columns:</p>
 <ol>
-  <li> Number of profiling samples in this function
-  <li> Percentage of profiling samples in this function
-  <li> Percentage of profiling samples in the functions printed so far
-  <li> Number of profiling samples in this function and its callees
-  <li> Percentage of profiling samples in this function and its callees
-  <li> Function name
+  <li> Number of profiling samples in this function </li>
+  <li> Percentage of profiling samples in this function </li>
+  <li> Percentage of profiling samples in the functions printed so far </li>
+  <li> Number of profiling samples in this function and its callees    </li>
+  <li> Percentage of profiling samples in this function and its callees   </li>
+  <li> Function name </li>
 </ol>
 
 <h3>Analyzing Callgrind Output</h3>
@@ -182,7 +185,7 @@ detail below.</p>
 <p>Use <a href="http://kcachegrind.sourceforge.net">kcachegrind</a> to 
 analyze your callgrind output:</p>
 <pre>
-% pprof --callgrind /bin/ls ls.prof > ls.callgrind
+% google-pprof --callgrind /bin/ls ls.prof > ls.callgrind
 % kcachegrind ls.callgrind
 </pre>
 
@@ -283,7 +286,7 @@ call-graph is dropped on the floor.  For example, you can focus on the
 as follows:</p>
 
 <pre>
-% pprof --gv --focus=vsnprintf /tmp/profiler2_unittest test.prof
+% google-pprof --gv --focus=vsnprintf /tmp/profiler2_unittest test.prof
 </pre>
 <A HREF="pprof-vsnprintf-big.gif">
 <center><table><tr><td>
@@ -296,7 +299,7 @@ ignore samples that match a specified regular expression.  E.g., if
 you are interested in everything except calls to
 <code>snprintf()</code>, you can say:</p>
 <pre>
-% pprof --gv --ignore=snprintf /tmp/profiler2_unittest test.prof
+% google-pprof --gv --ignore=snprintf /tmp/profiler2_unittest test.prof
 </pre>
 
 
@@ -317,7 +320,7 @@ For a complete list of pprof options, you can run <code>pprof
 
 <p>
 <center>
-<table frame=box rules=sides cellpadding=5 width=100%>
+<table frame=box rules=cols cellpadding=5 width=100%>
 <tr valign=top>
   <td><code>--text</code></td>
   <td>
@@ -398,7 +401,7 @@ output.  The <code>--files</code> option seems to be particularly
 useless, and may be removed eventually.</p>
 
 <center>
-<table frame=box rules=sides cellpadding=5 width=100%>
+<table frame=box rules=cols cellpadding=5 width=100%>
 <tr valign=top>
   <td><code>--addresses</code></td>
   <td>
@@ -429,7 +432,7 @@ useless, and may be removed eventually.</p>
 display.  The following options control this effect:</p>
 
 <center>
-<table frame=box rules=sides cellpadding=5 width=100%>
+<table frame=box rules=cols cellpadding=5 width=100%>
 <tr valign=top>
   <td><code>--nodecount=&lt;n&gt;</code></td>
   <td>
@@ -487,7 +490,7 @@ display.  The following options control this effect:</p>
 </center>
 
 <p>The dropped edges and nodes account for some count mismatches in
-the display.  For example, the cumulative count for
+the display.  For example, the cumulative count for 
 <code>snprintf()</code> in the first diagram above was 41.  However
 the local count (1) and the count along the outgoing edges (12+1+20+6)
 add up to only 40.</p>
@@ -498,30 +501,30 @@ add up to only 40.</p>
 <ul>
   <li> If the program exits because of a signal, the generated profile
        will be <font color=red>incomplete, and may perhaps be
-       completely empty</font>.
+       completely empty</font>.</li>
   <li> The displayed graph may have disconnected regions because
-       of the edge-dropping heuristics described above.
+       of the edge-dropping heuristics described above.</li>
   <li> If the program linked in a library that was not compiled
        with enough symbolic information, all samples associated
        with the library may be charged to the last symbol found
        in the program before the library.  This will artificially
-       inflate the count for that symbol.
+       inflate the count for that symbol.</li>
   <li> If you run the program on one machine, and profile it on
        another, and the shared libraries are different on the two
        machines, the profiling output may be confusing: samples that
-       fall within  shared libaries may be assigned to arbitrary
-       procedures.
+       fall within shared libraries may be assigned to arbitrary
+       procedures.</li>
   <li> If your program forks, the children will also be profiled
        (since they inherit the same CPUPROFILE setting).  Each process
        is profiled separately; to distinguish the child profiles from
        the parent profile and from each other, all children will have
-       their process-id appended to the CPUPROFILE name.
-  <li> Due to a hack we make to work around a possible gcc bug, your
+       their process-id appended to the CPUPROFILE name.</li>
+  <li> Due to a hack we made to work around a possible gcc bug, your
        profiles may end up named strangely if the first character of
-       your CPUPROFILE variable has ascii value greater than 127.
+       your CPUPROFILE variable has an ascii value greater than 127.
        This should be exceedingly rare, but if you need to use such a
        name, just set prepend <code>./</code> to your filename:
-       <code>CPUPROFILE=./&Auml;gypten</code>.
+       <code>CPUPROFILE=./&Auml;gypten</code>.</li>
 </ul>
 
 
@@ -529,7 +532,7 @@ add up to only 40.</p>
 <address>Sanjay Ghemawat<br>
 <!-- Created: Tue Dec 19 10:43:14 PST 2000 -->
 <!-- hhmts start -->
-Last modified: Fri May  9 14:41:29 PDT 2008
+Last modified: May 23 2018
 <!-- hhmts end -->
 </address>
 </BODY>

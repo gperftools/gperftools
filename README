@@ -10,17 +10,17 @@ cpu-profiler.
 OVERVIEW
 ---------
 
-gperftools is a collection of a high-performance multi-threaded
-malloc() implementation, plus some pretty nifty performance analysis
+gperftools is a collection of both a high-performance multi-threaded
+malloc() implementation, and some pretty nifty performance analysis
 tools.
 
 gperftools is distributed under the terms of the BSD License. Join our
 mailing list at gperftools@googlegroups.com for updates:
 https://groups.google.com/forum/#!forum/gperftools
 
-gperftools was original home for pprof program. But do note that
-original pprof (which is still included with gperftools) is now
-deprecated in favor of golang version at https://github.com/google/pprof
+gperftools was originally the home for the google-pprof program. But please note that
+the original pprof (which is still included with gperftools) is now
+deprecated in favor of the golang version at https://github.com/google/pprof
 
 
 TCMALLOC
@@ -33,18 +33,27 @@ tcmalloc functionality is available on all systems we've tested; see
 INSTALL for more details.  See README_windows.txt for instructions on
 using tcmalloc on Windows.
 
-NOTE: When compiling with programs with gcc, that you plan to link
-with libtcmalloc, it's safest to pass in the flags
+NOTE: When compiling programs with gcc, if you plan to link
+with libtcmalloc, it's safer to compile with these flags:
 
  -fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
 
-when compiling.  gcc makes some optimizations assuming it is using its
-own, built-in malloc; that assumption obviously isn't true with
-tcmalloc.  In practice, we haven't seen any problems with this, but
+when compiling. gcc makes some optimizations which assume that it is using its
+own, built-in malloc; that assumption obviously isn't true when
+tcmalloc is being used. In practice, we haven't seen any problems with this, but
 the expected risk is highest for users who register their own malloc
-hooks with tcmalloc (using gperftools/malloc_hook.h).  The risk is
-lowest for folks who use tcmalloc_minimal (or, of course, who pass in
+hooks with tcmalloc (using gperftools/malloc_hook.h). The risk is
+lowest for folks who use tcmalloc_minimal (or who, of course, compile with
 the above flags :-) ).
+
+
+QUICK INSTALLATION (linux)
+--------------------------
+
+sudo apt-get install google-perftools
+sudo apt-get install gv graphviz # Only required for graphical chart output from pprof
+
+Note: graphical chart output from pprog requires the "dot" package, which is included in graphvis, and "gv" (ghostview).
 
 
 HEAP PROFILER
@@ -52,14 +61,14 @@ HEAP PROFILER
 See docs/heapprofile.html for information about how to use tcmalloc's
 heap profiler and analyze its output.
 
-As a quick-start, do the following after installing this package:
+As a quick-start, do the following after installing:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPPROFILE environment var set:
      $ HEAPPROFILE=/tmp/heapprof <path/to/binary> [binary args]
-3) Run pprof to analyze the heap usage
-     $ pprof <path/to/binary> /tmp/heapprof.0045.heap  # run 'ls' to see options
-     $ pprof --gv <path/to/binary> /tmp/heapprof.0045.heap
+3) Run google-pprof to analyze the heap usage
+     $ google-pprof <path/to/binary> /tmp/heapprof.0045.heap  # run 'ls' to see options
+     $ google-pprof --gv <path/to/binary> /tmp/heapprof.0045.heap
 
 You can also use LD_PRELOAD to heap-profile an executable that you
 didn't compile.
@@ -83,9 +92,7 @@ accesses in libraries listed after it on the link line.  For instance,
 it may report these libraries as leaking memory when they're not.
 (See the source code for more details.)
 
-Here's a quick-start for how to use:
-
-As a quick-start, do the following after installing this package:
+Here's a quick-start for how to use after installing the gpreftools package:
 
 1) Link your executable with -ltcmalloc
 2) Run your executable with the HEAPCHECK environment var set:
@@ -103,16 +110,15 @@ for more details.
 CPU PROFILER
 ------------
 See docs/cpuprofile.html for information about how to use the CPU
-profiler and analyze its output.
-
-As a quick-start, do the following after installing this package:
+profiler and analyze its output. There are several different ways to use the profiler.
+As a quick-start, here is one way to do so after having installed the gperftools package:
 
 1) Link your executable with -lprofiler
 2) Run your executable with the CPUPROFILE environment var set:
      $ CPUPROFILE=/tmp/prof.out <path/to/binary> [binary args]
-3) Run pprof to analyze the CPU usage
-     $ pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
-     $ pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical output
+3) Run google-pprof to analyze the CPU usage eg.:
+     $ google-pprof <path/to/binary> /tmp/prof.out      # -pg-like text output
+     $ google-pprof --gv <path/to/binary> /tmp/prof.out # really cool graphical chart output
 
 There are other environment variables, besides CPUPROFILE, you can set
 to adjust the cpu-profiler behavior; cf "ENVIRONMENT VARIABLES" below.
