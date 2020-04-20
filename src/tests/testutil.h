@@ -59,4 +59,15 @@ extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize);
 // out job limits.
 void SetTestResourceLimit();
 
+static void (* volatile noopt_helper)(void *) = +[] (void* dummy) {};
+
+// This function forces compiler to forget specific knowledge about
+// value of 'val'. This is useful to avoid compiler optimizing out
+// new/delete pairs for our unit tests.
+template <typename T>
+T noopt(T val) {
+  noopt_helper(&val);
+  return val;
+}
+
 #endif  // TCMALLOC_TOOLS_TESTUTIL_H_
