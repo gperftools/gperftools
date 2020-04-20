@@ -1298,7 +1298,7 @@ static inline uintptr_t GetFunctionAddress (void* (*func)(uintptr_t*))
 #endif
 
 // to trick complier into preventing inlining
-static void* (*mmapper_addr)(uintptr_t* addr) = &Mmapper;
+static void* (* volatile mmapper_addr)(uintptr_t* addr) = &Mmapper;
 
 // TODO(maxim): copy/move this to memory_region_map_unittest
 // TODO(maxim): expand this test to include mmap64, mremap and sbrk calls.
