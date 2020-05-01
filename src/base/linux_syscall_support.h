@@ -1066,7 +1066,7 @@ struct kernel_stat {
                            "pop %%ebx\n"                                      \
                            CFI_ADJUST_CFA_OFFSET(-4)                          \
                            args                                               \
-                           : "esp", "memory");                                \
+                           : "memory");                                       \
       LSS_RETURN(type,__res)
     #undef  _syscall0
     #define _syscall0(type,name)                                              \
@@ -1123,7 +1123,7 @@ struct kernel_stat {
                              : "i" (__NR_##name), "ri" ((long)(arg1)),        \
                                "c" ((long)(arg2)), "d" ((long)(arg3)),        \
                                "S" ((long)(arg4)), "D" ((long)(arg5))         \
-                             : "esp", "memory");                              \
+                             : "memory");                                     \
         LSS_RETURN(type,__res);                                               \
       }
     #undef  _syscall6
@@ -1145,7 +1145,7 @@ struct kernel_stat {
                              : "i" (__NR_##name),  "0" ((long)(&__s)),        \
                                "c" ((long)(arg2)), "d" ((long)(arg3)),        \
                                "S" ((long)(arg4)), "D" ((long)(arg5))         \
-                             : "esp", "memory");                              \
+                             : "memory");                                     \
         LSS_RETURN(type,__res);                                               \
       }
     LSS_INLINE int LSS_NAME(clone)(int (*fn)(void *), void *child_stack,
@@ -1231,7 +1231,7 @@ struct kernel_stat {
                            : "0"(-EINVAL), "i"(__NR_clone),
                              "m"(fn), "m"(child_stack), "m"(flags), "m"(arg),
                              "m"(parent_tidptr), "m"(newtls), "m"(child_tidptr)
-                           : "esp", "memory", "ecx", "edx", "esi", "edi");
+                           : "memory", "ecx", "edx", "esi", "edi");
       LSS_RETURN(int, __res);
     }
 
