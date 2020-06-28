@@ -519,7 +519,8 @@ Length PageHeap::ReleaseAtLeastNPages(Length num_pages) {
   // span from each list.  Stop after releasing at least num_pages
   // or when there is nothing more to release.
   while (released_pages < num_pages && stats_.free_bytes > 0) {
-    for (int i = 0; i < kMaxPages+1 && released_pages < num_pages;
+    int i = 0;
+    for (; i < kMaxPages + 1 && released_pages < num_pages;
          i++, release_index_++) {
       Span *s;
       if (release_index_ > kMaxPages) release_index_ = 0;
@@ -541,9 +542,12 @@ Length PageHeap::ReleaseAtLeastNPages(Length num_pages) {
       // large freelist, should we carve s instead of releasing?
       // the whole thing?
       Length released_len = ReleaseSpan(s);
-      // Some systems do not support release
-      if (released_len == 0) return released_pages;
       released_pages += released_len;
+    }
+    // All free spans are already searched once, there is no page
+    // to release probaly.
+    if (i == (kMaxPages + 1)) {
+      break;
     }
   }
   return released_pages;
