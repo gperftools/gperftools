@@ -1,4 +1,22 @@
-== 8 Mar 2018 ==
+== 6 July 2020 ==
+gperftools 2.8 is out!
+
+Here are notable changes:
+
+* ProfilerGetStackTrace is now officially supported API for
+  libprofiler. Contributed by Kirill Müller.
+
+* Build failures on mingw were fixed. This fixed issue #1108.
+
+* Build failure of page_heap_test on MSVC was fixed.
+
+* Ryan Macnak contributed fix for compiling linux syscall support on
+  i386 and recent GCCs. This fixed issue #1076.
+
+* test failures caused by new gcc 10 optimizations were fixed. Same
+  change also fixed tests on clang.
+
+== 8 Mar 2020 ==
 gperftools 2.8rc is out!
 
 Here are notable changes:

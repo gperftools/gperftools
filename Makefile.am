@@ -1396,7 +1396,7 @@ libtcmalloc_and_profiler_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) $(libprofiler_
 # about .so versioning.  I just give the libtcmalloc version number.
 # TODO(csilvers): use -export-symbols-regex?
 libtcmalloc_and_profiler_la_LDFLAGS = $(PTHREAD_CFLAGS) \
-                                      -version-info @TCMALLOC_SO_VERSION@
+                                      -version-info @TCMALLOC_AND_PROFILER_SO_VERSION@
 # We don't include libprofiler_la_LIBADD here because all it adds is
 # libstacktrace.la, which we already get via libtcmalloc.  Trying to
 # specify it twice causes link-time duplicate-definition errors. :-(
