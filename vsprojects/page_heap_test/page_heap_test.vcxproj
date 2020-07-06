@@ -123,7 +123,6 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <ForceSymbolReferences>__tcmalloc;%(ForceSymbolReferences)</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -134,7 +133,6 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <ForceSymbolReferences>__tcmalloc;%(ForceSymbolReferences)</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Patch|Win32'">
@@ -148,7 +146,6 @@
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <ForceSymbolReferences>__tcmalloc;%(ForceSymbolReferences)</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Override|Win32'">
@@ -176,7 +173,6 @@
       <SubSystem>Console</SubSystem>
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <ForceSymbolReferences>__tcmalloc;%(ForceSymbolReferences)</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Override|x64'">
@@ -194,7 +190,30 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\base\dynamic_annotations.c" />
+    <ClCompile Include="..\..\src\base\logging.cc" />
+    <ClCompile Include="..\..\src\base\low_level_alloc.cc" />
+    <ClCompile Include="..\..\src\base\spinlock.cc" />
+    <ClCompile Include="..\..\src\base\spinlock_internal.cc" />
+    <ClCompile Include="..\..\src\base\sysinfo.cc" />
+    <ClCompile Include="..\..\src\central_freelist.cc" />
+    <ClCompile Include="..\..\src\common.cc" />
+    <ClCompile Include="..\..\src\fake_stacktrace_scope.cc" />
+    <ClCompile Include="..\..\src\internal_logging.cc" />
+    <ClCompile Include="..\..\src\malloc_extension.cc" />
+    <ClCompile Include="..\..\src\malloc_hook.cc" />
+    <ClCompile Include="..\..\src\page_heap.cc" />
+    <ClCompile Include="..\..\src\raw_printer.cc" />
+    <ClCompile Include="..\..\src\sampler.cc" />
+    <ClCompile Include="..\..\src\span.cc" />
+    <ClCompile Include="..\..\src\stack_trace_table.cc" />
+    <ClCompile Include="..\..\src\stacktrace.cc" />
+    <ClCompile Include="..\..\src\static_vars.cc" />
+    <ClCompile Include="..\..\src\symbolize.cc" />
     <ClCompile Include="..\..\src\tests\page_heap_test.cc" />
+    <ClCompile Include="..\..\src\thread_cache.cc" />
+    <ClCompile Include="..\..\src\windows\port.cc" />
+    <ClCompile Include="..\..\src\windows\system-alloc.cc" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\base\logging.h" />
@@ -203,12 +222,6 @@
     <ClInclude Include="..\..\src\page_heap.h" />
     <ClInclude Include="..\..\src\windows\config.h" />
     <ClInclude Include="..\..\src\windows\port.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\libtcmalloc_minimal\libtcmalloc_minimal.vcxproj">
-      <Project>{55e2b3ae-3ca1-4db6-97f7-0a044d6f446f}</Project>
-      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
