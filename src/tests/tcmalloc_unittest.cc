@@ -1503,7 +1503,7 @@ static int RunAllTests(int argc, char** argv) {
 
     // Test sbrk
     SetSbrkHook();
-#if defined(HAVE_SBRK) && defined(__linux) && \
+#if defined(HAVE___SBRK) && defined(__linux) && \
        (defined(__i386__) || defined(__x86_64__))
     p1 = sbrk(8192);
     CHECK(p1 != NULL);
