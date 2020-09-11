@@ -34,6 +34,7 @@
 #include <stdlib.h>   // for rand()
 #include <vector>
 #include <set>
+#include <random>
 #include <algorithm>
 #include <utility>
 #include "addressmap-inl.h"
@@ -47,7 +48,7 @@ using std::pair;
 using std::make_pair;
 using std::vector;
 using std::set;
-using std::random_shuffle;
+using std::shuffle;
 
 struct UniformRandomNumberGenerator {
   size_t Uniform(size_t max_size) {
@@ -91,7 +92,9 @@ int main(int argc, char** argv) {
     RAW_LOG(INFO, "Iteration %d/%d...\n", x, FLAGS_iters);
 
     // Permute pointers to get rid of allocation order issues
-    random_shuffle(ptrs_and_sizes.begin(), ptrs_and_sizes.end());
+    std::random_device rd;
+    std::mt19937 g(rd());
+    shuffle(ptrs_and_sizes.begin(), ptrs_and_sizes.end(), g);
 
     AddressMap<ValueT> map(malloc, free);
     const ValueT* result;
