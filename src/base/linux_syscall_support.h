@@ -130,13 +130,13 @@
 #ifndef SYS_LINUX_SYSCALL_SUPPORT_H
 #define SYS_LINUX_SYSCALL_SUPPORT_H
 
-/* We currently only support x86-32, x86-64, ARM, MIPS, PPC/PPC64, Aarch64, s390 and s390x
- * on Linux.
+/* We currently only support x86-32, x86-64, ARM, MIPS, PPC/PPC64, Aarch64,
+ * s390, s390x, and riscv64 on Linux.
  * Porting to other related platforms should not be difficult.
  */
 #if (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || \
      defined(__mips__) || defined(__mips64) || defined(__mips64el__) || defined(__PPC__) || \
-     defined(__aarch64__) || defined(__s390__)) \
+     defined(__aarch64__) || defined(__s390__) || defined(__riscv)) \
   && (defined(__linux))
 
 #ifndef SYS_CPLUSPLUS
@@ -938,6 +938,22 @@ struct kernel_stat {
 # endif
 #endif /* __s390__ */
 /* End of s390/s390x definitions                                             */
+#elif defined(__riscv)
+# ifndef __NR_gettid
+# define __NR_gettid             178
+# endif
+# ifndef __NR_futex
+# define __NR_futex              422
+# endif
+# ifndef __NR_getdents64
+# define __NR_getdents64         61
+# endif
+# ifndef __NR_openat
+# define __NR_openat             56
+# endif
+# ifndef __NR_fstatat
+# define __NR_fstatat            79
+# endif
 #endif
 
 
@@ -1001,7 +1017,7 @@ struct kernel_stat {
 
   #undef  LSS_RETURN
   #if (defined(__i386__) || defined(__x86_64__) || defined(__arm__) ||        \
-       defined(__aarch64__) || defined(__s390__))
+       defined(__aarch64__) || defined(__s390__) || defined(__riscv))
   /* Failing system calls return a negative result in the range of
    * -1..-4095. These are "errno" values with the sign inverted.
    */
@@ -2460,6 +2476,94 @@ struct kernel_stat {
       }
       LSS_RETURN(int, __ret);
     }
+  #elif defined(__riscv)
+    #undef LSS_REG
+    #define LSS_REG(r,a) register long __a##r __asm__("a"#r) =       \
+                                 (long)(a)
+
+    #undef  LSS_BODY
+    #define LSS_BODY(type, name, args...)                                     \
+          register long __a7 __asm__("a7") = __NR_##name;                     \
+          long __res;                                                         \
+          __asm__ __volatile__ (                                              \
+                                "scall\n\t"                                   \
+                                : "+r" (__a0)                                 \
+                                : "r" (__a7), ##args                          \
+                                : "memory");                                  \
+          __res = __a0;                                                       \
+          LSS_RETURN(type, __res)
+    #undef _syscall0
+    #define _syscall0(type,name)                                              \
+      type LSS_NAME(name)() {                                                 \
+          register long __a7 __asm__("a7") = __NR_##name;                     \
+          register long __a0 __asm__("a0");                                   \
+          long __res;                                                         \
+          __asm__ __volatile__ (                                              \
+                                "scall\n\t"                                   \
+                                : "=r" (__a0)                                 \
+                                : "r" (__a7)                                  \
+                                : "memory");                                  \
+          __res = __a0;                                                       \
+          LSS_RETURN(type, __res);                                            \
+      }
+    #undef _syscall1
+    #define _syscall1(type, name, type1, arg1)                                \
+      type LSS_NAME(name)(type1 arg1) {                                       \
+        /* There is no need for using a volatile temp.  */                    \
+        LSS_REG(0, arg1);                                                     \
+        LSS_BODY(type, name);                                                 \
+      }
+    #undef _syscall2
+    #define _syscall2(type, name, type1, arg1, type2, arg2)                   \
+      type LSS_NAME(name)(type1 arg1, type2 arg2) {                           \
+        LSS_REG(0, arg1);                                                     \
+        LSS_REG(1, arg2);                                                     \
+        LSS_BODY(type, name, "r"(__a1));                                      \
+      }
+    #undef _syscall3
+    #define _syscall3(type, name, type1, arg1, type2, arg2, type3, arg3)      \
+      type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3) {               \
+        LSS_REG(0, arg1);                                                     \
+        LSS_REG(1, arg2);                                                     \
+        LSS_REG(2, arg3);                                                     \
+        LSS_BODY(type, name, "r"(__a1), "r"(__a2));                           \
+      }
+    #undef _syscall4
+    #define _syscall4(type, name, type1, arg1, type2, arg2, type3, arg3,      \
+                      type4, arg4)                                            \
+      type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4) {   \
+        LSS_REG(0, arg1);                                                     \
+        LSS_REG(1, arg2);                                                     \
+        LSS_REG(2, arg3);                                                     \
+        LSS_REG(3, arg4);                                                     \
+        LSS_BODY(type, name, "r"(__a1), "r"(__a2), "r"(__a3));                \
+      }
+    #undef _syscall5
+    #define _syscall5(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4,  \
+                      type5,arg5)                                             \
+      type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4,     \
+                          type5 arg5) {                                       \
+        LSS_REG(0, arg1);                                                     \
+        LSS_REG(1, arg2);                                                     \
+        LSS_REG(2, arg3);                                                     \
+        LSS_REG(3, arg4);                                                     \
+        LSS_REG(4, arg5);                                                     \
+        LSS_BODY(type, name, "r"(__a1), "r"(__a2), "r"(__a3), "r"(__a4));     \
+      }
+    #undef _syscall6
+    #define _syscall6(type,name,type1,arg1,type2,arg2,type3,arg3,type4,arg4,  \
+                      type5,arg5,type6,arg6)                                  \
+      type LSS_NAME(name)(type1 arg1, type2 arg2, type3 arg3, type4 arg4,     \
+                          type5 arg5, type6 arg6) {                           \
+        LSS_REG(0, arg1);                                                     \
+        LSS_REG(1, arg2);                                                     \
+        LSS_REG(2, arg3);                                                     \
+        LSS_REG(3, arg4);                                                     \
+        LSS_REG(4, arg5);                                                     \
+        LSS_REG(5, arg6);                                                     \
+        LSS_BODY(type, name, "r"(__a1), "r"(__a2), "r"(__a3), "r"(__a4),      \
+                             "r"(__a5));                                      \
+      }
   #endif
   #define __NR__exit   __NR_exit
   #define __NR__gettid __NR_gettid

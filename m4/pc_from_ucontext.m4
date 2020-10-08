@@ -28,6 +28,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
    pc_fields="$pc_fields uc_mcontext.pc"               # Linux (mips)
    pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
+   pc_fields="$pc_fields uc_mcontext.__gregs[[REG_PC]]"  # Linux (riscv64)
    pc_fields="$pc_fields uc_mcontext.psw.addr"         # Linux (s390)
    pc_fields="$pc_fields uc_mcontext.gregs[[R15]]"     # Linux (arm old [untested])
    pc_fields="$pc_fields uc_mcontext.arm_pc"           # Linux (arm arch 5)
