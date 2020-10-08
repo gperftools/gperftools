@@ -56,7 +56,7 @@
     || defined(__PPC64__) \
     || defined(__aarch64__) \
     || (defined(_MIPS_SIM) && (_MIPS_SIM == _ABI64 || _MIPS_SIM == _ABIN32)) \
-    || defined(__s390__)
+    || defined(__s390__) || (defined(__riscv) && __riscv_xlen == 64)
 
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,
