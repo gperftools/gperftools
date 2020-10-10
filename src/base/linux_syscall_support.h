@@ -749,12 +749,12 @@ struct kernel_stat {
 #ifndef __NR_getcpu
 #define __NR_getcpu             302
 #endif
-/* End of powerpc defininitions                                              */
+/* End of powerpc definitions                                              */
 #elif defined(__aarch64__)
 #ifndef __NR_fstatat
 #define __NR_fstatat             79
 #endif
-/* End of aarch64 defininitions                                              */
+/* End of aarch64 definitions                                              */
 #elif defined(__s390__)
 #ifndef __NR_quotactl
 #define __NR_quotactl           131
