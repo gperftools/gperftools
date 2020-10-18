@@ -334,9 +334,11 @@ Span* PageHeap::CheckAndHandlePreMerge(Span* span, Span* other) {
   // If we're in aggressive decommit mode and span is decommitted,
   // then we try to decommit adjacent span. We also remove from it's
   // free list as part of that.
+  //Release other span need not merge other span, free prev span may
+  //merge next span, and next span is the free one.
   if (aggressive_decommit_ && other->location == Span::ON_NORMAL_FREELIST
       && span->location == Span::ON_RETURNED_FREELIST) {
-    if (ReleaseSpan(other) != 0) {
+    if (ReleaseSpan(other, false) != 0) {
       return other;
     }
     return NULL;
@@ -481,7 +483,7 @@ void PageHeap::IncrementalScavenge(Length n) {
   }
 }
 
-Length PageHeap::ReleaseSpan(Span* span) {
+Length PageHeap::ReleaseSpan(Span* span, bool need_merge_span) {
   // We're dropping very important and otherwise contended
   // pageheap_lock around call to potentially very slow syscall to
   // release pages. Those syscalls can be slow even with "advanced"
@@ -507,8 +509,9 @@ Length PageHeap::ReleaseSpan(Span* span) {
     n = 0; // Mark that we failed to return.
     span->location = Span::ON_NORMAL_FREELIST;
   }
-
-  MergeIntoFreeList(span);  // Coalesces if possible.
+  if (need_merge_span) {
+    MergeIntoFreeList(span);  // Coalesces if possible.
+  }
   return n;
 }
 

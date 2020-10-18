@@ -331,7 +331,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Returns the length of the Span or zero if release failed.
   //
   // REQUIRES: 'span' must be on the NORMAL freelist.
-  Length ReleaseSpan(Span *span);
+  Length ReleaseSpan(Span *span, bool need_merge_span = true);
 
   // Checks if we are allowed to take more memory from the system.
   // If limit is reached and allowRelease is true, tries to release
