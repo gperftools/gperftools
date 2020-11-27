@@ -43,6 +43,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext->__ss.__rip"      # OS X (>=10.5 [untested])
    pc_fields="$pc_fields uc_mcontext->ss.srr0"         # OS X (ppc, ppc64 [untested])
    pc_fields="$pc_fields uc_mcontext->__ss.__srr0"     # OS X (>=10.5 [untested])
+   pc_fields="$pc_fields uc_mcontext->__ss.__pc"       # OS X (arm64 [untested])
    pc_field_found=false
    for pc_field in $pc_fields; do
      if ! $pc_field_found; then
