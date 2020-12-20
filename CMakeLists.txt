@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.12)
 
+# Please note that cmake support is very preliminary. Autotools-based
+# build is the only fully supported build for now.
+
 # Based on configure.ac
 
 project(gperftools VERSION 2.8.0 LANGUAGES C CXX
