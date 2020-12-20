@@ -314,7 +314,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   void CommitSpan(Span* span);
 
   // Decommit the span.
-  bool TryDecommitWithoutLock(Span* span);
+  bool DecommitSpan(Span* span);
 
   // Prepends span to appropriate free list, and adjusts stats.
   void PrependToFreeList(Span* span);
@@ -326,12 +326,12 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // IncrementalScavenge(n) is called whenever n pages are freed.
   void IncrementalScavenge(Length n);
 
-  // Attempts to decommit 'span' and move it to the returned freelist.
+  // Attempts to decommit 's' and move it to the returned freelist.
   //
   // Returns the length of the Span or zero if release failed.
   //
-  // REQUIRES: 'span' must be on the NORMAL freelist.
-  Length ReleaseSpan(Span *span);
+  // REQUIRES: 's' must be on the NORMAL freelist.
+  Length ReleaseSpan(Span *s);
 
   // Checks if we are allowed to take more memory from the system.
   // If limit is reached and allowRelease is true, tries to release
