@@ -1,3 +1,31 @@
+== 20 December 2020 ==
+gperftools 2.8.1 is out!
+
+Here are notable changes:
+
+* previous release contained change to release memory without page
+  heap lock, but this change had at least one bug that caused to
+  crashes and corruption when running under aggressive decommit mode
+  (this is not default). While we check for other bugs, this feature
+  was reverted. See github issue #1204 and issue #1227.
+
+* stack traces depth captured by gperftools is now up to 254 levels
+  deep. Thanks to Kerrick Staley for this small but useful tweak.
+
+* Levon Ter-Grigoryan has contributed small fix for compiler warning.
+
+* Grant Henke has contributed updated detection of program counter
+  register for OS X on arm64.
+
+* Tim Gates has contributed small typo fix.
+
+* Steve Langasek has contributed basic build fixes for riscv64 (!).
+
+* Isaac Hier and okhowang have contributed premiliminary port of build
+  infrastructure to cmake. This works, but it is very premiliminary.
+  Autotools-based build is the only officially supported build for
+  now.
+
 == 6 July 2020 ==
 gperftools 2.8 is out!
 
