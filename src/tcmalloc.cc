@@ -399,6 +399,22 @@ static double PagesToMiB(uint64_t pages) {
   return (pages << kPageShift) / 1048576.0;
 }
 
+static void GetStats(tc_malloc_stats_t* stats) {
+  TCMallocStats internal_stats;
+  ExtractStats(&internal_stats, NULL, NULL, NULL);
+  stats->thread_bytes = size_t(internal_stats.thread_bytes);
+  stats->central_bytes = size_t(internal_stats.central_bytes);
+  stats->transfer_bytes = size_t(internal_stats.transfer_bytes);
+  stats->metadata_bytes = size_t(internal_stats.metadata_bytes);
+  stats->pageheap_system_bytes = size_t(internal_stats.pageheap.system_bytes);
+  stats->pageheap_free_bytes = size_t(internal_stats.pageheap.free_bytes);
+  stats->pageheap_unmapped_bytes = size_t(internal_stats.pageheap.unmapped_bytes);
+  stats->pageheap_committed_bytes = size_t(internal_stats.pageheap.committed_bytes);
+  stats->spans_in_use = size_t(Static::span_allocator()->inuse());
+  stats->heaps_in_use = size_t(ThreadCache::HeapsInUse());
+  stats->page_size = size_t(kPageSize);
+}
+
 // WRITE stats to "out"
 static void DumpStats(TCMalloc_Printer* out, int level) {
   TCMallocStats stats;
@@ -1619,6 +1635,10 @@ inline void do_malloc_stats() {
   PrintStats(1);
 }
 
+inline void do_get_malloc_stats(tc_malloc_stats_t* stats) {
+  GetStats(stats);
+}
+
 inline int do_mallopt(int cmd, int value) {
   return 1;     // Indicates error
 }
@@ -2169,6 +2189,10 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
 
 extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW {
   do_malloc_stats();
+}
+
+extern "C" PERFTOOLS_DLL_DECL void tc_malloc_get_stats(tc_malloc_stats_t* stats) PERFTOOLS_NOTHROW {
+  do_get_malloc_stats(stats);
 }
 
 extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW {

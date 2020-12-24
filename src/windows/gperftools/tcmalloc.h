@@ -71,6 +71,20 @@
 # endif
 #endif
 
+struct tc_malloc_stats_t {
+  size_t thread_bytes;
+  size_t central_bytes;
+  size_t transfer_bytes;
+  size_t metadata_bytes;
+  size_t pageheap_system_bytes;
+  size_t pageheap_free_bytes;
+  size_t pageheap_unmapped_bytes;
+  size_t pageheap_committed_bytes;
+  size_t spans_in_use;
+  size_t heaps_in_use;
+  size_t page_size;
+};
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -98,6 +112,7 @@ extern "C" {
   PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t __size) PERFTOOLS_NOTHROW;
 
   PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
+  PERFTOOLS_DLL_DECL void tc_malloc_get_stats(tc_malloc_stats_t* stats) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
 
   /*
