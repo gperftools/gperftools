@@ -1,11 +1,11 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright (c) 2005, Google Inc.
 // All rights reserved.
-// 
+//
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
 // met:
-// 
+//
 //     * Redistributions of source code must retain the above copyright
 // notice, this list of conditions and the following disclaimer.
 //     * Redistributions in binary form must reproduce the above
@@ -15,7 +15,7 @@
 //     * Neither the name of Google Inc. nor the names of its
 // contributors may be used to endorse or promote products derived from
 // this software without specific prior written permission.
-// 
+//
 // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 // "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 // LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -113,5 +113,21 @@ extern PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
 // better stack trace under certain conditions. The "uc" may safely be NULL.
 extern PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
                                     int skip_count, const void *uc);
+
+
+typedef int (*GetStackFramesFunc)(void** result, int* sizes, int max_depth,
+                                 int skip_count);
+
+typedef int (*GetStackFramesWithContextFunc)(void** result, int* sizes, int max_depth,
+                                             int skip_count, const void *uc);
+
+typedef int (*GetStackTraceFunc)(void** result, int max_depth, int skip_count);
+
+typedef int (*GetStackTraceWithContextFunc)(void** result, int max_depth,
+                                            int skip_count, const void *uc);
+
+// Otherwides the predefined stacktrace implementations. Returns 0 if succeeded, -1 otherwise.
+int OverrideStackTraceImplementation(GetStackFramesFunc sff, GetStackFramesWithContextFunc sfwcf,
+                                      GetStackTraceFunc stf, GetStackTraceWithContextFunc stwcf);
 
 #endif /* GOOGLE_STACKTRACE_H_ */

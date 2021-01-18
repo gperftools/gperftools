@@ -162,6 +162,15 @@ struct GetStackImplementation {
 #define HAVE_GST_win32
 #endif
 
+
+static GetStackImplementation impl__custom = {
+  NULL,
+  NULL,
+  NULL,
+  NULL,
+  "custom"
+};
+
 static GetStackImplementation *all_impls[] = {
 #ifdef HAVE_GST_libgcc
   &impl__libgcc,
@@ -187,6 +196,7 @@ static GetStackImplementation *all_impls[] = {
 #ifdef HAVE_GST_win32
   &impl__win32,
 #endif
+  &impl__custom,
   NULL
 };
 
@@ -317,7 +327,7 @@ static void init_default_stack_impl_inner(void) {
   }
   for (GetStackImplementation **p = all_impls; *p; p++) {
     GetStackImplementation *c = *p;
-    if (strcmp(c->name, val) == 0) {
+    if (strcmp(c->name, val) == 0 && c->GetStackFramesPtr) {
       get_stack_impl = c;
       return;
     }
