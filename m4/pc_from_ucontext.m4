@@ -32,6 +32,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext.psw.addr"         # Linux (s390)
    pc_fields="$pc_fields uc_mcontext.gregs[[R15]]"     # Linux (arm old [untested])
    pc_fields="$pc_fields uc_mcontext.arm_pc"           # Linux (arm arch 5)
+   pc_fields="$pc_fields uc_mcontext.cr0_hi"           # Linux (e2k)
    pc_fields="$pc_fields uc_mcontext.gp_regs[[PT_NIP]]"  # Suse SLES 11 (ppc64)
    pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
    pc_fields="$pc_fields uc_mcontext.mc_srr0"          # FreeBSD (powerpc, powerpc64)

@@ -385,6 +385,8 @@ class AssignAttributeStartEnd {
 #   define CACHELINE_ALIGNED __attribute__((aligned(256)))
 # elif (defined(__riscv) && __riscv_xlen == 64)
 #   define CACHELINE_ALIGNED __attribute__((aligned(64)))
+# elif (defined(__e2k__))
+#   define CACHELINE_ALIGNED __attribute__((aligned(64)))
 # else
 #   error Could not determine cache line length - unknown architecture
 # endif
