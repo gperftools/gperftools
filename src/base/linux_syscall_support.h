@@ -2223,7 +2223,7 @@ struct kernel_stat {
                                 "svc 0x0\n"                                   \
                                 : "=r"(__res_x0)                              \
                                 : "i"(__NR_##name) , ## args                  \
-                                : "memory");                                  \
+                                : "x8", "memory");                            \
           __res = __res_x0;                                                   \
           LSS_RETURN(type, __res)
     #undef _syscall0
@@ -2340,7 +2340,7 @@ struct kernel_stat {
                                "r"(__fn), "r"(__stack), "r"(__flags), "r"(__arg),
                                "r"(__ptid), "r"(__tls), "r"(__ctid),
                                "i"(__NR_clone), "i"(__NR_exit)
-                             : "x30", "memory");
+                             : "x8", "x30", "memory");
       }
       LSS_RETURN(int, __res);
     }
