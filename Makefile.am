@@ -51,15 +51,16 @@ AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
 # particular, some x86_64 systems do not insert frame pointers by
 # default (all i386 systems that I know of, do.  I don't know about
 # non-x86 chips).  We need to tell perftools what to do about that.
-if X86_64_AND_NO_FP_BY_DEFAULT
-if ENABLE_FRAME_POINTERS
-AM_CXXFLAGS += -fno-omit-frame-pointer
-else
-  # TODO(csilvers): check if -fomit-frame-pointer might be in $(CXXFLAGS),
-  #                 before setting this.
+if OMIT_FP_BY_DEFAULT
+if !ENABLE_FRAME_POINTERS
 AM_CXXFLAGS += -DNO_FRAME_POINTER
 endif !ENABLE_FRAME_POINTERS
-endif X86_64_AND_NO_FP_BY_DEFAULT
+endif OMIT_FP_BY_DEFAULT
+
+# respect --enable-frame-pointers regardless of architecture
+if ENABLE_FRAME_POINTERS
+AM_CXXFLAGS += -fno-omit-frame-pointer
+endif ENABLE_FRAME_POINTERS
 
 # For windows systems (at least, mingw), we need to tell all our
 # tests to link in libtcmalloc using -u.  This is because libtcmalloc

@@ -286,24 +286,13 @@ AC_ARG_ENABLE(frame_pointers,
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 
 AC_MSG_CHECKING([for x86 without frame pointers])
-# Some x86_64 systems do not insert frame pointers by default.
-# We want to see if the current system is one of those.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __x86_64__ == 1 ? 0 : 1])],
                   [is_x86_64=yes], [is_x86_64=no])
-OLD_CFLAGS="$CFLAGS"
-CFLAGS="$CFLAGS -S -O2 -o fp.s"
-# This test will always fail because we don't name our output file properly.
-# We do our own determination of success/failure in the grep, below.
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([int f(int x) {return x;}], [return f(0);])],
-                  [:], [:])
-x86_no_fp_by_default=no
-AS_IF([test "$is_x86_64" = yes && ! grep 'mov.*rsp.*rbp' fp.s >/dev/null 2>&1], [x86_no_fp_by_default=yes])
-AM_CONDITIONAL(X86_64_AND_NO_FP_BY_DEFAULT,
-               test "$x86_no_fp_by_default" = yes)
-rm fp.s
-CFLAGS="$OLD_CFLAGS"
-AC_MSG_RESULT([$x86_no_fp_by_default])
-
+omit_fp_by_default=no
+AS_IF([test "$is_x86_64" = yes], [omit_fp_by_default=yes])
+AM_CONDITIONAL(OMIT_FP_BY_DEFAULT,
+               test "$omit_fp_by_default" = yes)
+AC_MSG_RESULT([$omit_fp_by_default])
 
 # We need to know if we're i386 so we can turn on -mmms, which is not
 # on by default for i386 (it is for x86_64).
@@ -654,7 +643,7 @@ AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
 AC_OUTPUT
 
-AS_IF([test "$x86_no_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x && test "x$enable_minimal" != xyes],
+AS_IF([test "$omit_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x && test "x$enable_minimal" != xyes],
   [AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
     [AC_MSG_WARN([No frame pointers and no libunwind. Using experimental backtrace capturing via libgcc. Expect crashy cpu profiler.])],
     [AS_IF([test "x$enable_backtrace" = xyes],

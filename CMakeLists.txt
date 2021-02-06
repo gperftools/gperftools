@@ -58,7 +58,6 @@ include(CPack)
 include(GNUInstallDirs)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
-include(CheckNoFPByDefault)
 include(DefineTargetVariables)
 include(FindObjcopyWithWeaken)
 include(PCFromUContext)
@@ -263,33 +262,10 @@ if(gperftools_enable_libunwind)
   endif()
 endif()
 
-# On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
-# Some x86_64 systems do not insert frame pointers by default.
-# We want to see if the current system is one of those.
+# On x86_64, we know that default is to omit frame pointer.
 if(x86_64)
-  check_omit_fp_by_default(omit_fp_by_default)
+  set(omit_fp_by_default ON)
 endif()
-
-if(x86_64 AND omit_fp_by_default)
-  set(fp_option_enabled "Success")
-else()
-  set(fp_option_enabled "Failed")
-  if(NOT x86_64)
-    set(fp_option_enabled "${fp_option_enabled}, not x86_64")
-  elseif(NOT omit_fp_by_default)
-    set(fp_option_enabled
-        "${fp_option_enabled}, frame pointer not omitted by default")
-  endif()
-  message(STATUS
-    "Enable option gperftools_enable_frame_pointers - ${fp_option_enabled}")
-endif()
-
-cmake_dependent_option(
-  gperftools_enable_frame_pointers
-  "On x86_64 systems, compile with -fno-omit-frame-pointer (see INSTALL)"
-  OFF
-  "x86_64;omit_fp_by_default"
-  OFF)
 
 # See if the compiler supports -Wno-unused-result.
 # Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling
@@ -482,21 +458,23 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER OR
   set(WITH_STACK_TRACE ON)
 endif()
 
-if(gperftools_enable_frame_pointers AND
-   NOT unwind_libs AND
-   NOT gperftools_build_minimal)
+# The following matters only if we're not using libunwind and if we
+# care about backtrace capturing, and frame pointers are not available
+# to capture backtraces. The idea is to warn user about less stable or
+# known bad configurations (e.g. encourage to install libunwind).
+if (NOT unwind_libs AND NOT gperftools_build_minimal AND
+    omit_fp_by_default AND NOT gperftools_enable_frame_pointers)
   if(HAVE_UNWIND_BACKTRACE)
     message(WARNING "No frame pointers and no libunwind. "
                     "Using experimental backtrace capturing via libgcc. "
                     "Expect crashy cpu profiler.")
-    if(gperftools_enable_stacktrace_via_backtrace)
-      message(WARNING "No frame pointers and no libunwind. "
-                      "Using experimental backtrace(). "
-                      "Expect crashy cpu profiler.")
-    else()
-      message(FATAL_ERROR "No frame pointers and no libunwind. "
-                          "The compilation will fail.")
-    endif()
+  elseif(gperftools_enable_stacktrace_via_backtrace)
+    message(WARNING "No frame pointers and no libunwind. "
+      "Using experimental backtrace(). "
+      "Expect crashy cpu profiler.")
+  else()
+    message(FATAL_ERROR "No frame pointers and no libunwind. "
+      "The compilation will fail.")
   endif()
 endif()
 
@@ -540,16 +518,17 @@ endif()
 # LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
 add_link_options(${libstdcxx_la_linker_flag})
 
-# These are x86-specific, having to do with frame-pointers.  In
-# particular, some x86_64 systems do not insert frame pointers by
-# default (all i386 systems that I know of, do.  I don't know about
-# non-x86 chips).  We need to tell perftools what to do about that.
-if(x86_64 AND x86_no_fp_by_default)
-  if(gperftools_enable_frame_pointers)
-    add_compile_options(-fno-omit-frame-pointer)
-  elseif(CMAKE_CXX_FLAGS MATCHES "-fomit-frame-pointer")
-    add_compile_definitions(NO_FRAME_POINTER)
-  endif()
+option(
+  gperftools_enable_frame_pointers
+  "Compile with -fno-omit-frame-pointer (see INSTALL)"
+  OFF)
+
+if(gperftools_enable_frame_pointers)
+  add_compile_options(-fno-omit-frame-pointer)
+endif()
+
+if(omit_fp_by_default AND NOT gperftools_enable_frame_pointers)
+  add_compile_definitions(NO_FRAME_POINTER)
 endif()
 
 # For windows systems (at least, mingw), we need to tell all our
