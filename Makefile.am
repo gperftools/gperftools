@@ -331,6 +331,7 @@ if WITH_STACK_TRACE
 ### The header files we use.  We divide into categories based on directory
 S_STACKTRACE_INCLUDES = src/stacktrace_impl_setup-inl.h \
                         src/stacktrace_generic-inl.h \
+                        src/stacktrace_generic_fp-inl.h \
                         src/stacktrace_libgcc-inl.h \
 			src/stacktrace_libunwind-inl.h \
 			src/stacktrace_arm-inl.h \
