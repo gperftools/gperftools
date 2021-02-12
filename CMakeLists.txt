@@ -212,6 +212,7 @@ check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
 
 check_include_file("unistd.h" HAVE_UNISTD_H)
 check_include_file("inttypes.h" HAVE_INTTYPES_H)
+check_include_file("linux/signal.h" HAVE_LINUX_SIGNAL_H)
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.
 
