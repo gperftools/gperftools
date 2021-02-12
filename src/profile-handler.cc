@@ -49,6 +49,9 @@
 #if HAVE_LINUX_SIGEV_THREAD_ID
 // for timer_{create,settime} and associated typedefs & constants
 #include <time.h>
+// for sigevent
+#include <signal.h>
+
 // for sys_gettid
 #include "base/linux_syscall_support.h"
 // for perftools_pthread_key_create
@@ -60,6 +63,18 @@
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "maybe_threads.h"
+
+// Some Linux systems don't have sigev_notify_thread_id defined in
+// signal.h (despite having SIGEV_THREAD_ID defined) and also lack
+// working linux/signal.h. So lets workaround. Note, we know that at
+// least on Linux sigev_notify_thread_id is macro.
+//
+// See https://sourceware.org/bugzilla/show_bug.cgi?id=27417 and
+// https://bugzilla.kernel.org/show_bug.cgi?id=200081
+//
+#if __linux__ && HAVE_LINUX_SIGEV_THREAD_ID && !defined(sigev_notify_thread_id)
+#define sigev_notify_thread_id _sigev_un._tid
+#endif
 
 using std::list;
 using std::string;
@@ -272,7 +287,7 @@ static void StartLinuxThreadTimer(int timer_type, int signal_number,
   struct itimerspec its;
   memset(&sevp, 0, sizeof(sevp));
   sevp.sigev_notify = SIGEV_THREAD_ID;
-  sevp._sigev_un._tid = sys_gettid();
+  sevp.sigev_notify_thread_id = sys_gettid();
   sevp.sigev_signo = signal_number;
   clockid_t clock = CLOCK_THREAD_CPUTIME_ID;
   if (timer_type == ITIMER_REAL) {
