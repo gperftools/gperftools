@@ -203,7 +203,7 @@ AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(__sbrk)          # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_FUNCS(fork)            # for the pthread_atfork setup
-AC_CHECK_HEADERS(features.h)    # for vdso_support.h
+AC_CHECK_HEADERS(features.h)    # for vdso_support.h, __GLIBC__ macros
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
@@ -222,7 +222,6 @@ AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(sys/resource.h)         # for memalign_unittest.cc
 AC_CHECK_HEADERS(valgrind.h)    # we have a local copy if this isn't found
 AC_CHECK_HEADERS(sys/cdefs.h)   # Where glibc defines __THROW
-AC_CHECK_HEADERS(features.h)    # Where __GLIBC__ is defined
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.
 
