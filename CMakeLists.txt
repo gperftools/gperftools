@@ -356,9 +356,6 @@ option(gperftools_emergency_malloc
        ${default_emergency_malloc})
 
 check_c_source_compiles(
-  "int main() { void* sp = __builtin_stack_pointer(); return 0; }"
-  HAVE_BUILTIN_STACK_POINTER)
-check_c_source_compiles(
   "int main() { return __builtin_expect(main != 0, 1); }"
   HAVE_BUILTIN_EXPECT)
 

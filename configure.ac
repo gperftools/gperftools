@@ -459,14 +459,6 @@ AH_VERBATIM([__STDC_FORMAT_MACROS],
 # define __STDC_FORMAT_MACROS 1
 #endif])
 
-# Check if __builtin_stack_pointer() is available (for elfcore.h)
-AC_MSG_CHECKING([for __builtin_stack_pointer()])
-AC_LINK_IFELSE([AC_LANG_PROGRAM(, [void *sp = __builtin_stack_pointer()])],
-               [AC_DEFINE(HAVE_BUILTIN_STACK_POINTER, 1,
-                      Define to 1 if compiler supports __builtin_stack_pointer)
-                AC_MSG_RESULT([yes])],
-               [AC_MSG_RESULT([no])])
-
 # Check if __environ is available (for GetenvBeforeMain)
 AC_MSG_CHECKING([for __environ])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],

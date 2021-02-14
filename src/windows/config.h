@@ -36,9 +36,6 @@
 /* Define to 1 if you have the <asm/ptrace.h> header file. */
 /* #undef HAVE_ASM_PTRACE_H */
 
-/* Define to 1 if compiler supports __builtin_stack_pointer */
-/* #undef HAVE_BUILTIN_STACK_POINTER */
-
 /* Define to 1 if you have the <cygwin/signal.h> header file. */
 /* #undef HAVE_CYGWIN_SIGNAL_H */
 
