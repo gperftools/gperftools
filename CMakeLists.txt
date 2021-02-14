@@ -183,7 +183,6 @@ check_include_file("glob.h" HAVE_GLOB_H) # for heap-profile-table (cleaning up p
 check_include_file("execinfo.h" HAVE_EXECINFO_H) # for stacktrace? and heapchecker_unittest
 check_include_file("unwind.h" HAVE_UNWIND_H) # for stacktrace
 check_include_file("sched.h" HAVE_SCHED_H) # for being nice in our spinlock code
-check_include_file("conflict-signal.h" HAVE_CONFLICT_SIGNAL_H) # defined on some windows platforms?
 check_include_file("sys/prctl.h" HAVE_SYS_PRCTL_H) # for thread_lister (needed by leak-checker)
 check_include_file("linux/ptrace.h" HAVE_LINUX_PTRACE_H) # also needed by leak-checker
 check_include_file("sys/syscall.h" HAVE_SYS_SYSCALL_H)

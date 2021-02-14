@@ -65,9 +65,6 @@ typedef int ucontext_t;   // just to quiet the compiler, mostly
 #include "base/sysinfo.h"             /* for GetUniquePathFromEnv, etc */
 #include "profiledata.h"
 #include "profile-handler.h"
-#ifdef HAVE_CONFLICT_SIGNAL_H
-#include "conflict-signal.h"          /* used on msvc machines */
-#endif
 
 using std::string;
 
