@@ -142,10 +142,10 @@
 // Some windows file somewhere (at least on cygwin) #define's small (!)
 #undef small
 
-using STL_NAMESPACE::max;
-using STL_NAMESPACE::min;
-using STL_NAMESPACE::numeric_limits;
-using STL_NAMESPACE::vector;
+using std::max;
+using std::min;
+using std::numeric_limits;
+using std::vector;
 
 #include "libc_override.h"
 

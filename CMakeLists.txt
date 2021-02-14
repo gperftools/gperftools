@@ -332,10 +332,6 @@ else()
   set(HAVE_STD_ALIGN_VAL_T 0)
 endif()
 
-check_c_source_compiles(
-  "namespace abc { void foo() {} } int main() { abc::foo(); return 0; }"
-  HAVE_NAMESPACES)
-
 check_c_source_compiles("
   #include <unwind.h>
   int main()
@@ -469,22 +465,6 @@ check_cxx_source_compiles(
      #include <vector>
      int main() { pthread_t th; pthread_join(th, 0); return 0; }"
   have_pthread_despite_asking_for)
-
-check_cxx_source_compiles(
-  "#include <vector>
-     int main() { vector<int> t; return 0; }"
-  STL_NAMESPACE_NONE)
-if(STL_NAMESPACE_NONE)
-  set(STL_NAMESPACE "")
-else()
-  check_cxx_source_compiles(
-    "#include <vector>
-         int main() { std::vector<int> t; return 0; }"
-    STL_NAMESPACE_STD)
-  if (STL_NAMESPACE_STD)
-    set(STL_NAMESPACE "std")
-  endif()
-endif()
 
 check_variable_exists("program_invocation_name" HAVE_PROGRAM_INVOCATION_NAME)
 

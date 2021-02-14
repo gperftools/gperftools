@@ -82,8 +82,8 @@
 #endif
 #endif
 
-using STL_NAMESPACE::string;
-using STL_NAMESPACE::sort;
+using std::string;
+using std::sort;
 
 //----------------------------------------------------------------------
 // Flags that control heap-profiling

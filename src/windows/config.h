@@ -128,9 +128,6 @@
 /* Define to 1 if you have a working `mmap' system call. */
 /* #undef HAVE_MMAP */
 
-/* define if the compiler implements namespaces */
-#define HAVE_NAMESPACES 1
-
 /* Define to 1 if you have the <poll.h> header file. */
 /* #undef HAVE_POLL_H */
 
@@ -283,9 +280,6 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
-
-/* the namespace where STL code like vector<> is defined */
-#define STL_NAMESPACE std
 
 /* Define 8 bytes of allocation alignment for tcmalloc */
 /* #undef TCMALLOC_ALIGN_8BYTES */

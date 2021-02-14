@@ -53,8 +53,8 @@
 #include "maybe_threads.h"
 #include "base/googleinit.h"
 
-using STL_NAMESPACE::string;
-using STL_NAMESPACE::vector;
+using std::string;
+using std::vector;
 
 static void DumpAddressMap(string* result) {
   *result += "\nMAPPED_LIBRARIES:\n";

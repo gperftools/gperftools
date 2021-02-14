@@ -123,9 +123,6 @@
 /* Define to 1 if you have a working `mmap' system call. */
 #cmakedefine HAVE_MMAP
 
-/* define if the compiler implements namespaces */
-#cmakedefine HAVE_NAMESPACES
-
 /* Define to 1 if you have the <poll.h> header file. */
 #cmakedefine HAVE_POLL_H
 
@@ -292,9 +289,6 @@
 
 /* Define to 1 if you have the ANSI C header files. */
 #define STDC_HEADERS 1
-
-/* the namespace where STL code like vector<> is defined */
-#define STL_NAMESPACE @STL_NAMESPACE@
 
 /* Define 8 bytes of allocation alignment for tcmalloc */
 #cmakedefine TCMALLOC_ALIGN_8BYTES
