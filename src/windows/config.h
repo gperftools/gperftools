@@ -154,9 +154,7 @@
 /* #undef HAVE_SCHED_H */
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#if defined(_MSC_VER) && _MSC_VER >= 1900
 #define HAVE_STDINT_H 1
-#endif
 
 /* Define to 1 if you have the <stdlib.h> header file. */
 #define HAVE_STDLIB_H 1
@@ -223,9 +221,6 @@
 
 /* Define to 1 if compiler supports __environ */
 /* #undef HAVE___ENVIRON */
-
-/* Define to 1 if the system has the type `__int64'. */
-#define HAVE___INT64 1
 
 /* Define to 1 if you have the `__sbrk' function. */
 /* #undef HAVE___SBRK */

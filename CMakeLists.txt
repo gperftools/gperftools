@@ -167,7 +167,6 @@ check_c_source_compiles("#include <stdlib.h>
                          int main() { return 0; }"
         HAVE___ATTRIBUTE__)
 
-check_type_size("__int64" __INT64 LANGUAGE CXX) # defined in some windows platforms
 set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
 check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
 set(CMAKE_EXTRA_INCLUDE_FILES "elf.h")

@@ -223,9 +223,6 @@
 /* Define to 1 if compiler supports __environ */
 #cmakedefine HAVE___ENVIRON
 
-/* Define to 1 if the system has the type `__int64'. */
-#cmakedefine HAVE___INT64
-
 /* Define to 1 if you have the `__sbrk' function. */
 #cmakedefine HAVE___SBRK
 
