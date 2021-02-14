@@ -93,9 +93,9 @@ static void TestIdleUsage() {
   CHECK_LE(post_idle, original);
 
   // Log after testing because logging can allocate heap memory.
-  VLOG(0, "Original usage: %" PRIuS "\n", original);
-  VLOG(0, "Post allocation: %" PRIuS "\n", post_allocation);
-  VLOG(0, "Post idle: %" PRIuS "\n", post_idle);
+  VLOG(0, "Original usage: %zu\n", original);
+  VLOG(0, "Post allocation: %zu\n", post_allocation);
+  VLOG(0, "Post idle: %zu\n", post_idle);
 }
 
 static void TestTemporarilyIdleUsage() {
@@ -110,9 +110,9 @@ static void TestTemporarilyIdleUsage() {
   CHECK_EQ(post_idle, 0);
 
   // Log after testing because logging can allocate heap memory.
-  VLOG(0, "Original usage: %" PRIuS "\n", original);
-  VLOG(0, "Post allocation: %" PRIuS "\n", post_allocation);
-  VLOG(0, "Post idle: %" PRIuS "\n", post_idle);
+  VLOG(0, "Original usage: %zu\n", original);
+  VLOG(0, "Post allocation: %zu\n", post_allocation);
+  VLOG(0, "Post idle: %zu\n", post_idle);
 }
 
 int main(int argc, char** argv) {

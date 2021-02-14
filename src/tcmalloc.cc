@@ -478,7 +478,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
         const uint64_t class_overhead =
             Static::central_cache()[cl].OverheadBytes();
         cumulative_overhead += class_overhead;
-        out->printf("class %3d [ %8" PRIuS " bytes ] : "
+        out->printf("class %3d [ %8zu bytes ] : "
                 "%8" PRIu64 " objs; %5.1f MiB; %5.1f cum MiB; "
                 "%8.3f overhead MiB; %8.3f cum overhead MiB\n",
                 cl, cl_size,

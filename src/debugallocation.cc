@@ -503,7 +503,7 @@ class MallocBlock {
     // the address space could take more.
     static size_t max_size_t = ~0;
     if (size > max_size_t - sizeof(MallocBlock)) {
-      RAW_LOG(ERROR, "Massive size passed to malloc: %" PRIuS "", size);
+      RAW_LOG(ERROR, "Massive size passed to malloc: %zu", size);
       return NULL;
     }
     MallocBlock* b = NULL;
@@ -1003,7 +1003,7 @@ static SpinLock malloc_trace_lock(SpinLock::LINKER_INITIALIZED);
   do {                                                                  \
     if (FLAGS_malloctrace) {                                            \
       SpinLockHolder l(&malloc_trace_lock);                             \
-      TracePrintf(TraceFd(), "%s\t%" PRIuS "\t%p\t%" GPRIuPTHREAD,      \
+      TracePrintf(TraceFd(), "%s\t%zu\t%p\t%" GPRIuPTHREAD,      \
                   name, size, addr, PRINTABLE_PTHREAD(pthread_self())); \
       TraceStack();                                                     \
       TracePrintf(TraceFd(), "\n");                                     \
@@ -1320,7 +1320,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_new(size_t size) {
   void* ptr = debug_cpp_alloc(size, MallocBlock::kNewType, false);
   MallocHook::InvokeNewHook(ptr, size);
   if (ptr == NULL) {
-    RAW_LOG(FATAL, "Unable to allocate %" PRIuS " bytes: new failed.", size);
+    RAW_LOG(FATAL, "Unable to allocate %zu bytes: new failed.", size);
   }
   return ptr;
 }
@@ -1355,7 +1355,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
   void* ptr = debug_cpp_alloc(size, MallocBlock::kArrayNewType, false);
   MallocHook::InvokeNewHook(ptr, size);
   if (ptr == NULL) {
-    RAW_LOG(FATAL, "Unable to allocate %" PRIuS " bytes: new[] failed.", size);
+    RAW_LOG(FATAL, "Unable to allocate %zu bytes: new[] failed.", size);
   }
   return ptr;
 }

@@ -271,27 +271,6 @@
 # define PERFTOOLS_DLL_DECL_FOR_UNITTESTS __declspec(dllimport)
 #endif
 
-/* printf format code for printing a size_t and ssize_t */
-#ifdef _WIN64
-#define PRIdS "lld"
-#else
-#define PRIdS "d"
-#endif
-
-/* printf format code for printing a size_t and ssize_t */
-#ifdef _WIN64
-#define PRIuS "llu"
-#else
-#define PRIuS "u"
-#endif
-
-/* printf format code for printing a size_t and ssize_t */
-#ifdef _WIN64
-#define PRIxS "llx"
-#else
-#define PRIxS "x"
-#endif
-
 /* Mark the systems where we know it's bad if pthreads runs too
    early before main (before threads are initialized, presumably).  */
 #ifdef __FreeBSD__

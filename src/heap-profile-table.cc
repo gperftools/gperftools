@@ -549,8 +549,8 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
   // This is only used by the heap leak checker, but is intimately
   // tied to the allocation map that belongs in this module and is
   // therefore placed here.
-  RAW_LOG(ERROR, "Leak check %s detected leaks of %" PRIuS " bytes "
-          "in %" PRIuS " objects",
+  RAW_LOG(ERROR, "Leak check %s detected leaks of %zu bytes "
+          "in %zu objects",
           checker_name,
           size_t(total_.alloc_size),
           size_t(total_.allocs));
@@ -620,7 +620,7 @@ void HeapProfileTable::Snapshot::ReportObject(const void* ptr,
                                               char* unused) {
   // Perhaps also log the allocation stack trace (unsymbolized)
   // on this line in case somebody finds it useful.
-  RAW_LOG(ERROR, "leaked %" PRIuS " byte object %p", v->bytes, ptr);
+  RAW_LOG(ERROR, "leaked %zu byte object %p", v->bytes, ptr);
 }
 
 void HeapProfileTable::Snapshot::ReportIndividualObjects() {

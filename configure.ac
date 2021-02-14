@@ -451,9 +451,6 @@ AC_ARG_ENABLE([emergency-malloc],
 
 AM_CONDITIONAL(BUILD_EMERGENCY_MALLOC, [test "x$enable_emergency_malloc" = xyes])
 
-# Defines PRIuS
-AC_COMPILER_CHARACTERISTICS
-
 # Also make sure we get standard PRI... definitions, even with glibc.
 # We have to use AH_VERBATIM because we need the #ifdef guard (gcc buglet)
 AH_VERBATIM([__STDC_FORMAT_MACROS],

@@ -280,15 +280,6 @@
 #endif
 #endif
 
-/* printf format code for printing a size_t and ssize_t */
-#define PRIdS  "zd"
-
-/* printf format code for printing a size_t and ssize_t */
-#define PRIuS  "zu"
-
-/* printf format code for printing a size_t and ssize_t */
-#define PRIxS  "zx"
-
 /* Mark the systems where we know it's bad if pthreads runs too
    early before main (before threads are initialized, presumably).  */
 #ifdef __FreeBSD__
