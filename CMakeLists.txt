@@ -160,19 +160,6 @@ set(CMAKE_CXX_EXTENSIONS ON)
 # Check if we have an objcopy installed that supports -W
 find_objcopy_with_weaken()
 
-# AC_C_INLINE
-set(inline)
-foreach(inline_keyword "inline" "__inline" "__inline__")
-  check_c_source_compiles("
-      static ${inline_keyword} void foo() {}
-      int main() { foo(); return 0; }"
-      have_${inline_keyword})
-  if(have_${inline_keyword})
-      set(inline ${inline_keyword})
-      break()
-  endif()
-endforeach()
-
 # AX_C___ATTRIBUTE__
 check_c_source_compiles("#include <stdlib.h>
                          static void foo(void) __attribute__ ((unused));

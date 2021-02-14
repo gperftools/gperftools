@@ -173,7 +173,6 @@ AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, test $gpt_cv_objcopy_weaken = yes)
 
 AC_PROG_LIBTOOL
 
-AC_C_INLINE
 AX_C___ATTRIBUTE__
 
 AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)

@@ -330,12 +330,6 @@
 # define __STDC_FORMAT_MACROS 1
 #endif
 
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
-/* #undef inline */
-#endif
-
 // ---------------------------------------------------------------------
 // Extra stuff not found in config.h.in
 
