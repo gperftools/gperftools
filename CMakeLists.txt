@@ -391,7 +391,7 @@ elseif(APPLE)
 elseif(MINGW)
   message(WARNING "mingw doesn't really support tls")
 else()
-  check_c_source_compiles("static __thread int p = 0;" HAVE_TLS)
+  check_c_source_compiles("static __thread int p = 0; int main() {}" HAVE_TLS)
 endif()
 
 if(NEED_NANOSLEEP)
