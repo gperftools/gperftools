@@ -510,9 +510,6 @@ then
 fi
 AC_SUBST(LIBSTDCXX_LA_LINKER_FLAG)
 
-# We also need to check if the kernel supports __thread, which requires uname()
-AC_CHECK_DECLS(uname,,, [#include <sys/utsname.h>])
-
 # In fact, a lot of the code in this directory depends on pthreads
 ACX_PTHREAD
 

@@ -454,9 +454,6 @@ if(EXISTS /usr/sfw/lib/libstdc++.la)
   endif()
 endif()
 
-# We also need to check if the kernel supports __thread, which requires uname()
-check_symbol_exists("uname" "sys/utsname.h" HAVE_DECL_UNAME)
-
 check_cxx_source_compiles(
   "#include <string>
      #include <vector>

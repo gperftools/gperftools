@@ -67,10 +67,6 @@
    */
 #define HAVE_DECL_SLEEP 0
 
-/* Define to 1 if you have the declaration of `uname', and to 0 if you don't.
-   */
-#define HAVE_DECL_UNAME 0
-
 /* Define to 1 if you have the declaration of `valloc', and to 0 if you don't.
    */
 #define HAVE_DECL_VALLOC 0
