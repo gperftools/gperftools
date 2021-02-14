@@ -299,10 +299,6 @@
 # define _WIN32_WINNT 0x0501
 #endif
 
-#if defined(_MSC_VER) && _MSC_VER >= 1900
-#define HAVE_SNPRINTF 1
-#endif
-
 // We want to make sure not to ever try to #include heap-checker.h
 #define NO_HEAP_CHECK 1
 

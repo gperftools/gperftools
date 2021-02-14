@@ -200,9 +200,6 @@ check_include_file("inttypes.h" HAVE_INTTYPES_H)
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.
 
-# for windows
-check_symbol_exists(snprintf stdio.h HAVE_SNPRINTF)
-
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 set(CMAKE_REQUIRED_DEFINITIONS -D_XOPEN_SOURCE=600)

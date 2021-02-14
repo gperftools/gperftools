@@ -318,17 +318,6 @@ inline int perftools_vsnprintf(char *str, size_t size, const char *format,
 }
 #endif
 
-#ifndef HAVE_SNPRINTF
-inline int snprintf(char *str, size_t size, const char *format, ...) {
-  va_list ap;
-  int r;
-  va_start(ap, format);
-  r = perftools_vsnprintf(str, size, format, ap);
-  va_end(ap);
-  return r;
-}
-#endif
-
 #ifndef HAVE_INTTYPES_H
 #define PRIx64  "I64x"
 #define SCNx64  "I64x"

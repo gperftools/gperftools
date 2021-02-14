@@ -138,9 +138,6 @@
 /* Define to 1 if you have the <sched.h> header file. */
 #cmakedefine HAVE_SCHED_H
 
-/* Define to 1 if you have the `snprintf' function. */
-#cmakedefine HAVE_SNPRINTF
-
 /* Define to 1 if you have the <stdint.h> header file. */
 #cmakedefine HAVE_STDINT_H
 
