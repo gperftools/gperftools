@@ -72,8 +72,6 @@ extern bool GetUniquePathFromEnv(const char* env_name, char* path);
 
 extern int GetSystemCPUsCount();
 
-void SleepForMilliseconds(int milliseconds);
-
 //  Return true if we're running POSIX (e.g., NPTL on Linux) threads,
 //  as opposed to a non-POSIX thread library.  The thing that we care
 //  about is whether a thread's pid is the same as the thread that

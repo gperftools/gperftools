@@ -242,19 +242,6 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
   return true;
 }
 
-void SleepForMilliseconds(int milliseconds) {
-#ifdef PLATFORM_WINDOWS
-  _sleep(milliseconds);   // Windows's _sleep takes milliseconds argument
-#else
-  // Sleep for a few milliseconds
-  struct timespec sleep_time;
-  sleep_time.tv_sec = milliseconds / 1000;
-  sleep_time.tv_nsec = (milliseconds % 1000) * 1000000;
-  while (nanosleep(&sleep_time, &sleep_time) != 0 && errno == EINTR)
-    ;  // Ignore signals and wait for the full interval to elapse.
-#endif
-}
-
 int GetSystemCPUsCount()
 {
 #if defined(PLATFORM_WINDOWS)
