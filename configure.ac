@@ -244,8 +244,9 @@ fi
 # aren't using autoconf. So we keep HAVE_MMAP define, but only to
 # distingush windows and rest.
 case "$host" in
-   *-mingw*) ;;
-   *) AC_DEFINE(HAVE_MMAP, 1, [Define to 1 if you have a working `mmap' system call.])
+   *-mingw*) default_emergency_malloc=no;;
+   *) default_emergency_malloc=yes
+      AC_DEFINE(HAVE_MMAP, 1, [Define to 1 if you have a working `mmap' system call.])
 esac
 
 # If AtomicWord != Atomic32, we need to define two versions of all the
@@ -422,10 +423,6 @@ AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                 AC_LANG_POP(C++)])
 AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
       [AC_DEFINE(HAVE_UNWIND_BACKTRACE, 1, [Whether <unwind.h> contains _Unwind_Backtrace])])
-
-AS_IF([test "x$enable_backtrace" = xyes],
-      [default_emergency_malloc=yes],
-      [default_emergency_malloc=no])
 
 AS_IF([test "x$will_use_libunwind" = xyes],
       [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __arm__])],
