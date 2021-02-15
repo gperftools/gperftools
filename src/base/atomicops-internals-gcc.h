@@ -57,7 +57,7 @@ inline Atomic32 NoBarrier_CompareAndSwap(volatile Atomic32* ptr,
                                          Atomic32 old_value,
                                          Atomic32 new_value) {
   Atomic32 prev_value = old_value;
-  __atomic_compare_exchange_n(ptr, &prev_value, new_value, 
+  __atomic_compare_exchange_n(ptr, &prev_value, new_value,
           0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
   return prev_value;
 }
@@ -81,7 +81,7 @@ inline Atomic32 Acquire_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value,
                                        Atomic32 new_value) {
   Atomic32 prev_value = old_value;
-  __atomic_compare_exchange_n(ptr, &prev_value, new_value, 
+  __atomic_compare_exchange_n(ptr, &prev_value, new_value,
           0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
   return prev_value;
 }
@@ -90,7 +90,7 @@ inline Atomic32 Release_CompareAndSwap(volatile Atomic32* ptr,
                                        Atomic32 old_value,
                                        Atomic32 new_value) {
   Atomic32 prev_value = old_value;
-  __atomic_compare_exchange_n(ptr, &prev_value, new_value, 
+  __atomic_compare_exchange_n(ptr, &prev_value, new_value,
           0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
   return prev_value;
 }
@@ -120,7 +120,7 @@ inline Atomic64 NoBarrier_CompareAndSwap(volatile Atomic64* ptr,
                                          Atomic64 old_value,
                                          Atomic64 new_value) {
   Atomic64 prev_value = old_value;
-  __atomic_compare_exchange_n(ptr, &prev_value, new_value, 
+  __atomic_compare_exchange_n(ptr, &prev_value, new_value,
           0, __ATOMIC_RELAXED, __ATOMIC_RELAXED);
   return prev_value;
 }
@@ -144,7 +144,7 @@ inline Atomic64 Acquire_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 old_value,
                                        Atomic64 new_value) {
   Atomic64 prev_value = old_value;
-  __atomic_compare_exchange_n(ptr, &prev_value, new_value, 
+  __atomic_compare_exchange_n(ptr, &prev_value, new_value,
           0, __ATOMIC_ACQUIRE, __ATOMIC_RELAXED);
   return prev_value;
 }
@@ -153,7 +153,7 @@ inline Atomic64 Release_CompareAndSwap(volatile Atomic64* ptr,
                                        Atomic64 old_value,
                                        Atomic64 new_value) {
   Atomic64 prev_value = old_value;
-  __atomic_compare_exchange_n(ptr, &prev_value, new_value, 
+  __atomic_compare_exchange_n(ptr, &prev_value, new_value,
           0, __ATOMIC_RELEASE, __ATOMIC_RELAXED);
   return prev_value;
 }
