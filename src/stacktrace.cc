@@ -231,7 +231,9 @@ static bool get_stack_impl_inited;
 static GetStackImplementation *get_stack_impl = &impl__instrument;
 #elif defined(HAVE_GST_win32)
 static GetStackImplementation *get_stack_impl = &impl__win32;
-#elif defined(HAVE_GST_generic_fp) && (!defined(HAVE_GST_libunwind) || defined(TCMALLOC_DONT_PREFER_LIBUNWIND))
+#elif defined(HAVE_GST_generic_fp) && !defined(NO_FRAME_POINTER) \
+   && !defined(__riscv) \
+   && (!defined(HAVE_GST_libunwind) || defined(TCMALLOC_DONT_PREFER_LIBUNWIND))
 static GetStackImplementation *get_stack_impl = &impl__generic_fp;
 #elif defined(HAVE_GST_x86) && defined(TCMALLOC_DONT_PREFER_LIBUNWIND)
 static GetStackImplementation *get_stack_impl = &impl__x86;
