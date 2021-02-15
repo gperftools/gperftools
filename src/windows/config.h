@@ -279,7 +279,7 @@
 /* #undef TCMALLOC_PAGE_SIZE_SHIFT */
 
 /* Version number of package */
-#define VERSION "2.7"
+#define VERSION "2.8.90"
 
 /* C99 says: define this to get the PRI... macros from stdint.h */
 #ifndef __STDC_FORMAT_MACROS

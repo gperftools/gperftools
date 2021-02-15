@@ -1,3 +1,27 @@
+== 14 February 2021 ==
+gperftools 2.9rc is out!
+
+Here are notable changes:
+
+* Jarno Rajahalme has contributed fix crashing bug in syscalls support
+  for aarch64.
+
+* User SSE4 has contributed basic support for Elbrus 2000 architecture
+  (!)
+
+* Venkatesh Srinivas has contributed cleanup to atomic ops.
+
+* Đoàn Trần Công Danh has fixed cpu profiler compilation on musl.
+
+* there is now better backtracing support for aarch64 and
+  riscv. x86-64 with frame pointers now also defaults to this new
+  "generic" frame pointer backtracer.
+
+* emergency malloc is now enabled by default. Fixes hang on musl when
+  libgcc backtracer is enabled.
+
+* bunch of legacy config tests has been removed
+
 == 20 December 2020 ==
 gperftools 2.8.1 is out!
 
