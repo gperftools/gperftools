@@ -198,9 +198,6 @@
 /* Define to 1 if you have the <unwind.h> header file. */
 #cmakedefine HAVE_UNWIND_H
 
-/* Define to 1 if you have the <valgrind.h> header file. */
-#cmakedefine HAVE_VALGRIND_H
-
 /* define if your compiler has __attribute__ */
 #cmakedefine HAVE___ATTRIBUTE__
 

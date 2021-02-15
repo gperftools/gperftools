@@ -534,7 +534,7 @@ void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {
   // At this moment, instance_ must be initialized because the handler is
   // enabled in RegisterThread or RegisterCallback only after
   // ProfileHandler::Instance runs.
-  ProfileHandler* instance = ANNOTATE_UNPROTECTED_READ(instance_);
+  ProfileHandler* instance = instance_;
   RAW_CHECK(instance != NULL, "ProfileHandler is not initialized");
   {
     SpinLockHolder sl(&instance->signal_lock_);

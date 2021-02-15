@@ -192,7 +192,6 @@ check_include_file("fcntl.h" HAVE_FCNTL_H) # for tcmalloc_unittest
 check_include_file("grp.h" HAVE_GRP_H) # for heapchecker_unittest
 check_include_file("pwd.h" HAVE_PWD_H) # for heapchecker_unittest
 check_include_file("sys/resource.h" HAVE_SYS_RESOURCE_H) # for memalign_unittest.cc
-check_include_file("valgrind.h" HAVE_VALGRIND_H) # we have a local copy if this isn't found
 check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
 
 check_include_file("unistd.h" HAVE_UNISTD_H)

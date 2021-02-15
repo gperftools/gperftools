@@ -200,9 +200,6 @@
 /* Define to 1 if you have the <unwind.h> header file. */
 /* #undef HAVE_UNWIND_H */
 
-/* Define to 1 if you have the <valgrind.h> header file. */
-/* #undef HAVE_VALGRIND_H */
-
 /* define if your compiler has __attribute__ */
 /* #undef HAVE___ATTRIBUTE__ */
 

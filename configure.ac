@@ -218,7 +218,6 @@ AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(sys/resource.h)         # for memalign_unittest.cc
-AC_CHECK_HEADERS(valgrind.h)    # we have a local copy if this isn't found
 AC_CHECK_HEADERS(sys/cdefs.h)   # Where glibc defines __THROW
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.

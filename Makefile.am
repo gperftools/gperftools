@@ -168,8 +168,7 @@ dist_doc_DATA += docs/index.html docs/designstyle.css
 LOGGING_INCLUDES = src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/basictypes.h \
-                   src/base/dynamic_annotations.h \
-                   src/third_party/valgrind.h
+                   src/base/dynamic_annotations.h
 noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
                         src/base/dynamic_annotations.c \

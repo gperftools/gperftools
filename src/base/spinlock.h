@@ -70,7 +70,6 @@ class LOCKABLE SpinLock {
                                              kSpinLockHeld) != kSpinLockFree) {
       SlowLock();
     }
-    ANNOTATE_RWLOCK_ACQUIRED(this, 1);
   }
 
   // Try to acquire this SpinLock without blocking and return true if the
@@ -81,9 +80,6 @@ class LOCKABLE SpinLock {
     bool res =
         (base::subtle::Acquire_CompareAndSwap(&lockword_, kSpinLockFree,
                                               kSpinLockHeld) == kSpinLockFree);
-    if (res) {
-      ANNOTATE_RWLOCK_ACQUIRED(this, 1);
-    }
     return res;
   }
 
@@ -91,7 +87,6 @@ class LOCKABLE SpinLock {
   // TODO(csilvers): uncomment the annotation when we figure out how to
   //                 support this macro with 0 args (see thread_annotations.h)
   inline void Unlock() /*UNLOCK_FUNCTION()*/ {
-    ANNOTATE_RWLOCK_RELEASED(this, 1);
     uint64 prev_value = static_cast<uint64>(
         base::subtle::Release_AtomicExchange(&lockword_, kSpinLockFree));
     if (prev_value != kSpinLockHeld) {
