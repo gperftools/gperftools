@@ -1,3 +1,4 @@
+/* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*- */
 /* A manual version of config.h fit for windows machines.
  *
  * Use of this source code is governed by a BSD-style license that can
