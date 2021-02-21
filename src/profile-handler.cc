@@ -51,9 +51,9 @@
 #include <time.h>
 // for sigevent
 #include <signal.h>
+// for SYS_gettid
+#include <sys/syscall.h>
 
-// for sys_gettid
-#include "base/linux_syscall_support.h"
 // for perftools_pthread_key_create
 #include "maybe_threads.h"
 #endif
@@ -287,7 +287,7 @@ static void StartLinuxThreadTimer(int timer_type, int signal_number,
   struct itimerspec its;
   memset(&sevp, 0, sizeof(sevp));
   sevp.sigev_notify = SIGEV_THREAD_ID;
-  sevp.sigev_notify_thread_id = sys_gettid();
+  sevp.sigev_notify_thread_id = syscall(SYS_gettid);
   sevp.sigev_signo = signal_number;
   clockid_t clock = CLOCK_THREAD_CPUTIME_ID;
   if (timer_type == ITIMER_REAL) {
