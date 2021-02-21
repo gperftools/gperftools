@@ -33,10 +33,11 @@
  */
 
 #include <errno.h>
-#include <sched.h>
-#include <time.h>
 #include <limits.h>
-#include "base/linux_syscall_support.h"
+#include <sched.h>
+#include <sys/syscall.h>
+#include <time.h>
+#include <unistd.h>
 
 #define FUTEX_WAIT 0
 #define FUTEX_WAKE 1
