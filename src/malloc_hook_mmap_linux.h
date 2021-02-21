@@ -40,11 +40,10 @@
 # error Should only be including malloc_hook_mmap_linux.h on linux systems.
 #endif
 
-#include <unistd.h>
-#include <syscall.h>
-#include <sys/mman.h>
 #include <errno.h>
-#include "base/linux_syscall_support.h"
+#include <sys/mman.h>
+#include <sys/syscall.h>
+#include <unistd.h>
 
 // The x86-32 case and the x86-64 case differ:
 // 32b has a mmap2() syscall, 64b does not.
