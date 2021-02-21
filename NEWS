@@ -1,3 +1,19 @@
+== 21 February 2021 ==
+gperftools 2.9 is out!
+
+Few more changes landed compared to rc:
+
+* Venkatesh Srinivas has contributed thread-safety annotations
+  support.
+
+* couple more unit test bugs that caused tcmalloc_unittest to fail on
+  recent clang has been fixed.
+
+* usage of unsupportable linux_syscall_support.h has been removed from
+  few places. Building with --disable-heap-checker now completely
+  avoids it. Expect complete death of this header in next major
+  release.
+
 == 14 February 2021 ==
 gperftools 2.9rc is out!
 
