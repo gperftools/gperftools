@@ -561,8 +561,7 @@ set(LOGGING_INCLUDES
         src/base/logging.h
         src/base/commandlineflags.h
         src/base/basictypes.h
-        src/base/dynamic_annotations.h
-        src/third_party/valgrind.h)
+        src/base/dynamic_annotations.h)
 set(liblogging_la_SOURCES src/base/logging.cc
         src/base/dynamic_annotations.c
         ${LOGGING_INCLUDES})
