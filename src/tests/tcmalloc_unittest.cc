@@ -1408,14 +1408,14 @@ static int RunAllTests(int argc, char** argv) {
     delete[] poveraligned;
     VerifyDeleteHookWasCalled();
 
-    poveraligned = new(std::nothrow) overaligned_type;
+    poveraligned = noopt(new(std::nothrow) overaligned_type);
     CHECK(poveraligned != NULL);
     CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
     VerifyNewHookWasCalled();
     delete poveraligned;
     VerifyDeleteHookWasCalled();
 
-    poveraligned = new(std::nothrow) overaligned_type[10];
+    poveraligned = noopt(new(std::nothrow) overaligned_type[10]);
     CHECK(poveraligned != NULL);
     CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
     VerifyNewHookWasCalled();
@@ -1423,14 +1423,14 @@ static int RunAllTests(int argc, char** argv) {
     VerifyDeleteHookWasCalled();
 
     // Another way of calling operator new
-    p2 = static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT)));
+    p2 = noopt(static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT))));
     CHECK(p2 != NULL);
     CHECK((((size_t)p2) % OVERALIGNMENT) == 0u);
     VerifyNewHookWasCalled();
     ::operator delete(p2, std::align_val_t(OVERALIGNMENT));
     VerifyDeleteHookWasCalled();
 
-    p2 = static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT), std::nothrow));
+    p2 = noopt(static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT), std::nothrow)));
     CHECK(p2 != NULL);
     CHECK((((size_t)p2) % OVERALIGNMENT) == 0u);
     VerifyNewHookWasCalled();
