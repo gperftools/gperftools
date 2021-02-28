@@ -1268,6 +1268,23 @@ static int RunAllTests(int argc, char** argv) {
     std::stable_sort(v.begin(), v.end());
   }
 
+#ifdef ENABLE_SIZED_DELETE
+  {
+    fprintf(LOGSTREAM, "Testing large sized delete is not crashing\n");
+    // Large sized delete
+    // case. https://github.com/gperftools/gperftools/issues/1254
+    std::vector<char*> addresses;
+    constexpr int kSizedDepth = 1024;
+    addresses.reserve(kSizedDepth);
+    for (int i = 0; i < kSizedDepth; i++) {
+      addresses.push_back(noopt(new char[12686]));
+    }
+    for (int i = 0; i < kSizedDepth; i++) {
+      ::operator delete[](addresses[i], 12686);
+    }
+  }
+#endif
+
   // Test each of the memory-allocation functions once, just as a sanity-check
   fprintf(LOGSTREAM, "Sanity-testing all the memory allocation functions\n");
   {

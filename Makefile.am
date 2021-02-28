@@ -929,6 +929,21 @@ endif !BUILD_EMERGENCY_MALLOC
 
 ### Making the library
 
+if WITH_HEAP_CHECKER
+# heap-checker-bcad is last, in hopes its global ctor will run first.
+# (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
+# but that's ok; the internal/external distinction is only useful for
+# cygwin, and cygwin doesn't use HEAP_CHECKER anyway.)
+HEAP_CHECKER_SOURCES = src/base/thread_lister.c \
+                       src/base/linuxthreads.cc \
+                       src/heap-checker.cc \
+                       src/heap-checker-bcad.cc
+MAYBE_NO_HEAP_CHECK =
+else !WITH_HEAP_CHECKER
+HEAP_CHECKER_SOURCES =
+MAYBE_NO_HEAP_CHECK = -DNO_HEAP_CHECK
+endif !WITH_HEAP_CHECKER
+
 noinst_LTLIBRARIES += libtcmalloc_internal.la
 libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   $(TCMALLOC_INCLUDES) \
@@ -939,31 +954,34 @@ libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   $(EMERGENCY_MALLOC_CC) \
                                   src/memory_region_map.cc
 libtcmalloc_internal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG \
-                                   $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE)
+                                   $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE) \
+                                   $(MAYBE_NO_HEAP_CHECK)
 libtcmalloc_internal_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_internal_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 
 lib_LTLIBRARIES += libtcmalloc.la
-libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES)
-libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE)
+libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES) \
+                         $(HEAP_CHECKER_SOURCES)
+libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS) \
+                          $(MAYBE_NO_HEAP_CHECK) $(EMERGENCY_MALLOC_DEFINE)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_la_LIBADD = libtcmalloc_internal.la libmaybe_threads.la $(PTHREAD_LIBS)
 
-if WITH_HEAP_CHECKER
-# heap-checker-bcad is last, in hopes its global ctor will run first.
-# (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
-# but that's ok; the internal/external distinction is only useful for
-# cygwin, and cygwin doesn't use HEAP_CHECKER anyway.)
-HEAP_CHECKER_SOURCES = src/base/thread_lister.c \
-                       src/base/linuxthreads.cc \
-                       src/heap-checker.cc \
-                       src/heap-checker-bcad.cc
-libtcmalloc_la_SOURCES += $(HEAP_CHECKER_SOURCES)
-else !WITH_HEAP_CHECKER
-HEAP_CHECKER_SOURCES =
-libtcmalloc_internal_la_CXXFLAGS += -DNO_HEAP_CHECK
-libtcmalloc_la_CXXFLAGS += -DNO_HEAP_CHECK
-endif !WITH_HEAP_CHECKER
+# same as above with without -DNDEBUG
+noinst_LTLIBRARIES += libtcmalloc_internal_with_asserts.la
+libtcmalloc_internal_with_asserts_la_SOURCES = $(libtcmalloc_internal_la_SOURCES)
+libtcmalloc_internal_with_asserts_la_CXXFLAGS = $(PTHREAD_CFLAGS) \
+                                   $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE) \
+                                   $(MAYBE_NO_HEAP_CHECK)
+libtcmalloc_internal_with_asserts_la_LDFLAGS = $(PTHREAD_CFLAGS)
+libtcmalloc_internal_with_asserts_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
+
+noinst_LTLIBRARIES += libtcmalloc_with_asserts.la
+libtcmalloc_with_asserts_la_SOURCES = $(libtcmalloc_la_SOURCES)
+libtcmalloc_with_asserts_la_CXXFLAGS =  $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) \
+                          $(MAYBE_NO_HEAP_CHECK) $(EMERGENCY_MALLOC_DEFINE)
+libtcmalloc_with_asserts_la_LDFLAGS = $(PTHREAD_CFLAGS)
+libtcmalloc_with_asserts_la_LIBADD = libtcmalloc_internal_with_asserts.la libmaybe_threads.la $(PTHREAD_LIBS)
 
 LIBTCMALLOC = libtcmalloc.la
 
@@ -997,18 +1015,16 @@ tcmalloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 # first linkline to make sure our malloc 'wins'.
 tcmalloc_unittest_LDADD = $(LIBTCMALLOC) liblogging.la $(PTHREAD_LIBS)
 
-# # lets make sure we exerice ASSERTs in at least in statically linked
-# # configuration
-# TESTS += tcm_asserts_unittest
-# tcm_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
-#                                 src/tests/testutil.h src/tests/testutil.cc \
-#                                 $(libtcmalloc_internal_la_SOURCES) \
-#                                 $(libtcmalloc_la_SOURCES) \
-#                                 $(TCMALLOC_UNITTEST_INCLUDES)
-# tcm_asserts_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
-# tcm_asserts_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-# tcm_asserts_unittest_LDADD = $(LIBSPINLOCK) libmaybe_threads.la libstacktrace.la \
-#                              liblogging.la $(PTHREAD_LIBS)
+TESTS += tcm_asserts_unittest
+tcm_asserts_unittest_INCLUDES = src/config_for_unittests.h \
+                             src/gperftools/malloc_extension.h
+tcm_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
+                            src/tcmalloc.h \
+                            src/tests/testutil.h src/tests/testutil.cc \
+                            $(TCMALLOC_UNITTEST_INCLUDES)
+tcm_asserts_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+tcm_asserts_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
+tcm_asserts_unittest_LDADD = libtcmalloc_with_asserts.la liblogging.la $(PTHREAD_LIBS)
 
 # This makes sure it's safe to link in both tcmalloc and
 # tcmalloc_minimal.  (One would never do this on purpose, but perhaps

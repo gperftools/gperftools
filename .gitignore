@@ -125,6 +125,8 @@
 /stack_trace_table_test.exe
 /stacktrace_unittest
 /system_alloc_unittest
+/tcm_asserts_unittest
+/tcm_asserts_unittest.exe
 /tcm_min_asserts_unittest
 /tcm_min_asserts_unittest.exe
 /tcmalloc_and_profiler_unittest
