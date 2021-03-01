@@ -65,7 +65,7 @@ include(PCFromUContext)
 define_target_variables()
 
 # Currently only backtrace works on s390.
-if(s390)
+if(s390 OR OSX)
   set(default_enable_libunwind OFF)
   set(default_enable_backtrace ON)
 else()
@@ -308,6 +308,9 @@ check_c_source_compiles("
   #include <unwind.h>
   int main()
   {
+#if __APPLE__
+#error OSX _Unwind_Backtrace recurses back to malloc
+#endif
     &_Unwind_Backtrace;
     return 0;
   }"

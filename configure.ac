@@ -55,8 +55,13 @@ case "$host" in
    *-darwin*) default_enable_heap_checker=no;;
 esac
 
-# Currently only backtrace works on s390.
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __s390__])],
+# Currently only backtrace works on s390 and OSX.
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [
+#if !defined(__s390__) && !defined(__APPLE__)
+#error not s390 and not osx
+#endif
+return 1
+])],
                   [default_enable_libunwind=no
                    default_enable_backtrace=yes],
                   [default_enable_libunwind=yes
@@ -416,7 +421,11 @@ AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                [perftools_cv_have_unwind_backtrace],
                [AC_LANG_PUSH(C++)
                 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
-                    [[#include <unwind.h>]],
+                    [[#include <unwind.h>
+#if defined(__APPLE__)
+#error OSX _Unwind_Backtrace recurses back to malloc
+#endif
+]],
                     [[&_Unwind_Backtrace]])],
                  [perftools_cv_have_unwind_backtrace=yes],
                  [perftools_cv_have_unwind_backtrace=no])
