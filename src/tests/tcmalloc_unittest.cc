@@ -1615,11 +1615,16 @@ static int RunAllTests(int argc, char** argv) {
   // Check that large allocations fail with NULL instead of crashing
 #ifndef DEBUGALLOCATION    // debug allocation takes forever for huge allocs
   fprintf(LOGSTREAM, "Testing out of memory\n");
+  size_t old_limit;
+  CHECK(MallocExtension::instance()->GetNumericProperty("tcmalloc.heap_limit_mb", &old_limit));
+  // Don't exercise more than 1 gig, no need to.
+  CHECK(MallocExtension::instance()->SetNumericProperty("tcmalloc.heap_limit_mb", 1 << 10));
   for (int s = 0; ; s += (10<<20)) {
     void* large_object = rnd.alloc(s);
     if (large_object == NULL) break;
     free(large_object);
   }
+  CHECK(MallocExtension::instance()->SetNumericProperty("tcmalloc.heap_limit_mb", old_limit));
 #endif
 
   TestHugeThreadCache();

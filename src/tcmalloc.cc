@@ -163,6 +163,7 @@ using tcmalloc::Static;
 using tcmalloc::ThreadCache;
 
 DECLARE_double(tcmalloc_release_rate);
+DECLARE_int64(tcmalloc_heap_limit_mb);
 
 // Those common architectures are known to be safe w.r.t. aliasing function
 // with "extra" unused args to function with fewer arguments (e.g.
@@ -835,6 +836,12 @@ class TCMallocImplementation : public MallocExtension {
       return true;
     }
 
+    if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
+      SpinLockHolder l(Static::pageheap_lock());
+      *value = FLAGS_tcmalloc_heap_limit_mb;
+      return true;
+    }
+
     return false;
   }
 
@@ -850,6 +857,12 @@ class TCMallocImplementation : public MallocExtension {
     if (strcmp(name, "tcmalloc.aggressive_memory_decommit") == 0) {
       SpinLockHolder l(Static::pageheap_lock());
       Static::pageheap()->SetAggressiveDecommit(value != 0);
+      return true;
+    }
+
+    if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
+      SpinLockHolder l(Static::pageheap_lock());
+      FLAGS_tcmalloc_heap_limit_mb = value;
       return true;
     }
 
