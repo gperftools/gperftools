@@ -1,3 +1,15 @@
+== 2 March 2021 ==
+gperftools 2.9.1 is out!
+
+Minor fixes landed since previous release:
+
+* OSX builds new prefer backtrace() and have somewhat working heap
+  sampling.
+
+* Incorrect assertion failure was fixed that crashed tcmalloc if
+  assertions were on and sized delete was used. More details in github
+  issue #1254.
+
 == 21 February 2021 ==
 gperftools 2.9 is out!
 
@@ -19,8 +31,8 @@ gperftools 2.9rc is out!
 
 Here are notable changes:
 
-* Jarno Rajahalme has contributed fix crashing bug in syscalls support
-  for aarch64.
+* Jarno Rajahalme has contributed fix for crashing bug in syscalls
+  support for aarch64.
 
 * User SSE4 has contributed basic support for Elbrus 2000 architecture
   (!)
