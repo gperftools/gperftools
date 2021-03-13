@@ -96,7 +96,7 @@
 #cmakedefine HAVE_INTTYPES_H
 
 /* Define to 1 if you have the <libunwind.h> header file. */
-#cmakedefine01 HAVE_LIBUNWIND_H
+#cmakedefine HAVE_LIBUNWIND_H
 
 /* Define to 1 if you have the <linux/ptrace.h> header file. */
 #cmakedefine HAVE_LINUX_PTRACE_H
