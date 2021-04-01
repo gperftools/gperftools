@@ -206,6 +206,71 @@ extern "C" {
   }
 }
 
+// A set of primitives to trick with the environemnt variables
+// to mark child processes.
+// As gperftools is commonly loaded dynamically using LD_PRELOAD,
+// users are leveraging environment variables to communicate the parameters
+// to the corresponding gperftools library.
+// Specifically, a set of environment variables are used to specify the file
+// paths to be used during the operation (i.e. output profile filename).
+// When the application is using fork() to spawn more processes, it is important
+// to avoid conflicts where both the parent and a child area using the same
+// filename.
+// In order to do so, the parent reads the user-defined environment and toggles
+// the MSB of the first byte in it's value to indicate that all other processes
+// using this variable are children (and thus) must append a unique identifier
+// (PID) as a suffix to the corresponsing filename.
+#define EnvChildSignSet(enval) { enval[0] |= 128; }
+#define EnvChildSignDrop(enval) { enval[0] &= ~128; }
+#define EnvChildSignIsOn(enval) (enval[0] & 128)
+
+// HPC environment auto-detection
+// For HPC applications (MPI, OpenSHMEM, etc), it is typical for multiple
+// processes not engaged in parent-child relations to be executed on the
+// same host.
+// In order to enable gperftools to analyze them, these processes need to be
+// assigned individual file paths for the files being used.
+// The function below is trying to discover well-known HPC environments and
+// take advantage of that environment to generate meaningful profile filenames
+static bool QueryHPCEnvironment(char *hpc_suffix) {
+  char *enval;
+  int procid, jobid;
+
+  // Check for the PMIx environment
+  procid = EnvToInt(TC_ENV_PMIX_RANK, -1);
+  if (0 <= procid) {
+    // PMIx exposes the rank that is convenient for process identification
+    snprintf(hpc_suffix, PATH_MAX, TC_ENV_PMIX_SUFFIX "%d", procid);
+    // Use PMIx rank to differentiate
+    return false;
+  }
+
+  // Check for the Slurm environment
+  jobid = EnvToInt(TC_ENV_SLURM_JOBID, -1);
+  if (0 <= jobid) {
+    /* Slurm environment detected */
+    procid = EnvToInt(TC_ENV_SLURM_PROCID, -1);
+    if (0 <= procid) {
+      snprintf(hpc_suffix, PATH_MAX, TC_ENV_SLURM_SUFFIX "%d", procid);
+      // Use Slurm process ID to differentiate
+      return false;
+    }
+    // Need to add PID to avoid conflicts
+    return true;
+  }
+
+  /* Check for Open MPI environment */
+  enval = getenv("OMPI_HOME");
+  if (enval) {
+    return true;
+  }
+
+  // TODO: Detect other environments - MPICH
+
+  // No HPC environment was detected
+  return false;
+}
+
 // This takes as an argument an environment-variable name (like
 // CPUPROFILE) whose value is supposed to be a file-path, and sets
 // path to that path, and returns true.  If the env var doesn't exist,
@@ -230,15 +295,37 @@ extern "C" {
 // TODO(csilvers): set an envvar instead when we can do it reliably.
 bool GetUniquePathFromEnv(const char* env_name, char* path) {
   char* envval = getenv(env_name);
+  char hpcSuffix[PATH_MAX] = "";
+  char forceVarName[TC_ENV_MAX_NAME];
+  bool wantPid = false;
+
   if (envval == NULL || *envval == '\0')
     return false;
-  if (envval[0] & 128) {                  // high bit is set
-    snprintf(path, PATH_MAX, "%c%s_%u",   // add pid and clear high bit
-             envval[0] & 127, envval+1, (unsigned int)(getpid()));
-  } else {
-    snprintf(path, PATH_MAX, "%s", envval);
-    envval[0] |= 128;                     // set high bit for kids to see
+
+  // Get information about the child bit and drop it
+  const bool isChild = EnvChildSignIsOn(envval);
+  EnvChildSignDrop(envval);
+
+  wantPid = QueryHPCEnvironment(hpcSuffix);
+
+  // Generate the "forcing" environment variable name in a form of
+  // <ORIG_ENVAR>_USE_PID that requests PID to be used in the file names
+  snprintf(forceVarName, TC_ENV_MAX_NAME, "%s_USE_PID", env_name);
+
+  if (isChild || EnvToBool(forceVarName, false)) {
+    // force PID usage
+    wantPid = true;
   }
+
+  if (wantPid) {
+    snprintf(path, PATH_MAX, "%s%s" TC_ENV_PID_SUFFIX "%d",
+             envval, hpcSuffix, getpid());
+  } else {
+    snprintf(path, PATH_MAX, "%s%s", envval, hpcSuffix);
+  }
+
+  // Set the child bit for the fork'd processes
+  EnvChildSignSet(envval);
   return true;
 }
 

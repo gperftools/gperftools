@@ -49,6 +49,15 @@
 #include "base/basictypes.h"
 #include "base/logging.h"   // for RawFD
 
+#define TC_ENV_MAX_NAME 256
+#define TC_ENV_PID_SUFFIX "_"
+#define TC_ENV_PMIX_RANK "PMIX_RANK"
+#define TC_ENV_PMIX_SUFFIX ".rank-"
+#define TC_ENV_SLURM_SUFFIX ".slurmid-"
+#define TC_ENV_SLURM_JOBID "SLURM_JOB_ID"
+#define TC_ENV_SLURM_PROCID "SLURM_PROCID"
+
+
 // This getenv function is safe to call before the C runtime is initialized.
 // On Windows, it utilizes GetEnvironmentVariable() and on unix it uses
 // /proc/self/environ instead calling getenv().  It's intended to be used in
