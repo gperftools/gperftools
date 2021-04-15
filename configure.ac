@@ -104,6 +104,11 @@ if test "$enable_minimal" = yes; then
   enable_heap_profiler=no
   enable_heap_checker=no
 fi
+pagesize=$(getconf PAGESIZE 2>&1)
+tcmalloc_pagesize_byte=$(expr $default_tcmalloc_pagesize \* 1024)
+if test -n "$pagesize" && test "$pagesize" -gt "$tcmalloc_pagesize_byte"; then
+  default_tcmalloc_pagesize=$(expr $pagesize / 1024)
+fi
 AC_ARG_ENABLE([stacktrace-via-backtrace],
               [AS_HELP_STRING([--enable-stacktrace-via-backtrace],
                               [enable use of backtrace() for stacktrace capturing (may deadlock)])],
