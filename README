@@ -20,7 +20,7 @@ https://groups.google.com/forum/#!forum/gperftools
 
 gperftools was original home for pprof program. But do note that
 original pprof (which is still included with gperftools) is now
-deprecated in favor of golang version at https://github.com/google/pprof
+deprecated in favor of Go version at https://github.com/google/pprof
 
 
 TCMALLOC
