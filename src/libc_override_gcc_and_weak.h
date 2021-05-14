@@ -235,6 +235,11 @@ extern "C" {
 #endif
 }   // extern "C"
 
+/* AIX User-defined malloc replacement interface overrides */
+#if defined(_AIX)
+#include "libc_override_aix.h"
+#endif
+
 #undef ALIAS
 
 // No need to do anything at tcmalloc-registration time: we do it all

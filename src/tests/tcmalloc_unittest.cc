@@ -1472,6 +1472,10 @@ static int RunAllTests(int argc, char** argv) {
 
 #endif // defined(ENABLE_ALIGNED_NEW_DELETE)
 
+// On AIX user defined malloc replacement of libc routines
+// cannot be done at link time must be done a runtime via
+// environment variable MALLOCTYPE
+#if !defined(_AIX)
     // Try strdup(), which the system allocates but we must free.  If
     // all goes well, libc will use our malloc!
     p2 = noopt(strdup("in memory of James Golick"));
@@ -1479,7 +1483,7 @@ static int RunAllTests(int argc, char** argv) {
     VerifyNewHookWasCalled();
     free(p2);
     VerifyDeleteHookWasCalled();
-
+#endif
 
     // Test mmap too: both anonymous mmap and mmap of a file
     // Note that for right now we only override mmap on linux

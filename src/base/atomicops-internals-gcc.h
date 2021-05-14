@@ -44,6 +44,13 @@
 
 typedef int32_t Atomic32;
 
+// AIX 32bit intptr_t and int32_t are different types
+#if !defined(INT32_EQUALS_INTPTR)
+#if defined(_AIX) && !defined(__64BIT__)
+#define AtomicWordCastType Atomic32
+#endif
+#endif
+
 namespace base {
 namespace subtle {
 

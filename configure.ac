@@ -416,6 +416,21 @@ else
   AC_SUBST(ac_cv_have_std_align_val_t, 0)
 fi
 
+AC_CACHE_CHECK([if C++ Standard Library is libc++],
+               [ac_cv_use_libcpp],
+               [AC_LANG_PUSH(C++)
+                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+                    [[#include <ciso646>
+#if !defined(_LIBCPP_VERSION)
+#error Using libstdc++
+#endif
+                    ]])],
+                ac_cv_use_libcpp=yes,
+                ac_cv_use_libcpp=no)
+                AC_LANG_POP(C++)])
+AM_CONDITIONAL(LIBCPP,
+               test "$ac_cv_use_libcpp" = yes)
+
 
 AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                [perftools_cv_have_unwind_backtrace],
@@ -480,6 +495,8 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && ((__GNUC__ < 4) || (__
 #error mingw doesnt really support tls
 #elif defined(__APPLE__)
 #error OSX __thread support is known to call malloc which makes it unsafe to use from malloc replacement
+#elif defined(_AIX)
+#error AIX thread support is known to call malloc which makes it unsafe to use from malloc replacement
 #endif
 ], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
@@ -575,7 +592,7 @@ AH_TOP([
 AH_VERBATIM([PTHREADS_CRASHES_IF_RUN_TOO_EARLY],
 	    [/* Mark the systems where we know it's bad if pthreads runs too
    early before main (before threads are initialized, presumably).  */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(_AIX)
 #define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
 #endif])
 
@@ -595,6 +612,7 @@ AH_BOTTOM([
 ])
 AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
 AM_CONDITIONAL(OSX, expr $host : '.*-apple-darwin.*' >/dev/null 2>&1)
+AM_CONDITIONAL(AIX, expr $host : '.*-ibm-aix.*' >/dev/null 2>&1)
 
 # Export the --enable flags we set above.  We do this at the end so
 # other configure rules can enable or disable targets based on what
