@@ -428,7 +428,6 @@ else
   AC_SUBST(ac_cv_have_std_align_val_t, 0)
 fi
 
-
 AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                [perftools_cv_have_unwind_backtrace],
                [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
@@ -490,6 +489,8 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && ((__GNUC__ < 4) || (__
 #error mingw doesnt really support tls
 #elif defined(__APPLE__)
 #error OSX __thread support is known to call malloc which makes it unsafe to use from malloc replacement
+#elif defined(_AIX)
+#error AIX thread support is known to call malloc which makes it unsafe to use from malloc replacement
 #endif
 ], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
@@ -594,7 +595,7 @@ AH_TOP([
 AH_VERBATIM([PTHREADS_CRASHES_IF_RUN_TOO_EARLY],
 	    [/* Mark the systems where we know it's bad if pthreads runs too
    early before main (before threads are initialized, presumably).  */
-#ifdef __FreeBSD__
+#if defined(__FreeBSD__) || defined(_AIX)
 #define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
 #endif])
 

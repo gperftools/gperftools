@@ -339,6 +339,67 @@ above, by linking in libtcmalloc_minimal.
    process.  'make install' should also work.  The Makefile will limit
    itself to those libraries and binaries that work on windows.
 
+** AIX
+
+   I've tested using the IBM XL and IBM Open XL Compilers. The
+   minimum requirement for IBM XL is V16 which includes C++11
+   support. IBM XL and gcc are not ABI compatible. If you would
+   like to use the library with a gcc built executable then the
+   library must also be built with gcc. To use the library with
+   and IBM XL built binary then it follows that the library must
+   also be built with IBM XL.
+
+   Both 32-bit and 64-bit builds have been tested.
+
+   To do a 32-bit IBM XL build:
+     % ./configure CC="xlclang" CXX="xlclang++" AR="ar"
+           RANLIB="ranlib" NM="nm"
+   To do a 64-bit IBM XL build:
+     % ./configure CC="xlclang -q64" CXX="xlclang++ -q64"
+          AR="ar -X64" RANLIB="ranlib -X64" NM="nm -X64"
+
+   Add your favorite optimization levels via CFLAGS and CXXFLAGS.
+
+   If you link to the shared library but it may not work as you
+   expect. Allocations and deallocations that occur from within
+   the Standard C and C++ libraries will not be redirected the
+   tcmalloc library.
+
+   The recommended method is to use the AIX User-defined malloc
+   replacement as documented by IBM. This replaces the default
+   AIX memory subsystem with a user defined memory subsystem.
+
+   The AIX user defined memory subsystem specifies that the 32-
+   and 64- bit objects must be placed in an archive with the
+   32-bit shared object named mem32.o and the 64-bit shared
+   object named mem64.o.
+
+   It is recommended to make combined 32_64 bit archive by
+   doing a 64-bit build, then copy the shared library to mem64.o
+   add mem64.o the archive, then do a 32-bit build
+   copy the shared library to mem32.o and add it to the same
+   combined archive.
+
+   For eg) perform a 64-bit build then:
+     % cp libtcmalloc_minimal.so.4 mem64.o
+     % ar -X32_64 -r libtmalloc_minimal.a mem64.o
+
+     Followed by a 32-bit build:
+     % cp libtcmalloc_minimal.so.4 mem32.o
+     % ar -X32_64 -r libtmalloc_minimal.a mem32.o
+
+   The final archive should contain both mem32.o and mem64.o
+
+   To use the library you are expected have the library location
+   in your LIBPATH or LD_LIBRARY_PATH followed by exporting the
+   environment variable MALLOCTYPE=user:libtcmalloc_minimal.a to
+   enable the new user defined memory subsystem.
+
+   I recommend using:
+     % MALLOCTYPE=user:libtcmalloc_minimal.a <user-exectuable>
+   to minimize the impact of replacing the memory subsystem.  Once
+   the subsystem is replaced it is used for all commands issued from
+   the terminal.
 
 Basic Installation
 ==================

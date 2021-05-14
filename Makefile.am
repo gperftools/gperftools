@@ -386,6 +386,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/central_freelist.h \
                               src/linked_list.h \
                               src/libc_override.h \
+                              src/libc_override_aix.h \
                               src/libc_override_gcc_and_weak.h \
                               src/libc_override_glibc.h \
                               src/libc_override_osx.h \
