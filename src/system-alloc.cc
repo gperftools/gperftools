@@ -511,7 +511,7 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
 }
 
 bool TCMalloc_SystemRelease(void* start, size_t length) {
-#ifdef MADV_FREE
+#if defined(FREE_MMAP_PROT_NONE) && defined(HAVE_MMAP) || defined(MADV_FREE)
   if (FLAGS_malloc_devmem_start) {
     // It's not safe to use MADV_FREE/MADV_DONTNEED if we've been
     // mapping /dev/mem for heap memory.
@@ -536,20 +536,40 @@ bool TCMalloc_SystemRelease(void* start, size_t length) {
   ASSERT(new_end <= end);
 
   if (new_end > new_start) {
-    int result;
+    bool result, retry;
     do {
-      result = madvise(reinterpret_cast<char*>(new_start),
-          new_end - new_start, MADV_FREE);
-    } while (result == -1 && errno == EAGAIN);
+#if defined(FREE_MMAP_PROT_NONE) && defined(HAVE_MMAP)
+      // mmap PROT_NONE is similar to munmap by freeing backing pages by
+      // physical memory except using MAP_FIXED keeps virtual memory range
+      // reserved to be remapped back later
+      void* ret = mmap(reinterpret_cast<char*>(new_start), new_end - new_start,
+          PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED, -1, 0);
 
-    return result != -1;
-  }
+      result = ret != MAP_FAILED;
+#else
+      int ret = madvise(reinterpret_cast<char*>(new_start),
+          new_end - new_start, MADV_FREE);
+
+      result = ret != -1;
 #endif
+      retry = errno == EAGAIN;
+    } while (!result && retry);
+
+    return result;
+  }
+#endif 
   return false;
 }
 
 void TCMalloc_SystemCommit(void* start, size_t length) {
+#if defined(FREE_MMAP_PROT_NONE) && defined(HAVE_MMAP)
+  // remaping as MAP_FIXED to same address assuming span size did not change 
+  // since last TCMalloc_SystemRelease
+  mmap(start, length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS|MAP_FIXED,
+       -1, 0);
+#else
   // Nothing to do here.  TCMalloc_SystemRelease does not alter pages
   // such that they need to be re-committed before they can be used by the
   // application.
+#endif
 }
