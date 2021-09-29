@@ -79,14 +79,6 @@ void CentralFreeList::Init(size_t cl) {
   ASSERT(cache_size_ <= max_cache_size_);
 }
 
-void CentralFreeList::ReleaseListToSpans(void* start) {
-  while (start) {
-    void *next = SLL_Next(start);
-    ReleaseToSpans(start);
-    start = next;
-  }
-}
-
 // MapObjectToSpan should logically be part of ReleaseToSpans.  But
 // this triggers an optimization bug in gcc 4.5.0.  Moving to a
 // separate function, and making sure that function isn't inlined,
@@ -94,17 +86,35 @@ void CentralFreeList::ReleaseListToSpans(void* start) {
 static
 #if __GNUC__ == 4 && __GNUC_MINOR__ == 5 && __GNUC_PATCHLEVEL__ == 0
 __attribute__ ((noinline))
+#else
+  inline ATTRIBUTE_ALWAYS_INLINE
 #endif
-Span* MapObjectToSpan(void* object) {
+Span* MapObjectToSpan(const void* object) {
   const PageID p = reinterpret_cast<uintptr_t>(object) >> kPageShift;
   Span* span = Static::pageheap()->GetDescriptor(p);
   return span;
 }
 
-void CentralFreeList::ReleaseToSpans(void* object) {
-  Span* span = MapObjectToSpan(object);
-  ASSERT(span != NULL);
-  ASSERT(span->refcount > 0);
+void CentralFreeList::ReleaseListToSpans(void* start) {
+  while (start) {
+    Span* span = MapObjectToSpan(start);
+    if(span == NULL) {
+      Log(LOG_LEVEL_EXPECT, __FILE__, __LINE__,
+          "tcmalloc: Bad List Address ", start);
+      break;
+    }
+    if(span->refcount == 0) {
+      Log(LOG_LEVEL_EXPECT, __FILE__, __LINE__,
+          "tcmalloc: Bad Span ref-count", span);
+      break;
+    }
+    void *next = SLL_Next(start);
+    ReleaseToSpans(start, span);
+    start = next;
+  }
+}
+
+void CentralFreeList::ReleaseToSpans(void* object, Span* span) {
 
   // If span is empty, move it to non-empty list
   if (span->objects == NULL) {

@@ -130,7 +130,7 @@ class CentralFreeList {
   // REQUIRES: lock_ is held
   // Release an object to spans.
   // May temporarily release lock_.
-  void ReleaseToSpans(void* object) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void ReleaseToSpans(void* object, Span* span) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: lock_ is held
   // Populate cache by fetching from the page heap.

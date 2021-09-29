@@ -118,8 +118,10 @@ do {                                                                     \
 // all kinds of goofy printing while holding the malloc lock.
 #ifndef NDEBUG
 #define ASSERT(cond) CHECK_CONDITION(cond)
+#define LOG_LEVEL_EXPECT ::tcmalloc::kCrash
 #else
 #define ASSERT(cond) ((void) 0)
+#define LOG_LEVEL_EXPECT ::tcmalloc::kLog
 #endif
 
 // Print into buffer
