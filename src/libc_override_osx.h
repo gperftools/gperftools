@@ -129,6 +129,10 @@ void mz_free(malloc_zone_t* zone, void* ptr) {
   return tc_free(ptr);
 }
 
+void mz_free_definite_size(malloc_zone_t* zone, void *ptr, size_t size) {
+  return tc_free(ptr);
+}
+
 void* mz_realloc(malloc_zone_t* zone, void* ptr, size_t size) {
   return tc_realloc(ptr, size);
 }
@@ -272,7 +276,7 @@ static void ReplaceSystemAlloc() {
     MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
   // Switch to version 6 on OSX 10.6 to support memalign.
   tcmalloc_zone.version = 6;
-  tcmalloc_zone.free_definite_size = NULL;
+  tcmalloc_zone.free_definite_size = &mz_free_definite_size;
   tcmalloc_zone.memalign = &mz_memalign;
   tcmalloc_introspection.zone_locked = &mi_zone_locked;
 
