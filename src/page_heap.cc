@@ -510,8 +510,6 @@ Length PageHeap::ReleaseAtLeastNPages(Length num_pages) {
       // large freelist, should we carve s instead of releasing?
       // the whole thing?
       Length released_len = ReleaseSpan(s);
-      // Some systems do not support release
-      if (released_len == 0) return released_pages;
       released_pages += released_len;
     }
   }
