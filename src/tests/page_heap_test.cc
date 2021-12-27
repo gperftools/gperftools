@@ -9,6 +9,7 @@
 
 #include <stdio.h>
 
+#include <limits>
 #include <memory>
 
 #include "page_heap.h"
@@ -53,7 +54,7 @@ static void TestPageHeap_Stats() {
   CheckStats(ph.get(), 256, 0, 0);
 
   // Split span 's1' into 's1', 's2'.  Delete 's2'
-  tcmalloc::Span* s2 = ph->Split(s1, 128);
+  tcmalloc::Span* s2 = ph->SplitForTest(s1, 128);
   ph->Delete(s2);
   CheckStats(ph.get(), 256, 128, 0);
 
@@ -100,6 +101,13 @@ static void TestPageHeap_Limit() {
   AllocateAllPageTables();
 
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+
+  // Lets also test if huge number of pages is ooming properly
+  {
+    auto res = ph->New(std::numeric_limits<Length>::max());
+    CHECK_EQ(res, nullptr);
+    CHECK_EQ(errno, ENOMEM);
+  }
 
   CHECK_EQ(kMaxPages, 1 << (20 - kPageShift));
 

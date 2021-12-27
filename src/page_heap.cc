@@ -163,6 +163,40 @@ Span* PageHeap::New(Length n) {
   return SearchFreeAndLargeLists(n);
 }
 
+Span* PageHeap::NewAligned(Length n, Length align_pages) {
+  // Allocate extra pages and carve off an aligned portion
+  const Length alloc = n + align_pages;
+  if (alloc < n || alloc < align_pages) {
+    // overflow means we asked huge amounts, so lets trigger normal
+    // oom handling by asking enough to trigger oom.
+    Span* span = New(std::numeric_limits<Length>::max());
+    CHECK_CONDITION(span == nullptr);
+    return nullptr;
+  }
+  Span* span = New(alloc);
+  if (PREDICT_FALSE(span == nullptr)) return nullptr;
+
+  // Skip starting portion so that we end up aligned
+  Length skip = 0;
+  size_t align_bytes = align_pages << kPageShift;
+  while ((((span->start+skip) << kPageShift) & (align_bytes - 1)) != 0) {
+    skip++;
+  }
+  ASSERT(skip < alloc);
+  if (skip > 0) {
+    Span* rest = Split(span, skip);
+    Delete(span);
+    span = rest;
+  }
+
+  ASSERT(span->length >= n);
+  if (span->length > n) {
+    Span* trailer = Split(span, n);
+    Delete(trailer);
+  }
+  return span;
+}
+
 Span* PageHeap::AllocLarge(Length n) {
   Span *best = NULL;
   Span *best_normal = NULL;

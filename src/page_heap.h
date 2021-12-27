@@ -118,6 +118,10 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // been rounded up already.
   Span* New(Length n);
 
+  // Same as above but with alignment. Requires page heap
+  // lock, like New above.
+  Span* NewAligned(Length n, Length align_pages);
+
   // Delete the span "[p, p+n-1]".
   // REQUIRES: span was returned by earlier call to New() and
   //           has not yet been deleted.
@@ -129,15 +133,9 @@ class PERFTOOLS_DLL_DECL PageHeap {
   //           and has not yet been deleted.
   void RegisterSizeClass(Span* span, uint32 sc);
 
-  // Split an allocated span into two spans: one of length "n" pages
-  // followed by another span of length "span->length - n" pages.
-  // Modifies "*span" to point to the first span of length "n" pages.
-  // Returns a pointer to the second span.
-  //
-  // REQUIRES: "0 < n < span->length"
-  // REQUIRES: span->location == IN_USE
-  // REQUIRES: span->sizeclass == 0
-  Span* Split(Span* span, Length n);
+  Span* SplitForTest(Span* span, Length n) {
+    return Split(span, n);
+  }
 
   // Return the descriptor for the specified page.  Returns NULL if
   // this PageID was not allocated previously.
@@ -279,6 +277,16 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   // Statistics on system, free, and unmapped bytes
   Stats stats_;
+
+  // Split an allocated span into two spans: one of length "n" pages
+  // followed by another span of length "span->length - n" pages.
+  // Modifies "*span" to point to the first span of length "n" pages.
+  // Returns a pointer to the second span.
+  //
+  // REQUIRES: "0 < n < span->length"
+  // REQUIRES: span->location == IN_USE
+  // REQUIRES: span->sizeclass == 0
+  Span* Split(Span* span, Length n);
 
   Span* SearchFreeAndLargeLists(Length n);
 

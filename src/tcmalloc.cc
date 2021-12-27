@@ -1630,30 +1630,13 @@ void* do_memalign_pages(size_t align, size_t size) {
   // We will allocate directly from the page heap
   SpinLockHolder h(Static::pageheap_lock());
 
-  // Allocate extra pages and carve off an aligned portion
-  const Length alloc = tcmalloc::pages(size + align);
-  Span* span = Static::pageheap()->New(alloc);
-  if (PREDICT_FALSE(span == NULL)) return NULL;
-
-  // Skip starting portion so that we end up aligned
-  Length skip = 0;
-  while ((((span->start+skip) << kPageShift) & (align - 1)) != 0) {
-    skip++;
-  }
-  ASSERT(skip < alloc);
-  if (skip > 0) {
-    Span* rest = Static::pageheap()->Split(span, skip);
-    Static::pageheap()->Delete(span);
-    span = rest;
+  Span* span = Static::pageheap()->NewAligned(tcmalloc::pages(size),
+                                              tcmalloc::pages(align));
+  if (span == nullptr) {
+    // errno was set inside page heap as necessary.
+    return nullptr;
   }
 
-  // Skip trailing portion that we do not need to return
-  const Length needed = tcmalloc::pages(size);
-  ASSERT(span->length >= needed);
-  if (span->length > needed) {
-    Span* trailer = Static::pageheap()->Split(span, needed);
-    Static::pageheap()->Delete(trailer);
-  }
   return SpanToMallocResult(span);
 }
 
