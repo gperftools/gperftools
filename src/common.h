@@ -149,10 +149,6 @@ inline Length pages(size_t bytes) {
       ((bytes & (kPageSize - 1)) > 0 ? 1 : 0);
 }
 
-// For larger allocation sizes, we use larger memory alignments to
-// reduce the number of size classes.
-int AlignmentForSize(size_t size);
-
 // Size-class information + mapping
 class SizeMap {
  private:
@@ -233,7 +229,9 @@ class SizeMap {
   // Mapping from size class to number of pages to allocate at a time
   size_t class_to_pages_[kClassSizesMax];
 
- public:
+  size_t min_span_size_in_pages_;
+
+public:
   size_t num_size_classes;
 
   // Constructor should do nothing since we rely on explicit Init()
@@ -250,7 +248,7 @@ class SizeMap {
   // Check if size is small enough to be representable by a size
   // class, and if it is, put matching size class into *cl. Returns
   // true iff matching size class was found.
-  inline bool ATTRIBUTE_ALWAYS_INLINE GetSizeClass(size_t size, uint32* cl) {
+  bool ATTRIBUTE_ALWAYS_INLINE GetSizeClass(size_t size, uint32* cl) {
     uint32 idx;
     if (!ClassIndexMaybe(size, &idx)) {
       return false;
@@ -260,17 +258,17 @@ class SizeMap {
   }
 
   // Get the byte-size for a specified class
-  inline int32 ATTRIBUTE_ALWAYS_INLINE ByteSizeForClass(uint32 cl) {
+  int32 ATTRIBUTE_ALWAYS_INLINE ByteSizeForClass(uint32 cl) {
     return class_to_size_[cl];
   }
 
   // Mapping from size class to max size storable in that class
-  inline int32 class_to_size(uint32 cl) {
+  int32 class_to_size(uint32 cl) {
     return class_to_size_[cl];
   }
 
   // Mapping from size class to number of pages to allocate at a time
-  inline size_t class_to_pages(uint32 cl) {
+  size_t class_to_pages(uint32 cl) {
     return class_to_pages_[cl];
   }
 
@@ -279,8 +277,14 @@ class SizeMap {
   // amortize the lock overhead for accessing the central list.  Making
   // it too big may temporarily cause unnecessary memory wastage in the
   // per-thread free list until the scavenger cleans up the list.
-  inline int num_objects_to_move(uint32 cl) {
+  int num_objects_to_move(uint32 cl) {
     return num_objects_to_move_[cl];
+  }
+
+  // Smallest Span size in bytes (max of system's page size and
+  // kPageSize).
+  Length min_span_size_in_pages() {
+    return min_span_size_in_pages_;
   }
 };
 

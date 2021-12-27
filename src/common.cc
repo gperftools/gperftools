@@ -31,11 +31,19 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
-#include <stdlib.h> // for getenv and strtol
 #include "config.h"
+
+#include <stdlib.h> // for strtol
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
+
+#include <algorithm>
+
 #include "common.h"
 #include "system-alloc.h"
 #include "base/spinlock.h"
+#include "base/commandlineflags.h"
 #include "getenv_safe.h" // TCMallocGetenvSafe
 
 namespace tcmalloc {
@@ -74,7 +82,7 @@ static inline int LgFloor(size_t n) {
   return log;
 }
 
-int AlignmentForSize(size_t size) {
+static int AlignmentForSize(size_t size) {
   int alignment = kAlignment;
   if (size > kMaxSize) {
     // Cap alignment at kPageSize for large sizes.
@@ -122,6 +130,31 @@ int SizeMap::NumMoveSize(size_t size) {
 void SizeMap::Init() {
   InitTCMallocTransferNumObjects();
 
+#if (!defined(_WIN32) || defined(TCMALLOC_BRAVE_EFFECTIVE_PAGE_SIZE)) && !defined(TCMALLOC_COWARD_EFFECTIVE_PAGE_SIZE)
+  size_t native_page_size = tcmalloc::commandlineflags::StringToLongLong(
+    TCMallocGetenvSafe("TCMALLOC_OVERRIDE_PAGESIZE"), getpagesize());
+#else
+  // So windows getpagesize() returns 64k. Because that is
+  // "granularity size" w.r.t. their virtual memory facility. So kinda
+  // maybe not a bad idea to also have effective logical pages at 64k
+  // too. But it breaks frag_unittest (for mostly harmless
+  // reason). And I am not brave enough to have our behavior change so
+  // much on windows (which isn't that much; people routinely run 256k
+  // logical pages anyways).
+  constexpr size_t native_page_size = kPageSize;
+#endif
+
+  size_t min_span_size = std::max<size_t>(native_page_size, kPageSize);
+  if (min_span_size > kPageSize && (min_span_size % kPageSize) != 0) {
+    Log(kLog, __FILE__, __LINE__, "This should never happen, but somehow "
+        "we got systems page size not power of 2 and not multiple of "
+        "malloc's logical page size. Releasing memory back will mostly not happen. "
+        "system: ", native_page_size, ", malloc: ", kPageSize);
+    min_span_size = kPageSize;
+  }
+
+  min_span_size_in_pages_ = min_span_size / kPageSize;
+
   // Do some sanity checking on add_amount[]/shift_amount[]/class_array[]
   if (ClassIndex(0) != 0) {
     Log(kCrash, __FILE__, __LINE__,
@@ -143,11 +176,11 @@ void SizeMap::Init() {
     int blocks_to_move = NumMoveSize(size) / 4;
     size_t psize = 0;
     do {
-      psize += kPageSize;
+      psize += min_span_size;
       // Allocate enough pages so leftover is less than 1/8 of total.
       // This bounds wasted space to at most 12.5%.
       while ((psize % size) > (psize >> 3)) {
-        psize += kPageSize;
+        psize += min_span_size;
       }
       // Continue to add pages until there are at least as many objects in
       // the span as are needed when moving objects from the central

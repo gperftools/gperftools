@@ -111,7 +111,11 @@ template <> class MapSelector<32> {
 
 class PERFTOOLS_DLL_DECL PageHeap {
  public:
-  PageHeap();
+  PageHeap() : PageHeap(1) {}
+  PageHeap(Length smallest_span_size);
+
+  // Aligns given size up to be multiple of smallest_span_size.
+  Length RoundUpSize(Length n);
 
   // Allocate a run of "n" pages.  Returns zero if out of memory.
   // Caller should not pass "n == 0" -- instead, n should have
@@ -248,6 +252,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // If there is nothing to release, wait for so many pages before
   // scavenging again.  With 4K pages, this comes to 1GB of memory.
   static const int kDefaultReleaseDelay = 1 << 18;
+
+  const Length smallest_span_size_;
 
   // Pick the appropriate map and cache types based on pointer size
   typedef MapSelector<kAddressBits>::Type PageMap;

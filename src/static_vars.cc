@@ -88,7 +88,7 @@ void Static::InitStaticVars() {
     central_cache_[i].Init(i);
   }
 
-  new (&pageheap_.memory) PageHeap;
+  new (&pageheap_.memory) PageHeap(sizemap_.min_span_size_in_pages());
 
 #if defined(ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT)
   const bool kDefaultAggressiveDecommit = true;

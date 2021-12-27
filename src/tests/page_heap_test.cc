@@ -21,11 +21,16 @@ DECLARE_int64(tcmalloc_heap_limit_mb);
 
 namespace {
 
-// The system will only release memory if the block size is equal or hight than
-// system page size.
-static bool HaveSystemRelease =
-    TCMalloc_SystemRelease(
-      TCMalloc_SystemAlloc(getpagesize(), NULL, 0), getpagesize());
+// TODO: add testing from >1 min_span_size setting.
+
+static bool HaveSystemRelease() {
+  static bool retval = ([] () {
+    size_t actual;
+    auto ptr = TCMalloc_SystemAlloc(kPageSize, &actual, 0);
+    return TCMalloc_SystemRelease(ptr, actual);
+  }());
+  return retval;
+}
 
 static void CheckStats(const tcmalloc::PageHeap* ph,
                        uint64_t system_pages,
@@ -33,7 +38,7 @@ static void CheckStats(const tcmalloc::PageHeap* ph,
                        uint64_t unmapped_pages) {
   tcmalloc::PageHeap::Stats stats = ph->stats();
 
-  if (!HaveSystemRelease) {
+  if (!HaveSystemRelease()) {
     free_pages += unmapped_pages;
     unmapped_pages = 0;
   }
@@ -140,7 +145,7 @@ static void TestPageHeap_Limit() {
     tcmalloc::Span *defragmented =
         ph->New(kNumberMaxPagesSpans / 2 * kMaxPages);
 
-    if (HaveSystemRelease) {
+    if (HaveSystemRelease()) {
       // EnsureLimit should release deleted normal spans
       EXPECT_NE(defragmented, NULL);
       EXPECT_TRUE(ph->CheckExpensive());
@@ -174,7 +179,7 @@ static void TestPageHeap_Limit() {
 
     for (Length len = kMaxPages >> 2;
          len < kNumberMaxPagesSpans / 2 * kMaxPages; len = len << 1) {
-      if(len <= kMaxPages >> 1 || HaveSystemRelease) {
+      if(len <= kMaxPages >> 1 || HaveSystemRelease()) {
         tcmalloc::Span *s = ph->New(len);
         EXPECT_NE(s, NULL);
         ph->Delete(s);

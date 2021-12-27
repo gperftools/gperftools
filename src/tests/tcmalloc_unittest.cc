@@ -868,15 +868,21 @@ static void CheckRangeCallback(void* ptr, base::MallocRange::Type type,
 
 }
 
-static bool HaveSystemRelease =
-    TCMalloc_SystemRelease(TCMalloc_SystemAlloc(kPageSize, NULL, 0), kPageSize);
+static bool HaveSystemRelease() {
+  static bool retval = ([] () {
+    size_t actual;
+    auto ptr = TCMalloc_SystemAlloc(kPageSize, &actual, 0);
+    return TCMalloc_SystemRelease(ptr, actual);
+  }());
+  return retval;
+}
 
 static void TestRanges() {
   static const int MB = 1048576;
   void* a = malloc(MB);
   void* b = malloc(MB);
   base::MallocRange::Type releasedType =
-      HaveSystemRelease ? base::MallocRange::UNMAPPED : base::MallocRange::FREE;
+    HaveSystemRelease() ? base::MallocRange::UNMAPPED : base::MallocRange::FREE;
 
   CheckRangeCallback(a, base::MallocRange::INUSE, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
@@ -923,7 +929,7 @@ static void TestReleaseToSystem() {
   // teset in this mode.  TODO(csilvers): get it to work for debugalloc?
 #ifndef DEBUGALLOCATION
 
-  if(!HaveSystemRelease) return;
+  if(!HaveSystemRelease()) return;
 
   const double old_tcmalloc_release_rate = FLAGS_tcmalloc_release_rate;
   FLAGS_tcmalloc_release_rate = 0;
@@ -986,7 +992,7 @@ static void TestAggressiveDecommit() {
   // teset in this mode.
 #ifndef DEBUGALLOCATION
 
-  if(!HaveSystemRelease) return;
+  if(!HaveSystemRelease()) return;
 
   fprintf(LOGSTREAM, "Testing aggressive de-commit\n");
 
@@ -1562,13 +1568,21 @@ static int RunAllTests(int argc, char** argv) {
   return 0;
 }
 
-}
+}  // namespace testing
 
 using testing::RunAllTests;
 
 int main(int argc, char** argv) {
 #ifdef DEBUGALLOCATION    // debug allocation takes forever for huge allocs
   FLAGS_max_free_queue_size = 0;  // return freed blocks to tcmalloc immediately
+#endif
+
+#if defined(__linux) || defined(_WIN32)
+  // We know that Linux and Windows have functional memory releasing
+  // support. So don't let us degrade on that.
+  if (!getenv("DONT_TEST_SYSTEM_RELEASE")) {
+    CHECK_CONDITION(testing::HaveSystemRelease());
+  }
 #endif
 
   RunAllTests(argc, argv);

@@ -31,10 +31,14 @@
 // ---
 // Author: Sanjay Ghemawat <opensource@google.com>
 
-#include <config.h>
+#include "config.h"
+
 #include <inttypes.h>                   // for PRIuPTR
 #include <errno.h>                      // for ENOMEM, errno
-#include <gperftools/malloc_extension.h>      // for MallocRange, etc
+
+#include <limits>
+
+#include "gperftools/malloc_extension.h"      // for MallocRange, etc
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
 #include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc
@@ -60,13 +64,16 @@ DEFINE_int64(tcmalloc_heap_limit_mb,
 
 namespace tcmalloc {
 
-PageHeap::PageHeap()
-    : pagemap_(MetaDataAlloc),
+PageHeap::PageHeap(Length smallest_span_size)
+    : smallest_span_size_(smallest_span_size),
+      pagemap_(MetaDataAlloc),
       scavenge_counter_(0),
       // Start scavenging at kMaxPages list
       release_index_(kMaxPages),
       aggressive_decommit_(false) {
   COMPILE_ASSERT(kClassSizesMax <= (1 << PageMapCache::kValuebits), valuebits);
+  // smallest_span_size needs to be power of 2.
+  CHECK_CONDITION((smallest_span_size_ & (smallest_span_size_-1)) == 0);
   for (int i = 0; i < kMaxPages; i++) {
     DLL_Init(&free_[i].normal);
     DLL_Init(&free_[i].returned);
@@ -108,9 +115,20 @@ Span* PageHeap::SearchFreeAndLargeLists(Length n) {
 
 static const size_t kForcedCoalesceInterval = 128*1024*1024;
 
+Length PageHeap::RoundUpSize(Length n) {
+  Length rounded_n = (n + smallest_span_size_ - 1) & ~(smallest_span_size_ - 1);
+  if (rounded_n < n) {
+    // Overflow happened. So make sure we oom by asking for biggest
+    // amount possible.
+    return std::numeric_limits<Length>::max() & ~(smallest_span_size_ - 1);
+  }
+
+  return rounded_n;
+}
+
 Span* PageHeap::New(Length n) {
   ASSERT(Check());
-  ASSERT(n > 0);
+  n = RoundUpSize(n);
 
   Span* result = SearchFreeAndLargeLists(n);
   if (result != NULL)
@@ -164,6 +182,8 @@ Span* PageHeap::New(Length n) {
 }
 
 Span* PageHeap::NewAligned(Length n, Length align_pages) {
+  n = RoundUpSize(n);
+
   // Allocate extra pages and carve off an aligned portion
   const Length alloc = n + align_pages;
   if (alloc < n || alloc < align_pages) {
