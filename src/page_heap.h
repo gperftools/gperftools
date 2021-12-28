@@ -39,6 +39,7 @@
 #include <stdint.h>                     // for uint64_t, int64_t, uint16_t
 #include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
+#include "base/spinlock.h"
 #include "common.h"
 #include "packed-cache-inl.h"
 #include "pagemap.h"
@@ -114,13 +115,21 @@ class PERFTOOLS_DLL_DECL PageHeap {
   PageHeap() : PageHeap(1) {}
   PageHeap(Length smallest_span_size);
 
+  SpinLock* pageheap_lock() {
+    return &lock_;
+  }
+
   // Aligns given size up to be multiple of smallest_span_size.
   Length RoundUpSize(Length n);
 
   // Allocate a run of "n" pages.  Returns zero if out of memory.
   // Caller should not pass "n == 0" -- instead, n should have
   // been rounded up already.
-  Span* New(Length n);
+  Span* New(Length n) {
+    return NewWithSizeClass(n, 0);
+  }
+
+  Span* NewWithSizeClass(Length n, uint32 sizeclass);
 
   // Same as above but with alignment. Requires page heap
   // lock, like New above.
@@ -131,6 +140,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   //           has not yet been deleted.
   void Delete(Span* span);
 
+  void DeleteAndUnlock(Span* span, SpinLockHolder&& pageheap_lock_holder);
+
   // Mark an allocated span as being used for small objects of the
   // specified size-class.
   // REQUIRES: span was returned by an earlier call to New()
@@ -138,6 +149,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   void RegisterSizeClass(Span* span, uint32 sc);
 
   Span* SplitForTest(Span* span, Length n) {
+    SpinLockHolder l(&lock_);
     return Split(span, n);
   }
 
@@ -173,7 +185,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
     uint64_t reserve_count;         // Number of virtual memory reserves
     uint64_t total_reserve_bytes;   // Bytes reserved in lifetime of process
   };
-  inline Stats stats() const { return stats_; }
+  inline Stats StatsLocked() const { return stats_; }
 
   struct SmallSpanStats {
     // For each free list of small spans, the length (in spans) of the
@@ -183,7 +195,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
     int64 normal_length[kMaxPages];
     int64 returned_length[kMaxPages];
   };
-  void GetSmallSpanStats(SmallSpanStats* result);
+  void GetSmallSpanStatsLocked(SmallSpanStats* result);
 
   // Stats for free large spans (i.e., spans with more than kMaxPages pages).
   struct LargeSpanStats {
@@ -191,7 +203,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
     int64 normal_pages;    // Combined page length of normal large spans
     int64 returned_pages;  // Combined page length of unmapped spans
   };
-  void GetLargeSpanStats(LargeSpanStats* result);
+  void GetLargeSpanStatsLocked(LargeSpanStats* result);
 
   bool Check();
   // Like Check() but does some more comprehensive checking.
@@ -255,6 +267,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   const Length smallest_span_size_;
 
+  SpinLock lock_;
+
   // Pick the appropriate map and cache types based on pointer size
   typedef MapSelector<kAddressBits>::Type PageMap;
   typedef PackedCache<kAddressBits - kPageShift> PageMapCache;
@@ -283,6 +297,9 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   // Statistics on system, free, and unmapped bytes
   Stats stats_;
+
+  Span* NewLocked(Length n);
+  void DeleteLocked(Span* span);
 
   // Split an allocated span into two spans: one of length "n" pages
   // followed by another span of length "span->length - n" pages.

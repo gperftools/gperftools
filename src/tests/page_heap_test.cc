@@ -36,7 +36,7 @@ static void CheckStats(const tcmalloc::PageHeap* ph,
                        uint64_t system_pages,
                        uint64_t free_pages,
                        uint64_t unmapped_pages) {
-  tcmalloc::PageHeap::Stats stats = ph->stats();
+  tcmalloc::PageHeap::Stats stats = ph->StatsLocked();
 
   if (!HaveSystemRelease()) {
     free_pages += unmapped_pages;
@@ -64,7 +64,10 @@ static void TestPageHeap_Stats() {
   CheckStats(ph.get(), 256, 128, 0);
 
   // Unmap deleted span 's2'
-  ph->ReleaseAtLeastNPages(1);
+  {
+      SpinLockHolder l(ph->pageheap_lock());
+      ph->ReleaseAtLeastNPages(1);
+  }
   CheckStats(ph.get(), 256, 0, 128);
 
   // Delete span 's1'
@@ -148,8 +151,9 @@ static void TestPageHeap_Limit() {
     if (HaveSystemRelease()) {
       // EnsureLimit should release deleted normal spans
       EXPECT_NE(defragmented, NULL);
+      SpinLockHolder l(ph->pageheap_lock());
       EXPECT_TRUE(ph->CheckExpensive());
-      ph->Delete(defragmented);
+      ph->DeleteAndUnlock(defragmented, std::move(l));
     }
     else
     {
@@ -186,7 +190,10 @@ static void TestPageHeap_Limit() {
       }
     }
 
-    EXPECT_TRUE(ph->CheckExpensive());
+    {
+        SpinLockHolder l(ph->pageheap_lock());
+        EXPECT_TRUE(ph->CheckExpensive());
+    }
 
     for (int i=1; i<kNumberMaxPagesSpans * 2; i += 2) {
       ph->Delete(spans[i]);

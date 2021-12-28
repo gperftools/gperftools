@@ -51,7 +51,7 @@ namespace tcmalloc {
 class Static {
  public:
   // Linker initialized, so this lock can be accessed at any time.
-  static SpinLock* pageheap_lock() { return &pageheap_lock_; }
+  static SpinLock* pageheap_lock() { return pageheap()->pageheap_lock(); }
 
   // Must be called before calling any of the accessors below.
   static void InitStaticVars();
@@ -92,7 +92,6 @@ class Static {
   // imperfectly. Thus we keep those unhidden for now. Thankfully
   // they're not performance-critical.
   /* ATTRIBUTE_HIDDEN */ static bool inited_;
-  /* ATTRIBUTE_HIDDEN */ static SpinLock pageheap_lock_;
 
   // These static variables require explicit initialization.  We cannot
   // count on their constructors to do any initialization because other
@@ -118,7 +117,7 @@ class Static {
     char memory[sizeof(PageHeap)];
     uintptr_t extra;  // To force alignment
   };
-  ATTRIBUTE_HIDDEN static PageHeapStorage pageheap_;
+  /* ATTRIBUTE_HIDDEN */ static PageHeapStorage pageheap_;
 };
 
 }  // namespace tcmalloc

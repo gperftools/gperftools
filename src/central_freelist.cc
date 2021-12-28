@@ -129,10 +129,7 @@ void CentralFreeList::ReleaseToSpans(void* object) {
 
     // Release central list lock while operating on pageheap
     lock_.Unlock();
-    {
-      SpinLockHolder h(Static::pageheap_lock());
-      Static::pageheap()->Delete(span);
-    }
+    Static::pageheap()->Delete(span);
     lock_.Lock();
   } else {
     *(reinterpret_cast<void**>(object)) = span->objects;
@@ -314,13 +311,8 @@ void CentralFreeList::Populate() {
   lock_.Unlock();
   const size_t npages = Static::sizemap()->class_to_pages(size_class_);
 
-  Span* span;
-  {
-    SpinLockHolder h(Static::pageheap_lock());
-    span = Static::pageheap()->New(npages);
-    if (span) Static::pageheap()->RegisterSizeClass(span, size_class_);
-  }
-  if (span == NULL) {
+  Span* span = Static::pageheap()->NewWithSizeClass(npages, size_class_);
+  if (span == nullptr) {
     Log(kLog, __FILE__, __LINE__,
         "tcmalloc: allocation failed", npages << kPageShift);
     lock_.Lock();

@@ -67,7 +67,6 @@ void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS
 #endif
 
 bool Static::inited_;
-SpinLock Static::pageheap_lock_(SpinLock::LINKER_INITIALIZED);
 SizeMap Static::sizemap_;
 CentralFreeListPadded Static::central_cache_[kClassSizesMax];
 PageHeapAllocator<Span> Static::span_allocator_;

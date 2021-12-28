@@ -118,11 +118,19 @@ class SCOPED_LOCKABLE SpinLockHolder {
  private:
   SpinLock* lock_;
  public:
-  inline explicit SpinLockHolder(SpinLock* l) EXCLUSIVE_LOCK_FUNCTION(l)
+  explicit SpinLockHolder(SpinLock* l) EXCLUSIVE_LOCK_FUNCTION(l)
       : lock_(l) {
     l->Lock();
   }
-  inline ~SpinLockHolder() UNLOCK_FUNCTION() { lock_->Unlock(); }
+  SpinLockHolder(const SpinLockHolder&) = delete;
+  SpinLockHolder(SpinLockHolder&& other) : lock_(other.lock_) {
+    other.lock_ = nullptr;
+  }
+  ~SpinLockHolder() UNLOCK_FUNCTION() {
+    if (lock_) {
+      lock_->Unlock();
+    }
+  }
 };
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
 #define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)
