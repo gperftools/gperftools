@@ -72,7 +72,7 @@ CentralFreeListPadded Static::central_cache_[kClassSizesMax];
 PageHeapAllocator<Span> Static::span_allocator_;
 PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
-StackTrace* Static::growth_stacks_ = NULL;
+std::atomic<StackTrace*> Static::growth_stacks_;
 Static::PageHeapStorage Static::pageheap_;
 
 void Static::InitStaticVars() {

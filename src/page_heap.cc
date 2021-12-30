@@ -65,6 +65,19 @@ DEFINE_int64(tcmalloc_heap_limit_mb,
 
 namespace tcmalloc {
 
+struct PageHeap::LockingContext {
+  PageHeap * const heap;
+  size_t grown_by = 0;
+
+  explicit LockingContext(PageHeap* heap) : heap(heap) {
+    heap->lock_.Lock();
+  }
+  ~LockingContext() {
+    heap->HandleUnlock(this);
+  }
+};
+
+
 PageHeap::PageHeap(Length smallest_span_size)
     : smallest_span_size_(smallest_span_size),
       pagemap_(MetaDataAlloc),
@@ -128,9 +141,25 @@ Length PageHeap::RoundUpSize(Length n) {
   return rounded_n;
 }
 
+void PageHeap::HandleUnlock(LockingContext* context) {
+  StackTrace* t = nullptr;
+  if (context->grown_by) {
+    t = Static::stacktrace_allocator()->New();
+    t->size = context->grown_by;
+  }
+
+  lock_.Unlock();
+
+  if (t) {
+    t->depth = GetStackTrace(t->stack, kMaxStackDepth-1, 0);
+    Static::push_growth_stack(t);
+  }
+}
+
 Span* PageHeap::NewWithSizeClass(Length n, uint32 sizeclass) {
-  SpinLockHolder h(&lock_);
-  Span* span = NewLocked(n);
+  LockingContext context{this};
+
+  Span* span = NewLocked(n, &context);
   if (!span) {
     return span;
   }
@@ -141,7 +170,7 @@ Span* PageHeap::NewWithSizeClass(Length n, uint32 sizeclass) {
   return span;
 }
 
-Span* PageHeap::NewLocked(Length n) {
+Span* PageHeap::NewLocked(Length n, LockingContext* context) {
   ASSERT(lock_.IsHeld());
   ASSERT(Check());
   n = RoundUpSize(n);
@@ -183,7 +212,7 @@ Span* PageHeap::NewLocked(Length n) {
   }
 
   // Grow the heap and try again.
-  if (!GrowHeap(n)) {
+  if (!GrowHeap(n, context)) {
     ASSERT(stats_.unmapped_bytes+ stats_.committed_bytes==stats_.system_bytes);
     ASSERT(Check());
     // underlying SysAllocator likely set ENOMEM but we can get here
@@ -210,9 +239,9 @@ Span* PageHeap::NewAligned(Length n, Length align_pages) {
     return nullptr;
   }
 
-  SpinLockHolder h(&lock_);
+  LockingContext context{this};
 
-  Span* span = NewLocked(alloc);
+  Span* span = NewLocked(alloc, &context);
   if (PREDICT_FALSE(span == nullptr)) return nullptr;
 
   // Skip starting portion so that we end up aligned
@@ -699,15 +728,7 @@ bool PageHeap::GetNextRange(PageID start, base::MallocRange* r) {
   return true;
 }
 
-static void RecordGrowth(size_t growth) {
-  StackTrace* t = Static::stacktrace_allocator()->New();
-  t->depth = GetStackTrace(t->stack, kMaxStackDepth-1, 3);
-  t->size = growth;
-  t->stack[kMaxStackDepth-1] = reinterpret_cast<void*>(Static::growth_stacks());
-  Static::set_growth_stacks(t);
-}
-
-bool PageHeap::GrowHeap(Length n) {
+bool PageHeap::GrowHeap(Length n, LockingContext* context) {
   ASSERT(lock_.IsHeld());
   ASSERT(kMaxPages >= kMinSystemAlloc);
   if (n > kMaxValidPages) return false;
@@ -728,7 +749,7 @@ bool PageHeap::GrowHeap(Length n) {
     if (ptr == NULL) return false;
   }
   ask = actual_size >> kPageShift;
-  RecordGrowth(ask << kPageShift);
+  context->grown_by += ask << kPageShift;
 
   ++stats_.reserve_count;
   ++stats_.commit_count;

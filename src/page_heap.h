@@ -243,6 +243,10 @@ class PERFTOOLS_DLL_DECL PageHeap {
   }
 
  private:
+  struct LockingContext;
+
+  void HandleUnlock(LockingContext* context);
+
   // Allocates a big block of memory for the pagemap once we reach more than
   // 128MB
   static const size_t kPageMapBigAllocationThreshold = 128 << 20;
@@ -298,7 +302,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Statistics on system, free, and unmapped bytes
   Stats stats_;
 
-  Span* NewLocked(Length n);
+  Span* NewLocked(Length n, LockingContext* context);
   void DeleteLocked(Span* span);
 
   // Split an allocated span into two spans: one of length "n" pages
@@ -313,7 +317,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   Span* SearchFreeAndLargeLists(Length n);
 
-  bool GrowHeap(Length n);
+  bool GrowHeap(Length n, LockingContext* context);
 
   // REQUIRES: span->length >= n
   // REQUIRES: span->location != IN_USE

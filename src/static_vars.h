@@ -36,7 +36,10 @@
 #ifndef TCMALLOC_STATIC_VARS_H_
 #define TCMALLOC_STATIC_VARS_H_
 
-#include <config.h>
+#include "config.h"
+
+#include <atomic>
+
 #include "base/basictypes.h"
 #include "base/spinlock.h"
 #include "central_freelist.h"
@@ -78,8 +81,16 @@ class Static {
     return &stacktrace_allocator_;
   }
 
-  static StackTrace* growth_stacks() { return growth_stacks_; }
-  static void set_growth_stacks(StackTrace* s) { growth_stacks_ = s; }
+  static StackTrace* growth_stacks() { return growth_stacks_.load(std::memory_order_seq_cst); }
+  static void push_growth_stack(StackTrace* s) {
+    ASSERT(s->depth <= kMaxStackDepth - 1);
+    StackTrace* old_top = growth_stacks_.load(std::memory_order_relaxed);
+    do {
+      s->stack[kMaxStackDepth-1] = reinterpret_cast<void*>(old_top);
+    } while (!growth_stacks_.compare_exchange_strong(
+               old_top, s,
+               std::memory_order_seq_cst, std::memory_order_seq_cst));
+  }
 
   // State kept for sampled allocations (/pprof/heap support)
   static Span* sampled_objects() { return &sampled_objects_; }
@@ -108,7 +119,7 @@ class Static {
   // from the system.  Useful for finding allocation sites that cause
   // increase in the footprint of the system.  The linked list pointer
   // is stored in trace->stack[kMaxStackDepth-1].
-  ATTRIBUTE_HIDDEN static StackTrace* growth_stacks_;
+  ATTRIBUTE_HIDDEN static std::atomic<StackTrace*> growth_stacks_;
 
   // PageHeap uses a constructor for initialization.  Like the members above,
   // we can't depend on initialization order, so pageheap is new'd
