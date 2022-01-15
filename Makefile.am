@@ -1505,4 +1505,5 @@ EXTRA_DIST = packages/rpm.sh packages/rpm/rpm.spec packages/deb.sh packages/deb 
              src/windows/config.h src/windows/gperftools/tcmalloc.h \
              docs/pprof.see_also src/windows/TODO \
              $(WINDOWS_PROJECTS) \
-             src/solaris/libstdc++.la
+             src/solaris/libstdc++.la \
+             CMakeLists.txt cmake
