@@ -178,7 +178,7 @@ DECLARE_int64(tcmalloc_heap_limit_mb);
 // jump. I am not able to reproduce that anymore.
 #if !defined(__i386__) && !defined(__x86_64__) && \
     !defined(__ppc__) && !defined(__PPC__) && \
-    !defined(__aarch64__) && !defined(__mips__) && !defined(__arm__)
+    !defined(__aarch64__) && !defined(__mips__) && !defined(__arm__) && !defined(__loongarch64)
 #undef TCMALLOC_NO_ALIASES
 #define TCMALLOC_NO_ALIASES
 #endif

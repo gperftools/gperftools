@@ -26,6 +26,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext.gregs[[REG_EIP]]" # Linux (i386)
    pc_fields="$pc_fields uc_mcontext.gregs[[REG_RIP]]" # Linux (x86_64)
    pc_fields="$pc_fields uc_mcontext.sc_ip"            # Linux (ia64)
+   pc_fields="$pc_fields uc_mcontext.__pc"               # Linux (loongarch64)
    pc_fields="$pc_fields uc_mcontext.pc"               # Linux (mips)
    pc_fields="$pc_fields uc_mcontext.uc_regs->gregs[[PT_NIP]]" # Linux (ppc)
    pc_fields="$pc_fields uc_mcontext.__gregs[[REG_PC]]"  # Linux (riscv64)
