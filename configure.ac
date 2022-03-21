@@ -214,7 +214,7 @@ AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms?
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
-AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
+AC_CHECK_HEADERS(sys/ptrace.h)  # also needed by leak-checker
 AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(sys/socket.h)  # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(sys/wait.h)    # optional; for forking out to symbolizer

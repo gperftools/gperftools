@@ -53,8 +53,8 @@
 #include <time.h>
 #include <assert.h>
 
-#if defined(HAVE_LINUX_PTRACE_H)
-#include <linux/ptrace.h>
+#ifdef HAVE_SYS_PTRACE_H
+#include <sys/ptrace.h>
 #endif
 #ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
@@ -1010,7 +1010,7 @@ static enum {
 // and in other ways).
 //
 
-#if defined(HAVE_LINUX_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
+#if defined(HAVE_SYS_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
 # if (defined(__i386__) || defined(__x86_64))
 #  define THREAD_REGS i386_regs
 # elif defined(__PPC__)

@@ -160,7 +160,6 @@ extern "C" {
 #include <sys/types.h>
 #include <syscall.h>
 #include <unistd.h>
-#include <linux/unistd.h>
 #include <endian.h>
 #include <fcntl.h>
 
