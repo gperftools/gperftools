@@ -261,16 +261,8 @@ AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdint.h>]], [[int32_t v1 = 0; in
                           Define to 1 if int32_t is equivalent to intptr_t)
                 AC_MSG_RESULT([yes])],[AC_MSG_RESULT([no])])
 
-# We want to access the "PC" (Program Counter) register from a struct
-# ucontext.  Every system has its own way of doing that.  We try all the
-# possibilities we know about.  Note REG_PC should come first (REG_RIP
-# is also defined on solaris, but does the wrong thing).  But don't
-# bother if we're not doing cpu-profiling.
-# [*] means that we've not actually tested one of these systems
-if test "$enable_cpu_profiler" = yes; then
-  AC_PC_FROM_UCONTEXT(AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...);
-                      enable_cpu_profiler=no)
-fi
+AC_PC_FROM_UCONTEXT(AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...);
+                    enable_cpu_profiler=no)
 
 # Some tests test the behavior of .so files, and only make sense for dynamic.
 AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
