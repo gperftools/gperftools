@@ -1168,7 +1168,7 @@ void HeapLeakChecker::IgnoreNonThreadLiveObjectsLocked() {
         // any allocator on top of mmap.
         bool subtract = true;
         if (!region->is_stack  &&  global_region_caller_ranges) {
-          if (region->caller() == static_cast<uintptr_t>(NULL)) {
+          if (region->caller() == 0) {
             have_null_region_callers = true;
           } else {
             GlobalRegionCallerRangeMap::const_iterator iter
