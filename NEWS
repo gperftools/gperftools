@@ -1,3 +1,33 @@
+== 30 May 2022 ==
+gperftools 2.10 is out!
+
+Here are notable changes:
+
+* Matt T. Proud contributed documentation fix to call Go programming
+  language by it's true name instead of golang.
+
+* Robert Scott contributed debugallocator feature to use readable
+  (PROT_READ) fence pages. This is activated by
+  TCMALLOC_PAGE_FENCE_READABLE environment veriable.
+
+* User stdpain contributed fix for cmake detection of libunwind.
+
+* Natale Patriciello contributed fix for OSX Monterey support.
+
+* Volodymyr Nikolaichuk contributed support for returning memory back
+  to OS by using mmap with MAP_FIXED and PROT_NONE. It is off by
+  default and enabled by preprocessor define:
+  FREE_MMAP_PROT_NONE. This should help OSes that don't support
+  Linux-style madvise MADV_DONTNEED or BSD-style MADV_FREE.
+
+* Jingyun Hua has contributed basic support for LoongArch.
+
+* Github issue #1338 of failing to build on some recent musl versions
+  has been fixed.
+
+* Github issue #1321 of failing to ship cmake bits with .tar.gz
+  archive has been fixed.
+
 == 2 March 2021 ==
 gperftools 2.9.1 is out!
 

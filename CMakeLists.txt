@@ -5,14 +5,14 @@ cmake_minimum_required(VERSION 3.12)
 
 # Based on configure.ac
 
-project(gperftools VERSION 2.9.0 LANGUAGES C CXX
+project(gperftools VERSION 2.10.0 LANGUAGES C CXX
         DESCRIPTION "Performance tools for C++"
         HOMEPAGE_URL http://code.google.com/p/gperftools/)
 
 # Update this value for every release!
-set(TCMALLOC_SO_VERSION 9.9.5)
-set(PROFILER_SO_VERSION 5.4.5)
-set(TCMALLOC_AND_PROFILER_SO_VERSION 10.4.6)
+set(TCMALLOC_SO_VERSION 9.10.5)
+set(PROFILER_SO_VERSION 5.5.5)
+set(TCMALLOC_AND_PROFILER_SO_VERSION 10.5.6)
 
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
