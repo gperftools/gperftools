@@ -37,18 +37,23 @@
 
 namespace base {
 namespace internal {
+    void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
+        if (loop != 0) {
+            auto wait_ns = static_cast<uint64_t>(base::internal::SuggestedDelayNS(loop)) * 16ull;
+            auto wait_ms = wait_ns / 1000000ull;
 
-void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
-  if (loop == 0) {
-  } else if (loop == 1) {
-    Sleep(0);
-  } else {
-    Sleep(base::internal::SuggestedDelayNS(loop) / 1000000);
-  }
-}
+            //Waits for the value at the specified address to change.
+            WaitOnAddress(w, &value, 4u, static_cast<DWORD>(wait_ms));
+        }
+    }
 
-void SpinLockWake(volatile Atomic32 *w, bool all) {
-}
+    void SpinLockWake(volatile Atomic32 *w, bool all) {
+        if (all) WakeByAddressAll((void*)w);///< Wakes all threads that are waiting for the value of an address to change.
+        else WakeByAddressSingle((void*)w);
+    }
+
+//void SpinLockWake(volatile Atomic32 *w, bool all) {
+//}
 
 } // namespace internal
 } // namespace base
