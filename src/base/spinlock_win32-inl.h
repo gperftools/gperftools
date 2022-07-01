@@ -34,6 +34,8 @@
 
 
 #include <windows.h>
+#include <synchapi.h>
+#include <cstdint>
 
 namespace base {
 namespace internal {
