@@ -50,6 +50,12 @@
 # error This file is intended for use when overriding allocators
 #endif
 
+#ifdef _CRT_NOEXCEPT
+#define _TC_CRT_NOEXCEPT _CRT_NOEXCEPT
+#else
+#define _TC_CRT_NOEXCEPT
+#endif // _CRT_NOEXCEPT
+
 #include "tcmalloc.cc"
 
 extern "C" {
@@ -87,11 +93,19 @@ void* _recalloc(void* old_ptr, size_t n, size_t size) {
   return new_ptr;
 }
 
+void* _recalloc_base(void* old_ptr, size_t n, size_t size) {
+  return _recalloc(old_ptr, n, size);
+}
+
 void* _calloc_impl(size_t n, size_t size) {
   return calloc(n, size);
 }
 
 size_t _msize(void* p) {
+  return MallocExtension::instance()->GetAllocatedSize(p);
+}
+
+size_t _msize_base(void* p) _TC_CRT_NOEXCEPT {
   return MallocExtension::instance()->GetAllocatedSize(p);
 }
 
