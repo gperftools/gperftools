@@ -622,12 +622,15 @@ sub Main() {
     }
   }
 
-  # Subtract base from profile, if specified
+  # Subtract base from ':'-separated profiles, if specified
   if ($main::opt_base ne '') {
-    my $base = ReadProfile($main::prog, $main::opt_base);
-    $profile = SubtractProfile($profile, $base->{profile});
-    $pcs = AddPcs($pcs, $base->{pcs});
-    $symbol_map = MergeSymbols($symbol_map, $base->{symbols});
+    my @base_fns = split(/:/, $main::opt_base);
+    foreach my $base_fn (@base_fns) {
+      my $base = ReadProfile($main::prog, $base_fn);
+      $profile = SubtractProfile($profile, $base->{profile});
+      $pcs = AddPcs($pcs, $base->{pcs});
+      $symbol_map = MergeSymbols($symbol_map, $base->{symbols});
+    }
   }
 
   # Get total data in profile
