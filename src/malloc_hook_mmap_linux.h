@@ -45,6 +45,11 @@
 #include <sys/syscall.h>
 #include <unistd.h>
 
+// musl's off_t is already 64-bit
+#if defined(__linux__) && !defined(__GLIBC__)
+typedef off_t off64_t;
+#endif
+
 // The x86-32 case and the x86-64 case differ:
 // 32b has a mmap2() syscall, 64b does not.
 // 64b and 32b have different calling conventions for mmap().
