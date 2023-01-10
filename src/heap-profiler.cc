@@ -83,7 +83,6 @@
 #endif
 
 using std::string;
-using std::sort;
 
 //----------------------------------------------------------------------
 // Flags that control heap-profiling
