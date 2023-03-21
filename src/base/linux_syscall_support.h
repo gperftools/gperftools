@@ -428,7 +428,7 @@ struct kernel_stat {
   uint64_t           st_mtime_nsec_;
   uint64_t           st_ctime_;
   uint64_t           st_ctime_nsec_;
-  int64_t            __unused[3];
+  int64_t            _unused[3];
 };
 #elif defined(__PPC__)
 struct kernel_stat {
