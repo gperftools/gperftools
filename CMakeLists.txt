@@ -568,7 +568,7 @@ set(LOGGING_INCLUDES
 set(liblogging_la_SOURCES src/base/logging.cc
         src/base/dynamic_annotations.c
         ${LOGGING_INCLUDES})
-add_library(logging STATIC ${liblogging_la_SOURCES})
+add_library(gpt_logging STATIC ${liblogging_la_SOURCES})
 
 set(SYSINFO_INCLUDES
         src/base/sysinfo.h
@@ -630,7 +630,7 @@ if(MINGW OR MSVC)
           src/base/atomicops-internals-x86.cc
           ${SPINLOCK_INCLUDES})
   add_library(spinlock STATIC ${libspinlock_la_SOURCES})
-  set(LIBSPINLOCK windows spinlock sysinfo logging)
+  set(LIBSPINLOCK windows spinlock sysinfo gpt_logging)
   # We also need to tell mingw that sysinfo.cc needs shlwapi.lib.
   # (We do this via a #pragma for msvc, but need to do it here for mingw).
   target_link_libraries(sysinfo shlwapi)
@@ -653,7 +653,7 @@ else()
           ${SPINLOCK_INCLUDES})
   add_library(spinlock STATIC ${libspinlock_la_SOURCES})
   target_link_libraries(spinlock ${nanosleep_libs})
-  set(LIBSPINLOCK spinlock sysinfo logging)
+  set(LIBSPINLOCK spinlock sysinfo gpt_logging)
   set(TCMALLOC_CC "src/tcmalloc.cc")
   set(SYSTEM_ALLOC_CC "src/system-alloc.cc")
 
@@ -683,7 +683,7 @@ if(BUILD_TESTING)
   # By default, MallocHook takes stack traces for use by the heap-checker.
   # We don't need that functionality here, so we turn it off to reduce deps.
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES)
-  target_link_libraries(low_level_alloc_unittest spinlock sysinfo logging ${maybe_threads_lib})
+  target_link_libraries(low_level_alloc_unittest spinlock sysinfo gpt_logging ${maybe_threads_lib})
   add_test(low_level_alloc_unittest low_level_alloc_unittest)
 
   set(ATOMICOPS_UNITTEST_INCLUDES src/base/atomicops.h
@@ -697,7 +697,7 @@ if(BUILD_TESTING)
     list(APPEND atomicops_unittest_SOURCES src/windows/port.cc)
   endif()
   add_executable(atomicops_unittest ${atomicops_unittest_SOURCES})
-  target_link_libraries(atomicops_unittest spinlock sysinfo logging)
+  target_link_libraries(atomicops_unittest spinlock sysinfo gpt_logging)
   add_test(atomicops_unittest atomicops_unittest)
 endif()
 
@@ -744,7 +744,7 @@ if(WITH_STACK_TRACE)
     set(stacktrace_unittest_SOURCES src/tests/stacktrace_unittest.cc
             ${STACKTRACE_UNITTEST_INCLUDES})
     add_executable(stacktrace_unittest ${stacktrace_unittest_SOURCES})
-    target_link_libraries(stacktrace_unittest stacktrace logging fake_stacktrace_scope)
+    target_link_libraries(stacktrace_unittest stacktrace gpt_logging fake_stacktrace_scope)
     add_test(stacktrace_unittest stacktrace_unittest)
   endif()
 
@@ -865,7 +865,7 @@ if(BUILD_TESTING)
           src/tests/testutil.h src/tests/testutil.cc
           ${TCMALLOC_UNITTEST_INCLUDES})
   set(tcmalloc_minimal_unittest_LDADD
-          ${TCMALLOC_FLAGS} Threads::Threads logging)
+          ${TCMALLOC_FLAGS} Threads::Threads gpt_logging)
   # We want libtcmalloc last on the link line, but due to a bug in
   # libtool involving convenience libs, they need to come last on the
   # link line in order to get dependency ordering right.  This is ok:
@@ -913,7 +913,7 @@ if(BUILD_TESTING)
           src/tests/addressmap_unittest.cc
           src/addressmap-inl.h
           ${port_src})
-  target_link_libraries(addressmap_unittest logging)
+  target_link_libraries(addressmap_unittest gpt_logging)
   add_test(addressmap_unittest addressmap_unittest)
 
   if(NOT MINGW)
@@ -1198,7 +1198,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
             src/tcmalloc.h
             src/tests/testutil.h src/tests/testutil.cc
             ${TCMALLOC_UNITTEST_INCLUDES})
-    set(tcmalloc_unittest_LIBADD ${TCMALLOC_FLAGS} logging Threads::Threads)
+    set(tcmalloc_unittest_LIBADD ${TCMALLOC_FLAGS} gpt_logging Threads::Threads)
     add_executable(tcmalloc_unittest ${tcmalloc_unittest_SOURCES})
     target_link_libraries(tcmalloc_unittest tcmalloc ${tcmalloc_unittest_LIBADD})
     add_test(NAME tcmalloc_unittest
@@ -1214,9 +1214,9 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
             src/tests/testutil.h src/tests/testutil.cc
             ${TCMALLOC_UNITTEST_INCLUDES})
     if(GPERFTOOLS_BUILD_CPU_PROFILER)
-      set(tcmalloc_both_unittest_ladd tcmalloc tcmalloc_minimal profiler logging Threads::Threads)
+      set(tcmalloc_both_unittest_ladd tcmalloc tcmalloc_minimal profiler gpt_logging Threads::Threads)
     else()
-      set(tcmalloc_both_unittest_ladd tcmalloc tcmalloc_minimal logging Threads::Threads)
+      set(tcmalloc_both_unittest_ladd tcmalloc tcmalloc_minimal gpt_logging Threads::Threads)
     endif()
     if(NOT APPLE)
       add_executable(tcmalloc_both_unittest ${tcmalloc_both_unittest_srcs})
@@ -1285,7 +1285,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
       set(heap_checker_unittest_SOURCES src/tests/heap-checker_unittest.cc
               ${HEAP_CHECKER_UNITTEST_INCLUDES})
       add_executable(heap_checker_unittest ${heap_checker_unittest_SOURCES})
-      target_link_libraries(heap_checker_unittest ${TCMALLOC_FLAGS} tcmalloc logging Threads::Threads)
+      target_link_libraries(heap_checker_unittest ${TCMALLOC_FLAGS} tcmalloc gpt_logging Threads::Threads)
       add_test(NAME heap-checker_unittest.sh
               COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-checker_unittest.sh" heap_checker_unittest)
       add_test(NAME heap-checker-death_unittest.sh
@@ -1342,7 +1342,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
       endif()
       if(GPERFTOOLS_BUILD_HEAP_CHECKER)
         add_executable(heap_checker_debug_unittest ${heap_checker_unittest_SOURCES})
-        target_link_libraries(heap_checker_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug logging Threads::Threads)
+        target_link_libraries(heap_checker_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug gpt_logging Threads::Threads)
         add_test(heap-checker_debug_unittest.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-checker_unittest.sh" heap-checker_debug_unittest)
       endif()
     endif()
