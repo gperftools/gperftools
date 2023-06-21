@@ -90,6 +90,8 @@ int capture(void **result, int max_depth, int skip_count,
             void* initial_frame, void* const * initial_pc) {
   int i = 0;
 
+  max_depth += skip_count;
+
   if (initial_pc != nullptr) {
     // This is 'with ucontext' case. We take first pc from ucontext
     // and then skip_count is ignored as we assume that caller only
@@ -163,7 +165,7 @@ int capture(void **result, int max_depth, int skip_count,
 
     f = adjust_fp(reinterpret_cast<frame*>(parent_frame_addr));
   }
-  return i;
+  return i - skip_count;
 }
 
 }  // namespace stacktrace_generic_fp
