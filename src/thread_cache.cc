@@ -299,6 +299,12 @@ void ThreadCache::InitModule() {
   // We do "late" part of initialization without holding lock since
   // there is chance it'll recurse into malloc
   Static::InitLateMaybeRecursive();
+
+#ifndef NDEBUG
+  // pthread_atfork above may malloc sometimes. Lets ensure we test
+  // that malloc works from here.
+  (operator delete)((operator new)(1));
+#endif
 }
 
 void ThreadCache::InitTSD() {

@@ -141,12 +141,6 @@ void Static::InitLateMaybeRecursive() {
     CentralCacheUnlockAll,  // parent calls after fork
     CentralCacheUnlockAll); // child calls after fork
 #endif
-
-#ifndef NDEBUG
-  // pthread_atfork above may malloc sometimes. Lets ensure we test
-  // that malloc works from here.
-  free(malloc(1));
-#endif
 }
 
 }  // namespace tcmalloc
