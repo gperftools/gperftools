@@ -100,7 +100,7 @@ void ThreadCache::Init(pthread_t tid) {
 
   uint32_t sampler_seed;
   memcpy(&sampler_seed, &tid, sizeof(sampler_seed));
-  sampler_.Init(sampler_seed);
+  sampler_.Init(uint64_t{sampler_seed} ^ reinterpret_cast<uintptr_t>(&sampler_seed));
 }
 
 void ThreadCache::Cleanup() {
