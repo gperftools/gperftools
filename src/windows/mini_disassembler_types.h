@@ -121,7 +121,7 @@ enum AddressingMethod {
 // The reason we use a full 4 bytes and a mask, is that we need
 // to combine these flags with the enAddressingMethod to store the details
 // on the operand in a single integer.
-enum OperandType {
+enum OperandType : unsigned {
   OT_MASK = 0xFF000000,
   OT_A = 0x01000000,
   OT_B = 0x02000000,

@@ -328,10 +328,11 @@ struct ModuleEntryCopy {
       FARPROC target = ::GetProcAddress(
           reinterpret_cast<const HMODULE>(mi.lpBaseOfDll),
           LibcInfo::function_name(i));
+      void* target_addr = reinterpret_cast<void*>(target);
       // Sometimes a DLL forwards a function to a function in another
       // DLL.  We don't want to patch those forwarded functions --
       // they'll get patched when the other DLL is processed.
-      if (target >= modBaseAddr && target < modEndAddr)
+      if (modBaseAddr <= target_addr && target_addr < modEndAddr)
         rgProcAddresses[i] = (GenericFnPtr)target;
       else
         rgProcAddresses[i] = (GenericFnPtr)NULL;
