@@ -406,16 +406,6 @@ endif()
 
 find_package(Threads REQUIRED)
 set(HAVE_PTHREAD ${CMAKE_USE_PTHREADS_INIT})
-foreach(attr "PTHREAD_CREATE_JOINABLE" "PTHREAD_CREATE_UNDETACHED")
-  check_c_source_compiles("
-    #include <pthread.h>
-    int main() { int attr = ${attr}; return attr; }"
-    ${attr}_ATTR)
-  if(${attr}_ATTR)
-    set(PTHREAD_CREATE_JOINABLE ${attr})
-    break()
-  endif()
-endforeach()
 
 if(FreeBSD)
   set(PTHREADS_CRASHES_IF_RUN_TOO_EARLY ON)

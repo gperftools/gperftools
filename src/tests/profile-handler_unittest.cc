@@ -37,8 +37,6 @@ class Thread {
   void Start() {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
-    pthread_attr_setdetachstate(&attr, joinable_ ? PTHREAD_CREATE_JOINABLE
-                                                 : PTHREAD_CREATE_DETACHED);
     pthread_create(&thread_, &attr, &DoRun, this);
     pthread_attr_destroy(&attr);
   }
@@ -49,8 +47,13 @@ class Thread {
   virtual void Run() = 0;
  private:
   static void* DoRun(void* cls) {
+    Thread* self = static_cast<Thread*>(cls);
+    if (!self->joinable_) {
+      CHECK_EQ(0, pthread_detach(pthread_self()));
+    }
+
     ProfileHandlerRegisterThread();
-    reinterpret_cast<Thread*>(cls)->Run();
+    self->Run();
     return NULL;
   }
   pthread_t thread_;

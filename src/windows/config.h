@@ -265,10 +265,6 @@
 #define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
 #endif
 
-/* Define to necessary symbol if this constant uses a non-standard name on
-   your system. */
-/* #undef PTHREAD_CREATE_JOINABLE */
-
 /* Define 8 bytes of allocation alignment for tcmalloc */
 /* #undef TCMALLOC_ALIGN_8BYTES */
 
