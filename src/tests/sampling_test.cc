@@ -38,11 +38,14 @@
 // argv[1].heap and argv[1].growth
 
 #include "config_for_unittests.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
+
 #include "base/logging.h"
-#include <gperftools/malloc_extension.h>
+#include "gperftools/malloc_extension.h"
+#include "tests/testutil.h"
 
 using std::string;
 
@@ -51,7 +54,7 @@ extern "C" void* AllocateAllocate() ATTRIBUTE_NOINLINE;
 extern "C" void* AllocateAllocate() {
   // The VLOG's are mostly to discourage inlining
   VLOG(1, "Allocating some more");
-  void* p = malloc(10000);
+  void* p = (noopt(malloc))(10000);
   VLOG(1, "Done allocating");
   return p;
 }

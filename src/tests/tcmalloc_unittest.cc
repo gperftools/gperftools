@@ -665,12 +665,12 @@ static void TestRealloc() {
     CHECK(p);
     // The larger the start-size, the larger the non-reallocing delta.
     for (int d = 0; d < (s+1) * 2; ++d) {
-      void* new_p = noopt(realloc(p, start_sizes[s] + deltas[d]));
+      void* new_p = noopt(realloc)(p, start_sizes[s] + deltas[d]);
       CHECK(p == new_p);  // realloc should not allocate new memory
     }
     // Test again, but this time reallocing smaller first.
     for (int d = 0; d < s*2; ++d) {
-      void* new_p = noopt(realloc(p, start_sizes[s] - deltas[d]));
+      void* new_p = noopt(realloc)(p, start_sizes[s] - deltas[d]);
       CHECK(p == new_p);  // realloc should not allocate new memory
     }
     free(p);
@@ -906,13 +906,13 @@ static void TestRanges() {
 
   CheckRangeCallback(a, base::MallocRange::INUSE, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
-  free(a);
+  (noopt(free))(a);
   CheckRangeCallback(a, base::MallocRange::FREE, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
   MallocExtension::instance()->ReleaseFreeMemory();
   CheckRangeCallback(a, releasedType, MB);
   CheckRangeCallback(b, base::MallocRange::INUSE, MB);
-  free(b);
+  (noopt(free))(b);
   CheckRangeCallback(a, releasedType, MB);
   CheckRangeCallback(b, base::MallocRange::FREE, MB);
 }
@@ -1293,7 +1293,7 @@ static int RunAllTests(int argc, char** argv) {
     SetNewHook();      // defined as part of MAKE_HOOK_CALLBACK, above
     SetDeleteHook();   // ditto
 
-    void* p1 = malloc(10);
+    void* p1 = noopt(malloc)(10);
     CHECK(p1 != NULL);    // force use of this variable
     VerifyNewHookWasCalled();
     // Also test the non-standard tc_malloc_size
@@ -1309,13 +1309,13 @@ static int RunAllTests(int argc, char** argv) {
     free(p1);
     VerifyDeleteHookWasCalled();
 
-    p1 = calloc(10, 2);
+    p1 = noopt(calloc)(10, 2);
     CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     // We make sure we realloc to a big size, since some systems (OS
     // X) will notice if the realloced size continues to fit into the
     // malloc-block and make this a noop if so.
-    p1 = realloc(p1, 30000);
+    p1 = noopt(realloc)(p1, 30000);
     CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     VerifyDeleteHookWasCalled();
@@ -1323,13 +1323,13 @@ static int RunAllTests(int argc, char** argv) {
     VerifyDeleteHookWasCalled();
 
     if (kOSSupportsMemalign) {
-      CHECK_EQ(PosixMemalign(&p1, sizeof(p1), 40), 0);
+      CHECK_EQ(noopt(PosixMemalign)(&p1, sizeof(p1), 40), 0);
       CHECK(p1 != NULL);
       VerifyNewHookWasCalled();
       free(p1);
       VerifyDeleteHookWasCalled();
 
-      p1 = Memalign(sizeof(p1) * 2, 50);
+      p1 = noopt(Memalign)(sizeof(p1) * 2, 50);
       CHECK(p1 != NULL);
       VerifyNewHookWasCalled();
       free(p1);
@@ -1338,7 +1338,7 @@ static int RunAllTests(int argc, char** argv) {
 
     // Windows has _aligned_malloc.  Let's test that that's captured too.
 #if (defined(_MSC_VER) || defined(__MINGW32__)) && !defined(PERFTOOLS_NO_ALIGNED_MALLOC)
-    p1 = _aligned_malloc(sizeof(p1) * 2, 64);
+    p1 = noopt(_aligned_malloc)(sizeof(p1) * 2, 64);
     CHECK(p1 != NULL);
     VerifyNewHookWasCalled();
     _aligned_free(p1);

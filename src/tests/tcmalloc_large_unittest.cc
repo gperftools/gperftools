@@ -50,13 +50,13 @@ using std::set;
 // Alloc a size that should always fail.
 
 void TryAllocExpectFail(size_t size) {
-  void* p1 = noopt(malloc(size));
+  void* p1 = noopt(malloc)(size);
   CHECK(p1 == NULL);
 
-  void* p2 = noopt(malloc(1));
+  void* p2 = noopt(malloc)(1);
   CHECK(p2 != NULL);
 
-  void* p3 = noopt(realloc(p2, size));
+  void* p3 = noopt(realloc)(p2, size);
   CHECK(p3 == NULL);
 
   free(p2);
@@ -66,7 +66,7 @@ void TryAllocExpectFail(size_t size) {
 // If it does work, touch some pages.
 
 void TryAllocMightFail(size_t size) {
-  unsigned char* p = static_cast<unsigned char*>(noopt(malloc(size)));
+  unsigned char* p = static_cast<unsigned char*>(noopt(malloc)(size));
   if (p != NULL) {
     static const size_t kPoints = 1024;
 
