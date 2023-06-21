@@ -255,6 +255,11 @@ inline void bit_store(Dest *dest, const Source *source) {
 # define ATTRIBUTE_NOINLINE
 #endif
 
+#ifdef _MSC_VER
+#undef ATTRIBUTE_NOINLINE
+#define ATTRIBUTE_NOINLINE __declspec(noinline)
+#endif
+
 #if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
 # define ATTRIBUTE_VISIBILITY_HIDDEN __attribute__((visibility("hidden")))
 #else
