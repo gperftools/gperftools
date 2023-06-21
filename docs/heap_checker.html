@@ -496,7 +496,7 @@ with recording or analyzing the state of the heap.</p>
 
 <p>In general, leak checking works correctly in the presence of
 threads.  However, thread stack data liveness determination (via
-<code>base/thread_lister.h</code>) does not work when the program is
+<code>base/linuxthreads.h</code>) does not work when the program is
 running under GDB, because the ptrace functionality needed for finding
 threads is already hooked to by GDB.  Conversely, leak checker's
 ptrace attempts might also interfere with GDB.  As a result, GDB can

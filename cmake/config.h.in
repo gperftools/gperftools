@@ -100,9 +100,6 @@
 
 #cmakedefine USE_LIBUNWIND
 
-/* Define to 1 if you have the <linux/ptrace.h> header file. */
-#cmakedefine HAVE_LINUX_PTRACE_H
-
 /* Define if this is Linux that has SIGEV_THREAD_ID */
 #cmakedefine01 HAVE_LINUX_SIGEV_THREAD_ID
 
@@ -160,9 +157,6 @@
 
 /* Define to 1 if you have the <sys/malloc.h> header file. */
 #cmakedefine HAVE_SYS_MALLOC_H
-
-/* Define to 1 if you have the <sys/prctl.h> header file. */
-#cmakedefine HAVE_SYS_PRCTL_H
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
 #cmakedefine HAVE_SYS_RESOURCE_H

@@ -35,21 +35,41 @@
 #ifndef _LINUXTHREADS_H
 #define _LINUXTHREADS_H
 
-/* Include thread_lister.h to get the interface that we implement for linux.
- */
+#include <stdarg.h>
+#include <sys/types.h>
 
-/* We currently only support certain platforms on Linux. Porting to other
- * related platforms should not be difficult.
- */
-#if (defined(__i386__) || defined(__x86_64__) || defined(__arm__) || \
-     defined(__mips__) || defined(__PPC__) || defined(__aarch64__) || defined(__loongarch64) || \
-     defined(__s390__)) && defined(__linux)
+typedef int (*ListAllProcessThreadsCallBack)(void *parameter,
+                                             int num_threads,
+                                             pid_t *thread_pids,
+                                             va_list ap);
 
-/* Define the THREADS symbol to make sure that there is exactly one core dumper
- * built into the library.
+/* This function gets the list of all linux threads of the current process
+ * passes them to the 'callback' along with the 'parameter' pointer; at the
+ * call back call time all the threads are paused via
+ * PTRACE_ATTACH.
+ * The callback is executed from a separate thread which shares only the
+ * address space, the filesystem, and the filehandles with the caller. Most
+ * notably, it does not share the same pid and ppid; and if it terminates,
+ * the rest of the application is still there. 'callback' is supposed to do
+ * or arrange for TCMalloc_ResumeAllProcessThreads. This happens automatically, if
+ * the thread raises a synchronous signal (e.g. SIGSEGV); asynchronous
+ * signals are blocked. If the 'callback' decides to unblock them, it must
+ * ensure that they cannot terminate the application, or that
+ * TCMalloc_ResumeAllProcessThreads will get called.
+ * It is an error for the 'callback' to make any library calls that could
+ * acquire locks. Most notably, this means that most system calls have to
+ * avoid going through libc. Also, this means that it is not legal to call
+ * exit() or abort().
+ * We return -1 on error and the return value of 'callback' on success.
  */
-#define THREADS "Linux /proc"
+int TCMalloc_ListAllProcessThreads(void *parameter,
+                                   ListAllProcessThreadsCallBack callback, ...);
 
-#endif
+/* This function resumes the list of all linux threads that
+ * TCMalloc_ListAllProcessThreads pauses before giving to its
+ * callback.  The function returns non-zero if at least one thread was
+ * suspended and has now been resumed.
+ */
+int TCMalloc_ResumeAllProcessThreads(int num_threads, pid_t *thread_pids);
 
 #endif  /* _LINUXTHREADS_H */

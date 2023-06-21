@@ -107,9 +107,6 @@
 /* Define to 1 if you have the <libunwind.h> header file. */
 /* #undef HAVE_LIBUNWIND_H */
 
-/* Define to 1 if you have the <linux/ptrace.h> header file. */
-/* #undef HAVE_LINUX_PTRACE_H */
-
 /* Define if this is Linux that has SIGEV_THREAD_ID */
 /* #undef HAVE_LINUX_SIGEV_THREAD_ID */
 
@@ -161,9 +158,6 @@
 
 /* Define to 1 if you have the <sys/cdefs.h> header file. */
 /* #undef HAVE_SYS_CDEFS_H */
-
-/* Define to 1 if you have the <sys/prctl.h> header file. */
-/* #undef HAVE_SYS_PRCTL_H */
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
 /* #undef HAVE_SYS_RESOURCE_H */

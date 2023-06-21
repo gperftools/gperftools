@@ -42,17 +42,19 @@ AX_GENERATE_CHANGELOG
 # target system supports.
 default_enable_cpu_profiler=yes
 default_enable_heap_profiler=yes
-# heap checker is in practice Linux-only.
+# heap checker is Linux-only.
 default_enable_heap_checker=no
+heap_checker_supported=no
 default_enable_debugalloc=yes
 default_enable_minimal=no
 default_tcmalloc_alignment=16
+heap_checker_is_default=no
 need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
    *-mingw*) default_enable_minimal=yes; default_enable_debugalloc=no;
              need_nanosleep=no;;
    *-cygwin*) default_enable_cpu_profiler=no;;
-   *-linux*) default_enable_heap_checker=yes;;
+   *-linux*) default_enable_heap_checker=yes; heap_checker_supported=yes;;
 esac
 
 # Currently only backtrace works on s390 and OSX.
@@ -88,7 +90,7 @@ AC_ARG_ENABLE([heap-checker],
               [AS_HELP_STRING([--disable-heap-checker],
                               [do not build the heap checker])],
               [],
-              [enable_heap_checker="$default_enable_heap_checker"])
+              [enable_heap_checker="$default_enable_heap_checker"; heap_checker_is_default=yes])
 AC_ARG_ENABLE([debugalloc],
               [AS_HELP_STRING([--disable-debugalloc],
                               [do not build versions of libs with debugalloc])],
@@ -156,6 +158,36 @@ case "$with_tcmalloc_alignment" in
        AC_MSG_WARN([${with_tcmalloc_alignment} bytes not supported, using default tcmalloc allocation alignment.])
 esac
 
+AS_IF([test "x$enable_heap_checker" = xyes],
+      [AS_IF([test "x$heap_checker_supported" = xno],
+             [AC_MSG_NOTICE([your system isn't Linux, and I won't build heap checker despite your request])]
+              enable_heap_checker=no)])
+
+dnl Heap checker is (and has always been) Linux-only, and also now
+dnl depends on clone support in libc.  Most Linux libc's do ship clone()
+dnl (includes glibc, musl and even bionic), but not all. So we check.
+AS_IF([test "x$enable_heap_checker" = xyes],
+      [AC_MSG_CHECKING([clone() support])
+      AC_LINK_IFELSE([AC_LANG_PROGRAM([[
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
+#include <sched.h>
+
+static int fn(void *dummy) { return 0; }
+
+]],[[
+  char stk[16];
+  return clone(fn, stk, CLONE_VM|CLONE_FS|CLONE_FILES, 0);
+]])], [AC_MSG_RESULT([yes])], [ dnl clone not found
+  AC_MSG_RESULT([no])
+  enable_heap_checker=no
+  AS_IF([test "x$heap_checker_is_default" = xyes],
+        [AC_MSG_NOTICE([your Linux system won't have heap checker built due to missing clone() support])],
+        [AC_MSG_WARN([you requested heap checker built, but your libc doesn't have clone() support])])
+])])
+
 # Checks for programs.
 AC_PROG_CXX
 AC_PROG_CC
@@ -205,8 +237,6 @@ AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
-AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
-AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
 AC_CHECK_HEADERS(sys/syscall.h)
 AC_CHECK_HEADERS(sys/socket.h)  # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(sys/wait.h)    # optional; for forking out to symbolizer

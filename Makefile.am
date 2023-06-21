@@ -871,13 +871,10 @@ S_TCMALLOC_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) \
                       $(LOGGING_INCLUDES) \
                       src/addressmap-inl.h \
                       src/raw_printer.h \
-                      src/base/elfcore.h \
                       src/base/googleinit.h \
-                      src/base/linux_syscall_support.h \
                       src/base/linuxthreads.h \
                       src/base/stl_allocator.h \
                       src/base/sysinfo.h \
-                      src/base/thread_lister.h \
                       src/heap-profile-table.h \
                       src/heap-profile-stats.h \
                       src/maybe_emergency_malloc.h \
@@ -904,8 +901,7 @@ if WITH_HEAP_CHECKER
 # (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
 # but that's ok; the internal/external distinction is only useful for
 # cygwin, and cygwin doesn't use HEAP_CHECKER anyway.)
-HEAP_CHECKER_SOURCES = src/base/thread_lister.c \
-                       src/base/linuxthreads.cc \
+HEAP_CHECKER_SOURCES = src/base/linuxthreads.cc \
                        src/heap-checker.cc \
                        src/heap-checker-bcad.cc
 MAYBE_NO_HEAP_CHECK =

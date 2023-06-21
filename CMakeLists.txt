@@ -181,8 +181,6 @@ check_include_file("glob.h" HAVE_GLOB_H) # for heap-profile-table (cleaning up p
 check_include_file("execinfo.h" HAVE_EXECINFO_H) # for stacktrace? and heapchecker_unittest
 check_include_file("unwind.h" HAVE_UNWIND_H) # for stacktrace
 check_include_file("sched.h" HAVE_SCHED_H) # for being nice in our spinlock code
-check_include_file("sys/prctl.h" HAVE_SYS_PRCTL_H) # for thread_lister (needed by leak-checker)
-check_include_file("linux/ptrace.h" HAVE_LINUX_PTRACE_H) # also needed by leak-checker
 check_include_file("sys/syscall.h" HAVE_SYS_SYSCALL_H)
 check_include_file("sys/socket.h" HAVE_SYS_SOCKET_H) # optional; for forking out to symbolizer
 check_include_file("sys/wait.h" HAVE_SYS_WAIT_H) # optional; for forking out to symbolizer
@@ -1053,13 +1051,10 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
           ${LOGGING_INCLUDES}
           src/addressmap-inl.h
           src/raw_printer.h
-          src/base/elfcore.h
           src/base/googleinit.h
-          src/base/linux_syscall_support.h
           src/base/linuxthreads.h
           src/base/stl_allocator.h
           src/base/sysinfo.h
-          src/base/thread_lister.h
           src/heap-profile-table.h
           src/heap-profile-stats.h
           src/maybe_emergency_malloc.h
@@ -1101,8 +1096,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     # (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
     # but that's ok; the internal/external distinction is only useful for
     # cygwin, and cygwin doesn't use HEAP_CHECKER anyway.)
-    set(HEAP_CHECKER_SOURCES src/base/thread_lister.c
-            src/base/linuxthreads.cc
+    set(HEAP_CHECKER_SOURCES src/base/linuxthreads.cc
             src/heap-checker.cc
             src/heap-checker-bcad.cc)
     list(APPEND libtcmalloc_la_SOURCES ${HEAP_CHECKER_SOURCES})

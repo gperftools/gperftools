@@ -36,43 +36,35 @@
 
 #include "config.h"
 
-#include <fcntl.h>    // for O_RDONLY (we use syscall to do actual reads)
-#include <string.h>
+#ifndef HAVE_TLS
+#error we only support non-ancient Linux-es with native TLS support
+#endif
+
 #include <errno.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#ifdef HAVE_MMAP
-#include <sys/mman.h>
-#endif
-#ifdef HAVE_PTHREAD
+#include <fcntl.h>    // for O_RDONLY (we use syscall to do actual reads)
 #include <pthread.h>
-#endif
+#include <stddef.h>
+#include <string.h>
+#include <sys/mman.h> // TODO: check if needed
 #include <sys/stat.h>
-#include <sys/types.h>
-#include <time.h>
-#include <assert.h>
-
-#if defined(HAVE_LINUX_PTRACE_H)
-#include <linux/ptrace.h>
-#endif
-#ifdef HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
-#endif
-#if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__MINGW32__)
-#include <wtypes.h>
-#include <winbase.h>
-#undef ERROR     // windows defines these as macros, which can cause trouble
-#undef max
-#undef min
-#endif
+#include <sys/types.h>
+#include <sys/uio.h>
+#include <time.h>
+#include <unistd.h>
 
-#include <string>
-#include <vector>
-#include <map>
-#include <set>
+#include <linux/ptrace.h>
+#include <sys/procfs.h>
+#include <sys/user.h>
+#include <elf.h> // NT_PRSTATUS
+
 #include <algorithm>
 #include <functional>
+#include <map>
+#include <set>
+#include <string>
+#include <utility>
+#include <vector>
 
 #include <gperftools/heap-checker.h>
 
@@ -81,8 +73,7 @@
 #include "base/logging.h"
 #include <gperftools/stacktrace.h>
 #include "base/commandlineflags.h"
-#include "base/elfcore.h"              // for i386_regs
-#include "base/thread_lister.h"
+#include "base/linuxthreads.h"
 #include "heap-profile-table.h"
 #include "base/low_level_alloc.h"
 #include "malloc_hook-inl.h"
@@ -93,6 +84,74 @@
 #include "base/spinlock.h"
 #include "base/sysinfo.h"
 #include "base/stl_allocator.h"
+
+// When dealing with ptrace-ed threads, we need to capture all thread
+// registers (as potential live pointers), and we need to capture
+// thread's stack pointer to scan stack. capture_regs function uses
+// ptrace API to grab and scan registers and fetch stack pointer.
+template <typename Body>
+static std::pair<bool, uintptr_t> CaptureRegs(pid_t tid, const Body& body) {
+  uintptr_t sp_offset;
+#if defined(__aarch64__)
+  sp_offset = offsetof(user_regs_struct, sp);
+#elif defined(__arm__)
+  sp_offset = 13 * sizeof(uintptr_t); // reg 13 is sp on legacy arms
+#elif defined(__x86_64__)
+  sp_offset = offsetof(user_regs_struct, rsp);
+#elif defined(__i386__)
+  sp_offset = offsetof(user_regs_struct, esp);
+#elif defined(__riscv)
+  sp_offset = 2 * sizeof(uintptr_t); // register #2 is SP on riscv-s
+#elif defined(__PPC__)
+  sp_offset = 1 * sizeof(uintptr_t);
+#elif defined(__mips__)
+  sp_offset = offsetof(struct user, regs[EF_REG29]);
+#else
+  // unsupported HW architecture. Single-threaded programs don't run
+  // this code, so we still have chance to be useful on less supported
+  // architectures.
+  abort();
+#endif
+
+  elf_gregset_t regs;
+  int rv;
+
+  // PTRACE_GETREGSET is better interface, but manpage says it is
+  // 2.6.34 or later. RHEL6's kernel is, sadly, older. Yet, I'd like
+  // us to still support rhel6, so we handle this case too.
+#ifdef PTRACE_GETREGSET
+  iovec iov = {&regs, sizeof(regs)};
+  rv = syscall(SYS_ptrace, PTRACE_GETREGSET, tid, NT_PRSTATUS, &iov);
+  if (rv == 0) {
+    if (iov.iov_len != sizeof(regs)) {
+      abort(); // bug?!
+    }
+  }
+#else
+  errno = ENOSYS;
+  rv = -1;
+#endif
+
+  if (rv < 0 && errno == ENOSYS) {
+    // Some newer Linux hw architectures don't have PTRACE_GETREGSET,
+    // or perhaps we're dealing with older kernel.
+#ifdef PTRACE_GETREGS
+    rv = syscall(SYS_ptrace, PTRACE_GETREGS, tid, nullptr, &regs);
+#endif
+  }
+
+  if (rv < 0) {
+    return std::make_pair(false, 0);
+  }
+
+  uintptr_t sp = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uintptr_t>(&regs) + sp_offset);
+  for (void** p = reinterpret_cast<void**>(&regs);
+       p < reinterpret_cast<void**>(&regs + 1); ++p) {
+    body(*p);
+  }
+
+  return std::make_pair(true, sp);
+}
 
 using std::string;
 using std::basic_string;
@@ -1010,14 +1069,6 @@ static enum {
 // and in other ways).
 //
 
-#if defined(HAVE_LINUX_PTRACE_H) && defined(HAVE_SYS_SYSCALL_H) && defined(DUMPER)
-# if (defined(__i386__) || defined(__x86_64))
-#  define THREAD_REGS i386_regs
-# elif defined(__PPC__)
-#  define THREAD_REGS ppc_regs
-# endif
-#endif
-
 /*static*/ int HeapLeakChecker::IgnoreLiveThreadsLocked(void* parameter,
                                                         int num_threads,
                                                         pid_t* thread_pids,
@@ -1038,32 +1089,22 @@ static enum {
   for (int i = 0; i < num_threads; ++i) {
     // the leak checking thread itself is handled
     // specially via self_thread_stack, not here:
-    if (thread_pids[i] == self_thread_pid) continue;
+    if (thread_pids[i] == self_thread_pid) {
+      continue;
+    }
     RAW_VLOG(11, "Handling thread with pid %d", thread_pids[i]);
-#ifdef THREAD_REGS
-    THREAD_REGS thread_regs;
-#define sys_ptrace(r, p, a, d)  syscall(SYS_ptrace, (r), (p), (a), (d))
-    // We use sys_ptrace to avoid thread locking
-    // because this is called from TCMalloc_ListAllProcessThreads
-    // when all but this thread are suspended.
-    if (sys_ptrace(PTRACE_GETREGS, thread_pids[i], NULL, &thread_regs) == 0) {
-      // Need to use SP to get all the data from the very last stack frame:
-      COMPILE_ASSERT(sizeof(thread_regs.SP) == sizeof(void*),
-                     SP_register_does_not_look_like_a_pointer);
-      RegisterStackLocked(reinterpret_cast<void*>(thread_regs.SP));
-      // Make registers live (just in case PTRACE_ATTACH resulted in some
-      // register pointers still being in the registers and not on the stack):
-      for (void** p = reinterpret_cast<void**>(&thread_regs);
-           p < reinterpret_cast<void**>(&thread_regs + 1); ++p) {
-        RAW_VLOG(12, "Thread register %p", *p);
-        thread_registers.push_back(*p);
-      }
+    auto add_reg = [&thread_registers] (void *reg) {
+      RAW_VLOG(12, "Thread register %p", reg);
+      thread_registers.push_back(reg);
+    };
+    uintptr_t sp;
+    bool ok;
+    std::tie(ok, sp) = CaptureRegs(thread_pids[i], add_reg);
+    if (ok) {
+      RegisterStackLocked(reinterpret_cast<void*>(sp));
     } else {
       failures += 1;
     }
-#else
-    failures += 1;
-#endif
   }
   // Use all the collected thread (stack) liveness sources:
   IgnoreLiveObjectsLocked("threads stack data", "");
