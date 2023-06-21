@@ -50,9 +50,6 @@
 
 #include "config.h"
 #include <signal.h>
-#ifdef COMPILER_MSVC
-#include "conflict-signal.h"
-#endif
 #include "base/basictypes.h"
 
 /* Forward declaration. */

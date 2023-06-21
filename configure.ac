@@ -205,7 +205,6 @@ AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
-AC_CHECK_HEADERS(conflict-signal.h)      # defined on some windows platforms?
 AC_CHECK_HEADERS(sys/prctl.h)   # for thread_lister (needed by leak-checker)
 AC_CHECK_HEADERS(linux/ptrace.h)# also needed by leak-checker
 AC_CHECK_HEADERS(sys/syscall.h)
