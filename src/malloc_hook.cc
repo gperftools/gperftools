@@ -167,7 +167,7 @@ static SpinLock hooklist_spinlock(base::LINKER_INITIALIZED);
 
 template <typename T>
 bool HookList<T>::Add(T value_as_t) {
-  AtomicWord value = bit_cast<AtomicWord>(value_as_t);
+  uintptr_t value = bit_cast<uintptr_t>(value_as_t);
   if (value == 0) {
     return false;
   }
@@ -175,28 +175,28 @@ bool HookList<T>::Add(T value_as_t) {
   // Find the first slot in data that is 0.
   int index = 0;
   while ((index < kHookListMaxValues) &&
-         (base::subtle::NoBarrier_Load(&priv_data[index]) != 0)) {
+         cast_priv_data(index)->load(std::memory_order_relaxed) != 0) {
     ++index;
   }
   if (index == kHookListMaxValues) {
     return false;
   }
-  AtomicWord prev_num_hooks = base::subtle::Acquire_Load(&priv_end);
-  base::subtle::NoBarrier_Store(&priv_data[index], value);
+  uintptr_t prev_num_hooks = priv_end.load(std::memory_order_acquire);
+  cast_priv_data(index)->store(value, std::memory_order_relaxed);
   if (prev_num_hooks <= index) {
-    base::subtle::NoBarrier_Store(&priv_end, index + 1);
+    priv_end.store(index + 1, std::memory_order_relaxed);
   }
   return true;
 }
 
 template <typename T>
 void HookList<T>::FixupPrivEndLocked() {
-  AtomicWord hooks_end = base::subtle::NoBarrier_Load(&priv_end);
+  uintptr_t hooks_end = priv_end.load(std::memory_order_relaxed);
   while ((hooks_end > 0) &&
-         (base::subtle::NoBarrier_Load(&priv_data[hooks_end - 1]) == 0)) {
+         cast_priv_data(hooks_end-1)->load(std::memory_order_relaxed) == 0) {
     --hooks_end;
   }
-  base::subtle::NoBarrier_Store(&priv_end, hooks_end);
+  priv_end.store(hooks_end, std::memory_order_relaxed);
 }
 
 template <typename T>
@@ -205,26 +205,26 @@ bool HookList<T>::Remove(T value_as_t) {
     return false;
   }
   SpinLockHolder l(&hooklist_spinlock);
-  AtomicWord hooks_end = base::subtle::NoBarrier_Load(&priv_end);
+  uintptr_t hooks_end = priv_end.load(std::memory_order_relaxed);
   int index = 0;
   while (index < hooks_end && value_as_t != bit_cast<T>(
-             base::subtle::NoBarrier_Load(&priv_data[index]))) {
+           cast_priv_data(index)->load(std::memory_order_relaxed))) {
     ++index;
   }
   if (index == hooks_end) {
     return false;
   }
-  base::subtle::NoBarrier_Store(&priv_data[index], 0);
+  cast_priv_data(index)->store(0, std::memory_order_relaxed);
   FixupPrivEndLocked();
   return true;
 }
 
 template <typename T>
 int HookList<T>::Traverse(T* output_array, int n) const {
-  AtomicWord hooks_end = base::subtle::Acquire_Load(&priv_end);
+  uintptr_t hooks_end = priv_end.load(std::memory_order_acquire);
   int actual_hooks_end = 0;
   for (int i = 0; i < hooks_end && n > 0; ++i) {
-    AtomicWord data = base::subtle::Acquire_Load(&priv_data[i]);
+    uintptr_t data = cast_priv_data(i)->load(std::memory_order_acquire);
     if (data != 0) {
       *output_array++ = bit_cast<T>(data);
       ++actual_hooks_end;
@@ -236,46 +236,35 @@ int HookList<T>::Traverse(T* output_array, int n) const {
 
 template <typename T>
 T HookList<T>::ExchangeSingular(T value_as_t) {
-  AtomicWord value = bit_cast<AtomicWord>(value_as_t);
-  AtomicWord old_value;
+  uintptr_t value = bit_cast<uintptr_t>(value_as_t);
+  uintptr_t old_value;
   SpinLockHolder l(&hooklist_spinlock);
-  old_value = base::subtle::NoBarrier_Load(&priv_data[kHookListSingularIdx]);
-  base::subtle::NoBarrier_Store(&priv_data[kHookListSingularIdx], value);
+  old_value = cast_priv_data(kHookListSingularIdx)->load(std::memory_order_relaxed);
+  cast_priv_data(kHookListSingularIdx)->store(value, std::memory_order_relaxed);
   if (value != 0) {
-    base::subtle::NoBarrier_Store(&priv_end, kHookListSingularIdx + 1);
+    priv_end.store(kHookListSingularIdx + 1, std::memory_order_relaxed);
   } else {
     FixupPrivEndLocked();
   }
   return bit_cast<T>(old_value);
 }
 
-// Initialize a HookList (optionally with the given initial_value in index 0).
-#define INIT_HOOK_LIST { 0 }
-#define INIT_HOOK_LIST_WITH_VALUE(initial_value)                \
-  { 1, { reinterpret_cast<AtomicWord>(initial_value) } }
-
 // Explicit instantiation for malloc_hook_test.cc.  This ensures all the methods
 // are instantiated.
 template struct HookList<MallocHook::NewHook>;
 
-HookList<MallocHook::NewHook> new_hooks_ =
-    INIT_HOOK_LIST_WITH_VALUE(&InitialNewHook);
-HookList<MallocHook::DeleteHook> delete_hooks_ = INIT_HOOK_LIST;
-HookList<MallocHook::PreMmapHook> premmap_hooks_ =
-    INIT_HOOK_LIST_WITH_VALUE(&InitialPreMMapHook);
-HookList<MallocHook::MmapHook> mmap_hooks_ = INIT_HOOK_LIST;
-HookList<MallocHook::MunmapHook> munmap_hooks_ = INIT_HOOK_LIST;
-HookList<MallocHook::MremapHook> mremap_hooks_ = INIT_HOOK_LIST;
-HookList<MallocHook::PreSbrkHook> presbrk_hooks_ =
-    INIT_HOOK_LIST_WITH_VALUE(InitialPreSbrkHook);
-HookList<MallocHook::SbrkHook> sbrk_hooks_ = INIT_HOOK_LIST;
+HookList<MallocHook::NewHook> new_hooks_{reinterpret_cast<uintptr_t>(InitialNewHook)};
+HookList<MallocHook::DeleteHook> delete_hooks_;
+HookList<MallocHook::PreMmapHook> premmap_hooks_{reinterpret_cast<uintptr_t>(InitialPreMMapHook)};
+HookList<MallocHook::MmapHook> mmap_hooks_;
+HookList<MallocHook::MunmapHook> munmap_hooks_;
+HookList<MallocHook::MremapHook> mremap_hooks_;
+HookList<MallocHook::PreSbrkHook> presbrk_hooks_{reinterpret_cast<uintptr_t>(InitialPreSbrkHook)};
+HookList<MallocHook::SbrkHook> sbrk_hooks_;
 
 // These lists contain either 0 or 1 hooks.
-HookList<MallocHook::MmapReplacement> mmap_replacement_ = { 0 };
-HookList<MallocHook::MunmapReplacement> munmap_replacement_ = { 0 };
-
-#undef INIT_HOOK_LIST_WITH_VALUE
-#undef INIT_HOOK_LIST
+HookList<MallocHook::MmapReplacement> mmap_replacement_;
+HookList<MallocHook::MunmapReplacement> munmap_replacement_;
 
 } }  // namespace base::internal
 

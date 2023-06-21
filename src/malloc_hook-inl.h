@@ -40,6 +40,9 @@
 
 #include <stddef.h>
 #include <sys/types.h>
+
+#include <atomic>
+
 #include "base/atomicops.h"
 #include "base/basictypes.h"
 #include <gperftools/malloc_hook.h>
@@ -59,7 +62,10 @@ static const int kHookListSingularIdx = 7;
 // lockless traversal.  Most of the implementation is in malloc_hook.cc.
 template <typename T>
 struct PERFTOOLS_DLL_DECL HookList {
-  COMPILE_ASSERT(sizeof(T) <= sizeof(AtomicWord), T_should_fit_in_AtomicWord);
+  static_assert(sizeof(T) <= sizeof(uintptr_t), "must fit in uintptr_t");
+
+  constexpr HookList() = default;
+  explicit constexpr HookList(uintptr_t priv_data_initial) : priv_end{1}, priv_data{priv_data_initial} {}
 
   // Adds value to the list.  Note that duplicates are allowed.  Thread-safe and
   // blocking (acquires hooklist_spinlock).  Returns true on success; false
@@ -80,13 +86,12 @@ struct PERFTOOLS_DLL_DECL HookList {
 
   // Fast inline implementation for fast path of Invoke*Hook.
   bool empty() const {
-    return base::subtle::NoBarrier_Load(&priv_end) == 0;
+    return priv_end.load(std::memory_order_relaxed) == 0;
   }
 
   // Used purely to handle deprecated singular hooks
   T GetSingular() const {
-    const AtomicWord *place = &priv_data[kHookListSingularIdx];
-    return bit_cast<T>(base::subtle::NoBarrier_Load(place));
+    return bit_cast<T>(cast_priv_data(kHookListSingularIdx)->load(std::memory_order_relaxed));
   }
 
   T ExchangeSingular(T new_val);
@@ -100,8 +105,18 @@ struct PERFTOOLS_DLL_DECL HookList {
   // subsequent values will be 0.
   //
   // Index kHookListCapacity-1 is reserved as 'deprecated' single hook pointer
-  AtomicWord priv_end;
-  AtomicWord priv_data[kHookListCapacity];
+  std::atomic<uintptr_t> priv_end;
+  uintptr_t priv_data[kHookListCapacity];
+
+  // C++ 11 doesn't let us initialize array of atomics, so we made
+  // priv_data regular uintptr_t-s and cast when reading and writing
+  // (which is portable in practice)
+  std::atomic<uintptr_t>* cast_priv_data(int index) {
+    return reinterpret_cast<std::atomic<uintptr_t>*>(priv_data + index);
+  }
+  std::atomic<uintptr_t> const * cast_priv_data(int index) const {
+    return reinterpret_cast<std::atomic<uintptr_t> const *>(priv_data + index);
+  }
 };
 
 ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::NewHook> new_hooks_;

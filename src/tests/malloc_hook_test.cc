@@ -115,12 +115,8 @@ bool TestHookList_Remove(TestHookList* list, int val) {
   return list->Remove(reinterpret_cast<MallocHook::NewHook>(val));
 }
 
-// Note that this is almost the same as INIT_HOOK_LIST in malloc_hook.cc without
-// the cast.
-#define INIT_HOOK_LIST(initial_value) { 1, { initial_value } }
-
 TEST(HookListTest, InitialValueExists) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   uintptr_t values[2] = { 0, 0 };
   EXPECT_EQ(1, TestHookList_Traverse(list, values, 2));
   EXPECT_EQ(69, values[0]);
@@ -128,7 +124,7 @@ TEST(HookListTest, InitialValueExists) {
 }
 
 TEST(HookListTest, CanRemoveInitialValue) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   ASSERT_TRUE(TestHookList_Remove(&list, 69));
   EXPECT_EQ(0, list.priv_end);
 
@@ -137,7 +133,7 @@ TEST(HookListTest, CanRemoveInitialValue) {
 }
 
 TEST(HookListTest, AddAppends) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   ASSERT_TRUE(TestHookList_Add(&list, 42));
   EXPECT_EQ(2, list.priv_end);
 
@@ -148,7 +144,7 @@ TEST(HookListTest, AddAppends) {
 }
 
 TEST(HookListTest, RemoveWorksAndWillClearSize) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   ASSERT_TRUE(TestHookList_Add(&list, 42));
 
   ASSERT_TRUE(TestHookList_Remove(&list, 69));
@@ -164,7 +160,7 @@ TEST(HookListTest, RemoveWorksAndWillClearSize) {
 }
 
 TEST(HookListTest, AddPrependsAfterRemove) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   ASSERT_TRUE(TestHookList_Add(&list, 42));
 
   ASSERT_TRUE(TestHookList_Remove(&list, 69));
@@ -180,7 +176,7 @@ TEST(HookListTest, AddPrependsAfterRemove) {
 }
 
 TEST(HookListTest, InvalidAddRejected) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   EXPECT_FALSE(TestHookList_Add(&list, 0));
 
   uintptr_t values[2] = { 0, 0 };
@@ -190,7 +186,7 @@ TEST(HookListTest, InvalidAddRejected) {
 }
 
 TEST(HookListTest, FillUpTheList) {
-  TestHookList list = INIT_HOOK_LIST(69);
+  TestHookList list{69};
   int num_inserts = 0;
   while (TestHookList_Add(&list, ++num_inserts))
     ;
@@ -247,7 +243,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
 }
 
 static volatile int num_threads_remaining;
-static TestHookList list = INIT_HOOK_LIST(69);
+static TestHookList list{69};
 static Mutex threadcount_lock;
 
 void MultithreadedTestThreadRunner(int thread_num) {
