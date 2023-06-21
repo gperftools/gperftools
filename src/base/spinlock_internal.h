@@ -37,14 +37,17 @@
 #define BASE_SPINLOCK_INTERNAL_H_
 
 #include <config.h>
+
+#include <atomic>
+
 #include "base/basictypes.h"
 #include "base/atomicops.h"
 
 namespace base {
 namespace internal {
 
-void SpinLockWake(volatile Atomic32 *w, bool all);
-void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop);
+void SpinLockWake(std::atomic<int> *w, bool all);
+void SpinLockDelay(std::atomic<int> *w, int32 value, int loop);
 
 } // namespace internal
 } // namespace base

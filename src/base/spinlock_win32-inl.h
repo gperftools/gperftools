@@ -38,7 +38,7 @@
 namespace base {
 namespace internal {
 
-void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
+void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
   if (loop == 0) {
   } else if (loop == 1) {
     Sleep(0);
@@ -47,7 +47,7 @@ void SpinLockDelay(volatile Atomic32 *w, int32 value, int loop) {
   }
 }
 
-void SpinLockWake(volatile Atomic32 *w, bool all) {
+void SpinLockWake(std::atomic<int> *w, bool all) {
 }
 
 } // namespace internal
