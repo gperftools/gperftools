@@ -294,6 +294,7 @@ namespace {
   };
 }
 
+ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
                                       int skip_count) {
   StacktraceScope scope;
@@ -304,6 +305,7 @@ PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
   return frame_forcer(get_stack_impl->GetStackFramesPtr(result, sizes, max_depth, skip_count));
 }
 
+ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth,
                                                  int skip_count, const void *uc) {
   StacktraceScope scope;
@@ -316,6 +318,7 @@ PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int 
                         skip_count, uc));
 }
 
+ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
                                      int skip_count) {
   StacktraceScope scope;
@@ -326,6 +329,7 @@ PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
   return frame_forcer(get_stack_impl->GetStackTracePtr(result, max_depth, skip_count));
 }
 
+ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
                                                 int skip_count, const void *uc) {
   StacktraceScope scope;
