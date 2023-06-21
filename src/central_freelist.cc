@@ -120,6 +120,7 @@ void CentralFreeList::ReleaseToSpans(void* object) {
       ASSERT(p != object);
       got++;
     }
+    (void)got;
     ASSERT(got + span->refcount ==
            (span->length<<kPageShift) /
            Static::sizemap()->ByteSizeForClass(span->sizeclass));
