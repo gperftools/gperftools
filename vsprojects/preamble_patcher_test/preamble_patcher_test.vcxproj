@@ -198,14 +198,14 @@
   </ItemGroup>
   <ItemGroup>
     <CustomBuild Include="..\..\src\windows\shortproc.asm">
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ml /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /DAMD64 "%(FullPath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Patch|Win32'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Override|Win32'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Patch|x64'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Override|x64'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Patch|Win32'">ml /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Override|Win32'">ml /Fo"$(OutDir)%(Filename).obj"  /c /Cx /coff "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Patch|x64'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /DAMD64 "%(FullPath)"</Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release-Override|x64'">ml64 /Fo"$(OutDir)%(Filename).obj"  /c /Cx /DAMD64 "%(FullPath)"</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release-Patch|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release-Override|Win32'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release-Patch|x64'">$(OutDir)%(Filename).obj;%(Outputs)</Outputs>
