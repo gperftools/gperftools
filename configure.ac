@@ -2,7 +2,7 @@
 ## In general, the safest way to proceed is to run ./autogen.sh
 
 # make sure we're interpreted by some minimal autoconf
-AC_PREREQ([2.59])
+AC_PREREQ([2.69])
 
 AC_INIT([gperftools],[2.10],[gperftools@googlegroups.com])
 # Update this value for every release!  (A:B:C will map to foo.so.(A-C).C.B)
@@ -176,28 +176,21 @@ AS_IF([test -n "$OBJCOPY"], [dnl
   [gpt_cv_objcopy_weaken=no])
 AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, test $gpt_cv_objcopy_weaken = yes)
 
-AC_PROG_LIBTOOL
+LT_INIT
 
 AX_C___ATTRIBUTE__
 
 AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)
 AC_CACHE_VAL(ac_cv___attribute__aligned_fn, [
-  AC_TRY_COMPILE(
-    [#include <stdlib.h>
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdlib.h>
      void foo(void) __attribute__((aligned(128)));
-     void foo(void) { exit(1); }],
-    [],
-    ac_cv___attribute__aligned_fn=yes,
-    ac_cv___attribute__aligned_fn=no
-  )])
+     void foo(void) { exit(1); }]], [[]])],[ac_cv___attribute__aligned_fn=yes],[ac_cv___attribute__aligned_fn=no
+  ])])
 if test "$ac_cv___attribute__aligned_fn" = "yes"; then
   AC_DEFINE(HAVE___ATTRIBUTE__ALIGNED_FN, 1, [define if your compiler supports alignment of functions])
 fi
 AC_MSG_RESULT($ac_cv___attribute__aligned_fn)
 
-
-# Check whether some low-level functions/files are available
-AC_HEADER_STDC
 
 # TODO(csilvers): we could remove a lot when WITH_CPU_PROFILER etc is "no".
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
@@ -505,10 +498,10 @@ fi
 AC_SUBST(LIBSTDCXX_LA_LINKER_FLAG)
 
 # In fact, a lot of the code in this directory depends on pthreads
-ACX_PTHREAD
+AX_PTHREAD
 
 AC_LANG_SAVE
-AC_LANG_CPLUSPLUS
+AC_LANG([C++])
 AC_MSG_CHECKING([whether pthread symbols are available in C++ without including pthread.h])
 acx_pthread_despite_asking_for=no
 AC_LINK_IFELSE(

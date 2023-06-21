@@ -7,20 +7,16 @@
 AC_DEFUN([ACX_NANOSLEEP],
 [AC_MSG_CHECKING(if nanosleep requires any libraries)
  AC_LANG_SAVE
- AC_LANG_C
+ AC_LANG([C])
  acx_nanosleep_ok="no"
  NANOSLEEP_LIBS=
  # For most folks, this should just work
- AC_TRY_LINK([#include <time.h>],
-             [static struct timespec ts; nanosleep(&ts, NULL);],
-             [acx_nanosleep_ok=yes])
+ AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <time.h>]], [[static struct timespec ts; nanosleep(&ts, NULL);]])],[acx_nanosleep_ok=yes],[])
  # For solaris, we may  need -lrt
  if test "x$acx_nanosleep_ok" != "xyes"; then
    OLD_LIBS="$LIBS"
    LIBS="-lrt $LIBS"
-   AC_TRY_LINK([#include <time.h>],
-               [static struct timespec ts; nanosleep(&ts, NULL);],
-               [acx_nanosleep_ok=yes])
+   AC_LINK_IFELSE([AC_LANG_PROGRAM([[#include <time.h>]], [[static struct timespec ts; nanosleep(&ts, NULL);]])],[acx_nanosleep_ok=yes],[])
    if test "x$acx_nanosleep_ok" = "xyes"; then
      NANOSLEEP_LIBS="-lrt"
    fi
