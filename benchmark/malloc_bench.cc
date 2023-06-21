@@ -30,6 +30,7 @@
 #include <stdint.h>
 
 #include <algorithm>
+#include <random>
 
 #include "run_benchmark.h"
 
@@ -212,7 +213,8 @@ void randomize_one_size_class(size_t size) {
   for (int i = 0; i < count; i++) {
     randomize_buffer[i] = malloc(size);
   }
-  std::random_shuffle(randomize_buffer, randomize_buffer + count);
+
+  std::shuffle(randomize_buffer, randomize_buffer + count, std::minstd_rand(rand()));
   for (int i = 0; i < count; i++) {
     free(randomize_buffer[i]);
   }
