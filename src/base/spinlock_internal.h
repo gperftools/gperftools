@@ -41,7 +41,6 @@
 #include <atomic>
 
 #include "base/basictypes.h"
-#include "base/atomicops.h"
 
 namespace base {
 namespace internal {

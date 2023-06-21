@@ -215,9 +215,6 @@
 /* prefix where we look for installed files */
 #cmakedefine INSTALL_PREFIX
 
-/* Define to 1 if int32_t is equivalent to intptr_t */
-#cmakedefine INT32_EQUALS_INTPTR
-
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #cmakedefine LT_OBJDIR
 

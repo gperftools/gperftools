@@ -222,18 +222,6 @@ if(NOT WIN32)
   set(HAVE_MMAP 1)
 endif()
 
-# If AtomicWord != Atomic32, we need to define two versions of all the
-# atomicops functions.  If they're the same, we want to define only one.
-check_c_source_compiles("
-  #include <stdint.h>
-  int main()
-  {
-    int32_t v1 = 0;
-    intptr_t v2 = 0;
-    return (&v1 - &v2);
-  }"
-  INT32_EQUALS_INTPTR)
-
 # We want to access the "PC" (Program Counter) register from a struct
 # ucontext.  Every system has its own way of doing that.  We try all the
 # possibilities we know about.  Note REG_PC should come first (REG_RIP
@@ -487,13 +475,11 @@ endif()
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare")
 
-  # On i386, -mmmx is needed for the mmx-based instructions in
-  # atomicops-internal-x86.h. Also as of gcc 4.6, -fomit-frame-pointer
-  # is the default. Since we must always have frame pointers for I386
-  # in order to generate backtraces we now specify -fno-omit-frame-pointer
-  # by default.
+  # x86-es (starting from gcc-4.6 as per earlier comment) have
+  # -momit-leaf-frame-pointer by default. And on i386 we "traditionally"
+  # used to re-enable frame pointers. So lets keep doing it.
   if(i386)
-    add_compile_options(-mmmx -fno-omit-frame-pointer)
+    add_compile_options(-fno-omit-frame-pointer)
   endif()
 endif()
 
@@ -566,7 +552,6 @@ set(SYSINFO_INCLUDES
         src/getenv_safe.h
         src/base/logging.h
         src/base/commandlineflags.h
-        src/base/arm_instruction_set_select.h
         src/base/basictypes.h)
 set(libsysinfo_la_SOURCES src/base/sysinfo.cc
         ${SYSINFO_INCLUDES})
@@ -578,9 +563,8 @@ target_link_libraries(sysinfo ${libsysinfo_la_LIBADD})
 # windows.a library in exactly the same place we need spinlock.a
 # (pretty much everywhere), so we can use the same variable name for
 # each.  We can also optimize the MinGW rule a bit by leaving out
-# files we know aren't used on windows, such as
-# atomicops-internals-x86.cc.  libwindows also obsoletes the need for
-# other files like system_alloc.cc.
+# files we know aren't used on windows.  libwindows also obsoletes the
+# need for other files like system_alloc.cc.
 if(MINGW OR MSVC)
   set(WINDOWS_INCLUDES
           src/windows/port.h
@@ -607,18 +591,9 @@ if(MINGW OR MSVC)
           src/base/spinlock_internal.h
           src/base/spinlock_win32-inl.h
           src/base/spinlock_linux-inl.h
-          src/base/spinlock_posix-inl.h
-          src/base/atomicops-internals-macosx.h
-          src/base/atomicops-internals-linuxppc.h
-          src/base/atomicops-internals-arm-generic.h
-          src/base/atomicops-internals-arm-v6plus.h
-          src/base/atomicops-internals-mips.h
-          src/base/atomicops-internals-windows.h
-          src/base/atomicops-internals-gcc.h
-          src/base/atomicops-internals-x86.h)
+          src/base/spinlock_posix-inl.h)
   set(libspinlock_la_SOURCES src/base/spinlock.cc
           src/base/spinlock_internal.cc
-          src/base/atomicops-internals-x86.cc
           ${SPINLOCK_INCLUDES})
   add_library(spinlock STATIC ${libspinlock_la_SOURCES})
   set(LIBSPINLOCK windows spinlock sysinfo logging)
@@ -632,15 +607,9 @@ if(MINGW OR MSVC)
   endif()
 else()
   set(SPINLOCK_INCLUDES src/base/spinlock.h
-          src/base/spinlock_internal.h
-          src/base/atomicops.h
-          src/base/atomicops-internals-macosx.h
-          src/base/atomicops-internals-linuxppc.h
-          src/base/atomicops-internals-windows.h
-          src/base/atomicops-internals-x86.h)
+          src/base/spinlock_internal.h)
   set(libspinlock_la_SOURCES src/base/spinlock.cc
           src/base/spinlock_internal.cc
-          src/base/atomicops-internals-x86.cc
           ${SPINLOCK_INCLUDES})
   add_library(spinlock STATIC ${libspinlock_la_SOURCES})
   target_link_libraries(spinlock ${nanosleep_libs})
@@ -676,20 +645,6 @@ if(BUILD_TESTING)
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES)
   target_link_libraries(low_level_alloc_unittest spinlock sysinfo logging ${maybe_threads_lib})
   add_test(low_level_alloc_unittest low_level_alloc_unittest)
-
-  set(ATOMICOPS_UNITTEST_INCLUDES src/base/atomicops.h
-          src/base/atomicops-internals-macosx.h
-          src/base/atomicops-internals-windows.h
-          src/base/atomicops-internals-x86.h
-          ${LOGGING_INCLUDES})
-  set(atomicops_unittest_SOURCES src/tests/atomicops_unittest.cc
-          ${ATOMICOPS_UNITTEST_INCLUDES})
-  if(MSVC OR MINGW)
-    list(APPEND atomicops_unittest_SOURCES src/windows/port.cc)
-  endif()
-  add_executable(atomicops_unittest ${atomicops_unittest_SOURCES})
-  target_link_libraries(atomicops_unittest spinlock sysinfo logging)
-  add_test(atomicops_unittest atomicops_unittest)
 endif()
 
 ### ------- stack trace

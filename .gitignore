@@ -16,8 +16,6 @@
 /aclocal.m4
 /addressmap_unittest
 /addressmap_unittest.exe
-/atomicops_unittest
-/atomicops_unittest.exe
 /autom4te.cache/
 /benchmark/.deps
 /benchmark/.dirstamp

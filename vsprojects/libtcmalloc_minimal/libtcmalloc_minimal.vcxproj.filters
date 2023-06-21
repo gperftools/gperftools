@@ -154,24 +154,6 @@
     <ClInclude Include="..\..\src\base\low_level_alloc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\base\atomicops-internals-arm-gcc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\base\atomicops-internals-linuxppc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\base\atomicops-internals-macosx.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\base\atomicops-internals-x86-msvc.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\base\atomicops-internals-x86.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\base\atomicops.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\base\spinlock.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -237,12 +237,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\src\addressmap-inl.h" />
-    <ClInclude Include="..\..\src\base\atomicops-internals-arm-gcc.h" />
-    <ClInclude Include="..\..\src\base\atomicops-internals-linuxppc.h" />
-    <ClInclude Include="..\..\src\base\atomicops-internals-macosx.h" />
-    <ClInclude Include="..\..\src\base\atomicops-internals-x86-msvc.h" />
-    <ClInclude Include="..\..\src\base\atomicops-internals-x86.h" />
-    <ClInclude Include="..\..\src\base\atomicops.h" />
     <ClInclude Include="..\..\src\base\basictypes.h" />
     <ClInclude Include="..\..\src\base\commandlineflags.h" />
     <ClInclude Include="..\..\src\base\googleinit.h" />

@@ -216,11 +216,6 @@
 /* prefix where we look for installed files */
 /* #undef INSTALL_PREFIX */
 
-/* Define to 1 if int32_t is equivalent to intptr_t */
-#ifndef _WIN64
-#define INT32_EQUALS_INTPTR 1
-#endif
-
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 /* #undef LT_OBJDIR */
 

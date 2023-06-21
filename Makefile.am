@@ -23,13 +23,10 @@ if GCC
 AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -Wno-sign-compare
 
-# On i386, -mmmx is needed for the mmx-based instructions in
-# atomicops-internal-x86.h. Also as of gcc 4.6, -fomit-frame-pointer
-# is the default. Since we must always have frame pointers for I386
-# in order to generate backtraces we now specify -fno-omit-frame-pointer
-# by default.
+# x86-es (starting from gcc-4.6 as per earlier comment) have
+# -momit-leaf-frame-pointer by default. And on i386 we "traditionally"
+# used to re-enable frame pointers. So lets keep doing it.
 if I386
-AM_CXXFLAGS += -mmmx
 AM_CXXFLAGS += -fno-omit-frame-pointer
 endif I386
 endif GCC
@@ -194,9 +191,8 @@ libmaybe_threads_la_SOURCES = src/maybe_threads.h
 # windows.a library in exactly the same place we need spinlock.a
 # (pretty much everywhere), so we can use the same variable name for
 # each.  We can also optimize the MinGW rule a bit by leaving out
-# files we know aren't used on windows, such as
-# atomicops-internals-x86.cc.  libwindows also obsoletes the need for
-# other files like system_alloc.cc.
+# files we know aren't used on windows. libwindows also obsoletes the
+# need for other files like system_alloc.cc.
 if MINGW
 WINDOWS_INCLUDES = src/windows/port.h \
                    src/windows/mingw.h \
@@ -220,19 +216,10 @@ SPINLOCK_INCLUDES = src/base/spinlock.h \
                     src/base/spinlock_internal.h \
                     src/base/spinlock_win32-inl.h \
                     src/base/spinlock_linux-inl.h \
-                    src/base/spinlock_posix-inl.h \
-                    src/base/atomicops-internals-macosx.h \
-                    src/base/atomicops-internals-linuxppc.h \
-                    src/base/atomicops-internals-arm-generic.h \
-                    src/base/atomicops-internals-arm-v6plus.h \
-                    src/base/atomicops-internals-mips.h \
-                    src/base/atomicops-internals-windows.h \
-                    src/base/atomicops-internals-gcc.h \
-                    src/base/atomicops-internals-x86.h
+                    src/base/spinlock_posix-inl.h
 noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
                          src/base/spinlock_internal.cc \
-                         src/base/atomicops-internals-x86.cc \
                          $(SPINLOCK_INCLUDES)
 
 LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
@@ -261,19 +248,12 @@ libmaybe_threads_la_SOURCES += src/maybe_threads.cc
 endif
 SYSTEM_ALLOC_CC =
 else !MINGW
-# spinlock is the only code that uses atomicops.
 SPINLOCK_INCLUDES = src/base/spinlock.h \
-                    src/base/spinlock_internal.h \
-                    src/base/atomicops.h \
-                    src/base/atomicops-internals-macosx.h \
-                    src/base/atomicops-internals-linuxppc.h \
-                    src/base/atomicops-internals-windows.h \
-                    src/base/atomicops-internals-x86.h
+                    src/base/spinlock_internal.h
 
 noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
                          src/base/spinlock_internal.cc \
-                         src/base/atomicops-internals-x86.cc \
                          $(SPINLOCK_INCLUDES)
 libspinlock_la_LIBADD = $(NANOSLEEP_LIBS)
 # spinlock also needs NumCPUs, from libsysinfo, which in turn needs liblogging
@@ -312,16 +292,6 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
 # We don't need that functionality here, so we turn it off to reduce deps.
 low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES
 low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) libmaybe_threads.la
-
-TESTS += atomicops_unittest
-ATOMICOPS_UNITTEST_INCLUDES = src/base/atomicops.h \
-                              src/base/atomicops-internals-macosx.h \
-                              src/base/atomicops-internals-windows.h \
-                              src/base/atomicops-internals-x86.h \
-                              $(LOGGING_INCLUDES)
-atomicops_unittest_SOURCES = src/tests/atomicops_unittest.cc \
-                             $(ATOMICOPS_UNITTEST_INCLUDES)
-atomicops_unittest_LDADD = $(LIBSPINLOCK)
 
 
 ### ------- stack trace

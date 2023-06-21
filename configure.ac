@@ -247,13 +247,6 @@ case "$host" in
       AC_DEFINE(HAVE_MMAP, 1, [Define to 1 if you have a working `mmap' system call.])
 esac
 
-# If AtomicWord != Atomic32, we need to define two versions of all the
-# atomicops functions.  If they're the same, we want to define only one.
-AC_MSG_CHECKING([if int32_t is the same type as intptr_t])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <stdint.h>]], [[int32_t v1 = 0; intptr_t v2 = 0; return (&v1 - &v2)]])],[AC_DEFINE(INT32_EQUALS_INTPTR, 1,
-                          Define to 1 if int32_t is equivalent to intptr_t)
-                AC_MSG_RESULT([yes])],[AC_MSG_RESULT([no])])
-
 # We want to access the "PC" (Program Counter) register from a struct
 # ucontext.  Every system has its own way of doing that.  We try all the
 # possibilities we know about.  Note REG_PC should come first (REG_RIP
