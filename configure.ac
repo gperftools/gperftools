@@ -42,7 +42,8 @@ AX_GENERATE_CHANGELOG
 # target system supports.
 default_enable_cpu_profiler=yes
 default_enable_heap_profiler=yes
-default_enable_heap_checker=yes
+# heap checker is in practice Linux-only.
+default_enable_heap_checker=no
 default_enable_debugalloc=yes
 default_enable_minimal=no
 default_tcmalloc_alignment=16
@@ -50,9 +51,8 @@ need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
    *-mingw*) default_enable_minimal=yes; default_enable_debugalloc=no;
              need_nanosleep=no;;
-   *-cygwin*) default_enable_heap_checker=no; default_enable_cpu_profiler=no;;
-   *-freebsd*) default_enable_heap_checker=no;;
-   *-darwin*) default_enable_heap_checker=no;;
+   *-cygwin*) default_enable_cpu_profiler=no;;
+   *-linux*) default_enable_heap_checker=yes;;
 esac
 
 # Currently only backtrace works on s390 and OSX.
