@@ -98,6 +98,8 @@
 /* Define to 1 if you have the <libunwind.h> header file. */
 #cmakedefine HAVE_LIBUNWIND_H
 
+#cmakedefine USE_LIBUNWIND
+
 /* Define to 1 if you have the <linux/ptrace.h> header file. */
 #cmakedefine HAVE_LINUX_PTRACE_H
 

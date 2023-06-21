@@ -272,8 +272,10 @@ AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 UNWIND_LIBS=
 if test "$enable_libunwind" = yes; then
   AC_CHECK_HEADERS([libunwind.h],
-                   [AC_CHECK_LIB(unwind, backtrace, UNWIND_LIBS=-lunwind)
-                    will_use_libunwind=yes])
+                   [AC_CHECK_LIB(unwind, backtrace,
+                     [UNWIND_LIBS=-lunwind
+                      AC_DEFINE([USE_LIBUNWIND], [1], [libunwind.h was found and is working])
+                      will_use_libunwind=yes])])
 fi
 AC_SUBST(UNWIND_LIBS)
 
