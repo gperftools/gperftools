@@ -42,12 +42,15 @@
 #include <unistd.h>                 // for fork()
 #endif
 #include <sys/wait.h>               // for wait()
+
+#include <atomic>
+
 #include "gperftools/profiler.h"
 #include "base/simple_mutex.h"
 #include "tests/testutil.h"
 
-static volatile int result = 0;
-static int g_iters = 0;   // argv[1]
+static std::atomic<int> result;
+static int g_iters;   // argv[1]
 
 Mutex mutex(Mutex::LINKER_INITIALIZED);
 
@@ -62,7 +65,9 @@ static void test_other_thread() {
     for (i = 0; i < g_iters; ++i ) {
       result ^= i;
     }
-    snprintf(b, sizeof(b), "other: %d", result);  // get some libc action
+    snprintf(b, sizeof(b), "other: %d", result.load());  // get some libc action
+    (void)noopt(b); // 'consume' b. Ensure that smart compiler doesn't
+                    // remove snprintf call
   }
 #endif
 }
@@ -75,7 +80,8 @@ static void test_main_thread() {
     for (i = 0; i < g_iters; ++i ) {
       result ^= i;
     }
-    snprintf(b, sizeof(b), "same: %d", result);  // get some libc action
+    snprintf(b, sizeof(b), "same: %d", result.load());  // get some libc action
+    (void)noopt(b); // 'consume' b
   }
 }
 
