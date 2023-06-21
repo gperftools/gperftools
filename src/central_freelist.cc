@@ -87,14 +87,6 @@ void CentralFreeList::ReleaseListToSpans(void* start) {
   }
 }
 
-// MapObjectToSpan should logically be part of ReleaseToSpans.  But
-// this triggers an optimization bug in gcc 4.5.0.  Moving to a
-// separate function, and making sure that function isn't inlined,
-// seems to fix the problem.  It also should be fixed for gcc 4.5.1.
-static
-#if __GNUC__ == 4 && __GNUC_MINOR__ == 5 && __GNUC_PATCHLEVEL__ == 0
-__attribute__ ((noinline))
-#endif
 Span* MapObjectToSpan(void* object) {
   const PageID p = reinterpret_cast<uintptr_t>(object) >> kPageShift;
   Span* span = Static::pageheap()->GetDescriptor(p);
