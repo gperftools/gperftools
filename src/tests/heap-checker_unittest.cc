@@ -86,6 +86,8 @@
 #ifdef HAVE_PWD_H
 #include <pwd.h>
 #endif
+#include <spawn.h> // for posix_spawn
+#include <sys/wait.h> // waitpid etc
 
 #include <algorithm>
 #include <iostream>             // for cout
@@ -1377,7 +1379,46 @@ static int Pass() {
   return 0;
 }
 
+bool spawn_subtest(const char* mode, char** argv) {
+  putenv(strdup((std::string{"HEAPCHECK="} + std::string(mode)).c_str()));
+  int pid;
+  printf("Spawning heapcheck test with HEAPCHECK=%s...\n", mode);
+
+  int rv = posix_spawn(&pid, "/proc/self/exe", nullptr, nullptr, argv, environ);
+  if (rv != 0) {
+    errno = rv;
+    perror("posix_spawn");
+    abort();
+  }
+  do {
+    if (waitpid(pid, &rv, 0) < 0) {
+      if (errno == EINTR) {
+        continue; // try again
+      }
+      perror("waitpid");
+      abort();
+    }
+  } while (false);
+  if (!WIFEXITED(rv)) {
+    LOGF << std::hex << "weird waitpid status: " << rv;
+    LOG(FATAL, "\n");
+  }
+
+  rv = WEXITSTATUS(rv);
+  printf("Test in mode %s finished with status %d\n", mode, rv);
+
+  return (rv == 0);
+}
+
 int main(int argc, char** argv) {
+  if (getenv("HEAPCHECK") == nullptr) {
+    CHECK(!HeapLeakChecker::IsActive());
+
+    bool ok = (spawn_subtest("", argv) && spawn_subtest("local", argv)
+               && spawn_subtest("normal", argv) && spawn_subtest("strict", argv));
+    return ok ? 0 : 1;
+  }
+
   run_hidden_ptr = DoRunHidden;
   wipe_stack_ptr = DoWipeStack;
   if (!HeapLeakChecker::IsActive()) {

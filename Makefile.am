@@ -1119,14 +1119,6 @@ endif WITH_HEAP_PROFILER
 
 if WITH_HEAP_CHECKER
 
-TESTS += heap-checker_unittest.sh$(EXEEXT)
-heap_checker_unittest_sh_SOURCES = src/tests/heap-checker_unittest.sh
-noinst_SCRIPTS += $(heap_checker_unittest_sh_SOURCES)
-heap-checker_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_checker_unittest_sh_SOURCES) \
-                                   heap-checker_unittest
-	rm -f $@
-	cp -p $(top_srcdir)/$(heap_checker_unittest_sh_SOURCES) $@
-
 TESTS += heap-checker-death_unittest.sh$(EXEEXT)
 heap_checker_death_unittest_sh_SOURCES = src/tests/heap-checker-death_unittest.sh
 noinst_SCRIPTS += $(top_srcdir)/$(heap_checker_death_unittest_sh_SOURCES)
@@ -1136,7 +1128,7 @@ heap-checker-death_unittest.sh$(EXEEXT): $(heap_checker_death_unittest_sh_SOURCE
 	cp -p $(top_srcdir)/$(heap_checker_death_unittest_sh_SOURCES) $@
 
 # These are sub-programs used by heap-checker_unittest.sh
-noinst_PROGRAMS += heap-checker_unittest
+TESTS += heap-checker_unittest
 HEAP_CHECKER_UNITTEST_INCLUDES = src/config_for_unittests.h \
                                  src/memory_region_map.h \
                                  src/base/commandlineflags.h \
@@ -1236,15 +1228,7 @@ endif WITH_HEAP_PROFILER
 
 if WITH_HEAP_CHECKER
 
-TESTS += heap-checker_debug_unittest.sh$(EXEEXT)
-heap_checker_debug_unittest_sh_SOURCES = src/tests/heap-checker_unittest.sh
-heap-checker_debug_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_checker_unittest_sh_SOURCES) \
-                                   heap-checker_debug_unittest
-	rm -f $@
-	cp -p $(top_srcdir)/$(heap_checker_unittest_sh_SOURCES) $@
-
-# These are sub-programs used by heap-checker_debug_unittest.sh
-noinst_PROGRAMS += heap-checker_debug_unittest
+TESTS += heap-checker_debug_unittest
 heap_checker_debug_unittest_SOURCES = $(heap_checker_unittest_SOURCES)
 heap_checker_debug_unittest_CXXFLAGS = $(heap_checker_unittest_CXXFLAGS)
 heap_checker_debug_unittest_LDFLAGS = $(heap_checker_unittest_LDFLAGS)
