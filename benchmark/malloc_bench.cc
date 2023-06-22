@@ -38,11 +38,8 @@ static void bench_fastpath_throughput(long iterations,
 {
   size_t sz = 32;
   for (; iterations>0; iterations--) {
-    void *p = malloc(sz);
-    if (!p) {
-      abort();
-    }
-    free(p);
+    void *p = (operator new)(sz);
+    (operator delete)(p);
     // this makes next iteration use different free list. So
     // subsequent iterations may actually overlap in time.
     sz = ((sz * 8191) & 511) + 16;
@@ -54,11 +51,11 @@ static void bench_fastpath_dependent(long iterations,
 {
   size_t sz = 32;
   for (; iterations>0; iterations--) {
-    void *p = malloc(sz);
-    if (!p) {
-      abort();
-    }
-    free(p);
+    uintptr_t p = reinterpret_cast<uintptr_t>((operator new)(sz));
+    // casts are because gcc doesn't like us using p's value after it
+    // is freed.
+    (operator delete)(reinterpret_cast<void*>(p));
+
     // this makes next iteration depend on current iteration. But this
     // iteration's free may still overlap with next iteration's malloc
     sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
@@ -70,11 +67,8 @@ static void bench_fastpath_simple(long iterations,
 {
   size_t sz = static_cast<size_t>(param);
   for (; iterations>0; iterations--) {
-    void *p = malloc(sz);
-    if (!p) {
-      abort();
-    }
-    free(p);
+    void *p = (operator new)(sz);
+    (operator delete)(p);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
     // free done. But using same size will make free "too fast" since
@@ -85,12 +79,12 @@ static void bench_fastpath_simple(long iterations,
 #ifdef __GNUC__
 #define HAVE_SIZED_FREE_OPTION
 
-extern "C" void tc_free_sized(void *ptr, size_t size) __attribute__((weak));
+extern "C" void tc_delete_sized(void *ptr, size_t size) __attribute__((weak));
 extern "C" void *tc_memalign(size_t align, size_t size) __attribute__((weak));
 
 static bool is_sized_free_available(void)
 {
-  return tc_free_sized != NULL;
+  return tc_delete_sized != NULL;
 }
 
 static bool is_memalign_available(void)
@@ -103,11 +97,8 @@ static void bench_fastpath_simple_sized(long iterations,
 {
   size_t sz = static_cast<size_t>(param);
   for (; iterations>0; iterations--) {
-    void *p = malloc(sz);
-    if (!p) {
-      abort();
-    }
-    tc_free_sized(p, sz);
+    void *p = (operator new)(sz);
+    tc_delete_sized(p, sz);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
     // free done. But using same size will make free "too fast" since
@@ -121,9 +112,6 @@ static void bench_fastpath_memalign(long iterations,
   size_t sz = static_cast<size_t>(param);
   for (; iterations>0; iterations--) {
     void *p = tc_memalign(32, sz);
-    if (!p) {
-      abort();
-    }
     free(p);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
@@ -147,16 +135,13 @@ static void bench_fastpath_stack(long iterations,
   param = param ? param : 1;
   for (; iterations>0; iterations -= param) {
     for (long k = param-1; k >= 0; k--) {
-      void *p = malloc(sz);
-      if (!p) {
-        abort();
-      }
+      void *p = (operator new)(sz);
       stack[k] = p;
       // this makes next iteration depend on result of this iteration
       sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
     }
     for (long k = 0; k < param; k++) {
-      free(stack[k]);
+      (operator delete)(stack[k]);
     }
   }
 }
@@ -172,14 +157,11 @@ static void bench_fastpath_stack_simple(long iterations,
   param = param ? param : 1;
   for (; iterations>0; iterations -= param) {
     for (long k = param-1; k >= 0; k--) {
-      void *p = malloc(sz);
-      if (!p) {
-        abort();
-      }
+      void *p = (operator new)(sz);
       stack[k] = p;
     }
     for (long k = 0; k < param; k++) {
-      free(stack[k]);
+      (operator delete)(stack[k]);
     }
   }
 }
@@ -202,10 +184,7 @@ static void bench_fastpath_rnd_dependent(long iterations,
 
   for (; iterations>0; iterations -= param) {
     for (int k = param-1; k >= 0; k--) {
-      void *p = malloc(sz);
-      if (!p) {
-        abort();
-      }
+      void *p = (operator new)(sz);
       ptrs[k] = p;
       sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
     }
@@ -215,7 +194,7 @@ static void bench_fastpath_rnd_dependent(long iterations,
     uint32_t rnd = 0;
     uint32_t free_idx = 0;
     do {
-      free(ptrs[free_idx]);
+      (operator delete)(ptrs[free_idx]);
       rnd = rnd * rnd_a + rnd_c;
       free_idx = rnd & (param - 1);
     } while (free_idx != 0);
@@ -261,7 +240,9 @@ void randomize_size_classes() {
 
 int main(void)
 {
+  printf("Trying to randomize freelists..."); fflush(stdout);
   randomize_size_classes();
+  printf("done.\n");
 
   report_benchmark("bench_fastpath_throughput", bench_fastpath_throughput, 0);
   report_benchmark("bench_fastpath_dependent", bench_fastpath_dependent, 0);
