@@ -27,6 +27,7 @@
 
 #include "run_benchmark.h"
 
+#include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -80,10 +81,17 @@ static double run_benchmark(struct internal_bench *b)
     if (nsec > TRIAL_NSEC) {
       break;
     }
-    iterations <<= 1;
+    iterations = ((unsigned long)iterations) << 1;
+    if (iterations <= 0) { // overflow
+      abort();
+    }
   }
   while (nsec < TARGET_NSEC) {
-    iterations = (long)(iterations * TARGET_NSEC * 1.1 / nsec);
+    double target_iterations = iterations * TARGET_NSEC * 1.1 / nsec;
+    if (target_iterations > (double)LONG_MAX) {
+      abort();
+    }
+    iterations = target_iterations;
     nsec = measure_once(b, iterations);
   }
   return nsec / iterations;
