@@ -1034,6 +1034,15 @@ void __malloctrace_write(const char *buf, size_t size) {
 // General debug allocation/deallocation
 
 static inline void* DebugAllocate(size_t size, int type) {
+#if defined(__APPLE__)
+  // OSX malloc zones integration has some odd behavior. When
+  // GetAllocatedSize returns 0 it appears to assume something wrong
+  // about the pointer. And since in debug allocator we can return 0
+  // if original size was also 0, lets avoid this case. But only on
+  // OSX. It weakens debug checks a bit, but it unbreaks some tests
+  // (around realloc/free of 0-sized chunks).
+  if (size == 0) size = 1;
+#endif
   MallocBlock* ptr = MallocBlock::Allocate(size, type);
   if (ptr == NULL)  return NULL;
   MALLOC_TRACE("malloc", size, ptr->data_addr());

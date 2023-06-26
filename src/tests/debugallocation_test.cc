@@ -264,6 +264,9 @@ TEST(DebugAllocationTest, GetAllocatedSizeTest) {
   // exactly requested size, since debug_allocation doesn't allow users
   // to write more than that.
   for (int i = 0; i < 10; ++i) {
+#ifdef __APPLE__
+    if (i == 0) continue;
+#endif
     void *p = noopt(malloc(i));
     EXPECT_EQ(i, MallocExtension::instance()->GetAllocatedSize(p));
     free(p);
