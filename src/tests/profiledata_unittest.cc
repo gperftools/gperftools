@@ -98,7 +98,7 @@ struct FileDescriptor {
   explicit FileDescriptor(int fd) : fd_(fd) {}
   ~FileDescriptor() {
     if (fd_ >= 0) {
-      NO_INTR(close(fd_));
+      close(fd_);
     }
   }
   int get() { return fd_; }

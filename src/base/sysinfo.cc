@@ -532,7 +532,7 @@ ProcMapsIterator::~ProcMapsIterator() {
 #elif defined(__MACH__)
   // no cleanup necessary!
 #else
-  if (fd_ >= 0) NO_INTR(close(fd_));
+  if (fd_ >= 0) close(fd_);
 #endif
   delete dynamic_buffer_;
 }

@@ -102,7 +102,7 @@ void RawWrite(RawFD fd, const char* buf, size_t len) {
 }
 
 void RawClose(RawFD fd) {
-  NO_INTR(close(fd));
+  close(fd);
 }
 
 #endif  // _WIN32 || __CYGWIN__ || __CYGWIN32__
