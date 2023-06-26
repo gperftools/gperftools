@@ -73,9 +73,6 @@ endif MINGW
 # can override our malloc if they want to (they can still use tc_malloc).
 # Note: the weird-looking symbols are the c++ memory functions:
 # (in order) new, new(nothrow), new[], new[](nothrow), delete, delete[]
-# In theory this will break if mangling changes, but that seems pretty
-# unlikely at this point.  Just in case, I throw in versions with an
-# extra underscore as well, which may help on OS X.
 if HAVE_OBJCOPY_WEAKEN
 WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree \
          -W memalign -W posix_memalign -W valloc -W pvalloc \
@@ -84,7 +81,16 @@ WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree \
          -W _Znwm -W _ZnwmRKSt9nothrow_t -W _Znam -W _ZnamRKSt9nothrow_t \
          -W _ZdlPv -W _ZdaPv \
          -W __Znwm -W __ZnwmRKSt9nothrow_t -W __Znam -W __ZnamRKSt9nothrow_t \
-         -W __ZdlPv -W __ZdaPv
+         -W __ZdlPv -W __ZdaPv \
+         -W _ZdaPvRKSt9nothrow_t -W _ZdaPvSt11align_val_t \
+         -W _ZdaPvSt11align_val_tRKSt9nothrow_t -W _ZdaPvm \
+         -W _ZdaPvmSt11align_val_t -W _ZdlPvRKSt9nothrow_t \
+         -W _ZdlPvSt11align_val_t -W _ZdlPvSt11align_val_tRKSt9nothrow_t \
+         -W _ZdlPvm -W _ZdlPvmSt11align_val_t \
+         -W _ZnamSt11align_val_t -W _ZnamSt11align_val_tRKSt9nothrow_t \
+         -W _ZnwmSt11align_val_t -W _ZnwmSt11align_val_tRKSt9nothrow_t \
+         -W malloc_size -W malloc_usable_size
+
 else
 WEAKEN = :
 endif !HAVE_OBJCOPY_WEAKEN

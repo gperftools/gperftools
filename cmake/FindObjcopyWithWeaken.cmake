@@ -50,5 +50,14 @@ function(weaken_object target)
           -W _Znwm -W _ZnwmRKSt9nothrow_t -W _Znam -W _ZnamRKSt9nothrow_t
           -W _ZdlPv -W _ZdaPv
           -W __Znwm -W __ZnwmRKSt9nothrow_t -W __Znam -W __ZnamRKSt9nothrow_t
-          -W __ZdlPv -W __ZdaPv "$<TARGET_FILE:${target}>")
+          -W __ZdlPv -W __ZdaPv
+          -W _ZdaPvRKSt9nothrow_t -W _ZdaPvSt11align_val_t
+          -W _ZdaPvSt11align_val_tRKSt9nothrow_t -W _ZdaPvm
+          -W _ZdaPvmSt11align_val_t -W _ZdlPvRKSt9nothrow_t
+          -W _ZdlPvSt11align_val_t -W _ZdlPvSt11align_val_tRKSt9nothrow_t
+          -W _ZdlPvm -W _ZdlPvmSt11align_val_t
+          -W _ZnamSt11align_val_t -W _ZnamSt11align_val_tRKSt9nothrow_t
+          -W _ZnwmSt11align_val_t -W _ZnwmSt11align_val_tRKSt9nothrow_t
+          -W malloc_size -W malloc_usable_size
+          "$<TARGET_FILE:${target}>")
 endfunction()
