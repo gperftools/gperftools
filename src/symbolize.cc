@@ -82,7 +82,39 @@ static char* get_pprof_path() {
 // Returns NULL if we're on an OS where we can't get the invocation name.
 // Using a static var is ok because we're not called from a thread.
 static const char* GetProgramInvocationName() {
-#if defined(HAVE_PROGRAM_INVOCATION_NAME)
+#if defined(__linux__) || defined(__NetBSD__)
+  // Those systems have functional procfs. And we can simply readlink
+  // /proc/self/exe.
+
+  static const char* argv0 = ([] () {
+    int sz = 1024;
+    char* retval = nullptr;
+    for (;;) {
+      if (INT_MAX / 2 <= sz) {
+        free(retval);
+        retval = nullptr;
+        break;
+      }
+      sz *= 2;
+      retval = static_cast<char*>(realloc(retval, sz));
+      int rc = readlink("/proc/self/exe", retval, sz);
+      if (rc < 0) {
+        perror("GetProgramInvocationName:readlink");
+        free(retval);
+        retval = nullptr;
+        break;
+      }
+      if (rc < sz) {
+        retval[rc] = 0;
+        break;
+      }
+      // repeat if readlink may have truncated it's output
+    }
+    return retval;
+  })();
+
+  return argv0;
+#elif defined(HAVE_PROGRAM_INVOCATION_NAME)
 #ifdef __UCLIBC__
   extern const char* program_invocation_name; // uclibc provides this
 #else
@@ -107,7 +139,7 @@ static const char* GetProgramInvocationName() {
     return program_invocation_name;
   return NULL;
 #else
-  return NULL;   // figure out a way to get argv[0]
+  return nullptr; // figure out a way to get argv[0]
 #endif
 }
 
