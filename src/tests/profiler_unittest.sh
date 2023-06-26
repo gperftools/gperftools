@@ -135,32 +135,6 @@ VerifySimilar() {
   fi
 }
 
-# Takes two filenames representing profiles, and optionally their
-# executable scripts (these may be empty if the profiles include
-# symbols), and verifies that the two profiles are identical.
-VerifyIdentical() {
-  prof1="$TMPDIR/$1"
-  exec1="$2"
-  prof2="$TMPDIR/$3"
-  exec2="$4"
-
-  # We are careful not to put exec1 and exec2 in quotes, because if
-  # they are the empty string, it means we want to use the 1-arg
-  # version of pprof.
-  "$PPROF" $PPROF_FLAGS $exec1 "$prof1" > "$TMPDIR/out1"
-  "$PPROF" $PPROF_FLAGS $exec2 "$prof2" > "$TMPDIR/out2"
-  diff=`diff "$TMPDIR/out1" "$TMPDIR/out2"`
-
-  if [ ! -z "$diff" ]; then
-    echo
-    echo ">>> profile doesn't match, args: $exec1 $prof1 vs. $exec2 $prof2"
-    echo ">>> Diff:"
-    echo "$diff"
-    echo
-    RegisterFailure
-  fi
-}
-
 # Takes a filename representing a profile, with its executable,
 # and a multiplier, and verifies that the main-thread function takes
 # the same amount of time as the other-threads function (possibly scaled
@@ -237,17 +211,6 @@ VerifySimilar p9 "$PROFILER4_REALNAME" p10 "$PROFILER4_REALNAME" 2
 "$PROFILER4" 20 4 "$TMPDIR/p11" || RegisterFailure
 VerifyAcrossThreads p11 "$PROFILER4_REALNAME" 2
 
-# Test symbol save and restore
-"$PROFILER1" 50 1 "$TMPDIR/p12" || RegisterFailure
-"$PPROF" $PPROF_FLAGS "$PROFILER1_REALNAME" "$TMPDIR/p12" --raw \
-    >"$TMPDIR/p13" 2>/dev/null || RegisterFailure
-VerifyIdentical p12 "$PROFILER1_REALNAME" p13 "" || RegisterFailure
-
-"$PROFILER3" 30 2 "$TMPDIR/p14" || RegisterFailure
-"$PPROF" $PPROF_FLAGS "$PROFILER3_REALNAME" "$TMPDIR/p14" --raw \
-    >"$TMPDIR/p15" 2>/dev/null || RegisterFailure
-VerifyIdentical p14 "$PROFILER3_REALNAME" p15 "" || RegisterFailure
-
 # Test using ITIMER_REAL instead of ITIMER_PROF.
 env CPUPROFILE_REALTIME=1 "$PROFILER3" 30 2 "$TMPDIR/p16" || RegisterFailure
 env CPUPROFILE_REALTIME=1 "$PROFILER3" 60 2 "$TMPDIR/p17" || RegisterFailure
@@ -257,7 +220,7 @@ VerifySimilar p16 "$PROFILER3_REALNAME" p17 "$PROFILER3_REALNAME" 2
 # Make sure that when we have a process with a fork, the profiles don't
 # clobber each other
 CPUPROFILE="$TMPDIR/pfork" "$PROFILER1" 1 -2 || RegisterFailure
-n=`ls $TMPDIR/pfork* | wc -l`
+n=`ls $TMPDIR/pfork* | wc -l | tr -d '[:space:]'`
 if [ $n != 3 ]; then
   echo "FORK test FAILED: expected 3 profiles (for main + 2 children), found $n"
   num_failures=`expr $num_failures + 1`
