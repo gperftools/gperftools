@@ -41,6 +41,16 @@
 #include <stddef.h>             // for size_t
 #include "base/basictypes.h"
 
+#ifndef __APPLE__
+// As of now, whatever clang version apple ships (clang-1205.0.22.11),
+// somehow miscompiles LowLevelAlloc when we try this section
+// thingy. Thankfully, we only need this section stuff heap leak
+// checker which is Linux-only anyways.
+#define ATTR_MALLOC_SECTION ATTRIBUTE_SECTION(malloc_hook)
+#else
+#define ATTR_MALLOC_SECTION
+#endif
+
 class LowLevelAlloc {
  public:
   class PagesAllocator {
@@ -61,18 +71,18 @@ class LowLevelAlloc {
   // Does not return 0 under other circumstances; it crashes if memory
   // is not available.
   static void *Alloc(size_t request)
-    ATTRIBUTE_SECTION(malloc_hook);
+    ATTR_MALLOC_SECTION;
   static void *AllocWithArena(size_t request, Arena *arena)
-    ATTRIBUTE_SECTION(malloc_hook);
+    ATTR_MALLOC_SECTION;
 
   // Deallocates a region of memory that was previously allocated with
   // Alloc().   Does nothing if passed 0.   "s" must be either 0,
   // or must have been returned from a call to Alloc() and not yet passed to
   // Free() since that call to Alloc().  The space is returned to the arena
   // from which it was allocated.
-  static void Free(void *s) ATTRIBUTE_SECTION(malloc_hook);
+  static void Free(void *s) ATTR_MALLOC_SECTION;
 
-    // ATTRIBUTE_SECTION(malloc_hook) for Alloc* and Free
+    // ATTR_MALLOC_SECTION for Alloc* and Free
     // are to put all callers of MallocHook::Invoke* in this module
     // into special section,
     // so that MallocHook::GetCallerStackTrace can function accurately.
