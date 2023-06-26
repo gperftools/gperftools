@@ -305,7 +305,7 @@ inline void bit_store(Dest *dest, const Source *source) {
 # define HAVE_ATTRIBUTE_SECTION_START 1
 
 #elif defined(HAVE___ATTRIBUTE__) && defined(__MACH__)
-# define ATTRIBUTE_SECTION(name) __attribute__ ((section ("__TEXT, " #name)))
+# define ATTRIBUTE_SECTION(name) __attribute__ ((section ("__TEXT, " #name))) __attribute__((noinline))
 
 #include <mach-o/getsect.h>
 #include <mach-o/dyld.h>
