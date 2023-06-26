@@ -83,7 +83,7 @@ VerifyMemFunction() {
   fi
 
   cat "$TEST_TMPDIR/output.pprof" \
-      | tr -d % | awk '$6 ~ /^'$function'$/ && $2 > 90 {exit 1;}'
+      | tr -d % | awk '$6 ~ /^'$function'$/ && ($2+0) > 90 {exit 1;}'
   if [ $? != 1 ]; then
     echo
     echo "--- Test failed for $function: didn't account for 90% of executable memory"
