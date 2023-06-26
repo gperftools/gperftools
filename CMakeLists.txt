@@ -541,7 +541,7 @@ set(LOGGING_INCLUDES
         src/base/basictypes.h
         src/base/dynamic_annotations.h)
 set(liblogging_la_SOURCES src/base/logging.cc
-        src/base/dynamic_annotations.c
+        src/base/dynamic_annotations.cc
         ${LOGGING_INCLUDES})
 add_library(logging STATIC ${liblogging_la_SOURCES})
 
@@ -902,7 +902,7 @@ if(BUILD_TESTING)
   add_test(malloc_extension_test malloc_extension_test)
 
   if(NOT MSVC)
-    add_executable(malloc_extension_c_test src/tests/malloc_extension_c_test.c)
+    add_executable(malloc_extension_c_test src/tests/malloc_extension_c_test.cc)
     target_link_libraries(malloc_extension_c_test PUBLIC
             tcmalloc_minimal stdc++ m)
     if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
@@ -1014,7 +1014,7 @@ endif()
 
 if(NOT MINGW AND NOT MSVC)
   if(gperftools_build_benchmark)
-    add_library(run_benchmark benchmark/run_benchmark.c)
+    add_library(run_benchmark benchmark/run_benchmark.cc)
 
     add_executable(malloc_bench benchmark/malloc_bench.cc)
     target_link_libraries(malloc_bench run_benchmark ${TCMALLOC_FLAGS})

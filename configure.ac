@@ -188,10 +188,8 @@ static int fn(void *dummy) { return 0; }
 
 # Checks for programs.
 AC_PROG_CXX
-AC_PROG_CC
-AC_PROG_CPP
+AC_LANG([C++])
 AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
-AM_PROG_CC_C_O      # shrug: autogen.sh suddenly needs this for some reason
 
 AX_CXX_COMPILE_STDCXX(11, ext, mandatory)
 
@@ -327,8 +325,8 @@ AM_CONDITIONAL(I386, test "$is_i386" = yes)
 # which we don't care about.
 AC_CACHE_CHECK([if the compiler supports -Wno-unused-result],
                perftools_cv_w_no_unused_result,
-	       [OLD_CFLAGS="$CFLAGS"
-	        CFLAGS="$CFLAGS -Wno-error -Wunused-result"
+	       [OLD_CXXFLAGS="$CXXFLAGS"
+	        CXXFLAGS="$CXXFLAGS -Wno-error -Wunused-result"
 		# gcc doesn't warn about unknown flags unless it's
 		# also warning for some other purpose, hence the
 		# divide-by-0.  (We use -Wno-error to make sure the
@@ -341,7 +339,7 @@ AC_CACHE_CHECK([if the compiler supports -Wno-unused-result],
 	        AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, return 1/0)],
 	                          perftools_cv_w_no_unused_result=yes,
                                   perftools_cv_w_no_unused_result=no)
-	        CFLAGS="$OLD_CFLAGS"])
+	        CXXFLAGS="$OLD_CXXFLAGS"])
 AM_CONDITIONAL(HAVE_W_NO_UNUSED_RESULT,
 	       test "$perftools_cv_w_no_unused_result" = yes)
 
@@ -379,8 +377,7 @@ AS_IF([test "x$enable_sized_delete" = xyes],
 
 AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                [perftools_cv_sized_deallocation_result],
-               [AC_LANG_PUSH(C++)
-                OLD_CXXFLAGS="$CXXFLAGS"
+               [OLD_CXXFLAGS="$CXXFLAGS"
                 CXXFLAGS="$CXXFLAGS -fsized-deallocation"
                 AC_LINK_IFELSE([AC_LANG_PROGRAM(
                     [[#include <new>
@@ -388,34 +385,29 @@ AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                     [[static void (* volatile ptr)(void *, size_t) = ::operator delete; (*ptr)(0, 256);]])],
                  perftools_cv_sized_deallocation_result=yes,
                  perftools_cv_sized_deallocation_result=no)
-                CXXFLAGS="$OLD_CXXFLAGS"
-                AC_LANG_POP(C++)])
+                CXXFLAGS="$OLD_CXXFLAGS"])
 
 AM_CONDITIONAL(HAVE_SIZED_DEALLOCATION,
                test "$perftools_cv_sized_deallocation_result" = yes)
 
 AC_CACHE_CHECK([if C++ compiler supports std::align_val_t without options],
                [perftools_cv_have_align_val_t],
-               [AC_LANG_PUSH(C++)
-                AC_LINK_IFELSE([AC_LANG_PROGRAM(
+               [AC_LINK_IFELSE([AC_LANG_PROGRAM(
                     [[#include <new>]],
                     [[(::operator delete)((::operator new)(256, std::align_val_t(16)), std::align_val_t(16))]])],
                  perftools_cv_have_align_val_t=yes,
-                 perftools_cv_have_align_val_t=no)
-                AC_LANG_POP(C++)])
+                 perftools_cv_have_align_val_t=no)])
 
 AC_CACHE_CHECK([if C++ compiler supports -faligned-new],
                [perftools_cv_have_f_aligned_new],
-               [AC_LANG_PUSH(C++)
-                OLD_CXXFLAGS="$CXXFLAGS"
+               [OLD_CXXFLAGS="$CXXFLAGS"
                 CXXFLAGS="$CXXFLAGS -faligned-new"
                 AC_LINK_IFELSE([AC_LANG_PROGRAM(
                     [[#include <new>]],
                     [[(::operator delete)((::operator new)(256, std::align_val_t(16)), std::align_val_t(16))]])],
                  perftools_cv_have_f_aligned_new=yes,
                  perftools_cv_have_f_aligned_new=no)
-                CXXFLAGS="$OLD_CXXFLAGS"
-                AC_LANG_POP(C++)])
+                CXXFLAGS="$OLD_CXXFLAGS"])
 
 AM_CONDITIONAL(HAVE_F_ALIGNED_NEW,
                test "$perftools_cv_have_f_aligned_new" = yes)
@@ -434,8 +426,7 @@ fi
 
 AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                [perftools_cv_have_unwind_backtrace],
-               [AC_LANG_PUSH(C++)
-                AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+               [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
                     [[#include <unwind.h>
 #if defined(__APPLE__)
 #error OSX _Unwind_Backtrace recurses back to malloc
@@ -443,8 +434,7 @@ AC_CACHE_CHECK([if target has _Unwind_Backtrace],
 ]],
                     [[&_Unwind_Backtrace]])],
                  [perftools_cv_have_unwind_backtrace=yes],
-                 [perftools_cv_have_unwind_backtrace=no])
-                AC_LANG_POP(C++)])
+                 [perftools_cv_have_unwind_backtrace=no])])
 AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
       [AC_DEFINE(HAVE_UNWIND_BACKTRACE, 1, [Whether <unwind.h> contains _Unwind_Backtrace])])
 
@@ -522,8 +512,6 @@ AC_SUBST(LIBSTDCXX_LA_LINKER_FLAG)
 # In fact, a lot of the code in this directory depends on pthreads
 AX_PTHREAD
 
-AC_LANG_SAVE
-AC_LANG([C++])
 AC_MSG_CHECKING([whether pthread symbols are available in C++ without including pthread.h])
 acx_pthread_despite_asking_for=no
 AC_LINK_IFELSE(
@@ -538,7 +526,6 @@ AC_LINK_IFELSE(
     AC_DEFINE(HAVE_PTHREAD, 1, [])
   ])
 AC_MSG_RESULT([$acx_pthread_despite_asking_for])
-AC_LANG_RESTORE
 
 AM_CONDITIONAL(HAVE_PTHREAD_DESPITE_ASKING_FOR, test x"$acx_pthread_despite_asking_for" = xyes)
 

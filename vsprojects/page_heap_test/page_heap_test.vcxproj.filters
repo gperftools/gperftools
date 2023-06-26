@@ -11,7 +11,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\base\dynamic_annotations.c">
+    <ClCompile Include="..\..\src\base\dynamic_annotations.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\base\logging.cc">

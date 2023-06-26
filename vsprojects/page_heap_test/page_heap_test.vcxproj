@@ -190,7 +190,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\src\base\dynamic_annotations.c" />
+    <ClCompile Include="..\..\src\base\dynamic_annotations.cc" />
     <ClCompile Include="..\..\src\base\logging.cc" />
     <ClCompile Include="..\..\src\base\low_level_alloc.cc" />
     <ClCompile Include="..\..\src\base\spinlock.cc" />

@@ -43,6 +43,7 @@
 #include <stddef.h>   /* for size_t */
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
+#include <gperftools/tcmalloc.h>
 
 #define FAIL(msg) do {                          \
   fprintf(stderr, "FATAL ERROR: %s\n", msg);    \
@@ -63,7 +64,6 @@ void TestDeleteHook(const void* ptr) {
 static
 void *forced_malloc(size_t size)
 {
-  extern void *tc_malloc(size_t);
   void *rv = tc_malloc(size);
   if (!rv) {
     FAIL("malloc is not supposed to fail here");

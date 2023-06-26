@@ -175,7 +175,7 @@ LOGGING_INCLUDES = src/base/logging.h \
                    src/base/dynamic_annotations.h
 noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
-                        src/base/dynamic_annotations.c \
+                        src/base/dynamic_annotations.cc \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
@@ -644,7 +644,7 @@ malloc_extension_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
 # in configure.ac:36?
 if !MINGW
 TESTS += malloc_extension_c_test
-malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.c \
+malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.cc \
                                   src/gperftools/malloc_extension.h \
                                   src/gperftools/malloc_extension_c.h
 malloc_extension_c_test_CFLAGS = $(PTHREAD_CFLAGS) $(AM_CFLAGS)
@@ -826,7 +826,7 @@ endif WITH_DEBUGALLOC
 if !MINGW
 noinst_LTLIBRARIES += librun_benchmark.la
 librun_benchmark_la_SOURCES = \
-	benchmark/run_benchmark.c benchmark/run_benchmark.h
+	benchmark/run_benchmark.cc benchmark/run_benchmark.h
 
 noinst_PROGRAMS += malloc_bench malloc_bench_shared \
 	binary_trees binary_trees_shared
