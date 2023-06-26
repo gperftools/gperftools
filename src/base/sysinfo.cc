@@ -260,7 +260,7 @@ int GetSystemCPUsCount()
 
 // ----------------------------------------------------------------------
 
-#if defined __linux__ || defined __FreeBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__
+#if defined __linux__ || defined __FreeBSD__ || defined __NetBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__
 static void ConstructFilename(const char* spec, pid_t pid,
                               char* buf, int buf_size) {
   CHECK_LT(snprintf(buf, buf_size,
@@ -412,7 +412,7 @@ static bool ParseProcMapsLine(char *text, uint64 *start, uint64 *end,
                               char *flags, uint64 *offset,
                               int *major, int *minor, int64 *inode,
                               unsigned *filename_offset) {
-#if defined(__linux__)
+#if defined(__linux__) || defined(__NetBSD__)
   /*
    * It's similar to:
    * sscanf(text, "%"SCNx64"-%"SCNx64" %4s %"SCNx64" %x:%x %"SCNd64" %n",
@@ -483,7 +483,7 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
   ebuf_ = ibuf_ + Buffer::kBufSize - 1;
   nextline_ = ibuf_;
 
-#if defined(__linux__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
+#if defined(__linux__) || defined(__NetBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   if (use_maps_backing) {  // don't bother with clever "self" stuff in this case
     ConstructFilename("/proc/%d/maps_backing", pid, ibuf_, Buffer::kBufSize);
   } else if (pid == 0) {
@@ -562,7 +562,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
                                uint64 *anon_mapping, uint64 *anon_pages,
                                dev_t *dev) {
 
-#if defined(__linux__) || defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
+#if defined(__linux__) || defined(__NetBSD__) || defined(__FreeBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
   do {
     // Advance to the start of the next line
     stext_ = nextline_;
@@ -602,7 +602,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     int64 tmpinode;
     int major, minor;
     unsigned filename_offset = 0;
-#if defined(__linux__)
+#if defined(__linux__) || defined(__NetBSD__)
     // for now, assume all linuxes have the same format
     if (!ParseProcMapsLine(
         stext_,
