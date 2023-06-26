@@ -552,6 +552,18 @@ if test "x$enable_backtrace" = xyes; then
   LIBS=$save_LIBS
 fi
 
+STACKTRACE_UNITTEST_LIBS=
+AS_IF([test "x$ac_cv_header_execinfo_h" = xyes],
+  AS_IF([test "x$enable_cpu_profiler" = xyes -o "x$enable_heap_profiler" = xyes -o "x$enable_heap_checker" = xyes],
+    [AC_CHECK_DECLS([backtrace_symbols], [], [], [#include <execinfo.h>
+                                                  ])
+     save_LIBS=$LIBS
+     LIBS=
+     AC_SEARCH_LIBS([backtrace_symbols], [execinfo])
+     STACKTRACE_UNITTEST_LIBS=$LIBS
+     LIBS=$save_LIBS]))
+AC_SUBST(STACKTRACE_UNITTEST_LIBS)
+
 # For windows, this has a non-trivial value (__declspec(export)), but any
 # system that uses configure wants this to be the empty string.
 AC_DEFINE(PERFTOOLS_DLL_DECL,,

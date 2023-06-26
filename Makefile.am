@@ -345,7 +345,7 @@ STACKTRACE_UNITTEST_INCLUDES = src/config_for_unittests.h \
                                $(LOGGING_INCLUDES)
 stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
                               $(STACKTRACE_UNITTEST_INCLUDES)
-stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la
+stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la $(STACKTRACE_UNITTEST_LIBS)
 
 ### Documentation
 dist_doc_DATA +=
