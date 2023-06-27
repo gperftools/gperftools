@@ -295,7 +295,7 @@ check_c_source_compiles("
   #include <unwind.h>
   int main()
   {
-#if __APPLE__
+#if __APPLE__ || __FreeBSD__
 #error OSX _Unwind_Backtrace recurses back to malloc
 #endif
     &_Unwind_Backtrace;

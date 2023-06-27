@@ -428,8 +428,8 @@ AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                [perftools_cv_have_unwind_backtrace],
                [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
                     [[#include <unwind.h>
-#if defined(__APPLE__)
-#error OSX _Unwind_Backtrace recurses back to malloc
+#if defined(__APPLE__) || defined(__FreeBSD__)
+#error OSX and FreeBSD _Unwind_Backtrace recurses back to malloc
 #endif
 ]],
                     [[&_Unwind_Backtrace]])],
