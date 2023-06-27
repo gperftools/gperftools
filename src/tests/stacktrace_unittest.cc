@@ -54,7 +54,12 @@
 #include <gperftools/stacktrace.h>
 #include "tests/testutil.h"
 
-namespace {
+static bool verbosity_setup = ([] () {
+  // Lets try have more details printed for test by asking for verbose
+  // option.
+  setenv("TCMALLOC_STACKTRACE_METHOD_VERBOSE", "t", 0);
+  return true;
+})();
 
 // Obtain a backtrace, verify that the expected callers are present in the
 // backtrace, and maybe print the backtrace to stdout.
@@ -123,6 +128,8 @@ void CheckRetAddrIsInFunction(void *ret_addr, const AddressRange &range)
 }
 
 //-----------------------------------------------------------------------//
+
+extern "C" {
 
 #if TEST_UCONTEXT_BITS
 
@@ -319,7 +326,8 @@ void ATTRIBUTE_NOINLINE CheckStackTrace(int i) {
   DECLARE_ADDRESS_LABEL(end);
 }
 
-}  // namespace
+}  // extern "C"
+
 //-----------------------------------------------------------------------//
 
 int main(int argc, char ** argv) {

@@ -346,6 +346,8 @@ STACKTRACE_UNITTEST_INCLUDES = src/config_for_unittests.h \
 stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
                               $(STACKTRACE_UNITTEST_INCLUDES)
 stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la $(STACKTRACE_UNITTEST_LIBS)
+# nice to have. Allows glibc's backtrace_symbols to work.
+stacktrace_unittest_LDFLAGS = -export-dynamic
 
 ### Documentation
 dist_doc_DATA +=
