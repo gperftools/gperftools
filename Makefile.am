@@ -1390,10 +1390,11 @@ endif WITH_HEAP_PROFILER_OR_CHECKER
 
 
 # Do the weakening on some exported libtcmalloc symbols.
-install-exec-local: all-local
-all-local: $(LIBS_TO_WEAKEN)
+run-weaken: all-am
 	for la in $(LIBS_TO_WEAKEN); do lib=".libs/`basename $$la .la`.a"; [ ! -f "$$lib" ] || $(WEAKEN) "$$lib"; done
 
+install-exec-local: run-weaken
+all: run-weaken
 
 # This should always include $(TESTS), but may also include other
 # binaries that you compile but don't want automatically installed.
