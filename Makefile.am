@@ -119,7 +119,7 @@ googleinclude_HEADERS =				\
 # Add your documentation files (in doc/) in addition to these
 # top-level boilerplate files.  Also add a TODO file if you have one.
 # We'll add to this later, on a library-by-library basis
-dist_doc_DATA = AUTHORS COPYING ChangeLog INSTALL NEWS README README_windows.txt \
+dist_doc_DATA = AUTHORS COPYING INSTALL NEWS README README_windows.txt \
                 TODO ChangeLog.old
 
 # The libraries (.so's) you want to install
@@ -1442,10 +1442,15 @@ libprofiler.pc: libtcmalloc.pc
 libtool: $(LIBTOOL_DEPS)
 	$(SHELL) ./config.status --recheck
 
-@GENERATE_CHANGELOG_RULES@
+$(top_distdir)/ChangeLog:
+	if test ! -f $(top_srcdir)/ChangeLog ; \
+	  then git --git-dir=$(top_srcdir)/.git --work-tree=$(top_srcdir) \
+	        log --stat -M -C --name-status --no-color \
+	       | fmt --split-only >$(top_distdir)/ChangeLog; \
+	  else cp $(top_srcdir)/ChangeLog $(top_distdir)/ChangeLog; fi
 
 # Windows wants write permission to .vcxproj files and maybe even sln files.
-dist-hook: dist-ChangeLog
+dist-hook: $(top_distdir)/ChangeLog
 	test -e "$(distdir)/vsprojects" \
 	   && chmod -R u+w $(distdir)/*.sln $(distdir)/vsprojects/
 

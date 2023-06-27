@@ -20,7 +20,7 @@ AC_SUBST(TCMALLOC_AND_PROFILER_SO_VERSION)
 AC_CONFIG_SRCDIR(README)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
-AM_INIT_AUTOMAKE([dist-zip])
+AM_INIT_AUTOMAKE([dist-zip foreign])
 AC_CONFIG_HEADERS([src/config.h])
 
 AM_MAINTAINER_MODE()
@@ -32,8 +32,6 @@ AC_SUBST(TC_VERSION_MAJOR)
 AC_SUBST(TC_VERSION_MINOR)
 AC_SUBST(TC_VERSION_PATCH)
 AC_SUBST(PACKAGE_STRING)
-
-AX_GENERATE_CHANGELOG
 
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
