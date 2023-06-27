@@ -1446,9 +1446,6 @@ libtcmalloc_minimal_debug.pc: libtcmalloc.pc
 libprofiler.pc: libtcmalloc.pc
 	cat libtcmalloc.pc | sed s/-ltcmalloc/-lprofiler/ > "$@"
 
-libtool: $(LIBTOOL_DEPS)
-	$(SHELL) ./config.status --recheck
-
 $(top_distdir)/ChangeLog:
 	if test ! -f $(top_srcdir)/ChangeLog ; \
 	  then git --git-dir=$(top_srcdir)/.git --work-tree=$(top_srcdir) \
