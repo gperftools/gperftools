@@ -53,9 +53,20 @@
 namespace {
 namespace stacktrace_generic_fp {
 
+#if __x86_64__ && !_LP64
+// x32 uses 64-bit stack entries but 32-bit addresses.
+#define PAD_FRAME
+#endif
+
 struct frame {
   uintptr_t parent;
+#ifdef PAD_FRAME
+  uintptr_t padding0;
+#endif
   void* pc;
+#ifdef PAD_FRAME
+  uintptr_t padding1;
+#endif
 };
 
 frame* adjust_fp(frame* f) {
