@@ -224,6 +224,21 @@ int ATTRIBUTE_NOINLINE CaptureLeafPlain(void **stack, int stack_len) {
   return size;
 }
 
+int ATTRIBUTE_NOINLINE CaptureLeafPlainEmptyUCP(void **stack, int stack_len) {
+  INIT_ADDRESS_RANGE(CheckStackTraceLeaf, start, end, &expected_range[0]);
+  DECLARE_ADDRESS_LABEL(start);
+
+  int size = GetStackTraceWithContext(stack, stack_len, 0, nullptr);
+
+  printf("Obtained %d stack frames.\n", size);
+  CHECK_GE(size, 1);
+  CHECK_LE(size, stack_len);
+
+  DECLARE_ADDRESS_LABEL(end);
+
+  return size;
+}
+
 int ATTRIBUTE_NOINLINE CaptureLeafWSkip(void **stack, int stack_len) {
   INIT_ADDRESS_RANGE(CheckStackTraceLeaf, start, end, &expected_range[0]);
   DECLARE_ADDRESS_LABEL(start);
@@ -331,6 +346,11 @@ void ATTRIBUTE_NOINLINE CheckStackTrace(int i) {
 //-----------------------------------------------------------------------//
 
 int main(int argc, char ** argv) {
+  CheckStackTrace(0);
+  printf("PASS\n");
+
+  printf("Will test capturing stack trace with nullptr ucontext\n");
+  leaf_capture_fn = CaptureLeafPlainEmptyUCP;
   CheckStackTrace(0);
   printf("PASS\n");
 
