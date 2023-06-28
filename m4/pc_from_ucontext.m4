@@ -36,7 +36,7 @@ AC_DEFUN([AC_PC_FROM_UCONTEXT],
    pc_fields="$pc_fields uc_mcontext.gp_regs[[PT_NIP]]"  # Suse SLES 11 (ppc64)
    pc_fields="$pc_fields uc_mcontext.mc_eip"           # FreeBSD (i386)
    pc_fields="$pc_fields uc_mcontext.mc_srr0"          # FreeBSD (powerpc, powerpc64)
-   pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64 [untested])
+   pc_fields="$pc_fields uc_mcontext.mc_rip"           # FreeBSD (x86_64)
    pc_fields="$pc_fields uc_mcontext.__gregs[[_REG_EIP]]"  # NetBSD (i386)
    pc_fields="$pc_fields uc_mcontext.__gregs[[_REG_RIP]]"  # NetBSD (x86_64)
    pc_fields="$pc_fields uc_mcontext->ss.eip"          # OS X (i386, <=10.4)
