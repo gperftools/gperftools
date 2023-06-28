@@ -122,7 +122,7 @@ struct GetStackImplementation {
 
 // Sadly, different OSes have very different mcontexts even for
 // identical hardware arch. So keep it linux-only for now.
-#if defined(__GNUC__) && __linux__ && (defined(__x86_64__) || defined(__aarch64__) || defined(__riscv))
+#if defined(__GNUC__) && __linux__ && (defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__riscv))
 #define STACKTRACE_INL_HEADER "stacktrace_generic_fp-inl.h"
 #define GST_SUFFIX generic_fp
 #include "stacktrace_impl_setup-inl.h"

@@ -107,15 +107,14 @@ int capture(void **result, int max_depth, int skip_count,
   constexpr uintptr_t kTooSmallAddr = 16 << 10;
   constexpr uintptr_t kFrameSizeThreshold = 128 << 10;
 
-  // This is simplistic yet. Here we're targeting x86-64, aarch64 and
-  // riscv. All have 16 bytes stack alignment (even 32 bit
+  // This is simplistic yet. Here we're targeting x86, aarch64 and
+  // riscv. They all have 16 bytes stack alignment (even 32 bit
   // riscv). This can be made more elaborate as we consider more
-  // architectures. Note, it allows us to only readability of check
-  // f->parent address.
+  // architectures.
   constexpr uintptr_t kAlignment = 16;
 
   uintptr_t initial_frame_addr = reinterpret_cast<uintptr_t>(initial_frame);
-  if ((initial_frame_addr & (kAlignment - 1)) != 0) {
+  if (((initial_frame_addr + sizeof(frame)) & (kAlignment - 1)) != 0) {
     return i;
   }
   if (initial_frame_addr < kTooSmallAddr) {
@@ -156,7 +155,7 @@ int capture(void **result, int max_depth, int skip_count,
       break;
     }
 
-    if ((parent_frame_addr & (kAlignment - 1)) != 0) {
+    if (((parent_frame_addr + sizeof(frame)) & (kAlignment - 1)) != 0) {
       // not aligned, so we keep it safe and assume frame is bogus
       break;
     }
@@ -208,6 +207,9 @@ static int GET_STACK_TRACE_OR_FRAMES {
 #elif __aarch64__
     initial_pc = reinterpret_cast<void* const *>(&uc->uc_mcontext.pc);
     initial_frame = reinterpret_cast<void*>(uc->uc_mcontext.regs[29]);
+#elif __i386__
+    initial_pc = reinterpret_cast<void* const *>(&uc->uc_mcontext.gregs[REG_EIP]);
+    initial_frame = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EBP]);
 #else
     initial_pc = reinterpret_cast<void* const *>(&uc->uc_mcontext.gregs[REG_RIP]);
     initial_frame = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_RBP]);
