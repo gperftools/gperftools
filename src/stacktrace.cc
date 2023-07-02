@@ -120,9 +120,8 @@ struct GetStackImplementation {
 #define HAVE_GST_x86
 #endif // i386 || x86_64
 
-// Sadly, different OSes have very different mcontexts even for
-// identical hardware arch. So keep it linux-only for now.
-#if defined(__GNUC__) && __linux__ && (defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__riscv))
+#if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__riscv) || defined(__arm__))
+// NOTE: legacy 32-bit arm works fine with recent clangs, but is broken in gcc: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=92172
 #define STACKTRACE_INL_HEADER "stacktrace_generic_fp-inl.h"
 #define GST_SUFFIX generic_fp
 #include "stacktrace_impl_setup-inl.h"
