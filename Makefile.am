@@ -22,14 +22,12 @@ AM_CXXFLAGS =
 if GCC
 AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -Wno-sign-compare
-
-# x86-es (starting from gcc-4.6 as per earlier comment) have
-# -momit-leaf-frame-pointer by default. And on i386 we "traditionally"
-# used to re-enable frame pointers. So lets keep doing it.
-if I386
-AM_CXXFLAGS += -fno-omit-frame-pointer
-endif I386
 endif GCC
+
+if ENABLE_FP_FLAGS
+AM_CXXFLAGS += -fno-omit-frame-pointer -momit-leaf-frame-pointer
+endif
+
 if HAVE_W_NO_UNUSED_RESULT
 AM_CXXFLAGS += -Wno-unused-result
 endif HAVE_W_NO_UNUSED_RESULT
@@ -44,19 +42,9 @@ endif HAVE_F_ALIGNED_NEW
 # Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
 AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
 
-# These are x86-specific, having to do with frame-pointers.  In
-# particular, some x86_64 systems do not insert frame pointers by
-# default (all i386 systems that I know of, do.  I don't know about
-# non-x86 chips).  We need to tell perftools what to do about that.
-if OMIT_FP_BY_DEFAULT
-if !ENABLE_FRAME_POINTERS
-AM_CXXFLAGS += -DNO_FRAME_POINTER
-endif !ENABLE_FRAME_POINTERS
-endif OMIT_FP_BY_DEFAULT
-
 # respect --enable-frame-pointers regardless of architecture
 if ENABLE_FRAME_POINTERS
-AM_CXXFLAGS += -fno-omit-frame-pointer
+AM_CXXFLAGS += -fno-omit-frame-pointer -DFORCED_FRAME_POINTERS
 endif ENABLE_FRAME_POINTERS
 
 # For windows systems (at least, mingw), we need to tell all our

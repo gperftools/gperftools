@@ -1461,7 +1461,6 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
     }
     if (size < sizeof(void*)) continue;
 
-#ifdef NO_FRAME_POINTER
     // Frame pointer omission requires us to use libunwind, which uses direct
     // mmap and munmap system calls, and that needs special handling.
     if (name2 == kUnnamedProcSelfMapEntry) {
@@ -1483,7 +1482,6 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
         }
       }
     }
-#endif
 
     const char* const max_object = object + size - sizeof(void*);
     while (object <= max_object) {

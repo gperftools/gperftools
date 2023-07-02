@@ -249,16 +249,24 @@ if(gperftools_enable_libunwind)
   endif()
 endif()
 
-# On x86_64, we know that default is to omit frame pointer.
-if(x86_64)
-  set(omit_fp_by_default ON)
-endif()
-
 # See if the compiler supports -Wno-unused-result.
 # Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling
 # __attribute__((warn_unused_result)) for things like write(),
 # which we don't care about.
 check_c_compiler_flag("-Wno-unused-result" have_w_no_unused_result)
+
+check_c_compiler_flag("-fno-omit-frame-pointer -momit-leaf-frame-pointer" have_omit_leaf_fp)
+check_c_source_compiles("
+  #if !(__i386__ || __x86_64__ || __riscv || __aarch64__)
+  #error unsupported arch
+  #endif
+  int main() { return 0; }
+  "
+  use_omit_leaf_fp)
+
+if (use_omit_leaf_fp)
+  add_compile_options(-fno-omit-frame-pointer -momit-leaf-frame-pointer)
+endif()
 
 option(gperftools_dynamic_sized_delete_support
        "Try to build run-time switch for sized delete operator"
@@ -438,26 +446,6 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER OR
   set(WITH_STACK_TRACE ON)
 endif()
 
-# The following matters only if we're not using libunwind and if we
-# care about backtrace capturing, and frame pointers are not available
-# to capture backtraces. The idea is to warn user about less stable or
-# known bad configurations (e.g. encourage to install libunwind).
-if (NOT unwind_libs AND NOT gperftools_build_minimal AND
-    omit_fp_by_default AND NOT gperftools_enable_frame_pointers)
-  if(HAVE_UNWIND_BACKTRACE)
-    message(WARNING "No frame pointers and no libunwind. "
-                    "Using experimental backtrace capturing via libgcc. "
-                    "Expect crashy cpu profiler.")
-  elseif(gperftools_enable_stacktrace_via_backtrace)
-    message(WARNING "No frame pointers and no libunwind. "
-      "Using experimental backtrace(). "
-      "Expect crashy cpu profiler.")
-  else()
-    message(FATAL_ERROR "No frame pointers and no libunwind. "
-      "The compilation will fail.")
-  endif()
-endif()
-
 # Based on Makefile.am
 
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -472,13 +460,6 @@ endif()
 # These are good warnings to turn on by default.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare")
-
-  # x86-es (starting from gcc-4.6 as per earlier comment) have
-  # -momit-leaf-frame-pointer by default. And on i386 we "traditionally"
-  # used to re-enable frame pointers. So lets keep doing it.
-  if(i386)
-    add_compile_options(-fno-omit-frame-pointer)
-  endif()
 endif()
 
 if(have_w_no_unused_result)
@@ -502,11 +483,7 @@ option(
   OFF)
 
 if(gperftools_enable_frame_pointers)
-  add_compile_options(-fno-omit-frame-pointer)
-endif()
-
-if(omit_fp_by_default AND NOT gperftools_enable_frame_pointers)
-  add_compile_definitions(NO_FRAME_POINTER)
+  add_compile_options(-fno-omit-frame-pointer -DFORCED_FRAME_POINTERS)
 endif()
 
 # For windows systems (at least, mingw), we need to tell all our

@@ -206,6 +206,27 @@ AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, test $gpt_cv_objcopy_weaken = yes)
 
 LT_INIT
 
+# Lets try enable frame pointers to enable simpler stacktrace
+# capturing methods, but keep performace for critical bits with
+# -momit-leaf-frame-pointer. However, we should be conservative so
+# that we don't disable leaf frame pointers on whatever architectures
+# that have them enabled by default.
+AC_CACHE_CHECK(
+  [compiler and target supports -fno-omit-frame-pointer -momit-leaf-frame-pointer],
+  [ac_cv_frame_pointer_cflags],
+  [OLD_CXXFLAGS="$CXXFLAGS"
+   CXXFLAGS="$CXXFLAGS -fno-omit-frame-pointer -momit-leaf-frame-pointer"
+   AC_COMPILE_IFELSE(
+     [AC_LANG_PROGRAM(
+#if !(__i386__ || __x86_64__ || __riscv || __aarch64__)
+#error unsupported arch
+#endif
+     )],
+     [ac_cv_frame_pointer_cflags=yes],
+     [ac_cv_frame_pointer_cflags=no])
+   CXXFLAGS="$OLD_CXXFLAGS"])
+AM_CONDITIONAL(ENABLE_FP_FLAGS, [test "x$ac_cv_frame_pointer_cflags" = "xyes"])
+
 AX_C___ATTRIBUTE__
 
 AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)
@@ -297,27 +318,11 @@ if test "$enable_libunwind" = yes; then
 fi
 AC_SUBST(UNWIND_LIBS)
 
-# On x86_64, instead of libunwind, we can choose to compile with frame-pointers.
 AC_ARG_ENABLE(frame_pointers,
               AS_HELP_STRING([--enable-frame-pointers],
-                             [On x86_64 systems, compile with -fno-omit-frame-pointer (see INSTALL)]),
+                             [Add -fno-omit-frame-pointer to compile flags]),
 	      , enable_frame_pointers=no)
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
-
-AC_MSG_CHECKING([for x86 without frame pointers])
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __x86_64__ == 1 ? 0 : 1])],
-                  [is_x86_64=yes], [is_x86_64=no])
-omit_fp_by_default=no
-AS_IF([test "$is_x86_64" = yes], [omit_fp_by_default=yes])
-AM_CONDITIONAL(OMIT_FP_BY_DEFAULT,
-               test "$omit_fp_by_default" = yes)
-AC_MSG_RESULT([$omit_fp_by_default])
-
-# We need to know if we're i386 so we can turn on -mmms, which is not
-# on by default for i386 (it is for x86_64).
-AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __i386__ == 1 ? 0 : 1])],
-                  [is_i386=yes], [is_i386=no])
-AM_CONDITIONAL(I386, test "$is_i386" = yes)
 
 # See if the compiler supports -Wno-unused-result.
 # Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling
@@ -662,10 +667,3 @@ AS_IF([test "x$enable_aggressive_decommit_by_default" = xyes],
 AC_CONFIG_FILES([Makefile
                  src/gperftools/tcmalloc.h src/windows/gperftools/tcmalloc.h])
 AC_OUTPUT
-
-AS_IF([test "$omit_fp_by_default" = yes && test "x$enable_frame_pointers" != xyes && test "x$UNWIND_LIBS" = x && test "x$enable_minimal" != xyes],
-  [AS_IF([test "x$perftools_cv_have_unwind_backtrace" = xyes],
-    [AC_MSG_WARN([No frame pointers and no libunwind. Using experimental backtrace capturing via libgcc. Expect crashy cpu profiler.])],
-    [AS_IF([test "x$enable_backtrace" = xyes],
-      [AC_MSG_WARN([No frame pointers and no libunwind.  Using experimental backtrace(). Expect crashy cpu profiler.])],
-      [AC_MSG_FAILURE([No frame pointers and no libunwind. The compilation will fail])])])])
