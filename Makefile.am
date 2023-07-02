@@ -302,7 +302,6 @@ S_STACKTRACE_INCLUDES = src/stacktrace_impl_setup-inl.h \
 			src/stacktrace_powerpc-inl.h \
 			src/stacktrace_powerpc-darwin-inl.h \
 			src/stacktrace_powerpc-linux-inl.h \
-			src/stacktrace_x86-inl.h \
 			src/stacktrace_win32-inl.h \
 			src/stacktrace_instrument-inl.h \
                         src/base/elf_mem_image.h \

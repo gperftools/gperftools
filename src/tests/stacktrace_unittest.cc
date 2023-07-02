@@ -35,9 +35,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// We only test this on Linux because frame skip count works there and
-// doesn't on FreeBSD.
-#if __linux__
+// Correctly capturing backtrace from signal handler is most
+// brittle. A number of configurations on Linux work, but not
+// all. Same applies to BSDs. But lets somewhat broadly ask those
+// setups to be tested. In general, if right backtraces are needed for
+// CPU profiler, this test should pass as well.
+#if __linux__ || (__FreeBSD__ && (__x86_64__ || __i386__)) || __NetBSD__
 #include <signal.h>
 #include <sys/time.h>
 #define TEST_UCONTEXT_BITS 1

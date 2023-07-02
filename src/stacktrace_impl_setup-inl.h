@@ -47,7 +47,7 @@
 #define IS_STACK_FRAMES 0
 #define IS_WITH_CONTEXT 0
 #define GET_STACK_TRACE_OR_FRAMES \
-  SIS_CONCAT(GetStackTrace_, GST_SUFFIX)(void **result, int max_depth, int skip_count)
+  ATTRIBUTE_NOINLINE SIS_CONCAT(GetStackTrace_, GST_SUFFIX)(void **result, int max_depth, int skip_count)
 #include STACKTRACE_INL_HEADER
 #undef IS_STACK_FRAMES
 #undef IS_WITH_CONTEXT
@@ -56,7 +56,7 @@
 #define IS_STACK_FRAMES 1
 #define IS_WITH_CONTEXT 0
 #define GET_STACK_TRACE_OR_FRAMES \
-  SIS_CONCAT(GetStackFrames_, GST_SUFFIX)(void **result, int *sizes, int max_depth, int skip_count)
+  ATTRIBUTE_NOINLINE SIS_CONCAT(GetStackFrames_, GST_SUFFIX)(void **result, int *sizes, int max_depth, int skip_count)
 #include STACKTRACE_INL_HEADER
 #undef IS_STACK_FRAMES
 #undef IS_WITH_CONTEXT
@@ -65,8 +65,8 @@
 #define IS_STACK_FRAMES 0
 #define IS_WITH_CONTEXT 1
 #define GET_STACK_TRACE_OR_FRAMES \
-  SIS_CONCAT(GetStackTraceWithContext_, GST_SUFFIX)(void **result, int max_depth, \
-                                                   int skip_count, const void *ucp)
+  ATTRIBUTE_NOINLINE SIS_CONCAT(GetStackTraceWithContext_, GST_SUFFIX)(void **result, int max_depth, \
+                                                                       int skip_count, const void *ucp)
 #include STACKTRACE_INL_HEADER
 #undef IS_STACK_FRAMES
 #undef IS_WITH_CONTEXT
@@ -75,8 +75,8 @@
 #define IS_STACK_FRAMES 1
 #define IS_WITH_CONTEXT 1
 #define GET_STACK_TRACE_OR_FRAMES \
-  SIS_CONCAT(GetStackFramesWithContext_, GST_SUFFIX)(void **result, int *sizes, int max_depth, \
-                                                    int skip_count, const void *ucp)
+  ATTRIBUTE_NOINLINE SIS_CONCAT(GetStackFramesWithContext_, GST_SUFFIX)(void **result, int *sizes, int max_depth, \
+                                                                        int skip_count, const void *ucp)
 #include STACKTRACE_INL_HEADER
 #undef IS_STACK_FRAMES
 #undef IS_WITH_CONTEXT
@@ -92,3 +92,7 @@ static GetStackImplementation SIS_CONCAT(impl__,GST_SUFFIX) = {
 
 #undef SIS_CONCAT2
 #undef SIS_CONCAT
+
+#ifndef HAS_SOME_STACKTRACE_IMPL
+#define HAS_SOME_STACKTRACE_IMPL
+#endif

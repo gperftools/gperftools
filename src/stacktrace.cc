@@ -1,5 +1,6 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
 // Copyright (c) 2005, Google Inc.
+// Copyright (c) 2023, gperftools Contributors.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -29,25 +30,37 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // ---
-// Author: Sanjay Ghemawat
+// Original Author: Sanjay Ghemawat.
+//
+// Most recent significant rework and extensions: Aliaksei
+// Kandratsenka (all bugs are mine).
 //
 // Produce stack trace.
 //
-// There are three different ways we can try to get the stack trace:
+// There few different ways we can try to get the stack trace:
 //
 // 1) Our hand-coded stack-unwinder.  This depends on a certain stack
-//    layout, which is used by gcc (and those systems using a
-//    gcc-compatible ABI) on x86 systems, at least since gcc 2.95.
-//    It uses the frame pointer to do its work.
+//    layout, which is used by various ABIs. It uses the frame
+//    pointer to do its work.
 //
-// 2) The libunwind library.  This is still in development, and as a
-//    separate library adds a new dependency, abut doesn't need a frame
-//    pointer.  It also doesn't call malloc.
+// 2) The libunwind library. It also doesn't call malloc (in most
+//    configurations). Note, there are at least 3 libunwind
+//    implementations currently available. "Original" libunwind,
+//    llvm's and Android's. Only original library has been tested so
+//    far.
 //
-// 3) The gdb unwinder -- also the one used by the c++ exception code.
-//    It's obviously well-tested, but has a fatal flaw: it can call
-//    malloc() from the unwinder.  This is a problem because we're
-//    trying to use the unwinder to instrument malloc().
+// 3) The "libgcc" unwinder -- also the one used by the c++ exception
+//    code. It uses _Unwind_Backtrace facility of modern ABIs. Some
+//    implementations occasionally call into malloc (which we're able
+//    to handle). Some implementations also use some internal locks,
+//    so it is not entirely compatible with backtracing from signal
+//    handlers.
+//
+// 4) backtrace() unwinder (available in glibc and execinfo on some
+//    BSDs). It is typically, but not always implemented on top of
+//    "libgcc" unwinder. So we have it. We use this one on OSX.
+//
+// 5) On windows we use RtlCaptureStackBackTrace.
 //
 // Note: if you add a new implementation here, make sure it works
 // correctly when GetStackTrace() is called with max_depth == 0.
@@ -111,15 +124,6 @@ struct GetStackImplementation {
 #define HAVE_GST_libunwind
 #endif // USE_LIBUNWIND
 
-#if defined(__i386__) || defined(__x86_64__)
-#define STACKTRACE_INL_HEADER "stacktrace_x86-inl.h"
-#define GST_SUFFIX x86
-#include "stacktrace_impl_setup-inl.h"
-#undef GST_SUFFIX
-#undef STACKTRACE_INL_HEADER
-#define HAVE_GST_x86
-#endif // i386 || x86_64
-
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__riscv) || defined(__arm__))
 // NOTE: legacy 32-bit arm works fine with recent clangs, but is broken in gcc: https://gcc.gnu.org/bugzilla/show_bug.cgi?id=92172
 #define STACKTRACE_INL_HEADER "stacktrace_generic_fp-inl.h"
@@ -182,87 +186,97 @@ struct GetStackImplementation {
 #define HAVE_GST_win32
 #endif
 
+#if __cplusplus >= 202302L
+# ifndef HAS_SOME_STACKTRACE_IMPL
+#  warning "Warning: no stacktrace capturing implementation for your OS"
+# endif
+#endif
+
+#if (__x86_64__ || __i386__) && FORCED_FRAME_POINTERS
+// x86-es (even i386 this days) default to no frame pointers. But
+// historically we defaulted to frame pointer unwinder whenever
+// --enable-frame-pointers is given. So we keep this behavior.
+#define PREFER_FP_UNWINDER 1
+#elif TCMALLOC_DONT_PREFER_LIBUNWIND
+#define PREFER_FP_UNWINDER 1
+#else
+#define PREFER_FP_UNWINDER 0
+#endif
+
+#if defined(PREFER_LIBGCC_UNWINDER) && !defined(HAVE_GST_libgcc)
+#error user asked for libgcc unwinder to be default but it is not available
+#endif
+
+static GetStackImplementation impl__null = {
+  // GetStackFrames
+  [] (void **result, int *sizes, int max_depth, int skip_count) {
+    return 0;
+  },
+  // GetStackTraceWithContext
+  [] (void **result, int *sizes, int max_depth, int skip_count, const void* uc) {
+    return 0;
+  },
+  // GetStackTrace
+  [] (void **result, int max_depth, int skip_count) {
+    return 0;
+  },
+  // GetStackTraceWithContext
+  [] (void **result, int max_depth, int skip_count, const void* uc) {
+    return 0;
+  },
+  "null"   // name
+};
+
 static GetStackImplementation *all_impls[] = {
-#ifdef HAVE_GST_libgcc
-  &impl__libgcc,
-#endif
-#ifdef HAVE_GST_generic
-  &impl__generic,
-#endif
-#ifdef HAVE_GST_generic_fp
-  &impl__generic_fp,
-#endif
-#ifdef HAVE_GST_generic_fp
-  &impl__generic_fp_unsafe,
-#endif
-#ifdef HAVE_GST_libunwind
-  &impl__libunwind,
-#endif
-#ifdef HAVE_GST_x86
-  &impl__x86,
-#endif
-#ifdef HAVE_GST_arm
-  &impl__arm,
-#endif
-#ifdef HAVE_GST_ppc
-  &impl__ppc,
-#endif
 #ifdef HAVE_GST_instrument
   &impl__instrument,
 #endif
 #ifdef HAVE_GST_win32
   &impl__win32,
 #endif
-  NULL
+#ifdef HAVE_GST_ppc
+  &impl__ppc,
+#endif
+#if defined(HAVE_GST_generic_fp) && PREFER_FP_UNWINDER
+  &impl__generic_fp,
+  &impl__generic_fp_unsafe,
+#endif
+#if defined(HAVE_GST_libgcc) && defined(PREFER_LIBGCC_UNWINDER)
+  &impl__libgcc,
+#endif
+#ifdef HAVE_GST_libunwind
+  &impl__libunwind,
+#endif
+#if defined(HAVE_GST_libgcc) && !defined(PREFER_LIBGCC_UNWINDER)
+  &impl__libgcc,
+#endif
+#ifdef HAVE_GST_generic
+  &impl__generic,
+#endif
+#if defined(HAVE_GST_generic_fp) && !PREFER_FP_UNWINDER
+  &impl__generic_fp,
+  &impl__generic_fp_unsafe,
+#endif
+#ifdef HAVE_GST_arm
+  &impl__arm,
+#endif
+  &impl__null
 };
 
-// ppc and i386 implementations prefer arch-specific asm implementations.
-// arm's asm implementation is broken
-#if defined(__i386__) || defined(__ppc__) || defined(__PPC__) || defined(__loongarch64)
-#if !defined(NO_FRAME_POINTER)
-#define TCMALLOC_DONT_PREFER_LIBUNWIND
-#endif
-#endif
-
 static bool get_stack_impl_inited;
+static GetStackImplementation *get_stack_impl;
 
-#if defined(HAVE_GST_instrument)
-static GetStackImplementation *get_stack_impl = &impl__instrument;
-#elif defined(HAVE_GST_win32)
-static GetStackImplementation *get_stack_impl = &impl__win32;
-#elif defined(HAVE_GST_generic_fp) && !defined(NO_FRAME_POINTER) \
-   && !defined(__riscv) \
-   && (!defined(HAVE_GST_libunwind) || defined(TCMALLOC_DONT_PREFER_LIBUNWIND))
-static GetStackImplementation *get_stack_impl = &impl__generic_fp;
-#elif defined(HAVE_GST_x86) && defined(TCMALLOC_DONT_PREFER_LIBUNWIND)
-static GetStackImplementation *get_stack_impl = &impl__x86;
-#elif defined(HAVE_GST_ppc) && defined(TCMALLOC_DONT_PREFER_LIBUNWIND)
-static GetStackImplementation *get_stack_impl = &impl__ppc;
-#elif defined(HAVE_GST_libunwind)
-static GetStackImplementation *get_stack_impl = &impl__libunwind;
-#elif defined(HAVE_GST_libgcc)
-static GetStackImplementation *get_stack_impl = &impl__libgcc;
-#elif defined(HAVE_GST_generic)
-static GetStackImplementation *get_stack_impl = &impl__generic;
-#elif defined(HAVE_GST_arm)
-static GetStackImplementation *get_stack_impl = &impl__arm;
-#elif 0
+#if 0
 // This is for the benefit of code analysis tools that may have
 // trouble with the computed #include above.
-# include "stacktrace_x86-inl.h"
 # include "stacktrace_libunwind-inl.h"
 # include "stacktrace_generic-inl.h"
-# include "stacktrace_powerpc-inl.h"
+# include "stacktrace_generic_fp-inl.h"
+# include "stacktrace_powerpc-linux-inl.h"
 # include "stacktrace_win32-inl.h"
 # include "stacktrace_arm-inl.h"
 # include "stacktrace_instrument-inl.h"
-#else
-#error Cannot calculate stack trace: will need to write for your environment
 #endif
-
-static int ATTRIBUTE_NOINLINE frame_forcer(int rv) {
-  return rv;
-}
 
 static void init_default_stack_impl_inner(void);
 
@@ -272,26 +286,30 @@ namespace tcmalloc {
 }
 
 namespace {
-  using tcmalloc::EnterStacktraceScope;
-  using tcmalloc::LeaveStacktraceScope;
+using tcmalloc::EnterStacktraceScope;
+using tcmalloc::LeaveStacktraceScope;
 
-  class StacktraceScope {
-    bool stacktrace_allowed;
-  public:
-    StacktraceScope() {
-      stacktrace_allowed = true;
-      stacktrace_allowed = EnterStacktraceScope();
+class StacktraceScope {
+  bool stacktrace_allowed;
+public:
+  StacktraceScope() {
+    stacktrace_allowed = true;
+    stacktrace_allowed = EnterStacktraceScope();
+  }
+  bool IsStacktraceAllowed() {
+    return stacktrace_allowed;
+  }
+  // NOTE: noinline here ensures that we don't tail-call GetStackXXX
+  // calls below. Which is crucial due to us having to pay attention
+  // to skip_count argument.
+  ATTRIBUTE_NOINLINE ~StacktraceScope() {
+    if (stacktrace_allowed) {
+      LeaveStacktraceScope();
     }
-    bool IsStacktraceAllowed() {
-      return stacktrace_allowed;
-    }
-    ~StacktraceScope() {
-      if (stacktrace_allowed) {
-        LeaveStacktraceScope();
-      }
-    }
-  };
-}
+  }
+};
+
+}  // namespace
 
 ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
@@ -301,7 +319,8 @@ PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
     return 0;
   }
   init_default_stack_impl_inner();
-  return frame_forcer(get_stack_impl->GetStackFramesPtr(result, sizes, max_depth, skip_count));
+  return get_stack_impl->GetStackFramesPtr(result, sizes,
+                                           max_depth, skip_count);
 }
 
 ATTRIBUTE_NOINLINE
@@ -312,9 +331,8 @@ PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int 
     return 0;
   }
   init_default_stack_impl_inner();
-  return frame_forcer(get_stack_impl->GetStackFramesWithContextPtr(
-                        result, sizes, max_depth,
-                        skip_count, uc));
+  return get_stack_impl->GetStackFramesWithContextPtr(result, sizes, max_depth,
+                                                      skip_count, uc);
 }
 
 ATTRIBUTE_NOINLINE
@@ -325,7 +343,7 @@ PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
     return 0;
   }
   init_default_stack_impl_inner();
-  return frame_forcer(get_stack_impl->GetStackTracePtr(result, max_depth, skip_count));
+  return get_stack_impl->GetStackTracePtr(result, max_depth, skip_count);
 }
 
 ATTRIBUTE_NOINLINE
@@ -336,13 +354,10 @@ PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
     return 0;
   }
   init_default_stack_impl_inner();
-  return frame_forcer(get_stack_impl->GetStackTraceWithContextPtr(
-                        result, max_depth, skip_count, uc));
+  return get_stack_impl->GetStackTraceWithContextPtr(result, max_depth,
+                                                     skip_count, uc);
 }
 
-// As of this writing, aarch64 has completely borked libunwind, so
-// lets test this case and fall back to frame pointers (which is
-// nearly but not quite perfect).
 ATTRIBUTE_NOINLINE
 static void maybe_convert_libunwind_to_generic_fp() {
 #if defined(HAVE_GST_libunwind) && defined(HAVE_GST_generic_fp)
@@ -350,31 +365,36 @@ static void maybe_convert_libunwind_to_generic_fp() {
     return;
   }
 
-  // Okay we're on libunwind and we have generic_fp, check if
-  // libunwind returns bogus results.
+  bool want_to_replace = false;
+
+  // Sometime recently, aarch64 had completely borked libunwind, so
+  // lets test this case and fall back to frame pointers (which is
+  // nearly but not quite perfect). So lets check this case.
   void* stack[4];
   int rv = get_stack_impl->GetStackTracePtr(stack, 4, 0);
-  if (rv > 2) {
-    // Seems fine
-    return;
+  want_to_replace = (rv <= 2);
+
+  if (want_to_replace) {
+    get_stack_impl = &impl__generic_fp;
   }
-  // bogus. So replacing with generic_fp
-  get_stack_impl = &impl__generic_fp;
-#endif
+#endif  // have libunwind and generic_fp
 }
 
 static void init_default_stack_impl_inner(void) {
   if (get_stack_impl_inited) {
     return;
   }
+  get_stack_impl = all_impls[0];
   get_stack_impl_inited = true;
   const char *val = TCMallocGetenvSafe("TCMALLOC_STACKTRACE_METHOD");
   if (!val || !*val) {
+    // If no explicit implementation is requested, consider changing
+    // libunwind->generic_fp in some cases.
     maybe_convert_libunwind_to_generic_fp();
     return;
   }
-  for (GetStackImplementation **p = all_impls; *p; p++) {
-    GetStackImplementation *c = *p;
+  for (int i = 0; i < sizeof(all_impls) / sizeof(all_impls[0]); i++) {
+    GetStackImplementation *c = all_impls[i];
     if (strcmp(c->name, val) == 0) {
       get_stack_impl = c;
       return;
@@ -388,11 +408,11 @@ static void init_default_stack_impl(void) {
   init_default_stack_impl_inner();
   if (EnvToBool("TCMALLOC_STACKTRACE_METHOD_VERBOSE", false)) {
     fprintf(stderr, "Chosen stacktrace method is %s\nSupported methods:\n", get_stack_impl->name);
-    for (GetStackImplementation **p = all_impls; *p; p++) {
-      GetStackImplementation *c = *p;
+    for (int i = 0; i < sizeof(all_impls) / sizeof(all_impls[0]); i++) {
+      GetStackImplementation *c = all_impls[i];
       fprintf(stderr, "* %s\n", c->name);
     }
-    fputs("\n", stderr);
+    fputs("\nUse TCMALLOC_STACKTRACE_METHOD environment variable to override\n", stderr);
   }
 }
 
