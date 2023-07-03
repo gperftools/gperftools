@@ -240,7 +240,7 @@ static void DumpProfileLocked(const char* reason) {
   // a memory lock now.
   RawFD fd = RawOpenForWriting(file_name);
   if (fd == kIllegalRawFD) {
-    RAW_LOG(ERROR, "Failed dumping heap profile to %s", file_name);
+    RAW_LOG(ERROR, "Failed dumping heap profile to %s. Numeric errno is %d", file_name, errno);
     dumping = false;
     return;
   }
