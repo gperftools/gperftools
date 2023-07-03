@@ -162,7 +162,6 @@ SYSINFO_INCLUDES = src/base/sysinfo.h \
                    src/getenv_safe.h \
                    src/base/logging.h \
                    src/base/commandlineflags.h \
-                   src/base/arm_instruction_set_select.h \
                    src/base/basictypes.h
 noinst_LTLIBRARIES += libsysinfo.la
 libsysinfo_la_SOURCES = src/base/sysinfo.cc \
