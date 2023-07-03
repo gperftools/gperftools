@@ -276,9 +276,11 @@ static void ReplaceSystemAlloc() {
     MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
   // Switch to version 6 on OSX 10.6 to support memalign.
   tcmalloc_zone.version = 6;
-  tcmalloc_zone.free_definite_size = &mz_free_definite_size;
   tcmalloc_zone.memalign = &mz_memalign;
+#ifndef __POWERPC__
+  tcmalloc_zone.free_definite_size = &mz_free_definite_size;
   tcmalloc_introspection.zone_locked = &mi_zone_locked;
+#endif
 
   // Request the default purgable zone to force its creation. The
   // current default zone is registered with the purgable zone for
