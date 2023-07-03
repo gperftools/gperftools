@@ -53,7 +53,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#include <linux/ptrace.h>
+#include <sys/ptrace.h>
 #include <sys/procfs.h>
 #include <sys/user.h>
 #include <elf.h> // NT_PRSTATUS
