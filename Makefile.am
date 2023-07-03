@@ -99,14 +99,6 @@ noinst_HEADERS = src/gperftools/tcmalloc.h.in
 # perftoolsincludedir.
 googleincludedir = $(includedir)/google
 googleinclude_HEADERS =				\
-   src/google/heap-checker.h			\
-   src/google/heap-profiler.h			\
-   src/google/malloc_extension.h		\
-   src/google/malloc_extension_c.h		\
-   src/google/malloc_hook.h			\
-   src/google/malloc_hook_c.h			\
-   src/google/profiler.h			\
-   src/google/stacktrace.h			\
    src/google/tcmalloc.h
 
 # This is for HTML and other documentation you want to install.
@@ -310,6 +302,7 @@ S_STACKTRACE_INCLUDES = src/stacktrace_impl_setup-inl.h \
 SG_STACKTRACE_INCLUDES = src/gperftools/stacktrace.h
 STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
+googleinclude_HEADERS += src/google/stacktrace.h
 
 ### Making the library
 noinst_LTLIBRARIES += libstacktrace.la
@@ -415,6 +408,10 @@ SG_TCMALLOC_MINIMAL_INCLUDES = src/gperftools/malloc_hook.h \
                                src/gperftools/nallocx.h
 TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
+googleinclude_HEADERS += src/google/malloc_hook.h \
+                         src/google/malloc_hook_c.h \
+                         src/google/malloc_extension.h \
+                         src/google/malloc_extension_c.h
 
 ### Making the library
 
@@ -886,6 +883,8 @@ SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
 TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) \
 		    $(SG_TCMALLOC_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
+googleinclude_HEADERS += src/google/heap-profiler.h \
+                         src/google/heap-checker.h
 
 if BUILD_EMERGENCY_MALLOC
 EMERGENCY_MALLOC_CC = src/emergency_malloc.cc src/emergency_malloc_for_stacktrace.cc
@@ -1260,6 +1259,7 @@ SG_CPU_PROFILER_INCLUDES = src/gperftools/profiler.h
 CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES) \
 			$(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
+googleinclude_HEADERS += src/google/profiler.h
 
 ### Making the library
 lib_LTLIBRARIES += libprofiler.la
@@ -1404,9 +1404,21 @@ deb: dist-gzip packages/deb.sh packages/deb/*
 
 # http://linux.die.net/man/1/pkg-config, http://pkg-config.freedesktop.org/wiki
 pkgconfigdir = $(libdir)/pkgconfig
-pkgconfig_DATA = libtcmalloc.pc libtcmalloc_minimal.pc \
-                 libtcmalloc_debug.pc libtcmalloc_minimal_debug.pc \
-                 libprofiler.pc
+pkgconfig_DATA = libtcmalloc_minimal.pc
+if WITH_DEBUGALLOC
+pkgconfig_DATA += libtcmalloc_minimal_debug.pc
+endif WITH_DEBUGALLOC
+
+if WITH_HEAP_PROFILER_OR_CHECKER
+pkgconfig_DATA += libtcmalloc.pc
+if WITH_DEBUGALLOC
+pkgconfig_DATA += libtcmalloc_debug.pc
+endif WITH_DEBUGALLOC
+endif WITH_HEAP_PROFILER_OR_CHECKER
+
+if WITH_CPU_PROFILER
+pkgconfig_DATA += libprofiler.pc
+endif WITH_CPU_PROFILER
 CLEANFILES = $(pkgconfig_DATA)
 
 # I get the description and URL lines from the rpm spec. I use sed to
