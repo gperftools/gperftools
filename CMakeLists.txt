@@ -59,7 +59,6 @@ include(GNUInstallDirs)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(DefineTargetVariables)
-include(FindObjcopyWithWeaken)
 include(PCFromUContext)
 
 define_target_variables()
@@ -155,9 +154,6 @@ else()
 endif()
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
-
-# Check if we have an objcopy installed that supports -W
-find_objcopy_with_weaken()
 
 # AX_C___ATTRIBUTE__
 check_c_source_compiles("#include <stdlib.h>
@@ -762,7 +758,6 @@ endif()
 set_target_properties(tcmalloc_minimal PROPERTIES
         VERSION ${TCMALLOC_SO_VERSION}
         SOVERSION ${TCMALLOC_SO_VERSION})
-weaken_object(tcmalloc_minimal)
 install(TARGETS tcmalloc_minimal)
 if(GPERFTOOLS_BUILD_STATIC)
     add_library(tcmalloc_minimal_static STATIC ${libtcmalloc_minimal_internal_la_SOURCES})
@@ -775,7 +770,6 @@ if(GPERFTOOLS_BUILD_STATIC)
       set_target_properties(tcmalloc_minimal_static PROPERTIES
               OUTPUT_NAME tcmalloc_minimal)
     endif()
-    weaken_object(tcmalloc_minimal_static)
     install(TARGETS tcmalloc_minimal_static)
 endif()
 
@@ -937,7 +931,6 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE ${libtcmalloc_minimal_la_DEFINES}
           TCMALLOC_FOR_DEBUGALLOCATION)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE ${libtcmalloc_minimal_la_LIBADD})
-  weaken_object(tcmalloc_minimal_debug)
   install(TARGETS tcmalloc_minimal_debug)
   set_target_properties(tcmalloc_minimal_debug PROPERTIES
           VERSION ${TCMALLOC_SO_VERSION}
@@ -951,7 +944,6 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
               OUTPUT_NAME tcmalloc_minimal_debug)
     endif()
     target_link_libraries(tcmalloc_minimal_debug_static PRIVATE ${libtcmalloc_minimal_la_LIBADD})
-    weaken_object(tcmalloc_minimal_debug_static)
     install(TARGETS tcmalloc_minimal_debug_static)
   endif()
 
@@ -1093,7 +1085,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
   set_target_properties(tcmalloc PROPERTIES
           VERSION ${TCMALLOC_SO_VERSION}
           SOVERSION ${TCMALLOC_SO_VERSION})
-  weaken_object(tcmalloc)
   install(TARGETS tcmalloc)
   if(GPERFTOOLS_BUILD_STATIC)
     add_library(tcmalloc_static STATIC ${libtcmalloc_la_SOURCES})
@@ -1102,7 +1093,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
       set_target_properties(tcmalloc_static PROPERTIES OUTPUT_NAME tcmalloc)
     endif()
     target_link_libraries(tcmalloc_static PRIVATE ${libtcmalloc_la_LIBADD})
-    weaken_object(tcmalloc_static)
     install(TARGETS tcmalloc_static)
   endif()
 
@@ -1220,7 +1210,6 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     set_target_properties(tcmalloc_debug PROPERTIES
             VERSION ${TCMALLOC_SO_VERSION}
             SOVERSION ${TCMALLOC_SO_VERSION})
-    weaken_object(tcmalloc_debug)
     install(TARGETS tcmalloc_debug)
     if(GPERFTOOLS_BUILD_STATIC)
       add_library(tcmalloc_debug_static STATIC src/debugallocation.cc ${HEAP_CHECKER_SOURCES} ${TCMALLOC_INCLUDES})
@@ -1231,7 +1220,6 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
         set_target_properties(tcmalloc_debug_static PROPERTIES
                 OUTPUT_NAME tcmalloc_debug)
       endif()
-      weaken_object(tcmalloc_debug_static)
       install(TARGETS tcmalloc_debug_static)
     endif()
 
@@ -1369,7 +1357,6 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER OR GPERFTOOLS_BUILD_HEAP_CHECKER)
       # libstacktrace.la, which we already get via libtcmalloc.  Trying to
       # specify it twice causes link-time duplicate-definition errors. :-(
       target_link_libraries(tcmalloc_and_profiler PRIVATE ${libtcmalloc_la_LIBADD})
-      weaken_object(tcmalloc_and_profiler)
       install(TARGETS tcmalloc_and_profiler)
       if(GPERFTOOLS_BUILD_STATIC)
         add_library(tcmalloc_and_profiler_static STATIC ${libtcmalloc_la_SOURCES} ${libprofiler_la_SOURCES})
@@ -1379,7 +1366,6 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER OR GPERFTOOLS_BUILD_HEAP_CHECKER)
           set_target_properties(tcmalloc_and_profiler_static PROPERTIES
                   OUTPUT_NAME tcmalloc_and_profiler)
         endif()
-        weaken_object(tcmalloc_and_profiler_static)
         install(TARGETS tcmalloc_and_profiler_static)
       endif()
 
