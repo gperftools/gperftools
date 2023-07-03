@@ -1635,10 +1635,10 @@ void HeapLeakChecker::Create(const char *name, bool make_start_snapshot) {
       }
 
       const HeapProfileTable::Stats& t = heap_profile->total();
-      const size_t start_inuse_bytes = t.alloc_size - t.free_size;
-      const size_t start_inuse_allocs = t.allocs - t.frees;
-      RAW_VLOG(10, "Start check \"%s\" profile: %zu bytes "
-               "in %zu objects",
+      const int64_t start_inuse_bytes = t.alloc_size - t.free_size;
+      const int64_t start_inuse_allocs = t.allocs - t.frees;
+      RAW_VLOG(10, "Start check \"%s\" profile: %" PRId64 " bytes "
+               "in %" PRId64 " objects",
                name_, start_inuse_bytes, start_inuse_allocs);
     } else {
       RAW_LOG(WARNING, "Heap checker is not active, "
@@ -1869,8 +1869,8 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
              "(but no 100%% guarantee that there aren't any): "
              "found %" PRId64 " reachable heap objects of %" PRId64 " bytes",
              name_,
-             int64(stats.allocs - stats.frees),
-             int64(stats.alloc_size - stats.free_size));
+             stats.allocs - stats.frees,
+             stats.alloc_size - stats.free_size);
   } else {
     if (should_symbolize == SYMBOLIZE) {
       // To turn addresses into symbols, we need to fork, which is a

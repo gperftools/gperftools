@@ -288,7 +288,7 @@ int HeapProfileTable::UnparseBucket(const Bucket& b,
     profile_stats->free_size += b.free_size;
   }
   int printed =
-    snprintf(buf + buflen, bufsize - buflen, "%6d: %8" PRId64 " [%6d: %8" PRId64 "] @%s",
+    snprintf(buf + buflen, bufsize - buflen, "%6" PRId64 ": %8" PRId64 " [%6" PRId64 ": %8" PRId64 "] @%s",
              b.allocs - b.frees,
              b.alloc_size - b.free_size,
              b.allocs,
@@ -499,18 +499,18 @@ void HeapProfileTable::AddToSnapshot(const void* ptr, AllocValue* v,
 
 HeapProfileTable::Snapshot* HeapProfileTable::NonLiveSnapshot(
     Snapshot* base) {
-  RAW_VLOG(2, "NonLiveSnapshot input: %d %d\n",
-           int(total_.allocs - total_.frees),
-           int(total_.alloc_size - total_.free_size));
+  RAW_VLOG(2, "NonLiveSnapshot input: %" PRId64 " %" PRId64 "\n",
+           total_.allocs - total_.frees,
+           total_.alloc_size - total_.free_size);
 
   Snapshot* s = new (alloc_(sizeof(Snapshot))) Snapshot(alloc_, dealloc_);
   AddNonLiveArgs args;
   args.dest = s;
   args.base = base;
   address_map_->Iterate<AddNonLiveArgs*>(AddIfNonLive, &args);
-  RAW_VLOG(2, "NonLiveSnapshot output: %d %d\n",
-           int(s->total_.allocs - s->total_.frees),
-           int(s->total_.alloc_size - s->total_.free_size));
+  RAW_VLOG(2, "NonLiveSnapshot output: %" PRId64 " %" PRId64 "\n",
+           s->total_.allocs - s->total_.frees,
+           s->total_.alloc_size - s->total_.free_size);
   return s;
 }
 
