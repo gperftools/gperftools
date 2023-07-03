@@ -326,7 +326,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
 
 #undef SETUP_FRAME
   }
-#else
+#elif !IS_WITH_CONTEXT
   void * const ucp = nullptr;
 #endif  // IS_WITH_CONTEXT
 
