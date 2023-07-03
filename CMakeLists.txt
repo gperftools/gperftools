@@ -694,6 +694,7 @@ set(S_TCMALLOC_MINIMAL_INCLUDES src/common.h
         src/tcmalloc_guard.h
         src/base/commandlineflags.h
         src/base/basictypes.h
+        src/safe_strerror.h
         src/pagemap.h
         src/sampler.h
         src/central_freelist.h
@@ -728,6 +729,7 @@ set(libtcmalloc_minimal_internal_la_SOURCES src/common.cc
         src/internal_logging.cc
         ${SYSTEM_ALLOC_CC}
         src/memfs_malloc.cc
+        src/safe_strerror.cc
         src/central_freelist.cc
         src/page_heap.cc
         src/sampler.cc
@@ -902,6 +904,10 @@ if(BUILD_TESTING)
   add_executable(pagemap_unittest src/tests/pagemap_unittest.cc)
   target_link_libraries(pagemap_unittest PUBLIC tcmalloc_minimal)
   add_test(pagemap_unittest pagemap_unittest)
+
+  add_executable(safe_strerror_test src/tests/safe_strerror_test.cc src/safe_strerror.cc)
+  target_link_libraries(safe_strerror_test logging)
+  add_test(safe_strerror_test safe_strerror_test)
 
   set(realloc_unittest_SOURCES src/tests/realloc_unittest.cc
           src/config_for_unittests.h

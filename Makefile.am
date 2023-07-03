@@ -380,6 +380,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/tcmalloc_guard.h \
                               src/base/commandlineflags.h \
                               src/base/basictypes.h \
+                              src/safe_strerror.h \
                               src/pagemap.h \
                               src/sampler.h \
                               src/central_freelist.h \
@@ -419,6 +420,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           src/internal_logging.cc \
                                           $(SYSTEM_ALLOC_CC) \
                                           src/memfs_malloc.cc \
+                                          src/safe_strerror.cc \
                                           src/central_freelist.cc \
                                           src/page_heap.cc \
                                           src/sampler.cc \
@@ -674,6 +676,11 @@ pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
 pagemap_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 pagemap_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 pagemap_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+
+TESTS += safe_strerror_test
+safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
+                             src/safe_strerror.cc
+safe_strerror_test_LDADD = liblogging.la
 
 TESTS += realloc_unittest
 WINDOWS_PROJECTS += vsprojects/realloc_unittest/realloc_unittest.vcxproj

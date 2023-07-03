@@ -68,6 +68,7 @@
 #include <gperftools/malloc_extension.h>
 #include <gperftools/malloc_hook.h>
 #include <gperftools/stacktrace.h>
+
 #include "addressmap-inl.h"
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"
@@ -75,6 +76,7 @@
 #include "base/spinlock.h"
 #include "malloc_hook-inl.h"
 #include "symbolize.h"
+#include "safe_strerror.h"
 
 // NOTE: due to #define below, tcmalloc.cc will omit tc_XXX
 // definitions. So that debug implementations can be defined
@@ -527,12 +529,13 @@ class MallocBlock {
         // of memory in this mode due to tremendous amount of wastage. There
         // is no point in propagating the error elsewhere.
         RAW_LOG(FATAL, "Out of memory: possibly due to page fence overhead: %s",
-                strerror(errno));
+                tcmalloc::SafeStrError(errno).c_str());
       }
       // Mark the page after the block inaccessible
       if (mprotect(p + (num_pages - 1) * pagesize, pagesize,
                    PROT_NONE|(malloc_page_fence_readable ? PROT_READ : 0))) {
-        RAW_LOG(FATAL, "Guard page setup failed: %s", strerror(errno));
+        RAW_LOG(FATAL, "Guard page setup failed: %s",
+                tcmalloc::SafeStrError(errno).c_str());
       }
       b = (MallocBlock*) (p + (num_pages - 1) * pagesize - sz);
     } else {

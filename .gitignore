@@ -99,6 +99,7 @@
 /realloc_debug_unittest
 /realloc_unittest
 /realloc_unittest.exe
+/safe_strerror_test
 /sampler_debug_test
 /sampler_test
 /sampling_debug_test

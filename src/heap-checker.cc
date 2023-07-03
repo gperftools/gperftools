@@ -68,22 +68,24 @@
 
 #include <gperftools/heap-checker.h>
 
-#include "base/basictypes.h"
-#include "base/googleinit.h"
-#include "base/logging.h"
-#include <gperftools/stacktrace.h>
-#include "base/commandlineflags.h"
-#include "base/linuxthreads.h"
-#include "heap-profile-table.h"
-#include "base/low_level_alloc.h"
-#include "malloc_hook-inl.h"
-#include <gperftools/malloc_hook.h>
 #include <gperftools/malloc_extension.h>
+#include <gperftools/malloc_hook.h>
+#include <gperftools/stacktrace.h>
+
+#include "base/basictypes.h"
+#include "base/commandlineflags.h"
+#include "base/googleinit.h"
+#include "base/linuxthreads.h"
+#include "base/logging.h"
+#include "base/low_level_alloc.h"
+#include "base/spinlock.h"
+#include "base/stl_allocator.h"
+#include "base/sysinfo.h"
+#include "heap-profile-table.h"
+#include "malloc_hook-inl.h"
 #include "maybe_threads.h"
 #include "memory_region_map.h"
-#include "base/spinlock.h"
-#include "base/sysinfo.h"
-#include "base/stl_allocator.h"
+#include "safe_strerror.h"
 
 // When dealing with ptrace-ed threads, we need to capture all thread
 // registers (as potential live pointers), and we need to capture
@@ -1477,7 +1479,7 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
           // Skip unreadable object, so we don't crash trying to sweep it.
           RAW_VLOG(0, "Ignoring inaccessible object [%p, %p) "
                    "(msync error %d (%s))",
-                   object, object + size, errno, strerror(errno));
+                   object, object + size, errno, tcmalloc::SafeStrError(errno).c_str());
           continue;
         }
       }

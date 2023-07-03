@@ -60,6 +60,7 @@
 #include "base/googleinit.h"
 #include "base/sysinfo.h"
 #include "internal_logging.h"
+#include "safe_strerror.h"
 
 // TODO(sanjay): Move the code below into the tcmalloc namespace
 using tcmalloc::kLog;
@@ -187,7 +188,7 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
   int ret = ftruncate(hugetlb_fd_, hugetlb_base_ + size + extra);
   if (ret != 0 && errno != EINVAL) {
     Log(kLog, __FILE__, __LINE__,
-        "ftruncate failed", strerror(errno));
+        "ftruncate failed", tcmalloc::SafeStrError(errno).c_str());
     failed_ = true;
     return NULL;
   }
@@ -203,7 +204,8 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
     if (!FLAGS_memfs_malloc_ignore_mmap_fail) {
       Log(kLog, __FILE__, __LINE__,
-          "mmap failed (size, error)", size + extra, strerror(errno));
+          "mmap failed (size, error)", size + extra,
+          tcmalloc::SafeStrError(errno).c_str());
       failed_ = true;
     }
     return NULL;
@@ -239,14 +241,15 @@ bool HugetlbSysAllocator::Initialize() {
   if (hugetlb_fd == -1) {
     Log(kLog, __FILE__, __LINE__,
         "warning: unable to create memfs_malloc_path",
-        path, strerror(errno));
+        path, tcmalloc::SafeStrError(errno).c_str());
     return false;
   }
 
   // Cleanup memory on process exit
   if (unlink(path) == -1) {
     Log(kCrash, __FILE__, __LINE__,
-        "fatal: error unlinking memfs_malloc_path", path, strerror(errno));
+        "fatal: error unlinking memfs_malloc_path", path,
+        tcmalloc::SafeStrError(errno).c_str());
     return false;
   }
 
@@ -254,7 +257,8 @@ bool HugetlbSysAllocator::Initialize() {
   struct statfs sfs;
   if (fstatfs(hugetlb_fd, &sfs) == -1) {
     Log(kCrash, __FILE__, __LINE__,
-        "fatal: error fstatfs of memfs_malloc_path", strerror(errno));
+        "fatal: error fstatfs of memfs_malloc_path",
+        tcmalloc::SafeStrError(errno).c_str());
     return false;
   }
   int64 page_size = sfs.f_bsize;
