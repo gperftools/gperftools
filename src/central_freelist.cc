@@ -39,6 +39,12 @@
 #include "page_heap.h"         // for PageHeap
 #include "static_vars.h"       // for Static
 
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_add_overflow)
+#define USE_ADD_OVERFLOW
+#endif
+#endif
+
 using std::min;
 using std::max;
 
@@ -340,13 +346,39 @@ void CentralFreeList::Populate() {
   char* limit = ptr + (npages << kPageShift);
   const size_t size = Static::sizemap()->ByteSizeForClass(size_class_);
   int num = 0;
-  while (ptr + size <= limit) {
+
+  // Note, when ptr is close to the top of address space, ptr + size
+  // might overflow the top of address space before we're able to
+  // detect that it exceeded limit. So we need to be careful. See
+  // https://github.com/gperftools/gperftools/issues/1323.
+  ASSERT(limit - size >= ptr);
+  for (;;) {
+
+#ifndef USE_ADD_OVERFLOW
+    auto nextptr = reinterpret_cast<char *>(reinterpret_cast<uintptr_t>(ptr) + size);
+    if (nextptr < ptr || nextptr > limit) {
+      break;
+    }
+#else
+    // Same as above, just helping compiler a bit to produce better code
+    uintptr_t nextaddr;
+    if (__builtin_add_overflow(reinterpret_cast<uintptr_t>(ptr), size, &nextaddr)) {
+      break;
+    }
+    char* nextptr = reinterpret_cast<char*>(nextaddr);
+    if (nextptr > limit) {
+      break;
+    }
+#endif
+
+    // [ptr, ptr+size) bytes are all valid bytes, so append them
     *tail = ptr;
     tail = reinterpret_cast<void**>(ptr);
-    ptr += size;
     num++;
+    ptr = nextptr;
   }
   ASSERT(ptr <= limit);
+  ASSERT(ptr > limit - size); // same as ptr + size > limit but avoiding overflow
   *tail = NULL;
   span->refcount = 0; // No sub-object in use yet
 
