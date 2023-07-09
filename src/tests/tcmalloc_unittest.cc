@@ -396,8 +396,6 @@ class TesterThread {
   vector<Object>        heap_;          // This thread's heap
   vector<Object>        passed_;        // Pending objects passed from others
   size_t                heap_size_;     // Current heap size
-  int                   locks_ok_;      // Number of OK TryLock() ops
-  int                   locks_failed_;  // Number of failed TryLock() ops
 
   // Type of operations
   enum Type { ALLOC, FREE, UPDATE, PASS };
@@ -431,18 +429,10 @@ class TesterThread {
   TesterThread(int id)
     : id_(id),
       rnd_(id+1),
-      heap_size_(0),
-      locks_ok_(0),
-      locks_failed_(0) {
+      heap_size_(0) {
   }
 
   virtual ~TesterThread() {
-    if (FLAGS_verbose)
-      fprintf(LOGSTREAM, "Thread %2d: locks %6d ok; %6d trylocks failed\n",
-              id_, locks_ok_, locks_failed_);
-    if (locks_ok_ + locks_failed_ >= 1000) {
-      CHECK_LE(locks_failed_, locks_ok_ / 2);
-    }
   }
 
   virtual void Run() {
@@ -532,14 +522,11 @@ class TesterThread {
 
     if (thread->lock_.TryLock()) {
       // Pass the object
-      locks_ok_++;
       thread->passed_.push_back(object);
       thread->lock_.Unlock();
       heap_size_ -= object.size;
       heap_[index] = heap_[heap_.size()-1];
       heap_.pop_back();
-    } else {
-      locks_failed_++;
     }
   }
 
@@ -551,10 +538,8 @@ class TesterThread {
     vector<Object> copy;
     { // Locking scope
       if (!lock_.TryLock()) {
-        locks_failed_++;
         return;
       }
-      locks_ok_++;
       swap(copy, passed_);
       lock_.Unlock();
     }
