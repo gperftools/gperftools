@@ -635,12 +635,8 @@ malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.cc \
                                   src/gperftools/malloc_extension.h \
                                   src/gperftools/malloc_extension_c.h
 malloc_extension_c_test_CFLAGS = $(PTHREAD_CFLAGS) $(AM_CFLAGS)
-# -ansi here is just to help ensure the code is bog-standard C.
-if GCC
-malloc_extension_c_test_CFLAGS += -ansi
-endif GCC
 malloc_extension_c_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-malloc_extension_c_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS) -lstdc++ -lm
+malloc_extension_c_test_LDADD = libtcmalloc_minimal.la
 endif !MINGW
 
 if !MINGW
