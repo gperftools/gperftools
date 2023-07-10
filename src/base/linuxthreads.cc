@@ -42,6 +42,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <limits.h>
 #include <sched.h>
 #include <signal.h>
 #include <stdio.h>
@@ -647,6 +648,14 @@ int TCMalloc_ListAllProcessThreads(void *parameter,
     return -1;
   }
   need_sigprocmask = 1;
+
+  // make sure all functions used by parent from local_clone to after
+  // waitpid have plt entries fully initialized. We cannot afford
+  // dynamic linker running relocations and messing with errno (see
+  // comment just below)
+  (void)prctl(PR_GET_PDEATHSIG, 0);
+  (void)close(-1);
+  (void)waitpid(INT_MIN, nullptr, 0);
 
   /* After cloning, both the parent and the child share the same
    * instance of errno. We deal with this by being very
