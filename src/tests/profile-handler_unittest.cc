@@ -12,10 +12,14 @@
 #include "config.h"
 #include "profile-handler.h"
 
+#include <atomic>
+
 #include <assert.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <stdint.h>
 #include <time.h>
+
 #include "base/logging.h"
 #include "base/simple_mutex.h"
 
@@ -25,6 +29,45 @@
 // Do we expect the profiler to be enabled?
 DEFINE_bool(test_profiler_enabled, true,
             "expect profiler to be enabled during tests");
+
+
+// In order to cover fix for github issue at:
+// https://github.com/gperftools/gperftools/issues/412 we override
+// operators new/delete to simulate condition where another thread is
+// having malloc lock and making sure that profiler handler can
+// unregister callbacks without deadlocking. Thus this
+// "infrastructure" below.
+namespace {
+std::atomic<uint64_t> allocate_count;
+std::atomic<uint64_t> free_count;
+// We also "frob" this lock down in BusyThread.
+Mutex allocate_lock;
+
+void* do_allocate(size_t sz) {
+  MutexLock h(&allocate_lock);
+  allocate_count++;
+  return malloc(sz);
+}
+void do_free(void* p) {
+  MutexLock h(&allocate_lock);
+  free_count++;
+  free(p);
+}
+}  // namespace
+
+void* operator new(size_t sz) { return do_allocate(sz); }
+void* operator new[](size_t sz) { return do_allocate(sz); }
+void operator delete(void* p) { do_free(p); }
+void operator delete[](void* p) { do_free(p); }
+
+void operator delete(void* p, size_t sz) { do_free(p); }
+void operator delete[](void* p, size_t sz) { do_free(p); }
+
+void* operator new(size_t sz, const std::nothrow_t& nt) { return do_allocate(sz); }
+void* operator new[](size_t sz, const std::nothrow_t& nt) { return do_allocate(sz); };
+
+void operator delete(void* p, const std::nothrow_t& nt) { do_free(p); }
+void operator delete[](void* p, const std::nothrow_t& nt) { do_free(p); }
 
 namespace {
 
@@ -119,9 +162,18 @@ class BusyThread : public Thread {
   // Whether to stop work?
   bool stop_work_;
 
-  // Do work until asked to stop.
+  // Do work until asked to stop. We also stump on allocate_lock to
+  // verify that perf handler re/unre-gistration doesn't deadlock with
+  // malloc locks.
   void Run() {
-    while (!stop_work()) {
+    for (;;) {
+      MutexLock h(&allocate_lock);
+      for (int i = 1000; i > 0; i--) {
+        if (stop_work()) {
+          return;
+        }
+        (void)*(const_cast<volatile bool*>(&stop_work_));
+      }
     }
   }
 };
@@ -274,8 +326,11 @@ class ProfileHandlerTest {
   // Unregisters a callback and waits for kTimerResetInterval for timers to get
   // reset.
   void UnregisterCallback(ProfileHandlerToken* token) {
+    allocate_count.store(0);
+    free_count.store(0);
     ProfileHandlerUnregisterCallback(token);
     Delay(kTimerResetInterval);
+    CHECK(free_count.load() > 0);
   }
 
   // Busy worker thread to accumulate cpu usage.

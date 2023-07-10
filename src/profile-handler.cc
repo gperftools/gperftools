@@ -207,6 +207,8 @@ class ProfileHandler {
   //  - Acquire control_lock_
   //  - Disable SIGPROF handler.
   //  - Acquire signal_lock_
+  //  - Nothing that takes ~any other lock can be nested
+  //    here. E.g. including malloc. Otherwise deadlock is possible.
   // For read-only access in the context of SIGPROF handler
   // (Read-write access is *not allowed* in the SIGPROF handler)
   //  - Acquire signal_lock_
@@ -219,7 +221,7 @@ class ProfileHandler {
   // Starts or stops the interval timer.
   // Will ignore any requests to enable or disable when
   // per_thread_timer_enabled_ is true.
-  void UpdateTimer(bool enable) EXCLUSIVE_LOCKS_REQUIRED(signal_lock_);
+  void UpdateTimer(bool enable) EXCLUSIVE_LOCKS_REQUIRED(control_lock_);
 
   // Returns true if the handler is not being used by something else.
   // This checks the kernel's signal handler table.
@@ -415,8 +417,6 @@ void ProfileHandler::RegisterThread() {
   }
 
   // Record the thread identifier and start the timer if profiling is on.
-  ScopedSignalBlocker block(signal_number_);
-  SpinLockHolder sl(&signal_lock_);
 #if HAVE_LINUX_SIGEV_THREAD_ID
   if (per_thread_timer_enabled_) {
     StartLinuxThreadTimer(timer_type_, signal_number_, frequency_,
@@ -431,55 +431,73 @@ ProfileHandlerToken* ProfileHandler::RegisterCallback(
     ProfileHandlerCallback callback, void* callback_arg) {
 
   ProfileHandlerToken* token = new ProfileHandlerToken(callback, callback_arg);
+  CallbackList copy;
+  copy.push_back(token);
 
   SpinLockHolder cl(&control_lock_);
   {
     ScopedSignalBlocker block(signal_number_);
     SpinLockHolder sl(&signal_lock_);
-    callbacks_.push_back(token);
-    ++callback_count_;
-    UpdateTimer(true);
+    callbacks_.splice(callbacks_.end(), copy);
   }
+
+  ++callback_count_;
+  UpdateTimer(true);
   return token;
 }
 
 void ProfileHandler::UnregisterCallback(ProfileHandlerToken* token) {
   SpinLockHolder cl(&control_lock_);
-  for (CallbackIterator it = callbacks_.begin(); it != callbacks_.end();
-       ++it) {
-    if ((*it) == token) {
-      RAW_CHECK(callback_count_ > 0, "Invalid callback count");
-      {
-        ScopedSignalBlocker block(signal_number_);
-        SpinLockHolder sl(&signal_lock_);
-        delete *it;
-        callbacks_.erase(it);
-        --callback_count_;
-        if (callback_count_ == 0)
-          UpdateTimer(false);
-      }
-      return;
+  RAW_CHECK(callback_count_ > 0, "Invalid callback count");
+
+  CallbackList copy;
+  bool found = false;
+  for (ProfileHandlerToken* callback_token : callbacks_) {
+    if (callback_token == token) {
+      found = true;
+    } else {
+      copy.push_back(callback_token);
     }
   }
-  // Unknown token.
-  RAW_LOG(FATAL, "Invalid token");
+
+  if (!found) {
+    RAW_LOG(FATAL, "Invalid token");
+  }
+
+  {
+    ScopedSignalBlocker block(signal_number_);
+    SpinLockHolder sl(&signal_lock_);
+    // Replace callback list holding signal lock. We cannot call
+    // pretty much anything that takes locks. Including malloc
+    // locks. So we only swap here and cleanup later.
+    using std::swap;
+    swap(copy, callbacks_);
+  }
+  // copy gets deleted after signal_lock_ is dropped
+
+  --callback_count_;
+  if (callback_count_ == 0) {
+    UpdateTimer(false);
+  }
+  delete token;
 }
 
 void ProfileHandler::Reset() {
   SpinLockHolder cl(&control_lock_);
+  CallbackList copy;
   {
     ScopedSignalBlocker block(signal_number_);
     SpinLockHolder sl(&signal_lock_);
-    CallbackIterator it = callbacks_.begin();
-    while (it != callbacks_.end()) {
-      CallbackIterator tmp = it;
-      ++it;
-      delete *tmp;
-      callbacks_.erase(tmp);
-    }
-    callback_count_ = 0;
-    UpdateTimer(false);
+    // Only do swap under this critical lock.
+    using std::swap;
+    swap(copy, callbacks_);
   }
+  for (ProfileHandlerToken* token : copy) {
+    delete token;
+  }
+  callback_count_ = 0;
+  UpdateTimer(false);
+  // copy gets deleted here
 }
 
 void ProfileHandler::GetState(ProfileHandlerState* state) {
