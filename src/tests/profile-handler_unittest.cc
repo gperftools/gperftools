@@ -130,14 +130,8 @@ void Delay(int delay_ns) {
 bool IsTimerEnabled() {
   itimerval current_timer;
   EXPECT_EQ(0, getitimer(timer_type_, &current_timer));
-  if ((current_timer.it_value.tv_sec == 0) &&
-      (current_timer.it_value.tv_usec != 0)) {
-    // May be the timer has expired. Sleep for a bit and check again.
-    Delay(kTimerResetInterval);
-    EXPECT_EQ(0, getitimer(timer_type_, &current_timer));
-  }
-  return (current_timer.it_value.tv_sec != 0 ||
-          current_timer.it_value.tv_usec != 0);
+  return (current_timer.it_interval.tv_sec != 0 ||
+          current_timer.it_interval.tv_usec != 0);
 }
 
 // Dummy worker thread to accumulate cpu time.
