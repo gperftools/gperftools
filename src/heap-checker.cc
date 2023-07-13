@@ -71,6 +71,7 @@
 #include <gperftools/malloc_extension.h>
 #include <gperftools/malloc_hook.h>
 #include <gperftools/stacktrace.h>
+#include <gperftools/tcmalloc.h>
 
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
@@ -2118,13 +2119,15 @@ void HeapLeakChecker_InternalInitStart() {
   // and heap profiler is indeed able to keep track
   // of the objects being allocated.
   // We test this to make sure we are indeed checking for leaks.
-  char* test_str = new char[5];
+  char* test_str = new (tc_newarray(5)) char[5];
   size_t size;
   { SpinLockHolder l(&heap_checker_lock);
     RAW_CHECK(heap_profile->FindAlloc(test_str, &size),
               "our own new/delete not linked?");
   }
-  delete[] test_str;
+
+  tc_deletearray(test_str);
+
   { SpinLockHolder l(&heap_checker_lock);
     // This check can fail when it should not if another thread allocates
     // into this same spot right this moment,
