@@ -111,6 +111,7 @@ extern PERFTOOLS_DLL_DECL void (*log_message_writer)(const char* msg, int length
 do {                                                                     \
   if (!(cond)) {                                                         \
     ::tcmalloc::Log(::tcmalloc::kCrash, __FILE__, __LINE__, #cond);      \
+    for (;;) {} /* unreachable */                                        \
   }                                                                      \
 } while (0)
 
