@@ -31,6 +31,8 @@
 // ---
 // Author: Fred Akalin
 
+#include "config_for_unittests.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h> // for memcmp

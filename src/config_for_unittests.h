@@ -63,3 +63,25 @@
 #else
 # define PERFTOOLS_DLL_DECL  // if DLL_DECL_FOR_UNITTESTS isn't defined, use ""
 #endif
+
+#if defined(__clang__)
+#if __has_warning("-Wuse-after-free")
+#pragma clang diagnostic ignored "-Wuse-after-free"
+#endif
+#if __has_warning("-Wunused-result")
+#pragma clang diagnostic ignored "-Wunused-result"
+#endif
+#if __has_warning("-Wunused-private-field")
+#pragma clang diagnostic ignored "-Wunused-private-field"
+#endif
+#if __has_warning("-Wimplicit-exception-spec-mismatch")
+#pragma clang diagnostic ignored "-Wimplicit-exception-spec-mismatch"
+#endif
+#if __has_warning("-Wmissing-exception-spec")
+#pragma clang diagnostic ignored "-Wmissing-exception-spec"
+#endif
+#elif defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wpragmas" // warning: unknown option after '#pragma GCC diagnostic' kind
+#pragma GCC diagnostic ignored "-Wuse-after-free"
+#pragma GCC diagnostic ignored "-Wunused-result"
+#endif

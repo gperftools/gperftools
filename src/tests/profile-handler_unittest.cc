@@ -9,7 +9,8 @@
 //
 // This file contains the unit tests for profile-handler.h interface.
 
-#include "config.h"
+#include "config_for_unittests.h"
+
 #include "profile-handler.h"
 
 #include <atomic>
