@@ -304,8 +304,7 @@ class MallocBlock {
   // ...
   // then come the size2_ and magic2_, or a full page of mprotect-ed memory
   // if the malloc_page_fence feature is enabled.
-  size_t size2_;
-  size_t magic2_;
+  size_t size_and_magic2_[2];
 
  private:  // static data and helpers
 
@@ -376,9 +375,12 @@ class MallocBlock {
   // malloc_page_fence option) then there's no size2 or magic2
   // (instead, the guard page begins where size2 would be).
 
-  size_t* size2_addr() { return (size_t*)((char*)&size2_ + size1_); }
   const size_t* size2_addr() const {
-    return (const size_t*)((char*)&size2_ + size1_);
+    return (const size_t*)((const char*)&size_and_magic2_ + size1_);
+  }
+  size_t* size2_addr() {
+    const auto* cthis = this;
+    return const_cast<size_t*>(cthis->size2_addr());
   }
 
   size_t* magic2_addr() { return (size_t*)(size2_addr() + 1); }
@@ -489,10 +491,10 @@ class MallocBlock {
 
  public:  // public accessors
 
-  void* data_addr() { return (void*)&size2_; }
-  const void* data_addr() const { return (const void*)&size2_; }
+  void* data_addr() { return (void*)&size_and_magic2_; }
+  const void* data_addr() const { return (const void*)&size_and_magic2_; }
 
-  static size_t data_offset() { return OFFSETOF_MEMBER(MallocBlock, size2_); }
+  static size_t data_offset() { return OFFSETOF_MEMBER(MallocBlock, size_and_magic2_); }
 
   size_t data_size() const { return size1_; }
 
