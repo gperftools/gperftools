@@ -135,7 +135,7 @@ enum { DEBUG_MODE = 1 };
 #define CHECK_OP(op, val1, val2)                                        \
   do {                                                                  \
     if (!((val1) op (val2))) {                                          \
-      fprintf(stderr, "Check failed: %s %s %s\n", #val1, #op, #val2);   \
+      fprintf(stderr, "%s:%d Check failed: %s %s %s\n", __FILE__, __LINE__, #val1, #op, #val2); \
       abort();                                                          \
     }                                                                   \
   } while (0)
