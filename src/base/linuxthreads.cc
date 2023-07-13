@@ -137,23 +137,6 @@ static const int sync_signals[]  = {
   SIGSYS, SIGTRAP,
   SIGXCPU, SIGXFSZ };
 
-/* itoa() is not a standard function, and we cannot safely call printf()
- * after suspending threads. So, we just implement our own copy. A
- * recursive approach is the easiest here.
- */
-static char *local_itoa(char *buf, int i) {
-  if (i < 0) {
-    *buf++ = '-';
-    return local_itoa(buf, -i);
-  } else {
-    if (i >= 10)
-      buf = local_itoa(buf, i/10);
-    *buf++ = (i%10) + '0';
-    *buf   = '\000';
-    return buf;
-  }
-}
-
 ATTRIBUTE_NOINLINE
 static int local_clone (int (*fn)(void *), void *arg) {
 #ifdef __PPC64__
