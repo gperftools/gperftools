@@ -58,10 +58,7 @@
 
 namespace {
 
-using std::string;
-using std::vector;
-
-vector<void (*)()> g_testlist;  // the tests to run
+std::vector<void (*)()> g_testlist;  // the tests to run
 
 #define TEST(a, b)                                      \
   struct Test_##a##_##b {                               \
@@ -73,7 +70,7 @@ vector<void (*)()> g_testlist;  // the tests to run
 
 
 static int RUN_ALL_TESTS() {
-  vector<void (*)()>::const_iterator it;
+  std::vector<void (*)()>::const_iterator it;
   for (it = g_testlist.begin(); it != g_testlist.end(); ++it) {
     (*it)();   // The test will error-exit if there's a problem.
   }
@@ -90,7 +87,6 @@ void Sleep(int seconds) {
 #endif
 }
 
-using std::min;
 using base::internal::kHookListMaxValues;
 
 // Since HookList is a template and is defined in malloc_hook.cc, we can only
@@ -98,113 +94,102 @@ using base::internal::kHookListMaxValues;
 // values as integers for testing.
 typedef base::internal::HookList<MallocHook::NewHook> TestHookList;
 
-int TestHookList_Traverse(const TestHookList& list, uintptr_t* output_array, int n) {
-  MallocHook::NewHook values_as_hooks[kHookListMaxValues];
-  int result = list.Traverse(values_as_hooks, min(n, kHookListMaxValues));
-  for (int i = 0; i < result; ++i) {
-    output_array[i] = reinterpret_cast<const uintptr_t>(*values_as_hooks[i]);
-  }
-  return result;
-}
 
-bool TestHookList_Add(TestHookList* list, int val) {
-  return list->Add(reinterpret_cast<MallocHook::NewHook>(val));
-}
-
-bool TestHookList_Remove(TestHookList* list, int val) {
-  return list->Remove(reinterpret_cast<MallocHook::NewHook>(val));
-}
+const MallocHook::NewHook kTestValue = reinterpret_cast<MallocHook::NewHook>(69);
+const MallocHook::NewHook kAnotherTestValue = reinterpret_cast<MallocHook::NewHook>(42);
+const MallocHook::NewHook kThirdTestValue = reinterpret_cast<MallocHook::NewHook>(7);
 
 TEST(HookListTest, InitialValueExists) {
-  TestHookList list{69};
-  uintptr_t values[2] = { 0, 0 };
-  EXPECT_EQ(1, TestHookList_Traverse(list, values, 2));
-  EXPECT_EQ(69, values[0]);
+  TestHookList list{kTestValue};
+  MallocHook::NewHook values[2] = {};
+  EXPECT_EQ(1, list.Traverse(values, 2));
+  EXPECT_EQ(kTestValue, values[0]);
   EXPECT_EQ(1, list.priv_end);
 }
 
 TEST(HookListTest, CanRemoveInitialValue) {
-  TestHookList list{69};
-  ASSERT_TRUE(TestHookList_Remove(&list, 69));
+  TestHookList list{kTestValue};
+  ASSERT_TRUE(list.Remove(kTestValue));
   EXPECT_EQ(0, list.priv_end);
 
-  uintptr_t values[2] = { 0, 0 };
-  EXPECT_EQ(0, TestHookList_Traverse(list, values, 2));
+  MallocHook::NewHook values[2] = {};
+  EXPECT_EQ(0, list.Traverse(values, 2));
 }
 
 TEST(HookListTest, AddAppends) {
-  TestHookList list{69};
-  ASSERT_TRUE(TestHookList_Add(&list, 42));
+  TestHookList list{kTestValue};
+  ASSERT_TRUE(list.Add(kAnotherTestValue));
   EXPECT_EQ(2, list.priv_end);
 
-  uintptr_t values[2] = { 0, 0 };
-  EXPECT_EQ(2, TestHookList_Traverse(list, values, 2));
-  EXPECT_EQ(69, values[0]);
-  EXPECT_EQ(42, values[1]);
+  MallocHook::NewHook values[2] = {};
+  EXPECT_EQ(2, list.Traverse(values, 2));
+  EXPECT_EQ(kTestValue, values[0]);
+  EXPECT_EQ(kAnotherTestValue, values[1]);
 }
 
 TEST(HookListTest, RemoveWorksAndWillClearSize) {
-  TestHookList list{69};
-  ASSERT_TRUE(TestHookList_Add(&list, 42));
+  TestHookList list{kTestValue};
+  ASSERT_TRUE(list.Add(kAnotherTestValue));
 
-  ASSERT_TRUE(TestHookList_Remove(&list, 69));
+  ASSERT_TRUE(list.Remove(kTestValue));
   EXPECT_EQ(2, list.priv_end);
 
-  uintptr_t values[2] = { 0, 0 };
-  EXPECT_EQ(1, TestHookList_Traverse(list, values, 2));
-  EXPECT_EQ(42, values[0]);
+  MallocHook::NewHook values[2] = {};
+  EXPECT_EQ(1, list.Traverse(values, 2));
+  EXPECT_EQ(kAnotherTestValue, values[0]);
 
-  ASSERT_TRUE(TestHookList_Remove(&list, 42));
+  ASSERT_TRUE(list.Remove(kAnotherTestValue));
   EXPECT_EQ(0, list.priv_end);
-  EXPECT_EQ(0, TestHookList_Traverse(list, values, 2));
+  EXPECT_EQ(0, list.Traverse(values, 2));
 }
 
 TEST(HookListTest, AddPrependsAfterRemove) {
-  TestHookList list{69};
-  ASSERT_TRUE(TestHookList_Add(&list, 42));
+  TestHookList list{kTestValue};
+  ASSERT_TRUE(list.Add(kAnotherTestValue));
 
-  ASSERT_TRUE(TestHookList_Remove(&list, 69));
+  ASSERT_TRUE(list.Remove(kTestValue));
   EXPECT_EQ(2, list.priv_end);
 
-  ASSERT_TRUE(TestHookList_Add(&list, 7));
+  ASSERT_TRUE(list.Add(kThirdTestValue));
   EXPECT_EQ(2, list.priv_end);
 
-  uintptr_t values[2] = { 0, 0 };
-  EXPECT_EQ(2, TestHookList_Traverse(list, values, 2));
-  EXPECT_EQ(7, values[0]);
-  EXPECT_EQ(42, values[1]);
+  MallocHook::NewHook values[3] = {};
+  EXPECT_EQ(2, list.Traverse(values, 3));
+  EXPECT_EQ(kThirdTestValue, values[0]);
+  EXPECT_EQ(kAnotherTestValue, values[1]);
 }
 
 TEST(HookListTest, InvalidAddRejected) {
-  TestHookList list{69};
-  EXPECT_FALSE(TestHookList_Add(&list, 0));
+  TestHookList list{kTestValue};
+  EXPECT_FALSE(list.Add(nullptr));
 
-  uintptr_t values[2] = { 0, 0 };
-  EXPECT_EQ(1, TestHookList_Traverse(list, values, 2));
-  EXPECT_EQ(69, values[0]);
+  MallocHook::NewHook values[2] = {};
+  EXPECT_EQ(1, list.Traverse(values, 2));
+  EXPECT_EQ(kTestValue, values[0]);
   EXPECT_EQ(1, list.priv_end);
 }
 
 TEST(HookListTest, FillUpTheList) {
-  TestHookList list{69};
+  TestHookList list{kTestValue};
   int num_inserts = 0;
-  while (TestHookList_Add(&list, ++num_inserts))
-    ;
+  while (list.Add(reinterpret_cast<MallocHook::NewHook>(++num_inserts))) {
+    // empty
+  }
   EXPECT_EQ(kHookListMaxValues, num_inserts);
   EXPECT_EQ(kHookListMaxValues, list.priv_end);
 
-  uintptr_t values[kHookListMaxValues + 1];
-  EXPECT_EQ(kHookListMaxValues, TestHookList_Traverse(list, values,
-                                                      kHookListMaxValues));
-  EXPECT_EQ(69, values[0]);
+  MallocHook::NewHook values[kHookListMaxValues + 1];
+  EXPECT_EQ(kHookListMaxValues, list.Traverse(values,
+                                              kHookListMaxValues));
+  EXPECT_EQ(kTestValue, values[0]);
   for (int i = 1; i < kHookListMaxValues; ++i) {
-    EXPECT_EQ(i, values[i]);
+    EXPECT_EQ(reinterpret_cast<MallocHook::NewHook>(i), values[i]);
   }
 }
 
 void MultithreadedTestThread(TestHookList* list, int shift,
                              int thread_num) {
-  string message;
+  std::string message;
   char buf[64];
   for (int i = 1; i < 1000; ++i) {
     // In each loop, we insert a unique value, check it exists, remove it, and
@@ -212,38 +197,50 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     // each thread.  Each insertion location and the length of the list is
     // non-deterministic (except for the very first one, over all threads, and
     // after the very last one the list should be empty).
-    int value = (i << shift) + thread_num;
-    EXPECT_TRUE(TestHookList_Add(list, value));
+    const auto value = reinterpret_cast<MallocHook::NewHook>((i << shift) + thread_num);
+    EXPECT_TRUE(list->Add(value));
+
     sched_yield();  // Ensure some more interleaving.
-    uintptr_t values[kHookListMaxValues + 1];
-    int num_values = TestHookList_Traverse(*list, values, kHookListMaxValues);
+
+    MallocHook::NewHook values[kHookListMaxValues + 1];
+    int num_values = list->Traverse(values, kHookListMaxValues + 1);
     EXPECT_LT(0, num_values);
+
     int value_index;
     for (value_index = 0;
          value_index < num_values && values[value_index] != value;
-         ++value_index)
-      ;
+         ++value_index) {
+      // empty
+    }
+
     EXPECT_LT(value_index, num_values);  // Should have found value.
     snprintf(buf, sizeof(buf), "[%d/%d; ", value_index, num_values);
     message += buf;
+
     sched_yield();
-    EXPECT_TRUE(TestHookList_Remove(list, value));
+
+    EXPECT_TRUE(list->Remove(value));
+
     sched_yield();
-    num_values = TestHookList_Traverse(*list, values, kHookListMaxValues);
+
+    num_values = list->Traverse(values, kHookListMaxValues);
     for (value_index = 0;
          value_index < num_values && values[value_index] != value;
-         ++value_index)
-      ;
+         ++value_index) {
+      // empty
+    }
+
     EXPECT_EQ(value_index, num_values);  // Should not have found value.
     snprintf(buf, sizeof(buf), "%d]", num_values);
     message += buf;
+
     sched_yield();
   }
   fprintf(stderr, "thread %d: %s\n", thread_num, message.c_str());
 }
 
 static volatile int num_threads_remaining;
-static TestHookList list{69};
+static TestHookList list{kTestValue};
 static Mutex threadcount_lock;
 
 void MultithreadedTestThreadRunner(int thread_num) {
@@ -264,15 +261,16 @@ void MultithreadedTestThreadRunner(int thread_num) {
 
   // shift is the smallest number such that (1<<shift) > kHookListMaxValues
   int shift = 0;
-  for (int i = kHookListMaxValues; i > 0; i >>= 1)
+  for (int i = kHookListMaxValues; i > 0; i >>= 1) {
     shift += 1;
+  }
 
   MultithreadedTestThread(&list, shift, thread_num);
 }
 
 
 TEST(HookListTest, MultithreadedTest) {
-  ASSERT_TRUE(TestHookList_Remove(&list, 69));
+  ASSERT_TRUE(list.Remove(kTestValue));
   ASSERT_EQ(0, list.priv_end);
 
   // Run kHookListMaxValues thread, each running MultithreadedTestThread.
@@ -281,8 +279,8 @@ TEST(HookListTest, MultithreadedTest) {
   RunManyThreadsWithId(&MultithreadedTestThreadRunner, num_threads_remaining,
                        1 << 15);
 
-  uintptr_t values[kHookListMaxValues + 1];
-  EXPECT_EQ(0, TestHookList_Traverse(list, values, kHookListMaxValues));
+  MallocHook::NewHook values[kHookListMaxValues + 1];
+  EXPECT_EQ(0, list.Traverse(values, kHookListMaxValues + 1));
   EXPECT_EQ(0, list.priv_end);
 }
 

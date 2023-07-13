@@ -64,7 +64,7 @@ struct PERFTOOLS_DLL_DECL HookList {
   static_assert(sizeof(T) <= sizeof(uintptr_t), "must fit in uintptr_t");
 
   constexpr HookList() = default;
-  explicit constexpr HookList(uintptr_t priv_data_initial) : priv_end{1}, priv_data{priv_data_initial} {}
+  explicit constexpr HookList(T priv_data_initial) : priv_end{1}, priv_data{priv_data_initial} {}
 
   // Adds value to the list.  Note that duplicates are allowed.  Thread-safe and
   // blocking (acquires hooklist_spinlock).  Returns true on success; false
@@ -105,16 +105,16 @@ struct PERFTOOLS_DLL_DECL HookList {
   //
   // Index kHookListCapacity-1 is reserved as 'deprecated' single hook pointer
   std::atomic<uintptr_t> priv_end;
-  uintptr_t priv_data[kHookListCapacity];
+  T priv_data[kHookListCapacity];
 
   // C++ 11 doesn't let us initialize array of atomics, so we made
-  // priv_data regular uintptr_t-s and cast when reading and writing
+  // priv_data regular array of T and cast when reading and writing
   // (which is portable in practice)
-  std::atomic<uintptr_t>* cast_priv_data(int index) {
-    return reinterpret_cast<std::atomic<uintptr_t>*>(priv_data + index);
+  std::atomic<T>* cast_priv_data(int index) {
+    return reinterpret_cast<std::atomic<T>*>(priv_data + index);
   }
-  std::atomic<uintptr_t> const * cast_priv_data(int index) const {
-    return reinterpret_cast<std::atomic<uintptr_t> const *>(priv_data + index);
+  std::atomic<T> const * cast_priv_data(int index) const {
+    return reinterpret_cast<std::atomic<T> const *>(priv_data + index);
   }
 };
 
