@@ -30,6 +30,7 @@
 
 // ---
 // Author: Sanjay Ghemawat
+#undef NDEBUG
 
 #include "config_for_unittests.h"
 #include <stdio.h>
