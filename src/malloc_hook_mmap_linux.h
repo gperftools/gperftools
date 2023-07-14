@@ -60,7 +60,7 @@
 
 static inline void* do_mmap64(void *start, size_t length,
                               int prot, int flags,
-                              int fd, off64_t offset) __THROW {
+                              int fd, off_t offset) __THROW {
 #if defined(__s390__)
   long args[6] = { (long)start, (long)length, (long)prot, (long)flags,
                    (long)fd, (long)offset };
