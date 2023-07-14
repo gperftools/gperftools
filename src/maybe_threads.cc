@@ -130,45 +130,6 @@ int perftools_pthread_setspecific(pthread_key_t key, void *val) {
   }
 }
 
-
-static pthread_once_t pthread_once_init = PTHREAD_ONCE_INIT;
-int perftools_pthread_once(pthread_once_t *ctl,
-                           void  (*init_routine) (void)) {
-#if PTHREADS_CRASHES_IF_RUN_TOO_EARLY
-  // On __FreeBSD__, calling pthread_once on a system that is not
-  // linked with -pthread is silently a noop. :-( Luckily, we have a
-  // workaround: FreeBSD exposes __isthreaded in <stdio.h>, which is
-  // set to 1 when the first thread is spawned.  So on those systems,
-  // we can use our own separate pthreads-once mechanism, which is
-  // used until __isthreaded is 1 (which will never be true if the app
-  // is not linked with -pthread).
-  // On AIX __n_pthreads is -1 until pthreads has been intialized
-  static bool pthread_once_ran_before_threads = false;
-  if (pthread_once_ran_before_threads) {
-    return 0;
-  }
- #ifdef __FreeBSD__
-  if (!__isthreaded) {
- #endif
- #ifdef _AIX
-  if (__n_pthreads == -1) {
- #endif
-    init_routine();
-    pthread_once_ran_before_threads = true;
-    return 0;
-  }
-#endif
-  if (pthread_once) {
-    return pthread_once(ctl, init_routine);
-  } else {
-    if (memcmp(ctl, &pthread_once_init, sizeof(*ctl)) == 0) {
-      init_routine();
-      ++*(char*)(ctl);        // make it so it's no longer equal to init
-    }
-    return 0;
-  }
-}
-
 #ifdef HAVE_FORK
 
 void perftools_pthread_atfork(void (*before)(),

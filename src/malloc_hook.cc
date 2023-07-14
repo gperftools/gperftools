@@ -91,7 +91,7 @@ namespace {
 
 void RemoveInitialHooksAndCallInitializers();  // below.
 
-pthread_once_t once = PTHREAD_ONCE_INIT;
+tcmalloc::TrivialOnce once{base::LINKER_INITIALIZED};
 
 // These hooks are installed in MallocHook as the only initial hooks.  The first
 // hook that is called will run RemoveInitialHooksAndCallInitializers (see the
@@ -115,7 +115,7 @@ pthread_once_t once = PTHREAD_ONCE_INIT;
 //   RemoveInitialHooksAndCallInitializers.
 
 void InitialNewHook(const void* ptr, size_t size) {
-  perftools_pthread_once(&once, &RemoveInitialHooksAndCallInitializers);
+  once.RunOnce(&RemoveInitialHooksAndCallInitializers);
   MallocHook::InvokeNewHook(ptr, size);
 }
 
@@ -125,12 +125,12 @@ void InitialPreMMapHook(const void* start,
                                int flags,
                                int fd,
                                off_t offset) {
-  perftools_pthread_once(&once, &RemoveInitialHooksAndCallInitializers);
+  once.RunOnce(&RemoveInitialHooksAndCallInitializers);
   MallocHook::InvokePreMmapHook(start, size, protection, flags, fd, offset);
 }
 
 void InitialPreSbrkHook(ptrdiff_t increment) {
-  perftools_pthread_once(&once, &RemoveInitialHooksAndCallInitializers);
+  once.RunOnce(&RemoveInitialHooksAndCallInitializers);
   MallocHook::InvokePreSbrkHook(increment);
 }
 

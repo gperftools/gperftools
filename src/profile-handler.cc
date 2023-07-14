@@ -152,9 +152,6 @@ class ProfileHandler {
   // ProfileHandler singleton.
   static ProfileHandler* instance_;
 
-  // pthread_once_t for one time initialization of ProfileHandler singleton.
-  static pthread_once_t once_;
-
   // Initializes the ProfileHandler singleton via GoogleOnceInit.
   static void Init();
 
@@ -234,7 +231,6 @@ class ProfileHandler {
 };
 
 ProfileHandler* ProfileHandler::instance_ = NULL;
-pthread_once_t ProfileHandler::once_ = PTHREAD_ONCE_INIT;
 
 const int32 ProfileHandler::kMaxFrequency;
 const int32 ProfileHandler::kDefaultFrequency;
@@ -244,9 +240,6 @@ const int32 ProfileHandler::kDefaultFrequency;
 // which will cause the non-definition to resolve to NULL.  We can then check
 // for NULL or not in Instance.
 extern "C" {
-int pthread_once(pthread_once_t *, void (*)(void)) ATTRIBUTE_WEAK;
-int pthread_kill(pthread_t thread_id, int signo) ATTRIBUTE_WEAK;
-
 #if HAVE_LINUX_SIGEV_THREAD_ID
 int timer_create(clockid_t clockid, struct sigevent* evp,
                  timer_t* timerid) ATTRIBUTE_WEAK;
@@ -320,17 +313,13 @@ void ProfileHandler::Init() {
   instance_ = new ProfileHandler();
 }
 
+static tcmalloc::TrivialOnce instance_once{base::LINKER_INITIALIZED};
+
 ProfileHandler* ProfileHandler::Instance() {
-  if (pthread_once) {
-    pthread_once(&once_, Init);
-  }
-  if (instance_ == NULL) {
-    // This will be true on systems that don't link in pthreads,
-    // including on FreeBSD where pthread_once has a non-zero address
-    // (but doesn't do anything) even when pthreads isn't linked in.
-    Init();
-    assert(instance_ != NULL);
-  }
+  instance_once.RunOnce(&Init);
+
+  assert(instance_ != nullptr);
+
   return instance_;
 }
 
@@ -367,7 +356,7 @@ ProfileHandler::ProfileHandler()
   const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
 
   if (per_thread || signal_number) {
-    if (timer_create && pthread_once) {
+    if (timer_create) {
       CreateThreadTimerKey(&thread_timer_key);
       per_thread_timer_enabled_ = true;
       // Override signal number if requested.

@@ -137,13 +137,6 @@ DEFINE_bool(symbolize_stacktrace,
             EnvToBool("TCMALLOC_SYMBOLIZE_STACKTRACE", true),
             "Symbolize the stack trace when provided (on some error exits)");
 
-// If we are LD_PRELOAD-ed against a non-pthreads app, then
-// pthread_once won't be defined.  We declare it here, for that
-// case (with weak linkage) which will cause the non-definition to
-// resolve to NULL.  We can then check for NULL or not in Instance.
-extern "C" int pthread_once(pthread_once_t *, void (*)(void))
-    ATTRIBUTE_WEAK;
-
 // ========================================================================= //
 
 // A safe version of printf() that does not do any allocation and
@@ -283,8 +276,7 @@ class MallocBlock {
 
   // This array will be filled with 0xCD, for use with memcmp.
   static unsigned char kMagicDeletedBuffer[1024];
-  static pthread_once_t deleted_buffer_initialized_;
-  static bool deleted_buffer_initialized_no_pthreads_;
+  static tcmalloc::TrivialOnce deleted_buffer_initialized_;
 
  private:  // data layout
 
@@ -639,19 +631,11 @@ class MallocBlock {
 
   static void InitDeletedBuffer() {
     memset(kMagicDeletedBuffer, kMagicDeletedByte, sizeof(kMagicDeletedBuffer));
-    deleted_buffer_initialized_no_pthreads_ = true;
   }
 
   static void CheckForDanglingWrites(const MallocBlockQueueEntry& queue_entry) {
     // Initialize the buffer if necessary.
-    if (pthread_once)
-      pthread_once(&deleted_buffer_initialized_, &InitDeletedBuffer);
-    if (!deleted_buffer_initialized_no_pthreads_) {
-      // This will be the case on systems that don't link in pthreads,
-      // including on FreeBSD where pthread_once has a non-zero address
-      // (but doesn't do anything) even when pthreads isn't linked in.
-      InitDeletedBuffer();
-    }
+    deleted_buffer_initialized_.RunOnce(&InitDeletedBuffer);
 
     const unsigned char* p =
         reinterpret_cast<unsigned char*>(queue_entry.block);
@@ -862,8 +846,7 @@ size_t MallocBlock::free_queue_size_ = 0;
 SpinLock MallocBlock::free_queue_lock_(SpinLock::LINKER_INITIALIZED);
 
 unsigned char MallocBlock::kMagicDeletedBuffer[1024];
-pthread_once_t MallocBlock::deleted_buffer_initialized_ = PTHREAD_ONCE_INIT;
-bool MallocBlock::deleted_buffer_initialized_no_pthreads_ = false;
+tcmalloc::TrivialOnce MallocBlock::deleted_buffer_initialized_{base::LINKER_INITIALIZED};
 
 const char* const MallocBlock::kAllocName[] = {
   "malloc",

@@ -115,8 +115,6 @@ typedef intptr_t ssize_t;
 #ifndef HAVE_PTHREAD   /* not true for MSVC, but may be true for MSYS */
 typedef DWORD pthread_t;
 typedef DWORD pthread_key_t;
-typedef LONG pthread_once_t;
-enum { PTHREAD_ONCE_INIT = 0 };   /* important that this be 0! for SpinLock */
 
 inline pthread_t pthread_self(void) {
   return GetCurrentThreadId();
@@ -161,9 +159,6 @@ inline int perftools_pthread_setspecific(pthread_key_t key, const void *value) {
   else
     return GetLastError();
 }
-
-EXTERN_C int perftools_pthread_once(pthread_once_t *once_control,
-                                    void (*init_routine)(void));
 
 #endif  /* __cplusplus */
 

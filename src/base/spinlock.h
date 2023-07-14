@@ -127,5 +127,35 @@ class SCOPED_LOCKABLE SpinLockHolder {
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
 #define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)
 
+namespace tcmalloc {
+
+class TrivialOnce {
+public:
+  explicit TrivialOnce(base::LinkerInitialized) {}
+
+  template <typename Body>
+  void RunOnce(Body body) {
+    auto done_atomic = reinterpret_cast<std::atomic<int>*>(&done_flag_);
+    if (done_atomic->load(std::memory_order_acquire) == 1) {
+      return;
+    }
+
+    SpinLockHolder h(reinterpret_cast<SpinLock*>(&lock_storage_));
+
+    if (done_atomic->load(std::memory_order_relaxed) == 1) {
+      // barrier provided by lock
+      return;
+    }
+    body();
+    done_atomic->store(1, std::memory_order_release);
+  }
+
+private:
+  int done_flag_;
+  alignas(alignof(SpinLock)) char lock_storage_[sizeof(SpinLock)];
+};
+
+}  // namespace tcmalloc
+
 
 #endif  // BASE_SPINLOCK_H_

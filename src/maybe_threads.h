@@ -48,8 +48,6 @@ int perftools_pthread_key_create(pthread_key_t *key,
 int perftools_pthread_key_delete(pthread_key_t key);
 void *perftools_pthread_getspecific(pthread_key_t key);
 int perftools_pthread_setspecific(pthread_key_t key, void *val);
-int perftools_pthread_once(pthread_once_t *ctl,
-                           void  (*init_routine) (void));
 
 // Our wrapper for pthread_atfork. Does _nothing_ when there are no
 // threads. See static_vars.cc:SetupAtForkLocksHandler for only user

@@ -200,31 +200,6 @@ extern "C" pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*)) {
   return key;
 }
 
-// NOTE: this is Win2K and later.  For Win98 we could use a CRITICAL_SECTION...
-extern "C" int perftools_pthread_once(pthread_once_t *once_control,
-                                      void (*init_routine)(void)) {
-  // Try for a fast path first. Note: this should be an acquire semantics read.
-  // It is on x86 and x64, where Windows runs.
-  if (*once_control != 1) {
-    while (true) {
-      switch (InterlockedCompareExchange(once_control, 2, 0)) {
-        case 0:
-          init_routine();
-          InterlockedExchange(once_control, 1);
-          return 0;
-        case 1:
-          // The initializer has already been executed
-          return 0;
-        default:
-          // The initializer is being processed by another thread
-          SwitchToThread();
-      }
-    }
-  }
-  return 0;
-}
-
-
 // -----------------------------------------------------------------------
 // These functions rework existing functions of the same name in the
 // Google codebase.
