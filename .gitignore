@@ -77,7 +77,6 @@
 /malloc_hook_test.exe
 /markidle_unittest
 /markidle_unittest.exe
-/maybe_threads_unittest.sh
 /memalign_debug_unittest
 /memalign_unittest
 /missing

@@ -168,10 +168,6 @@ libsysinfo_la_SOURCES = src/base/sysinfo.cc \
                         $(SYSINFO_INCLUDES)
 libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS)
 
-noinst_LTLIBRARIES += libmaybe_threads.la
-# .cc is conditionally added below
-libmaybe_threads_la_SOURCES = src/maybe_threads.h
-
 # For MinGW, we use also have to use libwindows Luckily, we need the
 # windows.a library in exactly the same place we need spinlock.a
 # (pretty much everywhere), so we can use the same variable name for
@@ -227,10 +223,6 @@ libsysinfo_la_LIBADD += -lshlwapi
 
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
 TCMALLOC_CC =
-# windows has its own system for threads and system memory allocation.
-if HAVE_PTHREAD_DESPITE_ASKING_FOR
-libmaybe_threads_la_SOURCES += src/maybe_threads.cc
-endif
 SYSTEM_ALLOC_CC =
 else !MINGW
 SPINLOCK_INCLUDES = src/base/spinlock.h \
@@ -245,7 +237,6 @@ libspinlock_la_LIBADD = $(NANOSLEEP_LIBS)
 LIBSPINLOCK = libspinlock.la libsysinfo.la liblogging.la
 
 TCMALLOC_CC = src/tcmalloc.cc
-libmaybe_threads_la_SOURCES += src/maybe_threads.cc
 SYSTEM_ALLOC_CC = src/system-alloc.cc
 endif !MINGW
 
@@ -276,7 +267,7 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
 # By default, MallocHook takes stack traces for use by the heap-checker.
 # We don't need that functionality here, so we turn it off to reduce deps.
 low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES
-low_level_alloc_unittest_LDADD = $(LIBSPINLOCK) libmaybe_threads.la
+low_level_alloc_unittest_LDADD = $(LIBSPINLOCK)
 
 
 ### ------- stack trace
@@ -439,7 +430,7 @@ libtcmalloc_minimal_internal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                            -DNDEBUG \
                                            $(AM_CXXFLAGS)
 libtcmalloc_minimal_internal_la_LDFLAGS =  $(AM_LDFLAGS)
-libtcmalloc_minimal_internal_la_LIBADD =  $(LIBSPINLOCK) libmaybe_threads.la
+libtcmalloc_minimal_internal_la_LIBADD =  $(LIBSPINLOCK)
 
 lib_LTLIBRARIES += libtcmalloc_minimal.la
 WINDOWS_PROJECTS += vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcxproj
@@ -474,11 +465,9 @@ LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 ##                           src/malloc_hook_mmap_linux.h \
 ##                           src/malloc_hook_mmap_freebsd.h \
 ##                           src/base/basictypes.h \
-##                           src/maybe_threads.h
 ## malloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 ##                           src/malloc_hook.cc \
 ##                           src/malloc_extension.cc \
-##                           $(MAYBE_THREADS_CC) \
 ##                           $(MALLOC_UNITTEST_INCLUDES)
 ## malloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 ## malloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
@@ -512,7 +501,7 @@ tcm_min_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 tcm_min_asserts_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES -DNO_HEAP_CHECK \
                                     $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcm_min_asserts_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-tcm_min_asserts_unittest_LDADD = $(LIBSPINLOCK) libmaybe_threads.la \
+tcm_min_asserts_unittest_LDADD = $(LIBSPINLOCK) \
                                   liblogging.la $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_minimal_large_unittest
@@ -527,27 +516,6 @@ tcmalloc_minimal_large_heap_fragmentation_unittest_SOURCES = src/tests/large_hea
 tcmalloc_minimal_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
-
-# This tests it works to LD_PRELOAD libtcmalloc (tests maybe_threads.cc)
-# In theory this should work under mingw, but mingw has trouble running
-# shell scripts that end in .exe.  And it doesn't seem to build shared
-# libraries anyway (so can't be LD_PRELOADed) -- in fact, anybody who
-# chooses not to build shared libraries won't be able to run this test.
-# TODO(csilvers): figure out how to nix ".exe" or otherwise work under mingw
-if !MINGW
-if !ENABLE_STATIC
-TESTS += maybe_threads_unittest.sh$(EXEEXT)
-maybe_threads_unittest_sh_SOURCES = src/tests/maybe_threads_unittest.sh
-noinst_SCRIPTS += $(maybe_threads_unittest_sh_SOURCES)
-# This script preloads libtcmalloc, and calls two other binaries as well
-# TODO(csilvers): replace by 'if ! cmp $^ $@ >/dev/null 2>&; then ...; fi'
-maybe_threads_unittest.sh$(EXEEXT): $(top_srcdir)/$(maybe_threads_unittest_sh_SOURCES) \
-                           $(LIBTCMALLOC_MINIMAL) \
-                           low_level_alloc_unittest
-	rm -f $@
-	cp -p $(top_srcdir)/$(maybe_threads_unittest_sh_SOURCES) $@
-endif !ENABLE_STATIC
-endif !MINGW
 
 # These all tests components of tcmalloc_minimal
 
@@ -934,7 +902,7 @@ libtcmalloc_la_SOURCES = $(TCMALLOC_CC) $(TCMALLOC_INCLUDES) \
 libtcmalloc_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS) \
                           $(MAYBE_NO_HEAP_CHECK) $(EMERGENCY_MALLOC_DEFINE)
 libtcmalloc_la_LDFLAGS = $(PTHREAD_CFLAGS) -version-info @TCMALLOC_SO_VERSION@
-libtcmalloc_la_LIBADD = libtcmalloc_internal.la libmaybe_threads.la $(PTHREAD_LIBS)
+libtcmalloc_la_LIBADD = libtcmalloc_internal.la $(PTHREAD_LIBS)
 
 # same as above with without -DNDEBUG
 noinst_LTLIBRARIES += libtcmalloc_internal_with_asserts.la
@@ -950,7 +918,7 @@ libtcmalloc_with_asserts_la_SOURCES = $(libtcmalloc_la_SOURCES)
 libtcmalloc_with_asserts_la_CXXFLAGS =  $(PTHREAD_CFLAGS) $(AM_CXXFLAGS) \
                           $(MAYBE_NO_HEAP_CHECK) $(EMERGENCY_MALLOC_DEFINE)
 libtcmalloc_with_asserts_la_LDFLAGS = $(PTHREAD_CFLAGS)
-libtcmalloc_with_asserts_la_LIBADD = libtcmalloc_internal_with_asserts.la libmaybe_threads.la $(PTHREAD_LIBS)
+libtcmalloc_with_asserts_la_LIBADD = libtcmalloc_internal_with_asserts.la $(PTHREAD_LIBS)
 
 LIBTCMALLOC = libtcmalloc.la
 
@@ -1270,7 +1238,7 @@ libprofiler_la_SOURCES = src/profiler.cc \
                          src/profile-handler.cc \
                          src/profiledata.cc \
                          $(CPU_PROFILER_INCLUDES)
-libprofiler_la_LIBADD = libstacktrace.la libmaybe_threads.la libfake_stacktrace_scope.la
+libprofiler_la_LIBADD = libstacktrace.la libfake_stacktrace_scope.la
 # We have to include ProfileData for profiledata_unittest
 CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler|ProfilerGetStackTrace)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \

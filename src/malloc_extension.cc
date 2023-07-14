@@ -50,7 +50,6 @@
 #endif
 #include "gperftools/malloc_extension.h"
 #include "gperftools/malloc_extension_c.h"
-#include "maybe_threads.h"
 #include "base/googleinit.h"
 
 using std::string;

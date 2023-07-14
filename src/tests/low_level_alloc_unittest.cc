@@ -163,8 +163,6 @@ static void FreeHook(const void *p) {
 }
 
 int main(int argc, char *argv[]) {
-  // This is needed by maybe_threads_unittest.sh, which parses argv[0]
-  // to figure out what directory low_level_alloc_unittest is in.
   if (argc != 1) {
     fprintf(stderr, "USAGE: %s\n", argv[0]);
     return 1;

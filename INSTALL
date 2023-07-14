@@ -249,7 +249,7 @@ above, by linking in libtcmalloc_minimal.
    libtcmalloc.so successfully builds, and the "advanced" tcmalloc
    functionality all works except for the leak-checker, which has
    Linux-specific code:
-      % make heap-profiler_unittest.sh maybe_threads_unittest.sh \
+      % make heap-profiler_unittest.sh \
              tcmalloc_unittest tcmalloc_both_unittest \
              tcmalloc_large_unittest              # THESE WORK
       % make -k heap-checker_unittest.sh \

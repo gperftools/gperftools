@@ -46,7 +46,6 @@
 #include "base/commandlineflags.h"
 #include "common.h"
 #include "linked_list.h"
-#include "maybe_threads.h"
 #include "page_heap_allocator.h"
 #include "sampler.h"
 #include "static_vars.h"
@@ -59,6 +58,12 @@
 #include "static_vars.h"       // for Static
 
 DECLARE_int64(tcmalloc_sample_parameter);
+
+#ifndef HAVE_PERFTOOLS_PTHREAD_KEYS
+#define perftools_pthread_getspecific pthread_getspecific
+#define perftools_pthread_setspecific pthread_setspecific
+#define perftools_pthread_key_create pthread_key_create
+#endif
 
 namespace tcmalloc {
 

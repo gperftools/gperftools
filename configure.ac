@@ -518,23 +518,6 @@ AC_SUBST(LIBSTDCXX_LA_LINKER_FLAG)
 # In fact, a lot of the code in this directory depends on pthreads
 AX_PTHREAD
 
-AC_MSG_CHECKING([whether pthread symbols are available in C++ without including pthread.h])
-acx_pthread_despite_asking_for=no
-AC_LINK_IFELSE(
-  [AC_LANG_PROGRAM([
-      #include <string>
-      #include <vector>
-  ],[
-      pthread_t th; pthread_join(th, 0);
-  ])],[
-    acx_pthread_despite_asking_for=yes
-    AC_DEFINE(HAVE_PTHREAD_DESPITE_ASKING_FOR, 1, [defined to 1 if pthread symbols are exposed even without include pthread.h])
-    AC_DEFINE(HAVE_PTHREAD, 1, [])
-  ])
-AC_MSG_RESULT([$acx_pthread_despite_asking_for])
-
-AM_CONDITIONAL(HAVE_PTHREAD_DESPITE_ASKING_FOR, test x"$acx_pthread_despite_asking_for" = xyes)
-
 # Figure out where libc has program_invocation_name
 AC_PROGRAM_INVOCATION_NAME
 

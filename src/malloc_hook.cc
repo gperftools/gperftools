@@ -50,7 +50,6 @@
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "maybe_emergency_malloc.h"
-#include "maybe_threads.h"
 #include "malloc_hook-inl.h"
 #include <gperftools/malloc_hook.h>
 

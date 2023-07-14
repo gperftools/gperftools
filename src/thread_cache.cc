@@ -40,7 +40,6 @@
 #include "base/spinlock.h"              // for SpinLockHolder
 #include "getenv_safe.h"                // for TCMallocGetenvSafe
 #include "central_freelist.h"           // for CentralFreeListPadded
-#include "maybe_threads.h"
 
 using std::min;
 using std::max;

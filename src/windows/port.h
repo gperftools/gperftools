@@ -130,8 +130,7 @@ inline bool pthread_equal(pthread_t left, pthread_t right) {
  * we therefore shouldn't be #including directly.  This hack keeps us from
  * doing so.  TODO(csilvers): do something more principled.
  */
-#define GOOGLE_MAYBE_THREADS_H_ 1
-/* This replaces maybe_threads.{h,cc} */
+#define HAVE_PERFTOOLS_PTHREAD_KEYS
 
 EXTERN_C pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  /* port.cc */
 

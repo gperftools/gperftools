@@ -43,7 +43,6 @@
 #include "sampler.h"           // for Sampler
 #include "getenv_safe.h"       // TCMallocGetenvSafe
 #include "base/googleinit.h"
-#include "maybe_threads.h"
 
 namespace tcmalloc {
 
@@ -137,7 +136,7 @@ void Static::InitLateMaybeRecursive() {
   // be less fortunate and allow some early app constructors to run
   // before malloc is ever called.
 
-  perftools_pthread_atfork(
+  pthread_atfork(
     CentralCacheLockAll,    // parent calls before fork
     CentralCacheUnlockAll,  // parent calls after fork
     CentralCacheUnlockAll); // child calls after fork

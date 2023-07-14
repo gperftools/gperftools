@@ -84,7 +84,6 @@
 #include "base/sysinfo.h"
 #include "heap-profile-table.h"
 #include "malloc_hook-inl.h"
-#include "maybe_threads.h"
 #include "memory_region_map.h"
 #include "safe_strerror.h"
 
@@ -555,7 +554,7 @@ inline void set_thread_disable_counter(int value) {
 class InitThreadDisableCounter {
  public:
   InitThreadDisableCounter() {
-    perftools_pthread_key_create(&thread_disable_counter_key, NULL);
+    pthread_key_create(&thread_disable_counter_key, NULL);
     // Set up the main thread's value, which we have a special variable for.
     void* p = (void*)(intptr_t)main_thread_counter;   // store the counter directly
     perftools_pthread_setspecific(thread_disable_counter_key, p);

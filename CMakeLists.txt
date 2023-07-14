@@ -410,12 +410,6 @@ if(EXISTS /usr/sfw/lib/libstdc++.la)
   endif()
 endif()
 
-check_cxx_source_compiles(
-  "#include <string>
-     #include <vector>
-     int main() { pthread_t th; pthread_join(th, 0); return 0; }"
-  have_pthread_despite_asking_for)
-
 check_variable_exists("program_invocation_name" HAVE_PROGRAM_INVOCATION_NAME)
 
 if(MINGW)
@@ -572,10 +566,6 @@ if(MINGW OR MSVC)
   # (We do this via a #pragma for msvc, but need to do it here for mingw).
   target_link_libraries(sysinfo shlwapi)
 
-  if(have_pthread_despite_asking_for)
-    add_library(maybe_threads STATIC src/maybe_threads.cc)
-    set(maybe_threads_lib maybe_threads)
-  endif()
 else()
   set(SPINLOCK_INCLUDES src/base/spinlock.h
           src/base/spinlock_internal.h)
@@ -588,8 +578,6 @@ else()
   set(TCMALLOC_CC "src/tcmalloc.cc")
   set(SYSTEM_ALLOC_CC "src/system-alloc.cc")
 
-  add_library(maybe_threads STATIC src/maybe_threads.cc)
-  set(maybe_threads_lib maybe_threads)
 endif()
 
 if(BUILD_TESTING)
@@ -614,7 +602,7 @@ if(BUILD_TESTING)
   # By default, MallocHook takes stack traces for use by the heap-checker.
   # We don't need that functionality here, so we turn it off to reduce deps.
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES)
-  target_link_libraries(low_level_alloc_unittest spinlock sysinfo logging ${maybe_threads_lib})
+  target_link_libraries(low_level_alloc_unittest spinlock sysinfo logging)
   add_test(low_level_alloc_unittest low_level_alloc_unittest)
 endif()
 
@@ -745,7 +733,7 @@ add_library(tcmalloc_minimal_internal_object OBJECT ${libtcmalloc_minimal_intern
 # We #define NO_TCMALLOC_SAMPLES, since sampling is turned off for _minimal.
 target_compile_definitions(tcmalloc_minimal_internal_object PRIVATE NO_TCMALLOC_SAMPLES NO_HEAP_CHECK NDEBUG)
 add_library(tcmalloc_minimal_internal INTERFACE)
-target_link_libraries(tcmalloc_minimal_internal INTERFACE ${LIBSPINLOCK} ${maybe_threads_lib})
+target_link_libraries(tcmalloc_minimal_internal INTERFACE ${LIBSPINLOCK})
 target_sources(tcmalloc_minimal_internal INTERFACE $<TARGET_OBJECTS:tcmalloc_minimal_internal_object>)
 
 set(libtcmalloc_minimal_la_SOURCES ${TCMALLOC_CC} ${TCMALLOC_MINIMAL_INCLUDES})
@@ -814,13 +802,6 @@ if(BUILD_TESTING)
   target_link_libraries(
           tcmalloc_minimal_large_heap_fragmentation_unittest PUBLIC tcmalloc_minimal)
   add_test(tcmalloc_minimal_large_heap_fragmentation_unittest tcmalloc_minimal_large_heap_fragmentation_unittest)
-
-  if(BUILD_SHARED_LIBS AND NOT MINGW)
-    add_custom_target(maybe_threads_unittest
-            COMMAND src/tests/maybe_threads_unittest.sh
-            VERBATIM)
-    add_test(maybe_threads_unittest maybe_threads_unittest)
-  endif()
 
   if(MINGW OR MSVC)
     set(port_src src/windows/port.cc)
@@ -1064,7 +1045,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
 
   set(libtcmalloc_la_SOURCES ${TCMALLOC_CC} ${TCMALLOC_INCLUDES})
   set(libtcmalloc_la_DEFINE NDEBUG ${EMERGENCY_MALLOC_DEFINE})
-  set(libtcmalloc_la_LIBADD tcmalloc_internal ${maybe_threads_lib} Threads::Threads)
+  set(libtcmalloc_la_LIBADD tcmalloc_internal Threads::Threads)
   if(GPERFTOOLS_BUILD_HEAP_CHECKER)
     # heap-checker-bcad is last, in hopes its global ctor will run first.
     # (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
@@ -1282,7 +1263,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
           src/profile-handler.cc
           src/profiledata.cc
           ${CPU_PROFILER_INCLUDES})
-  set(libprofiler_la_LIBADD stacktrace ${maybe_threads_lib} fake_stacktrace_scope)
+  set(libprofiler_la_LIBADD stacktrace fake_stacktrace_scope)
   add_library(profiler SHARED ${libprofiler_la_SOURCES})
   target_link_libraries(profiler PRIVATE ${libprofiler_la_LIBADD})
   set_target_properties(profiler PROPERTIES
