@@ -93,14 +93,9 @@ void CentralFreeList::ReleaseListToSpans(void* start) {
   }
 }
 
-Span* MapObjectToSpan(void* object) {
+void CentralFreeList::ReleaseToSpans(void* object) {
   const PageID p = reinterpret_cast<uintptr_t>(object) >> kPageShift;
   Span* span = Static::pageheap()->GetDescriptor(p);
-  return span;
-}
-
-void CentralFreeList::ReleaseToSpans(void* object) {
-  Span* span = MapObjectToSpan(object);
   ASSERT(span != NULL);
   ASSERT(span->refcount > 0);
 
