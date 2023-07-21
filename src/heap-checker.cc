@@ -1890,8 +1890,6 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
       // Make sure all the hooks really got unset:
       RAW_CHECK(MallocHook::GetNewHook() == NULL, "");
       RAW_CHECK(MallocHook::GetDeleteHook() == NULL, "");
-      RAW_CHECK(MallocHook::GetMmapHook() == NULL, "");
-      RAW_CHECK(MallocHook::GetSbrkHook() == NULL, "");
       have_disabled_hooks_for_symbolize = true;
       leaks->ReportLeaks(name_, pprof_file, true);  // true = should_symbolize
     } else {
@@ -2346,8 +2344,10 @@ void HeapLeakChecker_BeforeConstructors() {
 // HeapLeakChecker is initialized and installs all its hooks early enough to
 // track absolutely all memory allocations and all memory region acquisitions
 // via mmap and sbrk.
-extern "C" void MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
-  HeapLeakChecker_BeforeConstructors();
+extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
+  static tcmalloc::TrivialOnce once{base::LINKER_INITIALIZED};
+
+  return once.RunOnce(&HeapLeakChecker_BeforeConstructors);
 }
 
 // This function is executed after all global object destructors run.

@@ -256,12 +256,12 @@ LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/gperftools/malloc_hook.h \
                                     src/gperftools/malloc_hook_c.h \
                                     src/malloc_hook-inl.h \
-                                    src/malloc_hook_mmap_linux.h \
-                                    src/malloc_hook_mmap_freebsd.h \
+                                    src/mmap_hook.h \
                                     $(SPINLOCK_INCLUDES) \
                                     $(LOGGING_INCLUDES)
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
+                                   src/mmap_hook.cc \
                                    src/tests/low_level_alloc_unittest.cc \
                                    $(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES)
 # By default, MallocHook takes stack traces for use by the heap-checker.
@@ -390,9 +390,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/thread_cache.h \
                               src/stack_trace_table.h \
                               src/base/thread_annotations.h \
-                              src/malloc_hook-inl.h \
-                              src/malloc_hook_mmap_linux.h \
-                              src/malloc_hook_mmap_freebsd.h
+                              src/malloc_hook-inl.h
 SG_TCMALLOC_MINIMAL_INCLUDES = src/gperftools/malloc_hook.h \
                                src/gperftools/malloc_hook_c.h \
                                src/gperftools/malloc_extension.h \
@@ -462,8 +460,6 @@ LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 ##                           src/gperftools/malloc_hook.h \
 ##                           src/gperftools/malloc_hook_c.h \
 ##                           src/malloc_hook-inl.h \
-##                           src/malloc_hook_mmap_linux.h \
-##                           src/malloc_hook_mmap_freebsd.h \
 ##                           src/base/basictypes.h \
 ## malloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 ##                           src/malloc_hook.cc \
@@ -583,6 +579,13 @@ malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
 malloc_hook_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_hook_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_hook_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+
+if !MINGW
+TESTS += mmap_hook_test
+mmap_hook_test_SOURCES = src/tests/mmap_hook_test.cc \
+                         src/mmap_hook.cc
+mmap_hook_test_LDADD = $(LIBSPINLOCK)
+endif !MINGW
 
 TESTS += malloc_extension_test
 WINDOWS_PROJECTS += vsprojects/malloc_extension_test/malloc_extension_test.vcxproj
@@ -847,7 +850,8 @@ S_TCMALLOC_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) \
                       src/heap-profile-table.h \
                       src/heap-profile-stats.h \
                       src/maybe_emergency_malloc.h \
-                      src/emergency_malloc.h
+                      src/emergency_malloc.h \
+                      src/mmap_hook.h
 
 SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
                        src/gperftools/heap-checker.h
@@ -889,6 +893,7 @@ libtcmalloc_internal_la_SOURCES = $(libtcmalloc_minimal_internal_la_SOURCES) \
                                   src/heap-profiler.cc \
                                   src/raw_printer.cc \
                                   $(EMERGENCY_MALLOC_CC) \
+                                  src/mmap_hook.cc \
                                   src/memory_region_map.cc
 libtcmalloc_internal_la_CXXFLAGS = $(PTHREAD_CFLAGS) -DNDEBUG \
                                    $(AM_CXXFLAGS) $(EMERGENCY_MALLOC_DEFINE) \

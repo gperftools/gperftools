@@ -587,12 +587,11 @@ if(BUILD_TESTING)
           src/gperftools/malloc_hook.h
           src/gperftools/malloc_hook_c.h
           src/malloc_hook-inl.h
-          src/malloc_hook_mmap_linux.h
-          src/malloc_hook_mmap_freebsd.h
           ${SPINLOCK_INCLUDES}
           ${LOGGING_INCLUDES})
   set(low_level_alloc_unittest_SOURCES src/base/low_level_alloc.cc
           src/malloc_hook.cc
+          src/mmap_hook.cc
           src/tests/low_level_alloc_unittest.cc
           ${LOW_LEVEL_ALLOC_UNITTEST_INCLUDES})
   if(MSVC OR MINGW)
@@ -700,9 +699,7 @@ set(S_TCMALLOC_MINIMAL_INCLUDES src/common.h
         src/thread_cache.h
         src/stack_trace_table.h
         src/base/thread_annotations.h
-        src/malloc_hook-inl.h
-        src/malloc_hook_mmap_linux.h
-        src/malloc_hook_mmap_freebsd.h)
+        src/malloc_hook-inl.h)
 set(SG_TCMALLOC_MINIMAL_INCLUDES src/gperftools/malloc_hook.h
         src/gperftools/malloc_hook_c.h
         src/gperftools/malloc_extension.h
@@ -843,6 +840,12 @@ if(BUILD_TESTING)
           src/tests/testutil.cc)
   target_link_libraries(malloc_hook_test tcmalloc_minimal Threads::Threads)
   add_test(malloc_hook_test malloc_hook_test)
+
+  add_executable(mmap_hook_test
+          src/tests/mmap_hook_test.cc
+          src/mmap_hook.cc)
+  target_link_libraries(mmap_hook_test spinlock sysinfo logging)
+  add_test(mmap_hook_test mmap_hook_test)
 
   set(malloc_extension_test_SOURCES src/tests/malloc_extension_test.cc
           src/config_for_unittests.h
@@ -1013,6 +1016,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
           src/heap-profile-table.h
           src/heap-profile-stats.h
           src/maybe_emergency_malloc.h
+          src/mmap_hook.h
           src/emergency_malloc.h)
 
   set(SG_TCMALLOC_INCLUDES src/gperftools/heap-profiler.h
@@ -1035,6 +1039,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
   set(libtcmalloc_internal_la_SOURCES ${libtcmalloc_minimal_internal_la_SOURCES}
           ${TCMALLOC_INCLUDES}
           src/base/low_level_alloc.cc
+          src/mmap_hook.cc
           src/heap-profile-table.cc
           src/heap-profiler.cc
           src/raw_printer.cc

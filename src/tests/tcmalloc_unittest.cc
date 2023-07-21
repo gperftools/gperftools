@@ -76,9 +76,6 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>         // for open; used with mmap-hook test
 #endif
-#ifdef HAVE_MMAP
-#include <sys/mman.h>      // for testing mmap hooks
-#endif
 #ifdef HAVE_MALLOC_H
 #include <malloc.h>        // defines pvalloc/etc on cygwin
 #endif
@@ -786,12 +783,6 @@ static void TestNothrowNew(void* (*func)(size_t, const std::nothrow_t&)) {
 // We do one for each hook typedef in malloc_hook.h
 MAKE_HOOK_CALLBACK(NewHook, const void*, size_t);
 MAKE_HOOK_CALLBACK(DeleteHook, const void*);
-MAKE_HOOK_CALLBACK(MmapHook, const void*, const void*, size_t, int, int, int,
-                   off_t);
-MAKE_HOOK_CALLBACK(MremapHook, const void*, const void*, size_t, size_t, int,
-                   const void*);
-MAKE_HOOK_CALLBACK(MunmapHook, const void *, size_t);
-MAKE_HOOK_CALLBACK(SbrkHook, const void *, ptrdiff_t);
 
 static void TestAlignmentForSize(int size) {
   fprintf(LOGSTREAM, "Testing alignment of malloc(%d)\n", size);
@@ -1470,70 +1461,11 @@ static int RunAllTests(int argc, char** argv) {
     VerifyDeleteHookWasCalled();
 #endif
 
-    // Test mmap too: both anonymous mmap and mmap of a file
-    // Note that for right now we only override mmap on linux
-    // systems, so those are the only ones for which we check.
-    SetMmapHook();
-    SetMremapHook();
-    SetMunmapHook();
-#if defined(HAVE_MMAP) && defined(__linux) && \
-       (defined(__i386__) || defined(__x86_64__))
-    int size = 8192*2;
-    p1 = mmap(NULL, size, PROT_WRITE|PROT_READ, MAP_ANONYMOUS|MAP_PRIVATE,
-              -1, 0);
-    CHECK(p1 != NULL);
-    VerifyMmapHookWasCalled();
-    p1 = mremap(p1, size, size/2, 0);
-    CHECK(p1 != NULL);
-    VerifyMremapHookWasCalled();
-    size /= 2;
-    munmap(p1, size);
-    VerifyMunmapHookWasCalled();
-
-    int fd = open("/dev/zero", O_RDONLY);
-    CHECK_GE(fd, 0);   // make sure the open succeeded
-    p1 = mmap(NULL, 8192, PROT_READ, MAP_SHARED, fd, 0);
-    CHECK(p1 != NULL);
-    VerifyMmapHookWasCalled();
-    munmap(p1, 8192);
-    VerifyMunmapHookWasCalled();
-    close(fd);
-#else   // this is just to quiet the compiler: make sure all fns are called
-    IncrementCallsToMmapHook(NULL, NULL, 0, 0, 0, 0, 0);
-    IncrementCallsToMunmapHook(NULL, 0);
-    IncrementCallsToMremapHook(NULL, NULL, 0, 0, 0, NULL);
-    VerifyMmapHookWasCalled();
-    VerifyMremapHookWasCalled();
-    VerifyMunmapHookWasCalled();
-#endif
-
-    // Test sbrk
-    SetSbrkHook();
-#if defined(HAVE___SBRK) && defined(__linux) && \
-       (defined(__i386__) || defined(__x86_64__))
-    p1 = sbrk(8192);
-    CHECK(p1 != NULL);
-    VerifySbrkHookWasCalled();
-    p1 = sbrk(-8192);
-    CHECK(p1 != NULL);
-    VerifySbrkHookWasCalled();
-    // However, sbrk hook should *not* be called with sbrk(0)
-    p1 = sbrk(0);
-    CHECK(p1 != NULL);
-    CHECK_EQ(g_SbrkHook_calls, 0);
-#else   // this is just to quiet the compiler: make sure all fns are called
-    IncrementCallsToSbrkHook(NULL, 0);
-    VerifySbrkHookWasCalled();
-#endif
-
     // Reset the hooks to what they used to be.  These are all
     // defined as part of MAKE_HOOK_CALLBACK, above.
     ResetNewHook();
     ResetDeleteHook();
-    ResetMmapHook();
-    ResetMremapHook();
-    ResetMunmapHook();
-    ResetSbrkHook();
+
   }
 
   // Check that "lots" of memory can be allocated

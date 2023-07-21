@@ -47,6 +47,7 @@
 #include "base/thread_annotations.h"
 #include "base/low_level_alloc.h"
 #include "heap-profile-stats.h"
+#include "mmap_hook.h"
 
 // TODO(maxim): add a unittest:
 //  execute a bunch of mmaps and compare memory map what strace logs
@@ -83,10 +84,7 @@ class MemoryRegionMap {
 
   // Every client of MemoryRegionMap must call Init() before first use,
   // and Shutdown() after last use.  This allows us to reference count
-  // this (singleton) class properly.  MemoryRegionMap assumes it's the
-  // only client of MallocHooks, so a client can only register other
-  // MallocHooks after calling Init() and must unregister them before
-  // calling Shutdown().
+  // this (singleton) class properly.
 
   // Initialize this module to record memory allocation stack traces.
   // Stack traces that have more than "max_stack_depth" frames
@@ -131,7 +129,7 @@ class MemoryRegionMap {
     DISALLOW_COPY_AND_ASSIGN(LockHolder);
   };
 
-  // A memory region that we know about through malloc_hook-s.
+  // A memory region that we know about through mmap hooks.
   // This is essentially an interface through which MemoryRegionMap
   // exports the collected data to its clients.  Thread-compatible.
   struct Region {
@@ -344,6 +342,8 @@ class MemoryRegionMap {
 
   static const void* saved_buckets_keys_[20][kMaxStackDepth] GUARDED_BY(lock_);
 
+  static tcmalloc::MappingHookSpace mapping_hook_space_;
+
   // helpers ==================================================================
 
   // Helper for FindRegion and FindAndMarkStackRegion:
@@ -370,10 +370,10 @@ class MemoryRegionMap {
   inline static void InsertRegionLocked(const Region& region);
 
   // Record addition of a memory region at address "start" of size "size"
-  // (called from our mmap/mremap/sbrk hooks).
+  // (called from our mmap/mremap/sbrk hook).
   static void RecordRegionAddition(const void* start, size_t size);
   // Record deletion of a memory region at address "start" of size "size"
-  // (called from our munmap/mremap/sbrk hooks).
+  // (called from our munmap/mremap/sbrk hook).
   static void RecordRegionRemoval(const void* start, size_t size);
 
   // Record deletion of a memory region of size "size" in a bucket whose
@@ -383,16 +383,7 @@ class MemoryRegionMap {
                                           const void* const key[],
                                           size_t size);
 
-  // Hooks for MallocHook
-  static void MmapHook(const void* result,
-                       const void* start, size_t size,
-                       int prot, int flags,
-                       int fd, off_t offset);
-  static void MunmapHook(const void* ptr, size_t size);
-  static void MremapHook(const void* result, const void* old_addr,
-                         size_t old_size, size_t new_size, int flags,
-                         const void* new_addr);
-  static void SbrkHook(const void* result, ptrdiff_t increment);
+  static void HandleMappingEvent(const tcmalloc::MappingEvent& evt);
 
   // Log all memory regions; Useful for debugging only.
   // Assumes Lock() is held

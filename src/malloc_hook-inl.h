@@ -120,14 +120,6 @@ struct PERFTOOLS_DLL_DECL HookList {
 
 ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::NewHook> new_hooks_;
 ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::DeleteHook> delete_hooks_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::PreMmapHook> premmap_hooks_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MmapHook> mmap_hooks_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MmapReplacement> mmap_replacement_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MunmapHook> munmap_hooks_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MunmapReplacement> munmap_replacement_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::MremapHook> mremap_hooks_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::PreSbrkHook> presbrk_hooks_;
-ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::SbrkHook> sbrk_hooks_;
 
 } }  // namespace base::internal
 
@@ -150,113 +142,6 @@ inline MallocHook::DeleteHook MallocHook::GetDeleteHook() {
 inline void MallocHook::InvokeDeleteHook(const void* p) {
   if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     InvokeDeleteHookSlow(p);
-  }
-}
-
-// The following method is DEPRECATED
-inline MallocHook::PreMmapHook MallocHook::GetPreMmapHook() {
-  return base::internal::premmap_hooks_.GetSingular();
-}
-
-inline void MallocHook::InvokePreMmapHook(const void* start,
-                                          size_t size,
-                                          int protection,
-                                          int flags,
-                                          int fd,
-                                          off_t offset) {
-  if (!base::internal::premmap_hooks_.empty()) {
-    InvokePreMmapHookSlow(start, size, protection, flags, fd, offset);
-  }
-}
-
-// The following method is DEPRECATED
-inline MallocHook::MmapHook MallocHook::GetMmapHook() {
-  return base::internal::mmap_hooks_.GetSingular();
-}
-
-inline void MallocHook::InvokeMmapHook(const void* result,
-                                       const void* start,
-                                       size_t size,
-                                       int protection,
-                                       int flags,
-                                       int fd,
-                                       off_t offset) {
-  if (!base::internal::mmap_hooks_.empty()) {
-    InvokeMmapHookSlow(result, start, size, protection, flags, fd, offset);
-  }
-}
-
-inline bool MallocHook::InvokeMmapReplacement(const void* start,
-                                              size_t size,
-                                              int protection,
-                                              int flags,
-                                              int fd,
-                                              off_t offset,
-                                              void** result) {
-  if (!base::internal::mmap_replacement_.empty()) {
-    return InvokeMmapReplacementSlow(start, size,
-                                     protection, flags,
-                                     fd, offset,
-                                     result);
-  }
-  return false;
-}
-
-// The following method is DEPRECATED
-inline MallocHook::MunmapHook MallocHook::GetMunmapHook() {
-  return base::internal::munmap_hooks_.GetSingular();
-}
-
-inline void MallocHook::InvokeMunmapHook(const void* p, size_t size) {
-  if (!base::internal::munmap_hooks_.empty()) {
-    InvokeMunmapHookSlow(p, size);
-  }
-}
-
-inline bool MallocHook::InvokeMunmapReplacement(
-    const void* p, size_t size, int* result) {
-  if (!base::internal::mmap_replacement_.empty()) {
-    return InvokeMunmapReplacementSlow(p, size, result);
-  }
-  return false;
-}
-
-// The following method is DEPRECATED
-inline MallocHook::MremapHook MallocHook::GetMremapHook() {
-  return base::internal::mremap_hooks_.GetSingular();
-}
-
-inline void MallocHook::InvokeMremapHook(const void* result,
-                                         const void* old_addr,
-                                         size_t old_size,
-                                         size_t new_size,
-                                         int flags,
-                                         const void* new_addr) {
-  if (!base::internal::mremap_hooks_.empty()) {
-    InvokeMremapHookSlow(result, old_addr, old_size, new_size, flags, new_addr);
-  }
-}
-
-// The following method is DEPRECATED
-inline MallocHook::PreSbrkHook MallocHook::GetPreSbrkHook() {
-  return base::internal::presbrk_hooks_.GetSingular();
-}
-
-inline void MallocHook::InvokePreSbrkHook(ptrdiff_t increment) {
-  if (!base::internal::presbrk_hooks_.empty() && increment != 0) {
-    InvokePreSbrkHookSlow(increment);
-  }
-}
-
-// The following method is DEPRECATED
-inline MallocHook::SbrkHook MallocHook::GetSbrkHook() {
-  return base::internal::sbrk_hooks_.GetSingular();
-}
-
-inline void MallocHook::InvokeSbrkHook(const void* result,
-                                       ptrdiff_t increment) {
-  if (!base::internal::sbrk_hooks_.empty() && increment != 0) {
-    InvokeSbrkHookSlow(result, increment);
   }
 }
 

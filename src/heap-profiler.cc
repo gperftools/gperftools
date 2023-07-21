@@ -72,7 +72,7 @@
 #include "base/sysinfo.h"      // for GetUniquePathFromEnv()
 #include "heap-profile-table.h"
 #include "memory_region_map.h"
-
+#include "mmap_hook.h"
 
 #ifndef	PATH_MAX
 #ifdef MAXPATHLEN
@@ -348,35 +348,24 @@ void DeleteHook(const void* ptr) {
   if (ptr != NULL) RecordFree(ptr);
 }
 
-// TODO(jandrews): Re-enable stack tracing
-#ifdef TODO_REENABLE_STACK_TRACING
-static void RawInfoStackDumper(const char* message, void*) {
-  RAW_LOG(INFO, "%.*s", static_cast<int>(strlen(message) - 1), message);
-  // -1 is to chop the \n which will be added by RAW_LOG
-}
-#endif
+static tcmalloc::MappingHookSpace mmap_logging_hook_space;
 
-static void MmapHook(const void* result, const void* start, size_t size,
-                     int prot, int flags, int fd, off_t offset) {
-  if (FLAGS_mmap_log) {  // log it
+static void LogMappingEvent(const tcmalloc::MappingEvent& evt) {
+  if (!FLAGS_mmap_log) {
+    return;
+  }
+
+  if (evt.file_valid) {
     // We use PRIxPTR not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO,
             "mmap(start=0x%" PRIxPTR ", len=%zu, prot=0x%x, flags=0x%x, "
-            "fd=%d, offset=0x%x) = 0x%" PRIxPTR "",
-            (uintptr_t) start, size, prot, flags, fd, (unsigned int) offset,
-            (uintptr_t) result);
-#ifdef TODO_REENABLE_STACK_TRACING
-    DumpStackTrace(1, RawInfoStackDumper, NULL);
-#endif
-  }
-}
-
-static void MremapHook(const void* result, const void* old_addr,
-                       size_t old_size, size_t new_size,
-                       int flags, const void* new_addr) {
-  if (FLAGS_mmap_log) {  // log it
+            "fd=%d, offset=0x%llx) = 0x%" PRIxPTR "",
+            (uintptr_t) evt.before_address, evt.after_length, evt.prot,
+            evt.flags, evt.file_fd, (unsigned long long) evt.file_off,
+            (uintptr_t) evt.after_address);
+  } else if (evt.after_valid && evt.before_valid) {
     // We use PRIxPTR not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
@@ -384,34 +373,27 @@ static void MremapHook(const void* result, const void* old_addr,
             "mremap(old_addr=0x%" PRIxPTR ", old_size=%zu, "
             "new_size=%zu, flags=0x%x, new_addr=0x%" PRIxPTR ") = "
             "0x%" PRIxPTR "",
-            (uintptr_t) old_addr, old_size, new_size, flags,
-            (uintptr_t) new_addr, (uintptr_t) result);
-#ifdef TODO_REENABLE_STACK_TRACING
-    DumpStackTrace(1, RawInfoStackDumper, NULL);
-#endif
-  }
-}
+            (uintptr_t) evt.before_address, evt.before_length, evt.after_length, evt.flags,
+            (uintptr_t) evt.after_address, (uintptr_t) evt.after_address);
+  } else if (evt.is_sbrk) {
+    intptr_t increment;
+    uintptr_t result;
+    if (evt.after_valid) {
+      increment = evt.after_length;
+      result = reinterpret_cast<uintptr_t>(evt.after_address) + evt.after_length;
+    } else {
+      increment = -static_cast<intptr_t>(evt.before_length);
+      result = reinterpret_cast<uintptr_t>(evt.before_address);
+    }
 
-static void MunmapHook(const void* ptr, size_t size) {
-  if (FLAGS_mmap_log) {  // log it
+    RAW_LOG(INFO, "sbrk(inc=%zd) = 0x%" PRIxPTR "",
+                  increment, (uintptr_t) result);
+  } else if (evt.before_valid) {
     // We use PRIxPTR not just '%p' to avoid deadlocks
     // in pretty-printing of NULL as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO, "munmap(start=0x%" PRIxPTR ", len=%zu)",
-                  (uintptr_t) ptr, size);
-#ifdef TODO_REENABLE_STACK_TRACING
-    DumpStackTrace(1, RawInfoStackDumper, NULL);
-#endif
-  }
-}
-
-static void SbrkHook(const void* result, ptrdiff_t increment) {
-  if (FLAGS_mmap_log) {  // log it
-    RAW_LOG(INFO, "sbrk(inc=%zd) = 0x%" PRIxPTR "",
-                  increment, (uintptr_t) result);
-#ifdef TODO_REENABLE_STACK_TRACING
-    DumpStackTrace(1, RawInfoStackDumper, NULL);
-#endif
+                  (uintptr_t) evt.before_address, evt.before_length);
   }
 }
 
@@ -445,10 +427,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
 
   if (FLAGS_mmap_log) {
     // Install our hooks to do the logging:
-    RAW_CHECK(MallocHook::AddMmapHook(&MmapHook), "");
-    RAW_CHECK(MallocHook::AddMremapHook(&MremapHook), "");
-    RAW_CHECK(MallocHook::AddMunmapHook(&MunmapHook), "");
-    RAW_CHECK(MallocHook::AddSbrkHook(&SbrkHook), "");
+    tcmalloc::HookMMapEvents(&mmap_logging_hook_space, LogMappingEvent);
   }
 
   heap_profiler_memory =
@@ -502,10 +481,7 @@ extern "C" void HeapProfilerStop() {
   }
   if (FLAGS_mmap_log) {
     // Restore mmap/sbrk hooks, checking that our hooks were set:
-    RAW_CHECK(MallocHook::RemoveMmapHook(&MmapHook), "");
-    RAW_CHECK(MallocHook::RemoveMremapHook(&MremapHook), "");
-    RAW_CHECK(MallocHook::RemoveSbrkHook(&SbrkHook), "");
-    RAW_CHECK(MallocHook::RemoveMunmapHook(&MunmapHook), "");
+    tcmalloc::UnHookMMapEvents(&mmap_logging_hook_space);
   }
 
   // free profile

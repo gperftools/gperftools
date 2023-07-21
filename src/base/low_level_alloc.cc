@@ -38,22 +38,16 @@
 #include "base/dynamic_annotations.h"
 #include "base/spinlock.h"
 #include "base/logging.h"
+
 #include "malloc_hook-inl.h"
 #include <gperftools/malloc_hook.h>
-#include <errno.h>
+
+#include "mmap_hook.h"
+
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#ifdef HAVE_MMAP
-#include <sys/mman.h>
-#endif
 #include <new>                   // for placement-new
-
-// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
-// form of the name instead.
-#ifndef MAP_ANONYMOUS
-# define MAP_ANONYMOUS MAP_ANON
-#endif
 
 // A first-fit allocator with amortized logarithmic free() time.
 
@@ -357,12 +351,8 @@ bool LowLevelAlloc::DeleteArena(Arena *arena) {
                 "empty arena has non-page-aligned block size");
       RAW_CHECK(reinterpret_cast<intptr_t>(region) % arena->pagesize == 0,
                 "empty arena has non-page-aligned block");
-      int munmap_result;
-      if ((arena->flags & LowLevelAlloc::kAsyncSignalSafe) == 0) {
-        munmap_result = munmap(region, size);
-      } else {
-        munmap_result = MallocHook::UnhookedMUnmap(region, size);
-      }
+      int munmap_result = tcmalloc::DirectMUnMap((arena->flags & LowLevelAlloc::kAsyncSignalSafe) == 0,
+                                                 region, size);
       RAW_CHECK(munmap_result == 0,
                 "LowLevelAlloc::DeleteArena:  munmap failed address");
     }
@@ -553,28 +543,19 @@ LowLevelAlloc::PagesAllocator *LowLevelAlloc::GetDefaultPagesAllocator(void) {
 }
 
 void *DefaultPagesAllocator::MapPages(int32 flags, size_t size) {
-  void *new_pages;
-  if ((flags & LowLevelAlloc::kAsyncSignalSafe) != 0) {
-    new_pages = MallocHook::UnhookedMMap(0, size,
-                                         PROT_WRITE|PROT_READ,
-                                         MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-  } else {
-    new_pages = mmap(0, size,
-                     PROT_WRITE|PROT_READ,
-                     MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
-  }
-  RAW_CHECK(new_pages != MAP_FAILED, "mmap error");
+  const bool invoke_hooks = ((flags & LowLevelAlloc::kAsyncSignalSafe) == 0);
 
-  return new_pages;
+  auto result = tcmalloc::DirectAnonMMap(invoke_hooks, size);
+
+  RAW_CHECK(result.success, "mmap error");
+
+  return result.addr;
 }
 
 void DefaultPagesAllocator::UnMapPages(int32 flags, void *region, size_t size) {
-  int munmap_result;
-  if ((flags & LowLevelAlloc::kAsyncSignalSafe) == 0) {
-    munmap_result = munmap(region, size);
-  } else {
-    munmap_result = MallocHook::UnhookedMUnmap(region, size);
-  }
+  const bool invoke_hooks = ((flags & LowLevelAlloc::kAsyncSignalSafe) == 0);
+
+  int munmap_result = tcmalloc::DirectMUnMap(invoke_hooks, region, size);
   RAW_CHECK(munmap_result == 0,
             "LowLevelAlloc::DeleteArena: munmap failed address");
 }

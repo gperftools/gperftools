@@ -134,20 +134,21 @@ public:
   explicit TrivialOnce(base::LinkerInitialized) {}
 
   template <typename Body>
-  void RunOnce(Body body) {
+  bool RunOnce(Body body) {
     auto done_atomic = reinterpret_cast<std::atomic<int>*>(&done_flag_);
     if (done_atomic->load(std::memory_order_acquire) == 1) {
-      return;
+      return false;
     }
 
     SpinLockHolder h(reinterpret_cast<SpinLock*>(&lock_storage_));
 
     if (done_atomic->load(std::memory_order_relaxed) == 1) {
       // barrier provided by lock
-      return;
+      return false;
     }
     body();
     done_atomic->store(1, std::memory_order_release);
+    return true;
   }
 
 private:

@@ -17,9 +17,6 @@
     <ClCompile Include="..\..\src\base\logging.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\base\low_level_alloc.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\base\spinlock.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

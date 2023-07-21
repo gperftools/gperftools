@@ -80,6 +80,7 @@
 /memalign_debug_unittest
 /memalign_unittest
 /missing
+/mmap_hook_test
 /packed_cache_test
 /packed_cache_test.exe
 /page_heap_test

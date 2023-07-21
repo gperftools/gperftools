@@ -192,7 +192,6 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\base\dynamic_annotations.cc" />
     <ClCompile Include="..\..\src\base\logging.cc" />
-    <ClCompile Include="..\..\src\base\low_level_alloc.cc" />
     <ClCompile Include="..\..\src\base\spinlock.cc" />
     <ClCompile Include="..\..\src\base\spinlock_internal.cc" />
     <ClCompile Include="..\..\src\base\sysinfo.cc" />

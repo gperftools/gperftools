@@ -196,18 +196,15 @@
   <ItemGroup>
     <ClCompile Include="..\..\src\base\dynamic_annotations.cc" />
     <ClCompile Include="..\..\src\base\logging.cc" />
-    <ClCompile Include="..\..\src\base\low_level_alloc.cc" />
     <ClCompile Include="..\..\src\base\spinlock.cc" />
     <ClCompile Include="..\..\src\base\spinlock_internal.cc" />
     <ClCompile Include="..\..\src\base\sysinfo.cc" />
     <ClCompile Include="..\..\src\central_freelist.cc" />
     <ClCompile Include="..\..\src\common.cc" />
     <ClCompile Include="..\..\src\fake_stacktrace_scope.cc" />
-    <ClCompile Include="..\..\src\heap-profile-table.cc" />
     <ClCompile Include="..\..\src\internal_logging.cc" />
     <ClCompile Include="..\..\src\malloc_extension.cc" />
     <ClCompile Include="..\..\src\malloc_hook.cc" />
-    <ClCompile Include="..\..\src\memory_region_map.cc" />
     <ClCompile Include="..\..\src\page_heap.cc" />
     <ClCompile Include="..\..\src\raw_printer.cc" />
     <ClCompile Include="..\..\src\sampler.cc" />
@@ -242,7 +239,6 @@
     <ClInclude Include="..\..\src\base\googleinit.h" />
     <ClInclude Include="..\..\src\base\linked_list.h" />
     <ClInclude Include="..\..\src\base\logging.h" />
-    <ClInclude Include="..\..\src\base\low_level_alloc.h" />
     <ClInclude Include="..\..\src\base\mutex.h" />
     <ClInclude Include="..\..\src\base\spinlock.h" />
     <ClInclude Include="..\..\src\base\spinlock_internal.h" />
@@ -254,16 +250,12 @@
     <ClInclude Include="..\..\src\base\thread_annotations.h" />
     <ClInclude Include="..\..\src\central_freelist.h" />
     <ClInclude Include="..\..\src\common.h" />
-    <ClInclude Include="..\..\src\gperftools\heap-checker.h" />
-    <ClInclude Include="..\..\src\gperftools\heap-profiler.h" />
     <ClInclude Include="..\..\src\gperftools\malloc_extension.h" />
     <ClInclude Include="..\..\src\gperftools\malloc_hook.h" />
     <ClInclude Include="..\..\src\gperftools\profiler.h" />
     <ClInclude Include="..\..\src\gperftools\stacktrace.h" />
-    <ClInclude Include="..\..\src\heap-profile-table.h" />
     <ClInclude Include="..\..\src\internal_logging.h" />
     <ClInclude Include="..\..\src\malloc_hook-inl.h" />
-    <ClInclude Include="..\..\src\memory_region_map.h" />
     <ClInclude Include="..\..\src\packed-cache-inl.h" />
     <ClInclude Include="..\..\src\pagemap.h" />
     <ClInclude Include="..\..\src\page_heap.h" />
