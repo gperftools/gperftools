@@ -121,15 +121,6 @@ SysAllocator* tcmalloc_sys_alloc = NULL;
 // Number of bytes taken from system.
 size_t TCMalloc_SystemTaken = 0;
 
-// Configuration parameters.
-DEFINE_int32(malloc_devmem_start,
-             EnvToInt("TCMALLOC_DEVMEM_START", 0),
-             "Physical memory starting location in MB for /dev/mem allocation."
-             "  Setting this to 0 disables /dev/mem allocation");
-DEFINE_int32(malloc_devmem_limit,
-             EnvToInt("TCMALLOC_DEVMEM_LIMIT", 0),
-             "Physical memory limit location in MB for /dev/mem allocation."
-             "  Setting this to 0 means no limit.");
 DEFINE_bool(malloc_skip_sbrk,
             EnvToBool("TCMALLOC_SKIP_SBRK", false),
             "Whether sbrk can be used to obtain memory.");
@@ -163,13 +154,6 @@ static union {
   char buf[sizeof(MmapSysAllocator)];
   void *ptr;
 } mmap_space;
-
-class DevMemSysAllocator : public SysAllocator {
-public:
-  DevMemSysAllocator() : SysAllocator() {
-  }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
-};
 
 class DefaultSysAllocator : public SysAllocator {
  public:
@@ -343,95 +327,6 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
 #endif  // HAVE_MMAP
 }
 
-void* DevMemSysAllocator::Alloc(size_t size, size_t *actual_size,
-                                size_t alignment) {
-#ifndef HAVE_MMAP
-  return NULL;
-#else
-  static bool initialized = false;
-  static off_t physmem_base;  // next physical memory address to allocate
-  static off_t physmem_limit; // maximum physical address allowed
-  static int physmem_fd;      // file descriptor for /dev/mem
-
-  // Check if we should use /dev/mem allocation.  Note that it may take
-  // a while to get this flag initialized, so meanwhile we fall back to
-  // the next allocator.  (It looks like 7MB gets allocated before
-  // this flag gets initialized -khr.)
-  if (FLAGS_malloc_devmem_start == 0) {
-    // NOTE: not a devmem_failure - we'd like TCMalloc_SystemAlloc to
-    // try us again next time.
-    return NULL;
-  }
-
-  if (!initialized) {
-    physmem_fd = open("/dev/mem", O_RDWR);
-    if (physmem_fd < 0) {
-      return NULL;
-    }
-    physmem_base = FLAGS_malloc_devmem_start*1024LL*1024LL;
-    physmem_limit = FLAGS_malloc_devmem_limit*1024LL*1024LL;
-    initialized = true;
-  }
-
-  // Enforce page alignment
-  if (pagesize == 0) pagesize = getpagesize();
-  if (alignment < pagesize) alignment = pagesize;
-  size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
-  if (aligned_size < size) {
-    return NULL;
-  }
-  size = aligned_size;
-
-  // "actual_size" indicates that the bytes from the returned pointer
-  // p up to and including (p + actual_size - 1) have been allocated.
-  if (actual_size) {
-    *actual_size = size;
-  }
-
-  // Ask for extra memory if alignment > pagesize
-  size_t extra = 0;
-  if (alignment > pagesize) {
-    extra = alignment - pagesize;
-  }
-
-  // check to see if we have any memory left
-  if (physmem_limit != 0 &&
-      ((size + extra) > (physmem_limit - physmem_base))) {
-    return NULL;
-  }
-
-  // Note: size + extra does not overflow since:
-  //            size + alignment < (1<<NBITS).
-  // and        extra <= alignment
-  // therefore  size + extra < (1<<NBITS)
-  void *result = mmap(0, size + extra, PROT_WRITE|PROT_READ,
-                      MAP_SHARED, physmem_fd, physmem_base);
-  if (result == reinterpret_cast<void*>(MAP_FAILED)) {
-    return NULL;
-  }
-  uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
-
-  // Adjust the return memory so it is aligned
-  size_t adjust = 0;
-  if ((ptr & (alignment - 1)) != 0) {
-    adjust = alignment - (ptr & (alignment - 1));
-  }
-
-  // Return the unused virtual memory to the system
-  if (adjust > 0) {
-    munmap(reinterpret_cast<void*>(ptr), adjust);
-  }
-  if (adjust < extra) {
-    munmap(reinterpret_cast<void*>(ptr + adjust + size), extra - adjust);
-  }
-
-  ptr += adjust;
-  physmem_base += adjust + size;
-
-  return reinterpret_cast<void*>(ptr);
-#endif  // HAVE_MMAP
-}
-
 void* DefaultSysAllocator::Alloc(size_t size, size_t *actual_size,
                                  size_t alignment) {
   for (int i = 0; i < kMaxAllocators; i++) {
@@ -512,11 +407,6 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
 
 bool TCMalloc_SystemRelease(void* start, size_t length) {
 #if defined(FREE_MMAP_PROT_NONE) && defined(HAVE_MMAP) || defined(MADV_FREE)
-  if (FLAGS_malloc_devmem_start) {
-    // It's not safe to use MADV_FREE/MADV_DONTNEED if we've been
-    // mapping /dev/mem for heap memory.
-    return false;
-  }
   if (FLAGS_malloc_disable_memory_release) return false;
   if (pagesize == 0) pagesize = getpagesize();
   const size_t pagemask = pagesize - 1;
