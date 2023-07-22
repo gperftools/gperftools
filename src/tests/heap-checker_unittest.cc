@@ -805,6 +805,7 @@ static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
   CHECK(check.BriefSameHeap());  // just in case
 }
 
+static SpinLock grplock{base::LINKER_INITIALIZED};
 static struct group* grp = NULL;
 static const int kKeys = 50;
 static pthread_key_t key[kKeys];
@@ -848,15 +849,19 @@ static void TestLibCAllocate() {
   void *stack[1];
   backtrace(stack, 1);
 #endif
+
+  if (grplock.TryLock()) {
 #ifdef HAVE_GRP_H
-  gid_t gid = getgid();
-  getgrgid(gid);
-  if (grp == NULL)  grp = getgrent();  // a race condition here is okay
-  getgrnam(grp->gr_name);
+    gid_t gid = getgid();
+    getgrgid(gid);
+    if (grp == NULL)  grp = getgrent();  // a race condition here is okay
+    getgrnam(grp->gr_name);
 #endif
 #ifdef HAVE_PWD_H
-  getpwuid(geteuid());
+    getpwuid(geteuid());
 #endif
+    grplock.Unlock();
+  }
 }
 
 // Continuous random heap memory activity to try to disrupt heap checking.
