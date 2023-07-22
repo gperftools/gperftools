@@ -56,7 +56,7 @@
 // do logging on a best-effort basis.
 #if defined(_MSC_VER)
 #define WRITE_TO_STDERR(buf, len) WriteToStderr(buf, len);  // in port.cc
-#elif defined(HAVE_SYS_SYSCALL_H)
+#elif defined(HAVE_SYS_SYSCALL_H) && !defined(__APPLE__)
 #include <sys/syscall.h>
 #define WRITE_TO_STDERR(buf, len) syscall(SYS_write, STDERR_FILENO, buf, len)
 #else
