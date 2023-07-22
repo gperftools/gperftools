@@ -35,11 +35,7 @@
 #include "config_for_unittests.h"
 #include <stdio.h>
 #include <stdlib.h>
-#if defined HAVE_STDINT_H
 #include <stdint.h>             // to get intptr_t
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>           // another place intptr_t might be defined
-#endif
 #include <sys/types.h>
 #include <vector>
 #include "base/logging.h"

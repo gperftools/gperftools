@@ -35,9 +35,7 @@
 #define TCMALLOC_SYMBOLIZE_H_
 
 #include "config.h"
-#ifdef HAVE_STDINT_H
 #include <stdint.h>  // for uintptr_t
-#endif
 #include <stddef.h>  // for NULL
 #include <map>
 

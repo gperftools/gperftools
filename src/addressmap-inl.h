@@ -84,13 +84,8 @@
 #include "config.h"
 #include <stddef.h>
 #include <string.h>
-#if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
-#elif defined HAVE_INTTYPES_H
 #include <inttypes.h>           // another place uint16_t might be defined
-#else
-#include <sys/types.h>          // our last best hope
-#endif
 
 // This class is thread-unsafe -- that is, instances of this class can
 // not be accessed concurrently by multiple threads -- because the

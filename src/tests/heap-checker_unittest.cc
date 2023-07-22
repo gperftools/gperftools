@@ -62,11 +62,7 @@
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
-#if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>           // another place uint16_t might be defined
-#endif
 #include <sys/types.h>
 #include <stdlib.h>
 #include <errno.h>              // errno

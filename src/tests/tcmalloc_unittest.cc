@@ -69,9 +69,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#ifdef HAVE_STDINT_H
 #include <stdint.h>        // for intptr_t
-#endif
 #include <sys/types.h>     // for size_t
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>         // for open; used with mmap-hook test

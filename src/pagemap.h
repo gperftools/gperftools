@@ -50,13 +50,7 @@
 
 #include <stddef.h>                     // for NULL, size_t
 #include <string.h>                     // for memset
-#if defined HAVE_STDINT_H
 #include <stdint.h>
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-#include <sys/types.h>
-#endif
 #include "internal_logging.h"  // for ASSERT
 
 // Single-level array

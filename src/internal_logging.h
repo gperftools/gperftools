@@ -38,13 +38,7 @@
 
 #include <config.h>
 #include <stddef.h>                     // for size_t
-#if defined HAVE_STDINT_H
 #include <stdint.h>
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-#include <sys/types.h>
-#endif
 
 //-------------------------------------------------------------------
 // Utility routines

@@ -32,9 +32,7 @@
 // Author: Sanjay Ghemawat <opensource@google.com>
 
 #include <config.h>
-#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>                   // for PRIuPTR
-#endif
 #include <errno.h>                      // for ENOMEM, errno
 #include <gperftools/malloc_extension.h>      // for MallocRange, etc
 #include "base/basictypes.h"

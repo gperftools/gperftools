@@ -36,9 +36,7 @@
 
 #include <config.h>
 #include <stddef.h>                     // for size_t
-#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for uint64_t, int64_t, uint16_t
-#endif
 #include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
 #include "common.h"

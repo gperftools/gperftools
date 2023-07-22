@@ -35,13 +35,7 @@
 #include <errno.h>                      // for EAGAIN, errno
 #include <fcntl.h>                      // for open, O_RDWR
 #include <stddef.h>                     // for size_t, NULL, ptrdiff_t
-#if defined HAVE_STDINT_H
 #include <stdint.h>                     // for uintptr_t, intptr_t
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-#include <sys/types.h>
-#endif
 #ifdef HAVE_MMAP
 #include <sys/mman.h>                   // for munmap, mmap, MADV_DONTNEED, etc
 #endif

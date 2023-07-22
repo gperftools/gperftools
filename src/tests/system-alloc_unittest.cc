@@ -36,11 +36,7 @@
 #include "system-alloc.h"
 
 #include <stdio.h>
-#if defined HAVE_STDINT_H
 #include <stdint.h>             // to get uintptr_t
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>           // another place uintptr_t might be defined
-#endif
 #include <sys/types.h>
 
 #include <algorithm>

@@ -101,10 +101,6 @@
 
 /* ----------------------------------- BASIC TYPES */
 
-#ifndef HAVE_STDINT_H
-# error  Do not know how to set up type aliases.  Edit port.h for your system.
-#endif
-
 /* I guess MSVC's <types.h> doesn't include ssize_t by default? */
 #ifdef _MSC_VER
 typedef intptr_t ssize_t;
@@ -234,21 +230,6 @@ inline int perftools_vsnprintf(char *str, size_t size, const char *format,
   str[size-1] = '\0';
   return _vsnprintf(str, size-1, format, ap);
 }
-#endif
-
-#ifndef HAVE_INTTYPES_H
-#define PRIx64  "I64x"
-#define SCNx64  "I64x"
-#define PRId64  "I64d"
-#define SCNd64  "I64d"
-#define PRIu64  "I64u"
-#ifdef _WIN64
-# define PRIuPTR "llu"
-# define PRIxPTR "llx"
-#else
-# define PRIuPTR "lu"
-# define PRIxPTR "lx"
-#endif
 #endif
 
 /* ----------------------------------- FILE IO */

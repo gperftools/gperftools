@@ -94,13 +94,7 @@
 #include <gperftools/tcmalloc.h>
 
 #include <errno.h>                      // for ENOMEM, EINVAL, errno
-#if defined HAVE_STDINT_H
 #include <stdint.h>
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-#include <sys/types.h>
-#endif
 #include <stddef.h>                     // for size_t, NULL
 #include <stdlib.h>                     // for getenv
 #include <string.h>                     // for strcmp, memset, strlen, etc

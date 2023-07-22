@@ -45,9 +45,7 @@
 # define GLOB_NOMATCH 0
 #endif
 #endif
-#ifdef HAVE_INTTYPES_H
 #include <inttypes.h> // for PRIxPTR
-#endif
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif

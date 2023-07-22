@@ -36,9 +36,7 @@
 #include "config_for_unittests.h"
 #include <stdlib.h>           // for NULL, abort()
 // On FreeBSD, if you #include <sys/resource.h>, you have to get stdint first.
-#ifdef HAVE_STDINT_H
 #include <stdint.h>
-#endif
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif

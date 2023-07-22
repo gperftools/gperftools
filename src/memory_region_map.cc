@@ -102,9 +102,7 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
-#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
-#endif
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 #elif !defined(MAP_FAILED)

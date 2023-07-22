@@ -39,9 +39,7 @@
 #include <pthread.h>                    // for pthread_t, pthread_key_t
 #endif
 #include <stddef.h>                     // for size_t, NULL
-#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for uint32_t, uint64_t
-#endif
 #include <sys/types.h>                  // for ssize_t
 #include "base/commandlineflags.h"
 #include "common.h"

@@ -53,9 +53,7 @@
 #include <assert.h>
 #include <stdlib.h>        // defines posix_memalign
 #include <stdio.h>         // for the printf at the end
-#ifdef HAVE_STDINT_H
 #include <stdint.h>        // for uintptr_t
-#endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>        // for getpagesize()
 #endif

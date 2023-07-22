@@ -114,9 +114,7 @@
 
 #include "config.h"
 #include <stddef.h>                     // for size_t
-#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for uintptr_t
-#endif
 #include "base/basictypes.h"
 #include "common.h"
 #include "internal_logging.h"

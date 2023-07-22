@@ -92,9 +92,6 @@
 /* Define to 1 if you have the <grp.h> header file. */
 #cmakedefine01 HAVE_GRP_H
 
-/* Define to 1 if you have the <inttypes.h> header file. */
-#cmakedefine01 HAVE_INTTYPES_H
-
 /* Define to 1 if you have the <libunwind.h> header file. */
 #cmakedefine01 HAVE_LIBUNWIND_H
 
@@ -138,17 +135,6 @@
 #cmakedefine01 HAVE_SCHED_H
 
 /* Define to 1 if you have the <stdint.h> header file. */
-#cmakedefine01 HAVE_STDINT_H
-
-/* Define to 1 if you have the <stdlib.h> header file. */
-#cmakedefine01 HAVE_STDLIB_H 1
-
-/* Define to 1 if you have the <strings.h> header file. */
-#cmakedefine01 HAVE_STRINGS_H
-
-/* Define to 1 if you have the <string.h> header file. */
-#cmakedefine01 HAVE_STRING_H
-
 /* Define to 1 if the system has the type `struct mallinfo'. */
 #cmakedefine01 HAVE_STRUCT_MALLINFO
 

@@ -38,9 +38,7 @@
 
 #include "config.h"
 #include <stddef.h>                     // for size_t
-#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for uintptr_t, uint64_t
-#endif
 #include "internal_logging.h"  // for ASSERT, etc
 #include "base/basictypes.h"   // for LIKELY, etc
 

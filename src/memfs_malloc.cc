@@ -43,9 +43,7 @@
 #include <inttypes.h>                   // for PRId64
 #include <limits.h>                     // for PATH_MAX
 #include <stddef.h>                     // for size_t, NULL
-#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for int64_t, uintptr_t
-#endif
 #include <stdio.h>                      // for snprintf
 #include <stdlib.h>                     // for mkstemp
 #include <string.h>                     // for strerror

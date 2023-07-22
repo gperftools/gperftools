@@ -35,13 +35,7 @@
 #include <assert.h>
 #include <string.h>
 #include <stdio.h>
-#if defined HAVE_STDINT_H
 #include <stdint.h>
-#elif defined HAVE_INTTYPES_H
-#include <inttypes.h>
-#else
-#include <sys/types.h>
-#endif
 #include <string>
 #include "base/dynamic_annotations.h"
 #include "base/sysinfo.h"    // for FillProcSelfMaps

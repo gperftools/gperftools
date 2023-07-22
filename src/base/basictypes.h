@@ -33,21 +33,14 @@
 
 #include <config.h>
 #include <string.h>       // for memcpy()
-#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>     // gets us PRId64, etc
-#endif
 
 // To use this in an autoconf setting, make sure you run the following
 // autoconf macros:
 //    AC_HEADER_STDC              /* for stdint_h and inttypes_h */
 //    AC_CHECK_TYPES([__int64])   /* defined in some windows platforms */
 
-#ifdef HAVE_INTTYPES_H
-#include <inttypes.h>           // uint16_t might be here; PRId64 too.
-#endif
-#ifdef HAVE_STDINT_H
 #include <stdint.h>             // to get uint16_t (ISO naming madness)
-#endif
 #include <sys/types.h>          // our last best hope for uint16_t
 
 // Standard typedefs

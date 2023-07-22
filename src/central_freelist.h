@@ -36,9 +36,7 @@
 
 #include "config.h"
 #include <stddef.h>                     // for size_t
-#ifdef HAVE_STDINT_H
 #include <stdint.h>                     // for int32_t
-#endif
 #include "base/spinlock.h"
 #include "base/thread_annotations.h"
 #include "common.h"

@@ -99,11 +99,6 @@
 /* Define to 1 if you have the <grp.h> header file. */
 /* #undef HAVE_GRP_H */
 
-/* Define to 1 if you have the <inttypes.h> header file. */
-#if defined(_MSC_VER) && _MSC_VER >= 1900
-#define HAVE_INTTYPES_H 1
-#endif
-
 /* Define to 1 if you have the <libunwind.h> header file. */
 /* #undef HAVE_LIBUNWIND_H */
 
@@ -140,18 +135,6 @@
 
 /* Define to 1 if you have the <sched.h> header file. */
 /* #undef HAVE_SCHED_H */
-
-/* Define to 1 if you have the <stdint.h> header file. */
-#define HAVE_STDINT_H 1
-
-/* Define to 1 if you have the <stdlib.h> header file. */
-#define HAVE_STDLIB_H 1
-
-/* Define to 1 if you have the <strings.h> header file. */
-/* #undef HAVE_STRINGS_H */
-
-/* Define to 1 if you have the <string.h> header file. */
-#define HAVE_STRING_H 1
 
 /* Define to 1 if the system has the type `struct mallinfo'. */
 /* #undef HAVE_STRUCT_MALLINFO */

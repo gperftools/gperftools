@@ -36,9 +36,7 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>
 #endif
-#ifdef HAVE_INTTYPES_H
 #include <inttypes.h>
-#endif
 // We only need malloc.h for struct mallinfo.
 #ifdef HAVE_STRUCT_MALLINFO
 // Malloc can be in several places on older versions of OS X.
