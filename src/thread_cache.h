@@ -109,7 +109,6 @@ class ThreadCache {
   static ThreadCache* GetCache();
   static ThreadCache* GetCacheIfPresent();
   static ThreadCache* GetFastPathCache();
-  static ThreadCache* GetCacheWhichMustBePresent();
   static ThreadCache* CreateCacheIfNecessary();
   static void         BecomeIdle();
   static void         BecomeTemporarilyIdle();
@@ -414,17 +413,6 @@ inline ThreadCache* ThreadCache::GetThreadHeap() {
 #ifdef HAVE_TLS
   return threadlocal_data_.heap;
 #else
-  return reinterpret_cast<ThreadCache *>(
-      perftools_pthread_getspecific(heap_key_));
-#endif
-}
-
-inline ThreadCache* ThreadCache::GetCacheWhichMustBePresent() {
-#ifdef HAVE_TLS
-  ASSERT(threadlocal_data_.heap);
-  return threadlocal_data_.heap;
-#else
-  ASSERT(perftools_pthread_getspecific(heap_key_));
   return reinterpret_cast<ThreadCache *>(
       perftools_pthread_getspecific(heap_key_));
 #endif
