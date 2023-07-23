@@ -109,6 +109,13 @@ AC_ARG_ENABLE([stacktrace-via-backtrace],
                               [enable use of backtrace() for stacktrace capturing (may deadlock)])],
               [enable_backtrace=yes],
               [enable_backtrace="$default_enable_backtrace"])
+AC_ARG_ENABLE([libgcc-unwinder-by-default],
+              [AS_HELP_STRING([--enable-libgcc-unwinder-by-default],
+                              [prefer libgcc's _Unwind_Backtrace as default stacktrace capturing method])],
+              [enable_libgcc_by_default=yes],
+              [enable_libgcc_by_default=no])
+AS_IF([test "x$enable_libgcc_by_default" = xyes],
+      [AC_DEFINE(PREFER_LIBGCC_UNWINDER, 1, [if libgcc stacktrace method should be default])])
 AC_ARG_ENABLE([libunwind],
               [AS_HELP_STRING([--enable-libunwind],
                               [enable libunwind linking])],

@@ -197,7 +197,7 @@ struct GetStackImplementation {
 // historically we defaulted to frame pointer unwinder whenever
 // --enable-frame-pointers is given. So we keep this behavior.
 #define PREFER_FP_UNWINDER 1
-#elif TCMALLOC_DONT_PREFER_LIBUNWIND
+#elif TCMALLOC_DONT_PREFER_LIBUNWIND && !PREFER_LIBGCC_UNWINDER
 #define PREFER_FP_UNWINDER 1
 #else
 #define PREFER_FP_UNWINDER 0
