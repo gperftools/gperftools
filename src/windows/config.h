@@ -14,6 +14,10 @@
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #endif
 
+// windows.h whatevevs defines min and max preprocessor macros and
+// that breaks ::max() in various places (like numeric_limits)
+#define NOMINMAX
+
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 /* used by tcmalloc.h */
