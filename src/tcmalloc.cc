@@ -1177,14 +1177,12 @@ static void* DoSampledAllocation(size_t size) {
 
   // Allocate stack trace
   StackTrace *stack = Static::stacktrace_allocator()->New();
-  if (PREDICT_FALSE(stack == NULL)) {
-    // Sampling failed because of lack of memory
-    return span;
+  if (PREDICT_TRUE(stack != nullptr)) {
+    *stack = tmp;
+    span->sample = 1;
+    span->objects = stack;
+    tcmalloc::DLL_Prepend(Static::sampled_objects(), span);
   }
-  *stack = tmp;
-  span->sample = 1;
-  span->objects = stack;
-  tcmalloc::DLL_Prepend(Static::sampled_objects(), span);
 
   return SpanToMallocResult(span);
 #else
