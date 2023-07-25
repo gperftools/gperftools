@@ -16,7 +16,9 @@
 
 // windows.h whatevevs defines min and max preprocessor macros and
 // that breaks ::max() in various places (like numeric_limits)
+#ifndef NOMINMAX
 #define NOMINMAX
+#endif
 
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
