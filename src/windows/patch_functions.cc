@@ -448,6 +448,12 @@ template<int T> GenericFnPtr LibcInfoWithPatchFunctions<T>::origstub_fn_[] = {
   // This will get filled in at run-time, as patching is done.
 };
 
+// _expand() is like realloc but doesn't move the
+// pointer.  We punt, which will cause callers to fall back on realloc.
+static void* empty__expand(void*, size_t) __THROW {
+  return nullptr;
+}
+
 template<int T>
 const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   (GenericFnPtr)&Perftools_malloc,
@@ -463,7 +469,7 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
   (GenericFnPtr)&Perftools_delete_nothrow,
   (GenericFnPtr)&Perftools_deletearray_nothrow,
   (GenericFnPtr)&Perftools__msize,
-  (GenericFnPtr)&Perftools__expand,
+  (GenericFnPtr)&empty__expand,
   (GenericFnPtr)&Perftools_calloc,
   (GenericFnPtr)&Perftools_free_base,
   (GenericFnPtr)&Perftools_free_dbg
@@ -915,15 +921,6 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
 template<int T>
 size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
   return GetSizeWithCallback(ptr, (size_t (*)(const void*))origstub_fn_[k_Msize]);
-}
-
-// We need to define this because internal windows functions like to
-// call into it(?).  _expand() is like realloc but doesn't move the
-// pointer.  We punt, which will cause callers to fall back on realloc.
-template<int T>
-void* LibcInfoWithPatchFunctions<T>::Perftools__expand(void *ptr,
-                                                       size_t size) __THROW {
-  return NULL;
 }
 
 LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,
