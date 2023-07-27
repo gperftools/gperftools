@@ -219,7 +219,7 @@ libsysinfo_la_LIBADD += -lshlwapi
 ##                                 src/base/basictypes.h \
 ##                                 src/base/logging.h
 ## preamble_patcher_test_LDFLAGS = $(TCMALLOC_FLAGS)
-## preamble_patcher_test_LDADD = $(LIBTCMALLOC_MINIMAL)
+## preamble_patcher_test_LDADD = libtcmalloc_minimal.la
 
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
 TCMALLOC_CC =
@@ -439,16 +439,6 @@ libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
 libtcmalloc_minimal_la_LDFLAGS = -version-info @TCMALLOC_SO_VERSION@ $(AM_LDFLAGS)
 libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la
 
-# For windows, we're playing around with trying to do some stacktrace
-# support even with libtcmalloc_minimal.  For everyone else, though,
-# we turn off all stack-trace activity for libtcmalloc_minimal.
-# TODO(csilvers): when we're done experimenting, do something principled here
-if MINGW
-LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la libstacktrace.la
-else !MINGW
-LIBTCMALLOC_MINIMAL = libtcmalloc_minimal.la
-endif !MINGW
-
 LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 
 ### Unittests
@@ -483,7 +473,7 @@ tcmalloc_minimal_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 # We also put pthreads after tcmalloc, because some pthread
 # implementations define their own malloc, and we need to go on the
 # first linkline to make sure our malloc 'wins'.
-tcmalloc_minimal_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) \
+tcmalloc_minimal_unittest_LDADD = libtcmalloc_minimal.la \
                                   liblogging.la $(PTHREAD_LIBS)
 
 # lets make sure we exerice ASSERTs in at least in statically linked
@@ -505,13 +495,13 @@ WINDOWS_PROJECTS += vsprojects/tcmalloc_minimal_large/tcmalloc_minimal_large_uni
 tcmalloc_minimal_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
 tcmalloc_minimal_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-tcmalloc_minimal_large_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+tcmalloc_minimal_large_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_minimal_large_heap_fragmentation_unittest
 tcmalloc_minimal_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
 tcmalloc_minimal_large_heap_fragmentation_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 # These all tests components of tcmalloc_minimal
 
@@ -535,7 +525,7 @@ system_alloc_unittest_SOURCES = src/config_for_unittests.h \
                                 src/tests/system-alloc_unittest.cc
 system_alloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 system_alloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-system_alloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+system_alloc_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 endif !MINGW
 
 TESTS += packed_cache_test
@@ -543,14 +533,14 @@ WINDOWS_PROJECTS += vsprojects/packed-cache_test/packed-cache_test.vcxproj
 packed_cache_test_SOURCES = src/tests/packed-cache_test.cc
 packed_cache_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 packed_cache_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-packed_cache_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+packed_cache_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += frag_unittest
 WINDOWS_PROJECTS += vsprojects/frag_unittest/frag_unittest.vcxproj
 frag_unittest_SOURCES = src/tests/frag_unittest.cc src/config_for_unittests.h
 frag_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 frag_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-frag_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+frag_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += markidle_unittest
 WINDOWS_PROJECTS += vsprojects/markidle_unittest/markidle_unittest.vcxproj
@@ -559,7 +549,7 @@ markidle_unittest_SOURCES = src/tests/markidle_unittest.cc \
                             src/tests/testutil.h src/tests/testutil.cc
 markidle_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 markidle_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-markidle_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+markidle_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += current_allocated_bytes_test
 WINDOWS_PROJECTS += vsprojects/current_allocated_bytes_test/current_allocated_bytes_test.vcxproj
@@ -567,7 +557,7 @@ current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc
                                        src/config_for_unittests.h
 current_allocated_bytes_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 current_allocated_bytes_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-current_allocated_bytes_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+current_allocated_bytes_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += malloc_hook_test
 WINDOWS_PROJECTS += vsprojects/malloc_hook_test/malloc_hook_test.vcxproj
@@ -578,7 +568,7 @@ malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
                            src/tests/testutil.h src/tests/testutil.cc
 malloc_hook_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_hook_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-malloc_hook_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+malloc_hook_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 if !MINGW
 TESTS += mmap_hook_test
@@ -596,7 +586,7 @@ malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc \
                                 src/gperftools/malloc_extension_c.h
 malloc_extension_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_extension_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-malloc_extension_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+malloc_extension_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 # This doesn't work with mingw, which links foo.a even though it
 # doesn't set ENABLE_STATIC.  TODO(csilvers): set enable_static=true
@@ -620,7 +610,7 @@ memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
                             src/tests/testutil.h src/tests/testutil.cc
 memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 memalign_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-memalign_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+memalign_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 endif !OSX
 endif !MINGW
 
@@ -633,7 +623,7 @@ page_heap_test_SOURCES = src/tests/page_heap_test.cc \
                          src/page_heap.h
 page_heap_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 page_heap_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-page_heap_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+page_heap_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += pagemap_unittest
 WINDOWS_PROJECTS += vsprojects/pagemap_unittest/pagemap_unittest.vcxproj
@@ -643,7 +633,7 @@ pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
                            src/pagemap.h
 pagemap_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 pagemap_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-pagemap_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+pagemap_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += safe_strerror_test
 safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
@@ -657,7 +647,7 @@ realloc_unittest_SOURCES = src/tests/realloc_unittest.cc \
                            src/base/logging.h
 realloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 realloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-realloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+realloc_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += stack_trace_table_test
 WINDOWS_PROJECTS += vsprojects/stack_trace_table_test/stack_trace_table_test.vcxproj
@@ -665,7 +655,7 @@ stack_trace_table_test_SOURCES = src/tests/stack_trace_table_test.cc \
                                  src/config_for_unittests.h
 stack_trace_table_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 stack_trace_table_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-stack_trace_table_test_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+stack_trace_table_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += thread_dealloc_unittest
 WINDOWS_PROJECTS += vsprojects/thread_dealloc_unittest/thread_dealloc_unittest.vcxproj
@@ -674,7 +664,7 @@ thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
                                   src/tests/testutil.h src/tests/testutil.cc
 thread_dealloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 thread_dealloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-thread_dealloc_unittest_LDADD = $(LIBTCMALLOC_MINIMAL) $(PTHREAD_LIBS)
+thread_dealloc_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 ### Documentation
 dist_doc_DATA += docs/tcmalloc.html \
@@ -988,10 +978,10 @@ if WITH_CPU_PROFILER
 # We also put pthreads after tcmalloc, because some pthread
 # implementations define their own malloc, and we need to go on the
 # first linkline to make sure our malloc 'wins'.
-tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) libtcmalloc_minimal.la \
                               libprofiler.la liblogging.la $(PTHREAD_LIBS)
 else
-tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) $(LIBTCMALLOC_MINIMAL) \
+tcmalloc_both_unittest_ladd = $(LIBTCMALLOC) libtcmalloc_minimal.la \
                               liblogging.la $(PTHREAD_LIBS)
 endif !WITH_CPU_PROFILER
 if !OSX
