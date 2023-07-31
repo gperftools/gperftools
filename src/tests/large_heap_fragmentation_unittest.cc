@@ -28,7 +28,7 @@
 // This is a unit test for exercising fragmentation of large (over 1
 // meg) page spans. It makes sure that allocations/releases of
 // increasing memory chunks do not blowup memory
-// usage. See also https://code.google.com/p/gperftools/issues/detail?id=368
+// usage. See also https://github.com/gperftools/gperftools/issues/371
 
 
 #include <stddef.h>

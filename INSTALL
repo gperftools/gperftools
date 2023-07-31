@@ -15,8 +15,9 @@ products checked into it's source repository. This is common practice
 for projects using autotools.
 
 NOTE: Source releases (.tar.gz that you download from
-code.google.com/p/gperftools) still have all required files just as
-before. Nothing has changed w.r.t. building from .tar.gz releases.
+https://github.com/gperftools/gperftools/releases) still have all
+required files just as before. Nothing has changed w.r.t. building
+from .tar.gz releases.
 
 But, in order to build gperftools checked out from subversion
 repository you need to have autoconf, automake and libtool

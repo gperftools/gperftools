@@ -576,7 +576,7 @@ AC_DEFINE(PERFTOOLS_DLL_DECL,,
 # the end result is if config.h is #included twice, its #undefs get
 # evaluated twice, but all the ones in mingw.h/etc only get evaluated
 # once, potentially causing trouble.  c.f.
-#   http://code.google.com/p/gperftools/issues/detail?id=246
+#   https://github.com/gperftools/gperftools/issues/248
 AH_TOP([
 #ifndef GPERFTOOLS_CONFIG_H_
 #define GPERFTOOLS_CONFIG_H_

@@ -714,7 +714,7 @@ class MallocBlock {
     RAW_LOG(FATAL,
             "Memory was written to after being freed.  MallocBlock: %p, user "
             "ptr: %p, size: %zd.  If you can't find the source of the error, "
-            "try using ASan (http://code.google.com/p/address-sanitizer/), "
+            "try using ASan (https://github.com/google/sanitizers), "
             "Valgrind, or Purify, or study the "
             "output of the deleter's stack printed above.",
             b, b->data_addr(), size);

@@ -609,7 +609,7 @@ inline static uintptr_t AsInt(const void* ptr) {
 
 // We've seen reports that strstr causes heap-checker crashes in some
 // libc's (?):
-//    http://code.google.com/p/gperftools/issues/detail?id=263
+//    https://github.com/gperftools/gperftools/issues/265
 // It's simple enough to use our own.  This is not in time-critical code.
 static const char* hc_strstr(const char* s1, const char* s2) {
   const size_t len = strlen(s2);
@@ -2070,7 +2070,7 @@ void HeapLeakChecker_InternalInitStart() {
                    FLAGS_heap_check.c_str());
   }
   // FreeBSD doesn't seem to honor atexit execution order:
-  //    http://code.google.com/p/gperftools/issues/detail?id=375
+  //    https://github.com/gperftools/gperftools/issues/378
   // Since heap-checking before destructors depends on atexit running
   // at the right time, on FreeBSD we always check after, even in the
   // less strict modes.  This just means FreeBSD is always a bit

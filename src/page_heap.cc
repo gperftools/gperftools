@@ -198,7 +198,7 @@ Span* PageHeap::NewLocked(Length n, LockingContext* context) {
     // penalized with higher count of minor page faults.
     //
     // See also large_heap_fragmentation_unittest.cc and
-    // https://code.google.com/p/gperftools/issues/detail?id=368
+    // https://github.com/gperftools/gperftools/issues/371
     ReleaseAtLeastNPages(static_cast<Length>(0x7fffffff));
 
     // then try again. If we are forced to grow heap because of large

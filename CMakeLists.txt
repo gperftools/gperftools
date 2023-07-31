@@ -7,7 +7,7 @@ cmake_minimum_required(VERSION 3.12)
 
 project(gperftools VERSION 2.10.0 LANGUAGES C CXX
         DESCRIPTION "Performance tools for C++"
-        HOMEPAGE_URL http://code.google.com/p/gperftools/)
+        HOMEPAGE_URL https://github.com/gperftools/gperftools)
 
 # Update this value for every release!
 set(TCMALLOC_SO_VERSION 9.10.5)
