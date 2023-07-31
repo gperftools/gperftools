@@ -35,9 +35,6 @@
 
 #include "config_for_unittests.h"
 #include <stdio.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>    // for sleep()
-#endif
 #include "base/logging.h"
 #include <gperftools/malloc_extension.h>
 #include "tests/testutil.h"   // for RunThread()
@@ -77,8 +74,6 @@ int main(int argc, char** argv) {
   delete[] display;
 
   printf("PASS\n");
-#ifdef HAVE_UNISTD_H
-  sleep(1);     // Prevent exit race problem with glibc
-#endif
+
   return 0;
 }
