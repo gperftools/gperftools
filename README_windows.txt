@@ -5,7 +5,7 @@ is supported at this time.  A working solution file exists in this
 directory:
     gperftools.sln
 
-You can load this solution file into VC++ 7.1 (Visual Studio 2003) or
+You can load this solution file into Visual Studio 2015 or
 later -- in the latter case, it will automatically convert the files
 to the latest format for you.
 
@@ -29,9 +29,9 @@ To use tcmalloc_minimal in your own projects, you should only need to
 build the dll and install it someplace, so you can link it into
 further binaries.  To use the dll, you need to add the following to
 the linker line of your executable:
-   "libtcmalloc_minimal.lib" /INCLUDE:"__tcmalloc" 
+   "libtcmalloc_minimal.lib" /INCLUDE:"__tcmalloc"
 
-Here is how to accomplish this in Visual Studio 2005 (VC8):
+Here is how to accomplish this in Visual Studio 2015:
 
 1) Have your executable depend on the tcmalloc library by selecting
    "Project Dependencies..." from the "Project" menu.  Your executable
@@ -72,29 +72,7 @@ such as the cpu-profiler and leak-checker, have not yet been ported to
 Windows at all.
 
 
---- WIN64
-
-The function-patcher has to disassemble code, and is very
-x86-specific.  However, the rest of perftools should work fine for
-both x86 and x64.  In particular, if you use the 'statically link with
-libc, and replace its malloc with tcmalloc' approach, mentioned above,
-it should be possible to use tcmalloc with 64-bit windows.
-
-As of perftools 1.10, there is some support for disassembling x86_64
-instructions, for work with win64.  This work is preliminary, but the
-test file preamble_patcher_test.cc is provided to play around with
-that a bit.  preamble_patcher_test will not compile on win32.
-
-
 --- ISSUES
-
-NOTE FOR WIN2K USERS: According to reports
-(http://code.google.com/p/gperftools/issues/detail?id=127)
-the stack-tracing necessary for the heap-profiler does not work on
-Win2K.  The best workaround is, if you are building on a Win2k system
-is to add "/D NO_TCMALLOC_SAMPLES=" to your build, to turn off the
-stack-tracing.  You will not be able to use the heap-profiler if you
-do this.
 
 NOTE ON _MSIZE and _RECALLOC: The tcmalloc version of _msize returns
 the size of the region tcmalloc allocated for you -- which is at least
@@ -116,5 +94,6 @@ them on the gperftools Google Code site:
    http://code.google.com/p/gperftools/issues/list
 
 -- craig
+-- updated by alk on 31 July 2023
 
-Last modified: 2 February 2012
+Last modified: 31 July 2023

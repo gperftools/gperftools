@@ -69,6 +69,10 @@ see INSTALL for more details.  It is not currently available on Windows.
 
 HEAP CHECKER
 ------------
+
+Please note that as of gperftools-2.11 this is deprecated. You should
+consider asan and other sanitizers instead.
+
 See docs/heap_checker.html for information about how to use tcmalloc's
 heap checker.
 
@@ -178,12 +182,14 @@ For a full list of variables, see the documentation pages:
 COMPILING ON NON-LINUX SYSTEMS
 ------------------------------
 
-Perftools was developed and tested on x86 Linux systems, and it works
-in its full generality only on those systems.  However, we've
-successfully ported much of the tcmalloc library to FreeBSD, Solaris
-x86, and Darwin (Mac OS X) x86 and ppc; and we've ported the basic
-functionality in tcmalloc_minimal to Windows.  See INSTALL for details.
-See README_windows.txt for details on the Windows port.
+Perftools was developed and tested on x86, aarch64 and riscv Linux
+systems, and it works in its full generality only on those systems.
+
+However, we've successfully ported much of the tcmalloc library to
+FreeBSD, Solaris x86 (not tested recently though), and Mac OS X
+(aarch64; x86 and ppc have not been tested recently); and we've ported
+the basic functionality in tcmalloc_minimal to Windows.  See INSTALL
+for details.  See README_windows.txt for details on the Windows port.
 
 
 PERFORMANCE
