@@ -656,10 +656,6 @@ class TCMallocImplementation : public MallocExtension {
     return tc->Size();
   }
 
-  virtual void MarkThreadTemporarilyIdle() {
-    ThreadCache::BecomeTemporarilyIdle();
-  }
-
   virtual void Ranges(void* arg, RangeFunction func) {
     IterateOverRanges(arg, func);
   }
@@ -834,6 +830,18 @@ class TCMallocImplementation : public MallocExtension {
     }
 
     return false;
+  }
+
+  // Note, in gperftools 2.5 we introduced this 'ligher-weight'
+  // equivalent of MarkThreadIdle, but as of now mongo folk tells us
+  // they don't use it anymore. And there was indeed possible issue
+  // with this approach since it didn't 'return' thread's share of
+  // total thread cache back to common pool. But that was almost
+  // exactly the difference between regular mark idle and mark
+  // "temporarily" idle. So we now go back to original mark idle, but
+  // keep API for ABI and API compat sake.
+  virtual void MarkThreadTemporarilyIdle() {
+    MarkThreadIdle();
   }
 
   virtual void MarkThreadIdle() {

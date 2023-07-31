@@ -109,7 +109,6 @@ class ThreadCache {
   static ThreadCache* GetFastPathCache();
   static ThreadCache* CreateCacheIfNecessary();
   static void         BecomeIdle();
-  static void         BecomeTemporarilyIdle();
   static void         SetUseEmergencyMalloc();
   static void         ResetUseEmergencyMalloc();
   static bool         IsUseEmergencyMalloc();
