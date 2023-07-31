@@ -101,12 +101,12 @@ googleincludedir = $(includedir)/google
 googleinclude_HEADERS =				\
    src/google/tcmalloc.h
 
-# This is for HTML and other documentation you want to install.
-# Add your documentation files (in doc/) in addition to these
-# top-level boilerplate files.  Also add a TODO file if you have one.
-# We'll add to this later, on a library-by-library basis
+# This is for HTML and other documentation you want to install.  Add
+# your documentation files (in doc/) in addition to these top-level
+# boilerplate files.  We'll add to this later, on a library-by-library
+# basis
 dist_doc_DATA = AUTHORS COPYING INSTALL NEWS README README_windows.txt \
-                TODO ChangeLog.old
+                ChangeLog.old
 
 # The libraries (.so's) you want to install
 # We'll add to this later, on a library-by-library basis
