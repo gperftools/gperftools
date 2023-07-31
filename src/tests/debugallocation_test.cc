@@ -261,7 +261,6 @@ TEST(DebugAllocationTest, CurrentlyAllocated) {
 }
 
 TEST(DebugAllocationTest, GetAllocatedSizeTest) {
-#if 1
   // When debug_allocation is in effect, GetAllocatedSize should return
   // exactly requested size, since debug_allocation doesn't allow users
   // to write more than that.
@@ -272,14 +271,29 @@ TEST(DebugAllocationTest, GetAllocatedSizeTest) {
     void *p = noopt(malloc(i));
     EXPECT_EQ(i, MallocExtension::instance()->GetAllocatedSize(p));
     free(p);
+
+    p = tc_memalign(16, i);
+    auto amount = MallocExtension::instance()->GetAllocatedSize(p);
+    EXPECT_LE(i, amount);
+    memset(p, 0xff, amount);
+    tc_free(p);
   }
-#endif
+
   void* a = noopt(malloc(1000));
   EXPECT_GE(MallocExtension::instance()->GetAllocatedSize(a), 1000);
   // This is just a sanity check.  If we allocated too much, alloc is broken
   EXPECT_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
-  EXPECT_GE(MallocExtension::instance()->GetEstimatedAllocatedSize(1000), 1000);
   free(a);
+
+  EXPECT_GE(MallocExtension::instance()->GetEstimatedAllocatedSize(1000), 1000);
+
+  a = tc_memalign(16, 1000);
+  auto amount = MallocExtension::instance()->GetAllocatedSize(a);
+  EXPECT_GE(amount, 1000);
+  // This is just a sanity check.  If we allocated too much, alloc is broken
+  EXPECT_LE(amount, 5000);
+  memset(a, 0xff, amount);
+  tc_free(a);
 }
 
 TEST(DebugAllocationTest, HugeAlloc) {
