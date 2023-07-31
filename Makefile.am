@@ -1362,12 +1362,6 @@ all: run-weaken
 # We'll add to this later, on a library-by-library basis
 noinst_PROGRAMS += $(TESTS)
 
-rpm: dist-gzip packages/rpm.sh packages/rpm/rpm.spec
-	@cd packages && ./rpm.sh ${PACKAGE} ${VERSION}
-
-deb: dist-gzip packages/deb.sh packages/deb/*
-	@cd packages && ./deb.sh ${PACKAGE} ${VERSION}
-
 # http://linux.die.net/man/1/pkg-config, http://pkg-config.freedesktop.org/wiki
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = libtcmalloc_minimal.pc
@@ -1390,7 +1384,7 @@ CLEANFILES = $(pkgconfig_DATA)
 # I get the description and URL lines from the rpm spec. I use sed to
 # try to rewrite exec_prefix, libdir, and includedir in terms of
 # prefix, if possible.
-libtcmalloc.pc: Makefile packages/rpm/rpm.spec
+libtcmalloc.pc: Makefile
 	echo 'prefix=$(prefix)' > "$@".tmp
 	echo 'exec_prefix='`echo '$(exec_prefix)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
 	echo 'libdir='`echo '$(libdir)' | sed 's@^$(exec_prefix)@$${exec_prefix}@'` >> "$@".tmp
@@ -1398,8 +1392,8 @@ libtcmalloc.pc: Makefile packages/rpm/rpm.spec
 	echo '' >> "$@".tmp
 	echo 'Name: $(PACKAGE)' >> "$@".tmp
 	echo 'Version: $(VERSION)' >> "$@".tmp
-	-grep '^Summary:' $(top_srcdir)/packages/rpm/rpm.spec | sed s/^Summary:/Description:/ | head -n1 >> "$@".tmp
-	-grep '^URL: ' $(top_srcdir)/packages/rpm/rpm.spec >> "$@".tmp
+	echo 'Summary: Performance tools for C++' >> "$@".tmp
+	echo 'URL: https://github.com/gperftools/gperftools' >> "$@".tmp
 	echo 'Requires:' >> "$@".tmp
 	echo 'Libs: -L$${libdir} -ltcmalloc' >> "$@".tmp
 	echo 'Libs.private: $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)' >> "$@".tmp
@@ -1431,8 +1425,7 @@ dist-hook: $(top_distdir)/ChangeLog
 	test -e "$(distdir)/vsprojects" \
 	   && chmod -R u+w $(distdir)/*.sln $(distdir)/vsprojects/
 
-EXTRA_DIST = packages/rpm.sh packages/rpm/rpm.spec packages/deb.sh packages/deb \
-             $(SCRIPTS) libtool \
+EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              src/windows/config.h src/windows/gperftools/tcmalloc.h \
              docs/pprof.see_also src/windows/TODO \
