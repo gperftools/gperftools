@@ -1,3 +1,109 @@
+== 31 July 2023
+gperftools 2.11rc is out!
+
+Most notable change is that Linux/aarch64 and Linux/riscv are now
+fully supported. That is, all unit tests pass on those architectures
+(previously the heap leak checker was broken).
+
+Also notable is that heap leak checker support is officially
+deprecated as of this release. All bug fixes from now are on a best
+effort basis. For clarity we also declare that it is only expected to
+work (for some definition of work) on Linux/x86 (all kinds),
+Linux/aarch64, Linux/arm, Linux/ppc (untested as of this writing) and
+Linux/mips (untested as well). While some functionality worked in the
+past on BSDs, it was never fully functional; and will never be. We
+strongly recommend everyone to switch to asan and friends.
+
+For major internal changes it is also worth mentioning that we now
+fully switched to C++-11 std::atomic. All custom OS- and arch-specific
+atomic bits have been removed at last.
+
+Another notable change is that mmap and sbrk hooks facility is now
+no-op. We keep API and ABI for formal compatibility, but the calls to
+add mmap/sbrk hooks do nothing and return an error (whenever possible
+as part of API). There seem to be no users of it anyways, and mmap
+replacement API that is part of that facility really screwed up 64-bit
+offsets on (some/most) 32-bit systems. Internally for heap profiler
+and heap checker we have a new, but non-public API (see mmap_hook.h).
+
+Most tests now pass on NetBSD x86-64 (I tested on version 9.2). And
+only one that fails is new stacktrace test for stacktraces from signal
+handler (so there could be some imperfections for cpu profiles).
+
+We don't warn people away from the libgcc stacktrace capturing method
+anymore. In fact users on most recent glibc-s are advised to use it
+(pass --enable-libgcc-unwinder-by-default). This is thanks to the
+dl_find_object API offered by glibc which allows this implementation
+to be fully async-signal-safe. Modern Linux distros should from now on
+build their gperftools package with this enabled (other than those
+built on top of musl).
+
+generic_fp and generic_fp_unsafe stacktrace capturing methods have
+been expanded for more architectures and even some basic non-Linux
+support. We have completely removed old x86-specific frame pointer
+stacktrace implementation in favor of those 2. _unsafe one should be
+roughly equivalent to the old x86 method. And 'safe' one is
+recommended as a new default for those who want FP-based
+stacktracing. Safe implementation robustly checks memory before
+accessing it, preventing unlikely, but not impossible crashes when
+frame pointers are bogus.
+
+On platforms that support it, we now build gperftools with
+"-fno-omit-frame-pointer -momit-leaf-frame-pointer". This makes
+gperftools mostly frame-pointer-ful, but without performance hit in
+places that matter (this is how Google builds their binaries
+BTW). That should cover gcc (at least) on x86, aarch64 and
+riscv. Intention for this change is to make distro-shipped
+libtcmalloc.so compatible with frame-pointer stacktrace capturing (for
+those who still do heap profiling, for example). Of course, passing
+--enable-frame-pointers still gives you full frame pointers (i.e. even
+for leaf functions).
+
+There is now support for detecting actual page size at
+runtime. tcmalloc will now allocate memory in units of this page
+size. It particularly helps on arms with 64k pages to return memory
+back to the kernel. But it is somewhat controversial, because it
+effectively bumps tcmalloc logical page size on those machines
+potentially increasing fragmentation. In any case, there is now a new
+environment variable TCMALLOC_OVERRIDE_PAGESIZE allowing people to
+override this check. I.e. to either reduce effective page size down to
+tcmalloc's logical page size or to increase it.
+
+MallocExtension::MarkThreadTemporarilyIdle has been changed to be
+identical to MarkThreadIdle. MarkThreadTemporarilyIdle is believed to
+be unused, anyways. See issue #880 for details.
+
+There are a whole bunch of smaller fixes. Many of those smaller fixes
+had no associated ticket, but some had. People are advised to see here
+for list of notable tickets closed in this release:
+https://github.com/gperftools/gperftools/issues?q=label%3Afixed-in-2.11+
+
+Some of those tickets are quite notable (fixes for rare deadlocks in
+cpu profiler ProfilerStop or while capturing heap growth stacktraces
+(aka growthz)).
+
+Here is list of notable contributions:
+
+* Chris Cambly has contributed initial support for AIX
+
+* Ali Saidi has contributed SpinlockPause implementation for aarch64
+
+* Henrik Reinstädtler has contributed fix for cpuprofiler on aarch64
+  OSX
+
+* Gabriel Marin has backported Chromium's commit for always sanity
+  checking large frees
+
+* User zhangyiru has contributed a fix to report the number of leaked
+  bytes as size_t instead of (usually 32-bit) int.
+
+* Sergey Fedorov has contributed some fix for building on older
+  ppc-based OSX-es
+
+* User tigeran has removed unused using declaration
+
+Huge thanks to all contributors.
+
 == 30 May 2022 ==
 gperftools 2.10 is out!
 
