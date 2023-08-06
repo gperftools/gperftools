@@ -24,10 +24,6 @@ AM_CXXFLAGS += -Wall -Wwrite-strings -Woverloaded-virtual \
                -Wno-sign-compare
 endif GCC
 
-if ENABLE_FP_FLAGS
-AM_CXXFLAGS += -fno-omit-frame-pointer -momit-leaf-frame-pointer
-endif
-
 if HAVE_W_NO_UNUSED_RESULT
 AM_CXXFLAGS += -Wno-unused-result
 endif HAVE_W_NO_UNUSED_RESULT
@@ -45,7 +41,14 @@ AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
 # respect --enable-frame-pointers regardless of architecture
 if ENABLE_FRAME_POINTERS
 AM_CXXFLAGS += -fno-omit-frame-pointer -DFORCED_FRAME_POINTERS
-endif ENABLE_FRAME_POINTERS
+
+else !ENABLE_FRAME_POINTERS
+
+if ENABLE_FP_FLAGS
+AM_CXXFLAGS += -fno-omit-frame-pointer -momit-leaf-frame-pointer
+endif ENABLE_FP_FLAGS
+
+endif !ENABLE_FRAME_POINTERS
 
 # For windows systems (at least, mingw), we need to tell all our
 # tests to link in libtcmalloc using -u.  This is because libtcmalloc
