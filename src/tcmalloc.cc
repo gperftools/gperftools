@@ -1454,15 +1454,14 @@ static ATTRIBUTE_NOINLINE void do_free_pages(Span* span, void* ptr) {
       span->start << kPageShift == reinterpret_cast<uintptr_t>(ptr),
       "Pointer is not pointing to the start of a span");
 
-  SpinLockHolder h(Static::pageheap_lock());
-  if (span->sample) {
-    StackTrace* st = reinterpret_cast<StackTrace*>(span->objects);
-    tcmalloc::DLL_Remove(span);
-    Static::stacktrace_allocator()->Delete(st);
-    span->objects = NULL;
-  }
-
-  Static::pageheap()->DeleteAndUnlock(span, std::move(h));
+  Static::pageheap()->PrepareAndDelete(span, [&] () {
+    if (span->sample) {
+      StackTrace* st = reinterpret_cast<StackTrace*>(span->objects);
+      tcmalloc::DLL_Remove(span);
+      Static::stacktrace_allocator()->Delete(st);
+      span->objects = NULL;
+    }
+  });
 }
 
 #ifndef NDEBUG

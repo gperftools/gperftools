@@ -40,6 +40,7 @@
 #include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
 #include "base/spinlock.h"
+#include "base/thread_annotations.h"
 #include "common.h"
 #include "packed-cache-inl.h"
 #include "pagemap.h"
@@ -140,7 +141,12 @@ class PERFTOOLS_DLL_DECL PageHeap {
   //           has not yet been deleted.
   void Delete(Span* span);
 
-  void DeleteAndUnlock(Span* span, SpinLockHolder&& pageheap_lock_holder);
+  template <typename Body>
+  void PrepareAndDelete(Span* span, const Body& body) LOCKS_EXCLUDED(lock_) {
+    SpinLockHolder h(&lock_);
+    body();
+    DeleteLocked(span);
+  }
 
   // Mark an allocated span as being used for small objects of the
   // specified size-class.
@@ -245,7 +251,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
  private:
   struct LockingContext;
 
-  void HandleUnlock(LockingContext* context);
+  void HandleUnlock(LockingContext* context) UNLOCK_FUNCTION(lock_) ;
 
   // Allocates a big block of memory for the pagemap once we reach more than
   // 128MB
@@ -302,8 +308,8 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // Statistics on system, free, and unmapped bytes
   Stats stats_;
 
-  Span* NewLocked(Length n, LockingContext* context);
-  void DeleteLocked(Span* span);
+  Span* NewLocked(Length n, LockingContext* context) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void DeleteLocked(Span* span) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Split an allocated span into two spans: one of length "n" pages
   // followed by another span of length "span->length - n" pages.
@@ -317,7 +323,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   Span* SearchFreeAndLargeLists(Length n);
 
-  bool GrowHeap(Length n, LockingContext* context);
+  bool GrowHeap(Length n, LockingContext* context) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: span->length >= n
   // REQUIRES: span->location != IN_USE

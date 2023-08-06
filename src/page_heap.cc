@@ -65,14 +65,15 @@ DEFINE_int64(tcmalloc_heap_limit_mb,
 
 namespace tcmalloc {
 
-struct PageHeap::LockingContext {
+struct SCOPED_LOCKABLE PageHeap::LockingContext {
   PageHeap * const heap;
   size_t grown_by = 0;
 
-  explicit LockingContext(PageHeap* heap) : heap(heap) {
-    heap->lock_.Lock();
+  explicit LockingContext(PageHeap* heap, SpinLock* lock) EXCLUSIVE_LOCK_FUNCTION(lock)
+      : heap(heap) {
+    lock->Lock();
   }
-  ~LockingContext() {
+  ~LockingContext() UNLOCK_FUNCTION() {
     heap->HandleUnlock(this);
   }
 };
@@ -157,7 +158,7 @@ void PageHeap::HandleUnlock(LockingContext* context) {
 }
 
 Span* PageHeap::NewWithSizeClass(Length n, uint32 sizeclass) {
-  LockingContext context{this};
+  LockingContext context{this, &lock_};
 
   Span* span = NewLocked(n, &context);
   if (!span) {
@@ -239,7 +240,7 @@ Span* PageHeap::NewAligned(Length n, Length align_pages) {
     return nullptr;
   }
 
-  LockingContext context{this};
+  LockingContext context{this, &lock_};
 
   Span* span = NewLocked(alloc, &context);
   if (PREDICT_FALSE(span == nullptr)) return nullptr;
@@ -400,12 +401,6 @@ Span* PageHeap::Carve(Span* span, Length n) {
 
 void PageHeap::Delete(Span* span) {
   SpinLockHolder h(&lock_);
-  DeleteLocked(span);
-}
-
-void PageHeap::DeleteAndUnlock(Span* span,
-                               SpinLockHolder&& pageheap_lock_holder) {
-  SpinLockHolder h(std::move(pageheap_lock_holder));
   DeleteLocked(span);
 }
 

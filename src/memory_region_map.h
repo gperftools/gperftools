@@ -121,10 +121,10 @@ class MemoryRegionMap {
 
   // Locker object that acquires the MemoryRegionMap::Lock
   // for the duration of its lifetime (a C++ scope).
-  class LockHolder {
+  class SCOPED_LOCKABLE LockHolder {
    public:
-    LockHolder() { Lock(); }
-    ~LockHolder() { Unlock(); }
+     LockHolder() EXCLUSIVE_LOCK_FUNCTION(lock_) { Lock(); }
+     ~LockHolder() UNLOCK_FUNCTION(lock_) { Unlock(); }
    private:
     DISALLOW_COPY_AND_ASSIGN(LockHolder);
   };
@@ -229,13 +229,13 @@ class MemoryRegionMap {
   // trace.  It calls "callback" for each bucket, and passes "arg" to it.
   template<class Type>
   static void IterateBuckets(void (*callback)(const HeapProfileBucket*, Type),
-                             Type arg);
+                             Type arg) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Get the bucket whose caller stack trace is "key".  The stack trace is
   // used to a depth of "depth" at most.  The requested bucket is created if
   // needed.
   // The bucket table is described in heap-profile-stats.h.
-  static HeapProfileBucket* GetBucket(int depth, const void* const key[]);
+  static HeapProfileBucket* GetBucket(int depth, const void* const key[]) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
  private:  // our internal types ==============================================
 
@@ -360,7 +360,7 @@ class MemoryRegionMap {
 
   // Restore buckets saved in a tmp static array by GetBucket to the bucket
   // table where all buckets eventually should be.
-  static void RestoreSavedBucketsLocked();
+  static void RestoreSavedBucketsLocked() EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Initialize RegionSet regions_.
   inline static void InitRegionSetLocked();
@@ -381,7 +381,7 @@ class MemoryRegionMap {
   // "depth" at most.
   static void RecordRegionRemovalInBucket(int depth,
                                           const void* const key[],
-                                          size_t size);
+                                          size_t size) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   static void HandleMappingEvent(const tcmalloc::MappingEvent& evt);
 

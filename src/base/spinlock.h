@@ -123,13 +123,8 @@ class SCOPED_LOCKABLE SpinLockHolder {
     l->Lock();
   }
   SpinLockHolder(const SpinLockHolder&) = delete;
-  SpinLockHolder(SpinLockHolder&& other) : lock_(other.lock_) {
-    other.lock_ = nullptr;
-  }
   ~SpinLockHolder() UNLOCK_FUNCTION() {
-    if (lock_) {
-      lock_->Unlock();
-    }
+    lock_->Unlock();
   }
 };
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);

@@ -184,7 +184,7 @@ static MemoryRegionMap::RegionSetRep regions_rep;
 // (or rather should we *not* use regions_ to record a hooked mmap).
 static bool recursive_insert = false;
 
-void MemoryRegionMap::Init(int max_stack_depth, bool use_buckets) {
+void MemoryRegionMap::Init(int max_stack_depth, bool use_buckets) NO_THREAD_SAFETY_ANALYSIS {
   RAW_VLOG(10, "MemoryRegionMap Init");
   RAW_CHECK(max_stack_depth >= 0, "");
   // Make sure we don't overflow the memory in region stacks:
@@ -231,7 +231,7 @@ void MemoryRegionMap::Init(int max_stack_depth, bool use_buckets) {
   RAW_VLOG(10, "MemoryRegionMap Init done");
 }
 
-bool MemoryRegionMap::Shutdown() {
+bool MemoryRegionMap::Shutdown() NO_THREAD_SAFETY_ANALYSIS {
   RAW_VLOG(10, "MemoryRegionMap Shutdown");
   Lock();
   RAW_CHECK(client_count_ > 0, "");
@@ -285,7 +285,7 @@ bool MemoryRegionMap::IsRecordingLocked() {
 //   * At entry and exit of Lock() and Unlock(), the current thread
 //     owns lock_ iff pthread_equal(lock_owner_tid_, pthread_self())
 //     && recursion_count_ > 0.
-void MemoryRegionMap::Lock() {
+void MemoryRegionMap::Lock() NO_THREAD_SAFETY_ANALYSIS {
   {
     SpinLockHolder l(&owner_lock_);
     if (recursion_count_ > 0 && current_thread_is(lock_owner_tid_)) {
@@ -307,7 +307,7 @@ void MemoryRegionMap::Lock() {
   }
 }
 
-void MemoryRegionMap::Unlock() {
+void MemoryRegionMap::Unlock() NO_THREAD_SAFETY_ANALYSIS {
   SpinLockHolder l(&owner_lock_);
   RAW_CHECK(recursion_count_ >  0, "unlock when not held");
   RAW_CHECK(lock_.IsHeld(),

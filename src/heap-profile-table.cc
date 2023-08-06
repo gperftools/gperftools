@@ -372,6 +372,7 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   // Dump the mmap list first.
   if (profile_mmap_) {
     BufferArgs buffer(buf, bucket_length, size);
+    MemoryRegionMap::LockHolder holder{};
     MemoryRegionMap::IterateBuckets<BufferArgs*>(DumpBucketIterator, &buffer);
     bucket_length = buffer.buflen;
   }

@@ -151,9 +151,9 @@ static void TestPageHeap_Limit() {
     if (HaveSystemRelease()) {
       // EnsureLimit should release deleted normal spans
       EXPECT_NE(defragmented, NULL);
-      SpinLockHolder l(ph->pageheap_lock());
-      EXPECT_TRUE(ph->CheckExpensive());
-      ph->DeleteAndUnlock(defragmented, std::move(l));
+      ph->PrepareAndDelete(defragmented, [&] () {
+        EXPECT_TRUE(ph->CheckExpensive());
+      });
     }
     else
     {
