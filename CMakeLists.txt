@@ -809,10 +809,14 @@ if(BUILD_TESTING)
   target_link_libraries(addressmap_unittest logging)
   add_test(addressmap_unittest addressmap_unittest)
 
-  if(NOT MINGW)
+  if(NOT MINGW AND NOT MSVC)
     add_executable(system_alloc_unittest src/tests/system-alloc_unittest.cc)
     target_link_libraries(system_alloc_unittest PUBLIC tcmalloc_minimal)
     add_test(system_alloc_unittest system_alloc_unittest)
+
+    add_executable(unique_path_unittest src/tests/unique_path_unittest.cc)
+    target_link_libraries(unique_path_unittest PRIVATE sysinfo logging)
+    add_test(unique_path_unittest unique_path_unittest)
   endif()
 
   add_executable(packed_cache_test src/tests/packed-cache_test.cc)

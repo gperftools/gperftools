@@ -529,17 +529,15 @@ system_alloc_unittest_SOURCES = src/config_for_unittests.h \
 system_alloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 system_alloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 system_alloc_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
-endif !MINGW
 
+# Note, we skip this test on mingw (and windows in general). It uses
+# unsetenv, which is not available on win32.
 TESTS += unique_path_unittest
-UNIQUE_PATH_UNITTEST_INCLUDES = src/base/sysinfo.h \
-                                src/base/commandlineflags.h \
-                                $(LOGGING_INCLUDES)
-unique_path_unittest_SOURCES = src/tests/unique_path_unittest.cc \
-                              $(UNIQUE_PATH_UNITTEST_INCLUDES)
+unique_path_unittest_SOURCES = src/tests/unique_path_unittest.cc
 unique_path_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
-unique_path_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
-unique_path_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
+unique_path_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
+unique_path_unittest_LDADD = libsysinfo.la liblogging.la $(PTHREAD_LIBS)
+endif !MINGW
 
 TESTS += packed_cache_test
 WINDOWS_PROJECTS += vsprojects/packed-cache_test/packed-cache_test.vcxproj

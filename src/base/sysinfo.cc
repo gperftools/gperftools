@@ -33,6 +33,13 @@
 # define PLATFORM_WINDOWS 1
 #endif
 
+#include "base/sysinfo.h"
+#include "base/commandlineflags.h"
+#include "base/dynamic_annotations.h"   // for RunningOnValgrind
+#include "base/logging.h"
+
+#include <tuple>
+
 #include <ctype.h>    // for isspace()
 #include <stdlib.h>   // for getenv()
 #include <stdio.h>    // for snprintf(), sscanf()
@@ -56,10 +63,6 @@
 #include <shlwapi.h>          // for SHGetValueA()
 #include <tlhelp32.h>         // for Module32First()
 #endif
-#include "base/sysinfo.h"
-#include "base/commandlineflags.h"
-#include "base/dynamic_annotations.h"   // for RunningOnValgrind
-#include "base/logging.h"
 
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
@@ -206,24 +209,6 @@ extern "C" {
   }
 }
 
-// A set of primitives to trick with the environemnt variables
-// to mark child processes.
-// As gperftools is commonly loaded dynamically using LD_PRELOAD,
-// users are leveraging environment variables to communicate the parameters
-// to the corresponding gperftools library.
-// Specifically, a set of environment variables are used to specify the file
-// paths to be used during the operation (i.e. output profile filename).
-// When the application is using fork() to spawn more processes, it is important
-// to avoid conflicts where both the parent and a child area using the same
-// filename.
-// In order to do so, the parent reads the user-defined environment and toggles
-// the MSB of the first byte in it's value to indicate that all other processes
-// using this variable are children (and thus) must append a unique identifier
-// (PID) as a suffix to the corresponsing filename.
-#define EnvChildSignSet(enval) { enval[0] |= 128; }
-#define EnvChildSignDrop(enval) { enval[0] &= ~128; }
-#define EnvChildSignIsOn(enval) (enval[0] & 128)
-
 // HPC environment auto-detection
 // For HPC applications (MPI, OpenSHMEM, etc), it is typical for multiple
 // processes not engaged in parent-child relations to be executed on the
@@ -232,43 +217,40 @@ extern "C" {
 // assigned individual file paths for the files being used.
 // The function below is trying to discover well-known HPC environments and
 // take advantage of that environment to generate meaningful profile filenames
-static bool QueryHPCEnvironment(char *hpc_suffix) {
-  char *enval;
-  int procid, jobid;
-
+//
+// Returns true iff we need to append process pid to
+// GetUniquePathFromEnv value. Second and third return values are
+// strings to be appended to path for extra identification.
+static std::tuple<bool, const char*, const char*> QueryHPCEnvironment() {
   // Check for the PMIx environment
-  procid = EnvToInt(TC_ENV_PMIX_RANK, -1);
-  if (0 <= procid) {
+  char* envval = getenv("PMIX_RANK");
+  if (envval != nullptr && *envval != 0) {
     // PMIx exposes the rank that is convenient for process identification
-    snprintf(hpc_suffix, PATH_MAX, TC_ENV_PMIX_SUFFIX "%d", procid);
-    // Use PMIx rank to differentiate
-    return false;
+    // Don't append pid, since we have rank to differentiate.
+    return {false, ".rank-", envval};
   }
 
   // Check for the Slurm environment
-  jobid = EnvToInt(TC_ENV_SLURM_JOBID, -1);
-  if (0 <= jobid) {
-    /* Slurm environment detected */
-    procid = EnvToInt(TC_ENV_SLURM_PROCID, -1);
-    if (0 <= procid) {
-      snprintf(hpc_suffix, PATH_MAX, TC_ENV_SLURM_SUFFIX "%d", procid);
+  envval = getenv("SLURM_JOB_ID");
+  if (envval != nullptr && *envval != 0) {
+    // Slurm environment detected
+    char* procid = getenv("SLURM_PROCID");
+    if (procid != nullptr && *procid != 0) {
       // Use Slurm process ID to differentiate
-      return false;
+      return {false, ".slurmid-", procid};
     }
     // Need to add PID to avoid conflicts
-    return true;
+    return {true, "", ""};
   }
 
-  /* Check for Open MPI environment */
-  enval = getenv("OMPI_HOME");
-  if (enval) {
-    return true;
+  // Check for Open MPI environment
+  envval = getenv("OMPI_HOME");
+  if (envval != nullptr && *envval != 0) {
+    return {true, "", ""};
   }
-
-  // TODO: Detect other environments - MPICH
 
   // No HPC environment was detected
-  return false;
+  return {false, "", ""};
 }
 
 // This takes as an argument an environment-variable name (like
@@ -295,37 +277,39 @@ static bool QueryHPCEnvironment(char *hpc_suffix) {
 // TODO(csilvers): set an envvar instead when we can do it reliably.
 bool GetUniquePathFromEnv(const char* env_name, char* path) {
   char* envval = getenv(env_name);
-  char hpcSuffix[PATH_MAX] = "";
-  char forceVarName[TC_ENV_MAX_NAME];
-  bool wantPid = false;
 
-  if (envval == NULL || *envval == '\0')
+  if (envval == nullptr || *envval == '\0') {
     return false;
+  }
 
-  // Get information about the child bit and drop it
-  const bool isChild = EnvChildSignIsOn(envval);
-  EnvChildSignDrop(envval);
-
-  wantPid = QueryHPCEnvironment(hpcSuffix);
+  const char* append1 = "";
+  const char* append2 = "";
+  bool pidIsForced;
+  std::tie(pidIsForced, append1, append2) = QueryHPCEnvironment();
 
   // Generate the "forcing" environment variable name in a form of
   // <ORIG_ENVAR>_USE_PID that requests PID to be used in the file names
-  snprintf(forceVarName, TC_ENV_MAX_NAME, "%s_USE_PID", env_name);
+  char forceVarName[256];
+  snprintf(forceVarName, sizeof(forceVarName), "%s_USE_PID", env_name);
 
-  if (isChild || EnvToBool(forceVarName, false)) {
-    // force PID usage
-    wantPid = true;
-  }
+  pidIsForced = pidIsForced || EnvToBool(forceVarName, false);
 
-  if (wantPid) {
-    snprintf(path, PATH_MAX, "%s%s" TC_ENV_PID_SUFFIX "%d",
-             envval, hpcSuffix, getpid());
+  // Get information about the child bit and drop it
+  const bool childBitDetected = (*envval & 128) != 0;
+  *envval &= ~128;
+
+  if (pidIsForced || childBitDetected) {
+    snprintf(path, PATH_MAX, "%s%s%s_%d",
+             envval, append1, append2, getpid());
   } else {
-    snprintf(path, PATH_MAX, "%s%s", envval, hpcSuffix);
+    snprintf(path, PATH_MAX, "%s%s%s", envval, append1, append2);
   }
 
-  // Set the child bit for the fork'd processes
-  EnvChildSignSet(envval);
+  // Set the child bit for the fork'd processes, unless appending pid
+  // was forced by either _USE_PID thingy or via MPI detection stuff.
+  if (childBitDetected || !pidIsForced) {
+    *envval |= 128;
+  }
   return true;
 }
 
