@@ -179,6 +179,7 @@ static int local_clone (int (*fn)(void *), void *arg) {
    * correctly.
    */
   uintptr_t stack_addr = reinterpret_cast<uintptr_t>(&arg) + clone_stack_size;
+  stack_addr &= ~63; // align stack address on 64 bytes (x86 needs 16, but lets be generous)
   return clone(fn, reinterpret_cast<void*>(stack_addr),
                CLONE_VM|CLONE_FS|CLONE_FILES|CLONE_UNTRACED,
                arg, 0, 0, 0);
