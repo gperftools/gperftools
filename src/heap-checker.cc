@@ -134,16 +134,27 @@ static std::pair<bool, uintptr_t> CaptureRegs(pid_t tid, const Body& body) {
   rv = -1;
 #endif
 
+  // Some Linux architectures and glibc versions only have
+  // PTRACE_GETREGSET, some only PTRACE_GETREGS and some both.
+  //
+  // But glibc tends to define PTRACE_XYZ constants as enums. Some
+  // newer versions also do define, but older glibc (i.e. as shipped
+  // by rhel 6) only define PT_GETREGS (to enum value
+  // PTRACE_GETREGS). Bionic and musl do regular defines,
+  // thankfully. So there seem to be no absolutely perfect way to
+  // detect things.
+  //
+  // We do detect older interface detection by testing defines for
+  // both PTRACE_GETREGS and PT_GETREGS. Which seems to work for range
+  // of OS-es we try to support.
+#if defined(PTRACE_GETREGS) || defined(PT_GETREGS)
   if (rv < 0 && errno == ENOSYS) {
-    // Some newer Linux hw architectures don't have PTRACE_GETREGSET,
-    // or perhaps we're dealing with older kernel.
-#ifdef PTRACE_GETREGS
     rv = syscall(SYS_ptrace, PTRACE_GETREGS, tid, nullptr, &regs);
-#endif
   }
+#endif
 
   if (rv < 0) {
-    return std::make_pair(false, 0);
+    return {false, 0};
   }
 
   uintptr_t sp = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uintptr_t>(&regs) + sp_offset);
@@ -152,7 +163,7 @@ static std::pair<bool, uintptr_t> CaptureRegs(pid_t tid, const Body& body) {
     body(*p);
   }
 
-  return std::make_pair(true, sp);
+  return {true, sp};
 }
 
 using std::string;
