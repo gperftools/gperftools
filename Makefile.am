@@ -1244,15 +1244,12 @@ libprofiler_la_SOURCES = src/profiler.cc \
                          src/profile-handler.cc \
                          src/profiledata.cc \
                          $(CPU_PROFILER_INCLUDES)
-libprofiler_la_LIBADD = libstacktrace.la libfake_stacktrace_scope.la
+libprofiler_la_LIBADD = libstacktrace.la libfake_stacktrace_scope.la $(PTHREAD_LIBS)
+libprofiler_la_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 # We have to include ProfileData for profiledata_unittest
 CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler|ProfilerGetStackTrace)'
 libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \
                          -version-info @PROFILER_SO_VERSION@
-
-# See discussion above (under LIBTCMALLOC_MINIMAL) for why we do this.
-# Basically it's to work around systems where --rpath doesn't work right.
-LIBPROFILER = libstacktrace.la libprofiler.la
 
 ### Unittests
 TESTS += getpc_test
@@ -1266,14 +1263,14 @@ profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc \
                                src/base/commandlineflags.h \
                                src/base/logging.h \
                                src/base/basictypes.h
-profiledata_unittest_LDADD = $(LIBPROFILER)
+profiledata_unittest_LDADD = libprofiler.la
 
 TESTS += profile_handler_unittest
 profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc \
                                    src/profile-handler.h
-profile_handler_unittest_CXXFLAGS = $(PTHREAD_CFLAGS)
-profile_handler_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
-profile_handler_unittest_LDADD = $(LIBPROFILER) $(PTHREAD_LIBS)
+profile_handler_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
+profile_handler_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
+profile_handler_unittest_LDADD = libprofiler.la $(PTHREAD_LIBS)
 
 TESTS += profiler_unittest.sh$(EXEEXT)
 profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
@@ -1294,22 +1291,22 @@ PROFILER_UNITTEST_SRCS = src/tests/profiler_unittest.cc \
                          $(PROFILER_UNITTEST_INCLUDES)
 profiler1_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
 profiler1_unittest_CXXFLAGS = -g -DNO_THREADS $(AM_CXXFLAGS)
-profiler1_unittest_LDADD = $(LIBPROFILER)
+profiler1_unittest_LDADD = libprofiler.la
 profiler2_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
 profiler2_unittest_CXXFLAGS = -g -DNO_THREADS $(AM_CXXFLAGS)
 profiler2_unittest_LDADD = -lstacktrace -lprofiler
 # We depend on -lprofiler but haven't yet said how to build it.  Do so now.
-profiler2_unittest_DEPENDENCIES = $(LIBPROFILER)
+profiler2_unittest_DEPENDENCIES = libprofiler.la
 profiler3_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
 profiler3_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 profiler3_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
-profiler3_unittest_LDADD = $(LIBPROFILER) $(PTHREAD_LIBS)
+profiler3_unittest_LDADD = libprofiler.la $(PTHREAD_LIBS)
 profiler4_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
 profiler4_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 profiler4_unittest_LDFLAGS = $(PTHREAD_CFLAGS)
 profiler4_unittest_LDADD = -lstacktrace -lprofiler $(PTHREAD_LIBS)
 # We depend on -lprofiler but haven't yet said how to build it.  Do so now.
-profiler4_unittest_DEPENDENCIES = $(LIBPROFILER)
+profiler4_unittest_DEPENDENCIES = libprofiler.la
 
 
 ### Documentation
