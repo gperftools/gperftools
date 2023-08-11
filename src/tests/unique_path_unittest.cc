@@ -181,11 +181,38 @@ void testOMPI() {
   EXPECT_EQ(expectedPath, GetTestPath());
 }
 
+// MPICH is another type of MPI environment that we detect. We
+// expect .rank-${PMI_RANK} to be appended when we detect this
+// environment.
+void testMPICH() {
+  WithEnv rank("PMI_RANK", "5");
+  WithEnv withTestVar(TEST_VAR, TEST_VAL);
+
+  const auto expectedParent = TEST_VAL ".rank-5";
+  const auto expectedChild = AppendPID(expectedParent);
+
+  // Test parent case (will set the child flag)
+  EXPECT_EQ(expectedParent, GetTestPath());
+
+  // Test child case
+  EXPECT_EQ(expectedChild, GetTestPath());
+
+  withTestVar.Reset();
+  WithEnv withForced(TEST_VAR "_USE_PID", "1");
+
+  // Test parent case (will set the child flag)
+  EXPECT_EQ(expectedChild, GetTestPath());
+
+  // Test child case
+  EXPECT_EQ(expectedChild, GetTestPath());
+}
+
 int main(int argc, char** argv) {
   testDefault();
   testPMIx();
   testSlurm();
   testOMPI();
+  testMPICH();
 
   printf("PASS\n");
   return 0;

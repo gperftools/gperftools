@@ -249,6 +249,12 @@ static std::tuple<bool, const char*, const char*> QueryHPCEnvironment() {
     return {true, "", ""};
   }
 
+  // Check for Hydra process manager (MPICH)
+  envval = getenv("PMI_RANK");
+  if (envval != nullptr && *envval != 0) {
+    return {false, ".rank-", envval};
+  }
+
   // No HPC environment was detected
   return {false, "", ""};
 }
