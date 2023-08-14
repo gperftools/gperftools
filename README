@@ -178,6 +178,11 @@ For a full list of variables, see the documentation pages:
    docs/heapprofile.html
    docs/heap_checker.html
 
+See also TCMALLOC_STACKTRACE_METHOD_VERBOSE and
+TCMALLOC_STACKTRACE_METHOD environment variables briefly documented in
+our INSTALL file and on our wiki page at:
+https://github.com/gperftools/gperftools/wiki/gperftools'-stacktrace-capturing-methods-and-their-issues
+
 
 COMPILING ON NON-LINUX SYSTEMS
 ------------------------------
@@ -192,94 +197,6 @@ the basic functionality in tcmalloc_minimal to Windows.  See INSTALL
 for details.  See README_windows.txt for details on the Windows port.
 
 
-PERFORMANCE
------------
-
-If you're interested in some third-party comparisons of tcmalloc to
-other malloc libraries, here are a few web pages that have been
-brought to our attention.  The first discusses the effect of using
-various malloc libraries on OpenLDAP.  The second compares tcmalloc to
-win32's malloc.
-  http://www.highlandsun.com/hyc/malloc/
-  http://gaiacrtn.free.fr/articles/win32perftools.html
-
-It's possible to build tcmalloc in a way that trades off faster
-performance (particularly for deletes) at the cost of more memory
-fragmentation (that is, more unusable memory on your system).  See the
-INSTALL file for details.
-
-
-OLD SYSTEM ISSUES
------------------
-
-When compiling perftools on some old systems, like RedHat 8, you may
-get an error like this:
-    ___tls_get_addr: symbol not found
-
-This means that you have a system where some parts are updated enough
-to support Thread Local Storage, but others are not.  The perftools
-configure script can't always detect this kind of case, leading to
-that error.  To fix it, just comment out (or delete) the line
-   #define HAVE_TLS 1
-in your config.h file before building.
-
-
-64-BIT ISSUES
--------------
-
-There are two issues that can cause program hangs or crashes on x86_64
-64-bit systems, which use the libunwind library to get stack-traces.
-Neither issue should affect the core tcmalloc library; they both
-affect the perftools tools such as cpu-profiler, heap-checker, and
-heap-profiler.
-
-1) Some libc's -- at least glibc 2.4 on x86_64 -- have a bug where the
-libc function dl_iterate_phdr() acquires its locks in the wrong
-order.  This bug should not affect tcmalloc, but may cause occasional
-deadlock with the cpu-profiler, heap-profiler, and heap-checker.
-Its likeliness increases the more dlopen() commands an executable has.
-Most executables don't have any, though several library routines like
-getgrgid() call dlopen() behind the scenes.
-
-2) On x86-64 64-bit systems, while tcmalloc itself works fine, the
-cpu-profiler tool is unreliable: it will sometimes work, but sometimes
-cause a segfault.  I'll explain the problem first, and then some
-workarounds.
-
-Note that this only affects the cpu-profiler, which is a
-gperftools feature you must turn on manually by setting the
-CPUPROFILE environment variable.  If you do not turn on cpu-profiling,
-you shouldn't see any crashes due to perftools.
-
-The gory details: The underlying problem is in the backtrace()
-function, which is a built-in function in libc.
-Backtracing is fairly straightforward in the normal case, but can run
-into problems when having to backtrace across a signal frame.
-Unfortunately, the cpu-profiler uses signals in order to register a
-profiling event, so every backtrace that the profiler does crosses a
-signal frame.
-
-In our experience, the only time there is trouble is when the signal
-fires in the middle of pthread_mutex_lock.  pthread_mutex_lock is
-called quite a bit from system libraries, particularly at program
-startup and when creating a new thread.
-
-The solution: The dwarf debugging format has support for 'cfi
-annotations', which make it easy to recognize a signal frame.  Some OS
-distributions, such as Fedora and gentoo 2007.0, already have added
-cfi annotations to their libc.  A future version of libunwind should
-recognize these annotations; these systems should not see any
-crashes.
-
-Workarounds: If you see problems with crashes when running the
-cpu-profiler, consider inserting ProfilerStart()/ProfilerStop() into
-your code, rather than setting CPUPROFILE.  This will profile only
-those sections of the codebase.  Though we haven't done much testing,
-in theory this should reduce the chance of crashes by limiting the
-signal generation to only a small part of the codebase.  Ideally, you
-would not use ProfilerStart()/ProfilerStop() around code that spawns
-new threads, or is otherwise likely to cause a call to
-pthread_mutex_lock!
-
 ---
-17 May 2011
+Originally written: 17 May 2011
+Last refreshed: 10 Aug 2023
