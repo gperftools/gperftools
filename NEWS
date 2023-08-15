@@ -1,3 +1,22 @@
+== 14 Aug 2023
+gperftools 2.11 is out!
+
+Few minor fixes since rc couple weeks ago. Plus couple notable
+contributions:
+
+* Artem Polyakov has contributed auto-detection of several MPI systems
+  w.r.t. filenames used by HEAPPROFILE and CPUPROFILE environment
+  variables. Also, we now support HEAPPROFILE_USE_PID and
+  CPUPROFILE_USE_PID environment variables that force profile
+  filenames to have pid appended. Which will be useful for some
+  programs that fork for parallelism. See
+  https://github.com/gperftools/gperftools/pull/1263 for details.
+
+* Ken Raffenetti has extended MPI detection mentioned above with
+  detection of MPICH system.
+
+Thanks a lot!
+
 == 31 July 2023
 gperftools 2.11rc is out!
 
