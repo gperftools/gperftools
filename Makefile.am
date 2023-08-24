@@ -251,9 +251,12 @@ WINDOWS_PROJECTS += src/windows/preamble_patcher_test.cc \
                     src/windows/shortproc.asm \
                     src/windows/auto_testing_hook.h
 
+
 ### Unittests
-TESTS += low_level_alloc_unittest
+
+if WITH_HEAP_PROFILER_OR_CHECKER
 WINDOWS_PROJECTS += vsprojects/low_level_alloc_unittest/low_level_alloc_unittest.vcxproj
+TESTS += low_level_alloc_unittest
 LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/base/basictypes.h \
                                     src/gperftools/malloc_hook.h \
@@ -271,7 +274,7 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
 # We don't need that functionality here, so we turn it off to reduce deps.
 low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES
 low_level_alloc_unittest_LDADD = $(LIBSPINLOCK)
-
+endif WITH_HEAP_PROFILER_OR_CHECKER
 
 ### ------- stack trace
 
@@ -581,12 +584,14 @@ malloc_hook_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 malloc_hook_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 malloc_hook_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
+if WITH_HEAP_PROFILER_OR_CHECKER
 if !MINGW
 TESTS += mmap_hook_test
 mmap_hook_test_SOURCES = src/tests/mmap_hook_test.cc \
                          src/mmap_hook.cc
 mmap_hook_test_LDADD = $(LIBSPINLOCK)
 endif !MINGW
+endif WITH_HEAP_PROFILER_OR_CHECKER
 
 TESTS += malloc_extension_test
 WINDOWS_PROJECTS += vsprojects/malloc_extension_test/malloc_extension_test.vcxproj
