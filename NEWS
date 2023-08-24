@@ -1,3 +1,10 @@
+== 24 Aug 2023
+gperftools 2.12 is out!
+
+Brett T. Warden contributed one significant fix. After a change in the
+previous release, we installed broken pkg-config files. Brett noticed
+and fixed that. Huge thanks!
+
 == 14 Aug 2023
 gperftools 2.11 is out!
 
