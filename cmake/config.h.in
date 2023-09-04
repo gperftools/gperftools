@@ -28,10 +28,10 @@
 #cmakedefine ENABLE_SIZED_DELETE
 
 /* Define to 1 if you have the <asm/ptrace.h> header file. */
-#cmakedefine01 HAVE_ASM_PTRACE_H
+#cmakedefine HAVE_ASM_PTRACE_H
 
 /* Define to 1 if you have the <cygwin/signal.h> header file. */
-#cmakedefine01 HAVE_CYGWIN_SIGNAL_H
+#cmakedefine HAVE_CYGWIN_SIGNAL_H
 
 /* Define to 1 if you have the declaration of `backtrace', and to 0 if you
    don't. */
@@ -65,32 +65,26 @@
    */
 #cmakedefine01 HAVE_DECL_VALLOC
 
-/* Define to 1 if you have the <dlfcn.h> header file. */
-#cmakedefine01 HAVE_DLFCN_H
-
-/* Define to 1 if the system has the type `Elf32_Versym'. */
-#cmakedefine01 HAVE_ELF32_VERSYM
-
 /* Define to 1 if you have the <execinfo.h> header file. */
-#cmakedefine01 HAVE_EXECINFO_H
+#cmakedefine HAVE_EXECINFO_H
 
 /* Define to 1 if you have the <fcntl.h> header file. */
-#cmakedefine01 HAVE_FCNTL_H
+#cmakedefine HAVE_FCNTL_H
 
 /* Define to 1 if you have the <features.h> header file. */
-#cmakedefine01 HAVE_FEATURES_H
+#cmakedefine HAVE_FEATURES_H
 
 /* Define to 1 if you have the `fork' function. */
-#cmakedefine01 HAVE_FORK
+#cmakedefine HAVE_FORK
 
 /* Define to 1 if you have the `geteuid' function. */
-#cmakedefine01 HAVE_GETEUID
+#cmakedefine HAVE_GETEUID
 
 /* Define to 1 if you have the <glob.h> header file. */
-#cmakedefine01 HAVE_GLOB_H
+#cmakedefine HAVE_GLOB_H
 
 /* Define to 1 if you have the <grp.h> header file. */
-#cmakedefine01 HAVE_GRP_H
+#cmakedefine HAVE_GRP_H
 
 /* Define to 1 if you have the <libunwind.h> header file. */
 #cmakedefine01 HAVE_LIBUNWIND_H
@@ -101,84 +95,77 @@
 #cmakedefine01 HAVE_LINUX_SIGEV_THREAD_ID
 
 /* Define to 1 if you have the <malloc.h> header file. */
-#cmakedefine01 HAVE_MALLOC_H
+#cmakedefine HAVE_MALLOC_H
 
 /* Define to 1 if you have the <malloc/malloc.h> header file. */
-#cmakedefine01 HAVE_MALLOC_MALLOC_H
-
-/* Define to 1 if you have the <memory.h> header file. */
-#cmakedefine01 HAVE_MEMORY_H
+#cmakedefine HAVE_MALLOC_MALLOC_H
 
 /* Define to 1 if you have a working `mmap' system call. */
-#cmakedefine01 HAVE_MMAP
+#cmakedefine HAVE_MMAP
 
 /* Define to 1 if you have the <poll.h> header file. */
-#cmakedefine01 HAVE_POLL_H
+#cmakedefine HAVE_POLL_H
 
 /* define if libc has program_invocation_name */
-#cmakedefine01 HAVE_PROGRAM_INVOCATION_NAME
+#cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 
 /* Define if you have POSIX threads libraries and header files. */
-#cmakedefine01 HAVE_PTHREAD
+#cmakedefine HAVE_PTHREAD
 
 /* defined to 1 if pthread symbols are exposed even without include pthread.h
    */
-#cmakedefine01 HAVE_PTHREAD_DESPITE_ASKING_FOR
+#cmakedefine HAVE_PTHREAD_DESPITE_ASKING_FOR
 
 /* Define to 1 if you have the <pwd.h> header file. */
-#cmakedefine01 HAVE_PWD_H
+#cmakedefine HAVE_PWD_H
 
 /* Define to 1 if you have the `sbrk' function. */
-#cmakedefine01 HAVE_SBRK
+#cmakedefine HAVE_SBRK
 
 /* Define to 1 if you have the <sched.h> header file. */
-#cmakedefine01 HAVE_SCHED_H
+#cmakedefine HAVE_SCHED_H
 
-/* Define to 1 if you have the <stdint.h> header file. */
 /* Define to 1 if the system has the type `struct mallinfo'. */
-#cmakedefine01 HAVE_STRUCT_MALLINFO
+#cmakedefine HAVE_STRUCT_MALLINFO
 
 /* Define to 1 if you have the <sys/cdefs.h> header file. */
-#cmakedefine01 HAVE_SYS_CDEFS_H
+#cmakedefine HAVE_SYS_CDEFS_H
 
 /* Define to 1 if you have the <sys/malloc.h> header file. */
-#cmakedefine01 HAVE_SYS_MALLOC_H
+#cmakedefine HAVE_SYS_MALLOC_H
 
 /* Define to 1 if you have the <sys/resource.h> header file. */
-#cmakedefine01 HAVE_SYS_RESOURCE_H
+#cmakedefine HAVE_SYS_RESOURCE_H
 
 /* Define to 1 if you have the <sys/socket.h> header file. */
-#cmakedefine01 HAVE_SYS_SOCKET_H
-
-/* Define to 1 if you have the <sys/stat.h> header file. */
-#cmakedefine01 HAVE_SYS_STAT_H
+#cmakedefine HAVE_SYS_SOCKET_H
 
 /* Define to 1 if you have the <sys/syscall.h> header file. */
 #cmakedefine01 HAVE_SYS_SYSCALL_H
 
 /* Define to 1 if you have the <sys/types.h> header file. */
-#cmakedefine01 HAVE_SYS_TYPES_H
+#cmakedefine HAVE_SYS_TYPES_H
 
 /* Define to 1 if you have the <sys/ucontext.h> header file. */
 #cmakedefine01 HAVE_SYS_UCONTEXT_H
 
 /* Define to 1 if you have the <sys/wait.h> header file. */
-#cmakedefine01 HAVE_SYS_WAIT_H
+#cmakedefine HAVE_SYS_WAIT_H
 
 /* Define to 1 if compiler supports __thread */
-#cmakedefine01 HAVE_TLS
+#cmakedefine HAVE_TLS
 
 /* Define to 1 if you have the <ucontext.h> header file. */
 #cmakedefine01 HAVE_UCONTEXT_H
 
 /* Define to 1 if you have the <unistd.h> header file. */
-#cmakedefine01 HAVE_UNISTD_H
+#cmakedefine HAVE_UNISTD_H
 
 /* Whether <unwind.h> contains _Unwind_Backtrace */
 #cmakedefine HAVE_UNWIND_BACKTRACE
 
 /* Define to 1 if you have the <unwind.h> header file. */
-#cmakedefine01 HAVE_UNWIND_H
+#cmakedefine HAVE_UNWIND_H
 
 /* define if your compiler has __attribute__ */
 #cmakedefine HAVE___ATTRIBUTE__
@@ -187,7 +174,7 @@
 #cmakedefine HAVE___ATTRIBUTE__ALIGNED_FN
 
 /* Define to 1 if compiler supports __environ */
-#cmakedefine01 HAVE___ENVIRON
+#cmakedefine HAVE___ENVIRON
 
 /* Define to 1 if you have the `__sbrk' function. */
 #cmakedefine01 HAVE___SBRK
