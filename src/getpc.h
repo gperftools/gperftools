@@ -54,9 +54,9 @@
 #ifdef HAVE_ASM_PTRACE_H
 #include <asm/ptrace.h>
 #endif
-#if defined(HAVE_SYS_UCONTEXT_H)
+#if HAVE_SYS_UCONTEXT_H
 #include <sys/ucontext.h>
-#elif defined(HAVE_UCONTEXT_H)
+#elif HAVE_UCONTEXT_H
 #include <ucontext.h>       // for ucontext_t (and also mcontext_t)
 #elif defined(HAVE_CYGWIN_SIGNAL_H)
 #include <cygwin/signal.h>

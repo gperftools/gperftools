@@ -88,7 +88,7 @@
 
 // open/read/close can set errno, which may be illegal at this
 // time, so prefer making the syscalls directly if we can.
-#ifdef HAVE_SYS_SYSCALL_H
+#if HAVE_SYS_SYSCALL_H
 # include <sys/syscall.h>
 #endif
 #ifdef SYS_open   // solaris 11, at least sometimes, only defines SYS_openat

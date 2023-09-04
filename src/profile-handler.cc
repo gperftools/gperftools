@@ -178,7 +178,7 @@ class ProfileHandler {
   // Must be false if HAVE_LINUX_SIGEV_THREAD_ID is not defined.
   bool per_thread_timer_enabled_;
 
-#ifdef HAVE_LINUX_SIGEV_THREAD_ID
+#if HAVE_LINUX_SIGEV_THREAD_ID
   // this is used to destroy per-thread profiling timers on thread
   // termination
   pthread_key_t thread_timer_key;
@@ -388,7 +388,7 @@ ProfileHandler::ProfileHandler()
 
 ProfileHandler::~ProfileHandler() {
   Reset();
-#ifdef HAVE_LINUX_SIGEV_THREAD_ID
+#if HAVE_LINUX_SIGEV_THREAD_ID
   if (per_thread_timer_enabled_) {
     pthread_key_delete(thread_timer_key);
   }

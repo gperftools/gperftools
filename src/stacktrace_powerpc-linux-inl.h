@@ -48,9 +48,9 @@
 #include <gperftools/stacktrace.h>
 #include <base/vdso_support.h>
 
-#if defined(HAVE_SYS_UCONTEXT_H)
+#if HAVE_SYS_UCONTEXT_H
 #include <sys/ucontext.h>
-#elif defined(HAVE_UCONTEXT_H)
+#elif HAVE_UCONTEXT_H
 #include <ucontext.h>  // for ucontext_t
 #endif
 

@@ -38,7 +38,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#ifdef HAVE_SYS_SYSCALL_H
+#if HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
 
