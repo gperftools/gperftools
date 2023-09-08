@@ -310,10 +310,11 @@ void ProfileHandler::Init() {
   instance_ = new ProfileHandler();
 }
 
-static tcmalloc::TrivialOnce instance_once{base::LINKER_INITIALIZED};
 
 ProfileHandler* ProfileHandler::Instance() {
-  instance_once.RunOnce(&Init);
+  static tcmalloc::TrivialOnce once;
+
+  once.RunOnce(&Init);
 
   assert(instance_ != nullptr);
 

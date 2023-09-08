@@ -129,7 +129,7 @@ void InitialNewHook(const void* ptr, size_t size) {
 // may assume that the initial malloc hooks have been removed.  The initializers
 // may set up malloc hooks and allocate memory.
 bool RemoveInitialHooksAndCallInitializers() {
-  static tcmalloc::TrivialOnce once{base::LINKER_INITIALIZED};
+  static tcmalloc::TrivialOnce once;
   once.RunOnce([] () {
     RAW_CHECK(MallocHook::RemoveNewHook(&InitialNewHook), "");
   });

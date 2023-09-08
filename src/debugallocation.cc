@@ -858,7 +858,7 @@ size_t MallocBlock::free_queue_size_ = 0;
 SpinLock MallocBlock::free_queue_lock_(SpinLock::LINKER_INITIALIZED);
 
 unsigned char MallocBlock::kMagicDeletedBuffer[1024];
-tcmalloc::TrivialOnce MallocBlock::deleted_buffer_initialized_{base::LINKER_INITIALIZED};
+tcmalloc::TrivialOnce MallocBlock::deleted_buffer_initialized_;
 
 const char* const MallocBlock::kAllocName[] = {
   "malloc",

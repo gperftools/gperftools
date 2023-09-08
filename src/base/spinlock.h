@@ -42,6 +42,7 @@
 #include <config.h>
 
 #include <atomic>
+#include <type_traits>
 
 #include "base/basictypes.h"
 #include "base/dynamic_annotations.h"
@@ -134,8 +135,6 @@ namespace tcmalloc {
 
 class TrivialOnce {
 public:
-  explicit TrivialOnce(base::LinkerInitialized) {}
-
   template <typename Body>
   bool RunOnce(Body body) {
     auto done_atomic = reinterpret_cast<std::atomic<int>*>(&done_flag_);
@@ -158,6 +157,8 @@ private:
   int done_flag_;
   alignas(alignof(SpinLock)) char lock_storage_[sizeof(SpinLock)];
 };
+
+static_assert(std::is_trivial<TrivialOnce>::value == true, "");
 
 }  // namespace tcmalloc
 

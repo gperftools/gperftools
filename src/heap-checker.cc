@@ -2356,7 +2356,7 @@ void HeapLeakChecker_BeforeConstructors() {
 // track absolutely all memory allocations and all memory region acquisitions
 // via mmap and sbrk.
 extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
-  static tcmalloc::TrivialOnce once{base::LINKER_INITIALIZED};
+  static tcmalloc::TrivialOnce once;
 
   return once.RunOnce(&HeapLeakChecker_BeforeConstructors);
 }
