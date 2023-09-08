@@ -284,6 +284,7 @@ if WITH_STACK_TRACE
 S_STACKTRACE_INCLUDES = src/stacktrace_impl_setup-inl.h \
                         src/stacktrace_generic-inl.h \
                         src/stacktrace_generic_fp-inl.h \
+                        src/check_address-inl.h \
                         src/stacktrace_libgcc-inl.h \
 			src/stacktrace_libunwind-inl.h \
 			src/stacktrace_arm-inl.h \
@@ -324,6 +325,10 @@ stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
 stacktrace_unittest_LDADD = libstacktrace.la liblogging.la libfake_stacktrace_scope.la $(STACKTRACE_UNITTEST_LIBS)
 # nice to have. Allows glibc's backtrace_symbols to work.
 stacktrace_unittest_LDFLAGS = -export-dynamic
+
+TESTS += check_address_unittest
+check_address_unittest_SOURCES = src/tests/check_address_test.cc
+check_address_unittest_LDADD = liblogging.la $(LIBSPINLOCK)
 
 ### Documentation
 dist_doc_DATA +=

@@ -648,6 +648,10 @@ if(WITH_STACK_TRACE)
     add_executable(stacktrace_unittest ${stacktrace_unittest_SOURCES})
     target_link_libraries(stacktrace_unittest stacktrace logging fake_stacktrace_scope)
     add_test(stacktrace_unittest stacktrace_unittest)
+
+    add_executable(check_address_unittest src/tests/check_address_test.cc)
+    target_link_libraries(check_address_unittest spinlock sysinfo logging)
+    add_test(check_address_unittest check_address_unittest)
   endif()
 
 endif()

@@ -23,6 +23,7 @@
 /binary_trees.exe
 /binary_trees_shared
 /binary_trees_shared.exe
+/check_address_unittest
 /compile
 /config.guess
 /config.log
@@ -150,4 +151,3 @@
 /unique_path_unittest.exe
 /unwind_bench
 /unwind_bench.exe
-/build

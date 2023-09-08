@@ -44,14 +44,14 @@
 // This is only used on OS-es with mmap support.
 #include <sys/mman.h>
 
-#if HAVE_SYS_SYSCALL_H
-#include <sys/syscall.h>
-#endif
-
 #if defined(PC_FROM_UCONTEXT) && (HAVE_SYS_UCONTEXT_H || HAVE_UCONTEXT_H)
 #include "getpc.h"
 #define HAVE_GETPC 1
 #endif
+
+#include <base/spinlock.h>
+
+#include "check_address-inl.h"
 
 // our Autoconf setup enables -fno-omit-frame-pointer, but lets still
 // ask for it just in case.
@@ -96,7 +96,7 @@ frame* adjust_fp(frame* f) {
 #endif
 }
 
-static bool CheckPageIsReadable(void* ptr, void* checked_ptr) {
+bool CheckPageIsReadable(void* ptr, void* checked_ptr) {
   static uintptr_t pagesize;
   if (pagesize == 0) {
     pagesize = getpagesize();
@@ -112,17 +112,7 @@ static bool CheckPageIsReadable(void* ptr, void* checked_ptr) {
     return true;
   }
 
-  int rc;
-#if __FreeBSD__ && defined(SYS_msync)
-  // FreeBSD needs this. Our first stacktrace capturing happens early
-  // and apparently their threading facility isn't ready. And msync as
-  // well us few other "trivial" calls crash.
-  rc = syscall(SYS_msync, reinterpret_cast<void*>(addr), pagesize, MS_ASYNC);
-#else
-  rc = msync(reinterpret_cast<void*>(addr), pagesize, MS_ASYNC);
-#endif
-
-  return (rc == 0);
+  return CheckAddress(addr, pagesize);
 }
 
 template <bool UnsafeAccesses, bool WithSizes>
