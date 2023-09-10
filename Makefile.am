@@ -1179,7 +1179,8 @@ sampling_debug_test_sh_SOURCES = src/tests/sampling_test.sh
 sampling_debug_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
                                  sampling_debug_test
 	rm -f $@
-	cp -p $(top_srcdir)/$(sampling_test_sh_SOURCES) $@
+	sed -e 's/sampling_test/sampling_debug_test/g' <$(top_srcdir)/$(sampling_test_sh_SOURCES) >$@
+	chmod +x $@
 
 # This is the sub-program using by sampling_debug_test.sh
 # The -g is so pprof can get symbol information.
