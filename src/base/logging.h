@@ -84,6 +84,7 @@ DECLARE_int32(verbose);
 #define CHECK(condition)                                                \
   do {                                                                  \
     if (!(condition)) {                                                 \
+      fflush(stdout);                                                   \
       WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
                       sizeof("Check failed: " #condition "\n")-1);      \
       abort();                                                          \
@@ -135,6 +136,7 @@ enum { DEBUG_MODE = 1 };
 #define CHECK_OP(op, val1, val2)                                        \
   do {                                                                  \
     if (!((val1) op (val2))) {                                          \
+      fflush(stdout);                                                   \
       fprintf(stderr, "%s:%d Check failed: %s %s %s\n", __FILE__, __LINE__, #val1, #op, #val2); \
       abort();                                                          \
     }                                                                   \

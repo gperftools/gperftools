@@ -1596,6 +1596,8 @@ int main(int argc, char** argv) {
   const char* human_version = tc_version(&major, &minor, &patch);
   snprintf(mmp, sizeof(mmp), "%d.%d%s", major, minor, patch);
   CHECK(!strcmp(PACKAGE_STRING, human_version));
+  fprintf(LOGSTREAM, "  Expected PACKAGE_VERSION (%s) to equal mmp (%s)\n",
+            PACKAGE_VERSION, mmp);
   CHECK(!strcmp(PACKAGE_VERSION, mmp));
 
   fprintf(LOGSTREAM, "PASS\n");
