@@ -1,3 +1,21 @@
+== 11 Sep 2023
+gperftools 2.13 is out!
+
+This release includes a few minor fixes:
+
+* Ivan Dlugos has fixed some issues with cmake and config.h defines.
+
+* 32-bit builds no longer require 64-bit atomics (which we wrongly
+  introduced in 2.11 and which broke builds on some 32-bit
+  architectures).
+
+* generic_fp backtracing method now uses robust address probing
+  method. The previous approach had occasional false positives, which
+  caused occasional rare crashes.
+
+* In some cases, MSVC generated TrivialOnce machine code that
+  deadlocked programs on startup. The issue is now fixed.
+
 == 24 Aug 2023
 gperftools 2.12 is out!
 
