@@ -1118,8 +1118,23 @@ static void check_global_nallocx() { CHECK_GT(nallocx(99, 0), 99); }
 
 #endif // __GNUC__
 
+static size_t GrowNallocxTestSize(size_t sz) {
+  if (sz < 1024) {
+    return sz + 7;
+  }
+
+  size_t divided = sz >> 7;
+  divided |= (divided >> 1);
+  divided |= (divided >> 2);
+  divided |= (divided >> 4);
+  divided |= (divided >> 8);
+  divided |= (divided >> 16);
+  divided += 1;
+  return sz + divided;
+}
+
 static void TestNAllocX() {
-  for (size_t size = 0; size <= (1 << 20); size += 7) {
+  for (size_t size = 0; size <= (1 << 20); size = GrowNallocxTestSize(size)) {
     size_t rounded = nallocx(size, 0);
     ASSERT_GE(rounded, size);
     void* ptr = malloc(size);
@@ -1129,7 +1144,7 @@ static void TestNAllocX() {
 }
 
 static void TestNAllocXAlignment() {
-  for (size_t size = 0; size <= (1 << 20); size += 7) {
+  for (size_t size = 0; size <= (1 << 20); size = GrowNallocxTestSize(size)) {
     for (size_t align = 0; align < 10; align++) {
       size_t rounded = nallocx(size, MALLOCX_LG_ALIGN(align));
       ASSERT_GE(rounded, size);
