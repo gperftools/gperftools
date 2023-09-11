@@ -39,8 +39,8 @@ DEFINE_bool(test_profiler_enabled, true,
 // unregister callbacks without deadlocking. Thus this
 // "infrastructure" below.
 namespace {
-std::atomic<uint64_t> allocate_count;
-std::atomic<uint64_t> free_count;
+std::atomic<intptr_t> allocate_count;
+std::atomic<intptr_t> free_count;
 // We also "frob" this lock down in BusyThread.
 Mutex allocate_lock;
 
