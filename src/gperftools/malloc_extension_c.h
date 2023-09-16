@@ -77,6 +77,8 @@ PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadIdle(void);
 PERFTOOLS_DLL_DECL void MallocExtension_MarkThreadBusy(void);
 PERFTOOLS_DLL_DECL void MallocExtension_ReleaseToSystem(size_t num_bytes);
 PERFTOOLS_DLL_DECL void MallocExtension_ReleaseFreeMemory(void);
+PERFTOOLS_DLL_DECL void MallocExtension_SetMemoryReleaseRate(double rate);
+PERFTOOLS_DLL_DECL double MallocExtension_GetMemoryReleaseRate(void);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetEstimatedAllocatedSize(size_t size);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetAllocatedSize(const void* p);
 PERFTOOLS_DLL_DECL size_t MallocExtension_GetThreadCacheSize(void);
