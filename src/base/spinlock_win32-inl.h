@@ -39,15 +39,37 @@ namespace base {
 namespace internal {
 
 void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
+  (void)w;
+
+// 0x0602 corresponds to Windows 8.0
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0602
+  if (loop != 0) {
+    auto wait_ns = static_cast<uint64_t>(base::internal::SuggestedDelayNS(loop)) * 16ull;
+    auto wait_ms = wait_ns / 1000000ull;
+
+    WaitOnAddress(w, &value, 4u, static_cast<DWORD>(wait_ms));
+  }
+#else
   if (loop == 0) {
   } else if (loop == 1) {
     Sleep(0);
   } else {
     Sleep(base::internal::SuggestedDelayNS(loop) / 1000000);
   }
+#endif
 }
 
 void SpinLockWake(std::atomic<int> *w, bool all) {
+  (void)w;
+  (void)all;
+
+#if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0602
+  if (all) {
+    WakeByAddressAll((void*)w);
+  } else {
+    WakeByAddressSingle((void*)w);
+  }
+#endif
 }
 
 } // namespace internal
