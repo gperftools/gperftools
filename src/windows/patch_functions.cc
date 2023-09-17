@@ -92,6 +92,7 @@
 #include <vector>
 #include <base/logging.h>
 #include "base/spinlock.h"
+#include "getenv_safe.h" // for TCMallocGetenvSafe
 #include "gperftools/malloc_hook.h"
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"
@@ -993,9 +994,16 @@ BOOL WINAPI WindowsInfo::Perftools_FreeLibrary(HMODULE hLibModule) {
 // ---------------------------------------------------------------------
 
 void PatchWindowsFunctions() {
-  // This does the libc patching in every module, and the main executable.
-  PatchAllModules();
-  main_executable_windows.Patch();
+  const char* disable_env = TCMallocGetenvSafe("TCMALLOC_DISABLE_REPLACEMENT");
+  const bool should_skip = disable_env &&
+                           disable_env[0] == '1' &&
+                           disable_env[1] == '\0';
+
+  if (!should_skip) {
+    // This does the libc patching in every module, and the main executable.
+    PatchAllModules();
+    main_executable_windows.Patch();
+  }
 }
 
 #if 0
