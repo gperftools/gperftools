@@ -40,6 +40,7 @@ namespace internal {
 
 void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
   (void)w;
+  (void)value;
 
 // 0x0602 corresponds to Windows 8.0
 #if defined(_WIN32_WINNT) && _WIN32_WINNT >= 0x0602
