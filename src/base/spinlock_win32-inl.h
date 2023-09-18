@@ -32,7 +32,9 @@
  * This file is a Win32-specific part of spinlock_internal.cc
  */
 
+
 #include <windows.h>
+#pragma comment(lib, "Synchronization.lib")
 
 namespace base {
 namespace internal {
