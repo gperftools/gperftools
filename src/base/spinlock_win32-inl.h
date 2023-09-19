@@ -35,19 +35,28 @@
 
 #include <windows.h>
 
+#ifdef _MSC_VER
+#   pragma comment(lib, "Synchronization.lib")
+#endif
+
 namespace base {
 namespace internal {
 
 void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
-  if (loop == 0) {
-  } else if (loop == 1) {
-    Sleep(0);
-  } else {
-    Sleep(base::internal::SuggestedDelayNS(loop) / 1000000);
+  if (loop != 0) {
+    auto wait_ns = static_cast<uint64_t>(base::internal::SuggestedDelayNS(loop)) * 16;
+    auto wait_ms = wait_ns / 1000000;
+
+    WaitOnAddress(w, &value, 4, static_cast<DWORD>(wait_ms));
   }
 }
 
 void SpinLockWake(std::atomic<int> *w, bool all) {
+  if (all) {
+    WakeByAddressAll((void*)w);
+  } else {
+    WakeByAddressSingle((void*)w);
+  }
 }
 
 } // namespace internal

@@ -566,6 +566,9 @@ if(MINGW OR MSVC)
   # We also need to tell mingw that sysinfo.cc needs shlwapi.lib.
   # (We do this via a #pragma for msvc, but need to do it here for mingw).
   target_link_libraries(sysinfo shlwapi)
+  # spinlock uses WaitOnAddress et al. We need to link to synchronization.lib
+  # (We also do this via a #pragma for msvc, but need to do it here for mingw).
+  target_link_libraries(spinlock synchronization)
 
 else()
   set(SPINLOCK_INCLUDES src/base/spinlock.h

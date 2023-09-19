@@ -205,6 +205,7 @@ noinst_LTLIBRARIES += libspinlock.la
 libspinlock_la_SOURCES = src/base/spinlock.cc \
                          src/base/spinlock_internal.cc \
                          $(SPINLOCK_INCLUDES)
+libspinlock_la_LIBADD = -lsynchronization
 
 LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
 
