@@ -853,7 +853,12 @@ if(BUILD_TESTING)
   add_executable(mmap_hook_test
           src/tests/mmap_hook_test.cc
           src/mmap_hook.cc)
-  target_link_libraries(mmap_hook_test spinlock sysinfo logging)
+  if(MSVC)
+    # Work around unresolved symbol from src/windows by linking against the entire library
+    target_link_libraries(mmap_hook_test tcmalloc_minimal Threads::Threads)
+  else()
+    target_link_libraries(mmap_hook_test spinlock sysinfo logging)
+  endif()
   add_test(mmap_hook_test mmap_hook_test)
 
   set(malloc_extension_test_SOURCES src/tests/malloc_extension_test.cc
@@ -888,7 +893,10 @@ if(BUILD_TESTING)
 
   add_executable(page_heap_test src/tests/page_heap_test.cc)
   if(MSVC)
-    target_link_libraries(page_heap_test tcmalloc_minimal_static)
+    # page_heap_test was changed such that it now refers to an unexported symbol.
+    # Temporary workaround by linking to the .obj files instead of tcmalloc_minimal.
+    # Also see commit e521472 for the VSProj changes.
+    target_link_libraries(page_heap_test PRIVATE tcmalloc_minimal_internal Threads::Threads)
   else()
     target_link_libraries(page_heap_test tcmalloc_minimal)
   endif()
