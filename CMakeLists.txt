@@ -44,6 +44,7 @@ if(CMAKE_SYSTEM MATCHES Linux)
 endif()
 
 include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
 include(CheckCSourceCompiles)
 include(CheckCXXSourceCompiles)
 include(CheckFunctionExists)
@@ -290,9 +291,12 @@ check_cxx_source_compiles("
   HAVE_STD_ALIGN_VAL_T)
 if(HAVE_STD_ALIGN_VAL_T)
   set(HAVE_STD_ALIGN_VAL_T 1)
+  set(ENABLE_ALIGNED_NEW_DELETE 1)
 else()
   set(HAVE_STD_ALIGN_VAL_T 0)
 endif()
+
+check_cxx_compiler_flag("-faligned-new" have_f_aligned_new)
 
 check_c_source_compiles("
   #include <unwind.h>
