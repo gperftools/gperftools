@@ -7,7 +7,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/ucontext.h>
 #if HAVE_LIBUNWIND_H
 #include <libunwind.h>
 #endif
