@@ -273,6 +273,9 @@ AC_CHECK_HEADERS(sys/cdefs.h)   # Where glibc defines __THROW
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
 # AC_PC_FROM_UCONTEXT, below.
 
+# check for socketpair, some system, such as QNX, need link in an socket library to use it
+AC_SEARCH_LIBS([socketpair], [socket])
+
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 AC_CHECK_DECLS([cfree,
@@ -498,6 +501,8 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && ((__GNUC__ < 4) || (__
 #error OSX __thread support is known to call malloc which makes it unsafe to use from malloc replacement
 #elif defined(_AIX)
 #error AIX thread support is known to call malloc which makes it unsafe to use from malloc replacement
+#elif defined(__QNXNTO__)
+#error QNX thread support is known to call malloc which makes it unsafe to use from malloc replacement
 #endif
 ], [static __thread int p = 0])],
                [AC_DEFINE(HAVE_TLS, 1,
