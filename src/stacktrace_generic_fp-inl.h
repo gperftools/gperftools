@@ -156,6 +156,7 @@ int capture(void **result, int max_depth, int skip_count,
   constexpr uintptr_t kAlignment = 16;
 #endif
 
+  uintptr_t current_frame_addr = reinterpret_cast<uintptr_t>(__builtin_frame_address(0));
   uintptr_t initial_frame_addr = reinterpret_cast<uintptr_t>(initial_frame);
   if (((initial_frame_addr + sizeof(frame)) & (kAlignment - 1)) != 0) {
     return i;
@@ -163,11 +164,14 @@ int capture(void **result, int max_depth, int skip_count,
   if (initial_frame_addr < kTooSmallAddr) {
     return i;
   }
+  if (initial_frame_addr - current_frame_addr > kFrameSizeThreshold) {
+    return i;
+  }
 
   // Note, we assume here that this functions frame pointer is not
   // bogus. Which is true if this code is built with
   // -fno-omit-frame-pointer.
-  frame* prev_f = reinterpret_cast<frame*>(__builtin_frame_address(0));
+  frame* prev_f = reinterpret_cast<frame*>(current_frame_addr);
   frame *f = adjust_fp(reinterpret_cast<frame*>(initial_frame));
 
   while (i < max_depth) {
