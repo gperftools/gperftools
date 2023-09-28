@@ -222,41 +222,49 @@ extern "C" {
 // GetUniquePathFromEnv value. Second and third return values are
 // strings to be appended to path for extra identification.
 static std::tuple<bool, const char*, const char*> QueryHPCEnvironment() {
+  auto mk = [] (bool a, const char* b, const char* c) {
+    // We have to work around gcc 5 bug in tuple constructor. It
+    // doesn't let us do {a, b, c}
+    //
+    // TODO(2023-09-27): officially drop gcc 5 support
+    return std::make_tuple<bool, const char*, const char*>(std::move(a), std::move(b), std::move(c));
+  };
+
   // Check for the PMIx environment
-  char* envval = getenv("PMIX_RANK");
+  const char* envval = getenv("PMIX_RANK");
   if (envval != nullptr && *envval != 0) {
     // PMIx exposes the rank that is convenient for process identification
     // Don't append pid, since we have rank to differentiate.
-    return {false, ".rank-", envval};
+    return mk(false, ".rank-", envval);
   }
 
   // Check for the Slurm environment
   envval = getenv("SLURM_JOB_ID");
   if (envval != nullptr && *envval != 0) {
     // Slurm environment detected
-    char* procid = getenv("SLURM_PROCID");
+    const char* procid = getenv("SLURM_PROCID");
     if (procid != nullptr && *procid != 0) {
       // Use Slurm process ID to differentiate
-      return {false, ".slurmid-", procid};
+      return mk(false, ".slurmid-", procid);
     }
     // Need to add PID to avoid conflicts
-    return {true, "", ""};
+    return mk(true, "", "");
   }
 
   // Check for Open MPI environment
   envval = getenv("OMPI_HOME");
   if (envval != nullptr && *envval != 0) {
-    return {true, "", ""};
+    return mk(true, "", "");
   }
 
   // Check for Hydra process manager (MPICH)
   envval = getenv("PMI_RANK");
   if (envval != nullptr && *envval != 0) {
-    return {false, ".rank-", envval};
+    return mk(false, ".rank-", envval);
   }
 
   // No HPC environment was detected
-  return {false, "", ""};
+  return mk(false, "", "");
 }
 
 // This takes as an argument an environment-variable name (like
