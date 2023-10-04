@@ -212,7 +212,9 @@ extern "C" {
   void free(void* ptr) __THROW                    ALIAS(tc_free);
   void* realloc(void* ptr, size_t size) __THROW   ALIAS(tc_realloc);
   void* calloc(size_t n, size_t size) __THROW     ALIAS(tc_calloc);
+#ifndef __QNXNTO__
   void cfree(void* ptr) __THROW                   ALIAS(tc_cfree);
+#endif
   void* memalign(size_t align, size_t s) __THROW  ALIAS(tc_memalign);
   void* aligned_alloc(size_t align, size_t s) __THROW ALIAS(tc_memalign);
   void* valloc(size_t size) __THROW               ALIAS(tc_valloc);
@@ -222,7 +224,9 @@ extern "C" {
 #ifndef __UCLIBC__
   void malloc_stats(void) __THROW                 ALIAS(tc_malloc_stats);
 #endif
+#ifndef __QNXNTO__
   int mallopt(int cmd, int value) __THROW         ALIAS(tc_mallopt);
+#endif
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo mallinfo(void) __THROW          ALIAS(tc_mallinfo);
 #endif

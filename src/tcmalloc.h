@@ -53,7 +53,7 @@
 # define __THROW   // __THROW is just an optimization, so ok to make it ""
 #endif
 
-#if !HAVE_DECL_CFREE
+#if !HAVE_DECL_CFREE && !defined(__QNXNTO__)
 extern "C" void cfree(void* ptr) __THROW;
 #endif
 #if !HAVE_DECL_POSIX_MEMALIGN

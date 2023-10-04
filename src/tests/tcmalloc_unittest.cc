@@ -129,6 +129,9 @@ static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
 }
 
 #else
+#ifdef __QNXNTO__
+# define cfree free
+#endif
 static bool kOSSupportsMemalign = true;
 static inline void* Memalign(size_t align, size_t size) {
   return noopt(memalign(align, noopt(size)));
