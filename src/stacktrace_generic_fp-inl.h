@@ -123,8 +123,6 @@ int capture(void **result, int max_depth, int skip_count,
             int *sizes) {
   int i = 0;
 
-  max_depth += skip_count;
-
   if (initial_pc != nullptr) {
     // This is 'with ucontext' case. We take first pc from ucontext
     // and then skip_count is ignored as we assume that caller only
@@ -136,6 +134,8 @@ int capture(void **result, int max_depth, int skip_count,
     result[0] = *initial_pc;
     i++;
   }
+
+  max_depth += skip_count;
 
   constexpr uintptr_t kTooSmallAddr = 16 << 10;
   constexpr uintptr_t kFrameSizeThreshold = 128 << 10;
