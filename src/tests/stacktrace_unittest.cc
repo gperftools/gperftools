@@ -378,6 +378,7 @@ int main(int argc, char ** argv) {
   leaf_capture_len = 20;
   RunTest();
 
+  printf("\nSet max capture length to 3:\n");
   leaf_capture_len = 3;  // less than stack depth
   RunTest();
 
