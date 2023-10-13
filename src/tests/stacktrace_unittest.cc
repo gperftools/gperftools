@@ -52,6 +52,8 @@
 #  endif
 #endif
 
+#include <vector>
+
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include <gperftools/stacktrace.h>
@@ -179,14 +181,14 @@ int ATTRIBUTE_NOINLINE CaptureLeafUContext(void **stack, int stack_len) {
   gst_args.size_ptr = &size;
   gst_args.result = stack;
   gst_args.max_depth = stack_len;
+  gst_args.captured = false;
+  gst_args.ready = false;
 
   struct itimerval it;
   it.it_interval.tv_sec = 0;
   it.it_interval.tv_usec = 0;
   it.it_value.tv_sec = 0;
   it.it_value.tv_usec = 1;
-
-  CHECK(!gst_args.captured);
 
   rv = setitimer(ITIMER_PROF, &it, nullptr);
   CHECK(rv == 0);
@@ -266,19 +268,21 @@ int ATTRIBUTE_NOINLINE CaptureLeafWSkip(void **stack, int stack_len) {
 void ATTRIBUTE_NOINLINE CheckStackTrace(int);
 
 int (*leaf_capture_fn)(void**, int) = CaptureLeafPlain;
+int leaf_capture_len = 20;
 
 void ATTRIBUTE_NOINLINE CheckStackTraceLeaf(int i) {
-  const int STACK_LEN = 20;
-  void *stack[STACK_LEN];
-  int size;
+  std::vector<void*> stack(leaf_capture_len + 1);
+  stack[leaf_capture_len] = (void*)0x42;  // we will check that this value is not overwritten
+  int size = 0;
 
   ADJUST_ADDRESS_RANGE_FROM_RA(&expected_range[1]);
 
-  size = leaf_capture_fn(stack, STACK_LEN);
+  size = leaf_capture_fn(stack.data(), leaf_capture_len);
+  CHECK_EQ(stack[leaf_capture_len], (void*)0x42);
 
 #ifdef HAVE_EXECINFO_H
   {
-    char **strings = backtrace_symbols(stack, size);
+    char **strings = backtrace_symbols(stack.data(), size);
     for (int i = 0; i < size; i++)
       printf("%s %p\n", strings[i], stack[i]);
     printf("CheckStackTrace() addr: %p\n", &CheckStackTrace);
@@ -286,11 +290,12 @@ void ATTRIBUTE_NOINLINE CheckStackTraceLeaf(int i) {
   }
 #endif
 
-  for (int i = 0, j = 0; i < BACKTRACE_STEPS; i++, j++) {
+  for (int i = 0, j = 0; i < BACKTRACE_STEPS && j < size; i++, j++) {
     if (i == 1 && j == 1) {
       // this is expected to be our function for which we don't
       // establish bounds. So skip.
-      j++;
+      i--;
+      continue;
     }
     printf("Backtrace %d: expected: %p..%p  actual: %p ... ",
            i, expected_range[i].start, expected_range[i].end, stack[j]);
@@ -348,7 +353,7 @@ void ATTRIBUTE_NOINLINE CheckStackTrace(int i) {
 
 //-----------------------------------------------------------------------//
 
-int main(int argc, char ** argv) {
+void RunTest() {
   CheckStackTrace(0);
   printf("PASS\n");
 
@@ -367,6 +372,15 @@ int main(int argc, char ** argv) {
   CheckStackTrace(0);
   printf("PASS\n");
 #endif  // TEST_UCONTEXT_BITS
+}
+
+int main(int argc, char ** argv) {
+  leaf_capture_len = 20;
+  RunTest();
+
+  printf("\nSet max capture length to 3:\n");
+  leaf_capture_len = 3;  // less than stack depth
+  RunTest();
 
   return 0;
 }
