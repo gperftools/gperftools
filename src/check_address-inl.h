@@ -99,10 +99,14 @@ bool CheckAccessTwoSyscalls(uintptr_t addr, int pagesize) {
   return false;
 }
 
+bool CheckAddressFirstCall(uintptr_t addr, int pagesize);
+
+bool (* volatile CheckAddress)(uintptr_t addr, int pagesize) = CheckAddressFirstCall;
+
 // And we choose between strategies by checking at runtime if
 // single-syscall approach actually works and switch to a proper
 // version.
-bool (* volatile CheckAddress)(uintptr_t addr, int pagesize) = [] (uintptr_t addr, int pagesize) {
+bool CheckAddressFirstCall(uintptr_t addr, int pagesize) {
   void* unreadable = mmap(0, pagesize, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   RAW_CHECK(unreadable != MAP_FAILED, "mmap of unreadable");
 
