@@ -207,24 +207,32 @@ struct GetStackImplementation {
 #error user asked for libgcc unwinder to be default but it is not available
 #endif
 
+static int null_GetStackFrames(void** result, int* sizes, int max_depth,
+                               int skip_count) {
+  return 0;
+}
+
+static int null_GetStackFramesWithContext(void** result, int* sizes, int max_depth,
+                                          int skip_count, const void *uc) {
+  return 0;
+}
+
+static int null_GetStackTrace(void** result, int max_depth,
+                              int skip_count) {
+  return 0;
+}
+
+static int null_GetStackTraceWithContext(void** result, int max_depth,
+                                         int skip_count, const void *uc) {
+  return 0;
+}
+
 static GetStackImplementation impl__null = {
-  // GetStackFrames
-  [] (void **result, int *sizes, int max_depth, int skip_count) {
-    return 0;
-  },
-  // GetStackTraceWithContext
-  [] (void **result, int *sizes, int max_depth, int skip_count, const void* uc) {
-    return 0;
-  },
-  // GetStackTrace
-  [] (void **result, int max_depth, int skip_count) {
-    return 0;
-  },
-  // GetStackTraceWithContext
-  [] (void **result, int max_depth, int skip_count, const void* uc) {
-    return 0;
-  },
-  "null"   // name
+  null_GetStackFrames,
+  null_GetStackFramesWithContext,
+  null_GetStackTrace,
+  null_GetStackTraceWithContext,
+  "null"
 };
 
 static GetStackImplementation *all_impls[] = {
