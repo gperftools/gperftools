@@ -59,13 +59,6 @@
 #include <gperftools/stacktrace.h>
 #include "tests/testutil.h"
 
-static bool verbosity_setup = ([] () {
-  // Lets try have more details printed for test by asking for verbose
-  // option.
-  setenv("TCMALLOC_STACKTRACE_METHOD_VERBOSE", "t", 0);
-  return true;
-})();
-
 // Obtain a backtrace, verify that the expected callers are present in the
 // backtrace, and maybe print the backtrace to stdout.
 
@@ -374,13 +367,26 @@ void RunTest() {
 #endif  // TEST_UCONTEXT_BITS
 }
 
-int main(int argc, char ** argv) {
-  leaf_capture_len = 20;
-  RunTest();
+extern "C" {
+const char* TEST_bump_stacktrace_implementation(const char*);
+}
 
-  printf("\nSet max capture length to 3:\n");
-  leaf_capture_len = 3;  // less than stack depth
-  RunTest();
+int main(int argc, char** argv) {
+  for (;;) {
+    // first arg if given is stacktrace implementation we want to test
+    const char* name = TEST_bump_stacktrace_implementation((argc > 1) ? argv[1] : nullptr);
+    if (!name) {
+      break;
+    }
+    printf("Testing stacktrace implementation: %s\n", name);
+
+    leaf_capture_len = 20;
+    RunTest();
+
+    printf("\nSet max capture length to 3:\n");
+    leaf_capture_len = 3;  // less than stack depth
+    RunTest();
+  }
 
   return 0;
 }

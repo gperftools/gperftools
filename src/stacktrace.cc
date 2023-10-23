@@ -366,6 +366,46 @@ PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
                                                      skip_count, uc);
 }
 
+#if STACKTRACE_IS_TESTED
+static void init_default_stack_impl_inner() {
+}
+
+extern "C" {
+const char* TEST_bump_stacktrace_implementation(const char* suggestion) {
+  static int selection;
+  constexpr int n = sizeof(all_impls)/sizeof(all_impls[0]);
+
+  if (!get_stack_impl_inited) {
+    fprintf(stderr, "Supported stacktrace methods:\n");
+    for (int i = 0; i < n; i++) {
+      fprintf(stderr, "* %s\n", all_impls[i]->name);
+    }
+    fprintf(stderr, "\n\n");
+    get_stack_impl_inited = true;
+  }
+
+  do {
+    if (selection == n) {
+      return nullptr;
+    }
+    get_stack_impl = all_impls[selection++];
+
+    if (suggestion && strcmp(suggestion, get_stack_impl->name) != 0) {
+      continue;
+    }
+    if (get_stack_impl == &impl__null) {
+      // skip null implementation
+      continue;
+    }
+    break;
+  } while (true);
+
+  return get_stack_impl->name;
+}
+}
+
+#else  // !STACKTRACE_IS_TESTED
+
 ATTRIBUTE_NOINLINE
 static void maybe_convert_libunwind_to_generic_fp() {
 #if defined(HAVE_GST_libunwind) && defined(HAVE_GST_generic_fp)
@@ -425,3 +465,5 @@ static void init_default_stack_impl(void) {
 }
 
 REGISTER_MODULE_INITIALIZER(stacktrace_init_default_stack_impl, init_default_stack_impl());
+
+#endif  // !STACKTRACE_IS_TESTED

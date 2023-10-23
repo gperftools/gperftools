@@ -652,10 +652,10 @@ if(WITH_STACK_TRACE)
             src/base/commandlineflags.h
             ${STACKTRACE_INCLUDES}
             ${LOGGING_INCLUDES})
-    set(stacktrace_unittest_SOURCES src/tests/stacktrace_unittest.cc
-            ${STACKTRACE_UNITTEST_INCLUDES})
-    add_executable(stacktrace_unittest ${stacktrace_unittest_SOURCES})
-    target_link_libraries(stacktrace_unittest stacktrace logging fake_stacktrace_scope)
+
+    add_executable(stacktrace_unittest src/tests/stacktrace_unittest.cc ${libstacktrace_la_SOURCES})
+    target_link_libraries(stacktrace_unittest logging fake_stacktrace_scope ${LIBSPINLOCK} ${unwind_libs})
+    target_compile_definitions(stacktrace_unittest PRIVATE STACKTRACE_IS_TESTED)
     add_test(stacktrace_unittest stacktrace_unittest)
 
     add_executable(check_address_unittest src/tests/check_address_test.cc)
