@@ -1439,5 +1439,7 @@ install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/libprofiler.pc
         DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 
+message(WARNING "note: gperftools' cmake support is incomplete and is best-effort only")
+
 #TODO @GENERATE_CHANGELOG_RULES@
 #TODO dist
