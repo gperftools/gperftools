@@ -114,6 +114,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
 #endif
 
   int ret = unw_init_local(&cursor, &uc);
+  (void)ret;
   assert(ret >= 0);
 
   while (skip_count--) {
