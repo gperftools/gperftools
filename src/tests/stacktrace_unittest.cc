@@ -73,6 +73,8 @@ struct AddressRange {
 // Expected function [start,end] range.
 AddressRange expected_range[BACKTRACE_STEPS];
 
+bool skipping_ucontext;
+
 #if __GNUC__
 // Using GCC extension: address of a label can be taken with '&&label'.
 // Start should be a label somewhere before recursive call, end somewhere
@@ -361,9 +363,11 @@ void RunTest() {
   printf("PASS\n");
 
 #if TEST_UCONTEXT_BITS
-  leaf_capture_fn = CaptureLeafUContext;
-  CheckStackTrace(0);
-  printf("PASS\n");
+  if (!skipping_ucontext) {
+    leaf_capture_fn = CaptureLeafUContext;
+    CheckStackTrace(0);
+    printf("PASS\n");
+  }
 #endif  // TEST_UCONTEXT_BITS
 }
 
@@ -372,6 +376,12 @@ const char* TEST_bump_stacktrace_implementation(const char*);
 }
 
 int main(int argc, char** argv) {
+  if (argc > 1 && strcmp(argv[1], "--skip-ucontext") == 0) {
+    argc--;
+    argv--;
+    skipping_ucontext = true;
+  }
+
   for (;;) {
     // first arg if given is stacktrace implementation we want to test
     const char* name = TEST_bump_stacktrace_implementation((argc > 1) ? argv[1] : nullptr);
