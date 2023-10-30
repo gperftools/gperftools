@@ -284,6 +284,7 @@ AC_CHECK_DECLS([cfree,
                 valloc,
                 pvalloc],,,
                [#define _XOPEN_SOURCE 600
+                #define _QNX_SOURCE 1
                 #include <stdlib.h>
                 #include <malloc.h>])
 
