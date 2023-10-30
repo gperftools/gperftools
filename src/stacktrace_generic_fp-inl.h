@@ -77,6 +77,27 @@ namespace stacktrace_generic_fp {
 #define PAD_FRAME
 #endif
 
+#if __aarch64__
+// Aarch64 has pointer authentication and uses the upper 16bit of a stack
+// or return address to sign it. These bits needs to be strip in order for
+// stacktraces to work.
+void *strip_PAC(void* _ptr) {
+  void *ret;
+  asm volatile(
+      "mov x30, %1\n\t"
+      "hint #7\n\t"  // xpaclri, is NOP for < armv8.3-a
+      "mov %0, x30\n\t"
+      : "=r"(ret)
+      : "r"(_ptr)
+      : "x30");
+  return ret;
+}
+
+#define STRIP_PAC(x) (strip_PAC((x)))
+#else
+#define STRIP_PAC(x) (x)
+#endif
+
 struct frame {
   uintptr_t parent;
 #ifdef PAD_FRAME
@@ -131,7 +152,8 @@ int capture(void **result, int max_depth, int skip_count,
     if (max_depth == 0) {
       return 0;
     }
-    result[0] = *initial_pc;
+    result[0] = STRIP_PAC(*initial_pc);
+
     i++;
   }
 
@@ -189,7 +211,7 @@ int capture(void **result, int max_depth, int skip_count,
       if (WithSizes) {
         sizes[i - skip_count] = reinterpret_cast<uintptr_t>(prev_f) - reinterpret_cast<uintptr_t>(f);
       }
-      result[i - skip_count] = pc;
+      result[i - skip_count] = STRIP_PAC(pc);
     }
 
     i++;
