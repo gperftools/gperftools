@@ -1,0 +1,26 @@
+commit 251dfb7dd328c01f3636022b47021eaef06a6cab
+Author: Xiang.Lin <myd.xia@gmail.com>
+Date:   Mon Nov 6 15:07:56 2023 +0800
+
+    libtool: fix empty "-L" in compiler_lib_search_path
+    
+    If compiler place space between "-L" and the path, the path will
+    be skipped and only have empty "-L" on final compiler_lib_search_path,
+    which will cause first library in postdeps following compiler_lib_search_path
+    be skipped accidentally.
+
+diff --git a/m4/libtool.m4 b/m4/libtool.m4
+index d034b12..4bd8282 100644
+--- a/m4/libtool.m4
++++ b/m4/libtool.m4
+@@ -7584,8 +7584,8 @@ if AC_TRY_EVAL(ac_compile); then
+     -L* | -R* | -l*)
+        # Some compilers place space between "-{L,R}" and the path.
+        # Remove the space.
+-       if test x-L = "$p" ||
+-          test x-R = "$p"; then
++       if test x-L = x"$p" ||
++          test x-R = x"$p"; then
+ 	 prev=$p
+ 	 continue
+        fi
