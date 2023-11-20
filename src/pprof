@@ -3555,7 +3555,7 @@ sub FetchDynamicProfile {
 
     my $url = "$baseURL$path";
     my $fetch_timeout = undef;
-    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE/) {
+    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE|$HEAP_PAGE/) {
       if ($path =~ m/[?]/) {
         $url .= "&";
       } else {
@@ -3564,7 +3564,7 @@ sub FetchDynamicProfile {
       $url .= sprintf("seconds=%d", $main::opt_seconds);
       $fetch_timeout = $main::opt_seconds * 1.01 + 60;
     } else {
-      # For non-CPU profiles, we add a type-extension to
+      # For non-parameter profiles, we add a type-extension to
       # the target profile file name.
       my $suffix = $path;
       $suffix =~ s,/,.,g;
@@ -3585,8 +3585,8 @@ sub FetchDynamicProfile {
 
     my @fetcher = AddFetchTimeout($fetch_timeout, @URL_FETCHER);
     my $cmd = ShellEscape(@fetcher, $url) . " > " . ShellEscape($tmp_profile);
-    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE|$CENSUSPROFILE_PAGE/){
-      print STDERR "Gathering CPU profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
+    if ($path =~ m/$PROFILE_PAGE|$PMUPROFILE_PAGE|$CENSUSPROFILE_PAGE|$HEAP_PAGE/){
+      print STDERR "Gathering profile from $url for $main::opt_seconds seconds to\n  ${real_profile}\n";
       if ($encourage_patience) {
         print STDERR "Be patient...\n";
       }
