@@ -96,7 +96,7 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 // Do not put globals below.
 
 // Load instruction used on top-of-stack get.
-#if defined(__PPC64__) || defined(__LP64__)
+#if defined(__PPC64__) || defined(__ppc64__) || defined(__LP64__)
 # define LOAD "ld"
 #else
 # define LOAD "lwz"
