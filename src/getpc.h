@@ -44,7 +44,12 @@
 #ifndef BASE_GETPC_H_
 #define BASE_GETPC_H_
 
-#include "config.h"
+// Note: we include this from one of configure script C++ tests as
+// part of verifying that we're able to build CPU profiler. I.e. we
+// cannot include config.h as we normally do, since it isn't produced
+// yet, but those HAVE_XYZ defines are available, so including
+// ucontext etc stuff works. It's usage from profiler.cc (and
+// stacktrace_generic_fp-inl.h) is after config.h is included.
 
 // On many linux systems, we may need _GNU_SOURCE to get access to
 // the defined constants that define the register we want to see (eg
@@ -63,17 +68,32 @@
 typedef ucontext ucontext_t;
 #endif
 
-// If this doesn't compile, it's probably because
-// PC_FROM_UCONTEXT is the empty string.  You need to figure out
-// the right value for your system, and add it to the list in
-// configure.ac (or set it manually in your config.h).
+namespace tcmalloc {
+namespace getpc {
+
+// std::void_t is C++ 14. So we steal this from
+// https://en.cppreference.com/w/cpp/types/void_t
+template<typename... Ts>
+struct make_void { typedef void type; };
+template <typename... Ts>
+using void_t = typename make_void<Ts...>::type;
+
+#include "getpc-inl.h"
+
+}  // namespace getpc
+}  // namespace tcmalloc
+
+// If this doesn't compile, you need to figure out the right value for
+// your system, and add it to the list above.
 inline void* GetPC(const ucontext_t& signal_ucontext) {
+  void* retval = tcmalloc::getpc::internal::RawUCToPC(&signal_ucontext);
+
 #if defined(__s390__) && !defined(__s390x__)
   // Mask out the AMODE31 bit from the PC recorded in the context.
-  return (void*)((unsigned long)signal_ucontext.PC_FROM_UCONTEXT & 0x7fffffffUL);
-#else
-  return (void*)signal_ucontext.PC_FROM_UCONTEXT;   // defined in config.h
+  retval = (void*)((unsigned long)retval & 0x7fffffffUL);
 #endif
+
+  return retval;
 }
 
 #endif  // BASE_GETPC_H_

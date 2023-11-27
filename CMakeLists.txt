@@ -60,7 +60,6 @@ include(GNUInstallDirs)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_CURRENT_SOURCE_DIR}/cmake)
 include(DefineTargetVariables)
-include(PCFromUContext)
 
 define_target_variables()
 
@@ -191,6 +190,9 @@ check_include_file("grp.h" HAVE_GRP_H) # for heapchecker_unittest
 check_include_file("pwd.h" HAVE_PWD_H) # for heapchecker_unittest
 check_include_file("sys/resource.h" HAVE_SYS_RESOURCE_H) # for memalign_unittest.cc
 check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
+check_include_file("ucontext.h" HAVE_UCONTEXT_H)
+check_include_file("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
+check_include_file("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H)
 
 check_include_file("unistd.h" HAVE_UNISTD_H)
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
@@ -219,16 +221,6 @@ endif()
 if(NOT WIN32)
   set(HAVE_MMAP 1)
 endif()
-
-# We want to access the "PC" (Program Counter) register from a struct
-# ucontext.  Every system has its own way of doing that.  We try all the
-# possibilities we know about.  Note REG_PC should come first (REG_RIP
-# is also defined on solaris, but does the wrong thing).  But don't
-# bother if we're not doing cpu-profiling.
-# [*] means that we've not actually tested one of these systems
-if (GPERFTOOLS_BUILD_CPU_PROFILER)
-  pc_from_ucontext(PC_FROM_UCONTEXT_DEF)
-endif ()
 
 # Some tests test the behavior of .so files, and only make sense for dynamic.
 option(GPERFTOOLS_BUILD_STATIC "Enable Static" ON)

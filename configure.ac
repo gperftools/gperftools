@@ -270,8 +270,11 @@ AC_CHECK_HEADERS(grp.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(pwd.h)         # for heapchecker_unittest
 AC_CHECK_HEADERS(sys/resource.h)         # for memalign_unittest.cc
 AC_CHECK_HEADERS(sys/cdefs.h)   # Where glibc defines __THROW
-# We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
-# AC_PC_FROM_UCONTEXT, below.
+
+AC_CHECK_HEADERS(sys/ucontext.h)
+AC_CHECK_HEADERS(ucontext.h)
+AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
+AC_CHECK_HEADERS(asm/ptrace.h)           # get ptrace macros, e.g. PT_NIP
 
 # check for socketpair, some system, such as QNX, need link in an socket library to use it
 AC_SEARCH_LIBS([socketpair], [socket])
@@ -305,14 +308,14 @@ case "$host" in
 esac
 
 # We want to access the "PC" (Program Counter) register from a struct
-# ucontext.  Every system has its own way of doing that.  We try all the
-# possibilities we know about.  Note REG_PC should come first (REG_RIP
-# is also defined on solaris, but does the wrong thing).  But don't
-# bother if we're not doing cpu-profiling.
-# [*] means that we've not actually tested one of these systems
+# ucontext.  Every system has its own way of doing that. But in case
+# we're dealing with unknown system, we have to check if GetPC
+# actually works. But don't bother if we're not doing cpu-profiling.
 if test "$enable_cpu_profiler" = yes; then
-  AC_PC_FROM_UCONTEXT(AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...);
-                      enable_cpu_profiler=no)
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include "src/getpc.h"]], [GetPC({})])],
+                    [],
+                    [AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
+                     enable_cpu_profiler=no])
 fi
 
 # Some tests test the behavior of .so files, and only make sense for dynamic.

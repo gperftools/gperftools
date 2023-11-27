@@ -37,6 +37,9 @@
 
 #include "config.h"
 #include "getpc.h"        // should be first to get the _GNU_SOURCE dfn
+
+#include "base/basictypes.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
@@ -46,9 +49,17 @@
 static volatile void* getpc_retval = NULL;    // what GetPC returns
 static volatile bool prof_handler_called = false;
 
+extern "C" {
+  // This helps us inspect codegen of GetPC function, just in case.
+  ATTRIBUTE_NOINLINE
+  void* DoGetPC(const ucontext_t* uc) {
+    return GetPC(*uc);
+  }
+}
+
 static void prof_handler(int sig, siginfo_t*, void* signal_ucontext) {
   if (!prof_handler_called)
-    getpc_retval = GetPC(*reinterpret_cast<ucontext_t*>(signal_ucontext));
+    getpc_retval = DoGetPC(reinterpret_cast<ucontext_t*>(signal_ucontext));
   prof_handler_called = true;  // only store the retval once
 }
 

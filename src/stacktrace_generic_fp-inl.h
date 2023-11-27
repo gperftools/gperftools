@@ -44,8 +44,15 @@
 // This is only used on OS-es with mmap support.
 #include <sys/mman.h>
 
-#if defined(PC_FROM_UCONTEXT) && (HAVE_SYS_UCONTEXT_H || HAVE_UCONTEXT_H)
+#if HAVE_SYS_UCONTEXT_H || HAVE_UCONTEXT_H
+
+#define DEFINE_TRIVIAL_GET
 #include "getpc.h"
+
+#if !defined(HAVE_TRIVIAL_GET) && !defined(__NetBSD__)
+#error sanity
+#endif
+
 #define HAVE_GETPC 1
 #endif
 
@@ -164,9 +171,9 @@ int capture(void **result, int max_depth, int skip_count,
 
 #ifdef __arm__
   // note, (32-bit, legacy) arm support is not entirely functional
-  // w.r.t. frame-pointer-bases backtracing. Only recent clangs
+  // w.r.t. frame-pointer-based backtracing. Only recent clangs
   // generate "right" frame pointer setup and only with
-  // --enable-frame-pointers. Current gcc's are hopeless (somewhat
+  // --enable-frame-pointers. Current gcc-s are hopeless (somewhat
   // older gcc's (circa gcc 6 or so) did something that looks right,
   // but not recent ones).
   constexpr uintptr_t kAlignment = 4;
@@ -309,6 +316,9 @@ static int GET_STACK_TRACE_OR_FRAMES {
     SETUP_FRAME(&uc->uc_mcontext.__gregs[REG_PC], uc->uc_mcontext.__gregs[REG_S0]);
 #elif __linux__ && __aarch64__
     SETUP_FRAME(&uc->uc_mcontext.pc, uc->uc_mcontext.regs[29]);
+#elif __linux__ && __arm__
+    // Note: arm's frame pointer support is borked in recent GCC-s.
+    SETUP_FRAME(&uc->uc_mcontext.arm_pc, uc->uc_mcontext.arm_fp);
 #elif __linux__ && __i386__
     SETUP_FRAME(&uc->uc_mcontext.gregs[REG_EIP], uc->uc_mcontext.gregs[REG_EBP]);
 #elif __linux__ && __x86_64__
@@ -335,7 +345,12 @@ static int GET_STACK_TRACE_OR_FRAMES {
     // frame we need. Also, this is how our CPU profiler is built. It
     // always places "pc from ucontext" first and then if necessary
     // deduplicates it from backtrace.
+
     result[0] = GetPC(*uc);
+    if (result[0] == nullptr) {
+      // This OS/HW combo actually lacks known way to extract PC.
+      ucp = nullptr;
+    }
 #else
     ucp = nullptr;
 #endif
