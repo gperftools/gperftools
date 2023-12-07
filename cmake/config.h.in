@@ -128,6 +128,9 @@
 /* Define to 1 if the system has the type `struct mallinfo'. */
 #cmakedefine HAVE_STRUCT_MALLINFO
 
+/* Define to 1 if the system has the type `struct mallinfo2'. */
+#cmakedefine HAVE_STRUCT_MALLINFO2
+
 /* Define to 1 if you have the <sys/cdefs.h> header file. */
 #cmakedefine HAVE_SYS_CDEFS_H
 

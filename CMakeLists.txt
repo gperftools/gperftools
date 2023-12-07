@@ -168,6 +168,7 @@ check_c_source_compiles("#include <stdlib.h>
 
 set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
 check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
+check_type_size("struct mallinfo2" STRUCT_MALLINFO2 LANGUAGE CXX)
 set(CMAKE_EXTRA_INCLUDE_FILES "elf.h")
 check_type_size("Elf32_Versym" ELF32_VERSYM LANGUAGE CXX) # for vdso_support.h
 set(CMAKE_EXTRA_INCLUDE_FILES)
@@ -212,6 +213,12 @@ if(HAVE_STRUCT_MALLINFO)
     set(HAVE_STRUCT_MALLINFO 1)
 else()
     set(HAVE_STRUCT_MALLINFO 0)
+endif()
+
+if(HAVE_STRUCT_MALLINFO2)
+    set(HAVE_STRUCT_MALLINFO2 1)
+else()
+    set(HAVE_STRUCT_MALLINFO2 0)
 endif()
 
 # We hardcode HAVE_MMAP to 1. There are no interesting systems anymore

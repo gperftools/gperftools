@@ -217,6 +217,10 @@ extern "C" {
   struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
 #endif
+#ifdef HAVE_STRUCT_MALLINFO2
+  struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
+#endif
 
   void* tc_new(size_t size)
       ATTRIBUTE_SECTION(google_malloc);
@@ -1697,6 +1701,32 @@ inline struct mallinfo do_mallinfo() {
 }
 #endif  // HAVE_STRUCT_MALLINFO
 
+#ifdef HAVE_STRUCT_MALLINFO2
+inline struct mallinfo2 do_mallinfo2() {
+  TCMallocStats stats;
+  ExtractStats(&stats, NULL, NULL, NULL);
+
+  // Just some of the fields are filled in.
+  struct mallinfo2 info;
+  memset(&info, 0, sizeof(info));
+
+  info.arena     = static_cast<size_t>(stats.pageheap.system_bytes);
+  info.fsmblks   = static_cast<size_t>(stats.thread_bytes
+                                    + stats.central_bytes
+                                    + stats.transfer_bytes);
+  info.fordblks  = static_cast<size_t>(stats.pageheap.free_bytes +
+                                    stats.pageheap.unmapped_bytes);
+  info.uordblks  = static_cast<size_t>(stats.pageheap.system_bytes
+                                    - stats.thread_bytes
+                                    - stats.central_bytes
+                                    - stats.transfer_bytes
+                                    - stats.pageheap.free_bytes
+                                    - stats.pageheap.unmapped_bytes);
+
+  return info;
+}
+#endif  // HAVE_STRUCT_MALLINFO2
+
 }  // end unnamed namespace
 
 // As promised, the definition of this function, declared above.
@@ -2212,6 +2242,12 @@ extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHR
 #ifdef HAVE_STRUCT_MALLINFO
 extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW {
   return do_mallinfo();
+}
+#endif
+
+#ifdef HAVE_STRUCT_MALLINFO2
+extern "C" PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW {
+  return do_mallinfo2();
 }
 #endif
 

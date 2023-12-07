@@ -120,6 +120,9 @@ extern "C" {
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo mallinfo(void)                 { return tc_mallinfo();      }
 #endif
+#ifdef HAVE_STRUCT_MALLINFO2
+  struct mallinfo2 mallinfo2(void)               { return tc_mallinfo2();     }
+#endif
   size_t malloc_size(void* p)                    { return tc_malloc_size(p); }
   size_t malloc_usable_size(void* p)             { return tc_malloc_size(p); }
 }  // extern "C"

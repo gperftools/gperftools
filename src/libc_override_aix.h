@@ -51,6 +51,9 @@ extern "C" {
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo __mallinfo__(void) __THROW          ALIAS(tc_mallinfo);
 #endif
+#ifdef HAVE_STRUCT_MALLINFO2
+  struct mallinfo2 __mallinfo2__(void) __THROW        ALIAS(tc_mallinfo2);
+#endif
   void __malloc_init__(void)               { tc_free(tc_malloc(1));}
   void* __malloc_prefork_lock__(void)      { /* nothing to lock */ }
   void* __malloc_postfork_unlock__(void)   { /* nothing to unlock */}

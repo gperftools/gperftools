@@ -235,6 +235,9 @@ extern "C" {
 #ifdef HAVE_STRUCT_MALLINFO
   struct mallinfo mallinfo(void) __THROW          ALIAS(tc_mallinfo);
 #endif
+#ifdef HAVE_STRUCT_MALLINFO2
+  struct mallinfo2 mallinfo2(void) __THROW        ALIAS(tc_mallinfo2);
+#endif
   size_t malloc_size(void* p) __THROW             ALIAS(tc_malloc_size);
 #if defined(__ANDROID__)
   size_t malloc_usable_size(const void* p) __THROW

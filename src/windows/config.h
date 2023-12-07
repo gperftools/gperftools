@@ -145,6 +145,9 @@
 /* Define to 1 if the system has the type `struct mallinfo'. */
 /* #undef HAVE_STRUCT_MALLINFO */
 
+/* Define to 1 if the system has the type `struct mallinfo2'. */
+/* #undef HAVE_STRUCT_MALLINFO2 */
+
 /* Define to 1 if you have the <sys/cdefs.h> header file. */
 /* #undef HAVE_SYS_CDEFS_H */
 

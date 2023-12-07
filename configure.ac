@@ -250,6 +250,7 @@ AC_MSG_RESULT($ac_cv___attribute__aligned_fn)
 
 # TODO(csilvers): we could remove a lot when WITH_CPU_PROFILER etc is "no".
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
+AC_CHECK_TYPES([struct mallinfo2],,, [#include <malloc.h>])
 AC_CHECK_TYPES([Elf32_Versym],,, [#include <elf.h>])   # for vdso_support.h
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(__sbrk)          # for tcmalloc to get memory
@@ -295,6 +296,12 @@ if test "$ac_cv_type_struct_mallinfo" = yes; then
   AC_SUBST(ac_cv_have_struct_mallinfo, 1)   # gperftools/tcmalloc.h needs this
 else
   AC_SUBST(ac_cv_have_struct_mallinfo, 0)
+fi
+
+if test "$ac_cv_type_struct_mallinfo2" = yes; then
+  AC_SUBST(ac_cv_have_struct_mallinfo2, 1)   # gperftools/tcmalloc.h needs this
+else
+  AC_SUBST(ac_cv_have_struct_mallinfo2, 0)
 fi
 
 # We hardcode HAVE_MMAP to 1. There are no interesting systems anymore
