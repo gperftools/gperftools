@@ -1573,13 +1573,13 @@ extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHR
 
 #ifdef HAVE_STRUCT_MALLINFO
 extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW {
-  return do_mallinfo();
+  return do_mallinfo<struct mallinfo>();
 }
 #endif
 
 #ifdef HAVE_STRUCT_MALLINFO2
 extern "C" PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW {
-  return do_mallinfo2();
+  return do_mallinfo<struct mallinfo2>();
 }
 #endif
 
