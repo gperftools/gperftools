@@ -48,6 +48,9 @@
 #ifdef HAVE_MMAP
 # define mremap glibc_mremap
 # include <sys/mman.h>
+# ifndef MAP_ANONYMOUS
+#  define MAP_ANONYMOUS MAP_ANON
+# endif
 #include <sys/types.h>
 # undef mremap
 #endif
