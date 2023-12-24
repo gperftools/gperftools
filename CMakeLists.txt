@@ -122,18 +122,31 @@ set(enable_libunwind ${gperftools_enable_libunwind})
 
 set(gperftools_tcmalloc_pagesize ${default_tcmalloc_pagesize}
   CACHE STRING "Set the tcmalloc internal page size")
-set_property(CACHE gperftools_tcmalloc_pagesize PROPERTY STRINGS "8" "32" "64")
-if(NOT gperftools_tcmalloc_pagesize STREQUAL "8" AND
-   NOT gperftools_tcmalloc_pagesize STREQUAL "32" AND
-   NOT gperftools_tcmalloc_pagesize STREQUAL "64")
+set(allowed_page_sizes LIST "4;8;16;32;64;128;256")
+set_property(CACHE gperftools_tcmalloc_pagesize PROPERTY STRINGS ${allowed_page_sizes})
+if(NOT gperftools_tcmalloc_pagesize IN_LIST allowed_page_sizes)
   message(WARNING
     "Invalid gperftools_tcmalloc_pagesize (${gperftools_tcmalloc_pagesize}), "
     "setting to default value (${default_tcmalloc_pagesize})")
   set(gperftools_tcmalloc_pagesize ${default_tcmalloc_pagesize})
 endif()
-if (gperftools_tcmalloc_pagesize STREQUAL "32" OR
-  gperftools_tcmalloc_pagesize STREQUAL "64")
-  set(TCMALLOC_${gperftools_tcmalloc_pagesize}K_PAGES ON)
+if (gperftools_tcmalloc_pagesize EQUAL 4)
+  set(TCMALLOC_PAGE_SIZE_SHIFT 12)
+elseif(gperftools_tcmalloc_pagesize EQUAL 8)
+  # default page size
+elseif(gperftools_tcmalloc_pagesize EQUAL 16)
+  set(TCMALLOC_PAGE_SIZE_SHIFT 14)
+elseif(gperftools_tcmalloc_pagesize EQUAL 32)
+  set(TCMALLOC_PAGE_SIZE_SHIFT 15)
+elseif(gperftools_tcmalloc_pagesize EQUAL 64)
+  set(TCMALLOC_PAGE_SIZE_SHIFT 16)
+elseif(gperftools_tcmalloc_pagesize EQUAL 128)
+  set(TCMALLOC_PAGE_SIZE_SHIFT 17)
+elseif(gperftools_tcmalloc_pagesize EQUAL 256)
+  set(TCMALLOC_PAGE_SIZE_SHIFT 18)
+else()
+  message(WARNING
+  "${gperftools_tcmalloc_pagesize}K size not supported, using default tcmalloc page size.")
 endif()
 
 set(gperftools_tcmalloc_alignment ${DEFAULT_TCMALLOC_ALIGNMENT}

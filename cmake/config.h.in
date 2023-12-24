@@ -240,7 +240,7 @@
 #cmakedefine TCMALLOC_ALIGN_8BYTES
 
 /* Define internal page size for tcmalloc as number of left bitshift */
-#cmakedefine TCMALLOC_PAGE_SIZE_SHIFT
+#cmakedefine TCMALLOC_PAGE_SIZE_SHIFT @TCMALLOC_PAGE_SIZE_SHIFT@
 
 /* Version number of package */
 #define VERSION @PROJECT_VERSION@
