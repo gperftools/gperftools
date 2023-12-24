@@ -120,6 +120,11 @@ option(gperftools_enable_libunwind
 set(enable_backtrace ${gperftools_enable_stacktrace_via_backtrace})
 set(enable_libunwind ${gperftools_enable_libunwind})
 
+option(gperftools_enable_libgcc_unwinder_by_default
+       "Prefer libgcc's _Unwind_Backtrace as default stacktrace capturing method"
+       OFF)
+set(PREFER_LIBGCC_UNWINDER ${gperftools_enable_libgcc_unwinder_by_default})
+
 set(gperftools_tcmalloc_pagesize ${default_tcmalloc_pagesize}
   CACHE STRING "Set the tcmalloc internal page size")
 set(allowed_page_sizes LIST "4;8;16;32;64;128;256")

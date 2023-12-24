@@ -230,6 +230,9 @@
 #endif
 #endif
 
+/* if libgcc stacktrace method should be default */
+#cmakedefine PREFER_LIBGCC_UNWINDER
+
 /* Mark the systems where we know it's bad if pthreads runs too
    early before main (before threads are initialized, presumably).  */
 #ifdef __FreeBSD__
