@@ -459,6 +459,12 @@ if(LINUX)
     HAVE_LINUX_SIGEV_THREAD_ID)
 endif()
 
+# Disable large allocation report by default.
+option(gperftools_enable_large_alloc_report
+      "Report very large allocations to stderr"
+      OFF)
+set(ENABLE_LARGE_ALLOC_REPORT ${gperftools_enable_large_alloc_report})
+
 configure_file(cmake/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 configure_file(cmake/tcmalloc.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/gperftools/tcmalloc.h
