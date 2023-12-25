@@ -215,9 +215,11 @@ check_include_file("grp.h" HAVE_GRP_H) # for heapchecker_unittest
 check_include_file("pwd.h" HAVE_PWD_H) # for heapchecker_unittest
 check_include_file("sys/resource.h" HAVE_SYS_RESOURCE_H) # for memalign_unittest.cc
 check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
-check_include_file("ucontext.h" HAVE_UCONTEXT_H)
+
 check_include_file("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
-check_include_file("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H)
+check_include_file("ucontext.h" HAVE_UCONTEXT_H)
+check_include_file("cygwin/signal.h" HAVE_CYGWIN_SIGNAL_H) # ucontext on cywgin
+check_include_file("asm/ptrace.h" HAVE_ASM_PTRACE_H) # get ptrace macros, e.g. PT_NIP
 
 check_include_file("unistd.h" HAVE_UNISTD_H)
 # We also need <ucontext.h>/<sys/ucontext.h>, but we get those from
