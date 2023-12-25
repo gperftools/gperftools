@@ -184,6 +184,12 @@ check_c_source_compiles("#include <stdlib.h>
                          int main() { return 0; }"
         HAVE___ATTRIBUTE__)
 
+check_c_source_compiles("#include <stdlib.h>
+                        void foo(void) __attribute__((aligned(128)));
+                        void foo(void) { exit(1); }
+                        int main() { return 0; }"
+        HAVE___ATTRIBUTE__ALIGNED_FN) 
+
 set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
 check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
 check_type_size("struct mallinfo2" STRUCT_MALLINFO2 LANGUAGE CXX)
