@@ -465,6 +465,13 @@ option(gperftools_enable_large_alloc_report
       OFF)
 set(ENABLE_LARGE_ALLOC_REPORT ${gperftools_enable_large_alloc_report})
 
+# Enable aggressive decommit by default
+option(gperftools_enable_aggressive_decommit_by_default
+      "Enable aggressive decommit by default"
+      OFF)
+set(ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT ${gperftools_enable_aggressive_decommit_by_default})
+
+
 configure_file(cmake/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
 configure_file(cmake/tcmalloc.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/gperftools/tcmalloc.h
