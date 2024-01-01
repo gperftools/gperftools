@@ -1,3 +1,57 @@
+== 31 Dec 2023
+gperftools 2.14 is out!
+
+This release has the following set of notable changes:
+
+* Roman Geissler has contributed a fix to nasty initialization bug
+  introduced in 2.13 (see github issue #1452 for one example where it
+  fails).
+
+* spinlock delay support now has proper windows support. Instead of
+  simply sleeping, it uses WaitOnAddress (which is basically windows
+  equivalent of futexes). This improvement was contributed by Lennox
+  Ho.
+
+* we now have basic QNX support (basic malloc + heap checker)
+  championed by Xiang.Lin. Thanks! Do note, however, that QNX doesn't
+  provide SIGPROF ticks, so there will be no cpu profiler support on
+  this OS.
+
+* Yikai Zhao has contributed several fixes to important corner cases
+  of generic_fp stacktrace method.
+
+* several people have contributed various improvements to our cmake
+  build: Lennox Ho, Sergey Fedorov, Mateusz Jakub Fila. But do note
+  that cmake build is still incomplete and best-effort.
+
+* Julian Schroeder have fixed generic_fp incompatibility with ARM
+  pointer auth.
+
+* Mateusz Jakub Fila has contributed mallocinfo2 function (64-bit
+  version of mallinfo).
+
+* Lennox Ho has updated C malloc extension shims to include
+  {Set,Get}MemoryReleaseRate.
+
+* Lennox Ho has contributed to disable malloc functions patching on
+  windows when TCMALLOC_DISABLE_REPLACEMENT=1 environment variable is
+  set.
+
+* User poljak181 has contributed a fix to infinite recursion in some
+  cases of malloc hooks (or user-replaced operator new) and
+  MallocExtension::instance().
+
+* Sergey Fedorov has contributed a fix to use MAP_ANON on some older
+  OSes without MAP_ANONYMOUS.
+
+* the way we detect working ucontext->pc extraction method was
+  reworked and is now fully compile-time as opposed to
+  config-time. This means no more duplication and mismatches between
+  autoconf and cmake bits in this area.
+
+List of relevant tickets can be seen online at:
+https://github.com/gperftools/gperftools/issues?q=label%3Afixed-in-2.14+
+
 == 11 Sep 2023
 gperftools 2.13 is out!
 
