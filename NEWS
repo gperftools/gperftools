@@ -12,7 +12,7 @@ This release has the following set of notable changes:
   equivalent of futexes). This improvement was contributed by Lennox
   Ho.
 
-* we now have basic QNX support (basic malloc + heap checker)
+* we now have basic QNX support (basic malloc + heap profiler)
   championed by Xiang.Lin. Thanks! Do note, however, that QNX doesn't
   provide SIGPROF ticks, so there will be no cpu profiler support on
   this OS.
