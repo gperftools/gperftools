@@ -27,15 +27,15 @@ This release has the following set of notable changes:
 * Julian Schroeder have fixed generic_fp incompatibility with ARM
   pointer auth.
 
-* Mateusz Jakub Fila has contributed mallocinfo2 function (64-bit
-  version of mallinfo).
+* Mateusz Jakub Fila has contributed implementation of mallocinfo2
+  function (64-bit version of mallinfo).
 
 * Lennox Ho has updated C malloc extension shims to include
   {Set,Get}MemoryReleaseRate.
 
-* Lennox Ho has contributed to disable malloc functions patching on
-  windows when TCMALLOC_DISABLE_REPLACEMENT=1 environment variable is
-  set.
+* Lennox Ho has contributed the ability to disable malloc functions
+  patching on windows when TCMALLOC_DISABLE_REPLACEMENT=1 environment
+  variable is set.
 
 * User poljak181 has contributed a fix to infinite recursion in some
   cases of malloc hooks (or user-replaced operator new) and
