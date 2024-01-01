@@ -1238,6 +1238,7 @@ if WITH_CPU_PROFILER
 S_CPU_PROFILER_INCLUDES = src/profiledata.h \
                           src/profile-handler.h \
                           src/getpc.h \
+                          src/getpc-inl.h \
                           src/base/basictypes.h \
                           src/base/commandlineflags.h \
                           src/base/googleinit.h \
