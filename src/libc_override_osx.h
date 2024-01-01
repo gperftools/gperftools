@@ -85,8 +85,6 @@
 #include <AvailabilityMacros.h>
 #include <malloc/malloc.h>
 
-#include <new>
-
 namespace tcmalloc {
   void CentralCacheLockAll();
   void CentralCacheUnlockAll();
@@ -312,38 +310,5 @@ static void ReplaceSystemAlloc() {
   malloc_zone_unregister(default_zone);
   malloc_zone_register(default_zone);
 }
-
-ATTRIBUTE_SECTION(google_malloc) void* operator new(std::size_t sz) { return tc_new(sz); }
-ATTRIBUTE_SECTION(google_malloc) void* operator new[](std::size_t sz) { return tc_newarray(sz); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete(void* p) { tc_delete(p); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete[](void* p) { tc_deletearray(p); }
-
-ATTRIBUTE_SECTION(google_malloc) void operator delete(void* p, std::size_t sz) { tc_delete_sized(p, sz); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete[](void* p, std::size_t sz) { tc_deletearray_sized(p, sz); }
-
-ATTRIBUTE_SECTION(google_malloc) void* operator new(std::size_t sz, const std::nothrow_t& nt) { return tc_new_nothrow(sz, nt); }
-ATTRIBUTE_SECTION(google_malloc) void* operator new[](std::size_t sz, const std::nothrow_t& nt) { return tc_newarray_nothrow(sz, nt); };
-
-ATTRIBUTE_SECTION(google_malloc) void operator delete(void* p, const std::nothrow_t& nt) { tc_delete_nothrow(p, nt); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete[](void* p, const std::nothrow_t& nt) { tc_deletearray_nothrow(p, nt); }
-
-#if __cplusplus >= 201703L
-
-ATTRIBUTE_SECTION(google_malloc) void* operator new(std::size_t sz, std::align_val_t a) { return tc_new_aligned(sz, a); }
-ATTRIBUTE_SECTION(google_malloc) void* operator new(std::size_t sz, std::align_val_t al, const std::nothrow_t& nt) { return tc_new_aligned_nothrow(sz, al, nt); }
-
-ATTRIBUTE_SECTION(google_malloc) void operator delete(void* p, std::align_val_t al) { tc_delete_aligned(p, al); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete(void* p, std::align_val_t al, const std::nothrow_t& nt)  { tc_delete_aligned_nothrow(p, al, nt); }
-
-ATTRIBUTE_SECTION(google_malloc) void* operator new[](std::size_t sz, std::align_val_t al) { return tc_newarray_aligned(sz, al); }
-ATTRIBUTE_SECTION(google_malloc) void* operator new[](std::size_t sz, std::align_val_t al, const std::nothrow_t& nt) { return tc_newarray_aligned_nothrow(sz, al, nt); }
-
-ATTRIBUTE_SECTION(google_malloc) void operator delete[](void* p, std::align_val_t al) { tc_deletearray_aligned(p, al); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete[](void* p, std::align_val_t al, const std::nothrow_t& nt) { tc_deletearray_aligned_nothrow(p, al, nt); }
-
-ATTRIBUTE_SECTION(google_malloc) void operator delete(void* p, std::size_t sz, std::align_val_t al) { tc_delete_sized_aligned(p, sz, al); }
-ATTRIBUTE_SECTION(google_malloc) void operator delete[](void* p, std::size_t sz, std::align_val_t al) { tc_deletearray_sized_aligned(p, sz, al); }
-
-#endif // c++ 17
 
 #endif  // TCMALLOC_LIBC_OVERRIDE_OSX_INL_H_
