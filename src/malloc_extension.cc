@@ -198,11 +198,16 @@ void MallocExtension::MarkThreadTemporarilyIdle() {
 
 static MallocExtension* current_instance;
 
+static union {
+  char chars[sizeof(MallocExtension)];
+  void *ptr;
+} mallocextension_implementation_space;
+
 static void InitModule() {
   if (current_instance != NULL) {
     return;
   }
-  current_instance = new MallocExtension;
+  current_instance = new (mallocextension_implementation_space.chars) MallocExtension();
 #ifndef NO_HEAP_CHECK
   HeapLeakChecker::IgnoreObject(current_instance);
 #endif

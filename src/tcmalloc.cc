@@ -1097,6 +1097,11 @@ size_t TCMallocImplementation::GetEstimatedAllocatedSize(size_t size) {
   return tc_nallocx(size, 0);
 }
 
+static union {
+  char chars[sizeof(TCMallocImplementation)];
+  void *ptr;
+} tcmallocimplementation_implementation_space;
+
 // The constructor allocates an object to ensure that initialization
 // runs before main(), and therefore we do not have a chance to become
 // multi-threaded before initialization.  We also create the TSD key
@@ -1124,7 +1129,7 @@ TCMallocGuard::TCMallocGuard() {
     if (RunningOnValgrind()) {
       // Let Valgrind uses its own malloc (so don't register our extension).
     } else {
-      MallocExtension::Register(new TCMallocImplementation);
+      MallocExtension::Register(new (tcmallocimplementation_implementation_space.chars) TCMallocImplementation());
     }
 #endif
   }
