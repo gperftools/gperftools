@@ -1023,7 +1023,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     endif()
 
     add_executable(realloc_debug_unittest ${realloc_unittest_SOURCES})
-    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug)
+    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug pthread)
     add_test(realloc_debug_unittest realloc_debug_unittest)
 
     if(WITH_STACK_TRACE)
