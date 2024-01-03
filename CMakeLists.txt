@@ -987,6 +987,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE ${libtcmalloc_minimal_la_DEFINES}
           TCMALLOC_FOR_DEBUGALLOCATION)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE ${libtcmalloc_minimal_la_LIBADD})
+  target_link_libraries(tcmalloc_minimal_debug PRIVATE Threads::Threads)
   install(TARGETS tcmalloc_minimal_debug)
   set_target_properties(tcmalloc_minimal_debug PROPERTIES
           VERSION ${TCMALLOC_SO_VERSION}
@@ -1337,6 +1338,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
   set(libprofiler_la_LIBADD stacktrace fake_stacktrace_scope)
   add_library(profiler SHARED ${libprofiler_la_SOURCES})
   target_link_libraries(profiler PRIVATE ${libprofiler_la_LIBADD})
+  target_link_libraries(profiler PRIVATE Threads::Threads)
   set_target_properties(profiler PROPERTIES
           VERSION ${PROFILER_SO_VERSION}
           SOVERSION ${PROFILER_SO_VERSION})
