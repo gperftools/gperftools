@@ -1,3 +1,19 @@
+== 5 Jan 2024
+gperftools 2.15 is out!
+
+This release has the following bug fixes:
+
+* Xiaowei Wang has pointed out the pthread linking issue on cmake on
+  older glibcs (where -pthread is not implicit). See
+  https://github.com/gperftools/gperftools/pull/1473 for more details.
+
+* Mikael Simberg and Tom "spot" Callaway have pointed out the missing
+  symbols issue when linking PPC or i386
+  builds. https://github.com/gperftools/gperftools/issues/1474 has all
+  the details.
+
+Huge thanks to all contributors!
+
 == 31 Dec 2023
 gperftools 2.14 is out!
 
