@@ -158,7 +158,6 @@ LOGGING_INCLUDES = src/base/logging.h \
                    src/base/dynamic_annotations.h
 noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
-                        src/base/dynamic_annotations.cc \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
@@ -168,6 +167,7 @@ SYSINFO_INCLUDES = src/base/sysinfo.h \
                    src/base/basictypes.h
 noinst_LTLIBRARIES += libsysinfo.la
 libsysinfo_la_SOURCES = src/base/sysinfo.cc \
+                        src/base/dynamic_annotations.cc \
                         $(SYSINFO_INCLUDES)
 libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS)
 
