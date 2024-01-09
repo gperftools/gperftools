@@ -44,6 +44,10 @@
 #undef FORCE_PIPES
 #endif
 
+#ifndef MAP_ANONYMOUS
+# define MAP_ANONYMOUS MAP_ANON
+#endif
+
 #include "tests/testutil.h"
 
 void* unreadable = mmap(0, getpagesize(), PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
