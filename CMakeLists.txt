@@ -1031,7 +1031,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
       add_executable(debugallocation_test src/tests/debugallocation_test.cc)
       target_link_libraries(debugallocation_test PUBLIC tcmalloc_minimal_debug Threads::Threads)
 
-      add_test(NAME debugallocation_test
+      add_test(NAME debugallocation_test.sh
               COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/src/tests/debugallocation_test.sh)
     endif()
   endif()
@@ -1166,7 +1166,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     set(tcmalloc_unittest_LIBADD ${TCMALLOC_FLAGS} logging Threads::Threads)
     add_executable(tcmalloc_unittest ${tcmalloc_unittest_SOURCES})
     target_link_libraries(tcmalloc_unittest tcmalloc ${tcmalloc_unittest_LIBADD})
-    add_test(NAME tcmalloc_unittest
+    add_test(NAME tcmalloc_unittest.sh
             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/tcmalloc_unittest.sh")
 
     # This makes sure it's safe to link in both tcmalloc and
@@ -1251,9 +1251,9 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
               ${HEAP_CHECKER_UNITTEST_INCLUDES})
       add_executable(heap_checker_unittest ${heap_checker_unittest_SOURCES})
       target_link_libraries(heap_checker_unittest ${TCMALLOC_FLAGS} tcmalloc logging Threads::Threads)
-      add_test(heap-checker_unittest heap_checker_unittest)
       add_test(NAME heap-checker-death_unittest.sh
               COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-checker-death_unittest.sh")
+      add_test(heap-checker_unittest heap_checker_unittest)
 endif()
   endif()
 
@@ -1303,9 +1303,9 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
         add_test(heap-profiler_debug_unittest.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh" heap-profiler_debug_unittest)
       endif()
       if(GPERFTOOLS_BUILD_HEAP_CHECKER)
-        add_executable(heap_checker_debug_unittest ${heap_checker_unittest_SOURCES})
-        target_link_libraries(heap_checker_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug logging Threads::Threads)
-        add_test(heap_checker_debug_unittest heap_checker_debug_unittest)
+        add_executable(heap-checker_debug_unittest ${heap_checker_unittest_SOURCES})
+        target_link_libraries(heap-checker_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug logging Threads::Threads)
+        add_test(heap-checker_debug_unittest heap-checker_debug_unittest)
       endif()
     endif()
   endif()
