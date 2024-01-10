@@ -14,6 +14,11 @@ set(TCMALLOC_SO_VERSION 9.16.5)
 set(PROFILER_SO_VERSION 5.11.5)
 set(TCMALLOC_AND_PROFILER_SO_VERSION 10.11.6)
 
+# Follow the project convention to use a version patch prefixed with a dot
+if(${PROJECT_VERSION_PATCH})
+  set(TC_VERSION_PATCH ".${PROJECT_VERSION_PATCH}")
+endif()
+
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
 # for a 'fully minimal' compile, which leaves out the stacktrace
