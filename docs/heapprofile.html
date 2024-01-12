@@ -158,6 +158,15 @@ environment variables.</p>
   </td>
 </tr>
 
+<tr valign=top>
+  <td><code>HEAP_PROFILE_BUFFER_SIZE</code></td>
+  <td>default: 1048576 (1 Mb)</td>
+  <td>Size of the buffer for heap profiling data (i.e., maximum size of the profile file).
+      Allocation samples beyond this limit will get stripped off. Applications with large
+      number of (de)allocations may need to increase this size to get complete, unstripped data.
+  </td>
+</tr>
+
 </table>
 
 <H2>Checking for Leaks</H2>

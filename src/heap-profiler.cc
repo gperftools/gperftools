@@ -120,6 +120,11 @@ DEFINE_bool(only_mmap_profile,
             EnvToBool("HEAP_PROFILE_ONLY_MMAP", false),
             "If heap-profiling is on, only profile mmap, mremap, and sbrk; "
             "do not profile malloc/new/etc");
+DEFINE_int32(profile_buffer_size,
+             EnvToInt64("HEAP_PROFILE_BUFFER_SIZE", 1 << 20 /*1MB*/),
+             "Size of buffer for heap profiling data. Applications with "
+             "large number of (de)allocations may need more than 1 MB "
+             "to avoid stripping off excess profiling data.");
 
 
 //----------------------------------------------------------------------
@@ -148,7 +153,7 @@ static void ProfilerFree(void* p) {
 }
 
 // We use buffers of this size in DoGetHeapProfile.
-static const int kProfileBufferSize = 1 << 20;
+static const int kProfileBufferSize = FLAGS_profile_buffer_size;
 
 // This is a last-ditch buffer we use in DumpProfileLocked in case we
 // can't allocate more memory from ProfilerMalloc.  We expect this
