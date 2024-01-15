@@ -340,54 +340,42 @@ std::pair<int, bool> HeapProfileTable::FillOrderedProfile(char buf[], int size) 
   BucketsPtr list = MakeSortedBucketList();
 
   // Our file format is "bucket, bucket, ..., bucket, proc_self_maps_info".
-  // TODO: update comment
-  // In the cases buf is too small, we'd rather leave out the last
-  // buckets than leave out the /proc/self/maps info.  To ensure that,
-  // we actually print the /proc/self/maps info first, then move it to
-  // the end of the buffer, then write the bucket info into whatever
-  // is remaining, and then move the maps info one last time to close
-  // any gaps.  Whew!
-  int map_length = snprintf(buf, size, "%s", kProcSelfMapsHeader);
-  if (map_length < 0 || map_length >= size) return {0, false};
-
-  bool wrote_all{}; // "wrote_all" -- did /proc/self/maps fit in its entirety?
-  map_length += FillProcSelfMaps(buf + map_length, size - map_length, &wrote_all);
-  RAW_DCHECK(map_length <= size, "");
-  if (!wrote_all) return {map_length, false};
-
-  char* const map_start = buf + size - map_length;      // move to end
-  memmove(map_start, buf, map_length);
-  size -= map_length;
 
   Stats stats;
   memset(&stats, 0, sizeof(stats));
-  int bucket_length = snprintf(buf, size, "%s", kProfileHeader);
-  if (bucket_length < 0 || bucket_length >= size) return {0, false};
+  int filled_length = snprintf(buf, size, "%s", kProfileHeader);
+  if (filled_length < 0 || filled_length >= size) return {0, false};
 
-  std::tie(bucket_length, wrote_all) = UnparseBucket(total_, buf, bucket_length, size,
+  bool wrote_all{}; // Did dumped buckets and maps fit in its entirety?
+  std::tie(filled_length, wrote_all) = UnparseBucket(total_, buf, filled_length, size,
                                                      " heapprofile", &stats);
   if (!wrote_all) return {0, false};
 
   // Dump the mmap list first.
   if (profile_mmap_) {
-    BufferArgs buffer(buf, bucket_length, size);
+    BufferArgs buffer(buf, filled_length, size);
     MemoryRegionMap::LockHolder holder{};
     wrote_all = MemoryRegionMap::IterateBuckets<BufferArgs*>(DumpBucketIterator, &buffer);
     if (!wrote_all) return {0, false};
-    bucket_length = buffer.buflen;
+    filled_length = buffer.buflen;
   }
 
   for (int i = 0; i < num_buckets_; i++) {
-    std::tie(bucket_length, wrote_all) = UnparseBucket(*list[i], buf, bucket_length, size, "",
+    std::tie(filled_length, wrote_all) = UnparseBucket(*list[i], buf, filled_length, size, "",
                                                        &stats);
     if (!wrote_all) return {0, false};
   }
-  RAW_DCHECK(bucket_length < size, "");
+  RAW_DCHECK(filled_length < size, "");
 
-  RAW_DCHECK(buf + bucket_length <= map_start, "");
-  memmove(buf + bucket_length, map_start, map_length);  // close the gap
+  auto length = snprintf(buf + filled_length, size - filled_length, "%s", kProcSelfMapsHeader);
+  if (length < 0 || length >= size - filled_length) return {0, false};
+  filled_length += length;
 
-  return {bucket_length + map_length, true};
+  filled_length += FillProcSelfMaps(buf + filled_length, size - filled_length, &wrote_all);
+  if (!wrote_all) return {filled_length, false};
+  RAW_DCHECK(filled_length <= size, "");
+
+  return {filled_length, true};
 }
 
 // static
