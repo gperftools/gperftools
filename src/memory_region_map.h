@@ -228,7 +228,7 @@ class MemoryRegionMap {
   // Iterate over the buckets which store mmap and munmap counts per stack
   // trace.  It calls "callback" for each bucket, and passes "arg" to it.
   template<class Type>
-  static void IterateBuckets(void (*callback)(const HeapProfileBucket*, Type),
+  static bool IterateBuckets(bool (*callback)(const HeapProfileBucket*, Type),
                              Type arg) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // Get the bucket whose caller stack trace is "key".  The stack trace is
@@ -393,15 +393,19 @@ class MemoryRegionMap {
 };
 
 template <class Type>
-void MemoryRegionMap::IterateBuckets(
-    void (*callback)(const HeapProfileBucket*, Type), Type callback_arg) {
+bool MemoryRegionMap::IterateBuckets(
+    bool (*callback)(const HeapProfileBucket*, Type), Type callback_arg) {
   for (int index = 0; index < kHashTableSize; index++) {
     for (HeapProfileBucket* bucket = bucket_table_[index];
          bucket != NULL;
          bucket = bucket->next) {
-      callback(bucket, callback_arg);
+      bool result = callback(bucket, callback_arg);
+      if (!result)
+        return false;
     }
   }
+
+  return true;
 }
 
 #endif  // BASE_MEMORY_REGION_MAP_H_

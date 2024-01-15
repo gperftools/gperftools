@@ -54,6 +54,7 @@
 
 #include <algorithm>
 #include <string>
+#include <tuple> // std::tie
 
 #include <gperftools/heap-profiler.h>
 
@@ -147,8 +148,8 @@ static void ProfilerFree(void* p) {
   LowLevelAlloc::Free(p);
 }
 
-// We use buffers of this size in DoGetHeapProfile.
-static const int kProfileBufferSize = 1 << 20;
+// We start with 1 MB buffer size in DoGetHeapProfile (and then increase the size as needed).
+static int kProfileBufferSize = 1 << 20;
 
 // This is a last-ditch buffer we use in DumpProfileLocked in case we
 // can't allocate more memory from ProfilerMalloc.  We expect this
@@ -180,18 +181,19 @@ static HeapProfileTable* heap_profile = NULL;  // the heap profile table
 //----------------------------------------------------------------------
 
 // Input must be a buffer of size at least 1MB.
-static char* DoGetHeapProfileLocked(char* buf, int buflen) {
+static std::pair<char*, bool> DoGetHeapProfileLocked(char* buf, int buflen) {
   // We used to be smarter about estimating the required memory and
   // then capping it to 1MB and generating the profile into that.
   if (buf == NULL || buflen < 1)
-    return NULL;
+    return {nullptr, true};
 
   RAW_DCHECK(heap_lock.IsHeld(), "");
   int bytes_written = 0;
+  bool complete_profile = true;
   if (is_on) {
     HeapProfileTable::Stats const stats = heap_profile->total();
     (void)stats;   // avoid an unused-variable warning in non-debug mode.
-    bytes_written = heap_profile->FillOrderedProfile(buf, buflen - 1);
+    std::tie(bytes_written, complete_profile) = heap_profile->FillOrderedProfile(buf, buflen - 1);
     // FillOrderedProfile should not reduce the set of active mmap-ed regions,
     // hence MemoryRegionMap will let us remove everything we've added above:
     RAW_DCHECK(stats.Equivalent(heap_profile->total()), "");
@@ -201,14 +203,14 @@ static char* DoGetHeapProfileLocked(char* buf, int buflen) {
   buf[bytes_written] = '\0';
   RAW_DCHECK(bytes_written == strlen(buf), "");
 
-  return buf;
+  return {buf, complete_profile};
 }
 
 extern "C" char* GetHeapProfile() {
   // Use normal malloc: we return the profile to the user to free it:
   char* buffer = reinterpret_cast<char*>(malloc(kProfileBufferSize));
   SpinLockHolder l(&heap_lock);
-  return DoGetHeapProfileLocked(buffer, kProfileBufferSize);
+  return DoGetHeapProfileLocked(buffer, kProfileBufferSize).first;
 }
 
 // defined below
@@ -242,15 +244,26 @@ static void DumpProfileLocked(const char* reason) {
     return;
   }
 
-  // This case may be impossible, but it's best to be safe.
-  // It's safe to use the global buffer: we're protected by heap_lock.
-  if (global_profiler_buffer == NULL) {
-    global_profiler_buffer =
-        reinterpret_cast<char*>(ProfilerMalloc(kProfileBufferSize));
-  }
+  char *profile{}; // Profile buffer
+  bool complete{}; // Do we have the complete profile in the buffer?
+  do {
+    // This case may be impossible, but it's best to be safe.
+    // It's safe to use the global buffer: we're protected by heap_lock.
+    if (global_profiler_buffer == nullptr) {
+      global_profiler_buffer =
+          reinterpret_cast<char *>(ProfilerMalloc(kProfileBufferSize));
+    }
 
-  char* profile = DoGetHeapProfileLocked(global_profiler_buffer,
-                                         kProfileBufferSize);
+    std::tie(profile, complete) = DoGetHeapProfileLocked(global_profiler_buffer, kProfileBufferSize);
+
+    if (!complete) {
+      ProfilerFree(global_profiler_buffer);
+      global_profiler_buffer = nullptr;
+      kProfileBufferSize *= 2; // Let's double the buffer size and re-try dumping heap profile into it
+    }
+  }
+  while (!complete);
+
   RawWrite(fd, profile, strlen(profile));
   RawClose(fd);
 

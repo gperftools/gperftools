@@ -54,6 +54,7 @@
 #include <string>
 #include <map>
 #include <algorithm>  // for sort(), equal(), and copy()
+#include <tuple> // std::tie
 
 #include "heap-profile-table.h"
 
@@ -275,10 +276,10 @@ void HeapProfileTable::MarkAsIgnored(const void* ptr) {
 }
 
 // We'd be happier using snprintfer, but we don't to reduce dependencies.
-int HeapProfileTable::UnparseBucket(const Bucket& b,
-                                    char* buf, int buflen, int bufsize,
-                                    const char* extra,
-                                    Stats* profile_stats) {
+std::pair<int, bool> HeapProfileTable::UnparseBucket(const Bucket& b,
+                                                     char* buf, int buflen, int bufsize,
+                                                     const char* extra,
+                                                     Stats* profile_stats) {
   if (profile_stats != NULL) {
     profile_stats->allocs += b.allocs;
     profile_stats->alloc_size += b.alloc_size;
@@ -293,22 +294,21 @@ int HeapProfileTable::UnparseBucket(const Bucket& b,
              b.alloc_size,
              extra);
   // If it looks like the snprintf failed, ignore the fact we printed anything
-  if (printed < 0 || printed >= bufsize - buflen) return buflen;
+  if (printed < 0 || printed >= bufsize - buflen) return {buflen, false};
   buflen += printed;
   for (int d = 0; d < b.depth; d++) {
     printed = snprintf(buf + buflen, bufsize - buflen, " 0x%08" PRIxPTR,
                        reinterpret_cast<uintptr_t>(b.stack[d]));
-    if (printed < 0 || printed >= bufsize - buflen) return buflen;
+    if (printed < 0 || printed >= bufsize - buflen) return {buflen, false};
     buflen += printed;
   }
   printed = snprintf(buf + buflen, bufsize - buflen, "\n");
-  if (printed < 0 || printed >= bufsize - buflen) return buflen;
+  if (printed < 0 || printed >= bufsize - buflen) return {buflen, false};
   buflen += printed;
-  return buflen;
+  return {buflen, true};
 }
 
-HeapProfileTable::Bucket**
-HeapProfileTable::MakeSortedBucketList() const {
+HeapProfileTable::BucketsPtr HeapProfileTable::MakeSortedBucketList() const {
   Bucket** list = static_cast<Bucket**>(alloc_(sizeof(Bucket) * num_buckets_));
 
   int bucket_count = 0;
@@ -321,12 +321,12 @@ HeapProfileTable::MakeSortedBucketList() const {
 
   sort(list, list + num_buckets_, ByAllocatedSpace);
 
-  return list;
+  return {list, dealloc_};
 }
 
 void HeapProfileTable::IterateOrderedAllocContexts(
     AllocContextIterator callback) const {
-  Bucket** list = MakeSortedBucketList();
+  BucketsPtr list = MakeSortedBucketList();
   AllocContextInfo info;
   for (int i = 0; i < num_buckets_; ++i) {
     *static_cast<Stats*>(&info) = *static_cast<Stats*>(list[i]);
@@ -334,13 +334,13 @@ void HeapProfileTable::IterateOrderedAllocContexts(
     info.call_stack = list[i]->stack;
     callback(info);
   }
-  dealloc_(list);
 }
 
-int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
-  Bucket** list = MakeSortedBucketList();
+std::pair<int, bool> HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
+  BucketsPtr list = MakeSortedBucketList();
 
   // Our file format is "bucket, bucket, ..., bucket, proc_self_maps_info".
+  // TODO: update comment
   // In the cases buf is too small, we'd rather leave out the last
   // buckets than leave out the /proc/self/maps info.  To ensure that,
   // we actually print the /proc/self/maps info first, then move it to
@@ -348,13 +348,13 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   // is remaining, and then move the maps info one last time to close
   // any gaps.  Whew!
   int map_length = snprintf(buf, size, "%s", kProcSelfMapsHeader);
-  if (map_length < 0 || map_length >= size) {
-      dealloc_(list);
-      return 0;
-  }
-  bool dummy;   // "wrote_all" -- did /proc/self/maps fit in its entirety?
-  map_length += FillProcSelfMaps(buf + map_length, size - map_length, &dummy);
+  if (map_length < 0 || map_length >= size) return {0, false};
+
+  bool wrote_all{}; // "wrote_all" -- did /proc/self/maps fit in its entirety?
+  map_length += FillProcSelfMaps(buf + map_length, size - map_length, &wrote_all);
   RAW_DCHECK(map_length <= size, "");
+  if (!wrote_all) return {map_length, false};
+
   char* const map_start = buf + size - map_length;      // move to end
   memmove(map_start, buf, map_length);
   size -= map_length;
@@ -362,40 +362,41 @@ int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   Stats stats;
   memset(&stats, 0, sizeof(stats));
   int bucket_length = snprintf(buf, size, "%s", kProfileHeader);
-  if (bucket_length < 0 || bucket_length >= size) {
-      dealloc_(list);
-      return 0;
-  }
-  bucket_length = UnparseBucket(total_, buf, bucket_length, size,
-                                " heapprofile", &stats);
+  if (bucket_length < 0 || bucket_length >= size) return {0, false};
+
+  std::tie(bucket_length, wrote_all) = UnparseBucket(total_, buf, bucket_length, size,
+                                                     " heapprofile", &stats);
+  if (!wrote_all) return {0, false};
 
   // Dump the mmap list first.
   if (profile_mmap_) {
     BufferArgs buffer(buf, bucket_length, size);
     MemoryRegionMap::LockHolder holder{};
-    MemoryRegionMap::IterateBuckets<BufferArgs*>(DumpBucketIterator, &buffer);
+    wrote_all = MemoryRegionMap::IterateBuckets<BufferArgs*>(DumpBucketIterator, &buffer);
+    if (!wrote_all) return {0, false};
     bucket_length = buffer.buflen;
   }
 
   for (int i = 0; i < num_buckets_; i++) {
-    bucket_length = UnparseBucket(*list[i], buf, bucket_length, size, "",
-                                  &stats);
+    std::tie(bucket_length, wrote_all) = UnparseBucket(*list[i], buf, bucket_length, size, "",
+                                                       &stats);
+    if (!wrote_all) return {0, false};
   }
   RAW_DCHECK(bucket_length < size, "");
-
-  dealloc_(list);
 
   RAW_DCHECK(buf + bucket_length <= map_start, "");
   memmove(buf + bucket_length, map_start, map_length);  // close the gap
 
-  return bucket_length + map_length;
+  return {bucket_length + map_length, true};
 }
 
 // static
-void HeapProfileTable::DumpBucketIterator(const Bucket* bucket,
+bool HeapProfileTable::DumpBucketIterator(const Bucket* bucket,
                                           BufferArgs* args) {
-  args->buflen = UnparseBucket(*bucket, args->buf, args->buflen, args->bufsize,
-                               "", NULL);
+  bool wrote_all{};
+  std::tie(args->buflen, wrote_all) = UnparseBucket(*bucket, args->buf, args->buflen, args->bufsize,
+                                                    "", NULL);
+  return wrote_all;
 }
 
 inline
@@ -415,7 +416,8 @@ void HeapProfileTable::DumpNonLiveIterator(const void* ptr, AllocValue* v,
   b.depth = v->bucket()->depth;
   b.stack = v->bucket()->stack;
   char buf[1024];
-  int len = UnparseBucket(b, buf, 0, sizeof(buf), "", args.profile_stats);
+  int len{};
+  std::tie(len, std::ignore) = UnparseBucket(b, buf, 0, sizeof(buf), "", args.profile_stats);
   RawWrite(args.fd, buf, len);
 }
 
@@ -445,7 +447,8 @@ bool HeapProfileTable::WriteProfile(const char* file_name,
   }
   RawWrite(fd, kProfileHeader, strlen(kProfileHeader));
   char buf[512];
-  int len = UnparseBucket(total, buf, 0, sizeof(buf), " heapprofile", NULL);
+  int len{};
+  std::tie(len, std::ignore) = UnparseBucket(total, buf, 0, sizeof(buf), " heapprofile", NULL);
   RawWrite(fd, buf, len);
   const DumpArgs args(fd, NULL);
   allocations->Iterate<const DumpArgs&>(DumpNonLiveIterator, args);

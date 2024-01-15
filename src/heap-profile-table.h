@@ -41,6 +41,9 @@
 #include "base/logging.h"   // for RawFD
 #include "heap-profile-stats.h"
 
+#include <utility>
+#include <memory>
+
 // Table to maintain a heap profile data inside,
 // i.e. the set of currently active heap memory allocations.
 // thread-unsafe and non-reentrant code:
@@ -152,11 +155,12 @@ class HeapProfileTable {
   void IterateOrderedAllocContexts(AllocContextIterator callback) const;
 
   // Fill profile data into buffer 'buf' of size 'size'
-  // and return the actual size occupied by the dump in 'buf'.
+  // and return the actual size occupied by the dump in 'buf'
+  // including whether the profile data fit completely into the buffer.
   // The profile buckets are dumped in the decreasing order
   // of currently allocated bytes.
   // We do not provision for 0-terminating 'buf'.
-  int FillOrderedProfile(char buf[], int size) const;
+  std::pair<int, bool> FillOrderedProfile(char buf[], int size) const;
 
   // Cleanup any old profile files matching prefix + ".*" + kFileExt.
   static void CleanupOldProfiles(const char* prefix);
@@ -185,6 +189,7 @@ class HeapProfileTable {
   // Hash table bucket to hold (de)allocation stats
   // for a given allocation call stack trace.
   typedef HeapProfileBucket Bucket;
+  typedef std::unique_ptr<Bucket*[], DeAllocator> BucketsPtr;
 
   // Info stored in the address map
   struct AllocValue {
@@ -252,9 +257,11 @@ class HeapProfileTable {
   // helpers ----------------------------
 
   // Unparse bucket b and print its portion of profile dump into buf.
-  // We return the amount of space in buf that we use.  We start printing
-  // at buf + buflen, and promise not to go beyond buf + bufsize.
-  // We do not provision for 0-terminating 'buf'.
+  // We start printing at buf + buflen, and promise not to go beyond
+  // buf + bufsize. We do not provision for 0-terminating 'buf'.
+  //
+  // We return the amount of space in buf that we use, and whether
+  // we wrote all data (all data fit until buf + bufsize).
   //
   // If profile_stats is non-NULL, we update *profile_stats by
   // counting bucket b.
@@ -262,10 +269,10 @@ class HeapProfileTable {
   // "extra" is appended to the unparsed bucket.  Typically it is empty,
   // but may be set to something like " heapprofile" for the total
   // bucket to indicate the type of the profile.
-  static int UnparseBucket(const Bucket& b,
-                           char* buf, int buflen, int bufsize,
-                           const char* extra,
-                           Stats* profile_stats);
+  static std::pair<int, bool> UnparseBucket(const Bucket& b,
+                                            char* buf, int buflen, int bufsize,
+                                            const char* extra,
+                                            Stats* profile_stats);
 
   // Get the bucket for the caller stack trace 'key' of depth 'depth'
   // creating the bucket if needed.
@@ -284,8 +291,8 @@ class HeapProfileTable {
     callback(ptr, info);
   }
 
-  // Helper to dump a bucket.
-  inline static void DumpBucketIterator(const Bucket* bucket,
+  // Helper to dump a bucket. Returns true if dump was complete, false otherwise.
+  inline static bool DumpBucketIterator(const Bucket* bucket,
                                         BufferArgs* args);
 
   // Helper for DumpNonLiveProfile to do object-granularity
@@ -296,7 +303,7 @@ class HeapProfileTable {
   // Helper for IterateOrderedAllocContexts and FillOrderedProfile.
   // Creates a sorted list of Buckets whose length is num_buckets_.
   // The caller is responsible for deallocating the returned list.
-  Bucket** MakeSortedBucketList() const;
+  BucketsPtr MakeSortedBucketList() const;
 
   // Helper for TakeSnapshot.  Saves object to snapshot.
   static void AddToSnapshot(const void* ptr, AllocValue* v, Snapshot* s);
