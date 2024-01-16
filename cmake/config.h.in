@@ -102,9 +102,6 @@
 /* define if libc has program_invocation_name */
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 
-/* Define if you have POSIX threads libraries and header files. */
-#cmakedefine HAVE_PTHREAD_H
-
 /* Define if you want to use POSIX threads libraries and header files. */
 #cmakedefine HAVE_PTHREAD
 

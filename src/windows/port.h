@@ -108,7 +108,7 @@ typedef intptr_t ssize_t;
 
 /* ----------------------------------- THREADS */
 
-#ifdef HAVE_PTHREAD_H /* not true for MSVC, but may be true for MSYS */
+#ifdef __MINGW32__ /* not true for MSVC, but true for MSYS */
 # include <pthread.h>
 #else 
 typedef DWORD pthread_t;

@@ -429,12 +429,6 @@ if(enable_backtrace)
   endif()
 endif()
 
-# Whether we have the pthread header
-check_c_source_compiles("
-    #include <pthread.h>
-    int main() {}"
-    HAVE_PTHREAD_H)
-
 find_package(Threads REQUIRED)
 
 # Whether we want to use pthreads
