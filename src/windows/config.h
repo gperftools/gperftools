@@ -5,6 +5,9 @@
  * be found in the LICENSE file.
  */
 
+// The CMake build generates its own config.h
+#ifndef GPERFTOOLS_CMAKE_BUILD
+
 /* Sometimes we accidentally #include this config.h instead of the one
    in .. -- this is particularly true for msys/mingw, which uses the
    unix config.h but also runs code in the windows directory.
@@ -272,3 +275,5 @@
 #include "windows/port.h"
 
 #endif  /* GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_ */
+
+#endif /* GPERFTOOLS_CMAKE_BUILD */

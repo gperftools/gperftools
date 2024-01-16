@@ -35,6 +35,10 @@
  * configure script, but still need the windows port.h to define some
  * stuff that MinGW doesn't support, like pthreads.
  */
+ 
+#ifdef GPERFTOOLS_CMAKE_BUILD
+#error "mingw.h should not be included in the CMake build"
+#endif
 
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_
 #define GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_

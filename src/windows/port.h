@@ -108,7 +108,9 @@ typedef intptr_t ssize_t;
 
 /* ----------------------------------- THREADS */
 
-#ifndef HAVE_PTHREAD   /* not true for MSVC, but may be true for MSYS */
+#ifdef HAVE_PTHREAD_H /* not true for MSVC, but may be true for MSYS */
+# include <pthread.h>
+#else 
 typedef DWORD pthread_t;
 typedef DWORD pthread_key_t;
 
@@ -161,7 +163,7 @@ inline void sched_yield(void) {
   Sleep(0);
 }
 
-#endif  /* HAVE_PTHREAD */
+#endif  /* HAVE_PTHREAD_H */
 
 /*
  * __declspec(thread) isn't usable in a dll opened via LoadLibrary().

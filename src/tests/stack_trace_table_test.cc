@@ -30,7 +30,7 @@ static void AddTrace(tcmalloc::StackTraceTable* table,
   // Normally we'd need this lock, but since the test is single-threaded
   // we don't.  I comment it out on windows because the DLL-decl thing
   // is really annoying in this case.
-#ifndef _MSC_VER
+#ifndef _WIN32
   SpinLockHolder h(tcmalloc::Static::pageheap_lock());
 #endif
   table->AddTrace(t);
