@@ -102,7 +102,7 @@
 /* define if libc has program_invocation_name */
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 
-/* Define if you want to use POSIX threads libraries and header files. */
+/* Define if you have POSIX threads libraries and header files. */
 #cmakedefine HAVE_PTHREAD
 
 /* defined to 1 if pthread symbols are exposed even without include pthread.h
@@ -266,6 +266,7 @@
 
 /* Used by windows/port.h. */
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
+
 // TODO(csilvers): include windows/port.h in every relevant source file instead?
 #include "windows/port.h"
 

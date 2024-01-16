@@ -384,7 +384,7 @@ elseif(APPLE)
   message(WARNING "OSX __thread support is known to call malloc which makes "
                     "it unsafe to use from malloc replacement")
 elseif(MINGW)
-  message(WARNING "mingw doesn't really support tls (emulated, slow). Also, see #1484")
+  message(WARNING "mingw doesn't really support implicit tls (emulated). Also, see #1484")
 elseif(MSVC)
   check_c_source_compiles("static __declspec(thread) int p = 0; int main() {}" HAVE_TLS)
 else()
@@ -430,9 +430,6 @@ if(enable_backtrace)
 endif()
 
 find_package(Threads REQUIRED)
-
-# Whether we want to use pthreads
-# TODO: Should be renamed to USE_PTHREAD
 if(MINGW)
   message(WARNING "Not even considering pthread support for MinGW due to #1483")
 else()
@@ -444,9 +441,9 @@ if(FreeBSD)
 endif()
 
 check_c_source_compiles("
-    #include <sys/types.h>
-    int main() { pid_t pid; }"
-    HAVE_PID_T)
+  #include <sys/types.h>
+  int main() { pid_t pid; }"
+  HAVE_PID_T)
 
 set(libstdcxx_la_linker_flag)
 if(EXISTS /usr/sfw/lib/libstdc++.la)
@@ -489,7 +486,7 @@ configure_file(cmake/tcmalloc.h.in
                @ONLY)
 
 # Make sure the hard-coded windows/config.h and the automake generated config.h
-# won't supercede the config.h we painstakingly generated here.
+# won't supersede the config.h we painstakingly generated here.
 add_compile_definitions(GPERFTOOLS_CMAKE_BUILD)
 if(MSVC)
    add_compile_options(/FI${CMAKE_CURRENT_BINARY_DIR}/config.h)
@@ -989,11 +986,7 @@ if(BUILD_TESTING)
   add_test(realloc_unittest realloc_unittest)
 
   add_executable(stack_trace_table_test src/tests/stack_trace_table_test.cc)
-  if(MINGW)
-    target_link_libraries(stack_trace_table_test PUBLIC tcmalloc_minimal spinlock sysinfo logging)
-  else()
-    target_link_libraries(stack_trace_table_test PUBLIC tcmalloc_minimal)
-  endif()
+  target_link_libraries(stack_trace_table_test PUBLIC tcmalloc_minimal)
   add_test(stack_trace_table_test stack_trace_table_test)
 
   add_executable(thread_dealloc_unittest

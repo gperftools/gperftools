@@ -35,6 +35,12 @@ public:
   UniqPtr(const UniqPtr&) = delete;
   UniqPtr& operator=(const UniqPtr&) = delete;
 
+  ~UniqPtr() {
+    if (ptr_) {
+      delete ptr_;
+    }
+  }
+
   T* get() const noexcept { return ptr_; }
   T* operator->() const noexcept { return get(); }
 };
