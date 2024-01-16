@@ -7,6 +7,10 @@
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #endif
 
+#if defined(_WIN32) && !defined(NOMINMAX)
+#define NOMINMAX
+#endif
+
 #ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 #define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
 /* used by tcmalloc.h */
