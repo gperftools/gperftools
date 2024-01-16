@@ -10,7 +10,6 @@
 #include <stdio.h>
 
 #include <limits>
-#include <memory>
 
 #include "page_heap.h"
 #include "system-alloc.h"
@@ -20,6 +19,25 @@
 DECLARE_int64(tcmalloc_heap_limit_mb);
 
 namespace {
+
+// Barebones unique_ptr implementation to avoid including <memory>,
+// which pulls in pthread.h in more recent versions of libstdc++.
+// This unfortunately causes conflicts in MinGW builds.
+template <typename T>
+class UniqPtr {
+  T* ptr_ = nullptr;
+
+public:
+  UniqPtr(T* ptr) noexcept
+  :ptr_{ ptr }
+  {}
+
+  UniqPtr(const UniqPtr&) = delete;
+  UniqPtr& operator=(const UniqPtr&) = delete;
+
+  T* get() const noexcept { return ptr_; }
+  T* operator->() const noexcept { return get(); }
+};
 
 // TODO: add testing from >1 min_span_size setting.
 
@@ -49,7 +67,7 @@ static void CheckStats(const tcmalloc::PageHeap* ph,
 }
 
 static void TestPageHeap_Stats() {
-  std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  UniqPtr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
 
   // Empty page heap
   CheckStats(ph.get(), 0, 0, 0);
@@ -87,7 +105,7 @@ static constexpr int kNumberMaxPagesSpans = 10;
 static void AllocateAllPageTables() {
   // Make a separate PageHeap from the main test so the test can start without
   // any pages in the lists.
-  std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  UniqPtr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
   tcmalloc::Span *spans[kNumberMaxPagesSpans * 2];
   for (int i = 0; i < kNumberMaxPagesSpans; ++i) {
     spans[i] = ph->New(kMaxPages);
@@ -108,7 +126,7 @@ static void AllocateAllPageTables() {
 static void TestPageHeap_Limit() {
   AllocateAllPageTables();
 
-  std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  UniqPtr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
 
   // Lets also test if huge number of pages is ooming properly
   {
