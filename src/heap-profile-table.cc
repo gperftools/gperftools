@@ -51,9 +51,11 @@
 #endif
 #include <errno.h>
 #include <stdarg.h>
-#include <string>
-#include <map>
+
 #include <algorithm>  // for sort(), equal(), and copy()
+#include <map>
+#include <memory>
+#include <string>
 
 #include "heap-profile-table.h"
 
@@ -72,9 +74,6 @@ using std::equal;
 using std::copy;
 using std::string;
 using std::map;
-
-using tcmalloc::FillProcSelfMaps;   // from sysinfo.h
-using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
 
 //----------------------------------------------------------------------
 
@@ -110,13 +109,6 @@ static const int kStripFrames = 2;
 #else
 static const int kStripFrames = 3;
 #endif
-
-// For sorting Stats or Buckets by in-use space
-static bool ByAllocatedSpace(HeapProfileTable::Stats* a,
-                             HeapProfileTable::Stats* b) {
-  // Return true iff "a" has more allocated space than "b"
-  return (a->alloc_size - a->free_size) > (b->alloc_size - b->free_size);
-}
 
 //----------------------------------------------------------------------
 
@@ -274,136 +266,46 @@ void HeapProfileTable::MarkAsIgnored(const void* ptr) {
   }
 }
 
-// We'd be happier using snprintfer, but we don't to reduce dependencies.
-int HeapProfileTable::UnparseBucket(const Bucket& b,
-                                    char* buf, int buflen, int bufsize,
-                                    const char* extra,
-                                    Stats* profile_stats) {
-  if (profile_stats != NULL) {
-    profile_stats->allocs += b.allocs;
-    profile_stats->alloc_size += b.alloc_size;
-    profile_stats->frees += b.frees;
-    profile_stats->free_size += b.free_size;
-  }
-  int printed =
-    snprintf(buf + buflen, bufsize - buflen, "%6" PRId64 ": %8" PRId64 " [%6" PRId64 ": %8" PRId64 "] @%s",
-             b.allocs - b.frees,
-             b.alloc_size - b.free_size,
-             b.allocs,
-             b.alloc_size,
-             extra);
-  // If it looks like the snprintf failed, ignore the fact we printed anything
-  if (printed < 0 || printed >= bufsize - buflen) return buflen;
-  buflen += printed;
+void HeapProfileTable::UnparseBucket(const Bucket& b,
+                                     tcmalloc::GenericWriter* writer,
+                                     const char* extra) {
+  writer->AppendF("%6" PRId64 ": %8" PRId64 " [%6" PRId64 ": %8" PRId64 "] @",
+                  b.allocs - b.frees,
+                  b.alloc_size - b.free_size,
+                  b.allocs,
+                  b.alloc_size);
+  writer->AppendStr(extra);
+
   for (int d = 0; d < b.depth; d++) {
-    printed = snprintf(buf + buflen, bufsize - buflen, " 0x%08" PRIxPTR,
-                       reinterpret_cast<uintptr_t>(b.stack[d]));
-    if (printed < 0 || printed >= bufsize - buflen) return buflen;
-    buflen += printed;
+    writer->AppendF(" 0x%08" PRIxPTR,
+                    reinterpret_cast<uintptr_t>(b.stack[d]));
   }
-  printed = snprintf(buf + buflen, bufsize - buflen, "\n");
-  if (printed < 0 || printed >= bufsize - buflen) return buflen;
-  buflen += printed;
-  return buflen;
+  writer->AppendStr("\n");
 }
 
-HeapProfileTable::Bucket**
-HeapProfileTable::MakeSortedBucketList() const {
-  Bucket** list = static_cast<Bucket**>(alloc_(sizeof(Bucket) * num_buckets_));
+void HeapProfileTable::SaveProfile(tcmalloc::GenericWriter* writer) const {
+  writer->AppendStr(kProfileHeader);
+  UnparseBucket(total_, writer, " heapprofile");
+
+  // Dump the mmap list first.
+  if (profile_mmap_) {
+    MemoryRegionMap::LockHolder holder{};
+    MemoryRegionMap::IterateBuckets([writer] (const Bucket* bucket) {
+      UnparseBucket(*bucket, writer, "");
+    });
+  }
 
   int bucket_count = 0;
   for (int i = 0; i < kHashTableSize; i++) {
-    for (Bucket* curr = bucket_table_[i]; curr != 0; curr = curr->next) {
-      list[bucket_count++] = curr;
+    for (Bucket* curr = bucket_table_[i]; curr != nullptr; curr = curr->next) {
+      UnparseBucket(*curr, writer, "");
+      bucket_count++;
     }
   }
   RAW_DCHECK(bucket_count == num_buckets_, "");
 
-  sort(list, list + num_buckets_, ByAllocatedSpace);
-
-  return list;
-}
-
-int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
-  Bucket** list = MakeSortedBucketList();
-
-  // Our file format is "bucket, bucket, ..., bucket, proc_self_maps_info".
-  // In the cases buf is too small, we'd rather leave out the last
-  // buckets than leave out the /proc/self/maps info.  To ensure that,
-  // we actually print the /proc/self/maps info first, then move it to
-  // the end of the buffer, then write the bucket info into whatever
-  // is remaining, and then move the maps info one last time to close
-  // any gaps.  Whew!
-  int map_length = snprintf(buf, size, "%s", kProcSelfMapsHeader);
-  if (map_length < 0 || map_length >= size) {
-      dealloc_(list);
-      return 0;
-  }
-  bool dummy;   // "wrote_all" -- did /proc/self/maps fit in its entirety?
-  map_length += FillProcSelfMaps(buf + map_length, size - map_length, &dummy);
-  RAW_DCHECK(map_length <= size, "");
-  char* const map_start = buf + size - map_length;      // move to end
-  memmove(map_start, buf, map_length);
-  size -= map_length;
-
-  Stats stats;
-  memset(&stats, 0, sizeof(stats));
-  int bucket_length = snprintf(buf, size, "%s", kProfileHeader);
-  if (bucket_length < 0 || bucket_length >= size) {
-      dealloc_(list);
-      return 0;
-  }
-  bucket_length = UnparseBucket(total_, buf, bucket_length, size,
-                                " heapprofile", &stats);
-
-  // Dump the mmap list first.
-  if (profile_mmap_) {
-    BufferArgs buffer(buf, bucket_length, size);
-    MemoryRegionMap::LockHolder holder{};
-    MemoryRegionMap::IterateBuckets<BufferArgs*>(DumpBucketIterator, &buffer);
-    bucket_length = buffer.buflen;
-  }
-
-  for (int i = 0; i < num_buckets_; i++) {
-    bucket_length = UnparseBucket(*list[i], buf, bucket_length, size, "",
-                                  &stats);
-  }
-  RAW_DCHECK(bucket_length < size, "");
-
-  dealloc_(list);
-
-  RAW_DCHECK(buf + bucket_length <= map_start, "");
-  memmove(buf + bucket_length, map_start, map_length);  // close the gap
-
-  return bucket_length + map_length;
-}
-
-// static
-void HeapProfileTable::DumpBucketIterator(const Bucket* bucket,
-                                          BufferArgs* args) {
-  args->buflen = UnparseBucket(*bucket, args->buf, args->buflen, args->bufsize,
-                               "", NULL);
-}
-
-inline
-void HeapProfileTable::DumpNonLiveIterator(const void* ptr, AllocValue* v,
-                                           const DumpArgs& args) {
-  if (v->live()) {
-    v->set_live(false);
-    return;
-  }
-  if (v->ignore()) {
-    return;
-  }
-  Bucket b;
-  memset(&b, 0, sizeof(b));
-  b.allocs = 1;
-  b.alloc_size = v->bytes;
-  b.depth = v->bucket()->depth;
-  b.stack = v->bucket()->stack;
-  char buf[1024];
-  int len = UnparseBucket(b, buf, 0, sizeof(buf), "", args.profile_stats);
-  RawWrite(args.fd, buf, len);
+  writer->AppendStr(kProcSelfMapsHeader);
+  tcmalloc::SaveProcSelfMaps(writer);
 }
 
 // Callback from NonLiveSnapshot; adds entry to arg->dest
@@ -430,14 +332,33 @@ bool HeapProfileTable::WriteProfile(const char* file_name,
     RAW_LOG(ERROR, "Failed dumping filtered heap profile to %s", file_name);
     return false;
   }
-  RawWrite(fd, kProfileHeader, strlen(kProfileHeader));
-  char buf[512];
-  int len = UnparseBucket(total, buf, 0, sizeof(buf), " heapprofile", NULL);
-  RawWrite(fd, buf, len);
-  const DumpArgs args(fd, NULL);
-  allocations->Iterate<const DumpArgs&>(DumpNonLiveIterator, args);
+
+  tcmalloc::FileGenericWriter<> writer{fd};
+
+  writer.AppendStr(kProfileHeader);
+
+  UnparseBucket(total, &writer, " heapprofile");
+
+  allocations->Iterate([&writer] (const void* ptr, AllocValue* v) {
+    if (v->live()) {
+      v->set_live(false);
+      return;
+    }
+    if (v->ignore()) {
+      return;
+    }
+    Bucket b;
+    memset(&b, 0, sizeof(b));
+    b.allocs = 1;
+    b.alloc_size = v->bytes;
+    b.depth = v->bucket()->depth;
+    b.stack = v->bucket()->stack;
+    UnparseBucket(b, &writer, "");
+  });
+
   RawWrite(fd, kProcSelfMapsHeader, strlen(kProcSelfMapsHeader));
-  DumpProcSelfMaps(fd);
+  tcmalloc::SaveProcSelfMapsToRawFD(fd);
+
   RawClose(fd);
   return true;
 }
@@ -594,8 +515,6 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
   }
   delete[] entries;
 
-  // TODO: Dump the sorted Entry list instead of dumping raw data?
-  // (should be much shorter)
   if (!HeapProfileTable::WriteProfile(filename, total_, &map_)) {
     RAW_LOG(ERROR, "Could not write pprof profile to %s", filename);
   }

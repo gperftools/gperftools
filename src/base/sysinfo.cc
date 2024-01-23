@@ -941,10 +941,10 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
   return false;
 }
 
-int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
-                                 uint64 start, uint64 end, const char *flags,
-                                 uint64 offset, int64 inode,
-                                 const char *filename, dev_t dev) {
+void ProcMapsIterator::FormatLine(tcmalloc::GenericWriter* writer,
+                                  uint64 start, uint64 end, const char *flags,
+                                  uint64 offset, int64 inode,
+                                  const char *filename, dev_t dev) {
   // We assume 'flags' looks like 'rwxp' or 'rwx'.
   char r = (flags && flags[0] == 'r') ? 'r' : '-';
   char w = (flags && flags[0] && flags[1] == 'w') ? 'w' : '-';
@@ -953,12 +953,12 @@ int ProcMapsIterator::FormatLine(char* buffer, int bufsize,
   char p = (flags && flags[0] && flags[1] && flags[2] && flags[3] != 'p')
       ? '-' : 'p';
 
-  const int rc = snprintf(buffer, bufsize,
-                          "%08" PRIx64 "-%08" PRIx64 " %c%c%c%c %08" PRIx64 " %02x:%02x %-11" PRId64 " %s\n",
-                          start, end, r,w,x,p, offset,
-                          static_cast<int>(dev/256), static_cast<int>(dev%256),
-                          inode, filename);
-  return (rc < 0 || rc >= bufsize) ? 0 : rc;
+  writer->AppendF("%08" PRIx64 "-%08" PRIx64 " %c%c%c%c %08" PRIx64 " %02x:%02x %-11" PRId64,
+                  start, end, r,w,x,p, offset,
+                  static_cast<int>(dev/256), static_cast<int>(dev%256),
+                  inode);
+  writer->AppendStr(filename);
+  writer->AppendStr("\n");
 }
 
 namespace tcmalloc {
@@ -968,46 +968,23 @@ namespace tcmalloc {
 // and return the actual size occupied in 'buf'.  We fill wrote_all to true
 // if we successfully wrote all proc lines to buf, false else.
 // We do not provision for 0-terminating 'buf'.
-int FillProcSelfMaps(char buf[], int size, bool* wrote_all) {
+void SaveProcSelfMaps(GenericWriter* writer) {
   ProcMapsIterator::Buffer iterbuf;
   ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
 
   uint64 start, end, offset;
   int64 inode;
   char *flags, *filename;
-  int bytes_written = 0;
-  *wrote_all = true;
   while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-    const int line_length = it.FormatLine(buf + bytes_written,
-                                          size - bytes_written,
-                                          start, end, flags, offset,
-                                          inode, filename, 0);
-    if (line_length == 0)
-      *wrote_all = false;     // failed to write this line out
-    else
-      bytes_written += line_length;
-
+    it.FormatLine(writer,
+                  start, end, flags, offset,
+                  inode, filename, 0);
   }
-  return bytes_written;
 }
 
-// Dump the same data as FillProcSelfMaps reads to fd.
-// It seems easier to repeat parts of FillProcSelfMaps here than to
-// reuse it via a call.
-void DumpProcSelfMaps(RawFD fd) {
-  ProcMapsIterator::Buffer iterbuf;
-  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-  uint64 start, end, offset;
-  int64 inode;
-  char *flags, *filename;
-  ProcMapsIterator::Buffer linebuf;
-  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-                                start, end, flags, offset, inode, filename,
-                                0);
-    RawWrite(fd, linebuf.buf_, written);
-  }
+void SaveProcSelfMapsToRawFD(RawFD fd) {
+  FileGenericWriter<> writer(fd);
+  SaveProcSelfMaps(&writer);
 }
 
 }  // namespace tcmalloc

@@ -45,8 +45,10 @@
 #include <unistd.h>    // for pid_t
 #endif
 #include <stddef.h>    // for size_t
+#include <stdint.h>
 #include <limits.h>    // for PATH_MAX
 #include "base/basictypes.h"
+#include "base/generic_writer.h"
 #include "base/logging.h"   // for RawFD
 
 // This getenv function is safe to call before the C runtime is initialized.
@@ -139,10 +141,10 @@ class ProcMapsIterator {
   // then the output of this function is only valid if Next() returned
   // true, and only until the iterator is destroyed or Next() is
   // called again.  (Since filename, at least, points into CurrentLine.)
-  static int FormatLine(char* buffer, int bufsize,
-                        uint64 start, uint64 end, const char *flags,
-                        uint64 offset, int64 inode, const char *filename,
-                        dev_t dev);
+  static void FormatLine(tcmalloc::GenericWriter* writer,
+                         uint64 start, uint64 end, const char *flags,
+                         uint64 offset, int64 inode, const char *filename,
+                         dev_t dev);
 
   // Find the next entry in /proc/maps; return true if found or false
   // if at the end of the file.
@@ -215,8 +217,8 @@ class ProcMapsIterator {
 // Helper routines
 
 namespace tcmalloc {
-int FillProcSelfMaps(char buf[], int size, bool* wrote_all);
-void DumpProcSelfMaps(RawFD fd);
+void SaveProcSelfMaps(GenericWriter* writer);
+void SaveProcSelfMapsToRawFD(RawFD fd);
 }
 
 #endif   /* #ifndef _SYSINFO_H_ */

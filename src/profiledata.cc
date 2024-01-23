@@ -146,22 +146,6 @@ static void FDWrite(int fd, const char* buf, size_t len) {
   }
 }
 
-static void DumpProcSelfMaps(int fd) {
-  ProcMapsIterator::Buffer iterbuf;
-  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
-
-  uint64 start, end, offset;
-  int64 inode;
-  char *flags, *filename;
-  ProcMapsIterator::Buffer linebuf;
-  while (it.Next(&start, &end, &flags, &offset, &inode, &filename)) {
-    int written = it.FormatLine(linebuf.buf_, sizeof(linebuf.buf_),
-                                start, end, flags, offset, inode, filename,
-                                0);
-    FDWrite(fd, linebuf.buf_, written);
-  }
-}
-
 void ProfileData::Stop() {
   if (!enabled()) {
     return;
@@ -189,7 +173,7 @@ void ProfileData::Stop() {
   FlushEvicted();
 
   // Dump "/proc/self/maps" so we get list of mapped shared libraries
-  DumpProcSelfMaps(out_);
+  tcmalloc::SaveProcSelfMapsToRawFD(static_cast<RawFD>(out_));
 
   Reset();
   fprintf(stderr, "PROFILE: interrupts/evictions/bytes = %d/%d/%zu\n",

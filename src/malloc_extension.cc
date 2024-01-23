@@ -46,26 +46,15 @@
 #include "gperftools/malloc_extension_c.h"
 #include "base/googleinit.h"
 
+#include <algorithm>
+
 using std::string;
 using std::vector;
 
 static void DumpAddressMap(string* result) {
-  *result += "\nMAPPED_LIBRARIES:\n";
-  // We keep doubling until we get a fit
-  const size_t old_resultlen = result->size();
-  for (int amap_size = 10240; amap_size < 10000000; amap_size *= 2) {
-    result->resize(old_resultlen + amap_size);
-    bool wrote_all = false;
-    const int bytes_written =
-        tcmalloc::FillProcSelfMaps(&((*result)[old_resultlen]), amap_size,
-                                   &wrote_all);
-    if (wrote_all) {   // we fit!
-      (*result)[old_resultlen + bytes_written] = '\0';
-      result->resize(old_resultlen + bytes_written);
-      return;
-    }
-  }
-  result->reserve(old_resultlen);   // just don't print anything
+  tcmalloc::StringGenericWriter writer(result);
+  writer.AppendStr("\nMAPPED_LIBRARIES:\n");
+  tcmalloc::SaveProcSelfMaps(&writer);
 }
 
 // Note: this routine is meant to be called before threads are spawned.

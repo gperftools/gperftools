@@ -65,7 +65,6 @@
 #endif
 
 using std::string;
-using tcmalloc::DumpProcSelfMaps;   // from sysinfo.h
 
 // pprof may be used after destructors are
 // called (since that's when leak-checking is done), so we make
@@ -264,9 +263,9 @@ int SymbolTable::Symbolize() {
 #if defined(__CYGWIN__) || defined(__CYGWIN32__)
       // On cygwin, DumpProcSelfMaps() takes a HANDLE, not an fd.  Convert.
       const HANDLE symbols_handle = (HANDLE) get_osfhandle(child_in[1]);
-      DumpProcSelfMaps(symbols_handle);
+      tcmalloc::SaveProcSelfMapsToRawFD(symbols_handle);
 #else
-      DumpProcSelfMaps(child_in[1]);  // what pprof expects on stdin
+      tcmalloc::SaveProcSelfMapsToRawFD(child_in[1]); // what pprof expects on stdin
 #endif
 
       // Allocate 24 bytes = ("0x" + 8 bytes + "\n" + overhead) for each
