@@ -155,9 +155,11 @@ dist_doc_DATA += docs/index.html docs/designstyle.css
 LOGGING_INCLUDES = src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/basictypes.h \
+                   src/base/generic_writer.h \
                    src/base/dynamic_annotations.h
 noinst_LTLIBRARIES += liblogging.la
 liblogging_la_SOURCES = src/base/logging.cc \
+                        src/base/generic_writer.cc \
                         $(LOGGING_INCLUDES)
 
 SYSINFO_INCLUDES = src/base/sysinfo.h \
@@ -663,6 +665,10 @@ TESTS += safe_strerror_test
 safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
                              src/safe_strerror.cc
 safe_strerror_test_LDADD = liblogging.la
+
+TESTS += generic_writer_test
+generic_writer_test_SOURCES = src/tests/generic_writer_test.cc
+generic_writer_test_LDADD = liblogging.la
 
 TESTS += realloc_unittest
 WINDOWS_PROJECTS += vsprojects/realloc_unittest/realloc_unittest.vcxproj

@@ -86,6 +86,9 @@
     <ClCompile Include="..\..\src\base\spinlock_internal.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\base\generic_writer.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\base\sysinfo.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

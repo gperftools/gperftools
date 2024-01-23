@@ -194,6 +194,7 @@
     <ClCompile Include="..\..\src\base\logging.cc" />
     <ClCompile Include="..\..\src\base\spinlock.cc" />
     <ClCompile Include="..\..\src\base\spinlock_internal.cc" />
+    <ClCompile Include="..\..\src\base\generic_writer.cc" />
     <ClCompile Include="..\..\src\base\sysinfo.cc" />
     <ClCompile Include="..\..\src\central_freelist.cc" />
     <ClCompile Include="..\..\src\common.cc" />

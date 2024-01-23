@@ -199,6 +199,7 @@
     <ClCompile Include="..\..\src\base\low_level_alloc.cc" />
     <ClCompile Include="..\..\src\base\spinlock.cc" />
     <ClCompile Include="..\..\src\base\spinlock_internal.cc" />
+    <ClCompile Include="..\..\src\base\generic_writer.cc" />
     <ClCompile Include="..\..\src\base\sysinfo.cc" />
     <ClCompile Include="..\..\src\fake_stacktrace_scope.cc" />
     <ClCompile Include="..\..\src\mmap_hook.cc" />

@@ -37,6 +37,8 @@
 /depcomp
 /frag_unittest
 /frag_unittest.exe
+/generic_writer_test
+/generic_writer_test.exe
 /getpc_test
 /gperftools-*.tar.gz
 /gperftools-*.zip

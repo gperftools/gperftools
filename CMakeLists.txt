@@ -555,6 +555,7 @@ set(LOGGING_INCLUDES
         src/base/basictypes.h
         src/base/dynamic_annotations.h)
 set(liblogging_la_SOURCES src/base/logging.cc
+        src/base/generic_writer.cc
         src/base/dynamic_annotations.cc
         ${LOGGING_INCLUDES})
 add_library(logging STATIC ${liblogging_la_SOURCES})
@@ -958,6 +959,10 @@ if(BUILD_TESTING)
   add_executable(safe_strerror_test src/tests/safe_strerror_test.cc src/safe_strerror.cc)
   target_link_libraries(safe_strerror_test logging)
   add_test(safe_strerror_test safe_strerror_test)
+
+  add_executable(generic_writer_test src/tests/generic_writer_test.cc)
+  target_link_libraries(generic_writer_test logging)
+  add_test(generic_writer_test generic_writer_test)
 
   set(realloc_unittest_SOURCES src/tests/realloc_unittest.cc
           src/config_for_unittests.h
