@@ -137,8 +137,17 @@ class AddressMap {
   // for all stored key-value pairs and passing 'arg' to it.
   // We don't use full Closure/Callback machinery not to add
   // unnecessary dependencies to this class with low-level uses.
-  template<class Type>
-  inline void Iterate(void (*callback)(Key, Value*, Type), Type arg) const;
+  //
+  // body is callbable that gets (Key, Value*)
+  template <class Body>
+  void Iterate(Body body) const;
+
+  template <typename ArgType>
+  void Iterate(void (*callback)(Key, Value*, ArgType), ArgType arg) const {
+    Iterate([&] (Key k, Value* v) {
+      callback(k, v, arg);
+    });
+  }
 
  private:
   typedef uintptr_t Number;
@@ -398,16 +407,15 @@ const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
 }
 
 template <class Value>
-template <class Type>
-inline void AddressMap<Value>::Iterate(void (*callback)(Key, Value*, Type),
-                                       Type arg) const {
+template <class Body>
+void AddressMap<Value>::Iterate(Body body) const {
   // We could optimize this by traversing only non-empty clusters and/or blocks
   // but it does not speed up heap-checker noticeably.
   for (int h = 0; h < kHashSize; ++h) {
     for (const Cluster* c = hashtable_[h]; c != NULL; c = c->next) {
       for (int b = 0; b < kClusterBlocks; ++b) {
         for (Entry* e = c->blocks[b]; e != NULL; e = e->next) {
-          callback(e->key, &e->value, arg);
+          body(e->key, &e->value);
         }
       }
     }
