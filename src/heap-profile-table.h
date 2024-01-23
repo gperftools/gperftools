@@ -71,14 +71,6 @@ class HeapProfileTable {
     bool ignored;
   };
 
-  // Info we return about an allocation context.
-  // An allocation context is a unique caller stack trace
-  // of an allocation operation.
-  struct AllocContextInfo : public Stats {
-    int stack_depth;                // Depth of stack trace
-    const void* const* call_stack;  // Stack trace
-  };
-
   // Memory (de)allocator interface we'll use.
   typedef void* (*Allocator)(size_t size);
   typedef void  (*DeAllocator)(void* ptr);
@@ -142,14 +134,6 @@ class HeapProfileTable {
   void IterateAllocs(AllocIterator callback) const {
     address_map_->Iterate(MapArgsAllocIterator, callback);
   }
-
-  // Allocation context profile data iteration callback
-  typedef void (*AllocContextIterator)(const AllocContextInfo& info);
-
-  // Iterate over the allocation context profile data calling "callback"
-  // for every allocation context. Allocation contexts are ordered by the
-  // size of allocated space.
-  void IterateOrderedAllocContexts(AllocContextIterator callback) const;
 
   // Fill profile data into buffer 'buf' of size 'size'
   // and return the actual size occupied by the dump in 'buf'.

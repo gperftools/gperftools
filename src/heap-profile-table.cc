@@ -324,19 +324,6 @@ HeapProfileTable::MakeSortedBucketList() const {
   return list;
 }
 
-void HeapProfileTable::IterateOrderedAllocContexts(
-    AllocContextIterator callback) const {
-  Bucket** list = MakeSortedBucketList();
-  AllocContextInfo info;
-  for (int i = 0; i < num_buckets_; ++i) {
-    *static_cast<Stats*>(&info) = *static_cast<Stats*>(list[i]);
-    info.stack_depth = list[i]->depth;
-    info.call_stack = list[i]->stack;
-    callback(info);
-  }
-  dealloc_(list);
-}
-
 int HeapProfileTable::FillOrderedProfile(char buf[], int size) const {
   Bucket** list = MakeSortedBucketList();
 
