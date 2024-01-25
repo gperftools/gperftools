@@ -1202,43 +1202,6 @@ static int RunAllTests(int argc, char** argv) {
   TestNewOOMHandling();
 #endif
 
-  // TODO(odo):  This test has been disabled because it is only by luck that it
-  // does not result in fragmentation.  When tcmalloc makes an allocation which
-  // spans previously unused leaves of the pagemap it will allocate and fill in
-  // the leaves to cover the new allocation.  The leaves happen to be 256MiB in
-  // the 64-bit build, and with the sbrk allocator these allocations just
-  // happen to fit in one leaf by luck.  With other allocators (mmap,
-  // memfs_malloc when used with small pages) the allocations generally span
-  // two leaves and this results in a very bad fragmentation pattern with this
-  // code.  The same failure can be forced with the sbrk allocator just by
-  // allocating something on the order of 128MiB prior to starting this test so
-  // that the test allocations straddle a 256MiB boundary.
-
-  // TODO(csilvers): port MemoryUsage() over so the test can use that
-#if 0
-# include <unistd.h>      // for getpid()
-  // Allocate and deallocate blocks of increasing sizes to check if the alloc
-  // metadata fragments the memory. (Do not put other allocations/deallocations
-  // before this test, it may break).
-  {
-    size_t memory_usage = MemoryUsage(getpid());
-    fprintf(LOGSTREAM, "Testing fragmentation\n");
-    for ( int i = 200; i < 240; ++i ) {
-      int size = i << 20;
-      void *test1 = rnd.alloc(size);
-      CHECK(test1);
-      for ( int j = 0; j < size; j += (1 << 12) ) {
-        static_cast<char*>(test1)[j] = 1;
-      }
-      free(test1);
-    }
-    // There may still be a bit of fragmentation at the beginning, until we
-    // reach kPageMapBigAllocationThreshold bytes so we check for
-    // 200 + 240 + margin.
-    CHECK_LT(MemoryUsage(getpid()), memory_usage + (450 << 20) );
-  }
-#endif
-
   // Check that empty allocation works
   fprintf(LOGSTREAM, "Testing empty allocation\n");
   {
