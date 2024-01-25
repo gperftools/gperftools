@@ -56,8 +56,6 @@
 
 #undef HAVE_FORK
 
-#define HAVE_PID_T
-
 #include "windows/port.h"
 
 #endif  /* __MINGW32__ */

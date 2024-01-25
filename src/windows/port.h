@@ -228,15 +228,6 @@ EXTERN_C PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len);
 
 /* ----------------------------------- SYSTEM/PROCESS */
 
-#ifndef HAVE_PID_T
-typedef int pid_t;
-#endif
-
-#if __STDC__ && !defined(__MINGW32__)
-inline pid_t getpid(void) { return _getpid(); }
-#endif
-inline pid_t getppid(void) { return 0; }
-
 /* Handle case when poll is used to simulate sleep. */
 inline int poll(struct pollfd* fds, int nfds, int timeout) {
   assert(fds == NULL);

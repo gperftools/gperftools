@@ -270,6 +270,16 @@ static std::tuple<bool, const char*, const char*> QueryHPCEnvironment() {
   return mk(false, "", "");
 }
 
+namespace {
+int GetPID() {
+#ifdef _WIN32
+  return _getpid();
+#else
+  return getpid();
+#endif
+}
+}  // namespace
+
 // This takes as an argument an environment-variable name (like
 // CPUPROFILE) whose value is supposed to be a file-path, and sets
 // path to that path, and returns true.  If the env var doesn't exist,
@@ -317,7 +327,7 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
 
   if (pidIsForced || childBitDetected) {
     snprintf(path, PATH_MAX, "%s%s%s_%d",
-             envval, append1, append2, getpid());
+             envval, append1, append2, GetPID());
   } else {
     snprintf(path, PATH_MAX, "%s%s%s", envval, append1, append2);
   }
