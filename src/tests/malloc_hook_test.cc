@@ -48,6 +48,7 @@
 #include "base/logging.h"
 #include "base/simple_mutex.h"
 #include "base/sysinfo.h"
+#include "base/threading.h"
 #include "tests/testutil.h"
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
@@ -200,7 +201,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     const auto value = reinterpret_cast<MallocHook::NewHook>((i << shift) + thread_num);
     EXPECT_TRUE(list->Add(value));
 
-    sched_yield();  // Ensure some more interleaving.
+    PerftoolsYield();  // Ensure some more interleaving.
 
     MallocHook::NewHook values[kHookListMaxValues + 1];
     int num_values = list->Traverse(values, kHookListMaxValues + 1);
@@ -217,11 +218,11 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     snprintf(buf, sizeof(buf), "[%d/%d; ", value_index, num_values);
     message += buf;
 
-    sched_yield();
+    PerftoolsYield();
 
     EXPECT_TRUE(list->Remove(value));
 
-    sched_yield();
+    PerftoolsYield();
 
     num_values = list->Traverse(values, kHookListMaxValues);
     for (value_index = 0;
@@ -234,7 +235,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     snprintf(buf, sizeof(buf), "%d]", num_values);
     message += buf;
 
-    sched_yield();
+    PerftoolsYield();
   }
   fprintf(stderr, "thread %d: %s\n", thread_num, message.c_str());
 }

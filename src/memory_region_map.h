@@ -37,13 +37,11 @@
 
 #include <config.h>
 
-#ifdef HAVE_PTHREAD
-#include <pthread.h>
-#endif
 #include <stddef.h>
 #include <set>
 #include "base/stl_allocator.h"
 #include "base/spinlock.h"
+#include "base/threading.h"
 #include "base/thread_annotations.h"
 #include "base/low_level_alloc.h"
 #include "heap-profile-stats.h"
@@ -310,7 +308,7 @@ class MemoryRegionMap {
   // Recursion count for the recursive lock.
   static int recursion_count_;
   // The thread id of the thread that's inside the recursive lock.
-  static pthread_t lock_owner_tid_;
+  static PerftoolsThreadID lock_owner_tid_;
 
   // Total size of all mapped pages so far
   static int64 map_size_;

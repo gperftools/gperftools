@@ -101,17 +101,6 @@ const  int64 kint64min =  ( (((uint64) kint32min) << 32) | 0 );
 #define PRIxPTR "lx"
 #endif
 
-// Also allow for printing of a pthread_t.
-#define GPRIuPTHREAD "lu"
-#define GPRIxPTHREAD "lx"
-#if defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__APPLE__) || defined(__FreeBSD__)
-#define PRINTABLE_PTHREAD(pthreadt) reinterpret_cast<uintptr_t>(pthreadt)
-#elif defined(__QNXNTO__)
-#define PRINTABLE_PTHREAD(pthreadt) static_cast<intptr_t>(pthreadt)
-#else
-#define PRINTABLE_PTHREAD(pthreadt) pthreadt
-#endif
-
 #if defined(__GNUC__)
 #define PREDICT_TRUE(x) __builtin_expect(!!(x), 1)
 #define PREDICT_FALSE(x) __builtin_expect(!!(x), 0)

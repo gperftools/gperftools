@@ -129,10 +129,6 @@
 /* Define if you have POSIX threads libraries and header files. */
 /* #undef HAVE_PTHREAD */
 
-/* defined to 1 if pthread symbols are exposed even without include pthread.h
-   */
-/* #undef HAVE_PTHREAD_DESPITE_ASKING_FOR */
-
 /* Define to 1 if you have the <pwd.h> header file. */
 /* #undef HAVE_PWD_H */
 

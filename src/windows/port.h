@@ -108,61 +108,6 @@ typedef intptr_t ssize_t;
 
 /* ----------------------------------- THREADS */
 
-#ifndef HAVE_PTHREAD   /* not true for MSVC, but may be true for MSYS */
-typedef DWORD pthread_t;
-typedef DWORD pthread_key_t;
-
-inline pthread_t pthread_self(void) {
-  return GetCurrentThreadId();
-}
-
-#ifdef __cplusplus
-inline bool pthread_equal(pthread_t left, pthread_t right) {
-  return left == right;
-}
-
-/*
- * windows/port.h defines compatibility APIs for several .h files, which
- * we therefore shouldn't be #including directly.  This hack keeps us from
- * doing so.  TODO(csilvers): do something more principled.
- */
-#define HAVE_PERFTOOLS_PTHREAD_KEYS
-
-EXTERN_C pthread_key_t PthreadKeyCreate(void (*destr_fn)(void*));  /* port.cc */
-
-inline int perftools_pthread_key_create(pthread_key_t *pkey,
-                                        void (*destructor)(void*)) {
-  pthread_key_t key = PthreadKeyCreate(destructor);
-  if (key != TLS_OUT_OF_INDEXES) {
-    *(pkey) = key;
-    return 0;
-  } else {
-    return GetLastError();
-  }
-}
-
-inline void* perftools_pthread_getspecific(DWORD key) {
-  DWORD err = GetLastError();
-  void* rv = TlsGetValue(key);
-  if (err) SetLastError(err);
-  return rv;
-}
-
-inline int perftools_pthread_setspecific(pthread_key_t key, const void *value) {
-  if (TlsSetValue(key, (LPVOID)value))
-    return 0;
-  else
-    return GetLastError();
-}
-
-#endif  /* __cplusplus */
-
-inline void sched_yield(void) {
-  Sleep(0);
-}
-
-#endif  /* HAVE_PTHREAD */
-
 /*
  * __declspec(thread) isn't usable in a dll opened via LoadLibrary().
  * But it doesn't work to LoadLibrary() us anyway, because of all the

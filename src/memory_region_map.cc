@@ -108,9 +108,6 @@
 #elif !defined(MAP_FAILED)
 #define MAP_FAILED -1  // the only thing we need from mman.h
 #endif
-#ifdef HAVE_PTHREAD
-#include <pthread.h>   // for pthread_t, pthread_self()
-#endif
 #include <stddef.h>
 
 #include <algorithm>
@@ -121,6 +118,7 @@
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
+#include "base/threading.h"
 #include "mmap_hook.h"
 
 #include <gperftools/stacktrace.h>
@@ -138,7 +136,7 @@ SpinLock MemoryRegionMap::lock_(SpinLock::LINKER_INITIALIZED);
 SpinLock MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
     SpinLock::LINKER_INITIALIZED);
 int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
-pthread_t MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
+PerftoolsThreadID MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
 int64 MemoryRegionMap::map_size_ = 0;
 int64 MemoryRegionMap::unmap_size_ = 0;
 HeapProfileBucket** MemoryRegionMap::bucket_table_ = NULL;  // GUARDED_BY(lock_)
@@ -152,16 +150,16 @@ tcmalloc::MappingHookSpace MemoryRegionMap::mapping_hook_space_;
 // ========================================================================= //
 
 // Simple hook into execution of global object constructors,
-// so that we do not call pthread_self() when it does not yet work.
+// so that we do not call PerftoolsGetThreadID() when it does not yet work.
 static bool libpthread_initialized = false;
 REGISTER_MODULE_INITIALIZER(libpthread_initialized_setter,
                             libpthread_initialized = true);
 
-static inline bool current_thread_is(pthread_t should_be) {
+static inline bool current_thread_is(PerftoolsThreadID should_be) {
   // Before main() runs, there's only one thread, so we're always that thread
   if (!libpthread_initialized) return true;
   // this starts working only sometime well into global constructor execution:
-  return pthread_equal(pthread_self(), should_be);
+  return PerftoolsThreadIDEquals(PerftoolsGetThreadID(), should_be);
 }
 
 // ========================================================================= //
@@ -283,7 +281,7 @@ bool MemoryRegionMap::IsRecordingLocked() {
 //     both lock_ and owner_lock_ are held. They may be read under
 //     just owner_lock_.
 //   * At entry and exit of Lock() and Unlock(), the current thread
-//     owns lock_ iff pthread_equal(lock_owner_tid_, pthread_self())
+//     owns lock_ iff PerftoolsThreadIDEquals(lock_owner_tid_, PerftoolsGetThreadID())
 //     && recursion_count_ > 0.
 void MemoryRegionMap::Lock() NO_THREAD_SAFETY_ANALYSIS {
   {
@@ -302,7 +300,7 @@ void MemoryRegionMap::Lock() NO_THREAD_SAFETY_ANALYSIS {
     RAW_CHECK(recursion_count_ == 0,
               "Last Unlock didn't reset recursion_count_");
     if (libpthread_initialized)
-      lock_owner_tid_ = pthread_self();
+      lock_owner_tid_ = PerftoolsGetThreadID();
     recursion_count_ = 1;
   }
 }

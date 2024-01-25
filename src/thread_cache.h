@@ -35,13 +35,11 @@
 #define TCMALLOC_THREAD_CACHE_H_
 
 #include <config.h>
-#ifdef HAVE_PTHREAD
-#include <pthread.h>                    // for pthread_t, pthread_key_t
-#endif
 #include <stddef.h>                     // for size_t, NULL
 #include <stdint.h>                     // for uint32_t, uint64_t
 #include <sys/types.h>                  // for ssize_t
 #include "base/commandlineflags.h"
+#include "base/threading.h"
 #include "common.h"
 #include "linked_list.h"
 #include "page_heap_allocator.h"
@@ -57,12 +55,6 @@
 
 DECLARE_int64(tcmalloc_sample_parameter);
 
-#ifndef HAVE_PERFTOOLS_PTHREAD_KEYS
-#define perftools_pthread_getspecific pthread_getspecific
-#define perftools_pthread_setspecific pthread_setspecific
-#define perftools_pthread_key_create pthread_key_create
-#endif
-
 namespace tcmalloc {
 
 //-------------------------------------------------------------------
@@ -77,7 +69,7 @@ class ThreadCache {
   enum { have_tls = false };
 #endif
 
-  void Init(pthread_t tid);
+  void Init(PerftoolsThreadID tid);
   void Cleanup();
 
   // Accessors (mostly just for printing stats)
@@ -268,7 +260,7 @@ class ThreadCache {
 
   // If TLS is available, we also store a copy of the per-thread object
   // in a __thread variable since __thread variables are faster to read
-  // than pthread_getspecific().  We still need pthread_setspecific()
+  // than PerftoolsGetTlsValue().  We still need PerftoolsSetTlsValue()
   // because __thread variables provide no way to run cleanup code when
   // a thread is destroyed.
   // We also give a hint to the compiler to use the "initial exec" TLS
@@ -295,7 +287,7 @@ class ThreadCache {
   // Therefore, we use TSD keys only after tsd_inited is set to true.
   // Until then, we use a slow path to get the heap object.
   static ATTRIBUTE_HIDDEN bool tsd_inited_;
-  static pthread_key_t heap_key_;
+  static PerftoolsTlsKey heap_key_;
 
   // Linked list of heap objects.  Protected by Static::pageheap_lock.
   static ThreadCache* thread_heaps_;
@@ -331,11 +323,11 @@ class ThreadCache {
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
 
-  pthread_t     tid_;                   // Which thread owns it
-  bool          in_setspecific_;        // In call to pthread_setspecific?
+  PerftoolsThreadID   tid_;                   // Which thread owns it
+  bool                in_setspecific_;        // In call to PerftoolsSetTlsValue?
 
   // Allocate a new heap. REQUIRES: Static::pageheap_lock is held.
-  static ThreadCache* NewHeap(pthread_t tid);
+  static ThreadCache* NewHeap(PerftoolsThreadID tid);
 
   // Use only as pthread thread-specific destructor function.
   static void DestroyThreadCache(void* ptr);
@@ -411,7 +403,7 @@ inline ThreadCache* ThreadCache::GetThreadHeap() {
   return threadlocal_data_.heap;
 #else
   return reinterpret_cast<ThreadCache *>(
-      perftools_pthread_getspecific(heap_key_));
+      PerftoolsGetTlsValue(heap_key_));
 #endif
 }
 

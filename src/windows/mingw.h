@@ -54,13 +54,6 @@
 # define _WIN32_WINNT 0x0501
 #endif
 
-// Some mingw distributions have a pthreads wrapper, but it doesn't
-// work as well as native windows spinlocks (at least for us).  So
-// pretend the pthreads wrapper doesn't exist, even when it does.
-#ifndef HAVE_PTHREAD_DESPITE_ASKING_FOR
-#undef HAVE_PTHREAD
-#endif
-
 #undef HAVE_FORK
 
 #define HAVE_PID_T

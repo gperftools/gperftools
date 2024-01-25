@@ -553,6 +553,7 @@ set(LOGGING_INCLUDES
         src/base/logging.h
         src/base/commandlineflags.h
         src/base/basictypes.h
+        src/base/threading.h
         src/base/dynamic_annotations.h)
 set(liblogging_la_SOURCES src/base/logging.cc
         src/base/generic_writer.cc
@@ -565,6 +566,7 @@ set(SYSINFO_INCLUDES
         src/getenv_safe.h
         src/base/logging.h
         src/base/commandlineflags.h
+        src/base/threading.h
         src/base/basictypes.h)
 set(libsysinfo_la_SOURCES src/base/sysinfo.cc
         ${SYSINFO_INCLUDES})
@@ -634,6 +636,7 @@ endif()
 if(BUILD_TESTING)
   set(LOW_LEVEL_ALLOC_UNITTEST_INCLUDES
           src/base/low_level_alloc.h
+          src/base/threading.h
           src/base/basictypes.h
           src/gperftools/malloc_hook.h
           src/gperftools/malloc_hook_c.h
@@ -735,6 +738,7 @@ set(S_TCMALLOC_MINIMAL_INCLUDES src/common.h
         ${SPINLOCK_INCLUDES}
         src/tcmalloc_guard.h
         src/base/commandlineflags.h
+        src/base/threading.h
         src/base/basictypes.h
         src/safe_strerror.h
         src/pagemap.h
@@ -1322,6 +1326,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
   set(S_CPU_PROFILER_INCLUDES src/profiledata.h
           src/profile-handler.h
           src/getpc.h
+          src/base/threading.h
           src/base/basictypes.h
           src/base/commandlineflags.h
           src/base/googleinit.h
@@ -1369,6 +1374,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
             src/profiledata.h
             src/base/commandlineflags.h
             src/base/logging.h
+            src/base/threading.h
             src/base/basictypes.h)
     target_link_libraries(profiledata_unittest ${LIBPROFILER})
     add_test(profiledata_unittest profiledata_unittest)

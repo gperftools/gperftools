@@ -530,17 +530,17 @@ inline void set_thread_disable_counter(int value) {
 
 #else  // #ifdef HAVE_TLS
 
-static pthread_key_t thread_disable_counter_key;
+static PerftoolsTlsKey thread_disable_counter_key;
 static int main_thread_counter;   // storage for use before main()
 static bool use_main_thread_counter = true;
 
 // TODO(csilvers): this is called from NewHook, in the middle of malloc().
-// If perftools_pthread_getspecific calls malloc, that will lead to an
+// If PerftoolsGetTlsValue calls malloc, that will lead to an
 // infinite loop.  I don't know how to fix that, so I hope it never happens!
 inline int get_thread_disable_counter() {
   if (use_main_thread_counter)  // means we're running really early
     return main_thread_counter;
-  void* p = perftools_pthread_getspecific(thread_disable_counter_key);
+  void* p = PerftoolsGetTlsValue(thread_disable_counter_key);
   return (intptr_t)p;   // kinda evil: store the counter directly in the void*
 }
 
@@ -553,10 +553,10 @@ inline void set_thread_disable_counter(int value) {
   // kinda evil: store the counter directly in the void*
   void* p = (void*)pointer_sized_value;
   // NOTE: this may call malloc, which will call NewHook which will call
-  // get_thread_disable_counter() which will call pthread_getspecific().  I
+  // get_thread_disable_counter() which will call PerftoolsGetTlsValue().  I
   // don't know if anything bad can happen if we call getspecific() in the
   // middle of a setspecific() call.  It seems to work ok in practice...
-  perftools_pthread_setspecific(thread_disable_counter_key, p);
+  PerftoolsSetTlsValue(thread_disable_counter_key, p);
 }
 
 // The idea here is that this initializer will run pretty late: after
@@ -565,10 +565,10 @@ inline void set_thread_disable_counter(int value) {
 class InitThreadDisableCounter {
  public:
   InitThreadDisableCounter() {
-    pthread_key_create(&thread_disable_counter_key, NULL);
+    PerftoolsCreateTlsKey(&thread_disable_counter_key, NULL);
     // Set up the main thread's value, which we have a special variable for.
     void* p = (void*)(intptr_t)main_thread_counter;   // store the counter directly
-    perftools_pthread_setspecific(thread_disable_counter_key, p);
+    PerftoolsSetTlsValue(thread_disable_counter_key, p);
     use_main_thread_counter = false;
   }
 };
@@ -906,7 +906,7 @@ void HeapLeakChecker::DisableLibraryAllocsLocked(const char* library,
   if (IsLibraryNamed(library, "/libpthread")  ||
         // libpthread has a lot of small "system" leaks we don't care about.
         // In particular it allocates memory to store data supplied via
-        // pthread_setspecific (which can be the only pointer to a heap object).
+        // PerftoolsSetTlsValue (which can be the only pointer to a heap object).
       IsLibraryNamed(library, "/libdl")  ||
         // library loaders leak some "system" heap that we don't care about
       IsLibraryNamed(library, "/libcrypto")  ||

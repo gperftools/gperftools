@@ -48,9 +48,6 @@
 # include <sys/malloc.h>
 # endif
 #endif
-#ifdef HAVE_PTHREAD
-#include <pthread.h>
-#endif
 #include <stdarg.h>
 #include <stdio.h>
 #include <string.h>
@@ -69,6 +66,7 @@
 
 #include "addressmap-inl.h"
 #include "base/commandlineflags.h"
+#include "base/threading.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
@@ -206,7 +204,7 @@ struct MallocBlockQueueEntry {
           deleter_pcs,
           sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
           4);
-      deleter_threadid = pthread_self();
+      deleter_threadid = PerftoolsGetThreadID();
     } else {
       num_deleter_pcs = 0;
       // Zero is an illegal pthread id by my reading of the pthread
@@ -224,7 +222,7 @@ struct MallocBlockQueueEntry {
   // overhead under the LP64 data model.)
   void* deleter_pcs[16];
   int num_deleter_pcs;
-  pthread_t deleter_threadid;
+  PerftoolsThreadID deleter_threadid;
 };
 
 class MallocBlock {
@@ -1009,7 +1007,7 @@ static SpinLock malloc_trace_lock(SpinLock::LINKER_INITIALIZED);
     if (FLAGS_malloctrace) {                                            \
       SpinLockHolder l(&malloc_trace_lock);                             \
       TracePrintf(TraceFd(), "%s\t%zu\t%p\t%" GPRIuPTHREAD,      \
-                  name, size, addr, PRINTABLE_PTHREAD(pthread_self())); \
+                  name, size, addr, PRINTABLE_PTHREAD(PerftoolsGetThreadID())); \
       TraceStack();                                                     \
       TracePrintf(TraceFd(), "\n");                                     \
     }                                                                   \

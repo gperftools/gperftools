@@ -112,10 +112,6 @@
 /* Define if you have POSIX threads libraries and header files. */
 #cmakedefine HAVE_PTHREAD
 
-/* defined to 1 if pthread symbols are exposed even without include pthread.h
-   */
-#cmakedefine HAVE_PTHREAD_DESPITE_ASKING_FOR
-
 /* Define to 1 if you have the <pwd.h> header file. */
 #cmakedefine HAVE_PWD_H
 

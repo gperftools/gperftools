@@ -154,6 +154,7 @@ dist_doc_DATA += docs/index.html docs/designstyle.css
 # This is a 'convenience library' -- it's not actually installed or anything
 LOGGING_INCLUDES = src/base/logging.h \
                    src/base/commandlineflags.h \
+                   src/base/threading.h \
                    src/base/basictypes.h \
                    src/base/generic_writer.h \
                    src/base/dynamic_annotations.h
@@ -166,6 +167,7 @@ SYSINFO_INCLUDES = src/base/sysinfo.h \
                    src/getenv_safe.h \
                    src/base/logging.h \
                    src/base/commandlineflags.h \
+                   src/base/threading.h \
                    src/base/basictypes.h
 noinst_LTLIBRARIES += libsysinfo.la
 libsysinfo_la_SOURCES = src/base/sysinfo.cc \
@@ -262,6 +264,7 @@ WINDOWS_PROJECTS += vsprojects/low_level_alloc_unittest/low_level_alloc_unittest
 TESTS += low_level_alloc_unittest
 LOW_LEVEL_ALLOC_UNITTEST_INCLUDES = src/base/low_level_alloc.h \
                                     src/base/basictypes.h \
+                                    src/base/threading.h \
                                     src/gperftools/malloc_hook.h \
                                     src/gperftools/malloc_hook_c.h \
                                     src/malloc_hook-inl.h \
@@ -386,6 +389,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               $(SPINLOCK_INCLUDES) \
                               src/tcmalloc_guard.h \
                               src/base/commandlineflags.h \
+                              src/base/threading.h \
                               src/base/basictypes.h \
                               src/safe_strerror.h \
                               src/pagemap.h \
@@ -1246,6 +1250,7 @@ S_CPU_PROFILER_INCLUDES = src/profiledata.h \
                           src/getpc.h \
                           src/getpc-inl.h \
                           src/base/basictypes.h \
+                          src/base/threading.h \
                           src/base/commandlineflags.h \
                           src/base/googleinit.h \
                           src/base/logging.h \
@@ -1283,6 +1288,7 @@ profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc \
                                src/profiledata.h \
                                src/base/commandlineflags.h \
                                src/base/logging.h \
+                               src/base/threading.h \
                                src/base/basictypes.h
 profiledata_unittest_LDADD = libprofiler.la
 
