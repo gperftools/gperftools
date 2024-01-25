@@ -74,9 +74,6 @@
 /* Define to 1 if you have the <features.h> header file. */
 #cmakedefine HAVE_FEATURES_H
 
-/* Define to 1 if you have the `fork' function. */
-#cmakedefine HAVE_FORK
-
 /* Define to 1 if you have the `geteuid' function. */
 #cmakedefine HAVE_GETEUID
 

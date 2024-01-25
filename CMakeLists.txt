@@ -199,7 +199,6 @@ set(CMAKE_EXTRA_INCLUDE_FILES)
 check_function_exists("sbrk" HAVE_SBRK) # for tcmalloc to get memory
 check_function_exists("__sbrk" HAVE___SBRK) # for tcmalloc to get memory
 check_function_exists("geteuid" HAVE_GETEUID) # for turning off services when run as root
-check_function_exists("fork" HAVE_FORK) # for the pthread_atfork setup
 check_include_file("features.h" HAVE_FEATURES_H) # for vdso_support.h, Where __GLIBC__ is defined
 check_include_file("malloc.h" HAVE_MALLOC_H) # some systems define stuff there, others not
 check_include_file("glob.h" HAVE_GLOB_H) # for heap-profile-table (cleaning up profiles)

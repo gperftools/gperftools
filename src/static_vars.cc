@@ -46,26 +46,6 @@
 
 namespace tcmalloc {
 
-#if defined(HAVE_FORK) && defined(HAVE_PTHREAD)
-// These following two functions are registered via pthread_atfork to make
-// sure the central_cache locks remain in a consisten state in the forked
-// version of the thread.
-
-void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS
-{
-  Static::pageheap_lock()->Lock();
-  for (int i = 0; i < Static::num_size_classes(); ++i)
-    Static::central_cache()[i].Lock();
-}
-
-void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS
-{
-  for (int i = 0; i < Static::num_size_classes(); ++i)
-    Static::central_cache()[i].Unlock();
-  Static::pageheap_lock()->Unlock();
-}
-#endif
-
 bool Static::inited_;
 SizeMap Static::sizemap_;
 CentralFreeListPadded Static::central_cache_[kClassSizesMax];
@@ -108,9 +88,27 @@ void Static::InitStaticVars() {
   DLL_Init(&sampled_objects_);
 }
 
+// These following two functions are registered via pthread_atfork to
+// make sure the central_cache locks remain in a consisten state in
+// the forked version of the thread. Also our OSX integration uses it
+// for mi_force_lock.
+
+void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS
+{
+  Static::pageheap_lock()->Lock();
+  for (int i = 0; i < Static::num_size_classes(); ++i)
+    Static::central_cache()[i].Lock();
+}
+
+void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS
+{
+  for (int i = 0; i < Static::num_size_classes(); ++i)
+    Static::central_cache()[i].Unlock();
+  Static::pageheap_lock()->Unlock();
+}
+
 void Static::InitLateMaybeRecursive() {
-#if defined(HAVE_FORK) && defined(HAVE_PTHREAD) \
-  && !defined(__APPLE__) && !defined(TCMALLOC_NO_ATFORK) \
+#if !defined(__APPLE__) && !defined(_WIN32) && !defined(TCMALLOC_NO_ATFORK) \
   && !defined(PTHREADS_CRASHES_IF_RUN_TOO_EARLY)
   // OSX has it's own way of handling atfork in malloc (see
   // libc_override_osx.h).

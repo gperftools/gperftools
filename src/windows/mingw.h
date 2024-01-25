@@ -54,8 +54,6 @@
 # define _WIN32_WINNT 0x0501
 #endif
 
-#undef HAVE_FORK
-
 #include "windows/port.h"
 
 #endif  /* __MINGW32__ */

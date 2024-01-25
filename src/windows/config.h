@@ -93,9 +93,6 @@
 /* Define to 1 if you have the <features.h> header file. */
 /* #undef HAVE_FEATURES_H */
 
-/* Define to 1 if you have the `fork' function. */
-/* #undef HAVE_FORK */
-
 /* Define to 1 if you have the `geteuid' function. */
 /* #undef HAVE_GETEUID */
 
