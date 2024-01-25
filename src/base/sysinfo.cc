@@ -348,15 +348,6 @@ int GetSystemCPUsCount()
 
 // ----------------------------------------------------------------------
 
-#if defined __linux__ || defined __FreeBSD__ || defined __NetBSD__ || defined __sun__ || defined __CYGWIN__ || defined __CYGWIN32__ || defined __QNXNTO__
-static void ConstructFilename(const char* spec, pid_t pid,
-                              char* buf, int buf_size) {
-  CHECK_LT(snprintf(buf, buf_size,
-                    spec,
-                    static_cast<int>(pid ? pid : getpid())), buf_size);
-}
-#endif
-
 // A templatized helper function instantiated for Mach (OS X) only.
 // It can handle finding info for both 32 bits and 64 bits.
 // Returns true if it successfully handled the hdr, false else.
@@ -538,68 +529,18 @@ static bool ParseProcMapsLine(char *text, uint64 *start, uint64 *end,
 #endif
 }
 
-ProcMapsIterator::ProcMapsIterator(pid_t pid) {
-  Init(pid, NULL, false);
-}
-
-ProcMapsIterator::ProcMapsIterator(pid_t pid, Buffer *buffer) {
-  Init(pid, buffer, false);
-}
-
-ProcMapsIterator::ProcMapsIterator(pid_t pid, Buffer *buffer,
-                                   bool use_maps_backing) {
-  Init(pid, buffer, use_maps_backing);
-}
-
-void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
-                            bool use_maps_backing) {
-  pid_ = pid;
-  using_maps_backing_ = use_maps_backing;
-  dynamic_buffer_ = NULL;
-  if (!buffer) {
-    // If the user didn't pass in any buffer storage, allocate it
-    // now. This is the normal case; the signal handler passes in a
-    // static buffer.
-    buffer = dynamic_buffer_ = new Buffer;
-  } else {
-    dynamic_buffer_ = NULL;
-  }
-
-  ibuf_ = buffer->buf_;
-
+ProcMapsIterator::ProcMapsIterator() {
   stext_ = etext_ = nextline_ = ibuf_;
-  ebuf_ = ibuf_ + Buffer::kBufSize - 1;
+  ebuf_ = ibuf_ + sizeof(ibuf_);
   nextline_ = ibuf_;
 
-#if defined(__linux__) || defined(__NetBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__)
-  if (use_maps_backing) {  // don't bother with clever "self" stuff in this case
-    ConstructFilename("/proc/%d/maps_backing", pid, ibuf_, Buffer::kBufSize);
-  } else if (pid == 0) {
-    // We have to kludge a bit to deal with the args ConstructFilename
-    // expects.  The 1 is never used -- it's only impt. that it's not 0.
-    ConstructFilename("/proc/self/maps", 1, ibuf_, Buffer::kBufSize);
-  } else {
-    ConstructFilename("/proc/%d/maps", pid, ibuf_, Buffer::kBufSize);
-  }
+#if defined(__linux__) || defined(__NetBSD__) || defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__sun__)
   // No error logging since this can be called from the crash dump
   // handler at awkward moments. Users should call Valid() before
   // using.
-  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+  NO_INTR(fd_ = open("/proc/self/maps", O_RDONLY));
 #elif defined(__FreeBSD__)
-  // We don't support maps_backing on freebsd
-  if (pid == 0) {
-    ConstructFilename("/proc/curproc/map", 1, ibuf_, Buffer::kBufSize);
-  } else {
-    ConstructFilename("/proc/%d/map", pid, ibuf_, Buffer::kBufSize);
-  }
-  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
-#elif defined(__sun__)
-  if (pid == 0) {
-    ConstructFilename("/proc/self/map", 1, ibuf_, Buffer::kBufSize);
-  } else {
-    ConstructFilename("/proc/%d/map", pid, ibuf_, Buffer::kBufSize);
-  }
-  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+  NO_INTR(fd_ = open("/proc/curproc/map"_, O_RDONLY));
 #elif defined(__MACH__)
   current_image_ = _dyld_image_count();   // count down from the top
   current_load_cmd_ = -1;
@@ -609,16 +550,10 @@ void ProcMapsIterator::Init(pid_t pid, Buffer *buffer,
                                        GetCurrentProcessId());
   memset(&module_, 0, sizeof(module_));
 #elif defined(__QNXNTO__)
-  if (pid == 0) {
-    ConstructFilename("/proc/self/pmap", 1, ibuf_, Buffer::kBufSize);
-  } else {
-    ConstructFilename("/proc/%d/pmap", pid, ibuf_, Buffer::kBufSize);
-  }
-  NO_INTR(fd_ = open(ibuf_, O_RDONLY));
+  NO_INTR(fd_ = open("/proc/self/pmap", O_RDONLY));
 #else
   fd_ = -1;   // so Valid() is always false
 #endif
-
 }
 
 ProcMapsIterator::~ProcMapsIterator() {
@@ -629,14 +564,13 @@ ProcMapsIterator::~ProcMapsIterator() {
 #else
   if (fd_ >= 0) close(fd_);
 #endif
-  delete dynamic_buffer_;
 }
 
 bool ProcMapsIterator::Valid() const {
 #if defined(PLATFORM_WINDOWS)
   return snapshot_ != INVALID_HANDLE_VALUE;
 #elif defined(__MACH__)
-  return 1;
+  return true;
 #else
   return fd_ != -1;
 #endif
@@ -796,38 +730,6 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     if (filename) *filename = stext_ + filename_offset;
     if (dev) *dev = minor | (major << 8);
 
-#if !defined(__QNXNTO__)
-    if (using_maps_backing_) {
-      // Extract and parse physical page backing info.
-      char *backing_ptr = stext_ + filename_offset +
-          strlen(stext_+filename_offset);
-
-      // find the second '('
-      int paren_count = 0;
-      while (--backing_ptr > stext_) {
-        if (*backing_ptr == '(') {
-          ++paren_count;
-          if (paren_count >= 2) {
-            uint64 tmp_file_mapping;
-            uint64 tmp_file_pages;
-            uint64 tmp_anon_mapping;
-            uint64 tmp_anon_pages;
-
-            sscanf(backing_ptr+1, "F %" SCNx64 " %" SCNd64 ") (A %" SCNx64 " %" SCNd64 ")",
-                   file_mapping ? file_mapping : &tmp_file_mapping,
-                   file_pages ? file_pages : &tmp_file_pages,
-                   anon_mapping ? anon_mapping : &tmp_anon_mapping,
-                   anon_pages ? anon_pages : &tmp_anon_pages);
-            // null terminate the file name (there is a space
-            // before the first (.
-            backing_ptr[-1] = 0;
-            break;
-          }
-        }
-      }
-    }
-#endif
-
     return true;
   } while (etext_ > ibuf_);
 #elif defined(__sun__)
@@ -837,7 +739,7 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
   COMPILE_ASSERT(MA_READ == 4, solaris_ma_read_must_equal_4);
   COMPILE_ASSERT(MA_WRITE == 2, solaris_ma_write_must_equal_2);
   COMPILE_ASSERT(MA_EXEC == 1, solaris_ma_exec_must_equal_1);
-  Buffer object_path;
+  char object_path[kBufSize];
   int nread = 0;            // fill up buffer with text
   NO_INTR(nread = read(fd_, ibuf_, sizeof(prmap_t)));
   if (nread == sizeof(prmap_t)) {
@@ -847,17 +749,10 @@ bool ProcMapsIterator::NextExt(uint64 *start, uint64 *end, char **flags,
     // two middle ints are major and minor device numbers, but I'm not sure.
     sscanf(mapinfo->pr_mapname, "ufs.%*d.%*d.%ld", &inode_from_mapname);
 
-    if (pid_ == 0) {
-      CHECK_LT(snprintf(object_path.buf_, Buffer::kBufSize,
-                        "/proc/self/path/%s", mapinfo->pr_mapname),
-               Buffer::kBufSize);
-    } else {
-      CHECK_LT(snprintf(object_path.buf_, Buffer::kBufSize,
-                        "/proc/%d/path/%s",
-                        static_cast<int>(pid_), mapinfo->pr_mapname),
-               Buffer::kBufSize);
-    }
-    ssize_t len = readlink(object_path.buf_, current_filename_, PATH_MAX);
+    CHECK_LT(snprintf(object_path, sizeof(object_path),
+                      "/proc/self/path/%s", mapinfo->pr_mapname),
+             sizeof(object_path));
+    ssize_t len = readlink(object_path, current_filename_, PATH_MAX);
     CHECK_LT(len, PATH_MAX);
     if (len < 0)
       len = 0;
@@ -969,8 +864,7 @@ namespace tcmalloc {
 // if we successfully wrote all proc lines to buf, false else.
 // We do not provision for 0-terminating 'buf'.
 void SaveProcSelfMaps(GenericWriter* writer) {
-  ProcMapsIterator::Buffer iterbuf;
-  ProcMapsIterator it(0, &iterbuf);   // 0 means "current pid"
+  ProcMapsIterator it;
 
   uint64 start, end, offset;
   int64 inode;

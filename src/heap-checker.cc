@@ -965,8 +965,7 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
                                   ProcMapsTask proc_maps_task) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
   // Need to provide own scratch memory to ProcMapsIterator:
-  ProcMapsIterator::Buffer buffer;
-  ProcMapsIterator it(0, &buffer);
+  ProcMapsIterator it;
   if (!it.Valid()) {
     int errsv = errno;
     RAW_LOG(ERROR, "Could not open /proc/self/maps: errno=%d. "

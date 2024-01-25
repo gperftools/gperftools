@@ -41,9 +41,6 @@
 #include <windows.h>   // for DWORD
 #include <tlhelp32.h>  // for CreateToolhelp32Snapshot
 #endif
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>    // for pid_t
-#endif
 #include <stddef.h>    // for size_t
 #include <stdint.h>
 #include <limits.h>    // for PATH_MAX
@@ -89,31 +86,7 @@ extern int GetSystemCPUsCount();
 //    proc            /proc   procfs  rw 0 0
 class ProcMapsIterator {
  public:
-  struct Buffer {
-#ifdef __FreeBSD__
-    // FreeBSD requires us to read all of the maps file at once, so
-    // we have to make a buffer that's "always" big enough
-    static const size_t kBufSize = 102400;
-#else   // a one-line buffer is good enough
-    static const size_t kBufSize = PATH_MAX + 1024;
-#endif
-    char buf_[kBufSize];
-  };
-
-
-  // Create a new iterator for the specified pid.  pid can be 0 for "self".
-  explicit ProcMapsIterator(pid_t pid);
-
-  // Create an iterator with specified storage (for use in signal
-  // handler). "buffer" should point to a ProcMapsIterator::Buffer
-  // buffer can be NULL in which case a bufer will be allocated.
-  ProcMapsIterator(pid_t pid, Buffer *buffer);
-
-  // Iterate through maps_backing instead of maps if use_maps_backing
-  // is true.  Otherwise the same as above.  buffer can be NULL and
-  // it will allocate a buffer itself.
-  ProcMapsIterator(pid_t pid, Buffer *buffer,
-                   bool use_maps_backing);
+  ProcMapsIterator();
 
   // Returns true if the iterator successfully initialized;
   bool Valid() const;
@@ -125,9 +98,8 @@ class ProcMapsIterator {
   const char *CurrentLine() const { return stext_; }
 
   // Writes the "canonical" form of the /proc/xxx/maps info for a single
-  // line to the passed-in buffer. Returns the number of bytes written,
-  // or 0 if it was not able to write the complete line.  (To guarantee
-  // success, buffer should have size at least Buffer::kBufSize.)
+  // line to the passed-in buffer.
+  //
   // Takes as arguments values set via a call to Next().  The
   // "canonical" form of the line (taken from linux's /proc/xxx/maps):
   //    <start_addr(hex)>-<end_addr(hex)> <perms(rwxp)> <offset(hex)>   +
@@ -176,9 +148,6 @@ class ProcMapsIterator {
   ~ProcMapsIterator();
 
  private:
-  void Init(pid_t pid, Buffer *buffer, bool use_maps_backing);
-
-  char *ibuf_;        // input buffer
   char *stext_;       // start of text
   char *etext_;       // end of text
   char *nextline_;    // start of next line
@@ -206,10 +175,18 @@ class ProcMapsIterator {
 #else
   int fd_;            // filehandle on /proc/*/maps
 #endif
-  pid_t pid_;
   char flags_[10];
-  Buffer* dynamic_buffer_;  // dynamically-allocated Buffer
-  bool using_maps_backing_; // true if we are looking at maps_backing instead of maps.
+
+#ifdef __FreeBSD__
+  // FreeBSD requires us to read all of the maps file at once, so
+  // we have to make a buffer that's "always" big enough
+  // TODO(alk): thats not good enough. We can do better.
+  static constexpr size_t kBufSize = 102400;
+#else   // a one-line buffer is good enough
+  static constexpr size_t kBufSize = PATH_MAX + 1024;
+#endif
+
+  char ibuf_[kBufSize];        // input buffer
 };
 
 #endif  /* #ifndef SWIG */
