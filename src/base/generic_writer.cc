@@ -30,6 +30,7 @@
  */
 #include "base/generic_writer.h"
 
+#include <algorithm>
 #include <limits>
 #include <tuple>
 
