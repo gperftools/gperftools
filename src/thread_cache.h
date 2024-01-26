@@ -69,7 +69,7 @@ class ThreadCache {
   enum { have_tls = false };
 #endif
 
-  void Init(PerftoolsThreadID tid);
+  void Init(std::thread::id tid);
   void Cleanup();
 
   // Accessors (mostly just for printing stats)
@@ -260,7 +260,7 @@ class ThreadCache {
 
   // If TLS is available, we also store a copy of the per-thread object
   // in a __thread variable since __thread variables are faster to read
-  // than PerftoolsGetTlsValue().  We still need PerftoolsSetTlsValue()
+  // than tcmalloc::GetTlsValue().  We still need tcmalloc::SetTlsValue()
   // because __thread variables provide no way to run cleanup code when
   // a thread is destroyed.
   // We also give a hint to the compiler to use the "initial exec" TLS
@@ -287,7 +287,7 @@ class ThreadCache {
   // Therefore, we use TSD keys only after tsd_inited is set to true.
   // Until then, we use a slow path to get the heap object.
   static ATTRIBUTE_HIDDEN bool tsd_inited_;
-  static PerftoolsTlsKey heap_key_;
+  static tcmalloc::TlsKey heap_key_;
 
   // Linked list of heap objects.  Protected by Static::pageheap_lock.
   static ThreadCache* thread_heaps_;
@@ -323,11 +323,11 @@ class ThreadCache {
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
 
-  PerftoolsThreadID   tid_;                   // Which thread owns it
-  bool                in_setspecific_;        // In call to PerftoolsSetTlsValue?
+  std::thread::id     tid_;                   // Which thread owns it
+  bool                in_setspecific_;        // In call to tcmalloc::SetTlsValue?
 
   // Allocate a new heap. REQUIRES: Static::pageheap_lock is held.
-  static ThreadCache* NewHeap(PerftoolsThreadID tid);
+  static ThreadCache* NewHeap(std::thread::id tid);
 
   // Use only as pthread thread-specific destructor function.
   static void DestroyThreadCache(void* ptr);
@@ -403,7 +403,7 @@ inline ThreadCache* ThreadCache::GetThreadHeap() {
   return threadlocal_data_.heap;
 #else
   return reinterpret_cast<ThreadCache *>(
-      PerftoolsGetTlsValue(heap_key_));
+      tcmalloc::GetTlsValue(heap_key_));
 #endif
 }
 

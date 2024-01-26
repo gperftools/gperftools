@@ -72,9 +72,9 @@ __thread ThreadCache::ThreadLocalData ThreadCache::threadlocal_data_
     ATTR_INITIAL_EXEC CACHELINE_ALIGNED;
 #endif
 bool ThreadCache::tsd_inited_ = false;
-PerftoolsTlsKey ThreadCache::heap_key_;
+tcmalloc::TlsKey ThreadCache::heap_key_;
 
-void ThreadCache::Init(PerftoolsThreadID tid) {
+void ThreadCache::Init(std::thread::id tid) {
   size_ = 0;
 
   max_size_ = 0;
@@ -308,17 +308,15 @@ void ThreadCache::InitModule() {
 
 void ThreadCache::InitTSD() {
   ASSERT(!tsd_inited_);
-  PerftoolsCreateTlsKey(&heap_key_, DestroyThreadCache);
+  tcmalloc::CreateTlsKey(&heap_key_, DestroyThreadCache);
   tsd_inited_ = true;
 
 #ifdef PTHREADS_CRASHES_IF_RUN_TOO_EARLY
-  // We may have used a fake PerftoolsThreadID for the main thread.  Fix it.
-  PerftoolsThreadID zero;
-  memset(&zero, 0, sizeof(zero));
+  // We may have used a fake std::thread::id for the main thread.  Fix it.
   SpinLockHolder h(Static::pageheap_lock());
   for (ThreadCache* h = thread_heaps_; h != NULL; h = h->next_) {
-    if (h->tid_ == zero) {
-      h->tid_ = PerftoolsGetThreadID();
+    if (h->tid_ == std::thread::id{}) {
+      h->tid_ = std::this_thread::get_id();
     }
   }
 #endif
@@ -343,11 +341,11 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   if (tsd_inited_) {
     // In most common case we're avoiding expensive linear search
     // through all heaps (see below). Working TLS enables faster
-    // protection from malloc recursion in PerftoolsSetTlsValue
+    // protection from malloc recursion in tcmalloc::SetTlsValue
     seach_condition = false;
 
     if (current_heap_ptr != NULL) {
-      // we're being recursively called by PerftoolsSetTlsValue below.
+      // we're being recursively called by tcmalloc::SetTlsValue below.
       return *current_heap_ptr;
     }
     current_heap_ptr = &heap;
@@ -357,24 +355,24 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   {
     SpinLockHolder h(Static::pageheap_lock());
     // On some old glibc's, and on freebsd's libc (as of freebsd 8.1),
-    // calling pthread routines (even PerftoolsGetThreadID) too early could
+    // calling pthread routines too early could
     // cause a segfault.  Since we can call pthreads quite early, we
     // have to protect against that in such situations by making a
     // 'fake' pthread.  This is not ideal since it doesn't work well
     // when linking tcmalloc statically with apps that create threads
     // before main, so we only do it if we have to.
 #ifdef PTHREADS_CRASHES_IF_RUN_TOO_EARLY
-    PerftoolsThreadID me;
+    std::thread::id me;
     if (!tsd_inited_) {
-      memset(&me, 0, sizeof(me));
-    } else {
-      me = PerftoolsGetThreadID();
+      me = {};
+    }
+      me = std::this_thread::get_id();
     }
 #else
-    const PerftoolsThreadID me = PerftoolsGetThreadID();
+    const std::thread::id me = std::this_thread::get_id();
 #endif
 
-    // This may be a recursive malloc call from PerftoolsSetTlsValue()
+    // This may be a recursive malloc call from tcmalloc::SetTlsValue()
     // In that case, the heap for this thread has already been created
     // and added to the linked list.  So we search for that first.
     if (seach_condition) {
@@ -389,13 +387,13 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
     if (heap == NULL) heap = NewHeap(me);
   }
 
-  // We call PerftoolsSetTlsValue() outside the lock because it may
+  // We call tcmalloc::SetTlsValue() outside the lock because it may
   // call malloc() recursively.  We check for the recursive call using
   // the "in_setspecific_" flag so that we can avoid calling
-  // PerftoolsSetTlsValue() if we are already inside PerftoolsSetTlsValue().
+  // tcmalloc::SetTlsValue() if we are already inside tcmalloc::SetTlsValue().
   if (!heap->in_setspecific_ && tsd_inited_) {
     heap->in_setspecific_ = true;
-    PerftoolsSetTlsValue(heap_key_, heap);
+    tcmalloc::SetTlsValue(heap_key_, heap);
 #ifdef HAVE_TLS
     // Also keep a copy in __thread for faster retrieval
     threadlocal_data_.heap = heap;
@@ -409,7 +407,7 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
   return heap;
 }
 
-ThreadCache* ThreadCache::NewHeap(PerftoolsThreadID tid) {
+ThreadCache* ThreadCache::NewHeap(std::thread::id tid) {
   // Create the heap and add it to the linked list
   ThreadCache *heap = threadcache_allocator.New();
   heap->Init(tid);
@@ -434,7 +432,7 @@ void ThreadCache::BecomeIdle() {
   if (heap->in_setspecific_) return;    // Do not disturb the active caller
 
   heap->in_setspecific_ = true;
-  PerftoolsSetTlsValue(heap_key_, NULL);
+  tcmalloc::SetTlsValue(heap_key_, NULL);
 #ifdef HAVE_TLS
   // Also update the copy in __thread
   threadlocal_data_.heap = NULL;
@@ -443,7 +441,7 @@ void ThreadCache::BecomeIdle() {
   heap->in_setspecific_ = false;
   if (GetThreadHeap() == heap) {
     // Somehow heap got reinstated by a recursive call to malloc
-    // from PerftoolsSetTlsValue.  We give up in this case.
+    // from tcmalloc::SetTlsValue.  We give up in this case.
     return;
   }
 

@@ -151,6 +151,7 @@ TEST(DebugAllocationTest, DoubleFree) {
 
 TEST(DebugAllocationTest, StompBefore) {
   int* pint = noopt(new int);
+  (void)pint;
 #ifndef NDEBUG   // don't stomp memory if we're not in a position to detect it
   pint[-1] = 5;
   IF_DEBUG_EXPECT_DEATH(delete pint, "a word before object");
@@ -159,6 +160,7 @@ TEST(DebugAllocationTest, StompBefore) {
 
 TEST(DebugAllocationTest, StompAfter) {
   int* pint = noopt(new int);
+  (void)pint;
 #ifndef NDEBUG   // don't stomp memory if we're not in a position to detect it
   pint[1] = 5;
   IF_DEBUG_EXPECT_DEATH(delete pint, "a word after object");
@@ -303,6 +305,8 @@ TEST(DebugAllocationTest, HugeAlloc) {
   size_t kTooBig = ~static_cast<size_t>(0);
   void* a = NULL;
 
+  (void)kTooBig;
+  (void)a;
 #ifndef NDEBUG
 
   a = noopt(malloc(noopt(kTooBig)));

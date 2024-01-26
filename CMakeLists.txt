@@ -383,7 +383,7 @@ elseif(APPLE)
   message(WARNING "OSX __thread support is known to call malloc which makes "
                     "it unsafe to use from malloc replacement")
 elseif(MINGW)
-  message(WARNING "mingw doesn't really support tls")
+  message(WARNING "mingw doesn't really support implicit tls (emulated). Also, see #1484")
 elseif(MSVC)
   check_c_source_compiles("static __declspec(thread) int p = 0; int main() {}" HAVE_TLS)
 else()
@@ -582,7 +582,6 @@ target_link_libraries(sysinfo ${libsysinfo_la_LIBADD})
 if(MINGW OR MSVC)
   set(WINDOWS_INCLUDES
           src/windows/port.h
-          src/windows/mingw.h
           src/windows/mini_disassembler.h
           src/windows/mini_disassembler_types.h
           src/windows/preamble_patcher.h)
@@ -797,7 +796,7 @@ add_library(tcmalloc_minimal SHARED ${libtcmalloc_minimal_la_SOURCES})
 target_compile_definitions(tcmalloc_minimal PRIVATE ${libtcmalloc_minimal_la_DEFINES})
 set(libtcmalloc_minimal_la_LIBADD tcmalloc_minimal_internal)
 target_link_libraries(tcmalloc_minimal PRIVATE tcmalloc_minimal_internal Threads::Threads)
-if(MINGW)
+if(MINGW AND WITH_STACK_TRACE)
   target_link_libraries(tcmalloc_minimal PRIVATE stacktrace)
 endif()
 set_target_properties(tcmalloc_minimal PROPERTIES
@@ -808,7 +807,7 @@ if(GPERFTOOLS_BUILD_STATIC)
     add_library(tcmalloc_minimal_static STATIC ${libtcmalloc_minimal_internal_la_SOURCES})
     target_compile_definitions(tcmalloc_minimal_static PRIVATE NO_TCMALLOC_SAMPLES NDEBUG)
     target_link_libraries(tcmalloc_minimal_static PRIVATE tcmalloc_minimal_internal Threads::Threads)
-    if(MINGW)
+    if(MINGW AND WITH_STACK_TRACE)
       target_link_libraries(tcmalloc_minimal_static PRIVATE stacktrace)
     endif()
     if(NOT MSVC)
@@ -945,11 +944,11 @@ if(BUILD_TESTING)
   endif()
 
   add_executable(page_heap_test src/tests/page_heap_test.cc)
-  if(MSVC)
+  if(MSVC OR MINGW)
     # page_heap_test was changed such that it now refers to an unexported symbol.
     # Temporary workaround by linking to the .obj files instead of tcmalloc_minimal.
     # Also see commit e521472 for the VSProj changes.
-    target_link_libraries(page_heap_test PRIVATE tcmalloc_minimal_internal Threads::Threads)
+    target_link_libraries(page_heap_test tcmalloc_minimal spinlock sysinfo logging)
   else()
     target_link_libraries(page_heap_test tcmalloc_minimal)
   endif()

@@ -44,13 +44,6 @@
 #ifndef BASE_GETPC_H_
 #define BASE_GETPC_H_
 
-// Note: we include this from one of configure script C++ tests as
-// part of verifying that we're able to build CPU profiler. I.e. we
-// cannot include config.h as we normally do, since it isn't produced
-// yet, but those HAVE_XYZ defines are available, so including
-// ucontext etc stuff works. It's usage from profiler.cc (and
-// stacktrace_generic_fp-inl.h) is after config.h is included.
-
 // On many linux systems, we may need _GNU_SOURCE to get access to
 // the defined constants that define the register we want to see (eg
 // REG_EIP).  Note this #define must come first!

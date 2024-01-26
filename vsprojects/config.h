@@ -1,28 +1,15 @@
 /* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*- */
-/* A manual version of config.h fit for windows machines.
+/* A pregenerated copy of config.h for VSProj-based builds
  *
  * Use of this source code is governed by a BSD-style license that can
  * be found in the LICENSE file.
  */
 
-/* Sometimes we accidentally #include this config.h instead of the one
-   in .. -- this is particularly true for msys/mingw, which uses the
-   unix config.h but also runs code in the windows directory.
-   */
-#ifdef __MINGW32__
-#include "../config.h"
-#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
+#if !defined(_MSC_VER) || defined __MINGW32__
+#error "This config.h should only be consumed by the VSProj build!"
 #endif
 
-// windows.h whatevevs defines min and max preprocessor macros and
-// that breaks ::max() in various places (like numeric_limits)
-#ifndef NOMINMAX
-#define NOMINMAX
-#endif
-
-#ifndef GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
-#define GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_
-/* used by tcmalloc.h */
+#ifndef GPERFTOOLS_CONFIG_H_
 #define GPERFTOOLS_CONFIG_H_
 
 /* Enable aggressive decommit by default */
@@ -247,21 +234,7 @@
 # define __STDC_FORMAT_MACROS 1
 #endif
 
-// ---------------------------------------------------------------------
-// Extra stuff not found in config.h.in
-
-// This must be defined before the windows.h is included.  We need at
-// least 0x0400 for mutex.h to have access to TryLock, and at least
-// 0x0501 for patch_functions.cc to have access to GetModuleHandleEx.
-// (This latter is an optimization we could take out if need be.)
-#ifndef _WIN32_WINNT
-# define _WIN32_WINNT 0x0501
-#endif
-
-// We want to make sure not to ever try to #include heap-checker.h
-#define NO_HEAP_CHECK 1
-
 // TODO(csilvers): include windows/port.h in every relevant source file instead?
 #include "windows/port.h"
 
-#endif  /* GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_ */
+#endif  /* GPERFTOOLS_CONFIG_H_ */

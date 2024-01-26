@@ -33,92 +33,76 @@
 
 #include <config.h>
 #include "base/basictypes.h"
+#include <thread>
 
-// Also allow for printing of a PerftoolsThreadID.
-#define GPRIuPTHREAD "lu"
-#define GPRIxPTHREAD "lx"
+// Also allow for printing of a std::thread::id.
+#define GPRIuTHREADID "zu"
+#define GPRIxTHREADID "zx"
 
-#if defined(__CYGWIN__) || defined(__CYGWIN32__) || defined(__APPLE__) || defined(__FreeBSD__)
-#  define PRINTABLE_PTHREAD(pthreadt) reinterpret_cast<uintptr_t>(pthreadt)
-#elif defined(__QNXNTO__)
-#  define PRINTABLE_PTHREAD(pthreadt) static_cast<intptr_t>(pthreadt)
-#else
-#  define PRINTABLE_PTHREAD(pthreadt) pthreadt
-#endif
+// Unfortunately std::thread::id does not provide a non-allocating,
+// non-throwing and generally "safe" means to print its value.
+// Nor does it provide a native_handle() function to get the underlying
+// platform-specific tid.
+// Doing the next best thing which is to print its hash value instead.
+#define PRINTABLE_THREADID(tid) std::hash<std::thread::id>()(tid)
 
 #ifdef _WIN32 // Should cover both toolchains on Windows - MSVC & MINGW
 
-using PerftoolsThreadID = DWORD;
-using PerftoolsTlsKey = DWORD;
+namespace tcmalloc {
 
-inline PerftoolsThreadID PerftoolsGetThreadID() {
-  return GetCurrentThreadId();
-}
-inline int PerftoolsThreadIDEquals(PerftoolsThreadID left, PerftoolsThreadID right) {
-  return left == right;
-}
+    using TlsKey = DWORD;
 
-extern "C" PerftoolsTlsKey PthreadKeyCreate(void (*destr_fn)(void*));  /* port.cc */
+    ATTRIBUTE_VISIBILITY_HIDDEN TlsKey WinTlsKeyCreate(void (*destr_fn)(void*));  /* windows/port.cc */
 
-inline int PerftoolsCreateTlsKey(PerftoolsTlsKey *pkey, void (*destructor)(void*)) {
-  PerftoolsTlsKey key = PthreadKeyCreate(destructor);
+    ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
+      TlsKey key = WinTlsKeyCreate(destructor);
 
-  if (key != TLS_OUT_OF_INDEXES) {
-    *(pkey) = key;
-    return 0;
-  }
-  else {
-    return GetLastError();
-  }
-}
-inline void* PerftoolsGetTlsValue(PerftoolsTlsKey key) {
-  DWORD err = GetLastError();
-  void* rv = TlsGetValue(key);
+      if (key != TLS_OUT_OF_INDEXES) {
+        *(pkey) = key;
+        return 0;
+      }
+      else {
+        return GetLastError();
+      }
+    }
+    ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
+      DWORD err = GetLastError();
+      void* rv = TlsGetValue(key);
 
-  if (err) SetLastError(err);
-  return rv;
-}
-inline int PerftoolsSetTlsValue(PerftoolsTlsKey key, const void* value) {
-  if (TlsSetValue(key, (LPVOID)value)) {
-    return 0;
-  }
-  else {
-    return GetLastError();
-  }
-}
+      if (err) SetLastError(err);
+      return rv;
+    }
+    ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
+      if (TlsSetValue(key, (LPVOID)value)) {
+        return 0;
+      }
+      else {
+        return GetLastError();
+      }
+    }
 
-inline void PerftoolsYield() {
-  Sleep(0);
-}
+} // namespace tcmalloc
 
 #elif defined(HAVE_PTHREAD)
 
 #  include <pthread.h>
 #  include <sched.h>
 
-using PerftoolsThreadID = pthread_t;
-using PerftoolsTlsKey = pthread_key_t;
+namespace tcmalloc {
 
-inline PerftoolsThreadID PerftoolsGetThreadID() {
-  return pthread_self();
-}
-inline int PerftoolsThreadIDEquals(PerftoolsThreadID left, PerftoolsThreadID right) {
-  return pthread_equal(left, right);
-}
+    using TlsKey = pthread_key_t;
 
-inline int PerftoolsCreateTlsKey(PerftoolsTlsKey *pkey, void (*destructor)(void*)) {
-  return pthread_key_create(pkey, destructor);
-}
-inline void* PerftoolsGetTlsValue(PerftoolsTlsKey key) {
-  return pthread_getspecific(key);
-}
-inline int PerftoolsSetTlsValue(PerftoolsTlsKey key, const void* value) {
-  return pthread_setspecific(key, value);
-}
+    ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
+      return pthread_key_create(pkey, destructor);
+    }
+    ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
+      return pthread_getspecific(key);
+    }
+    ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
+      return pthread_setspecific(key, value);
+    }
 
-inline ATTRIBUTE_ALWAYS_INLINE void PerftoolsYield() {
-  sched_yield();
-}
+} // namespace tcmalloc
 
 #else
 #  error "Threading support is now mandatory"

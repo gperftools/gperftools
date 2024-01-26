@@ -255,7 +255,6 @@ AC_CHECK_TYPES([Elf32_Versym],,, [#include <elf.h>])   # for vdso_support.h
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(__sbrk)          # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
-AC_CHECK_FUNCS(fork)            # for the pthread_atfork setup
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h, __GLIBC__ macros
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
@@ -507,7 +506,7 @@ AC_MSG_CHECKING([for __thread])
 AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 1) || (__GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ < 2))
 #error gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
 #elif defined(__MINGW32__)
-#error mingw doesnt really support tls
+#error mingw doesnt really support implicit tls (emulated). Also, see #1484
 #elif defined(__APPLE__)
 #error OSX __thread support is known to call malloc which makes it unsafe to use from malloc replacement
 #elif defined(_AIX)
@@ -586,13 +585,10 @@ AC_DEFINE(PERFTOOLS_DLL_DECL,,
 	   internally, to compile the DLL, and every DLL source file
 	   #includes "config.h" before anything else.])
 
-# In theory, config.h files shouldn't need a header guard, but we do,
-# because we (maybe) #include windows/mingw.h from within config.h,
-# and it #includes other .h files.  These all have header guards, so
-# the end result is if config.h is #included twice, its #undefs get
-# evaluated twice, but all the ones in mingw.h/etc only get evaluated
-# once, potentially causing trouble.  c.f.
+# In theory, config.h files shouldn't need a header guard.
+# Now there were historical reasons for doing so
 #   https://github.com/gperftools/gperftools/issues/248
+# but these days we are keeping it mostly for consistency and safety.
 AH_TOP([
 #ifndef GPERFTOOLS_CONFIG_H_
 #define GPERFTOOLS_CONFIG_H_
@@ -613,8 +609,9 @@ AH_VERBATIM([PTHREADS_CRASHES_IF_RUN_TOO_EARLY],
 # Also, manually mark systems where we have to be careful how early
 # we run pthreads.  TODO(csilvers): turn this into an autoconf check.
 AH_BOTTOM([
-#ifdef __MINGW32__
-#include "windows/mingw.h"
+#ifdef WIN32
+// TODO(csilvers): include windows/port.h in every relevant source file instead?
+#include "windows/port.h"
 #endif
 
 #endif  /* #ifndef GPERFTOOLS_CONFIG_H_ */

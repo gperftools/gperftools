@@ -183,7 +183,6 @@ libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS)
 # need for other files like system_alloc.cc.
 if MINGW
 WINDOWS_INCLUDES = src/windows/port.h \
-                   src/windows/mingw.h \
                    src/windows/mini_disassembler.h \
                    src/windows/mini_disassembler_types.h \
                    src/windows/preamble_patcher.h
@@ -1462,7 +1461,7 @@ dist-hook: $(top_distdir)/ChangeLog
 
 EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
-             src/windows/config.h src/windows/gperftools/tcmalloc.h \
+             src/windows/gperftools/tcmalloc.h \
              docs/pprof.see_also src/windows/TODO \
              $(WINDOWS_PROJECTS) \
              src/solaris/libstdc++.la \

@@ -201,7 +201,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     const auto value = reinterpret_cast<MallocHook::NewHook>((i << shift) + thread_num);
     EXPECT_TRUE(list->Add(value));
 
-    PerftoolsYield();  // Ensure some more interleaving.
+    std::this_thread::yield();  // Ensure some more interleaving.
 
     MallocHook::NewHook values[kHookListMaxValues + 1];
     int num_values = list->Traverse(values, kHookListMaxValues + 1);
@@ -218,11 +218,11 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     snprintf(buf, sizeof(buf), "[%d/%d; ", value_index, num_values);
     message += buf;
 
-    PerftoolsYield();
+    std::this_thread::yield();
 
     EXPECT_TRUE(list->Remove(value));
 
-    PerftoolsYield();
+    std::this_thread::yield();
 
     num_values = list->Traverse(values, kHookListMaxValues);
     for (value_index = 0;
@@ -235,7 +235,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     snprintf(buf, sizeof(buf), "%d]", num_values);
     message += buf;
 
-    PerftoolsYield();
+    std::this_thread::yield();
   }
   fprintf(stderr, "thread %d: %s\n", thread_num, message.c_str());
 }

@@ -194,7 +194,7 @@ class FreeQueue {
 
 struct MallocBlockQueueEntry {
   MallocBlockQueueEntry() : block(NULL), size(0),
-                            num_deleter_pcs(0), deleter_threadid(0) {}
+                            num_deleter_pcs(0) {}
   MallocBlockQueueEntry(MallocBlock* b, size_t s) : block(b), size(s) {
     if (FLAGS_max_free_queue_size != 0 && b != NULL) {
       // Adjust the number of frames to skip (4) if you change the
@@ -204,12 +204,9 @@ struct MallocBlockQueueEntry {
           deleter_pcs,
           sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
           4);
-      deleter_threadid = PerftoolsGetThreadID();
+      deleter_threadid = std::this_thread::get_id();
     } else {
       num_deleter_pcs = 0;
-      // Zero is an illegal pthread id by my reading of the pthread
-      // implementation:
-      deleter_threadid = 0;
     }
   }
 
@@ -222,7 +219,7 @@ struct MallocBlockQueueEntry {
   // overhead under the LP64 data model.)
   void* deleter_pcs[16];
   int num_deleter_pcs;
-  PerftoolsThreadID deleter_threadid;
+  std::thread::id deleter_threadid;
 };
 
 class MallocBlock {
@@ -692,9 +689,8 @@ class MallocBlock {
     const MallocBlock* b = queue_entry.block;
     const size_t size = queue_entry.size;
     if (queue_entry.num_deleter_pcs > 0) {
-      TracePrintf(STDERR_FILENO, "Deleted by thread %p\n",
-                  reinterpret_cast<void*>(
-                      PRINTABLE_PTHREAD(queue_entry.deleter_threadid)));
+      TracePrintf(STDERR_FILENO, "Deleted by thread %" GPRIxTHREADID "\n",
+                  PRINTABLE_THREADID(queue_entry.deleter_threadid));
 
       // We don't want to allocate or deallocate memory here, so we use
       // placement-new.  It's ok that we don't destroy this, since we're
@@ -1002,15 +998,15 @@ static void TraceStack(void) {
 // This protects MALLOC_TRACE, to make sure its info is atomically written.
 static SpinLock malloc_trace_lock(SpinLock::LINKER_INITIALIZED);
 
-#define MALLOC_TRACE(name, size, addr)                                  \
-  do {                                                                  \
-    if (FLAGS_malloctrace) {                                            \
-      SpinLockHolder l(&malloc_trace_lock);                             \
-      TracePrintf(TraceFd(), "%s\t%zu\t%p\t%" GPRIuPTHREAD,      \
-                  name, size, addr, PRINTABLE_PTHREAD(PerftoolsGetThreadID())); \
-      TraceStack();                                                     \
-      TracePrintf(TraceFd(), "\n");                                     \
-    }                                                                   \
+#define MALLOC_TRACE(name, size, addr)                                               \
+  do {                                                                               \
+    if (FLAGS_malloctrace) {                                                         \
+      SpinLockHolder l(&malloc_trace_lock);                                          \
+      TracePrintf(TraceFd(), "%s\t%zu\t%p\t%" GPRIuTHREADID,                         \
+                  name, size, addr, PRINTABLE_THREADID(std::this_thread::get_id())); \
+      TraceStack();                                                                  \
+      TracePrintf(TraceFd(), "\n");                                                  \
+    }                                                                                \
   } while (0)
 
 // ========================================================================= //

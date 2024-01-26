@@ -1101,7 +1101,7 @@ size_t TCMallocImplementation::GetEstimatedAllocatedSize(size_t size) {
 // runs before main(), and therefore we do not have a chance to become
 // multi-threaded before initialization.  We also create the TSD key
 // here.  Presumably by the time this constructor runs, glibc is in
-// good enough shape to handle PerftoolsCreateTlsKey().
+// good enough shape to handle tcmalloc::CreateTlsKey().
 //
 // The constructor also takes the opportunity to tell STL to use
 // tcmalloc.  We want to do this early, before construct time, so
