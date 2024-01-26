@@ -182,7 +182,7 @@ class ProfileHandler {
 #if HAVE_LINUX_SIGEV_THREAD_ID
   // this is used to destroy per-thread profiling timers on thread
   // termination
-  PerftoolsTlsKey thread_timer_key;
+  tcmalloc::TlsKey thread_timer_key;
 #endif
 
   // This lock serializes the registration of threads and protects the
@@ -265,15 +265,15 @@ extern "C" {
   }
 }
 
-static void CreateThreadTimerKey(PerftoolsTlsKey *pkey) {
-  int rv = PerftoolsCreateTlsKey(pkey, ThreadTimerDestructor);
+static void CreateThreadTimerKey(tcmalloc::TlsKey *pkey) {
+  int rv = tcmalloc::CreateTlsKey(pkey, ThreadTimerDestructor);
   if (rv) {
-    RAW_LOG(FATAL, "aborting due to PerftoolsCreateTlsKey error: %s", strerror(rv));
+    RAW_LOG(FATAL, "aborting due to tcmalloc::CreateTlsKey error: %s", strerror(rv));
   }
 }
 
 static void StartLinuxThreadTimer(int timer_type, int signal_number,
-                                  int32 frequency, PerftoolsTlsKey timer_key) {
+                                  int32 frequency, tcmalloc::TlsKey timer_key) {
   int rv;
   struct sigevent sevp;
   timer_t timerid;
@@ -292,9 +292,9 @@ static void StartLinuxThreadTimer(int timer_type, int signal_number,
   }
 
   timer_id_holder *holder = new timer_id_holder(timerid);
-  rv = PerftoolsSetTlsValue(timer_key, holder);
+  rv = tcmalloc::SetTlsValue(timer_key, holder);
   if (rv) {
-    RAW_LOG(FATAL, "aborting due to PerftoolsSetTlsValue error: %s", strerror(rv));
+    RAW_LOG(FATAL, "aborting due to tcmalloc::SetTlsValue error: %s", strerror(rv));
   }
 
   its.it_interval.tv_sec = 0;

@@ -308,7 +308,7 @@ class MemoryRegionMap {
   // Recursion count for the recursive lock.
   static int recursion_count_;
   // The thread id of the thread that's inside the recursive lock.
-  static PerftoolsThreadID lock_owner_tid_;
+  static std::thread::id lock_owner_tid_;
 
   // Total size of all mapped pages so far
   static int64 map_size_;

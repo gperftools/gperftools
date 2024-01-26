@@ -272,7 +272,7 @@
     <ClInclude Include="..\..\src\system-alloc.h" />
     <ClInclude Include="..\..\src\tcmalloc.h" />
     <ClInclude Include="..\..\src\thread_cache.h" />
-    <ClInclude Include="..\..\src\windows\config.h" />
+    <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\src\windows\mini_disassembler.h" />
     <ClInclude Include="..\..\src\windows\mini_disassembler_types.h" />
     <ClInclude Include="..\..\src\windows\port.h" />
@@ -281,4 +281,5 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Import Project="$(MSBuildProjectDirectory)\..\common.vcxproj.props" />
 </Project>

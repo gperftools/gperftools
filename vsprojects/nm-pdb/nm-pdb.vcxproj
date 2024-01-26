@@ -188,4 +188,5 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Import Project="$(MSBuildProjectDirectory)\..\common.vcxproj.props" />
 </Project>

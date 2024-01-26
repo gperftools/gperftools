@@ -41,11 +41,9 @@
 #ifndef GOOGLE_BASE_WINDOWS_H_
 #define GOOGLE_BASE_WINDOWS_H_
 
-/* You should never include this file directly, but always include it
-   from either config.h (MSVC) or mingw.h (MinGW/msys). */
-#if !defined(GOOGLE_PERFTOOLS_WINDOWS_CONFIG_H_) && \
-    !defined(GOOGLE_PERFTOOLS_WINDOWS_MINGW_H_)
-# error "port.h should only be included from config.h or mingw.h"
+/* You should never include this file directly, but always include it from config.h */
+#ifndef GPERFTOOLS_CONFIG_H_
+# error "port.h should only be included from config.h"
 #endif
 
 #ifdef _WIN32
@@ -53,6 +51,29 @@
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN  /* We always want minimal includes */
 #endif
+
+// windows.h whatevevs defines min and max preprocessor macros and
+// that breaks ::max() in various places (like numeric_limits)
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+// This must be defined before the windows.h is included.  We need at
+// least 0x0400 for mutex.h to have access to TryLock, and at least
+// 0x0501 for patch_functions.cc to have access to GetModuleHandleEx.
+// (This latter is an optimization we could take out if need be.)
+#ifndef _WIN32_WINNT
+# define _WIN32_WINNT 0x0501
+#endif
+
+// We want to make sure not to ever try to #include heap-checker.h
+#define NO_HEAP_CHECK 1
+
+#if defined(__MINGW32__) && __MSVCRT_VERSION__ < 0x0700
+// Older version of the mingw msvcrt don't define _aligned_malloc
+# define PERFTOOLS_NO_ALIGNED_MALLOC 1
+#endif
+
 #include <windows.h>
 #include <io.h>              /* because we so often use open/close/etc */
 #include <direct.h>          /* for _getcwd */

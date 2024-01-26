@@ -208,7 +208,7 @@
     <ClInclude Include="..\..\src\base\spinlock_win32-inl.h" />
     <ClInclude Include="..\..\src\config_for_unittests.h" />
     <ClInclude Include="..\..\src\packed-cache-inl.h" />
-    <ClInclude Include="..\..\src\windows\config.h" />
+    <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\src\windows\port.h" />
   </ItemGroup>
   <ItemGroup>
@@ -220,4 +220,5 @@
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
+  <Import Project="$(MSBuildProjectDirectory)\..\common.vcxproj.props" />
 </Project>
