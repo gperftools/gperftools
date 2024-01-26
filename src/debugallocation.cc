@@ -915,6 +915,10 @@ static void TracePrintf(int fd, const char *fmt, ...) {
         l = va_arg(ap, size_t);
         base = 10;
         p++;
+      } else if (*p == 'z' && p[1] == 'x') {        // %zx
+        l = va_arg(ap, size_t);
+        base = 16;
+        p++;
       } else if (*p == 'u') {                       // %u
         l = va_arg(ap, unsigned int);
         base = 10;
