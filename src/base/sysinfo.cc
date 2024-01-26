@@ -550,7 +550,7 @@ ProcMapsIterator::ProcMapsIterator() {
   // using.
   NO_INTR(fd_ = open("/proc/self/maps", O_RDONLY));
 #elif defined(__FreeBSD__)
-  NO_INTR(fd_ = open("/proc/curproc/map"_, O_RDONLY));
+  NO_INTR(fd_ = open("/proc/curproc/map", O_RDONLY));
 #elif defined(__MACH__)
   current_image_ = _dyld_image_count();   // count down from the top
   current_load_cmd_ = -1;

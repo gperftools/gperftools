@@ -365,7 +365,7 @@ ThreadCache* ThreadCache::CreateCacheIfNecessary() {
     std::thread::id me;
     if (!tsd_inited_) {
       me = {};
-    }
+    } else {
       me = std::this_thread::get_id();
     }
 #else
