@@ -83,7 +83,7 @@ namespace tcmalloc {
 
 } // namespace tcmalloc
 
-#elif defined(HAVE_PTHREAD)
+#else
 
 #  include <pthread.h>
 #  include <sched.h>
@@ -104,8 +104,6 @@ namespace tcmalloc {
 
 } // namespace tcmalloc
 
-#else
-#  error "Threading support is now mandatory"
 #endif
 
 #endif // THREADING_H_

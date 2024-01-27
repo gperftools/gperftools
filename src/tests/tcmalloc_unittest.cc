@@ -63,19 +63,19 @@
 // doesn't sub-include stdlib.h, so we'll still get posix_memalign
 // when we #include stdlib.h.  Blah.
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>        // for testing sbrk hooks
+#include <unistd.h>                 // for testing sbrk hooks
 #endif
-#include "tcmalloc.h"      // must come early, to pick up posix_memalign
+#include "tcmalloc_internal.h"      // must come early, to pick up posix_memalign
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
-#include <stdint.h>        // for intptr_t
-#include <sys/types.h>     // for size_t
+#include <stdint.h>                 // for intptr_t
+#include <sys/types.h>              // for size_t
 #ifdef HAVE_FCNTL_H
-#include <fcntl.h>         // for open; used with mmap-hook test
+#include <fcntl.h>                  // for open; used with mmap-hook test
 #endif
 #ifdef HAVE_MALLOC_H
-#include <malloc.h>        // defines pvalloc/etc on cygwin
+#include <malloc.h>                 // defines pvalloc/etc on cygwin
 #endif
 #include <assert.h>
 #include <vector>
@@ -139,7 +139,7 @@ static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
 
 #endif
 
-#if defined(ENABLE_ALIGNED_NEW_DELETE)
+#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 #define OVERALIGNMENT 64
 
@@ -158,7 +158,7 @@ struct overaligned_type
                                          // implementation functions
 };
 
-#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
 // form of the name instead.
@@ -1367,7 +1367,7 @@ static int RunAllTests(int argc, char** argv) {
     VerifyDeleteHookWasCalled();
 #endif
 
-#if defined(ENABLE_ALIGNED_NEW_DELETE)
+#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
     overaligned_type* poveraligned = noopt(new overaligned_type);
     CHECK(poveraligned != NULL);
@@ -1428,7 +1428,7 @@ static int RunAllTests(int argc, char** argv) {
     VerifyDeleteHookWasCalled();
 #endif
 
-#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 // On AIX user defined malloc replacement of libc routines
 // cannot be done at link time must be done a runtime via

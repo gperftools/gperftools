@@ -248,7 +248,7 @@ extern "C" {
   void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
 
-#if defined(ENABLE_ALIGNED_NEW_DELETE)
+#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
   void* tc_new_aligned(size_t size, std::align_val_t al)
       ATTRIBUTE_SECTION(google_malloc);
@@ -273,7 +273,7 @@ extern "C" {
   void tc_deletearray_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
 
-#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
   // Some non-standard extensions that we support.
 
@@ -2120,7 +2120,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(
   }
 }
 
-#if defined(ENABLE_ALIGNED_NEW_DELETE)
+#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
   return memalign_fast_path<tcmalloc::cpp_throw_oom>(static_cast<size_t>(align), size);
@@ -2194,7 +2194,7 @@ TC_ALIAS(tc_delete_aligned_nothrow);
 }
 #endif
 
-#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 static size_t pagesize = 0;
 

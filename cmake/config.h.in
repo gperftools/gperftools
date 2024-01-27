@@ -4,9 +4,6 @@
 /* Enable aggressive decommit by default */
 #cmakedefine ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT
 
-/* Build new/delete operators for overaligned types */
-#cmakedefine ENABLE_ALIGNED_NEW_DELETE
-
 /* Build runtime detection for sized delete */
 #cmakedefine ENABLE_DYNAMIC_SIZED_DELETE
 
@@ -94,9 +91,6 @@
 
 /* define if libc has program_invocation_name */
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
-
-/* Define if you have POSIX threads libraries and header files. */
-#cmakedefine HAVE_PTHREAD
 
 /* Define to 1 if you have the <pwd.h> header file. */
 #cmakedefine HAVE_PWD_H

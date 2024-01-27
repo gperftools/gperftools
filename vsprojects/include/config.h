@@ -15,9 +15,6 @@
 /* Enable aggressive decommit by default */
 /* #undef ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT */
 
-/* Build new/delete operators for overaligned types */
-/* #undef ENABLE_ALIGNED_NEW_DELETE */
-
 /* Build runtime detection for sized delete */
 /* #undef ENABLE_DYNAMIC_SIZED_DELETE */
 
@@ -109,9 +106,6 @@
 
 /* define if libc has program_invocation_name */
 /* #undef HAVE_PROGRAM_INVOCATION_NAME */
-
-/* Define if you have POSIX threads libraries and header files. */
-/* #undef HAVE_PTHREAD */
 
 /* Define to 1 if you have the <pwd.h> header file. */
 /* #undef HAVE_PWD_H */

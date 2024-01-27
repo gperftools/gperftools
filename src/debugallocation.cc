@@ -64,6 +64,9 @@
 #include <gperftools/malloc_hook.h>
 #include <gperftools/stacktrace.h>
 
+// Will be pulled in as along with tcmalloc.cc
+// #include <gperftools/tcmalloc.h>
+
 #include "addressmap-inl.h"
 #include "base/commandlineflags.h"
 #include "base/threading.h"
@@ -1498,7 +1501,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
   return p;
 }
 
-#if defined(ENABLE_ALIGNED_NEW_DELETE)
+#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
   void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kNewType, true, false);
@@ -1558,7 +1561,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::
   tc_deletearray(p);
 }
 
-#endif // defined(ENABLE_ALIGNED_NEW_DELETE)
+#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 // malloc_stats just falls through to the base implementation.
 extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW {
