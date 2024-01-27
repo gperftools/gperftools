@@ -313,17 +313,6 @@ if(NOT MSVC)
   set(CMAKE_REQUIRED_FLAGS)
 endif()
 
-check_cxx_source_compiles("
-  #include <new>
-  int main() { (::operator delete)((::operator new)(256, std::align_val_t(16)), std::align_val_t(16)); return 0; }"
-  HAVE_STD_ALIGN_VAL_T)
-if(HAVE_STD_ALIGN_VAL_T)
-  set(HAVE_STD_ALIGN_VAL_T 1)
-  set(ENABLE_ALIGNED_NEW_DELETE 1)
-else()
-  set(HAVE_STD_ALIGN_VAL_T 0)
-endif()
-
 check_cxx_compiler_flag("-faligned-new" have_f_aligned_new)
 
 check_c_source_compiles("
@@ -926,16 +915,13 @@ if(BUILD_TESTING)
   if(NOT MSVC)
     add_executable(malloc_extension_c_test src/tests/malloc_extension_c_test.cc)
     target_link_libraries(malloc_extension_c_test PUBLIC
-            tcmalloc_minimal stdc++ m)
-    if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
-      target_compile_options(malloc_extension_c_test PUBLIC "-ansi")
-    endif()
+            tcmalloc_minimal)
     add_test(malloc_extension_c_test malloc_extension_c_test)
   endif()
 
   if(NOT MINGW AND NOT MSVC AND NOT APPLE)
     set(memalign_unittest_SOURCES src/tests/memalign_unittest.cc
-            src/tcmalloc.h
+            src/tcmalloc_internal.h
             src/config_for_unittests.h
             src/tests/testutil.h src/tests/testutil.cc)
     add_executable(memalign_unittest ${memalign_unittest_SOURCES})
@@ -1167,7 +1153,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     set(TCMALLOC_UNITTEST_INCLUDES src/config_for_unittests.h
             src/gperftools/malloc_extension.h)
     set(tcmalloc_unittest_SOURCES src/tests/tcmalloc_unittest.cc
-            src/tcmalloc.h
+            src/tcmalloc_internal.h
             src/tests/testutil.h src/tests/testutil.cc
             ${TCMALLOC_UNITTEST_INCLUDES})
     set(tcmalloc_unittest_LIBADD ${TCMALLOC_FLAGS} logging Threads::Threads)

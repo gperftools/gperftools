@@ -49,10 +49,8 @@
 
 #ifndef PERFTOOLS_NOTHROW
 
-#if __cplusplus >= 201103L
+#ifdef __cplusplus
 #define PERFTOOLS_NOTHROW noexcept
-#elif defined(__cplusplus)
-#define PERFTOOLS_NOTHROW throw()
 #else
 # ifdef __GNUC__
 #  define PERFTOOLS_NOTHROW __attribute__((__nothrow__))
@@ -69,6 +67,12 @@
 # else
 #   define PERFTOOLS_DLL_DECL
 # endif
+#endif
+
+#if defined(__cpp_aligned_new) || \
+    (defined(__cplusplus) && __cplusplus >= 201703L) || \
+    (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
+# define PERFTOOLS_HAVE_ALIGNED_NEW
 #endif
 
 #ifdef __cplusplus
@@ -126,7 +130,7 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
 
-#if defined(__cpp_aligned_new) || (defined(_MSVC_LANG) && _MSVC_LANG > 201402L)
+#ifdef PERFTOOLS_HAVE_ALIGNED_NEW
   PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t al);
   PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t al,
                                           const std::nothrow_t&) PERFTOOLS_NOTHROW;

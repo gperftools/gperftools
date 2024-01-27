@@ -47,19 +47,19 @@
 // doesn't sub-include stdlib.h, so we'll still get posix_memalign
 // when we #include stdlib.h.  Blah.
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>        // for getpagesize()
+#include <unistd.h>            // for getpagesize()
 #endif
-#include "tcmalloc.h"      // must come early, to pick up posix_memalign
+#include "tcmalloc_internal.h" // must come early, to pick up posix_memalign
 #include <assert.h>
-#include <stdlib.h>        // defines posix_memalign
-#include <stdio.h>         // for the printf at the end
-#include <stdint.h>        // for uintptr_t
+#include <stdlib.h>            // defines posix_memalign
+#include <stdio.h>             // for the printf at the end
+#include <stdint.h>            // for uintptr_t
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>        // for getpagesize()
+#include <unistd.h>            // for getpagesize()
 #endif
 // Malloc can be in several places on older versions of OS X.
 #if defined(HAVE_MALLOC_H)
-#include <malloc.h>        // for memalign() and valloc()
+#include <malloc.h>            // for memalign() and valloc()
 #elif defined(HAVE_MALLOC_MALLOC_H)
 #include <malloc/malloc.h>
 #elif defined(HAVE_SYS_MALLOC_H)

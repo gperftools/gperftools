@@ -634,7 +634,7 @@ if !MINGW
 if !OSX
 TESTS += memalign_unittest
 memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
-                            src/tcmalloc.h \
+                            src/tcmalloc_internal.h \
                             src/config_for_unittests.h \
                             src/tests/testutil.h src/tests/testutil.cc
 memalign_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -966,7 +966,7 @@ noinst_PROGRAMS += tcmalloc_unittest
 tcmalloc_unittest_INCLUDES = src/config_for_unittests.h \
                              src/gperftools/malloc_extension.h
 tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
-                            src/tcmalloc.h \
+                            src/tcmalloc_internal.h \
                             src/tests/testutil.h src/tests/testutil.cc \
                             $(TCMALLOC_UNITTEST_INCLUDES)
 tcmalloc_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -984,7 +984,7 @@ TESTS += tcm_asserts_unittest
 tcm_asserts_unittest_INCLUDES = src/config_for_unittests.h \
                              src/gperftools/malloc_extension.h
 tcm_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
-                            src/tcmalloc.h \
+                            src/tcmalloc_internal.h \
                             src/tests/testutil.h src/tests/testutil.cc \
                             $(TCMALLOC_UNITTEST_INCLUDES)
 tcm_asserts_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
