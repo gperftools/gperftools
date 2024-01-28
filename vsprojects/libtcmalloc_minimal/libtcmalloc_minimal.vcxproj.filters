@@ -92,6 +92,9 @@
     <ClCompile Include="..\..\src\base\sysinfo.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\base\proc_maps_iterator.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\thread_cache.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

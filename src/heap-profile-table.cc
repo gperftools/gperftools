@@ -59,15 +59,15 @@
 
 #include "heap-profile-table.h"
 
+#include "base/commandlineflags.h"
 #include "base/logging.h"
+#include "base/proc_maps_iterator.h"
+#include "base/sysinfo.h"
+#include "gperftools/malloc_hook.h"
+#include "gperftools/stacktrace.h"
+#include "memory_region_map.h"
 #include "raw_printer.h"
 #include "symbolize.h"
-#include <gperftools/stacktrace.h>
-#include <gperftools/malloc_hook.h>
-#include "memory_region_map.h"
-#include "base/commandlineflags.h"
-#include "base/logging.h"    // for the RawFD I/O commands
-#include "base/sysinfo.h"
 
 using std::sort;
 using std::equal;

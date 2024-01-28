@@ -556,7 +556,7 @@ set(SYSINFO_INCLUDES
         src/base/commandlineflags.h
         src/base/threading.h
         src/base/basictypes.h)
-set(libsysinfo_la_SOURCES src/base/sysinfo.cc
+set(libsysinfo_la_SOURCES src/base/sysinfo.cc src/base/proc_maps_iterator.cc
         ${SYSINFO_INCLUDES})
 set(libsysinfo_la_LIBADD ${NANOSLEEP_LIBS})
 add_library(sysinfo STATIC ${libsysinfo_la_SOURCES})
@@ -951,6 +951,10 @@ if(BUILD_TESTING)
   add_executable(generic_writer_test src/tests/generic_writer_test.cc)
   target_link_libraries(generic_writer_test logging)
   add_test(generic_writer_test generic_writer_test)
+
+  add_executable(proc_maps_iterator_test src/tests/proc_maps_iterator_test.cc)
+  target_link_libraries(proc_maps_iterator_test sysinfo logging)
+  add_test(proc_maps_iterator_test proc_maps_iterator_test)
 
   set(realloc_unittest_SOURCES src/tests/realloc_unittest.cc
           src/config_for_unittests.h

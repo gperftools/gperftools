@@ -60,6 +60,7 @@
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/sysinfo.h"
+#include "base/proc_maps_iterator.h"
 #if defined(__FreeBSD__)
 #include <sys/sysctl.h>
 #endif

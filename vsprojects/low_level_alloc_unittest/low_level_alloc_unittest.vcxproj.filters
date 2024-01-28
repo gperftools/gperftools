@@ -20,6 +20,9 @@
     <ClCompile Include="..\..\src\base\sysinfo.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\base\proc_maps_iterator.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\base\logging.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

@@ -37,16 +37,18 @@
 #include <stdio.h>
 #include <stdint.h>
 #include <string>
+
+#include <algorithm>
+
 #include "base/dynamic_annotations.h"
-#include "base/sysinfo.h"    // for FillProcSelfMaps
+#include "base/googleinit.h"
+#include "base/proc_maps_iterator.h"
+#include "gperftools/malloc_extension.h"
+#include "gperftools/malloc_extension_c.h"
+
 #ifndef NO_HEAP_CHECK
 #include "gperftools/heap-checker.h"
 #endif
-#include "gperftools/malloc_extension.h"
-#include "gperftools/malloc_extension_c.h"
-#include "base/googleinit.h"
-
-#include <algorithm>
 
 using std::string;
 using std::vector;

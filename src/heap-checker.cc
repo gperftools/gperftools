@@ -79,6 +79,7 @@
 #include "base/linuxthreads.h"
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
+#include "base/proc_maps_iterator.h"
 #include "base/spinlock.h"
 #include "base/stl_allocator.h"
 #include "base/sysinfo.h"
@@ -964,25 +965,17 @@ void HeapLeakChecker::DisableLibraryAllocsLocked(const char* library,
 HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
                                   ProcMapsTask proc_maps_task) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-  // Need to provide own scratch memory to ProcMapsIterator:
-  ProcMapsIterator it;
-  if (!it.Valid()) {
-    int errsv = errno;
-    RAW_LOG(ERROR, "Could not open /proc/self/maps: errno=%d. "
-                   "Libraries will not be handled correctly.", errsv);
-    return CANT_OPEN_PROC_MAPS;
-  }
-  uint64 start_address, end_address, file_offset;
-  int64 inode;
-  char *permissions, *filename;
   bool saw_shared_lib = false;
   bool saw_nonzero_inode = false;
   bool saw_shared_lib_with_nonzero_inode = false;
-  while (it.Next(&start_address, &end_address, &permissions,
-                 &file_offset, &inode, &filename)) {
+
+  bool ok = tcmalloc::ForEachProcMapping([&] (const tcmalloc::ProcMapping& mapping) {
+    const uint64_t start_address = mapping.start, end_address = mapping.end;
+    const char *filename = mapping.filename;
+
     if (start_address >= end_address) {
       // Warn if a line we can be interested in is ill-formed:
-      if (inode != 0) {
+      if (mapping.inode != 0) {
         RAW_LOG(ERROR, "Errors reading /proc/self/maps. "
                        "Some global memory regions will not "
                        "be handled correctly.");
@@ -991,14 +984,14 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
       // probably due to the interplay of how /proc/self/maps is updated
       // while we read it in chunks in ProcMapsIterator and
       // do things in this loop.
-      continue;
+      return;
     }
     // Determine if any shared libraries are present (this is the same
     // list of extensions as is found in pprof).  We want to ignore
     // 'fake' libraries with inode 0 when determining.  However, some
     // systems don't share inodes via /proc, so we turn off this check
     // if we don't see any evidence that we're getting inode info.
-    if (inode != 0) {
+    if (mapping.inode != 0) {
       saw_nonzero_inode = true;
     }
     if ((hc_strstr(filename, "lib") && hc_strstr(filename, ".so")) ||
@@ -1007,7 +1000,7 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
         // that we are unlikely to get false matches just checking that.
         hc_strstr(filename, ".dylib") || hc_strstr(filename, ".bundle")) {
       saw_shared_lib = true;
-      if (inode != 0) {
+      if (mapping.inode != 0) {
         saw_shared_lib_with_nonzero_inode = true;
       }
     }
@@ -1017,18 +1010,26 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
         // All lines starting like
         // "401dc000-4030f000 r??p 00132000 03:01 13991972  lib/bin"
         // identify a data and code sections of a shared library or our binary
-        if (inode != 0 && strncmp(permissions, "r-xp", 4) == 0) {
+        if (mapping.inode != 0 && strncmp(mapping.flags, "r-xp", 4) == 0) {
           DisableLibraryAllocsLocked(filename, start_address, end_address);
         }
         break;
       case RECORD_GLOBAL_DATA:
         RecordGlobalDataLocked(start_address, end_address,
-                               permissions, filename);
+                               mapping.flags, filename);
         break;
       default:
         RAW_CHECK(0, "");
     }
+  });
+
+  if (!ok) {
+    int errsv = errno;
+    RAW_LOG(ERROR, "Could not open /proc/self/maps: errno=%d. "
+            "Libraries will not be handled correctly.", errsv);
+    return CANT_OPEN_PROC_MAPS;
   }
+
   // If /proc/self/maps is reporting inodes properly (we saw a
   // non-zero inode), then we only say we saw a shared lib if we saw a
   // 'real' one, with a non-zero inode.

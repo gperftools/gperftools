@@ -168,9 +168,11 @@ SYSINFO_INCLUDES = src/base/sysinfo.h \
                    src/base/logging.h \
                    src/base/commandlineflags.h \
                    src/base/threading.h \
+                   src/base/proc_maps_iterator.h \
                    src/base/basictypes.h
 noinst_LTLIBRARIES += libsysinfo.la
 libsysinfo_la_SOURCES = src/base/sysinfo.cc \
+                        src/base/proc_maps_iterator.cc \
                         src/base/dynamic_annotations.cc \
                         $(SYSINFO_INCLUDES)
 libsysinfo_la_LIBADD = $(NANOSLEEP_LIBS)
@@ -672,6 +674,10 @@ safe_strerror_test_LDADD = liblogging.la
 TESTS += generic_writer_test
 generic_writer_test_SOURCES = src/tests/generic_writer_test.cc
 generic_writer_test_LDADD = liblogging.la
+
+TESTS += proc_maps_iterator_test
+proc_maps_iterator_test_SOURCES = src/tests/proc_maps_iterator_test.cc
+proc_maps_iterator_test_LDADD = libsysinfo.la liblogging.la
 
 TESTS += realloc_unittest
 WINDOWS_PROJECTS += vsprojects/realloc_unittest/realloc_unittest.vcxproj
