@@ -78,40 +78,50 @@ static char* get_pprof_path() {
   return result;
 }
 
+namespace {
+
+#ifndef _WIN32
+inline // NOTE: inline makes us avoid unused function warning
+const char* readlink_strdup(const char* path) {
+  int sz = 1024;
+  char* retval = nullptr;
+  for (;;) {
+    if (INT_MAX / 2 <= sz) {
+      free(retval);
+      retval = nullptr;
+      break;
+    }
+    sz *= 2;
+    retval = static_cast<char*>(realloc(retval, sz));
+    int rc = readlink(path, retval, sz);
+    if (rc < 0) {
+      perror("GetProgramInvocationName:readlink");
+      free(retval);
+      retval = nullptr;
+      break;
+    }
+    if (rc < sz) {
+      retval[rc] = 0;
+      break;
+    }
+    // repeat if readlink may have truncated it's output
+  }
+  return retval;
+}
+#endif  // _WIN32
+
+}  // namespace
+
 // Returns NULL if we're on an OS where we can't get the invocation name.
 // Using a static var is ok because we're not called from a thread.
 static const char* GetProgramInvocationName() {
 #if defined(__linux__) || defined(__NetBSD__)
   // Those systems have functional procfs. And we can simply readlink
   // /proc/self/exe.
-
-  static const char* argv0 = ([] () {
-    int sz = 1024;
-    char* retval = nullptr;
-    for (;;) {
-      if (INT_MAX / 2 <= sz) {
-        free(retval);
-        retval = nullptr;
-        break;
-      }
-      sz *= 2;
-      retval = static_cast<char*>(realloc(retval, sz));
-      int rc = readlink("/proc/self/exe", retval, sz);
-      if (rc < 0) {
-        perror("GetProgramInvocationName:readlink");
-        free(retval);
-        retval = nullptr;
-        break;
-      }
-      if (rc < sz) {
-        retval[rc] = 0;
-        break;
-      }
-      // repeat if readlink may have truncated it's output
-    }
-    return retval;
-  })();
-
+  static const char* argv0 = readlink_strdup("/proc/self/exe");
+  return argv0;
+#elif defined(__sun__)
+  static const char* argv0 = readlink_strdup("/proc/self/path/a.out");
   return argv0;
 #elif defined(HAVE_PROGRAM_INVOCATION_NAME)
 #ifdef __UCLIBC__
