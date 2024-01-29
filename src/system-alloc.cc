@@ -71,13 +71,6 @@
 # define MADV_FREE  MADV_DONTNEED
 #endif
 
-// Solaris has a bug where it doesn't declare madvise() for C++.
-//    http://www.opensolaris.org/jive/thread.jspa?threadID=21035&tstart=0
-#if defined(__sun) && defined(__SVR4)
-# include <sys/types.h>    // for caddr_t
-  extern "C" { extern int madvise(caddr_t, size_t, int); }
-#endif
-
 // Set kDebugMode mode so that we can have use C++ conditionals
 // instead of preprocessor conditionals.
 #ifdef NDEBUG
