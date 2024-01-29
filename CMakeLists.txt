@@ -606,6 +606,8 @@ if(MINGW OR MSVC)
   # (We also do this via a #pragma for msvc, but need to do it here for mingw).
   target_link_libraries(spinlock synchronization)
 
+  set(MAYBE_PORT_CC src/windows/port.cc)
+
 else()
   set(SPINLOCK_INCLUDES src/base/spinlock.h
           src/base/spinlock_internal.h)
@@ -617,6 +619,7 @@ else()
   set(LIBSPINLOCK spinlock sysinfo logging)
   set(TCMALLOC_CC "src/tcmalloc.cc")
   set(SYSTEM_ALLOC_CC "src/system-alloc.cc")
+  set(MAYBE_PORT_CC)
 
 endif()
 
@@ -846,13 +849,10 @@ if(BUILD_TESTING)
           tcmalloc_minimal_large_heap_fragmentation_unittest PUBLIC tcmalloc_minimal)
   add_test(tcmalloc_minimal_large_heap_fragmentation_unittest tcmalloc_minimal_large_heap_fragmentation_unittest)
 
-  if(MINGW OR MSVC)
-    set(port_src src/windows/port.cc)
-  endif()
   add_executable(addressmap_unittest
           src/tests/addressmap_unittest.cc
           src/addressmap-inl.h
-          ${port_src})
+          ${MAYBE_PORT_CC})
   target_link_libraries(addressmap_unittest logging)
   add_test(addressmap_unittest addressmap_unittest)
 
@@ -948,11 +948,11 @@ if(BUILD_TESTING)
   target_link_libraries(safe_strerror_test logging)
   add_test(safe_strerror_test safe_strerror_test)
 
-  add_executable(generic_writer_test src/tests/generic_writer_test.cc)
+  add_executable(generic_writer_test src/tests/generic_writer_test.cc ${MAYBE_PORT_CC})
   target_link_libraries(generic_writer_test logging)
   add_test(generic_writer_test generic_writer_test)
 
-  add_executable(proc_maps_iterator_test src/tests/proc_maps_iterator_test.cc)
+  add_executable(proc_maps_iterator_test src/tests/proc_maps_iterator_test.cc ${MAYBE_PORT_CC})
   target_link_libraries(proc_maps_iterator_test sysinfo logging)
   add_test(proc_maps_iterator_test proc_maps_iterator_test)
 
