@@ -359,7 +359,14 @@ void InitSystemAllocators(void) {
   // the heap-checker is less likely to misinterpret a number as a
   // pointer).
   DefaultSysAllocator *sdef = new (default_space.buf) DefaultSysAllocator();
-  if (kDebugMode && sizeof(void*) > 4) {
+  bool want_mmap = kDebugMode && (sizeof(void*) > 4);
+#if __sun__
+  // TODO: solaris has nice but annoying feature that makes it use
+  // full range of addresses and mmap tends to use it. Making mmap-ed
+  // addresses be 0xffff... For now lets avoid the trouble.
+  want_mmap = false;
+#endif
+  if (want_mmap) {
     sdef->SetChildAllocator(mmap, 0, mmap_name);
     sdef->SetChildAllocator(sbrk, 1, sbrk_name);
   } else {
