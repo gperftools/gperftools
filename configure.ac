@@ -509,15 +509,6 @@ if test "$need_nanosleep" = yes; then
   AC_SUBST(NANOSLEEP_LIBS)
 fi
 
-# Solaris 10 6/06 has a bug where /usr/sfw/lib/libstdc++.la is empty.
-# If so, we replace it with our own version.
-LIBSTDCXX_LA_LINKER_FLAG=
-if test -f /usr/sfw/lib/libstdc++.la && ! test -s /usr/sfw/lib/libstdc++.la
-then
-  LIBSTDCXX_LA_LINKER_FLAG='-L$(top_srcdir)/src/solaris'
-fi
-AC_SUBST(LIBSTDCXX_LA_LINKER_FLAG)
-
 # In fact, a lot of the code in this directory depends on pthreads
 AX_PTHREAD
 

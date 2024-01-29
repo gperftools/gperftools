@@ -35,8 +35,8 @@ AM_CXXFLAGS += -faligned-new
 endif HAVE_F_ALIGNED_NEW
 
 # The -no-undefined flag allows libtool to generate shared libraries for
-# Cygwin and MinGW.  LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
-AM_LDFLAGS = -no-undefined $(LIBSTDCXX_LA_LINKER_FLAG)
+# Cygwin and MinGW.
+AM_LDFLAGS = -no-undefined
 
 # respect --enable-frame-pointers regardless of architecture
 if ENABLE_FRAME_POINTERS
@@ -1469,5 +1469,4 @@ EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              docs/pprof.see_also src/windows/TODO \
              $(WINDOWS_PROJECTS) \
-             src/solaris/libstdc++.la \
              CMakeLists.txt cmake

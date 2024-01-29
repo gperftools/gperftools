@@ -424,14 +424,6 @@ if(FreeBSD)
   set(PTHREADS_CRASHES_IF_RUN_TOO_EARLY ON)
 endif()
 
-set(libstdcxx_la_linker_flag)
-if(EXISTS /usr/sfw/lib/libstdc++.la)
-  file(READ /usr/sfw/lib/libstdc++.la _ch LIMIT 1)
-  if(string(LENGTH _ch) EQUAL 0)
-    set(libstdcxx_la_linker_flag "-L${CMAKE_CURRENT_SOURCE_DIR}/src/solaris")
-  endif()
-endif()
-
 check_variable_exists("program_invocation_name" HAVE_PROGRAM_INVOCATION_NAME)
 
 if(MINGW)
@@ -498,9 +490,6 @@ endif()
 if(have_f_aligned_new)
   add_compile_options(-faligned-new)
 endif()
-
-# LIBSTDCXX_LA_LINKER_FLAG is used to fix a Solaris bug.
-add_link_options(${libstdcxx_la_linker_flag})
 
 option(
   gperftools_enable_frame_pointers
