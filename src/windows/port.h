@@ -175,29 +175,6 @@ inline void *sbrk(intptr_t increment) {
 }
 
 
-/* ----------------------------------- STRING ROUTINES */
-
-/*
- * We can't just use _vsnprintf and _snprintf as drop-in-replacements,
- * because they don't always NUL-terminate. :-(  We also can't use the
- * name vsnprintf, since windows defines that (but not snprintf (!)).
- */
-#if defined(_MSC_VER) && _MSC_VER >= 1400
-/* We can use safe CRT functions, which the required functionality */
-inline int perftools_vsnprintf(char *str, size_t size, const char *format,
-                               va_list ap) {
-  return vsnprintf_s(str, size, _TRUNCATE, format, ap);
-}
-#else
-inline int perftools_vsnprintf(char *str, size_t size, const char *format,
-                               va_list ap) {
-  if (size == 0)        /* not even room for a \0? */
-    return -1;        /* not what C99 says to do, but what windows does */
-  str[size-1] = '\0';
-  return _vsnprintf(str, size-1, format, ap);
-}
-#endif
-
 /* ----------------------------------- FILE IO */
 
 #ifndef PATH_MAX

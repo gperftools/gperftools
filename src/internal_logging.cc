@@ -42,7 +42,7 @@
 #endif
 
 #include <gperftools/malloc_extension.h>
-#include "base/logging.h"   // for perftools_vsnprintf
+#include "base/logging.h"
 #include "base/spinlock.h"              // for SpinLockHolder, SpinLock
 
 // Variables for storing crash output.  Allocated statically since we
@@ -176,10 +176,10 @@ void TCMalloc_Printer::printf(const char* format, ...) {
   if (left_ > 0) {
     va_list ap;
     va_start(ap, format);
-    const int r = perftools_vsnprintf(buf_, left_, format, ap);
+    const int r = vsnprintf(buf_, left_, format, ap);
     va_end(ap);
     if (r < 0) {
-      // Perhaps an old glibc that returns -1 on truncation?
+      // Some kind of error
       left_ = 0;
     } else if (r > left_) {
       // Truncation

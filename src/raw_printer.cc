@@ -55,10 +55,10 @@ void RawPrinter::Printf(const char* format, ...) {
     int avail = limit_ - ptr_;
     // We pass avail+1 to vsnprintf() since that routine needs room
     // to store the trailing \0.
-    const int r = perftools_vsnprintf(ptr_, avail+1, format, ap);
+    const int r = vsnprintf(ptr_, avail+1, format, ap);
     va_end(ap);
     if (r < 0) {
-      // Perhaps an old glibc that returns -1 on truncation?
+      // Some kind of error
       ptr_ = limit_;
     } else if (r > avail) {
       // Truncation
