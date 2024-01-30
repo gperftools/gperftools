@@ -1461,7 +1461,6 @@ dist-hook: $(top_distdir)/ChangeLog
 
 EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
-             src/windows/gperftools/tcmalloc.h \
              docs/pprof.see_also src/windows/TODO \
              $(WINDOWS_PROJECTS) \
              src/solaris/libstdc++.la \
