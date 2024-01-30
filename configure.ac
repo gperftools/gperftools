@@ -344,30 +344,6 @@ AC_ARG_ENABLE(frame_pointers,
 	      , enable_frame_pointers=no)
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 
-# See if the compiler supports -Wno-unused-result.
-# Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling
-# __attribute__((warn_unused_result)) for things like write(),
-# which we don't care about.
-AC_CACHE_CHECK([if the compiler supports -Wno-unused-result],
-               perftools_cv_w_no_unused_result,
-	       [OLD_CXXFLAGS="$CXXFLAGS"
-	        CXXFLAGS="$CXXFLAGS -Wno-error -Wunused-result"
-		# gcc doesn't warn about unknown flags unless it's
-		# also warning for some other purpose, hence the
-		# divide-by-0.  (We use -Wno-error to make sure the
-		# divide-by-0 doesn't cause this test to fail!)
-                #
-                # Also gcc is giving only warning for unknown flags of
-                # -Wno-XXX form. So in order to detect support we're
-                # using -Wunused-result which will cause gcc to give
-                # error which we can detect.
-	        AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, return 1/0)],
-	                          perftools_cv_w_no_unused_result=yes,
-                                  perftools_cv_w_no_unused_result=no)
-	        CXXFLAGS="$OLD_CXXFLAGS"])
-AM_CONDITIONAL(HAVE_W_NO_UNUSED_RESULT,
-	       test "$perftools_cv_w_no_unused_result" = yes)
-
 AC_ARG_ENABLE([deprecated-pprof],
               [AS_HELP_STRING([--disable-deprecated-pprof],
                 [do not install old deprecated and unmaintained bundled pprof

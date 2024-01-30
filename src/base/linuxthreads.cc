@@ -263,7 +263,8 @@ static void SignalHandler(int signum, siginfo_t *si, void *data) {
 static void DirtyStack(size_t amount) {
   char buf[amount];
   memset(buf, 0, amount);
-  read(-1, buf, amount);
+  auto unused = read(-1, buf, amount);
+  (void)unused;
 }
 
 
@@ -310,7 +311,8 @@ static int ListerThread(struct ListerParams *args) {
   (void)close(args->start_pipe_wr);
   {
     char tmp;
-    read(args->start_pipe_rd, &tmp, sizeof(tmp));
+    auto unused = read(args->start_pipe_rd, &tmp, sizeof(tmp));
+    (void)unused;
   }
 
   // No point in continuing if parent dies before/during ptracing.

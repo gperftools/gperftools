@@ -268,12 +268,6 @@ if(gperftools_enable_libunwind)
   endif()
 endif()
 
-# See if the compiler supports -Wno-unused-result.
-# Newer ubuntu's turn on -D_FORTIFY_SOURCE=2, enabling
-# __attribute__((warn_unused_result)) for things like write(),
-# which we don't care about.
-check_c_compiler_flag("-Wno-unused-result" have_w_no_unused_result)
-
 check_c_compiler_flag("-fno-omit-frame-pointer -momit-leaf-frame-pointer" have_omit_leaf_fp)
 check_c_source_compiles("
   #if !(__i386__ || __x86_64__ || __riscv || __aarch64__)
@@ -470,10 +464,6 @@ endif()
 # These are good warnings to turn on by default.
 if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wwrite-strings -Woverloaded-virtual -Wno-sign-compare")
-endif()
-
-if(have_w_no_unused_result)
-  add_compile_options(-Wno-unused-result)
 endif()
 
 if(have_sized_deallocation)

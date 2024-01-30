@@ -928,9 +928,9 @@ static void TracePrintf(int fd, const char *fmt, ...) {
         l = va_arg(ap, intptr_t);
         base = 16;
       } else {
-        write(STDERR_FILENO, "Unimplemented TracePrintf format\n", 33);
-        write(STDERR_FILENO, p, 2);
-        write(STDERR_FILENO, "\n", 1);
+        WRITE_TO_STDERR("Unimplemented TracePrintf format\n", 33);
+        WRITE_TO_STDERR(p, 2);
+        WRITE_TO_STDERR("\n", 1);
         abort();
       }
       p++;
@@ -953,14 +953,16 @@ static void TracePrintf(int fd, const char *fmt, ...) {
     }
     while (*s != 0) {
       if (i == sizeof(buf)) {
-        write(fd, buf, i);
+        auto unused = write(fd, buf, i);
+        (void)unused;
         i = 0;
       }
       buf[i++] = *s++;
     }
   }
   if (i != 0) {
-    write(fd, buf, i);
+    auto unused = write(fd, buf, i);
+    (void)unused;
   }
   va_end(ap);
 }
@@ -1026,7 +1028,8 @@ static SpinLock malloc_trace_lock(SpinLock::LINKER_INITIALIZED);
 // to use it.
 void __malloctrace_write(const char *buf, size_t size) {
   if (FLAGS_malloctrace) {
-    write(TraceFd(), buf, size);
+    auto unused = write(TraceFd(), buf, size);
+    (void)unused;
   }
 }
 

@@ -55,7 +55,7 @@ static char stats_buffer[kStatsBufferSize] = { 0 };
 namespace tcmalloc {
 
 static void WriteMessage(const char* msg, int length) {
-  write(STDERR_FILENO, msg, length);
+  WRITE_TO_STDERR(msg, length);
 }
 
 void (*log_message_writer)(const char* msg, int length) = WriteMessage;

@@ -509,7 +509,8 @@ static void PrintStats(int level) {
   char* buffer = new char[kBufferSize];
   TCMalloc_Printer printer(buffer, kBufferSize);
   DumpStats(&printer, level);
-  write(STDERR_FILENO, buffer, strlen(buffer));
+  auto unused = write(STDERR_FILENO, buffer, strlen(buffer));
+  (void)unused;
   delete[] buffer;
 }
 
@@ -1293,7 +1294,8 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
     printer.printf(" %p", stack.stack[i]);
   }
   printer.printf("\n");
-  write(STDERR_FILENO, buffer, strlen(buffer));
+  auto unused = write(STDERR_FILENO, buffer, strlen(buffer));
+  (void)unused;
 }
 
 static bool should_report_large(Length num_pages) {
