@@ -179,27 +179,6 @@
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 /* #undef LT_OBJDIR */
 
-/* Name of package */
-#define PACKAGE "gperftools"
-
-/* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "gperftools@googlegroups.com"
-
-/* Define to the full name of this package. */
-#define PACKAGE_NAME "gperftools"
-
-/* Define to the full name and version of this package. */
-#define PACKAGE_STRING "gperftools 2.15"
-
-/* Define to the one symbol short name of this package. */
-#define PACKAGE_TARNAME "gperftools"
-
-/* Define to the home page for this package. */
-#define PACKAGE_URL ""
-
-/* Define to the version of this package. */
-#define PACKAGE_VERSION "2.15"
-
 /* Always the empty-string on non-windows systems. On windows, should be
    "__declspec(dllexport)". This way, when we compile the dll, we export our
    functions/classes. It's safe to define this here because config.h is only
@@ -209,12 +188,6 @@
 # define PERFTOOLS_IS_A_DLL 1   /* not set if you're statically linking */
 # define PERFTOOLS_DLL_DECL __declspec(dllexport)
 # define PERFTOOLS_DLL_DECL_FOR_UNITTESTS __declspec(dllimport)
-#endif
-
-/* Mark the systems where we know it's bad if pthreads runs too
-   early before main (before threads are initialized, presumably).  */
-#ifdef __FreeBSD__
-#define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
 #endif
 
 /* Define 8 bytes of allocation alignment for tcmalloc */

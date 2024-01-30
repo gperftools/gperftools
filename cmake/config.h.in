@@ -164,27 +164,6 @@
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #cmakedefine LT_OBJDIR
 
-/* Name of package */
-#define PACKAGE "@PROJECT_NAME@"
-
-/* Define to the address where bug reports for this package should be sent. */
-#define PACKAGE_BUGREPORT "gperftools@googlegroups.com"
-
-/* Define to the full name of this package. */
-#define PACKAGE_NAME "@PROJECT_NAME@"
-
-/* Define to the full name and version of this package. */
-#define PACKAGE_STRING "@PROJECT_NAME@ @PROJECT_VERSION@"
-
-/* Define to the one symbol short name of this package. */
-#define PACKAGE_TARNAME "@PROJECT_NAME@"
-
-/* Define to the home page for this package. */
-#cmakedefine PACKAGE_URL
-
-/* Define to the version of this package. */
-#define PACKAGE_VERSION "@PROJECT_VERSION@"
-
 /* Always the empty-string on non-windows systems. On windows, should be
    "__declspec(dllexport)". This way, when we compile the dll, we export our
    functions/classes. It's safe to define this here because config.h is only
@@ -220,9 +199,6 @@
 
 /* Define internal page size for tcmalloc as number of left bitshift */
 #cmakedefine TCMALLOC_PAGE_SIZE_SHIFT @TCMALLOC_PAGE_SIZE_SHIFT@
-
-/* Version number of package */
-#define VERSION @PROJECT_VERSION@
 
 /* C99 says: define this to get the PRI... macros from stdint.h */
 #ifndef __STDC_FORMAT_MACROS
