@@ -1572,9 +1572,8 @@ int main(int argc, char** argv) {
   const char* patch;
   char mmp[64];
   const char* human_version = tc_version(&major, &minor, &patch);
-  snprintf(mmp, sizeof(mmp), "%d.%d%s", major, minor, patch);
-  CHECK(!strcmp(PACKAGE_STRING, human_version));
-  CHECK(!strcmp(PACKAGE_VERSION, mmp));
+  snprintf(mmp, sizeof(mmp), "gperftools %d.%d%s", major, minor, patch);
+  CHECK(!strcmp(TC_VERSION_STRING, human_version));
 
   fprintf(LOGSTREAM, "PASS\n");
 }
