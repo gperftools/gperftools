@@ -271,7 +271,7 @@
     <ClInclude Include="..\..\src\static_vars.h" />
     <ClInclude Include="..\..\src\symbolize.h" />
     <ClInclude Include="..\..\src\system-alloc.h" />
-    <ClInclude Include="..\..\src\tcmalloc.h" />
+    <ClInclude Include="..\..\src\tcmalloc_internal.h" />
     <ClInclude Include="..\..\src\thread_cache.h" />
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\src\windows\mini_disassembler.h" />

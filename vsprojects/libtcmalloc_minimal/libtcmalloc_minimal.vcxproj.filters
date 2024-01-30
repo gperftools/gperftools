@@ -226,7 +226,7 @@
     <ClInclude Include="..\..\src\system-alloc.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\tcmalloc.h">
+    <ClInclude Include="..\..\src\tcmalloc_internal.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\base\thread_annotations.h">
