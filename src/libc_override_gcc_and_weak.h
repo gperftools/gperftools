@@ -132,8 +132,6 @@ void operator delete[](void *p, size_t size) CPP_NOTHROW
 
 #endif /* !ENABLE_SIZED_DELETE && !ENABLE_DYN_SIZED_DELETE */
 
-#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
-
 void* operator new(size_t size, std::align_val_t al)
     ALIAS(tc_new_aligned);
 void operator delete(void* p, std::align_val_t al) CPP_NOTHROW
@@ -204,8 +202,6 @@ void operator delete[](void *p, size_t size, std::align_val_t al) CPP_NOTHROW
 #endif /* defined(ENABLE_DYN_SIZED_DELETE) */
 
 #endif /* defined(ENABLE_SIZED_DELETE) */
-
-#endif /* defined(PERFTOOLS_HAVE_ALIGNED_NEW) */
 
 extern "C" {
   void* malloc(size_t size) __THROW               ALIAS(tc_malloc);

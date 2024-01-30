@@ -76,12 +76,6 @@
 # endif
 #endif
 
-#if defined(__cpp_aligned_new) || \
-    (defined(__cplusplus) && __cplusplus >= 201703L) || \
-    (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
-# define PERFTOOLS_HAVE_ALIGNED_NEW
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -146,7 +140,9 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
 
-#ifdef PERFTOOLS_HAVE_ALIGNED_NEW
+#if defined(__cpp_aligned_new) || \
+    (defined(__cplusplus) && __cplusplus >= 201703L) || \
+    (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
   PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t al);
   PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t al,
                                           const std::nothrow_t&) PERFTOOLS_NOTHROW;
@@ -162,6 +158,7 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t al,
                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
 #endif
+
 }
 #endif
 

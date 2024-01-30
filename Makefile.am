@@ -30,9 +30,6 @@ endif HAVE_W_NO_UNUSED_RESULT
 if HAVE_SIZED_DEALLOCATION
 AM_CXXFLAGS += -fsized-deallocation
 endif HAVE_SIZED_DEALLOCATION
-if HAVE_F_ALIGNED_NEW
-AM_CXXFLAGS += -faligned-new
-endif HAVE_F_ALIGNED_NEW
 
 # The -no-undefined flag allows libtool to generate shared libraries for
 # Cygwin and MinGW.

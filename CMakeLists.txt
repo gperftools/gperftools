@@ -168,12 +168,7 @@ if(gperftools_tcmalloc_alignment STREQUAL "8")
   set(TCMALLOC_ALIGN_8BYTES ON)
 endif()
 
-# AX_CXX_COMPILE_STDCXX(11, ext, mandatory)
-if(cxx_std_17 IN_LIST CMAKE_CXX_COMPILE_FEATURES)
-  set(CMAKE_CXX_STANDARD 17) # std::align_val_t
-else()
-  set(CMAKE_CXX_STANDARD 11)
-endif()
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
 
@@ -312,8 +307,6 @@ if(NOT MSVC)
           have_sized_deallocation)
   set(CMAKE_REQUIRED_FLAGS)
 endif()
-
-check_cxx_compiler_flag("-faligned-new" have_f_aligned_new)
 
 check_c_source_compiles("
   #include <unwind.h>
@@ -485,10 +478,6 @@ endif()
 
 if(have_sized_deallocation)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsized-deallocation")
-endif()
-
-if(have_f_aligned_new)
-  add_compile_options(-faligned-new)
 endif()
 
 option(

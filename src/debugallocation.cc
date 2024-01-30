@@ -1501,8 +1501,6 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
   return p;
 }
 
-#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
-
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
   void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kNewType, true, false);
   MallocHook::InvokeNewHook(result, size);
@@ -1560,8 +1558,6 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW {
   tc_deletearray(p);
 }
-
-#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 // malloc_stats just falls through to the base implementation.
 extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW {

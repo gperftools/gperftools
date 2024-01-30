@@ -66,8 +66,6 @@ void operator delete(void* p, size_t s) CPP_NOTHROW  { tc_delete_sized(p, s);   
 void operator delete[](void* p, size_t s) CPP_NOTHROW{ tc_deletearray_sized(p, s);}
 #endif
 
-#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
-
 void* operator new(size_t size, std::align_val_t al) {
   return tc_new_aligned(size, al);
 }
@@ -101,8 +99,6 @@ void operator delete[](void* p, size_t s, std::align_val_t al) CPP_NOTHROW {
   tc_deletearray_sized_aligned(p, s, al);
 }
 #endif
-
-#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 extern "C" {
   void* malloc(size_t s)                         { return tc_malloc(s);       }

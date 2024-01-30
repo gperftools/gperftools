@@ -198,7 +198,7 @@ AC_PROG_CXX
 AC_LANG([C++])
 AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
 
-AX_CXX_COMPILE_STDCXX(11, ext, mandatory)
+AX_CXX_COMPILE_STDCXX(17, ext, mandatory)
 
 # Check if we have an objcopy installed that supports -W
 AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
@@ -414,20 +414,6 @@ AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
 
 AM_CONDITIONAL(HAVE_SIZED_DEALLOCATION,
                test "$perftools_cv_sized_deallocation_result" = yes)
-
-AC_CACHE_CHECK([if C++ compiler supports -faligned-new],
-               [perftools_cv_have_f_aligned_new],
-               [OLD_CXXFLAGS="$CXXFLAGS"
-                CXXFLAGS="$CXXFLAGS -faligned-new"
-                AC_LINK_IFELSE([AC_LANG_PROGRAM(
-                    [[#include <new>]],
-                    [[(::operator delete)((::operator new)(256, std::align_val_t(16)), std::align_val_t(16))]])],
-                 perftools_cv_have_f_aligned_new=yes,
-                 perftools_cv_have_f_aligned_new=no)
-                CXXFLAGS="$OLD_CXXFLAGS"])
-
-AM_CONDITIONAL(HAVE_F_ALIGNED_NEW,
-               test "$perftools_cv_have_f_aligned_new" = yes)
 
 AC_CACHE_CHECK([if target has _Unwind_Backtrace],
                [perftools_cv_have_unwind_backtrace],

@@ -139,26 +139,16 @@ static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
 
 #endif
 
-#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
-
 #define OVERALIGNMENT 64
 
 struct overaligned_type
 {
-#if defined(__GNUC__)
-  __attribute__((__aligned__(OVERALIGNMENT)))
-#elif defined(_MSC_VER)
-  __declspec(align(OVERALIGNMENT))
-#else
   alignas(OVERALIGNMENT)
-#endif
   unsigned char data[OVERALIGNMENT * 2]; // make the object size different from
                                          // alignment to make sure the correct
                                          // values are passed to the new/delete
                                          // implementation functions
 };
-
-#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
 // form of the name instead.
@@ -1367,8 +1357,6 @@ static int RunAllTests(int argc, char** argv) {
     VerifyDeleteHookWasCalled();
 #endif
 
-#if defined(PERFTOOLS_HAVE_ALIGNED_NEW)
-
     overaligned_type* poveraligned = noopt(new overaligned_type);
     CHECK(poveraligned != NULL);
     CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
@@ -1412,7 +1400,6 @@ static int RunAllTests(int argc, char** argv) {
     ::operator delete(p2, std::align_val_t(OVERALIGNMENT), std::nothrow);
     VerifyDeleteHookWasCalled();
 
-#ifdef ENABLE_SIZED_DELETE
     poveraligned = noopt(new overaligned_type);
     CHECK(poveraligned != NULL);
     CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
@@ -1426,9 +1413,6 @@ static int RunAllTests(int argc, char** argv) {
     VerifyNewHookWasCalled();
     ::operator delete[](poveraligned, sizeof(overaligned_type) * 10, std::align_val_t(OVERALIGNMENT));
     VerifyDeleteHookWasCalled();
-#endif
-
-#endif // defined(PERFTOOLS_HAVE_ALIGNED_NEW)
 
 // On AIX user defined malloc replacement of libc routines
 // cannot be done at link time must be done a runtime via
