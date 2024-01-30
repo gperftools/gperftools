@@ -1,4 +1,4 @@
-// -*- Mode: C; c-basic-offset: 2; indent-tabs-mode: nil -*-
+/* -*- Mode: C; c-basic-offset: 2; indent-tabs-mode: nil -*- */
 /* Copyright (c) 2003, Google Inc.
  * All rights reserved.
  *
@@ -46,6 +46,13 @@
 #define TC_VERSION_MINOR  15
 #define TC_VERSION_PATCH  ""
 #define TC_VERSION_STRING "gperftools 2.15"
+
+#ifndef _WIN32
+/* For struct mallinfo, if it's defined. */
+#if 1 || 1 
+# include <malloc.h>
+#endif
+#endif
 
 #ifndef PERFTOOLS_NOTHROW
 
@@ -103,6 +110,15 @@ extern "C" {
 
   PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
+
+#ifndef _WIN32
+#if 1
+  PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW;
+#endif
+#if 1
+  PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW;
+#endif
+#endif
 
   /*
    * This is an alias for MallocExtension::instance()->GetAllocatedSize().

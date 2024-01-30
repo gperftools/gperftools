@@ -649,6 +649,9 @@ AS_IF([test "x$enable_aggressive_decommit_by_default" = xyes],
                  [enable aggressive decommit by default])])
 
 # Write generated configuration file
+# NOTE: vsprojects/gperftools/tcmalloc.h is checked in
 AC_CONFIG_FILES([Makefile
-                 src/gperftools/tcmalloc.h])
+                 src/gperftools/tcmalloc.h
+                 vsprojects/gperftools/tcmalloc.h:src/gperftools/tcmalloc.h.in
+                 ])
 AC_OUTPUT
