@@ -403,6 +403,7 @@ S_TCMALLOC_MINIMAL_INCLUDES = src/common.h \
                               src/static_vars.h \
                               src/symbolize.h \
                               src/thread_cache.h \
+                              src/thread_cache_ptr.h \
                               src/stack_trace_table.h \
                               src/base/thread_annotations.h \
                               src/malloc_hook-inl.h
@@ -434,6 +435,7 @@ libtcmalloc_minimal_internal_la_SOURCES = src/common.cc \
                                           src/static_vars.cc \
                                           src/symbolize.cc \
                                           src/thread_cache.cc \
+                                          src/thread_cache_ptr.cc \
                                           src/malloc_hook.cc \
                                           src/malloc_extension.cc \
                                           $(TCMALLOC_MINIMAL_INCLUDES)

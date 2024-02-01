@@ -131,9 +131,6 @@
 /* Define to 1 if you have the <sys/wait.h> header file. */
 #cmakedefine HAVE_SYS_WAIT_H
 
-/* Define to 1 if compiler supports __thread */
-#cmakedefine HAVE_TLS
-
 /* Define to 1 if you have the <ucontext.h> header file. */
 #cmakedefine01 HAVE_UCONTEXT_H
 
@@ -187,12 +184,6 @@
 
 /* if libgcc stacktrace method should be default */
 #cmakedefine PREFER_LIBGCC_UNWINDER
-
-/* Mark the systems where we know it's bad if pthreads runs too
-   early before main (before threads are initialized, presumably).  */
-#ifdef __FreeBSD__
-#define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
-#endif
 
 /* Define 8 bytes of allocation alignment for tcmalloc */
 #cmakedefine TCMALLOC_ALIGN_8BYTES

@@ -223,6 +223,7 @@
     <ClCompile Include="..\..\src\static_vars.cc" />
     <ClCompile Include="..\..\src\symbolize.cc" />
     <ClCompile Include="..\..\src\thread_cache.cc" />
+    <ClCompile Include="..\..\src\thread_cache_ptr.cc" />
     <ClCompile Include="..\..\src\windows\ia32_modrm_map.cc" />
     <ClCompile Include="..\..\src\windows\ia32_opcode_map.cc" />
     <ClCompile Include="..\..\src\windows\mini_disassembler.cc" />
@@ -280,6 +281,7 @@
     <ClInclude Include="..\..\src\system-alloc.h" />
     <ClInclude Include="..\..\src\tcmalloc_internal.h" />
     <ClInclude Include="..\..\src\thread_cache.h" />
+    <ClInclude Include="..\..\src\thread_cache_ptr.h" />
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\src\windows\mini_disassembler.h" />
     <ClInclude Include="..\..\src\windows\mini_disassembler_types.h" />

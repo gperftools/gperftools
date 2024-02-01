@@ -109,9 +109,14 @@ void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS
 
 void Static::InitLateMaybeRecursive() {
 #if !defined(__APPLE__) && !defined(_WIN32) && !defined(TCMALLOC_NO_ATFORK) \
-  && !defined(PTHREADS_CRASHES_IF_RUN_TOO_EARLY)
+  && !defined(__FreeBSD__) && !defined(_AIX)
   // OSX has it's own way of handling atfork in malloc (see
   // libc_override_osx.h).
+  //
+  // Windows doesn't do fork.
+  //
+  // FreeBSD and AIX seemingly cannot handle early pthread_atfork
+  // calls. So we don't.
   //
   // For other OSes we do pthread_atfork even if standard seemingly
   // discourages pthread_atfork, asking apps to do only

@@ -98,6 +98,9 @@
     <ClCompile Include="..\..\src\thread_cache.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\thread_cache_ptr.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\fake_stacktrace_scope.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -233,6 +236,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\thread_cache.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\thread_cache_ptr.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

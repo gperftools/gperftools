@@ -341,31 +341,6 @@ check_c_source_compiles("
   }"
   HAVE___ENVIRON)
 
-# If we support __thread, that can speed up tcmalloc a bit.
-# Note, however, that our code tickles a bug in gcc < 4.1.2
-# involving TLS and -fPIC (which our libraries will use) on x86:
-#   http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
-#
-# And mingw also does compile __thread but resultant code actually
-# fails to work correctly at least in some not so ancient version:
-# http://mingw-users.1079350.n2.nabble.com/gcc-4-4-multi-threaded-exception-handling-amp-thread-specifier-not-working-td3440749.html
-#
-# Also it was reported that earlier gcc versions for mips compile
-# __thread but it doesn't really work
-if(CMAKE_CXX_COMPILER_ID STREQUAL "GNU" AND
-   CMAKE_CXX_COMPILER_VERSION VERSION_LESS "4.1.2")
-  message(WARNING "gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html")
-elseif(APPLE)
-  message(WARNING "OSX __thread support is known to call malloc which makes "
-                    "it unsafe to use from malloc replacement")
-elseif(MINGW)
-  message(WARNING "mingw doesn't really support implicit tls (emulated). Also, see #1484")
-elseif(MSVC)
-  check_c_source_compiles("static __declspec(thread) int p = 0; int main() {}" HAVE_TLS)
-else()
-  check_c_source_compiles("static __thread int p = 0; int main() {}" HAVE_TLS)
-endif()
-
 if(NEED_NANOSLEEP)
   check_c_source_compiles(
     "#include <time.h>
@@ -406,10 +381,6 @@ endif()
 
 find_package(Threads REQUIRED)
 set(HAVE_PTHREAD ${CMAKE_USE_PTHREADS_INIT})
-
-if(FreeBSD)
-  set(PTHREADS_CRASHES_IF_RUN_TOO_EARLY ON)
-endif()
 
 check_variable_exists("program_invocation_name" HAVE_PROGRAM_INVOCATION_NAME)
 
@@ -714,6 +685,7 @@ set(S_TCMALLOC_MINIMAL_INCLUDES src/common.h
         src/static_vars.h
         src/symbolize.h
         src/thread_cache.h
+        src/thread_cache_ptr.h
         src/stack_trace_table.h
         src/base/thread_annotations.h
         src/malloc_hook-inl.h)
@@ -740,6 +712,7 @@ set(libtcmalloc_minimal_internal_la_SOURCES src/common.cc
         src/static_vars.cc
         src/symbolize.cc
         src/thread_cache.cc
+        src/thread_cache_ptr.cc
         src/malloc_hook.cc
         src/malloc_extension.cc
         ${TCMALLOC_MINIMAL_INCLUDES})

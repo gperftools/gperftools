@@ -184,7 +184,7 @@ struct CompileAssert {
 # define ATTRIBUTE_UNUSED
 #endif
 
-#if defined(HAVE___ATTRIBUTE__) && defined(HAVE_TLS)
+#if defined(HAVE___ATTRIBUTE__)
 #define ATTR_INITIAL_EXEC __attribute__ ((tls_model ("initial-exec")))
 #else
 #define ATTR_INITIAL_EXEC

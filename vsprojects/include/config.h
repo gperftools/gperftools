@@ -146,9 +146,6 @@
 /* Define to 1 if you have the <sys/wait.h> header file. */
 /* #undef HAVE_SYS_WAIT_H */
 
-/* Define to 1 if compiler supports __thread */
-#define HAVE_TLS 1
-
 /* Define to 1 if you have the <ucontext.h> header file. */
 /* #undef HAVE_UCONTEXT_H */
 

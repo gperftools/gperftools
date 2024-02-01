@@ -1247,7 +1247,7 @@ static void force_frame() {
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
-  if (ThreadCache::IsUseEmergencyMalloc()) {
+  if (tcmalloc::IsUseEmergencyMalloc()) {
     return tcmalloc::EmergencyMalloc(size);
   }
   void* ptr = do_debug_malloc_or_debug_cpp_alloc(size);
@@ -1271,7 +1271,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOO
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOOLS_NOTHROW {
-  if (ThreadCache::IsUseEmergencyMalloc()) {
+  if (tcmalloc::IsUseEmergencyMalloc()) {
     return tcmalloc::EmergencyCalloc(count, size);
   }
   // Overflow check

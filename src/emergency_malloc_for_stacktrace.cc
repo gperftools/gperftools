@@ -29,6 +29,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "emergency_malloc.h"
 #include "thread_cache.h"
+#include "thread_cache_ptr.h"
 
 namespace tcmalloc {
   bool EnterStacktraceScope(void);
@@ -36,13 +37,13 @@ namespace tcmalloc {
 }
 
 bool tcmalloc::EnterStacktraceScope(void) {
-  if (ThreadCache::IsUseEmergencyMalloc()) {
+  if (tcmalloc::IsUseEmergencyMalloc()) {
     return false;
   }
-  ThreadCache::SetUseEmergencyMalloc();
+  tcmalloc::SetUseEmergencyMalloc();
   return true;
 }
 
 void tcmalloc::LeaveStacktraceScope(void) {
-  ThreadCache::ResetUseEmergencyMalloc();
+  tcmalloc::ResetUseEmergencyMalloc();
 }

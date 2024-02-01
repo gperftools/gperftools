@@ -63,14 +63,15 @@ namespace tcmalloc {
 
 class ThreadCache {
  public:
-#ifdef HAVE_TLS
-  enum { have_tls = true };
-#else
-  enum { have_tls = false };
-#endif
+  // Allocate a new heap. REQUIRES: Static::pageheap_lock is not held.
+  static ThreadCache* NewHeap();
+  // REQUIRES: Static::pageheap_lock is not held.
+  static void DeleteCache(ThreadCache* heap);
 
-  void Init(std::thread::id tid);
-  void Cleanup();
+  // REQUIRES: Static::pageheap_lock is held
+  ThreadCache();
+  // REQUIRES: Static::pageheap_lock is not held
+  ~ThreadCache();
 
   // Accessors (mostly just for printing stats)
   int freelist_length(uint32 cl) const { return list_[cl].length(); }
@@ -94,16 +95,6 @@ class ThreadCache {
   bool TryRecordAllocationFast(size_t k);
 
   static void         InitModule();
-  static void         InitTSD();
-  static ThreadCache* GetThreadHeap();
-  static ThreadCache* GetCache();
-  static ThreadCache* GetCacheIfPresent();
-  static ThreadCache* GetFastPathCache();
-  static ThreadCache* CreateCacheIfNecessary();
-  static void         BecomeIdle();
-  static void         SetUseEmergencyMalloc();
-  static void         ResetUseEmergencyMalloc();
-  static bool         IsUseEmergencyMalloc();
 
   // Return the number of thread heaps in use.
   static inline int HeapsInUse();
@@ -258,37 +249,6 @@ class ThreadCache {
   // Same as above but requires Static::pageheap_lock() is held.
   void IncreaseCacheLimitLocked();
 
-  // If TLS is available, we also store a copy of the per-thread object
-  // in a __thread variable since __thread variables are faster to read
-  // than tcmalloc::GetTlsValue().  We still need tcmalloc::SetTlsValue()
-  // because __thread variables provide no way to run cleanup code when
-  // a thread is destroyed.
-  // We also give a hint to the compiler to use the "initial exec" TLS
-  // model.  This is faster than the default TLS model, at the cost that
-  // you cannot dlopen this library.  (To see the difference, look at
-  // the CPU use of __tls_get_addr with and without this attribute.)
-  // Since we don't really use dlopen in google code -- and using dlopen
-  // on a malloc replacement is asking for trouble in any case -- that's
-  // a good tradeoff for us.
-#ifdef HAVE_TLS
-  struct ThreadLocalData {
-    ThreadCache* fast_path_heap;
-    ThreadCache* heap;
-    bool use_emergency_malloc;
-  };
-  static __thread ThreadLocalData threadlocal_data_
-    CACHELINE_ALIGNED ATTR_INITIAL_EXEC;
-
-#endif
-
-  // Thread-specific key.  Initialization here is somewhat tricky
-  // because some Linux startup code invokes malloc() before it
-  // is in a good enough state to handle pthread_keycreate().
-  // Therefore, we use TSD keys only after tsd_inited is set to true.
-  // Until then, we use a slow path to get the heap object.
-  static ATTRIBUTE_HIDDEN bool tsd_inited_;
-  static tcmalloc::TlsKey heap_key_;
-
   // Linked list of heap objects.  Protected by Static::pageheap_lock.
   static ThreadCache* thread_heaps_;
   static int thread_heap_count_;
@@ -323,18 +283,7 @@ class ThreadCache {
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
 
-  std::thread::id     tid_;                   // Which thread owns it
-  bool                in_setspecific_;        // In call to tcmalloc::SetTlsValue?
-
-  // Allocate a new heap. REQUIRES: Static::pageheap_lock is held.
-  static ThreadCache* NewHeap(std::thread::id tid);
-
-  // Use only as pthread thread-specific destructor function.
-  static void DestroyThreadCache(void* ptr);
-
-  static void DeleteCache(ThreadCache* heap);
   static void RecomputePerThreadCacheSize();
-
 public:
 
   // All ThreadCache objects are kept in a linked list (for stats collection)
@@ -396,69 +345,6 @@ inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl
   if (PREDICT_FALSE(size_ > max_size_)){
     Scavenge();
   }
-}
-
-inline ThreadCache* ThreadCache::GetThreadHeap() {
-#ifdef HAVE_TLS
-  return threadlocal_data_.heap;
-#else
-  return reinterpret_cast<ThreadCache *>(
-      tcmalloc::GetTlsValue(heap_key_));
-#endif
-}
-
-inline ThreadCache* ThreadCache::GetCache() {
-#ifdef HAVE_TLS
-  ThreadCache* ptr = GetThreadHeap();
-#else
-  ThreadCache* ptr = NULL;
-  if (PREDICT_TRUE(tsd_inited_)) {
-    ptr = GetThreadHeap();
-  }
-#endif
-  if (ptr == NULL) ptr = CreateCacheIfNecessary();
-  return ptr;
-}
-
-// In deletion paths, we do not try to create a thread-cache.  This is
-// because we may be in the thread destruction code and may have
-// already cleaned up the cache for this thread.
-inline ThreadCache* ThreadCache::GetCacheIfPresent() {
-#ifndef HAVE_TLS
-  if (PREDICT_FALSE(!tsd_inited_)) return NULL;
-#endif
-  return GetThreadHeap();
-}
-
-inline ThreadCache* ThreadCache::GetFastPathCache() {
-#ifndef HAVE_TLS
-  return GetCacheIfPresent();
-#else
-  return threadlocal_data_.fast_path_heap;
-#endif
-}
-
-inline void ThreadCache::SetUseEmergencyMalloc() {
-#ifdef HAVE_TLS
-  threadlocal_data_.fast_path_heap = NULL;
-  threadlocal_data_.use_emergency_malloc = true;
-#endif
-}
-
-inline void ThreadCache::ResetUseEmergencyMalloc() {
-#ifdef HAVE_TLS
-  ThreadCache *heap = threadlocal_data_.heap;
-  threadlocal_data_.fast_path_heap = heap;
-  threadlocal_data_.use_emergency_malloc = false;
-#endif
-}
-
-inline bool ThreadCache::IsUseEmergencyMalloc() {
-#if defined(HAVE_TLS) && defined(ENABLE_EMERGENCY_MALLOC)
-  return PREDICT_FALSE(threadlocal_data_.use_emergency_malloc);
-#else
-  return false;
-#endif
 }
 
 inline void ThreadCache::SetMaxSize(int32 new_max_size) {

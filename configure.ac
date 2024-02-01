@@ -434,35 +434,6 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
 
-# If we support __thread, that can speed up tcmalloc a bit.
-# Note, however, that our code tickles a bug in gcc < 4.1.2
-# involving TLS and -fPIC (which our libraries will use) on x86:
-#   http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
-#
-# And mingw also does compile __thread but resultant code actually
-# fails to work correctly at least in some not so ancient version:
-# http://mingw-users.1079350.n2.nabble.com/gcc-4-4-multi-threaded-exception-handling-amp-thread-specifier-not-working-td3440749.html
-#
-# Also it was reported that earlier gcc versions for mips compile
-# __thread but it doesn't really work
-AC_MSG_CHECKING([for __thread])
-AC_LINK_IFELSE([AC_LANG_PROGRAM([#if defined(__GNUC__) && ((__GNUC__ < 4) || (__GNUC__ == 4 && __GNUC_MINOR__ < 1) || (__GNUC__ == 4 && __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ < 2))
-#error gcc has this bug: http://gcc.gnu.org/ml/gcc-bugs/2006-09/msg02275.html
-#elif defined(__MINGW32__)
-#error mingw doesnt really support implicit tls (emulated). Also, see #1484
-#elif defined(__APPLE__)
-#error OSX __thread support is known to call malloc which makes it unsafe to use from malloc replacement
-#elif defined(_AIX)
-#error AIX thread support is known to call malloc which makes it unsafe to use from malloc replacement
-#elif defined(__QNXNTO__)
-#error QNX thread support is known to call malloc which makes it unsafe to use from malloc replacement
-#endif
-], [static __thread int p = 0])],
-               [AC_DEFINE(HAVE_TLS, 1,
-                          Define to 1 if compiler supports __thread)
-                AC_MSG_RESULT([yes])],
-               [AC_MSG_RESULT([no])])
-
 # Nanosleep requires extra libraries on some architectures (solaris).
 # This sets NANOSLEEP_LIBS.  nanosleep doesn't exist on mingw, which
 # is fine for us because we don't compile libspinlock, which uses it.
@@ -527,13 +498,6 @@ AH_TOP([
 #ifndef GPERFTOOLS_CONFIG_H_
 #define GPERFTOOLS_CONFIG_H_
 ])
-
-AH_VERBATIM([PTHREADS_CRASHES_IF_RUN_TOO_EARLY],
-	    [/* Mark the systems where we know it's bad if pthreads runs too
-   early before main (before threads are initialized, presumably).  */
-#if defined(__FreeBSD__) || defined(_AIX)
-#define PTHREADS_CRASHES_IF_RUN_TOO_EARLY 1
-#endif])
 
 # MinGW uses autoconf, but also needs the windows shim routines
 # (since it doesn't have its own support for, say, pthreads).

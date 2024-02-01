@@ -115,7 +115,7 @@ struct GetStackImplementation {
 
 // libunwind uses __thread so we check for both libunwind.h and
 // __thread support
-#if defined(USE_LIBUNWIND) && defined(HAVE_TLS)
+#if defined(USE_LIBUNWIND)
 #define STACKTRACE_INL_HEADER "stacktrace_libunwind-inl.h"
 #define GST_SUFFIX libunwind
 #include "stacktrace_impl_setup-inl.h"

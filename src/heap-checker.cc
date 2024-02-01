@@ -36,7 +36,7 @@
 
 #include "config.h"
 
-#ifndef HAVE_TLS
+#ifndef __linux__
 #error we only support non-ancient Linux-es with native TLS support
 #endif
 
@@ -511,71 +511,14 @@ static GlobalRegionCallerRangeMap* global_region_caller_ranges = NULL;
 // of active Disabler objects.  Any objects allocated while the
 // count > 0 are not reported.
 
-#ifdef HAVE_TLS
+static __thread int thread_disable_counter ATTR_INITIAL_EXEC;
 
-static __thread int thread_disable_counter
-// The "inital exec" model is faster than the default TLS model, at
-// the cost you can't dlopen this library.  But dlopen on heap-checker
-// doesn't work anyway -- it must run before main -- so this is a good
-// trade-off.
-# ifdef HAVE___ATTRIBUTE__
-   __attribute__ ((tls_model ("initial-exec")))
-# endif
-    ;
 inline int get_thread_disable_counter() {
   return thread_disable_counter;
 }
 inline void set_thread_disable_counter(int value) {
   thread_disable_counter = value;
 }
-
-#else  // #ifdef HAVE_TLS
-
-static tcmalloc::TlsKey thread_disable_counter_key;
-static int main_thread_counter;   // storage for use before main()
-static bool use_main_thread_counter = true;
-
-// TODO(csilvers): this is called from NewHook, in the middle of malloc().
-// If tcmalloc::GetTlsValue calls malloc, that will lead to an
-// infinite loop.  I don't know how to fix that, so I hope it never happens!
-inline int get_thread_disable_counter() {
-  if (use_main_thread_counter)  // means we're running really early
-    return main_thread_counter;
-  void* p = tcmalloc::GetTlsValue(thread_disable_counter_key);
-  return (intptr_t)p;   // kinda evil: store the counter directly in the void*
-}
-
-inline void set_thread_disable_counter(int value) {
-  if (use_main_thread_counter) {   // means we're running really early
-    main_thread_counter = value;
-    return;
-  }
-  intptr_t pointer_sized_value = value;
-  // kinda evil: store the counter directly in the void*
-  void* p = (void*)pointer_sized_value;
-  // NOTE: this may call malloc, which will call NewHook which will call
-  // get_thread_disable_counter() which will call tcmalloc::GetTlsValue().  I
-  // don't know if anything bad can happen if we call getspecific() in the
-  // middle of a setspecific() call.  It seems to work ok in practice...
-  tcmalloc::SetTlsValue(thread_disable_counter_key, p);
-}
-
-// The idea here is that this initializer will run pretty late: after
-// pthreads have been totally set up.  At this point we can call
-// pthreads routines, so we set those up.
-class InitThreadDisableCounter {
- public:
-  InitThreadDisableCounter() {
-    tcmalloc::CreateTlsKey(&thread_disable_counter_key, NULL);
-    // Set up the main thread's value, which we have a special variable for.
-    void* p = (void*)(intptr_t)main_thread_counter;   // store the counter directly
-    tcmalloc::SetTlsValue(thread_disable_counter_key, p);
-    use_main_thread_counter = false;
-  }
-};
-InitThreadDisableCounter init_thread_disable_counter;
-
-#endif  // #ifdef HAVE_TLS
 
 HeapLeakChecker::Disabler::Disabler() {
   // It is faster to unconditionally increment the thread-local
