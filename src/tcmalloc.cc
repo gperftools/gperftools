@@ -808,6 +808,12 @@ class TCMallocImplementation : public MallocExtension {
       return true;
     }
 
+    if (strcmp(name, "tcmalloc.impl.thread_cache_count") == 0) {
+      SpinLockHolder h(Static::pageheap_lock());
+      *value = ThreadCache::thread_heap_count();
+      return true;
+    }
+
     return false;
   }
 

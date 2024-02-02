@@ -114,6 +114,10 @@ class ThreadCache {
     return overall_thread_cache_size_;
   }
 
+  static int thread_heap_count() {
+    return thread_heap_count_;
+  }
+
  private:
   class FreeList {
    private:
