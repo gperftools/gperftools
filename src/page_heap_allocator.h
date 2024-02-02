@@ -87,6 +87,9 @@ class PageHeapAllocator {
   }
 
   void Delete(T* p) {
+#ifndef NDEBUG
+    memset(static_cast<void*>(p), 0xAA, sizeof(T));
+#endif
     *(reinterpret_cast<void**>(p)) = free_list_;
     free_list_ = p;
     inuse_--;
