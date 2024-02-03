@@ -229,8 +229,6 @@ static const size_t kNotTooBig = 100000;
 // not *too* big.
 static const size_t kTooBig = kMaxSize - 100000;
 
-static int news_handled = 0;
-
 // Global array of threads
 class TesterThread;
 static TesterThread** threads;
@@ -649,6 +647,9 @@ static void TestRealloc() {
 #endif
 }
 
+#if __cpp_exceptions
+static int news_handled = 0;
+
 static void TestNewHandler() {
   ++news_handled;
   throw std::bad_alloc();
@@ -742,6 +743,7 @@ static void TestNothrowNew(void* (*func)(size_t, const std::nothrow_t&)) {
   }
   std::set_new_handler(saved_handler);
 }
+#endif  // __cpp_exceptions
 
 
 // These are used as callbacks by the sanity-check.  Set* and Reset*
@@ -1470,6 +1472,7 @@ static int RunAllTests(int argc, char** argv) {
   fprintf(LOGSTREAM, "Testing realloc\n");
   TestRealloc();
 
+#if __cpp_exceptions
   fprintf(LOGSTREAM, "Testing operator new(nothrow).\n");
   TestNothrowNew(&::operator new);
   fprintf(LOGSTREAM, "Testing operator new[](nothrow).\n");
@@ -1478,6 +1481,7 @@ static int RunAllTests(int argc, char** argv) {
   TestNew(&::operator new);
   fprintf(LOGSTREAM, "Testing operator new[].\n");
   TestNew(&::operator new[]);
+#endif
 
   // Create threads
   fprintf(LOGSTREAM, "Testing threaded allocation/deallocation (%d threads)\n",
