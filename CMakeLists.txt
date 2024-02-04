@@ -14,6 +14,11 @@ set(TCMALLOC_SO_VERSION 9.16.5)
 set(PROFILER_SO_VERSION 5.11.5)
 set(TCMALLOC_AND_PROFILER_SO_VERSION 10.11.6)
 
+# Follow the project convention to use a version patch prefixed with a dot
+if(${PROJECT_VERSION_PATCH})
+  set(TC_VERSION_PATCH ".${PROJECT_VERSION_PATCH}")
+endif()
+
 # The user can choose not to compile in the heap-profiler, the
 # heap-checker, or the cpu-profiler.  There's also the possibility
 # for a 'fully minimal' compile, which leaves out the stacktrace
@@ -969,7 +974,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
       add_executable(debugallocation_test src/tests/debugallocation_test.cc)
       target_link_libraries(debugallocation_test PUBLIC tcmalloc_minimal_debug Threads::Threads)
 
-      add_test(NAME debugallocation_test
+      add_test(NAME debugallocation_test.sh
               COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/src/tests/debugallocation_test.sh)
     endif()
   endif()
@@ -1104,7 +1109,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     set(tcmalloc_unittest_LIBADD ${TCMALLOC_FLAGS} logging Threads::Threads)
     add_executable(tcmalloc_unittest ${tcmalloc_unittest_SOURCES})
     target_link_libraries(tcmalloc_unittest tcmalloc ${tcmalloc_unittest_LIBADD})
-    add_test(NAME tcmalloc_unittest
+    add_test(NAME tcmalloc_unittest.sh
             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/tcmalloc_unittest.sh")
 
     # This makes sure it's safe to link in both tcmalloc and
@@ -1160,16 +1165,16 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_executable(sampling_test ${sampling_test_SOURCES})
     target_link_libraries(sampling_test ${TCMALLOC_FLAGS} tcmalloc Threads::Threads)
     add_test(NAME sampling_test.sh
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/sampling_test.sh" sampling_test)
+            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/sampling_test.sh")
     if(GPERFTOOLS_BUILD_HEAP_PROFILER)
       set(HEAP_PROFILER_UNITTEST_INCLUDES src/config_for_unittests.h
               src/gperftools/heap-profiler.h)
       set(heap_profiler_unittest_SOURCES src/tests/heap-profiler_unittest.cc
               ${HEAP_PROFILER_UNITTEST_INCLUDES})
-      add_executable(heap_profiler_unittest ${heap_profiler_unittest_SOURCES})
-      target_link_libraries(heap_profiler_unittest ${TCMALLOC_FLAGS} tcmalloc Threads::Threads)
+      add_executable(heap-profiler_unittest ${heap_profiler_unittest_SOURCES})
+      target_link_libraries(heap-profiler_unittest ${TCMALLOC_FLAGS} tcmalloc Threads::Threads)
       add_test(NAME heap-profiler_unittest.sh
-              COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh" heap-profiler_unittest)
+              COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh")
 
       # Tests the compatibility include-headers in google/.  Requires a function
       # defined in the heap-profiler, which is why the test lives here.
@@ -1187,11 +1192,11 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
               ${LOGGING_INCLUDES})
       set(heap_checker_unittest_SOURCES src/tests/heap-checker_unittest.cc
               ${HEAP_CHECKER_UNITTEST_INCLUDES})
-      add_executable(heap_checker_unittest ${heap_checker_unittest_SOURCES})
-      target_link_libraries(heap_checker_unittest ${TCMALLOC_FLAGS} tcmalloc logging Threads::Threads)
-      add_test(heap-checker_unittest heap_checker_unittest)
       add_test(NAME heap-checker-death_unittest.sh
               COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-checker-death_unittest.sh")
+      add_executable(heap-checker_unittest ${heap_checker_unittest_SOURCES})
+      target_link_libraries(heap-checker_unittest ${TCMALLOC_FLAGS} tcmalloc logging Threads::Threads)          
+      add_test(heap-checker_unittest heap-checker_unittest)
 endif()
   endif()
 
@@ -1233,17 +1238,19 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
 
       add_executable(sampling_debug_test ${sampling_test_SOURCES})
       target_link_libraries(sampling_debug_test ${TCMALLOC_FLAGS} tcmalloc_debug Threads::Threads)
-      add_test(sampling_debug_test.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/sampling_test.sh" sampling_debug_test)
+      add_test(sampling_debug_test.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/sampling_test.sh" 
+                                      "${CMAKE_CURRENT_BINARY_DIR}/sampling_debug_test")
 
       if(GPERFTOOLS_BUILD_HEAP_PROFILER)
-        add_executable(heap_profiler_debug_unittest ${heap_profiler_unittest_SOURCES})
-        target_link_libraries(heap_profiler_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug Threads::Threads)
-        add_test(heap-profiler_debug_unittest.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh" heap-profiler_debug_unittest)
+        add_executable(heap-profiler_debug_unittest ${heap_profiler_unittest_SOURCES})
+        target_link_libraries(heap-profiler_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug Threads::Threads)
+        add_test(heap-profiler_debug_unittest.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh"
+                                                 "${CMAKE_CURRENT_BINARY_DIR}/heap-profiler_debug_unittest")
       endif()
       if(GPERFTOOLS_BUILD_HEAP_CHECKER)
-        add_executable(heap_checker_debug_unittest ${heap_checker_unittest_SOURCES})
-        target_link_libraries(heap_checker_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug logging Threads::Threads)
-        add_test(heap_checker_debug_unittest heap_checker_debug_unittest)
+        add_executable(heap-checker_debug_unittest ${heap_checker_unittest_SOURCES})
+        target_link_libraries(heap-checker_debug_unittest ${TCMALLOC_FLAGS} tcmalloc_debug logging Threads::Threads)
+        add_test(heap-checker_debug_unittest heap-checker_debug_unittest)
       endif()
     endif()
   endif()
