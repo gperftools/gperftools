@@ -111,20 +111,20 @@
 #define SCOPED_LOCKABLE        THREAD_ANNOTATION_ATTRIBUTE__(scoped_lockable)
 
 // The following annotations specify lock and unlock primitives.
-#define EXCLUSIVE_LOCK_FUNCTION(x) \
-  THREAD_ANNOTATION_ATTRIBUTE__(exclusive_lock_function(x))
+#define EXCLUSIVE_LOCK_FUNCTION(...) \
+  THREAD_ANNOTATION_ATTRIBUTE__(exclusive_lock_function(__VA_ARGS__))
 
-#define SHARED_LOCK_FUNCTION(x) \
-  THREAD_ANNOTATION_ATTRIBUTE__(shared_lock_function(x))
+#define SHARED_LOCK_FUNCTION(...) \
+  THREAD_ANNOTATION_ATTRIBUTE__(shared_lock_function(__VA_ARGS__))
 
-#define EXCLUSIVE_TRYLOCK_FUNCTION(x) \
-  THREAD_ANNOTATION_ATTRIBUTE__(exclusive_trylock_function(x))
+#define EXCLUSIVE_TRYLOCK_FUNCTION(...) \
+  THREAD_ANNOTATION_ATTRIBUTE__(exclusive_trylock_function(__VA_ARGS__))
 
-#define SHARED_TRYLOCK_FUNCTION(x) \
-  THREAD_ANNOTATION_ATTRIBUTE__(shared_trylock_function(x))
+#define SHARED_TRYLOCK_FUNCTION(...) \
+  THREAD_ANNOTATION_ATTRIBUTE__(shared_trylock_function(__VA_ARGS__))
 
-#define UNLOCK_FUNCTION(x) \
-  THREAD_ANNOTATION_ATTRIBUTE__(unlock_function(x))
+#define UNLOCK_FUNCTION(...) \
+  THREAD_ANNOTATION_ATTRIBUTE__(unlock_function(__VA_ARGS__))
 
 // An escape hatch for thread safety analysis to ignore the annotated function.
 #define NO_THREAD_SAFETY_ANALYSIS \
