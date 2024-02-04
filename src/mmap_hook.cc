@@ -226,7 +226,7 @@ static void* do_mmap(void* start, size_t length, int prot, int flags, int fd, in
 
 #ifdef DEFINED_DO_MMAP
 
-static inline ATTRIBUTE_ALWAYS_INLINE
+static ALWAYS_INLINE
 void* do_mmap_with_hooks(void* start, size_t length, int prot, int flags, int fd, int64_t offset) {
   void* result = do_mmap(start, length, prot, flags, fd, offset);
   if (result == MAP_FAILED) {

@@ -1440,8 +1440,8 @@ static void *retry_debug_memalign(void *arg) {
   return do_debug_memalign(data->align, data->size, data->type);
 }
 
-ATTRIBUTE_ALWAYS_INLINE
-inline void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
+ALWAYS_INLINE
+void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
                                                      size_t size,
                                                      int type,
                                                      bool from_operator,

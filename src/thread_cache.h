@@ -309,7 +309,7 @@ inline int ThreadCache::HeapsInUse() {
   return threadcache_allocator.inuse();
 }
 
-inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(
+ALWAYS_INLINE void* ThreadCache::Allocate(
   size_t size, uint32 cl, void *(*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
 
@@ -329,7 +329,7 @@ inline ATTRIBUTE_ALWAYS_INLINE void* ThreadCache::Allocate(
   return rv;
 }
 
-inline ATTRIBUTE_ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
+ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
   ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
 

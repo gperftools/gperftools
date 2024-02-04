@@ -161,7 +161,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
 
   // Return the descriptor for the specified page.  Returns NULL if
   // this PageID was not allocated previously.
-  inline ATTRIBUTE_ALWAYS_INLINE
+  ALWAYS_INLINE
   Span* GetDescriptor(PageID p) const {
     return reinterpret_cast<Span*>(pagemap_.get(p));
   }

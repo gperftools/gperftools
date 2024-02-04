@@ -190,8 +190,8 @@ class SizeMap {
   // If size is no more than kMaxSize, compute index of the
   // class_array[] entry for it, putting the class index in output
   // parameter idx and returning true. Otherwise return false.
-  static inline bool ATTRIBUTE_ALWAYS_INLINE ClassIndexMaybe(size_t s,
-                                                             uint32* idx) {
+  static ALWAYS_INLINE bool ClassIndexMaybe(size_t s,
+                                            uint32* idx) {
     if (PREDICT_TRUE(s <= kMaxSmallSize)) {
       *idx = (static_cast<uint32>(s) + 7) >> 3;
       return true;
@@ -248,7 +248,7 @@ public:
   // Check if size is small enough to be representable by a size
   // class, and if it is, put matching size class into *cl. Returns
   // true iff matching size class was found.
-  bool ATTRIBUTE_ALWAYS_INLINE GetSizeClass(size_t size, uint32* cl) {
+  ALWAYS_INLINE bool GetSizeClass(size_t size, uint32* cl) {
     uint32 idx;
     if (!ClassIndexMaybe(size, &idx)) {
       return false;
@@ -258,7 +258,7 @@ public:
   }
 
   // Get the byte-size for a specified class
-  int32 ATTRIBUTE_ALWAYS_INLINE ByteSizeForClass(uint32 cl) {
+  ALWAYS_INLINE int32 ByteSizeForClass(uint32 cl) {
     return class_to_size_[cl];
   }
 

@@ -1024,7 +1024,7 @@ class TCMallocImplementation : public MallocExtension {
   }
 };
 
-static inline ATTRIBUTE_ALWAYS_INLINE
+static ALWAYS_INLINE
 size_t align_size_up(size_t size, size_t align) {
   ASSERT(align <= kPageSize);
   size_t new_size = (size + align - 1) & ~(align - 1);
@@ -1179,12 +1179,12 @@ static ATTRIBUTE_UNUSED bool CheckCachedSizeClass(void *ptr) {
   return cached_value == Static::pageheap()->GetDescriptor(p)->sizeclass;
 }
 
-static inline ATTRIBUTE_ALWAYS_INLINE void* CheckedMallocResult(void *result) {
+static ALWAYS_INLINE void* CheckedMallocResult(void *result) {
   ASSERT(result == NULL || CheckCachedSizeClass(result));
   return result;
 }
 
-static inline ATTRIBUTE_ALWAYS_INLINE void* SpanToMallocResult(Span *span) {
+static ALWAYS_INLINE void* SpanToMallocResult(Span *span) {
   return
       CheckedMallocResult(reinterpret_cast<void*>(span->start << kPageShift));
 }
@@ -1408,7 +1408,7 @@ static void *nop_oom_handler(size_t size) {
   return NULL;
 }
 
-ATTRIBUTE_ALWAYS_INLINE inline void* do_malloc(size_t size) {
+ALWAYS_INLINE void* do_malloc(size_t size) {
   if (PREDICT_FALSE(tcmalloc::IsUseEmergencyMalloc())) {
     return tcmalloc::EmergencyMalloc(size);
   }
@@ -1439,7 +1439,7 @@ static void *retry_malloc(void* size) {
   return do_malloc(reinterpret_cast<size_t>(size));
 }
 
-ATTRIBUTE_ALWAYS_INLINE inline void* do_malloc_or_cpp_alloc(size_t size) {
+ALWAYS_INLINE void* do_malloc_or_cpp_alloc(size_t size) {
   void *rv = do_malloc(size);
   if (PREDICT_TRUE(rv != NULL)) {
     return rv;
@@ -1448,7 +1448,7 @@ ATTRIBUTE_ALWAYS_INLINE inline void* do_malloc_or_cpp_alloc(size_t size) {
                     false, true);
 }
 
-ATTRIBUTE_ALWAYS_INLINE inline void* do_calloc(size_t n, size_t elem_size) {
+ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
   // Overflow check
   const size_t size = n * elem_size;
   if (elem_size != 0 && size / elem_size != n) return NULL;
@@ -1506,7 +1506,7 @@ bool ValidateSizeHint(void* ptr, size_t size_hint) {
 //
 // We can usually detect the case where ptr is not pointing to a page that
 // tcmalloc is using, and in those cases we invoke invalid_free_fn.
-ATTRIBUTE_ALWAYS_INLINE inline
+ALWAYS_INLINE
 void do_free_with_callback(void* ptr,
                            void (*invalid_free_fn)(void*),
                            bool use_hint, size_t size_hint) {
@@ -1571,7 +1571,7 @@ void do_free_with_callback(void* ptr,
 }
 
 // The default "do_free" that uses the default callback.
-ATTRIBUTE_ALWAYS_INLINE inline void do_free(void* ptr) {
+ALWAYS_INLINE void do_free(void* ptr) {
   return do_free_with_callback(ptr, &InvalidFree, false, 0);
 }
 
@@ -1606,7 +1606,7 @@ inline size_t GetSizeWithCallback(const void* ptr,
 
 // This lets you call back to a given function pointer if ptr is invalid.
 // It is used primarily by windows code which wants a specialized callback.
-ATTRIBUTE_ALWAYS_INLINE inline void* do_realloc_with_callback(
+ALWAYS_INLINE void* do_realloc_with_callback(
     void* old_ptr, size_t new_size,
     void (*invalid_free_fn)(void*),
     size_t (*invalid_get_size_fn)(const void*)) {
@@ -1653,12 +1653,12 @@ ATTRIBUTE_ALWAYS_INLINE inline void* do_realloc_with_callback(
   }
 }
 
-ATTRIBUTE_ALWAYS_INLINE inline void* do_realloc(void* old_ptr, size_t new_size) {
+ALWAYS_INLINE void* do_realloc(void* old_ptr, size_t new_size) {
   return do_realloc_with_callback(old_ptr, new_size,
                                   &InvalidFree, &InvalidGetSizeForRealloc);
 }
 
-static ATTRIBUTE_ALWAYS_INLINE inline
+static ALWAYS_INLINE
 void* do_memalign_pages(size_t align, size_t size) {
   ASSERT((align & (align - 1)) == 0);
   ASSERT(align > kPageSize);
@@ -1816,7 +1816,7 @@ void* malloc_oom(size_t size) {
 // Also note that we're carefully orchestrating for
 // MallocHook::GetCallerStackTrace to work even if compiler isn't
 // optimizing tail calls (e.g. -O0 is given). We still require
-// ATTRIBUTE_ALWAYS_INLINE to work for that case, but it was seen to
+// ALWAYS_INLINE to work for that case, but it was seen to
 // work for -O0 -fno-inline across both GCC and clang. I.e. in this
 // case we'll get stack frame for tc_new, followed by stack frame for
 // allocate_full_cpp_throw_oom, followed by hooks machinery and user
@@ -1824,7 +1824,7 @@ void* malloc_oom(size_t size) {
 // subsequent stack frames in google_malloc section and correctly
 // 'cut' stack trace just before tc_new.
 template <void* OOMHandler(size_t)>
-ATTRIBUTE_ALWAYS_INLINE inline
+ALWAYS_INLINE
 static void* do_allocate_full(size_t size) {
   void* p = do_malloc(size);
   if (PREDICT_FALSE(p == NULL)) {
@@ -1847,7 +1847,7 @@ AF(malloc_oom)
 #undef AF
 
 template <void* OOMHandler(size_t)>
-static ATTRIBUTE_ALWAYS_INLINE inline void* dispatch_allocate_full(size_t size) {
+static ALWAYS_INLINE void* dispatch_allocate_full(size_t size) {
   if (OOMHandler == cpp_throw_oom) {
     return allocate_full_cpp_throw_oom(size);
   }
@@ -1900,7 +1900,7 @@ void* memalign_pages(size_t align, size_t size,
 // comprehension. Which itself led to elimination of various checks
 // that were not necessary for fast-path.
 template <void* OOMHandler(size_t)>
-ATTRIBUTE_ALWAYS_INLINE inline
+ALWAYS_INLINE
 static void * malloc_fast_path(size_t size) {
   if (PREDICT_FALSE(!base::internal::new_hooks_.empty())) {
     return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
@@ -1927,7 +1927,7 @@ static void * malloc_fast_path(size_t size) {
 }
 
 template <void* OOMHandler(size_t)>
-ATTRIBUTE_ALWAYS_INLINE inline
+ALWAYS_INLINE
 static void* memalign_fast_path(size_t align, size_t size) {
   if (PREDICT_FALSE(align > kPageSize)) {
     if (OOMHandler == tcmalloc::cpp_throw_oom) {
@@ -1951,7 +1951,7 @@ void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
   return malloc_fast_path<tcmalloc::malloc_oom>(size);
 }
 
-static ATTRIBUTE_ALWAYS_INLINE inline
+static ALWAYS_INLINE
 void free_fast_path(void *ptr) {
   if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     tcmalloc::invoke_hooks_and_free(ptr);
