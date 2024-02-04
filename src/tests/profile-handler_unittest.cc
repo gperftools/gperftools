@@ -13,16 +13,16 @@
 
 #include "profile-handler.h"
 
-#include <atomic>
-
 #include <assert.h>
 #include <pthread.h>
 #include <sys/time.h>
 #include <stdint.h>
 #include <time.h>
 
+#include <atomic>
+#include <mutex>
+
 #include "base/logging.h"
-#include "base/simple_mutex.h"
 
 // Some helpful macros for the test class
 #define TEST_F(cls, fn)    void cls :: fn()
@@ -42,15 +42,17 @@ namespace {
 std::atomic<intptr_t> allocate_count;
 std::atomic<intptr_t> free_count;
 // We also "frob" this lock down in BusyThread.
-Mutex allocate_lock;
+std::mutex allocate_lock;
 
 void* do_allocate(size_t sz) {
-  MutexLock h(&allocate_lock);
+  std::lock_guard l{allocate_lock};
+
   allocate_count++;
   return malloc(sz);
 }
 void do_free(void* p) {
-  MutexLock h(&allocate_lock);
+  std::lock_guard l{allocate_lock};
+
   free_count++;
   free(p);
 }
@@ -143,17 +145,17 @@ class BusyThread : public Thread {
 
   // Setter/Getters
   bool stop_work() {
-    MutexLock lock(&mu_);
+    std::lock_guard l{mu_};
     return stop_work_;
   }
   void set_stop_work(bool stop_work) {
-    MutexLock lock(&mu_);
+    std::lock_guard l{mu_};
     stop_work_ = stop_work;
   }
 
  private:
   // Protects stop_work_ below.
-  Mutex mu_;
+  std::mutex mu_;
   // Whether to stop work?
   bool stop_work_;
 
@@ -162,7 +164,8 @@ class BusyThread : public Thread {
   // malloc locks.
   void Run() {
     for (;;) {
-      MutexLock h(&allocate_lock);
+      std::lock_guard l{allocate_lock};
+
       for (int i = 1000; i > 0; i--) {
         if (stop_work()) {
           return;

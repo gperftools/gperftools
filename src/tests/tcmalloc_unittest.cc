@@ -78,12 +78,14 @@
 #include <malloc.h>                 // defines pvalloc/etc on cygwin
 #endif
 #include <assert.h>
-#include <vector>
+
 #include <algorithm>
-#include <string>
+#include <mutex>
 #include <new>
+#include <string>
+#include <vector>
+
 #include "base/logging.h"
-#include "base/simple_mutex.h"
 #include "gperftools/malloc_hook.h"
 #include "gperftools/malloc_extension.h"
 #include "gperftools/nallocx.h"
@@ -373,7 +375,7 @@ class TesterThread {
     int         generation;             // Generation counter of object contents
   };
 
-  Mutex                 lock_;          // For passing in another thread's obj
+  std::mutex            lock_;          // For passing in another thread's obj
   int                   id_;            // My thread id
   AllocatorState        rnd_;           // For generating random numbers
   vector<Object>        heap_;          // This thread's heap
@@ -503,10 +505,10 @@ class TesterThread {
     const int tid = rnd_.Uniform(FLAGS_numthreads);
     TesterThread* thread = threads[tid];
 
-    if (thread->lock_.TryLock()) {
+    if (thread->lock_.try_lock()) {
       // Pass the object
       thread->passed_.push_back(object);
-      thread->lock_.Unlock();
+      thread->lock_.unlock();
       heap_size_ -= object.size;
       heap_[index] = heap_[heap_.size()-1];
       heap_.pop_back();
@@ -520,11 +522,11 @@ class TesterThread {
     // objects into a local vector.
     vector<Object> copy;
     { // Locking scope
-      if (!lock_.TryLock()) {
+      if (!lock_.try_lock()) {
         return;
       }
       swap(copy, passed_);
-      lock_.Unlock();
+      lock_.unlock();
     }
 
     for (int i = 0; i < copy.size(); ++i) {

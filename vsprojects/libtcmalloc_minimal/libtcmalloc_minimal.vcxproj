@@ -249,7 +249,6 @@
     <ClInclude Include="..\..\src\base\googleinit.h" />
     <ClInclude Include="..\..\src\base\linked_list.h" />
     <ClInclude Include="..\..\src\base\logging.h" />
-    <ClInclude Include="..\..\src\base\mutex.h" />
     <ClInclude Include="..\..\src\base\spinlock.h" />
     <ClInclude Include="..\..\src\base\spinlock_internal.h" />
     <ClInclude Include="..\..\src\base\spinlock_linux-inl.h" />

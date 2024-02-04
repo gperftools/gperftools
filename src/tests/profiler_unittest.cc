@@ -44,15 +44,15 @@
 #include <sys/wait.h>               // for wait()
 
 #include <atomic>
+#include <mutex>
 
 #include "gperftools/profiler.h"
-#include "base/simple_mutex.h"
 #include "tests/testutil.h"
 
 static std::atomic<int> result;
 static int g_iters;   // argv[1]
 
-Mutex mutex(Mutex::LINKER_INITIALIZED);
+std::mutex mutex;
 
 static void test_other_thread() {
 #ifndef NO_THREADS
@@ -60,7 +60,7 @@ static void test_other_thread() {
 
   int i, m;
   char b[128];
-  MutexLock ml(&mutex);
+  std::lock_guard ml(mutex);
   for (m = 0; m < 1000000; ++m) {          // run millions of times
     for (i = 0; i < g_iters; ++i ) {
       result ^= i;
@@ -75,7 +75,7 @@ static void test_other_thread() {
 static void test_main_thread() {
   int i, m;
   char b[128];
-  MutexLock ml(&mutex);
+  std::lock_guard ml(mutex);
   for (m = 0; m < 1000000; ++m) {          // run millions of times
     for (i = 0; i < g_iters; ++i ) {
       result ^= i;

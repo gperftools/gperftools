@@ -32,30 +32,23 @@
 // Author: llib@google.com (Bill Clarke)
 
 #include "config_for_unittests.h"
+
 #include <assert.h>
 #include <stdio.h>
-#ifdef HAVE_MMAP
-#include <sys/mman.h>
-#endif
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>    // for sleep()
-#endif
+
 #include <algorithm>
 #include <string>
 #include <vector>
+#include <mutex>
+#include <thread>
+#include <chrono>
+
 #include <gperftools/malloc_hook.h>
 #include "malloc_hook-inl.h"
 #include "base/logging.h"
-#include "base/simple_mutex.h"
 #include "base/sysinfo.h"
 #include "base/threading.h"
 #include "tests/testutil.h"
-
-// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
-// form of the name instead.
-#ifndef MAP_ANONYMOUS
-# define MAP_ANONYMOUS MAP_ANON
-#endif
 
 namespace {
 
@@ -78,14 +71,6 @@ static int RUN_ALL_TESTS() {
   fprintf(stderr, "\nPassed %d tests\n\nPASS\n",
           static_cast<int>(g_testlist.size()));
   return 0;
-}
-
-void Sleep(int seconds) {
-#ifdef _MSC_VER
-  _sleep(seconds * 1000);   // Windows's _sleep takes milliseconds argument
-#else
-  sleep(seconds);
-#endif
 }
 
 using base::internal::kHookListMaxValues;
@@ -242,21 +227,22 @@ void MultithreadedTestThread(TestHookList* list, int shift,
 
 static volatile int num_threads_remaining;
 static TestHookList list{kTestValue};
-static Mutex threadcount_lock;
+static std::mutex threadcount_lock;
 
 void MultithreadedTestThreadRunner(int thread_num) {
   // Wait for all threads to start running.
   {
-    MutexLock ml(&threadcount_lock);
+    std::lock_guard ml{threadcount_lock};
+
     assert(num_threads_remaining > 0);
     --num_threads_remaining;
 
     // We should use condvars and the like, but for this test, we'll
     // go simple and busy-wait.
     while (num_threads_remaining > 0) {
-      threadcount_lock.Unlock();
-      Sleep(1);
-      threadcount_lock.Lock();
+      threadcount_lock.unlock();
+      std::this_thread::sleep_for(std::chrono::seconds(1));
+      threadcount_lock.lock();
     }
   }
 

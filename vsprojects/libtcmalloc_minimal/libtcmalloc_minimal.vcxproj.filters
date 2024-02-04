@@ -172,9 +172,6 @@
     <ClInclude Include="..\..\src\windows\mini_disassembler_types.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\base\mutex.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\packed-cache-inl.h">
       <Filter>Header Files</Filter>
     </ClInclude>

@@ -1260,7 +1260,6 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
           src/base/commandlineflags.h
           src/base/googleinit.h
           src/base/logging.h
-          src/base/simple_mutex.h
           src/base/sysinfo.h
           ${SPINLOCK_INCLUDES}
           ${LOGGING_INCLUDES})
