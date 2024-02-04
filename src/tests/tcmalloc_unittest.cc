@@ -1495,7 +1495,7 @@ static int RunAllTests(int argc, char** argv) {
   }
 
   // This runs all the tests at the same time, with a 1M stack size each
-  RunManyThreadsWithId(RunThread, FLAGS_numthreads, 1<<20);
+  RunManyThreadsWithId(RunThread, FLAGS_numthreads);
 
   for (int i = 0; i < FLAGS_numthreads; ++i) delete threads[i];    // Cleanup
 

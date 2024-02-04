@@ -45,13 +45,11 @@ extern "C" void RunThread(void (*fn)());
 extern "C" void RunManyThreads(void (*fn)(), int count);
 
 // The 'advanced' version: run a function X times, in X threads, and
-// wait for them all to finish.  Give them all the specified stack-size.
-// (If you're curious why this takes a stacksize and the others don't,
-// it's because the one client of this fn wanted to specify stacksize. :-) )
+// wait for them all to finish.
 // The function you pass in must have the signature
 //    void MyFunction(int idx);
 // where idx is the index of the thread (which of the X threads this is).
-extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize);
+extern "C" void RunManyThreadsWithId(void (*fn)(int), int count);
 
 // When compiled 64-bit and run on systems with swap several unittests will end
 // up trying to consume all of RAM+swap, and that can take quite some time.  By

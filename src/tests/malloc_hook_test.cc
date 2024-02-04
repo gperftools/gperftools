@@ -263,8 +263,7 @@ TEST(HookListTest, MultithreadedTest) {
   // Run kHookListMaxValues thread, each running MultithreadedTestThread.
   // First, we need to set up the rest of the globals.
   num_threads_remaining = kHookListMaxValues;   // a global var
-  RunManyThreadsWithId(&MultithreadedTestThreadRunner, num_threads_remaining,
-                       1 << 15);
+  RunManyThreadsWithId(&MultithreadedTestThreadRunner, num_threads_remaining);
 
   MallocHook::NewHook values[kHookListMaxValues + 1];
   EXPECT_EQ(0, list.Traverse(values, kHookListMaxValues + 1));

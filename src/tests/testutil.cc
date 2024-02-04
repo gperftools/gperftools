@@ -34,14 +34,19 @@
 // A few routines that are useful for multiple tests in this directory.
 
 #include "config_for_unittests.h"
-#include <stdlib.h>           // for NULL, abort()
+
+#include "tests/testutil.h"
+
+#include <stdlib.h>
 // On FreeBSD, if you #include <sys/resource.h>, you have to get stdint first.
 #include <stdint.h>
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/resource.h>
 #endif
-#include "tests/testutil.h"
 
+#include <functional>
+#include <thread>
+#include <vector>
 
 // When compiled 64-bit and run on systems with swap several unittests will end
 // up trying to consume all of RAM+swap, and that can take quite some time.  By
@@ -91,131 +96,37 @@ extern "C" void RunManyThreads(void (*fn)(), int count) {
     (*fn)();
 }
 
-extern "C" void RunManyThreadsWithId(void (*fn)(int), int count, int) {
+extern "C" void RunManyThreadsWithId(void (*fn)(int), int count) {
   for (int i = 0; i < count; i++)
     (*fn)(i);    // stacksize doesn't make sense in a non-threaded context
 }
 
-#elif defined(_WIN32)
-
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN  /* We always want minimal includes */
-#endif
-#include <windows.h>
+#else
 
 extern "C" {
-  // This helper function has the signature that pthread_create wants.
-  DWORD WINAPI RunFunctionInThread(LPVOID ptr_to_ptr_to_fn) {
-    (**static_cast<void (**)()>(ptr_to_ptr_to_fn))();    // runs fn
-    return 0;
+  void RunThread(void (*fn)()) {
+    std::thread{fn}.join();
   }
 
-  DWORD WINAPI RunFunctionInThreadWithId(LPVOID ptr_to_fnid) {
-    FunctionAndId* fn_and_id = static_cast<FunctionAndId*>(ptr_to_fnid);
-    (*fn_and_id->ptr_to_function)(fn_and_id->id);   // runs fn
-    return 0;
+  static void RunMany(const std::function<void(int)>& fn, int count) {
+    std::vector<std::thread> threads;
+    threads.reserve(count);
+    for (int i = 0; i < count; i++) {
+      threads.emplace_back(fn, i);
+    }
+    for (auto& t : threads) {
+      t.join();
+    }
   }
 
   void RunManyThreads(void (*fn)(), int count) {
-    DWORD dummy;
-    HANDLE* hThread = new HANDLE[count];
-    for (int i = 0; i < count; i++) {
-      hThread[i] = CreateThread(NULL, 0, RunFunctionInThread, &fn, 0, &dummy);
-      if (hThread[i] == NULL)  ExitProcess(i);
-    }
-    WaitForMultipleObjects(count, hThread, TRUE, INFINITE);
-    for (int i = 0; i < count; i++) {
-      CloseHandle(hThread[i]);
-    }
-    delete[] hThread;
+    RunMany([fn] (int dummy) {
+      fn();
+    }, count);
   }
 
-  void RunThread(void (*fn)()) {
-    RunManyThreads(fn, 1);
-  }
-
-  void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize) {
-    DWORD dummy;
-    HANDLE* hThread = new HANDLE[count];
-    FunctionAndId* fn_and_ids = new FunctionAndId[count];
-    for (int i = 0; i < count; i++) {
-      fn_and_ids[i].ptr_to_function = fn;
-      fn_and_ids[i].id = i;
-      hThread[i] = CreateThread(NULL, stacksize, RunFunctionInThreadWithId,
-                                &fn_and_ids[i], 0, &dummy);
-      if (hThread[i] == NULL)  ExitProcess(i);
-    }
-    WaitForMultipleObjects(count, hThread, TRUE, INFINITE);
-    for (int i = 0; i < count; i++) {
-      CloseHandle(hThread[i]);
-    }
-    delete[] fn_and_ids;
-    delete[] hThread;
-  }
-}
-
-#else  // not NO_THREADS, not _WIN32
-
-#include <pthread.h>
-
-#define SAFE_PTHREAD(fncall)  do { if ((fncall) != 0) abort(); } while (0)
-
-extern "C" {
-  // This helper function has the signature that pthread_create wants.
-  static void* RunFunctionInThread(void *ptr_to_ptr_to_fn) {
-    (**static_cast<void (**)()>(ptr_to_ptr_to_fn))();    // runs fn
-    return NULL;
-  }
-
-  static void* RunFunctionInThreadWithId(void *ptr_to_fnid) {
-    FunctionAndId* fn_and_id = static_cast<FunctionAndId*>(ptr_to_fnid);
-    (*fn_and_id->ptr_to_function)(fn_and_id->id);   // runs fn
-    return NULL;
-  }
-
-  // Run a function in a thread of its own and wait for it to finish.
-  // This is useful for tcmalloc testing, because each thread is
-  // handled separately in tcmalloc, so there's interesting stuff to
-  // test even if the threads are not running concurrently.
-  void RunThread(void (*fn)()) {
-    pthread_t thr;
-    // Even though fn is on the stack, it's safe to pass a pointer to it,
-    // because we pthread_join immediately (ie, before RunInThread exits).
-    SAFE_PTHREAD(pthread_create(&thr, NULL, RunFunctionInThread, &fn));
-    SAFE_PTHREAD(pthread_join(thr, NULL));
-  }
-
-  void RunManyThreads(void (*fn)(), int count) {
-    pthread_t* thr = new pthread_t[count];
-    for (int i = 0; i < count; i++) {
-      SAFE_PTHREAD(pthread_create(&thr[i], NULL, RunFunctionInThread, &fn));
-    }
-    for (int i = 0; i < count; i++) {
-      SAFE_PTHREAD(pthread_join(thr[i], NULL));
-    }
-    delete[] thr;
-  }
-
-  void RunManyThreadsWithId(void (*fn)(int), int count, int stacksize) {
-    pthread_attr_t attr;
-    pthread_attr_init(&attr);
-    pthread_attr_setstacksize(&attr, stacksize);
-
-    pthread_t* thr = new pthread_t[count];
-    FunctionAndId* fn_and_ids = new FunctionAndId[count];
-    for (int i = 0; i < count; i++) {
-      fn_and_ids[i].ptr_to_function = fn;
-      fn_and_ids[i].id = i;
-      SAFE_PTHREAD(pthread_create(&thr[i], &attr,
-                                  RunFunctionInThreadWithId, &fn_and_ids[i]));
-    }
-    for (int i = 0; i < count; i++) {
-      SAFE_PTHREAD(pthread_join(thr[i], NULL));
-    }
-    delete[] fn_and_ids;
-    delete[] thr;
-
-    pthread_attr_destroy(&attr);
+  void RunManyThreadsWithId(void (*fn)(int), int count) {
+    RunMany(fn, count);
   }
 }
 
