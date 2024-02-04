@@ -92,7 +92,7 @@ ThreadCache::ThreadCache() {
 
   next_ = nullptr;
   prev_ = nullptr;
-  for (uint32 cl = 0; cl < Static::num_size_classes(); ++cl) {
+  for (uint32_t cl = 0; cl < Static::num_size_classes(); ++cl) {
     list_[cl].Init(Static::sizemap()->class_to_size(cl));
   }
 
@@ -105,7 +105,7 @@ ThreadCache::ThreadCache() {
 
 ThreadCache::~ThreadCache() {
   // Put unused memory back into central cache
-  for (uint32 cl = 0; cl < Static::num_size_classes(); ++cl) {
+  for (uint32_t cl = 0; cl < Static::num_size_classes(); ++cl) {
     if (list_[cl].length() > 0) {
       ReleaseToCentralCache(&list_[cl], cl, list_[cl].length());
     }
@@ -114,7 +114,7 @@ ThreadCache::~ThreadCache() {
 
 // Remove some objects of class "cl" from central cache and add to thread heap.
 // On success, return the first object for immediate use; otherwise return NULL.
-void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size,
+void* ThreadCache::FetchFromCentralCache(uint32_t cl, int32_t byte_size,
                                          void *(*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
   ASSERT(list->empty());
@@ -157,7 +157,7 @@ void* ThreadCache::FetchFromCentralCache(uint32 cl, int32_t byte_size,
   return start;
 }
 
-void ThreadCache::ListTooLong(FreeList* list, uint32 cl) {
+void ThreadCache::ListTooLong(FreeList* list, uint32_t cl) {
   size_ += list->object_size();
 
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
@@ -188,7 +188,7 @@ void ThreadCache::ListTooLong(FreeList* list, uint32 cl) {
 }
 
 // Remove some objects of class "cl" from thread heap and add to central cache
-void ThreadCache::ReleaseToCentralCache(FreeList* src, uint32 cl, int N) {
+void ThreadCache::ReleaseToCentralCache(FreeList* src, uint32_t cl, int N) {
   ASSERT(src == &list_[cl]);
   if (N > src->length()) N = src->length();
   size_t delta_bytes = N * Static::sizemap()->ByteSizeForClass(cl);

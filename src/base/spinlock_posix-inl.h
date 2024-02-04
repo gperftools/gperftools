@@ -42,7 +42,7 @@
 namespace base {
 namespace internal {
 
-void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
+void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
   int save_errno = errno;
   if (loop == 0) {
   } else if (loop == 1) {

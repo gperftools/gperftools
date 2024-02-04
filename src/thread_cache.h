@@ -74,15 +74,15 @@ class ThreadCache {
   ~ThreadCache();
 
   // Accessors (mostly just for printing stats)
-  int freelist_length(uint32 cl) const { return list_[cl].length(); }
+  int freelist_length(uint32_t cl) const { return list_[cl].length(); }
 
   // Total byte size in cache
   size_t Size() const { return size_; }
 
   // Allocate an object of the given size and class. The size given
   // must be the same as the size of the class in the size map.
-  void* Allocate(size_t size, uint32 cl, void *(*oom_handler)(size_t size));
-  void Deallocate(void* ptr, uint32 size_class);
+  void* Allocate(size_t size, uint32_t cl, void *(*oom_handler)(size_t size));
+  void Deallocate(void* ptr, uint32_t size_class);
 
   void Scavenge();
 
@@ -232,19 +232,19 @@ class ThreadCache {
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.
-  void* FetchFromCentralCache(uint32 cl, int32_t byte_size,
+  void* FetchFromCentralCache(uint32_t cl, int32_t byte_size,
                               void *(*oom_handler)(size_t size));
 
-  void ListTooLong(void* ptr, uint32 cl);
+  void ListTooLong(void* ptr, uint32_t cl);
 
   // Releases some number of items from src.  Adjusts the list's max_length
   // to eventually converge on num_objects_to_move(cl).
-  void ListTooLong(FreeList* src, uint32 cl);
+  void ListTooLong(FreeList* src, uint32_t cl);
 
   // Releases N items from this thread cache.
-  void ReleaseToCentralCache(FreeList* src, uint32 cl, int N);
+  void ReleaseToCentralCache(FreeList* src, uint32_t cl, int N);
 
-  void SetMaxSize(int32 new_max_size);
+  void SetMaxSize(int32_t new_max_size);
 
   // Increase max_size_ by reducing unclaimed_cache_space_ or by
   // reducing the max_size_ of some other thread.  In both cases,
@@ -281,8 +281,8 @@ class ThreadCache {
 
   FreeList      list_[kClassSizesMax];     // Array indexed by size-class
 
-  int32         size_;                     // Combined size of data
-  int32         max_size_;                 // size_ > max_size_ --> Scavenge()
+  int32_t       size_;                     // Combined size of data
+  int32_t       max_size_;                 // size_ > max_size_ --> Scavenge()
 
   // We sample allocations, biased by the size of the allocation
   Sampler       sampler_;               // A sampler
@@ -310,7 +310,7 @@ inline int ThreadCache::HeapsInUse() {
 }
 
 ALWAYS_INLINE void* ThreadCache::Allocate(
-  size_t size, uint32 cl, void *(*oom_handler)(size_t size)) {
+  size_t size, uint32_t cl, void *(*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
 
 #ifdef NO_TCMALLOC_SAMPLES
@@ -329,7 +329,7 @@ ALWAYS_INLINE void* ThreadCache::Allocate(
   return rv;
 }
 
-ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
+ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32_t cl) {
   ASSERT(list_[cl].max_length() > 0);
   FreeList* list = &list_[cl];
 
@@ -351,7 +351,7 @@ ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32 cl) {
   }
 }
 
-inline void ThreadCache::SetMaxSize(int32 new_max_size) {
+inline void ThreadCache::SetMaxSize(int32_t new_max_size) {
   max_size_ = new_max_size;
 }
 

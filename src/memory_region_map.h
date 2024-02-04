@@ -273,8 +273,8 @@ class MemoryRegionMap {
   static RegionIterator EndRegionLocked();
 
   // Return the accumulated sizes of mapped and unmapped regions.
-  static int64 MapSize() { return map_size_; }
-  static int64 UnmapSize() { return unmap_size_; }
+  static int64_t MapSize() { return map_size_; }
+  static int64_t UnmapSize() { return unmap_size_; }
 
   // Effectively private type from our .cc =================================
   // public to let us declare global objects:
@@ -311,9 +311,9 @@ class MemoryRegionMap {
   static std::thread::id lock_owner_tid_;
 
   // Total size of all mapped pages so far
-  static int64 map_size_;
+  static int64_t map_size_;
   // Total size of all unmapped pages so far
-  static int64 unmap_size_;
+  static int64_t unmap_size_;
 
   // Bucket hash table which is described in heap-profile-stats.h.
   static HeapProfileBucket** bucket_table_ GUARDED_BY(lock_);

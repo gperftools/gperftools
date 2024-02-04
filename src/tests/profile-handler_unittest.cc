@@ -248,14 +248,14 @@ class ProfileHandlerTest {
   }
 
   // Gets the number of callbacks registered with the ProfileHandler.
-  uint32 GetCallbackCount() {
+  uint32_t GetCallbackCount() {
     ProfileHandlerState state;
     ProfileHandlerGetState(&state);
     return state.callback_count;
   }
 
   // Gets the current ProfileHandler interrupt count.
-  uint64 GetInterruptCount() {
+  uint64_t GetInterruptCount() {
     ProfileHandlerState state;
     ProfileHandlerGetState(&state);
     return state.interrupts;
@@ -268,12 +268,12 @@ class ProfileHandlerTest {
     EXPECT_GT(GetCallbackCount(), 0);
     // Check that the profile timer is enabled.
     EXPECT_EQ(FLAGS_test_profiler_enabled, linux_per_thread_timers_mode_ || IsTimerEnabled());
-    uint64 interrupts_before = GetInterruptCount();
+    uint64_t interrupts_before = GetInterruptCount();
     // Sleep for a bit and check that tick counter is making progress.
     int old_tick_count = tick_counter;
     Delay(kSleepInterval);
     int new_tick_count = tick_counter;
-    uint64 interrupts_after = GetInterruptCount();
+    uint64_t interrupts_after = GetInterruptCount();
     if (FLAGS_test_profiler_enabled) {
       EXPECT_GT(new_tick_count, old_tick_count);
       EXPECT_GT(interrupts_after, interrupts_before);
@@ -303,9 +303,9 @@ class ProfileHandlerTest {
     // Check that the timer is disabled.
     EXPECT_FALSE(IsTimerEnabled());
     // Verify that the ProfileHandler is not accumulating profile ticks.
-    uint64 interrupts_before = GetInterruptCount();
+    uint64_t interrupts_before = GetInterruptCount();
     Delay(kSleepInterval);
-    uint64 interrupts_after = GetInterruptCount();
+    uint64_t interrupts_after = GetInterruptCount();
     EXPECT_EQ(interrupts_before, interrupts_after);
   }
 

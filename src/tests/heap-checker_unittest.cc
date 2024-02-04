@@ -62,7 +62,7 @@
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
-#include <stdint.h>             // to get uint16_t (ISO naming madness)
+#include <stdint.h>
 #include <sys/types.h>
 #include <stdlib.h>
 #include <errno.h>              // errno
@@ -408,7 +408,7 @@ static bool RunSilent(HeapLeakChecker* check,
   // cases we're expecting a leak (we still print when --v is >= 1).
   // This way, the logging output is less confusing: we only print
   // "we detected a leak", and how to diagnose it, for *unexpected* leaks.
-  int32 old_FLAGS_verbose = FLAGS_verbose;
+  int32_t old_FLAGS_verbose = FLAGS_verbose;
   if (!VLOG_IS_ON(1))             // not on a verbose setting
     FLAGS_verbose = FATAL;        // only log fatal errors
   const bool retval = (check->*func)();
@@ -497,7 +497,7 @@ static void TestHeapLeakCheckerDeathInverse() {
   DeAllocHidden(&bar);
   Pause();
   VerifyLeaks(&check, SAME_HEAP,
-              100 * static_cast<int64>(sizeof(int)),
+              100 * static_cast<int64_t>(sizeof(int)),
               1);
   DeAllocHidden(&foo);
 }
@@ -1214,8 +1214,8 @@ REGISTER_OBJ_MAKER(MltD2_as_IB, InterfaceB* p = new(initialized) ClassMltD2;)
 // which store a platform-independent-sized refcount in the first
 // few bytes and keeps a pointer pointing behind the refcount.
 REGISTER_OBJ_MAKER(unicode_string,
-  char* p = new char[sizeof(uint32) * 10];
-  p += sizeof(uint32);
+  char* p = new char[sizeof(uint32_t) * 10];
+  p += sizeof(uint32_t);
 )
 // similar, but for platform-dependent-sized refcount
 REGISTER_OBJ_MAKER(ref_counted,

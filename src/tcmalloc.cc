@@ -440,7 +440,7 @@ static void DumpStats(TCMalloc_Printer* out, int level) {
     out->printf("------------------------------------------------\n");
     uint64_t cumulative_bytes = 0;
     uint64_t cumulative_overhead = 0;
-    for (uint32 cl = 0; cl < Static::num_size_classes(); ++cl) {
+    for (uint32_t cl = 0; cl < Static::num_size_classes(); ++cl) {
       if (class_count[cl] > 0) {
         size_t cl_size = Static::sizemap()->ByteSizeForClass(cl);
         const uint64_t class_bytes = class_count[cl] * cl_size;
@@ -923,7 +923,7 @@ class TCMallocImplementation : public MallocExtension {
     if ((p >> (kAddressBits - kPageShift)) > 0) {
       return kNotOwned;
     }
-    uint32 cl;
+    uint32_t cl;
     if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
       return kOwned;
     }
@@ -943,7 +943,7 @@ class TCMallocImplementation : public MallocExtension {
     v->clear();
 
     // central class information
-    int64 prev_class_size = 0;
+    int64_t prev_class_size = 0;
     for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
       size_t class_size = Static::sizemap()->ByteSizeForClass(cl);
       MallocExtension::FreeListInfo i;
@@ -1061,7 +1061,7 @@ static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
   if (PREDICT_FALSE(!Static::IsInited())) ThreadCache::InitModule();
 
   size_t align = static_cast<size_t>(1ull << (flags & 0x3f));
-  uint32 cl;
+  uint32_t cl;
   bool ok = size_class_with_alignment(size, align, &cl);
   if (ok) {
     return Static::sizemap()->ByteSizeForClass(cl);
@@ -1082,7 +1082,7 @@ size_t tc_nallocx(size_t size, int flags) {
   if (PREDICT_FALSE(flags != 0)) {
     return nallocx_slow(size, flags);
   }
-  uint32 cl;
+  uint32_t cl;
   // size class 0 is only possible if malloc is not yet initialized
   if (Static::sizemap()->GetSizeClass(size, &cl) && cl != 0) {
     return Static::sizemap()->ByteSizeForClass(cl);
@@ -1172,7 +1172,7 @@ static TCMallocGuard module_enter_exit_hook;
 
 static ATTRIBUTE_UNUSED bool CheckCachedSizeClass(void *ptr) {
   PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  uint32 cached_value;
+  uint32_t cached_value;
   if (!Static::pageheap()->TryGetSizeClass(p, &cached_value)) {
     return true;
   }
@@ -1301,7 +1301,7 @@ static void ReportLargeAlloc(Length num_pages, void* result) {
   char buffer[N];
   TCMalloc_Printer printer(buffer, N);
   printer.printf("tcmalloc: large alloc %" PRIu64 " bytes == %p @ ",
-                 static_cast<uint64>(num_pages) << kPageShift,
+                 static_cast<uint64_t>(num_pages) << kPageShift,
                  result);
   for (int i = 0; i < stack.depth; i++) {
     printer.printf(" %p", stack.stack[i]);
@@ -1415,7 +1415,7 @@ ALWAYS_INLINE void* do_malloc(size_t size) {
 
   // note: it will force initialization of malloc if necessary
   ThreadCachePtr cache_ptr = tcmalloc::ThreadCachePtr::GetSlow();
-  uint32 cl;
+  uint32_t cl;
 
   ASSERT(Static::IsInited());
   ASSERT(cache_ptr.get() != nullptr);
@@ -1494,7 +1494,7 @@ static ATTRIBUTE_NOINLINE void do_free_pages(Span* span, void* ptr) {
 bool ValidateSizeHint(void* ptr, size_t size_hint) {
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
   Span* span  = Static::pageheap()->GetDescriptor(p);
-  uint32 cl = 0;
+  uint32_t cl = 0;
   Static::sizemap()->GetSizeClass(size_hint, &cl);
   return (span->sizeclass == cl);
 }
@@ -1513,7 +1513,7 @@ void do_free_with_callback(void* ptr,
   ThreadCache* heap = ThreadCachePtr::GetFast();
 
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  uint32 cl;
+  uint32_t cl;
 
   ASSERT(!use_hint || ValidateSizeHint(ptr, size_hint));
 
@@ -1582,7 +1582,7 @@ inline size_t GetSizeWithCallback(const void* ptr,
   if (ptr == NULL)
     return 0;
   const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-  uint32 cl;
+  uint32_t cl;
   if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
     return Static::sizemap()->ByteSizeForClass(cl);
   }
@@ -1912,7 +1912,7 @@ static void * malloc_fast_path(size_t size) {
     return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
   }
 
-  uint32 cl;
+  uint32_t cl;
   if (PREDICT_FALSE(!Static::sizemap()->GetSizeClass(size, &cl))) {
     return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
   }

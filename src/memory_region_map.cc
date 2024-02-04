@@ -137,8 +137,8 @@ SpinLock MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
     SpinLock::LINKER_INITIALIZED);
 int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
 std::thread::id MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
-int64 MemoryRegionMap::map_size_ = 0;
-int64 MemoryRegionMap::unmap_size_ = 0;
+int64_t MemoryRegionMap::map_size_ = 0;
+int64_t MemoryRegionMap::unmap_size_ = 0;
 HeapProfileBucket** MemoryRegionMap::bucket_table_ = NULL;  // GUARDED_BY(lock_)
 int MemoryRegionMap::num_buckets_ = 0;  // GUARDED_BY(lock_)
 int MemoryRegionMap::saved_buckets_count_ = 0;  // GUARDED_BY(lock_)

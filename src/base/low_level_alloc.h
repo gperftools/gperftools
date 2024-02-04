@@ -56,8 +56,8 @@ class LowLevelAlloc {
   class PagesAllocator {
   public:
     virtual ~PagesAllocator();
-    virtual void *MapPages(int32 flags, size_t size) = 0;
-    virtual void UnMapPages(int32 flags, void *addr, size_t size) = 0;
+    virtual void *MapPages(int32_t flags, size_t size) = 0;
+    virtual void UnMapPages(int32_t flags, void *addr, size_t size) = 0;
   };
 
   static PagesAllocator *GetDefaultPagesAllocator(void);
@@ -107,11 +107,11 @@ class LowLevelAlloc {
     // as well as generatating an arena that provides async-signal-safe
     // Alloc/Free.
   };
-  static Arena *NewArena(int32 flags, Arena *meta_data_arena);
+  static Arena *NewArena(int32_t flags, Arena *meta_data_arena);
 
   // note: pages allocator will never be destroyed and allocated pages will never be freed
   // When allocator is NULL, it's same as NewArena
-  static Arena *NewArenaWithCustomAlloc(int32 flags, Arena *meta_data_arena, PagesAllocator *allocator);
+  static Arena *NewArenaWithCustomAlloc(int32_t flags, Arena *meta_data_arena, PagesAllocator *allocator);
 
   // Destroys an arena allocated by NewArena and returns true,
   // provided no allocated blocks remain in the arena.

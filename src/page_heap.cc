@@ -157,7 +157,7 @@ void PageHeap::HandleUnlock(LockingContext* context) {
   }
 }
 
-Span* PageHeap::NewWithSizeClass(Length n, uint32 sizeclass) {
+Span* PageHeap::NewWithSizeClass(Length n, uint32_t sizeclass) {
   LockingContext context{this, &lock_};
 
   Span* span = NewLocked(n, &context);
@@ -657,7 +657,7 @@ bool PageHeap::EnsureLimit(Length n, bool withRelease) {
   return takenPages + n <= limit;
 }
 
-void PageHeap::RegisterSizeClass(Span* span, uint32 sc) {
+void PageHeap::RegisterSizeClass(Span* span, uint32_t sc) {
   // Associate span object with all interior pages as well
   ASSERT(span->location == Span::IN_USE);
   ASSERT(GetDescriptor(span->start) == span);

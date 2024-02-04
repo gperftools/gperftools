@@ -114,13 +114,13 @@ int main(int argc, char** argv) {
 #ifdef HAVE_SYS_RESOURCE_H
     getrusage(RUSAGE_SELF, &r);
     struct timeval tv_end = r.ru_utime;
-    int64 sumsec = static_cast<int64>(tv_end.tv_sec) - tv_start.tv_sec;
-    int64 sumusec = static_cast<int64>(tv_end.tv_usec) - tv_start.tv_usec;
+    int64_t sumsec = static_cast<int64_t>(tv_end.tv_sec) - tv_start.tv_sec;
+    int64_t sumusec = static_cast<int64_t>(tv_end.tv_usec) - tv_start.tv_usec;
 #elif defined(_WIN32)
     long long int tv_end = GetTickCount();
-    int64 sumsec = (tv_end - tv_start) / 1000;
+    int64_t sumsec = (tv_end - tv_start) / 1000;
     // Resolution in windows is only to the millisecond, alas
-    int64 sumusec = ((tv_end - tv_start) % 1000) * 1000;
+    int64_t sumusec = ((tv_end - tv_start) % 1000) * 1000;
 #else
 # error No way to calculate time on your system
 #endif

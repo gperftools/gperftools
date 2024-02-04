@@ -129,9 +129,9 @@ void ProfileHandlerReset();
  * async-signal-safe.
  */
 struct ProfileHandlerState {
-  int32 frequency;  /* Profiling frequency */
-  int32 callback_count;  /* Number of callbacks registered */
-  int64 interrupts;  /* Number of interrupts received */
+  int32_t frequency;  /* Profiling frequency */
+  int32_t callback_count;  /* Number of callbacks registered */
+  int64_t interrupts;  /* Number of interrupts received */
   bool allowed; /* Profiling is allowed */
 };
 void ProfileHandlerGetState(struct ProfileHandlerState* state);

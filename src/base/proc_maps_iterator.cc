@@ -140,12 +140,12 @@ inline int StringToInteger<int>(char *text, char **endptr, int base) {
 }
 
 template<>
-inline int64 StringToInteger<int64>(char *text, char **endptr, int base) {
+inline int64_t StringToInteger<int64_t>(char *text, char **endptr, int base) {
   return strtoll(text, endptr, base);
 }
 
 template<>
-inline uint64 StringToInteger<uint64>(char *text, char **endptr, int base) {
+inline uint64_t StringToInteger<uint64_t>(char *text, char **endptr, int base) {
   return strtoull(text, endptr, base);
 }
 
@@ -196,9 +196,9 @@ bool StringToIntegerUntilCharWithCheck(
   return true;
 }
 
-bool ParseProcMapsLine(char *text, uint64 *start, uint64 *end,
-                       char *flags, uint64 *offset,
-                       int64 *inode,
+bool ParseProcMapsLine(char *text, uint64_t *start, uint64_t *end,
+                       char *flags, uint64_t *offset,
+                       int64_t *inode,
                        unsigned *filename_offset) {
 #if defined(__linux__) || defined(__NetBSD__)
   /*
@@ -522,7 +522,7 @@ bool DoIterateWindows(void (*body)(const ProcMapping& mapping, void* arg), void*
       break;
     }
 
-    uint64 base_addr = reinterpret_cast<DWORD_PTR>(mod_entry.modBaseAddr);
+    uint64_t base_addr = reinterpret_cast<DWORD_PTR>(mod_entry.modBaseAddr);
     mapping.start = base_addr;
     mapping.end = base_addr + mod_entry.modBaseSize;
     mapping.flags = kDefaultPerms;
@@ -545,8 +545,8 @@ template<uint32_t kMagic, uint32_t kLCSegment,
          typename MachHeader, typename SegmentCommand>
 bool NextExtMachHelper(const mach_header* hdr,
                               int current_image, int current_load_cmd,
-                              uint64 *start, uint64 *end, const char **flags,
-                              uint64 *offset, int64 *inode, const char **filename) {
+                              uint64_t *start, uint64_t *end, const char **flags,
+                              uint64_t *offset, int64_t *inode, const char **filename) {
   static char kDefaultPerms[5] = "r-xp";
   if (hdr->magic != kMagic)
     return false;
@@ -616,8 +616,8 @@ reenter:
 #endif  // __MACH__
 
 void FormatLine(tcmalloc::GenericWriter* writer,
-                uint64 start, uint64 end, const char *flags,
-                uint64 offset, int64 inode,
+                uint64_t start, uint64_t end, const char *flags,
+                uint64_t offset, int64_t inode,
                 const char *filename, dev_t dev) {
   // We assume 'flags' looks like 'rwxp' or 'rwx'.
   char r = (flags && flags[0] == 'r') ? 'r' : '-';

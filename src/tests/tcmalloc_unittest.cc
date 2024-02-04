@@ -385,15 +385,15 @@ class TesterThread {
 
   // ACM minimal standard random number generator.  (re-entrant.)
   class ACMRandom {
-    int32 seed_;
+    int32_t seed_;
    public:
-    explicit ACMRandom(int32 seed) { seed_ = seed; }
-    int32 Next() {
-      const int32 M = 2147483647L;   // 2^31-1
-      const int32 A = 16807;
+    explicit ACMRandom(int32_t seed) { seed_ = seed; }
+    int32_t Next() {
+      const int32_t M = 2147483647L;   // 2^31-1
+      const int32_t A = 16807;
       // In effect, we are computing seed_ = (seed_ * A) % M, where M = 2^31-1
-      uint32 lo = A * (int32)(seed_ & 0xFFFF);
-      uint32 hi = A * (int32)((uint32)seed_ >> 16);
+      uint32_t lo = A * (int32_t)(seed_ & 0xFFFF);
+      uint32_t hi = A * (int32_t)((uint32_t)seed_ >> 16);
       lo += (hi & 0x7FFF) << 16;
       if (lo > M) {
         lo &= M;
@@ -404,7 +404,7 @@ class TesterThread {
         lo &= M;
         ++lo;
       }
-      return (seed_ = (int32) lo);
+      return (seed_ = (int32_t) lo);
     }
   };
 
@@ -622,7 +622,7 @@ static void TestRealloc() {
   // makes reallocs of small sizes do extra work (thus, failing these
   // checks).  Since sampling is random, we turn off sampling to make
   // sure that doesn't happen to us here.
-  const int64 old_sample_parameter = FLAGS_tcmalloc_sample_parameter;
+  const int64_t old_sample_parameter = FLAGS_tcmalloc_sample_parameter;
   FLAGS_tcmalloc_sample_parameter = 0;   // turn off sampling
 
   int start_sizes[] = { 100, 1000, 10000, 100000 };

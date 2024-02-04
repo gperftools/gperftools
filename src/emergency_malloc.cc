@@ -53,7 +53,7 @@ namespace tcmalloc {
 
   class EmergencyArenaPagesAllocator : public LowLevelAlloc::PagesAllocator {
     ~EmergencyArenaPagesAllocator() {}
-    void *MapPages(int32 flags, size_t size) {
+    void *MapPages(int32_t flags, size_t size) {
       char *new_end = emergency_arena_end + size;
       if (new_end > emergency_arena_start + kEmergencyArenaSize) {
         RAW_LOG(FATAL, "Unable to allocate %zu bytes in emergency zone.", size);
@@ -62,7 +62,7 @@ namespace tcmalloc {
       emergency_arena_end = new_end;
       return static_cast<void *>(rv);
     }
-    void UnMapPages(int32 flags, void *addr, size_t size) {
+    void UnMapPages(int32_t flags, void *addr, size_t size) {
       RAW_LOG(FATAL, "UnMapPages is not implemented for emergency arena");
     }
   };
@@ -73,7 +73,7 @@ namespace tcmalloc {
   } pages_allocator_place;
 
   static void InitEmergencyMalloc(void) {
-    const int32 flags = LowLevelAlloc::kAsyncSignalSafe;
+    constexpr int32_t flags = LowLevelAlloc::kAsyncSignalSafe;
 
     void *arena = LowLevelAlloc::GetDefaultPagesAllocator()->MapPages(flags, kEmergencyArenaSize * 2);
 

@@ -108,7 +108,7 @@ public:
 private:
   void* AllocInternal(size_t size, size_t *actual_size, size_t alignment);
 
-  int64 big_page_size_;
+  int64_t big_page_size_;
   int hugetlb_fd_;       // file descriptor for hugetlb
   off_t hugetlb_base_;
 
@@ -259,7 +259,7 @@ bool HugetlbSysAllocator::Initialize() {
         tcmalloc::SafeStrError(errno).c_str());
     return false;
   }
-  int64 page_size = sfs.f_bsize;
+  int64_t page_size = sfs.f_bsize;
 
   hugetlb_fd_ = hugetlb_fd;
   big_page_size_ = page_size;

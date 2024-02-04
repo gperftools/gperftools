@@ -898,7 +898,7 @@ static void TracePrintf(int fd, const char *fmt, ...) {
   while (*p != '\0') {              // until end of format string
     char *s = &numbuf[sizeof(numbuf)-1];
     if (p[0] == '%' && p[1] != 0) {  // handle % formats
-      int64 l = 0;
+      int64_t l = 0;
       unsigned long base = 0;
       if (*++p == 's') {                            // %s
         s = va_arg(ap, char *);
@@ -936,7 +936,7 @@ static void TracePrintf(int fd, const char *fmt, ...) {
       p++;
       if (base != 0) {
         bool minus = (l < 0 && base == 10);
-        uint64 ul = minus? -l : l;
+        uint64_t ul = minus? -l : l;
         do {
           *--s = "0123456789abcdef"[ul % base];
           ul /= base;

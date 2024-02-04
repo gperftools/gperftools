@@ -35,48 +35,8 @@
 #include <string.h>       // for memcpy()
 #include <inttypes.h>     // gets us PRId64, etc
 
-// To use this in an autoconf setting, make sure you run the following
-// autoconf macros:
-//    AC_HEADER_STDC              /* for stdint_h and inttypes_h */
-//    AC_CHECK_TYPES([__int64])   /* defined in some windows platforms */
-
-#include <stdint.h>             // to get uint16_t (ISO naming madness)
-#include <sys/types.h>          // our last best hope for uint16_t
-
-// Standard typedefs
-// All Google code is compiled with -funsigned-char to make "char"
-// unsigned.  Google code therefore doesn't need a "uchar" type.
-// TODO(csilvers): how do we make sure unsigned-char works on non-gcc systems?
-typedef signed char         schar;
-typedef int8_t              int8;
-typedef int16_t             int16;
-typedef int32_t             int32;
-typedef int64_t             int64;
-
-// NOTE: unsigned types are DANGEROUS in loops and other arithmetical
-// places.  Use the signed types unless your variable represents a bit
-// pattern (eg a hash value) or you really need the extra bit.  Do NOT
-// use 'unsigned' to express "this value should always be positive";
-// use assertions for this.
-
-typedef uint8_t            uint8;
-typedef uint16_t           uint16;
-typedef uint32_t           uint32;
-typedef uint64_t           uint64;
-
-const uint16 kuint16max = (   (uint16) 0xFFFF);
-const uint32 kuint32max = (   (uint32) 0xFFFFFFFF);
-const uint64 kuint64max = ( (((uint64) kuint32max) << 32) | kuint32max );
-
-const  int8  kint8max   = (   (  int8) 0x7F);
-const  int16 kint16max  = (   ( int16) 0x7FFF);
-const  int32 kint32max  = (   ( int32) 0x7FFFFFFF);
-const  int64 kint64max =  ( ((( int64) kint32max) << 32) | kuint32max );
-
-const  int8  kint8min   = (   (  int8) 0x80);
-const  int16 kint16min  = (   ( int16) 0x8000);
-const  int32 kint32min  = (   ( int32) 0x80000000);
-const  int64 kint64min =  ( (((uint64) kint32min) << 32) | 0 );
+#include <stdint.h>
+#include <sys/types.h>
 
 // Define the "portable" printf and scanf macros, if they're not
 // already there (via the inttypes.h we #included above, hopefully).

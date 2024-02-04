@@ -136,7 +136,7 @@ class PackedCache {
  public:
   typedef uintptr_t T;
   typedef uintptr_t K;
-  typedef uint32 V;
+  typedef uint32_t V;
 #ifdef TCMALLOC_SMALL_BUT_SLOW
   // Decrease the size map cache if running in the small memory mode.
   static const int kHashbits = 12;

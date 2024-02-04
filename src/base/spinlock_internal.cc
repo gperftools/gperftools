@@ -33,7 +33,7 @@
 // base::internal::SpinLockDelay() and base::internal::SpinLockWake().
 // See spinlock_internal.h for the spec of SpinLockWake().
 
-// void SpinLockDelay(std::atomic<int> *w, int32 value, int loop)
+// void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop)
 // SpinLockDelay() generates an apprproate spin delay on iteration "loop" of a
 // spin loop on location *w, whose previously observed value was "value".
 // SpinLockDelay() may do nothing, may yield the CPU, may sleep a clock tick,
@@ -62,7 +62,7 @@ static int SuggestedDelayNS(int loop) {
   // Weak pseudo-random number generator to get some spread between threads
   // when many are spinning.
   static volatile uint64_t rand;
-  uint64 r = rand;
+  uint64_t r = rand;
   r = 0x5deece66dLL * r + 0xb;   // numbers from nrand48()
   rand = r;
 

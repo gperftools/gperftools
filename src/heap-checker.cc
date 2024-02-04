@@ -273,7 +273,7 @@ DEFINE_int32(heap_check_pointer_source_alignment,
 // in HaveOnHeapLocked will get slower when there are large on-heap objects)
 // and make it probabilistically more likely to miss leaks
 // of large-sized objects.
-static const int64 kHeapCheckMaxPointerOffset = 1024;
+static const int64_t kHeapCheckMaxPointerOffset = 1024;
 DEFINE_int64(heap_check_max_pointer_offset,
 	     EnvToInt("HEAP_CHECK_MAX_POINTER_OFFSET",
                       kHeapCheckMaxPointerOffset),
@@ -989,8 +989,8 @@ HeapLeakChecker::ProcMapsResult HeapLeakChecker::UseProcMapsLocked(
 
 // Total number and size of live objects dropped from the profile;
 // (re)initialized in IgnoreAllLiveObjectsLocked.
-static int64 live_objects_total;
-static int64 live_bytes_total;
+static int64_t live_objects_total;
+static int64_t live_bytes_total;
 
 // pid of the thread that is doing the current leak check
 // (protected by our lock; IgnoreAllLiveObjectsLocked sets it)
@@ -1389,8 +1389,8 @@ static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
 /*static*/ void HeapLeakChecker::IgnoreLiveObjectsLocked(const char* name,
                                                          const char* name2) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-  int64 live_object_count = 0;
-  int64 live_byte_count = 0;
+  int64_t live_object_count = 0;
+  int64_t live_byte_count = 0;
   while (!live_objects->empty()) {
     const char* object =
       reinterpret_cast<const char*>(live_objects->back().ptr);
@@ -1646,7 +1646,7 @@ ssize_t HeapLeakChecker::ObjectsLeaked() const {
 }
 
 // Save pid of main thread for using in naming dump files
-static int32 main_thread_pid = getpid();
+static int32_t main_thread_pid = getpid();
 #ifdef HAVE_PROGRAM_INVOCATION_NAME
 #ifdef __UCLIBC__
 extern const char* program_invocation_name;
@@ -2051,7 +2051,7 @@ void HeapLeakChecker_InternalInitStart() {
     new string(FLAGS_heap_check_dump_directory + "/" + invocation_name());
 
   // Finalize prefix for dumping leak checking profiles.
-  const int32 our_pid = getpid();   // safest to call getpid() outside lock
+  const int32_t our_pid = getpid();   // safest to call getpid() outside lock
   { SpinLockHolder l(&heap_checker_lock);
     // main_thread_pid might still be 0 if this function is being called before
     // global constructors.  In that case, our pid *is* the main pid.

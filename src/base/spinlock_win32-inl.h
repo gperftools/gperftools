@@ -42,7 +42,7 @@
 namespace base {
 namespace internal {
 
-void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
+void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
   if (loop != 0) {
     auto wait_ns = static_cast<uint64_t>(base::internal::SuggestedDelayNS(loop)) * 16;
     auto wait_ms = wait_ns / 1000000;

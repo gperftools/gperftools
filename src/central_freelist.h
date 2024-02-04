@@ -35,8 +35,8 @@
 #define TCMALLOC_CENTRAL_FREELIST_H_
 
 #include "config.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for int32_t
+#include <stddef.h>
+#include <stdint.h>
 #include "base/spinlock.h"
 #include "base/thread_annotations.h"
 #include "common.h"

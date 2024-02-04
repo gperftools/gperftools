@@ -69,7 +69,7 @@ static struct InitModule {
 namespace base {
 namespace internal {
 
-void SpinLockDelay(std::atomic<int> *w, int32 value, int loop) {
+void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
   if (loop != 0) {
     int save_errno = errno;
     struct timespec tm;

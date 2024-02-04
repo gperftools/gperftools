@@ -130,7 +130,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
     return NewWithSizeClass(n, 0);
   }
 
-  Span* NewWithSizeClass(Length n, uint32 sizeclass);
+  Span* NewWithSizeClass(Length n, uint32_t sizeclass);
 
   // Same as above but with alignment. Requires page heap
   // lock, like New above.
@@ -152,7 +152,7 @@ class PERFTOOLS_DLL_DECL PageHeap {
   // specified size-class.
   // REQUIRES: span was returned by an earlier call to New()
   //           and has not yet been deleted.
-  void RegisterSizeClass(Span* span, uint32 sc);
+  void RegisterSizeClass(Span* span, uint32_t sc);
 
   Span* SplitForTest(Span* span, Length n) {
     SpinLockHolder l(&lock_);
@@ -198,16 +198,16 @@ class PERFTOOLS_DLL_DECL PageHeap {
     // normal and returned free lists for that size.
     //
     // NOTE: index 'i' accounts the number of spans of length 'i + 1'.
-    int64 normal_length[kMaxPages];
-    int64 returned_length[kMaxPages];
+    int64_t normal_length[kMaxPages];
+    int64_t returned_length[kMaxPages];
   };
   void GetSmallSpanStatsLocked(SmallSpanStats* result);
 
   // Stats for free large spans (i.e., spans with more than kMaxPages pages).
   struct LargeSpanStats {
-    int64 spans;           // Number of such spans
-    int64 normal_pages;    // Combined page length of normal large spans
-    int64 returned_pages;  // Combined page length of unmapped spans
+    int64_t spans;           // Number of such spans
+    int64_t normal_pages;    // Combined page length of normal large spans
+    int64_t returned_pages;  // Combined page length of unmapped spans
   };
   void GetLargeSpanStatsLocked(LargeSpanStats* result);
 
@@ -227,16 +227,16 @@ class PERFTOOLS_DLL_DECL PageHeap {
   Length ReleaseAtLeastNPages(Length num_pages);
 
   // Reads and writes to pagemap_cache_ do not require locking.
-  bool TryGetSizeClass(PageID p, uint32* out) const {
+  bool TryGetSizeClass(PageID p, uint32_t* out) const {
     return pagemap_cache_.TryGet(p, out);
   }
-  void SetCachedSizeClass(PageID p, uint32 cl) {
+  void SetCachedSizeClass(PageID p, uint32_t cl) {
     ASSERT(cl != 0);
     pagemap_cache_.Put(p, cl);
   }
   void InvalidateCachedSizeClass(PageID p) { pagemap_cache_.Invalidate(p); }
-  uint32 GetSizeClassOrZero(PageID p) const {
-    uint32 cached_value;
+  uint32_t GetSizeClassOrZero(PageID p) const {
+    uint32_t cached_value;
     if (!TryGetSizeClass(p, &cached_value)) {
       cached_value = 0;
     }

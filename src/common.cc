@@ -50,9 +50,9 @@ namespace tcmalloc {
 
 // Define the maximum number of object per classe type to transfer between
 // thread and central caches.
-static int32 FLAGS_tcmalloc_transfer_num_objects;
+static int32_t FLAGS_tcmalloc_transfer_num_objects;
 
-static const int32 kDefaultTransferNumObjecs = 32;
+static constexpr int32_t kDefaultTransferNumObjecs = 32;
 
 // The init function is provided to explicit initialize the variable value
 // from the env. var to avoid C++ global construction that might defer its

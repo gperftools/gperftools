@@ -161,10 +161,10 @@ static bool  dumping = false;         // Dumping status to prevent recursion
 static char* filename_prefix = NULL;  // Prefix used for profile file names
                                       // (NULL if no need for dumping yet)
 static int   dump_count = 0;          // How many dumps so far
-static int64 last_dump_alloc = 0;     // alloc_size when did we last dump
-static int64 last_dump_free = 0;      // free_size when did we last dump
-static int64 high_water_mark = 0;     // In-use-bytes at last high-water dump
-static int64 last_dump_time = 0;      // The time of the last dump
+static int64_t last_dump_alloc = 0;     // alloc_size when did we last dump
+static int64_t last_dump_free = 0;      // free_size when did we last dump
+static int64_t high_water_mark = 0;     // In-use-bytes at last high-water dump
+static int64_t last_dump_time = 0;      // The time of the last dump
 
 static HeapProfileTable* heap_profile = NULL;  // the heap profile table
 
@@ -268,7 +268,7 @@ static void MaybeDumpProfileLocked() {
                inuse_bytes >> 20);
       need_to_dump = true;
     } else if (FLAGS_heap_profile_time_interval > 0 ) {
-      int64 current_time = time(NULL);
+      int64_t current_time = time(NULL);
       if (current_time - last_dump_time >=
           FLAGS_heap_profile_time_interval) {
         snprintf(buf, sizeof(buf), "%" PRId64 " sec since the last dump",

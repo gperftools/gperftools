@@ -74,22 +74,22 @@
 #define DEFINE_bool(name, value, meaning) \
   DEFINE_VARIABLE(bool, name, value, meaning)
 
-// int32 specialization
+// int32_t specialization
 #define DECLARE_int32(name) \
-  DECLARE_VARIABLE(int32, name)
+  DECLARE_VARIABLE(int32_t, name)
 #define DEFINE_int32(name, value, meaning) \
-  DEFINE_VARIABLE(int32, name, value, meaning)
+  DEFINE_VARIABLE(int32_t, name, value, meaning)
 
-// int64 specialization
+// int64_t specialization
 #define DECLARE_int64(name) \
-  DECLARE_VARIABLE(int64, name)
+  DECLARE_VARIABLE(int64_t, name)
 #define DEFINE_int64(name, value, meaning) \
-  DEFINE_VARIABLE(int64, name, value, meaning)
+  DEFINE_VARIABLE(int64_t, name, value, meaning)
 
 #define DECLARE_uint64(name) \
-  DECLARE_VARIABLE(uint64, name)
+  DECLARE_VARIABLE(uint64_t, name)
 #define DEFINE_uint64(name, value, meaning) \
-  DEFINE_VARIABLE(uint64, name, value, meaning)
+  DEFINE_VARIABLE(uint64_t, name, value, meaning)
 
 // double specialization
 #define DECLARE_double(name) \

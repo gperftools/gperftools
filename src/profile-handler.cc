@@ -143,9 +143,9 @@ class ProfileHandler {
   ~ProfileHandler();
 
   // Largest allowed frequency.
-  static const int32 kMaxFrequency = 4000;
+  static const int32_t kMaxFrequency = 4000;
   // Default frequency.
-  static const int32 kDefaultFrequency = 100;
+  static const int32_t kDefaultFrequency = 100;
 
   // ProfileHandler singleton.
   static ProfileHandler* instance_;
@@ -157,10 +157,10 @@ class ProfileHandler {
   bool timer_running_;
 
   // The number of profiling signal interrupts received.
-  int64 interrupts_ GUARDED_BY(signal_lock_);
+  int64_t interrupts_ GUARDED_BY(signal_lock_);
 
   // Profiling signal interrupt frequency, read-only after construction.
-  int32 frequency_;
+  int32_t frequency_;
 
   // ITIMER_PROF (which uses SIGPROF), or ITIMER_REAL (which uses SIGALRM).
   // Translated into an equivalent choice of clock if per_thread_timer_enabled_
@@ -171,7 +171,7 @@ class ProfileHandler {
   int signal_number_;
 
   // Counts the number of callbacks registered.
-  int32 callback_count_ GUARDED_BY(control_lock_);
+  int32_t callback_count_ GUARDED_BY(control_lock_);
 
   // Is profiling allowed at all?
   bool allowed_;
@@ -230,8 +230,8 @@ class ProfileHandler {
 
 ProfileHandler* ProfileHandler::instance_ = NULL;
 
-const int32 ProfileHandler::kMaxFrequency;
-const int32 ProfileHandler::kDefaultFrequency;
+const int32_t ProfileHandler::kMaxFrequency;
+const int32_t ProfileHandler::kDefaultFrequency;
 
 // If we are LD_PRELOAD-ed against a non-pthreads app, then these functions
 // won't be defined.  We declare them here, for that case (with weak linkage)
@@ -273,7 +273,7 @@ static void CreateThreadTimerKey(tcmalloc::TlsKey *pkey) {
 }
 
 static void StartLinuxThreadTimer(int timer_type, int signal_number,
-                                  int32 frequency, tcmalloc::TlsKey timer_key) {
+                                  int32_t frequency, tcmalloc::TlsKey timer_key) {
   int rv;
   struct sigevent sevp;
   timer_t timerid;
