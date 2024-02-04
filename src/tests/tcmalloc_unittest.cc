@@ -342,7 +342,7 @@ class AllocatorState : public TestHarness {
     if (Uniform(100) < memalign_fraction_ * 100) {
       // Try a few times to find a reasonable alignment, or fall back on malloc.
       for (int i = 0; i < 5; i++) {
-        size_t alignment = 1 << Uniform(FLAGS_lg_max_memalign);
+        size_t alignment = size_t{1} << Uniform(FLAGS_lg_max_memalign);
         if (alignment >= sizeof(intptr_t) &&
             (size < sizeof(intptr_t) ||
              alignment < FLAGS_memalign_max_alignment_ratio * size)) {
@@ -1137,11 +1137,12 @@ static void TestNAllocX() {
 
 static void TestNAllocXAlignment() {
   for (size_t size = 0; size <= (1 << 20); size = GrowNallocxTestSize(size)) {
-    for (size_t align = 0; align < 10; align++) {
-      size_t rounded = nallocx(size, MALLOCX_LG_ALIGN(align));
+    for (size_t align_log = 0; align_log < 10; align_log++) {
+      size_t rounded = nallocx(size, MALLOCX_LG_ALIGN(align_log));
+      size_t align = size_t{1} << align_log;
       ASSERT_GE(rounded, size);
-      ASSERT_EQ(rounded % (1 << align), 0);
-      void* ptr = tc_memalign(1 << align, size);
+      ASSERT_EQ(rounded % align, 0);
+      void* ptr = tc_memalign(align, size);
       ASSERT_EQ(rounded, MallocExtension::instance()->GetAllocatedSize(ptr));
       free(ptr);
     }
