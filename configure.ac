@@ -234,6 +234,19 @@ AC_CACHE_CHECK(
    CXXFLAGS="$OLD_CXXFLAGS"])
 AM_CONDITIONAL(ENABLE_FP_FLAGS, [test "x$ac_cv_frame_pointer_cflags" = "xyes"])
 
+# Clang-only (so far?) -Wthread-safety is a useful thing. We want.
+AC_CACHE_CHECK(
+  [compiler and target supports -Wthread-safety],
+  [ac_cv_w_thread_safety],
+  [OLD_CXXFLAGS="$CXXFLAGS"
+   CXXFLAGS="$CXXFLAGS -Wthread-safety"
+   AC_COMPILE_IFELSE(
+     [AC_LANG_PROGRAM([], [])],
+     [ac_cv_w_thread_safety=yes],
+     [ac_cv_w_thread_safety=no])
+   CXXFLAGS="$OLD_CXXFLAGS"])
+AM_CONDITIONAL(ENABLE_W_THREAD_SAFETY, [test "x$ac_cv_w_thread_safety" = "xyes"])
+
 AX_C___ATTRIBUTE__
 
 AC_MSG_CHECKING(for __attribute__((aligned(N))) on functions)

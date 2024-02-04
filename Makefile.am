@@ -28,6 +28,10 @@ if HAVE_SIZED_DEALLOCATION
 AM_CXXFLAGS += -fsized-deallocation
 endif HAVE_SIZED_DEALLOCATION
 
+if ENABLE_W_THREAD_SAFETY
+AM_CXXFLAGS += -Wthread-safety
+endif ENABLE_W_THREAD_SAFETY
+
 # The -no-undefined flag allows libtool to generate shared libraries for
 # Cygwin and MinGW.
 AM_LDFLAGS = -no-undefined
