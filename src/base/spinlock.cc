@@ -45,9 +45,6 @@
 
 static int adaptive_spin_count = 0;
 
-const base::LinkerInitialized SpinLock::LINKER_INITIALIZED =
-    base::LINKER_INITIALIZED;
-
 namespace {
 struct SpinLock_InitHelper {
   SpinLock_InitHelper() {

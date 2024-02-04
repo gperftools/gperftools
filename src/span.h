@@ -87,6 +87,9 @@ struct Span {
   bool          has_span_iter : 1; // Iff span_iter_space has valid
                                    // iterator. Only for debug builds.
 
+  constexpr Span()
+    : start{}, length{}, next{}, prev{}, objects{}, refcount{}, sizeclass{}, location{}, sample{}, has_span_iter{} {}
+
   // Sets iterator stored in span_iter_space.
   // Requires has_span_iter == 0.
   void SetSpanSetIterator(const SpanSet::iterator& iter);

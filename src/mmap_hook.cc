@@ -86,7 +86,7 @@ static_assert(alignof(MappingHookDescriptor) == alignof(MappingHookSpace), "");
 
 class MappingHooks {
 public:
-  MappingHooks(base::LinkerInitialized) {}
+  constexpr MappingHooks() {}
 
   static MappingHookDescriptor* SpaceToDesc(MappingHookSpace* space) {
     return reinterpret_cast<MappingHookDescriptor*>(space->storage);
@@ -149,9 +149,10 @@ public:
   }
 
 private:
-  std::atomic<MappingHookDescriptor*> list_head_;
-  std::atomic<bool> ran_initial_hooks_;
-} mapping_hooks{base::LINKER_INITIALIZED};
+  std::atomic<MappingHookDescriptor*> list_head_{};
+  std::atomic<bool> ran_initial_hooks_{};
+
+} mapping_hooks;
 
 }  // namespace
 

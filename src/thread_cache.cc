@@ -42,7 +42,7 @@
 
 #include "base/commandlineflags.h"      // for SpinLockHolder
 #include "base/spinlock.h"              // for SpinLockHolder
-#include "central_freelist.h"           // for CentralFreeListPadded
+#include "central_freelist.h"
 #include "getenv_safe.h"                // for TCMallocGetenvSafe
 #include "thread_cache_ptr.h"
 

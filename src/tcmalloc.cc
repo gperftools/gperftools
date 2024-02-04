@@ -113,7 +113,7 @@
 #include "base/commandlineflags.h"      // for RegisterFlagValidator, etc
 #include "base/dynamic_annotations.h"   // for RunningOnValgrind
 #include "base/spinlock.h"              // for SpinLockHolder
-#include "central_freelist.h"  // for CentralFreeListPadded
+#include "central_freelist.h"
 #include "common.h"            // for StackTrace, kPageShift, etc
 #include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc
 #include "linked_list.h"       // for SLL_SetNext

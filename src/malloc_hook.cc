@@ -148,7 +148,7 @@ namespace base { namespace internal {
 // The potential for contention is very small.  This needs to be a SpinLock and
 // not a Mutex since it's possible for Mutex locking to allocate memory (e.g.,
 // per-thread allocation in debug builds), which could cause infinite recursion.
-static SpinLock hooklist_spinlock(base::LINKER_INITIALIZED);
+static SpinLock hooklist_spinlock;
 
 template <typename T>
 bool HookList<T>::Add(T value) {

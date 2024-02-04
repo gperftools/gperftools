@@ -47,7 +47,7 @@ namespace tcmalloc {
   __attribute__ ((visibility("internal"))) char *emergency_arena_start;
   __attribute__ ((visibility("internal"))) uintptr_t emergency_arena_start_shifted;
 
-  static CACHELINE_ALIGNED SpinLock emergency_malloc_lock(base::LINKER_INITIALIZED);
+  static CACHELINE_ALIGNED SpinLock emergency_malloc_lock;
   static char *emergency_arena_end;
   static LowLevelAlloc::Arena *emergency_arena;
 

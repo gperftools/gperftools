@@ -45,12 +45,9 @@
 namespace tcmalloc {
 
 // Data kept per size-class in central cache.
-class CentralFreeList {
+class alignas(64) CentralFreeList {
  public:
-  // A CentralFreeList may be used before its constructor runs.
-  // So we prevent lock_'s constructor from doing anything to the
-  // lock_ state.
-  CentralFreeList() : lock_(base::LINKER_INITIALIZED) { }
+  constexpr CentralFreeList() {}
 
   void Init(size_t cl);
 
@@ -93,8 +90,9 @@ class CentralFreeList {
   // sizemap.num_objects_to_move(size_class) back and forth between
   // thread caches and the central cache for a given size class.
   struct TCEntry {
-    void *head;  // Head of chain of objects.
-    void *tail;  // Tail of chain of objects.
+    constexpr TCEntry() {}
+    void *head{};  // Head of chain of objects.
+    void *tail{};  // Tail of chain of objects.
   };
 
   // A central cache freelist can have anywhere from 0 to kMaxNumTransferEntries
@@ -162,11 +160,11 @@ class CentralFreeList {
   SpinLock lock_;
 
   // We keep linked lists of empty and non-empty spans.
-  size_t   size_class_;     // My size class
+  size_t   size_class_{};   // My size class
   Span     empty_;          // Dummy header for list of empty spans
   Span     nonempty_;       // Dummy header for list of non-empty spans
-  size_t   num_spans_;      // Number of spans in empty_ plus nonempty_
-  size_t   counter_;        // Number of free objects in cache entry
+  size_t   num_spans_{};    // Number of spans in empty_ plus nonempty_
+  size_t   counter_{};      // Number of free objects in cache entry
 
   // Here we reserve space for TCEntry cache slots.  Space is preallocated
   // for the largest possible number of entries than any one size class may
@@ -177,31 +175,13 @@ class CentralFreeList {
 
   // Number of currently used cached entries in tc_slots_.  This variable is
   // updated under a lock but can be read without one.
-  int32_t used_slots_;
+  int32_t used_slots_{};
   // The current number of slots for this size class.  This is an
   // adaptive value that is increased if there is lots of traffic
   // on a given size class.
-  int32_t cache_size_;
+  int32_t cache_size_{};
   // Maximum size of the cache for a given size class.
-  int32_t max_cache_size_;
-};
-
-// Pads each CentralCache object to multiple of 64 bytes.  Since some
-// compilers (such as MSVC) don't like it when the padding is 0, I use
-// template specialization to remove the padding entirely when
-// sizeof(CentralFreeList) is a multiple of 64.
-template<int kFreeListSizeMod64>
-class CentralFreeListPaddedTo : public CentralFreeList {
- private:
-  char pad_[64 - kFreeListSizeMod64];
-};
-
-template<>
-class CentralFreeListPaddedTo<0> : public CentralFreeList {
-};
-
-class CentralFreeListPadded : public CentralFreeListPaddedTo<
-  sizeof(CentralFreeList) % 64> {
+  int32_t max_cache_size_{};
 };
 
 }  // namespace tcmalloc

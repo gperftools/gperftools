@@ -300,23 +300,23 @@ class MallocBlock {
   // or the type or'ed with kDeallocatedTypeBit
   // for each formerly allocated object.
   typedef AddressMap<int> AllocMap;
-  static AllocMap* alloc_map_;
+  static inline AllocMap* alloc_map_;
   // This protects alloc_map_ and consistent state of metadata
   // for each still-allocated object in it.
   // We use spin locks instead of pthread_mutex_t locks
   // to prevent crashes via calls to pthread_mutex_(un)lock
   // for the (de)allocations coming from pthreads initialization itself.
-  static SpinLock alloc_map_lock_;
+  static inline SpinLock alloc_map_lock_;
 
   // A queue of freed blocks.  Instead of releasing blocks to the allocator
   // immediately, we put them in a queue, freeing them only when necessary
   // to keep the total size of all the freed blocks below the limit set by
   // FLAGS_max_free_queue_size.
-  static FreeQueue<MallocBlockQueueEntry>* free_queue_;
+  static inline FreeQueue<MallocBlockQueueEntry>* free_queue_;
 
-  static size_t free_queue_size_;  // total size of blocks in free_queue_
+  static inline size_t free_queue_size_;  // total size of blocks in free_queue_
   // protects free_queue_ and free_queue_size_
-  static SpinLock free_queue_lock_;
+  static inline SpinLock free_queue_lock_;
 
   // Names of allocation types (kMallocType, kNewType, kArrayNewType)
   static const char* const kAllocName[];
@@ -847,13 +847,6 @@ void DanglingWriteChecker() {
 const size_t MallocBlock::kMagicMalloc;
 const size_t MallocBlock::kMagicMMap;
 
-MallocBlock::AllocMap* MallocBlock::alloc_map_ = NULL;
-SpinLock MallocBlock::alloc_map_lock_(SpinLock::LINKER_INITIALIZED);
-
-FreeQueue<MallocBlockQueueEntry>* MallocBlock::free_queue_ = NULL;
-size_t MallocBlock::free_queue_size_ = 0;
-SpinLock MallocBlock::free_queue_lock_(SpinLock::LINKER_INITIALIZED);
-
 unsigned char MallocBlock::kMagicDeletedBuffer[1024];
 tcmalloc::TrivialOnce MallocBlock::deleted_buffer_initialized_;
 
@@ -1005,7 +998,7 @@ static void TraceStack(void) {
 }
 
 // This protects MALLOC_TRACE, to make sure its info is atomically written.
-static SpinLock malloc_trace_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock malloc_trace_lock;
 
 #define MALLOC_TRACE(name, size, addr)                                               \
   do {                                                                               \

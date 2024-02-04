@@ -52,19 +52,6 @@ class LOCKABLE SpinLock {
  public:
   constexpr SpinLock() : lockword_(kSpinLockFree) { }
 
-  // Special constructor for use with static SpinLock objects.  E.g.,
-  //
-  //    static SpinLock lock(base::LINKER_INITIALIZED);
-  //
-  // When intialized using this constructor, we depend on the fact
-  // that the linker has already initialized the memory appropriately.
-  // A SpinLock constructed like this can be freely used from global
-  // initializers without worrying about the order in which global
-  // initializers run.
-  explicit SpinLock(base::LinkerInitialized /*x*/) {
-    // Does nothing; lockword_ is already initialized
-  }
-
   // Acquire this SpinLock.
   void Lock() EXCLUSIVE_LOCK_FUNCTION() {
     int old = kSpinLockFree;
@@ -98,7 +85,6 @@ class LOCKABLE SpinLock {
     return lockword_.load(std::memory_order_relaxed) != kSpinLockFree;
   }
 
-  static const base::LinkerInitialized LINKER_INITIALIZED;  // backwards compat
  private:
   enum { kSpinLockFree = 0 };
   enum { kSpinLockHeld = 1 };

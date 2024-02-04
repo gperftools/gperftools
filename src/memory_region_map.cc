@@ -130,16 +130,15 @@ using std::max;
 
 int MemoryRegionMap::client_count_ = 0;
 int MemoryRegionMap::max_stack_depth_ = 0;
-MemoryRegionMap::RegionSet* MemoryRegionMap::regions_ = NULL;
-LowLevelAlloc::Arena* MemoryRegionMap::arena_ = NULL;
-SpinLock MemoryRegionMap::lock_(SpinLock::LINKER_INITIALIZED);
-SpinLock MemoryRegionMap::owner_lock_(  // ACQUIRED_AFTER(lock_)
-    SpinLock::LINKER_INITIALIZED);
+MemoryRegionMap::RegionSet* MemoryRegionMap::regions_ = nullptr;
+LowLevelAlloc::Arena* MemoryRegionMap::arena_ = nullptr;
+SpinLock MemoryRegionMap::lock_;
+SpinLock MemoryRegionMap::owner_lock_;  // ACQUIRED_AFTER(lock_)
 int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
 std::thread::id MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
 int64_t MemoryRegionMap::map_size_ = 0;
 int64_t MemoryRegionMap::unmap_size_ = 0;
-HeapProfileBucket** MemoryRegionMap::bucket_table_ = NULL;  // GUARDED_BY(lock_)
+HeapProfileBucket** MemoryRegionMap::bucket_table_ = nullptr;  // GUARDED_BY(lock_)
 int MemoryRegionMap::num_buckets_ = 0;  // GUARDED_BY(lock_)
 int MemoryRegionMap::saved_buckets_count_ = 0;  // GUARDED_BY(lock_)
 HeapProfileBucket MemoryRegionMap::saved_buckets_[20];  // GUARDED_BY(lock_)

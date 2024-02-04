@@ -313,7 +313,7 @@ DEFINE_string(heap_check_dump_directory,
 //----------------------------------------------------------------------
 
 // Global lock for all the global data of this module.
-static SpinLock heap_checker_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock heap_checker_lock;
 
 //----------------------------------------------------------------------
 
@@ -1357,7 +1357,7 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
 static size_t pointer_source_alignment = kPointerSourceAlignment;
 // Global lock for HeapLeakChecker::DoNoLeaks
 // to protect pointer_source_alignment.
-static SpinLock alignment_checker_lock(SpinLock::LINKER_INITIALIZED);
+static SpinLock alignment_checker_lock;
 
 // This function changes the live bits in the heap_profile-table's state:
 // we only record the live objects to be skipped.

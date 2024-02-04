@@ -46,6 +46,8 @@ namespace tcmalloc {
 template <class T>
 class PageHeapAllocator {
  public:
+  constexpr PageHeapAllocator() = default;
+
   // We use an explicit Init function because these variables are statically
   // allocated and their constructors might not have run by the time some
   // other static variable tries to allocate memory.
@@ -167,15 +169,12 @@ class STLPageHeapAllocator {
 
  private:
   struct Storage {
-    explicit Storage(base::LinkerInitialized x) {}
+    constexpr Storage() = default;
     PageHeapAllocator<T> allocator;
     bool initialized;
   };
-  static Storage underlying_;
+  static inline Storage underlying_;
 };
-
-template<typename T, class LockingTag>
-typename STLPageHeapAllocator<T, LockingTag>::Storage STLPageHeapAllocator<T, LockingTag>::underlying_(base::LINKER_INITIALIZED);
 
 }  // namespace tcmalloc
 

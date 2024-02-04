@@ -801,7 +801,7 @@ static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
   CHECK(check.BriefSameHeap());  // just in case
 }
 
-static SpinLock grplock{base::LINKER_INITIALIZED};
+static SpinLock grplock;
 static struct group* grp = NULL;
 static const int kKeys = 50;
 static pthread_key_t key[kKeys];

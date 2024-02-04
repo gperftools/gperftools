@@ -95,7 +95,7 @@ static bool CheckAddressBits(uintptr_t ptr) {
 static_assert(kAddressBits <= 8 * sizeof(void*),
               "address bits larger than pointer size");
 
-static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
+static SpinLock spinlock;
 
 #if defined(HAVE_MMAP) || defined(MADV_FREE)
 // Page size is initialized on demand (only needed for mmap-based allocators)

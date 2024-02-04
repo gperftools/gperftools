@@ -35,6 +35,7 @@
 // it should not be used when performance is key.
 
 #include "base/low_level_alloc.h"
+
 #include "base/dynamic_annotations.h"
 #include "base/spinlock.h"
 #include "base/logging.h"
@@ -44,11 +45,6 @@
 
 #include "mmap_hook.h"
 
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#include <new>                   // for placement-new
-
 // A first-fit allocator with amortized logarithmic free() time.
 
 LowLevelAlloc::PagesAllocator::~PagesAllocator() {
@@ -57,30 +53,30 @@ LowLevelAlloc::PagesAllocator::~PagesAllocator() {
 // ---------------------------------------------------------------------------
 static const int kMaxLevel = 30;
 
-// We put this class-only struct in a namespace to avoid polluting the
-// global namespace with this struct name (thus risking an ODR violation).
-namespace low_level_alloc_internal {
+namespace {
   // This struct describes one allocated block, or one free block.
   struct AllocList {
+    constexpr AllocList() {}
+
     struct Header {
       intptr_t size;  // size of entire region, including this field. Must be
                       // first.  Valid in both allocated and unallocated blocks
       intptr_t magic; // kMagicAllocated or kMagicUnallocated xor this
       LowLevelAlloc::Arena *arena; // pointer to parent arena
       void *dummy_for_alignment;   // aligns regions to 0 mod 2*sizeof(void*)
-    } header;
+    } header{};
 
     // Next two fields: in unallocated blocks: freelist skiplist data
     //                  in allocated blocks: overlaps with client data
-    int levels;           // levels in skiplist used
-    AllocList *next[kMaxLevel];   // actually has levels elements.
-                                  // The AllocList node may not have room for
-                                  // all kMaxLevel entries.  See max_fit in
-                                  // LLA_SkiplistLevels()
+    int levels{};                   // levels in skiplist used
+    AllocList *next[kMaxLevel]{};   // actually has levels
+                                    // elements.  The AllocList
+                                    // node may not have room for
+                                    // all kMaxLevel entries.  See
+                                    // max_fit in
+                                    // LLA_SkiplistLevels()
   };
-}
-using low_level_alloc_internal::AllocList;
-
+}  // namespace
 
 // ---------------------------------------------------------------------------
 // A trivial skiplist implementation.  This is used to keep the freelist
@@ -178,21 +174,21 @@ static void LLA_SkiplistDelete(AllocList *head, AllocList *e,
 // Arena implementation
 
 struct LowLevelAlloc::Arena {
-  Arena() : mu(SpinLock::LINKER_INITIALIZED) {} // does nothing; for static init
-  explicit Arena(int) : pagesize(0) {}  // set pagesize to zero explicitly
-                                        // for non-static init
+  constexpr Arena() {}
 
-  SpinLock mu;            // protects freelist, allocation_count,
-                          // pagesize, roundup, min_size
-  AllocList freelist;     // head of free list; sorted by addr (under mu)
-  int32_t allocation_count; // count of allocated blocks (under mu)
-  int32_t flags;            // flags passed to NewArena (ro after init)
-  size_t pagesize;        // ==getpagesize()  (init under mu, then ro)
-  size_t roundup;         // lowest power of 2 >= max(16,sizeof (AllocList))
-                          // (init under mu, then ro)
-  size_t min_size;        // smallest allocation block size
-                          // (init under mu, then ro)
-  PagesAllocator *allocator;
+  SpinLock mu;                 // protects freelist, allocation_count,
+                               // pagesize, roundup, min_size
+
+  AllocList freelist;         // head of free list; sorted by addr (under mu)
+  int32_t allocation_count{}; // count of allocated blocks (under mu)
+  int32_t flags{};            // flags passed to NewArena (ro after init)
+  size_t pagesize{};          // ==getpagesize()  (init under mu, then ro)
+  size_t roundup{};           // lowest power of 2 >= max(16,sizeof (AllocList))
+                              // (init under mu, then ro)
+  size_t min_size{};          // smallest allocation block size
+                              // (init under mu, then ro)
+  PagesAllocator *allocator{};
+
 };
 
 // The default arena, which is used when 0 is passed instead of an Arena
@@ -321,7 +317,7 @@ LowLevelAlloc::Arena *LowLevelAlloc::NewArenaWithCustomAlloc(int32_t flags,
   }
   // Arena(0) uses the constructor for non-static contexts
   Arena *result =
-    new (AllocWithArena(sizeof (*result), meta_data_arena)) Arena(0);
+    new (AllocWithArena(sizeof (*result), meta_data_arena)) Arena();
   ArenaInit(result);
   result->flags = flags;
   if (allocator) {

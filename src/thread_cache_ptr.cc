@@ -46,7 +46,7 @@ TlsKey ThreadCachePtr::slow_thread_cache_key_;
 
 namespace {
 
-SpinLock init_cache_lock{base::LINKER_INITIALIZED};
+SpinLock init_cache_lock;
 bool init_cache_ready;
 
 ThreadCache* GetInitCache() {

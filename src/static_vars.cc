@@ -48,12 +48,11 @@ namespace tcmalloc {
 
 bool Static::inited_;
 SizeMap Static::sizemap_;
-CentralFreeListPadded Static::central_cache_[kClassSizesMax];
+CentralFreeList Static::central_cache_[kClassSizesMax];
 PageHeapAllocator<Span> Static::span_allocator_;
 PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
 std::atomic<StackTrace*> Static::growth_stacks_;
-Static::PageHeapStorage Static::pageheap_;
 
 void Static::InitStaticVars() {
   sizemap_.Init();

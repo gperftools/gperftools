@@ -62,7 +62,7 @@ class Static {
 
   // Central cache -- an array of free-lists, one per size-class.
   // We have a separate lock per free-list to reduce contention.
-  static CentralFreeListPadded* central_cache() { return central_cache_; }
+  static CentralFreeList* central_cache() { return central_cache_; }
 
   static SizeMap* sizemap() { return &sizemap_; }
 
@@ -110,7 +110,7 @@ class Static {
   // can run their constructors.
 
   ATTRIBUTE_HIDDEN static SizeMap sizemap_;
-  ATTRIBUTE_HIDDEN static CentralFreeListPadded central_cache_[kClassSizesMax];
+  ATTRIBUTE_HIDDEN static CentralFreeList central_cache_[kClassSizesMax];
   ATTRIBUTE_HIDDEN static PageHeapAllocator<Span> span_allocator_;
   ATTRIBUTE_HIDDEN static PageHeapAllocator<StackTrace> stacktrace_allocator_;
   ATTRIBUTE_HIDDEN static Span sampled_objects_;
@@ -121,14 +121,9 @@ class Static {
   // is stored in trace->stack[kMaxStackDepth-1].
   ATTRIBUTE_HIDDEN static std::atomic<StackTrace*> growth_stacks_;
 
-  // PageHeap uses a constructor for initialization.  Like the members above,
-  // we can't depend on initialization order, so pageheap is new'd
-  // into this buffer.
-  union PageHeapStorage {
-    char memory[sizeof(PageHeap)];
-    uintptr_t extra;  // To force alignment
-  };
-  /* ATTRIBUTE_HIDDEN */ static PageHeapStorage pageheap_;
+  /* ATTRIBUTE_HIDDEN */ static inline struct {
+    alignas(alignof(PageHeap)) std::byte memory[sizeof(PageHeap)];
+  }  pageheap_;
 };
 
 }  // namespace tcmalloc

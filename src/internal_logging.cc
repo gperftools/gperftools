@@ -47,7 +47,7 @@
 
 // Variables for storing crash output.  Allocated statically since we
 // may not be able to heap-allocate while crashing.
-static SpinLock crash_lock(base::LINKER_INITIALIZED);
+static SpinLock crash_lock;
 static bool crashed = false;
 static const int kStatsBufferSize = 16 << 10;
 static char stats_buffer[kStatsBufferSize] = { 0 };

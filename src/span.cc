@@ -43,18 +43,14 @@
 namespace tcmalloc {
 
 Span* NewSpan(PageID p, Length len) {
-  Span* result = Static::span_allocator()->New();
-  memset(result, 0, sizeof(*result));
+  Span* result = new (Static::span_allocator()->New()) Span;
+
   result->start = p;
   result->length = len;
   return result;
 }
 
 void DeleteSpan(Span* span) {
-#ifndef NDEBUG
-  // In debug mode, trash the contents of deleted Spans
-  memset(span, 0x3f, sizeof(*span));
-#endif
   Static::span_allocator()->Delete(span);
 }
 
