@@ -55,6 +55,8 @@ ThreadCache* GetInitCache() {
   return reinterpret_cast<ThreadCache*>(init_cache_storage);
 }
 
+}  // namespace
+
 // This is only used for !kHaveGoodTLS. Extra special care is required
 // to deal with ThreadCache while it is being assigned to TLS.
 inline ThreadCache* CreateBadTLSCache(const TlsKey& slow_thread_cache_key) {
@@ -109,8 +111,6 @@ inline ThreadCache* CreateBadTLSCache(const TlsKey& slow_thread_cache_key) {
 
   return my_entry.cache;
 }
-
-}  // namespace
 
 ThreadCachePtr::ThreadCachePtr(ThreadCache* ptr, bool locked)
   : ptr_(ptr), locked_(locked) {}
