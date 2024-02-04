@@ -121,7 +121,7 @@ struct ChunkedStorage {
     Chunk* next;
     const int size;
     int used;
-    char data[];
+    char data[1];
 
     explicit Chunk(int size) : next(nullptr), size(size), used(0) {}
   };
@@ -145,7 +145,8 @@ struct ChunkedStorage {
 
     int size = std::max<int>(want_at_least + sizeof(Chunk), config.buffer_size);
 
-    Chunk* chunk = new (config.chunk_malloc(size)) Chunk(size - sizeof(Chunk));
+    constexpr auto kChunkSize = sizeof(Chunk) - 1;
+    Chunk* chunk = new (config.chunk_malloc(size)) Chunk(size - kChunkSize);
     chunk->next = last_chunk;
     last_chunk = chunk;
     return chunk;
