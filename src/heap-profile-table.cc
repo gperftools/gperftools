@@ -303,6 +303,7 @@ void HeapProfileTable::SaveProfile(tcmalloc::GenericWriter* writer) const {
     }
   }
   RAW_DCHECK(bucket_count == num_buckets_, "");
+  (void)bucket_count;
 
   writer->AppendStr(kProcSelfMapsHeader);
   tcmalloc::SaveProcSelfMaps(writer);
