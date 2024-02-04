@@ -118,66 +118,6 @@ const  int64 kint64min =  ( (((uint64) kint32min) << 32) | 0 );
 // An alternate name that leaves out the moral judgment... :-)
 #define DISALLOW_COPY_AND_ASSIGN(TypeName) DISALLOW_EVIL_CONSTRUCTORS(TypeName)
 
-// The COMPILE_ASSERT macro can be used to verify that a compile time
-// expression is true. For example, you could use it to verify the
-// size of a static array:
-//
-//   COMPILE_ASSERT(sizeof(num_content_type_names) == sizeof(int),
-//                  content_type_names_incorrect_size);
-//
-// or to make sure a struct is smaller than a certain size:
-//
-//   COMPILE_ASSERT(sizeof(foo) < 128, foo_too_large);
-//
-// The second argument to the macro is the name of the variable. If
-// the expression is false, most compilers will issue a warning/error
-// containing the name of the variable.
-//
-// Implementation details of COMPILE_ASSERT:
-//
-// - COMPILE_ASSERT works by defining an array type that has -1
-//   elements (and thus is invalid) when the expression is false.
-//
-// - The simpler definition
-//
-//     #define COMPILE_ASSERT(expr, msg) typedef char msg[(expr) ? 1 : -1]
-//
-//   does not work, as gcc supports variable-length arrays whose sizes
-//   are determined at run-time (this is gcc's extension and not part
-//   of the C++ standard).  As a result, gcc fails to reject the
-//   following code with the simple definition:
-//
-//     int foo;
-//     COMPILE_ASSERT(foo, msg); // not supposed to compile as foo is
-//                               // not a compile-time constant.
-//
-// - By using the type CompileAssert<(bool(expr))>, we ensures that
-//   expr is a compile-time constant.  (Template arguments must be
-//   determined at compile-time.)
-//
-// - The outter parentheses in CompileAssert<(bool(expr))> are necessary
-//   to work around a bug in gcc 3.4.4 and 4.0.1.  If we had written
-//
-//     CompileAssert<bool(expr)>
-//
-//   instead, these compilers will refuse to compile
-//
-//     COMPILE_ASSERT(5 > 0, some_message);
-//
-//   (They seem to think the ">" in "5 > 0" marks the end of the
-//   template argument list.)
-//
-// - The array size is (bool(expr) ? 1 : -1), instead of simply
-//
-//     ((expr) ? 1 : -1).
-//
-//   This is to avoid running into a bug in MS VC 7.1, which
-//   causes ((0.0) ? 1 : -1) to incorrectly evaluate to 1.
-
-template <bool>
-struct CompileAssert {
-};
-
 #ifdef HAVE___ATTRIBUTE__
 # define ATTRIBUTE_UNUSED __attribute__((unused))
 #else
@@ -189,9 +129,6 @@ struct CompileAssert {
 #else
 #define ATTR_INITIAL_EXEC
 #endif
-
-#define COMPILE_ASSERT(expr, msg)                               \
-  typedef CompileAssert<(bool(expr))> msg[bool(expr) ? 1 : -1] ATTRIBUTE_UNUSED
 
 #define arraysize(a)  (sizeof(a) / sizeof(*(a)))
 
@@ -215,7 +152,7 @@ struct CompileAssert {
 
 template <class Dest, class Source>
 inline Dest bit_cast(const Source& source) {
-  COMPILE_ASSERT(sizeof(Dest) == sizeof(Source), bitcasting_unequal_sizes);
+  static_assert(sizeof(Dest) == sizeof(Source), "bitcasting unequal sizes");
   Dest dest;
   memcpy(&dest, &source, sizeof(dest));
   return dest;
@@ -227,7 +164,7 @@ inline Dest bit_cast(const Source& source) {
 // This prevents undefined behavior when the dest pointer is unaligned.
 template <class Dest, class Source>
 inline void bit_store(Dest *dest, const Source *source) {
-  COMPILE_ASSERT(sizeof(Dest) == sizeof(Source), bitcasting_unequal_sizes);
+  static_assert(sizeof(Dest) == sizeof(Source), "bitcasting unequal sizes");
   memcpy(dest, source, sizeof(Dest));
 }
 

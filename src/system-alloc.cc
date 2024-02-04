@@ -92,8 +92,8 @@ static bool CheckAddressBits(uintptr_t ptr) {
   return always_ok || ((ptr >> shift_bits) == 0);
 }
 
-COMPILE_ASSERT(kAddressBits <= 8 * sizeof(void*),
-               address_bits_larger_than_pointer_size);
+static_assert(kAddressBits <= 8 * sizeof(void*),
+              "address bits larger than pointer size");
 
 static SpinLock spinlock(SpinLock::LINKER_INITIALIZED);
 

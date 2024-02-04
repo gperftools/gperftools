@@ -129,7 +129,7 @@ class SCOPED_LOCKABLE SpinLockHolder {
   }
 };
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
-#define SpinLockHolder(x) COMPILE_ASSERT(0, spin_lock_decl_missing_var_name)
+#define SpinLockHolder(x) static_assert(0)
 
 namespace tcmalloc {
 

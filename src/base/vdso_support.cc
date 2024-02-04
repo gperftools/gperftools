@@ -45,7 +45,7 @@
 
 #include "base/logging.h"
 #include "base/dynamic_annotations.h"
-#include "base/basictypes.h"  // for COMPILE_ASSERT
+#include "base/basictypes.h"
 
 #ifndef AT_SYSINFO_EHDR
 #define AT_SYSINFO_EHDR 33
@@ -88,8 +88,8 @@ const void *VDSOSupport::Init() {
     ElfW(auxv_t) aux;
     while (read(fd, &aux, sizeof(aux)) == sizeof(aux)) {
       if (aux.a_type == AT_SYSINFO_EHDR) {
-        COMPILE_ASSERT(sizeof(vdso_base_) == sizeof(aux.a_un.a_val),
-                       unexpected_sizeof_pointer_NE_sizeof_a_val);
+        static_assert(sizeof(vdso_base_) == sizeof(aux.a_un.a_val),
+                      "unexpected sizeof(pointer) != sizeof(a_val)");
         vdso_base_ = reinterpret_cast<void *>(aux.a_un.a_val);
         break;
       }

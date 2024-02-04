@@ -148,9 +148,9 @@ class PackedCache {
   static const int kInvalidMask = 0x80;
 
   explicit PackedCache() {
-    COMPILE_ASSERT(kKeybits + kValuebits + 1 <= 8 * sizeof(T), use_whole_keys);
-    COMPILE_ASSERT(kHashbits <= kKeybits, hash_function);
-    COMPILE_ASSERT(kHashbits >= kValuebits + 1, small_values_space);
+    static_assert(kKeybits + kValuebits + 1 <= 8 * sizeof(T));
+    static_assert(kHashbits <= kKeybits);
+    static_assert(kHashbits >= kValuebits + 1);
     Clear();
   }
 
