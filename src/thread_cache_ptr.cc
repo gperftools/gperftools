@@ -116,7 +116,7 @@ ThreadCachePtr::ThreadCachePtr(ThreadCache* ptr, bool locked)
   : ptr_(ptr), locked_(locked) {}
 
 /* static */
-ThreadCachePtr ThreadCachePtr::DoGetSlow() {
+ThreadCachePtr ThreadCachePtr::DoGetSlow() NO_THREAD_SAFETY_ANALYSIS {
   if (PREDICT_TRUE(tls_ready_)) {
     ThreadCache* cache;
 
@@ -158,7 +158,7 @@ ThreadCachePtr ThreadCachePtr::DoGetSlow() {
 }
 
 /* static */
-void ThreadCachePtr::PutLocked() {
+void ThreadCachePtr::PutLocked() NO_THREAD_SAFETY_ANALYSIS {
   init_cache_lock.Unlock();
 }
 
