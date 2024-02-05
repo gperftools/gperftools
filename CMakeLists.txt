@@ -460,21 +460,6 @@ if(MINGW)
   list(APPEND TCMALLOC_FLAGS "-Wl,-u__tcmalloc")
 endif()
 
-set(googleinclude_HEADERS
-        src/google/heap-checker.h
-        src/google/heap-profiler.h
-        src/google/malloc_extension.h
-        src/google/malloc_extension_c.h
-        src/google/malloc_hook.h
-        src/google/malloc_hook_c.h
-        src/google/profiler.h
-        src/google/stacktrace.h
-        src/google/tcmalloc.h
-        )
-install(FILES ${googleinclude_HEADERS}
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/google
-        )
-
 # This is a 'convenience library' -- it's not actually installed or anything
 set(LOGGING_INCLUDES
         src/base/logging.h
@@ -1170,13 +1155,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
       target_link_libraries(heap_profiler_unittest ${TCMALLOC_FLAGS} tcmalloc Threads::Threads)
       add_test(NAME heap-profiler_unittest.sh
               COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh" heap-profiler_unittest)
-
-      # Tests the compatibility include-headers in google/.  Requires a function
-      # defined in the heap-profiler, which is why the test lives here.
-      add_executable(simple_compat_test src/tests/simple_compat_test.cc
-              ${googleinclude_HEADERS})
-      target_link_libraries(simple_compat_test ${TCMALLOC_FLAGS} tcmalloc)
-      add_test(simple_compat_test simple_compat_test)
     endif()
     if(GPERFTOOLS_BUILD_HEAP_CHECKER)
       set(HEAP_CHECKER_UNITTEST_INCLUDES src/config_for_unittests.h

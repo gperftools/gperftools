@@ -95,13 +95,6 @@ perftoolsinclude_HEADERS =
 nodist_perftoolsinclude_HEADERS = src/gperftools/tcmalloc.h
 noinst_HEADERS = src/gperftools/tcmalloc.h.in
 
-# This is provided for backwards compatibility.  It is populated by
-# files that just forward to the canonical location in
-# perftoolsincludedir.
-googleincludedir = $(includedir)/google
-googleinclude_HEADERS =				\
-   src/google/tcmalloc.h
-
 # This is for HTML and other documentation you want to install.  Add
 # your documentation files (in doc/) in addition to these top-level
 # boilerplate files.  We'll add to this later, on a library-by-library
@@ -304,7 +297,6 @@ S_STACKTRACE_INCLUDES = src/stacktrace_impl_setup-inl.h \
 SG_STACKTRACE_INCLUDES = src/gperftools/stacktrace.h
 STACKTRACE_INCLUDES = $(S_STACKTRACE_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_STACKTRACE_INCLUDES)
-googleinclude_HEADERS += src/google/stacktrace.h
 
 ### Making the library
 noinst_LTLIBRARIES += libstacktrace.la
@@ -418,10 +410,6 @@ SG_TCMALLOC_MINIMAL_INCLUDES = src/gperftools/malloc_hook.h \
                                src/gperftools/nallocx.h
 TCMALLOC_MINIMAL_INCLUDES = $(S_TCMALLOC_MINIMAL_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_MINIMAL_INCLUDES)
-googleinclude_HEADERS += src/google/malloc_hook.h \
-                         src/google/malloc_hook_c.h \
-                         src/google/malloc_extension.h \
-                         src/google/malloc_extension_c.h
 
 ### Making the library
 
@@ -887,8 +875,6 @@ SG_TCMALLOC_INCLUDES = src/gperftools/heap-profiler.h \
 TCMALLOC_INCLUDES = $(S_TCMALLOC_INCLUDES) $(SG_TCMALLOC_MINIMAL_INCLUDES) \
 		    $(SG_TCMALLOC_INCLUDES) $(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_TCMALLOC_INCLUDES)
-googleinclude_HEADERS += src/google/heap-profiler.h \
-                         src/google/heap-checker.h
 
 if BUILD_EMERGENCY_MALLOC
 EMERGENCY_MALLOC_CC = src/emergency_malloc.cc src/emergency_malloc_for_stacktrace.cc
@@ -1108,14 +1094,6 @@ heap_profiler_unittest_CXXFLAGS = -g $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 heap_profiler_unittest_LDFLAGS = -g $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 heap_profiler_unittest_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 
-# Tests the compatibility include-headers in google/.  Requires a function
-# defined in the heap-profiler, which is why the test lives here.
-TESTS += simple_compat_test
-simple_compat_test_SOURCES = src/tests/simple_compat_test.cc \
-                             $(googleinclude_HEADERS)
-simple_compat_test_LDFLAGS = $(TCMALLOC_FLAGS)
-simple_compat_test_LDADD = $(LIBTCMALLOC)
-
 endif WITH_HEAP_PROFILER
 
 if WITH_HEAP_CHECKER
@@ -1266,7 +1244,6 @@ SG_CPU_PROFILER_INCLUDES = src/gperftools/profiler.h
 CPU_PROFILER_INCLUDES = $(S_CPU_PROFILER_INCLUDES) $(SG_CPU_PROFILER_INCLUDES) \
 			$(SG_STACKTRACE_INCLUDES)
 perftoolsinclude_HEADERS += $(SG_CPU_PROFILER_INCLUDES)
-googleinclude_HEADERS += src/google/profiler.h
 
 ### Making the library
 lib_LTLIBRARIES += libprofiler.la
