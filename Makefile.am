@@ -58,34 +58,6 @@ if MINGW
 TCMALLOC_FLAGS += -Wl,-u__tcmalloc
 endif MINGW
 
-# If we have objcopy, make malloc/free/etc weak symbols.  That way folks
-# can override our malloc if they want to (they can still use tc_malloc).
-# Note: the weird-looking symbols are the c++ memory functions:
-# (in order) new, new(nothrow), new[], new[](nothrow), delete, delete[]
-if HAVE_OBJCOPY_WEAKEN
-WEAKEN = $(OBJCOPY) -W malloc -W free -W realloc -W calloc -W cfree \
-         -W memalign -W posix_memalign -W valloc -W pvalloc \
-         -W aligned_alloc \
-         -W malloc_stats -W mallopt -W mallinfo -W mallinfo2 -W nallocx \
-         -W _Znwm -W _ZnwmRKSt9nothrow_t -W _Znam -W _ZnamRKSt9nothrow_t \
-         -W _ZdlPv -W _ZdaPv \
-         -W __Znwm -W __ZnwmRKSt9nothrow_t -W __Znam -W __ZnamRKSt9nothrow_t \
-         -W __ZdlPv -W __ZdaPv \
-         -W _ZdaPvRKSt9nothrow_t -W _ZdaPvSt11align_val_t \
-         -W _ZdaPvSt11align_val_tRKSt9nothrow_t -W _ZdaPvm \
-         -W _ZdaPvmSt11align_val_t -W _ZdlPvRKSt9nothrow_t \
-         -W _ZdlPvSt11align_val_t -W _ZdlPvSt11align_val_tRKSt9nothrow_t \
-         -W _ZdlPvm -W _ZdlPvmSt11align_val_t \
-         -W _ZnamSt11align_val_t -W _ZnamSt11align_val_tRKSt9nothrow_t \
-         -W _ZnwmSt11align_val_t -W _ZnwmSt11align_val_tRKSt9nothrow_t \
-         -W malloc_size -W malloc_usable_size
-
-else
-WEAKEN = :
-endif !HAVE_OBJCOPY_WEAKEN
-
-LIBS_TO_WEAKEN =
-
 perftoolsincludedir = $(includedir)/gperftools
 # The .h files you want to install (that is, .h files that people
 # who install this package can include in their own applications.)
@@ -315,8 +287,6 @@ libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
 # -version-info gets passed to libtool
 libtcmalloc_minimal_la_LDFLAGS = -version-info @TCMALLOC_SO_VERSION@ $(AM_LDFLAGS)
 libtcmalloc_minimal_la_LIBADD = libtcmalloc_minimal_internal.la
-
-LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 
 ### Unittests
 
@@ -576,8 +546,6 @@ libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS) \
                                        -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
 
-LIBS_TO_WEAKEN += libtcmalloc_minimal_debug.la
-
 ### Unittests
 
 TESTS += tcmalloc_minimal_debug_unittest
@@ -752,8 +720,6 @@ libtcmalloc_with_asserts_la_LDFLAGS = $(PTHREAD_CFLAGS)
 libtcmalloc_with_asserts_la_LIBADD = libtcmalloc_internal_with_asserts.la $(PTHREAD_LIBS)
 
 LIBTCMALLOC = libtcmalloc.la
-
-LIBS_TO_WEAKEN += libtcmalloc.la
 
 ### Unittests
 
@@ -941,8 +907,6 @@ libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS) \
                                -version-info @TCMALLOC_SO_VERSION@
 libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
 
-LIBS_TO_WEAKEN += libtcmalloc_debug.la
-
 ### Unittests
 
 TESTS += tcmalloc_debug_unittest
@@ -1124,20 +1088,10 @@ tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_cflags)
 tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
 tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
 
-LIBS_TO_WEAKEN += libtcmalloc_and_profiler.la
-
 endif WITH_CPU_PROFILER
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
 ## ^^^^ END OF RULES TO MAKE YOUR LIBRARIES, BINARIES, AND UNITTESTS
-
-
-# Do the weakening on some exported libtcmalloc symbols.
-run-weaken: all-am
-	for la in $(LIBS_TO_WEAKEN); do lib=".libs/`basename $$la .la`.a"; [ ! -f "$$lib" ] || $(WEAKEN) "$$lib"; done
-
-install-exec-local: run-weaken
-all: run-weaken
 
 # This should always include $(TESTS), but may also include other
 # binaries that you compile but don't want automatically installed.

@@ -200,17 +200,6 @@ AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
 
 AX_CXX_COMPILE_STDCXX(17, ext, mandatory)
 
-# Check if we have an objcopy installed that supports -W
-AC_CHECK_TOOL([OBJCOPY], [objcopy], [])
-AS_IF([test -n "$OBJCOPY"], [dnl
-  AC_CACHE_CHECK([if $OBJCOPY supports -W], gpt_cv_objcopy_weaken, [dnl
-    AC_LINK_IFELSE([AC_LANG_PROGRAM([void foo() {}])], [dnl
-      AS_IF(["$OBJCOPY" -W foo conftest$ac_exeext /dev/null],
-      	    [gpt_cv_objcopy_weaken=yes], [gpt_cv_objcopy_weaken=no])],
-    [gpt_cv_objcopy_weaken=no])])],
-  [gpt_cv_objcopy_weaken=no])
-AM_CONDITIONAL(HAVE_OBJCOPY_WEAKEN, test $gpt_cv_objcopy_weaken = yes)
-
 LT_INIT
 
 # Lets try enable frame pointers to enable simpler stacktrace
