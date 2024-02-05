@@ -38,9 +38,6 @@
     <ClCompile Include="..\..\src\common.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\fake_stacktrace_scope.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\internal_logging.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

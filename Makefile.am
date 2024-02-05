@@ -199,15 +199,12 @@ libstacktrace_la_SOURCES = src/stacktrace.cc \
                            src/base/vdso_support.cc
 libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)
 
-noinst_LTLIBRARIES += libfake_stacktrace_scope.la
-libfake_stacktrace_scope_la_SOURCES = src/fake_stacktrace_scope.cc
-
 ### Unittests
 TESTS += stacktrace_unittest
 stacktrace_unittest_SOURCES = src/tests/stacktrace_unittest.cc \
                               $(libstacktrace_la_SOURCES)
 stacktrace_unittest_CXXFLAGS = $(AM_CXXFLAGS) -DSTACKTRACE_IS_TESTED
-stacktrace_unittest_LDADD = $(libstacktrace_la_LIBADD) liblogging.la libfake_stacktrace_scope.la $(STACKTRACE_UNITTEST_LIBS)
+stacktrace_unittest_LDADD = $(libstacktrace_la_LIBADD) liblogging.la $(STACKTRACE_UNITTEST_LIBS)
 # nice to have. Allows glibc's backtrace_symbols to work.
 stacktrace_unittest_LDFLAGS = -export-dynamic
 
@@ -657,10 +654,10 @@ perftoolsinclude_HEADERS += src/gperftools/heap-profiler.h \
                             src/gperftools/heap-checker.h
 
 if BUILD_EMERGENCY_MALLOC
-EMERGENCY_MALLOC_CC = src/emergency_malloc.cc src/emergency_malloc_for_stacktrace.cc
+EMERGENCY_MALLOC_CC = src/emergency_malloc.cc
 EMERGENCY_MALLOC_DEFINE = -DENABLE_EMERGENCY_MALLOC
 else !BUILD_EMERGENCY_MALLOC
-EMERGENCY_MALLOC_CC = src/fake_stacktrace_scope.cc
+EMERGENCY_MALLOC_CC =
 EMERGENCY_MALLOC_DEFINE =
 endif !BUILD_EMERGENCY_MALLOC
 
@@ -986,7 +983,7 @@ lib_LTLIBRARIES += libprofiler.la
 libprofiler_la_SOURCES = src/profiler.cc \
                          src/profile-handler.cc \
                          src/profiledata.cc
-libprofiler_la_LIBADD = libstacktrace.la libfake_stacktrace_scope.la $(PTHREAD_LIBS)
+libprofiler_la_LIBADD = libstacktrace.la $(PTHREAD_LIBS)
 libprofiler_la_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 # We have to include ProfileData for profiledata_unittest
 CPU_PROFILER_SYMBOLS = '(ProfilerStart|ProfilerStartWithOptions|ProfilerStop|ProfilerFlush|ProfilerEnable|ProfilerDisable|ProfilingIsEnabledForAllThreads|ProfilerRegisterThread|ProfilerGetCurrentState|ProfilerState|ProfileData|ProfileHandler|ProfilerGetStackTrace)'

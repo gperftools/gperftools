@@ -33,6 +33,9 @@
 
 #include "config.h"
 
+#include "base/basictypes.h"
+#include "gperftools/stacktrace.h"
+
 #ifdef ENABLE_EMERGENCY_MALLOC
 
 #include "emergency_malloc.h"
@@ -40,16 +43,56 @@
 #else
 
 namespace tcmalloc {
-  static inline void *EmergencyMalloc(size_t size) {return NULL;}
-  static inline void EmergencyFree(void *p) {}
-  static inline void *EmergencyCalloc(size_t n, size_t elem_size) {return NULL;}
-  static inline void *EmergencyRealloc(void *old_ptr, size_t new_size) {return NULL;}
 
-  static inline bool IsEmergencyPtr(const void *_ptr) {
-    return false;
+static inline void *EmergencyMalloc(size_t size) {return nullptr;}
+static inline void EmergencyFree(void *p) {}
+static inline void *EmergencyCalloc(size_t n, size_t elem_size) {return nullptr;}
+static inline void *EmergencyRealloc(void *old_ptr, size_t new_size) {return nullptr;}
+static inline bool IsEmergencyPtr(const void *_ptr) {return false;}
+
+struct StacktraceScope {
+  static inline int frame_forcer;
+  bool IsStacktraceAllowed() { return true; }
+  ~StacktraceScope() {
+    (void)*const_cast<int volatile *>(&frame_forcer);
   }
+};
+
+}  // namespace tcmalloc
+
+#endif  // ENABLE_EMERGENCY_MALLOC
+
+namespace tcmalloc {
+
+#ifdef NO_TCMALLOC_SAMPLES
+
+inline int GrabBacktrace(void** result, int max_depth, int skip_count) { return 0; }
+
+#else
+
+// GrabBacktrace is the API to use when capturing backtrace for
+// various tcmalloc features. It has optional emergency malloc
+// integration for occasional case where stacktrace capturing method
+// calls back to malloc (so we divert those calls to emergency malloc
+// facility).
+ATTRIBUTE_HIDDEN ATTRIBUTE_NOINLINE inline
+int GrabBacktrace(void** result, int max_depth, int skip_count) {
+  StacktraceScope scope;
+  if (!scope.IsStacktraceAllowed()) {
+    return 0;
+  }
+  return GetStackTrace(result, max_depth, skip_count + 1);
 }
 
-#endif // ENABLE_EMERGENCY_MALLOC
-
 #endif
+
+}  // namespace tcmalloc
+
+// When something includes this file, don't let us use 'regular'
+// stacktrace API directly.
+#define GetStackTrace(...) missing
+#define GetStackTraceWithContext(...) missing
+#define GetStackFrames(...) missing
+#define GetStackFramesWithContext(...) missing
+
+#endif  // MAYBE_EMERGENCY_MALLOC_H

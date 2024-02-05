@@ -604,9 +604,6 @@ if(WITH_STACK_TRACE)
   target_link_libraries(stacktrace INTERFACE ${unwind_libs} ${LIBSPINLOCK})
   target_sources(stacktrace INTERFACE $<TARGET_OBJECTS:stacktrace_object>)
 
-  set(libfake_stacktrace_scope_la_SOURCES src/fake_stacktrace_scope.cc)
-  add_library(fake_stacktrace_scope ${libfake_stacktrace_scope_la_SOURCES})
-
   if(BUILD_TESTING)
     set(STACKTRACE_UNITTEST_INCLUDES src/config_for_unittests.h
             src/base/commandlineflags.h
@@ -614,7 +611,7 @@ if(WITH_STACK_TRACE)
             ${LOGGING_INCLUDES})
 
     add_executable(stacktrace_unittest src/tests/stacktrace_unittest.cc ${libstacktrace_la_SOURCES})
-    target_link_libraries(stacktrace_unittest logging fake_stacktrace_scope ${LIBSPINLOCK} ${unwind_libs})
+    target_link_libraries(stacktrace_unittest logging ${LIBSPINLOCK} ${unwind_libs})
     target_compile_definitions(stacktrace_unittest PRIVATE STACKTRACE_IS_TESTED)
     add_test(stacktrace_unittest stacktrace_unittest)
 
@@ -1017,11 +1014,10 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
 
   if(gperftools_emergency_malloc)
     set(EMERGENCY_MALLOC_CC
-            src/emergency_malloc.cc
-            src/emergency_malloc_for_stacktrace.cc)
+            src/emergency_malloc.cc)
     set(EMERGENCY_MALLOC_DEFINE ENABLE_EMERGENCY_MALLOC)
   else()
-    set(EMERGENCY_MALLOC_CC src/fake_stacktrace_scope.cc)
+    set(EMERGENCY_MALLOC_CC )
   endif()
 
   ### Making the library
@@ -1251,7 +1247,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
           src/profile-handler.cc
           src/profiledata.cc
           ${CPU_PROFILER_INCLUDES})
-  set(libprofiler_la_LIBADD stacktrace fake_stacktrace_scope)
+  set(libprofiler_la_LIBADD stacktrace)
   add_library(profiler SHARED ${libprofiler_la_SOURCES})
   target_link_libraries(profiler PRIVATE ${libprofiler_la_LIBADD})
   target_link_libraries(profiler PRIVATE Threads::Threads)

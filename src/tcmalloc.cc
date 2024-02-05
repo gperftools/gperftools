@@ -1193,7 +1193,7 @@ static void* DoSampledAllocation(size_t size) {
 #ifndef NO_TCMALLOC_SAMPLES
   // Grab the stack trace outside the heap lock
   StackTrace tmp;
-  tmp.depth = GetStackTrace(tmp.stack, tcmalloc::kMaxStackDepth, 1);
+  tmp.depth = tcmalloc::GrabBacktrace(tmp.stack, tcmalloc::kMaxStackDepth, 1);
   tmp.size = size;
 
   // Allocate span
@@ -1295,7 +1295,7 @@ void* handle_oom(malloc_fn retry_fn,
 
 static void ReportLargeAlloc(Length num_pages, void* result) {
   StackTrace stack;
-  stack.depth = GetStackTrace(stack.stack, tcmalloc::kMaxStackDepth, 1);
+  stack.depth = tcmalloc::GrabBacktrace(stack.stack, tcmalloc::kMaxStackDepth, 1);
 
   static const int N = 1000;
   char buffer[N];

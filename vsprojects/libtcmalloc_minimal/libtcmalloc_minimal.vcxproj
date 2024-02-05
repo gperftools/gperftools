@@ -210,7 +210,6 @@
     <ClCompile Include="..\..\src\base\proc_maps_iterator.cc" />
     <ClCompile Include="..\..\src\central_freelist.cc" />
     <ClCompile Include="..\..\src\common.cc" />
-    <ClCompile Include="..\..\src\fake_stacktrace_scope.cc" />
     <ClCompile Include="..\..\src\internal_logging.cc" />
     <ClCompile Include="..\..\src\malloc_extension.cc" />
     <ClCompile Include="..\..\src\malloc_hook.cc" />

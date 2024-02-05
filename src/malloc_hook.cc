@@ -51,15 +51,6 @@
 #include "base/spinlock.h"
 #include "maybe_emergency_malloc.h"
 
-// This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
-// you're porting to a system where you really can't get a stacktrace.
-#ifdef NO_TCMALLOC_SAMPLES
-  // We use #define so code compiles even if you #include stacktrace.h somehow.
-# define GetStackTrace(stack, depth, skip)  (0)
-#else
-# include <gperftools/stacktrace.h>
-#endif
-
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
 // optimization tool, but we may need to use it to match glibc prototypes.
@@ -384,7 +375,7 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
   // Note: this path is inaccurate when a hook is not called directly by an
   // allocation function but is daisy-chained through another hook,
   // search for MallocHook::(Get|Set|Invoke)* to find such cases.
-  return GetStackTrace(result, max_depth, skip_count + int(DEBUG_MODE));
+  return tcmalloc::GrabBacktrace(result, max_depth, skip_count + int(DEBUG_MODE));
   // due to -foptimize-sibling-calls in opt mode
   // there's no need for extra frame skip here then
 #else
@@ -398,7 +389,7 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
     // and 3 is to account for some hook daisy chaining.
   static const int kStackSize = kMaxSkip + 1;
   void* stack[kStackSize];
-  int depth = GetStackTrace(stack, kStackSize, 1);  // skip this function frame
+  int depth = tcmalloc::GrabBacktrace(stack, kStackSize, 1);  // skip this function frame
   if (depth == 0)   // silenty propagate cases when GetStackTrace does not work
     return 0;
   for (int i = 0; i < depth; ++i) {  // stack[0] is our immediate caller
@@ -420,7 +411,7 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
       if (depth < max_depth  &&  depth + i == kStackSize) {
         // get frames for the missing depth
         depth +=
-          GetStackTrace(result + depth, max_depth - depth, 1 + kStackSize);
+          tcmalloc::GrabBacktrace(result + depth, max_depth - depth, 1 + kStackSize);
       }
       return depth;
     }

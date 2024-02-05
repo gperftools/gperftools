@@ -62,20 +62,20 @@
 
 #include <gperftools/malloc_extension.h>
 #include <gperftools/malloc_hook.h>
-#include <gperftools/stacktrace.h>
 
 // Will be pulled in as along with tcmalloc.cc
 // #include <gperftools/tcmalloc.h>
 
 #include "addressmap-inl.h"
 #include "base/commandlineflags.h"
-#include "base/threading.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
+#include "base/threading.h"
 #include "malloc_hook-inl.h"
-#include "symbolize.h"
+#include "maybe_emergency_malloc.h"
 #include "safe_strerror.h"
+#include "symbolize.h"
 
 // NOTE: due to #define below, tcmalloc.cc will omit tc_XXX
 // definitions. So that debug implementations can be defined
@@ -991,7 +991,7 @@ static int TraceFd() {
 // Print the hex stack dump on a single line.   PCs are separated by tabs.
 static void TraceStack(void) {
   void *pcs[16];
-  int n = GetStackTrace(pcs, sizeof(pcs)/sizeof(pcs[0]), 0);
+  int n = tcmalloc::GrabBacktrace(pcs, sizeof(pcs)/sizeof(pcs[0]), 0);
   for (int i = 0; i != n; i++) {
     TracePrintf(TraceFd(), "\t%p", pcs[i]);
   }

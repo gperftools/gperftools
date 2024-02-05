@@ -54,17 +54,6 @@
 #pragma warning(disable:4251)
 #endif
 
-// This #ifdef should almost never be set.  Set NO_TCMALLOC_SAMPLES if
-// you're porting to a system where you really can't get a stacktrace.
-// Because we control the definition of GetStackTrace, all clients of
-// GetStackTrace should #include us rather than stacktrace.h.
-#ifdef NO_TCMALLOC_SAMPLES
-  // We use #define so code compiles even if you #include stacktrace.h somehow.
-# define GetStackTrace(stack, depth, skip)  (0)
-#else
-# include <gperftools/stacktrace.h>
-#endif
-
 namespace base {
 struct MallocRange;
 }

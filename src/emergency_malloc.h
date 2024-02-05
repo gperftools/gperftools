@@ -36,24 +36,49 @@
 
 #include "base/basictypes.h"
 #include "common.h"
+#include "thread_cache_ptr.h"
 
 namespace tcmalloc {
-  static const uintptr_t kEmergencyArenaShift = 20+4; // 16 megs
-  static const uintptr_t kEmergencyArenaSize = 1 << kEmergencyArenaShift;
 
-  extern __attribute__ ((visibility("internal"))) char *emergency_arena_start;
-  extern __attribute__ ((visibility("internal"))) uintptr_t emergency_arena_start_shifted;;
+static constexpr uintptr_t kEmergencyArenaShift = 20+4; // 16 megs
+static constexpr uintptr_t kEmergencyArenaSize = uintptr_t{1} << kEmergencyArenaShift;
 
-  PERFTOOLS_DLL_DECL void *EmergencyMalloc(size_t size);
-  PERFTOOLS_DLL_DECL void EmergencyFree(void *p);
-  PERFTOOLS_DLL_DECL void *EmergencyCalloc(size_t n, size_t elem_size);
-  PERFTOOLS_DLL_DECL void *EmergencyRealloc(void *old_ptr, size_t new_size);
+ATTRIBUTE_HIDDEN extern char *emergency_arena_start;
+ATTRIBUTE_HIDDEN extern uintptr_t emergency_arena_start_shifted;;
 
-  static inline bool IsEmergencyPtr(const void *_ptr) {
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(_ptr);
-    return PREDICT_FALSE((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted)
-      && emergency_arena_start_shifted;
+ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size);
+ATTRIBUTE_HIDDEN void EmergencyFree(void *p);
+ATTRIBUTE_HIDDEN void *EmergencyCalloc(size_t n, size_t elem_size);
+ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *old_ptr, size_t new_size);
+
+static inline bool IsEmergencyPtr(const void *_ptr) {
+  uintptr_t ptr = reinterpret_cast<uintptr_t>(_ptr);
+  return PREDICT_FALSE((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted)
+    && emergency_arena_start_shifted;
+}
+
+class StacktraceScope {
+public:
+  StacktraceScope() : stacktrace_allowed_(EnterStacktraceScope()) { }
+  bool IsStacktraceAllowed() {
+    return stacktrace_allowed_;
   }
+  ~StacktraceScope() {
+    if (stacktrace_allowed_) {
+      tcmalloc::ResetUseEmergencyMalloc();
+    }
+  }
+private:
+  static bool EnterStacktraceScope() {
+    if (tcmalloc::IsUseEmergencyMalloc()) {
+      return false;
+    }
+    tcmalloc::SetUseEmergencyMalloc();
+    return true;
+  }
+
+  const bool stacktrace_allowed_;
+};
 
 } // namespace tcmalloc
 

@@ -39,10 +39,11 @@
 #include <algorithm>
 #include <limits>
 
-#include "gperftools/malloc_extension.h"      // for MallocRange, etc
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
+#include "gperftools/malloc_extension.h"      // for MallocRange, etc
 #include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc
+#include "maybe_emergency_malloc.h"
 #include "page_heap_allocator.h"  // for PageHeapAllocator
 #include "static_vars.h"       // for Static
 #include "system-alloc.h"      // for TCMalloc_SystemAlloc, etc
@@ -152,7 +153,7 @@ void PageHeap::HandleUnlock(LockingContext* context) {
   lock_.Unlock();
 
   if (t) {
-    t->depth = GetStackTrace(t->stack, kMaxStackDepth-1, 0);
+    t->depth = tcmalloc::GrabBacktrace(t->stack, kMaxStackDepth-1, 0);
     Static::push_growth_stack(t);
   }
 }

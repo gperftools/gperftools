@@ -288,32 +288,19 @@ static GetStackImplementation *get_stack_impl;
 
 static void init_default_stack_impl_inner(void);
 
-namespace tcmalloc {
-  bool EnterStacktraceScope(void);
-  void LeaveStacktraceScope(void);
-}
-
 namespace {
-using tcmalloc::EnterStacktraceScope;
-using tcmalloc::LeaveStacktraceScope;
 
-class StacktraceScope {
-  bool stacktrace_allowed;
-public:
-  StacktraceScope() {
-    stacktrace_allowed = true;
-    stacktrace_allowed = EnterStacktraceScope();
+struct CaptureScope {
+  void** const result;
+
+  CaptureScope(void** result) : result(result) {
+    init_default_stack_impl_inner();
   }
-  bool IsStacktraceAllowed() {
-    return stacktrace_allowed;
-  }
-  // NOTE: noinline here ensures that we don't tail-call GetStackXXX
-  // calls below. Which is crucial due to us having to pay attention
-  // to skip_count argument.
-  ATTRIBUTE_NOINLINE ~StacktraceScope() {
-    if (stacktrace_allowed) {
-      LeaveStacktraceScope();
-    }
+
+  ~CaptureScope() {
+    // This "work" that we're doing ensures we're not tail-calling
+    // stacktrace capturing implementation.
+    (void)*(const_cast<void* volatile *>(result));
   }
 };
 
@@ -322,11 +309,8 @@ public:
 ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
                                       int skip_count) {
-  StacktraceScope scope;
-  if (!scope.IsStacktraceAllowed()) {
-    return 0;
-  }
-  init_default_stack_impl_inner();
+  CaptureScope scope(result);;
+
   return get_stack_impl->GetStackFramesPtr(result, sizes,
                                            max_depth, skip_count);
 }
@@ -334,11 +318,8 @@ PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
 ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth,
                                                  int skip_count, const void *uc) {
-  StacktraceScope scope;
-  if (!scope.IsStacktraceAllowed()) {
-    return 0;
-  }
-  init_default_stack_impl_inner();
+  CaptureScope scope(result);
+
   return get_stack_impl->GetStackFramesWithContextPtr(result, sizes, max_depth,
                                                       skip_count, uc);
 }
@@ -346,22 +327,16 @@ PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int 
 ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
                                      int skip_count) {
-  StacktraceScope scope;
-  if (!scope.IsStacktraceAllowed()) {
-    return 0;
-  }
-  init_default_stack_impl_inner();
+  CaptureScope scope(result);
+
   return get_stack_impl->GetStackTracePtr(result, max_depth, skip_count);
 }
 
 ATTRIBUTE_NOINLINE
 PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
                                                 int skip_count, const void *uc) {
-  StacktraceScope scope;
-  if (!scope.IsStacktraceAllowed()) {
-    return 0;
-  }
-  init_default_stack_impl_inner();
+  CaptureScope scope(result);
+
   return get_stack_impl->GetStackTraceWithContextPtr(result, max_depth,
                                                      skip_count, uc);
 }
