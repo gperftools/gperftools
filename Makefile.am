@@ -226,8 +226,6 @@ libstacktrace_la_SOURCES = src/stacktrace.cc \
                            src/base/elf_mem_image.cc \
                            src/base/vdso_support.cc
 libstacktrace_la_LIBADD = $(UNWIND_LIBS) $(LIBSPINLOCK)
-STACKTRACE_SYMBOLS = '(GetStackTrace|GetStackFrames|GetStackTraceWithContext|GetStackFramesWithContext)'
-libstacktrace_la_LDFLAGS = -export-symbols-regex $(STACKTRACE_SYMBOLS) $(AM_LDFLAGS)
 
 noinst_LTLIBRARIES += libfake_stacktrace_scope.la
 libfake_stacktrace_scope_la_SOURCES = src/fake_stacktrace_scope.cc
