@@ -1175,9 +1175,6 @@ pkgconfig_DATA += libprofiler.pc
 endif WITH_CPU_PROFILER
 CLEANFILES = $(pkgconfig_DATA)
 
-# I get the description and URL lines from the rpm spec. I use sed to
-# try to rewrite exec_prefix, libdir, and includedir in terms of
-# prefix, if possible.
 libtcmalloc.pc: Makefile
 	echo 'prefix=$(prefix)' > "$@".tmp
 	echo 'exec_prefix='`echo '$(exec_prefix)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
@@ -1194,7 +1191,6 @@ libtcmalloc.pc: Makefile
 	echo 'Cflags: -I$${includedir}' >> "$@".tmp
 	mv -f "$@".tmp "$@"
 
-# The other versions are mostly the same.
 libtcmalloc_minimal.pc: libtcmalloc.pc
 	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal/ > "$@"
 
