@@ -107,8 +107,6 @@ dist_doc_DATA = AUTHORS COPYING INSTALL NEWS README README_windows.txt \
 lib_LTLIBRARIES =
 # This is for 'convenience libraries' -- basically just a container for sources
 noinst_LTLIBRARIES =
-## The location of the windows project file for each binary we make
-WINDOWS_PROJECTS = gperftools.sln
 
 # unittests you want to run when people type 'make check'.
 # Note: tests cannot take any arguments!
@@ -183,18 +181,6 @@ LIBSPINLOCK = libwindows.la libspinlock.la libsysinfo.la liblogging.la
 # (We do this via a #pragma for msvc, but need to do it here for mingw).
 libsysinfo_la_LIBADD += -lshlwapi
 
-# There's a windows-specific unittest we can run.  Right now it's
-# win64-specific, and relies on masm, so we comment it out.
-## TESTS += preamble_patcher_test
-## preamble_patcher_test_SOURCES = src/windows/preamble_patcher_test.cc \
-##                                 src/windows/shortproc.asm \
-##                                 src/windows/auto_testing_hook.h \
-##                                 src/windows/preamble_patcher.h \
-##                                 src/base/basictypes.h \
-##                                 src/base/logging.h
-## preamble_patcher_test_LDFLAGS = $(TCMALLOC_FLAGS)
-## preamble_patcher_test_LDADD = libtcmalloc_minimal.la
-
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
 TCMALLOC_CC =
 SYSTEM_ALLOC_CC =
@@ -210,19 +196,17 @@ TCMALLOC_CC = src/tcmalloc.cc
 SYSTEM_ALLOC_CC = src/system-alloc.cc
 endif !MINGW
 
-# Add this whether or not we're under MinGW, to keep the tarball complete.
-WINDOWS_PROJECTS += vsprojects/preamble_patcher_test/preamble_patcher_test.vcxproj
-# Because we've commented out the test, above, we have to explicitly add
-# the test files to the tarball or automake will leave them out.
-WINDOWS_PROJECTS += src/windows/preamble_patcher_test.cc \
-                    src/windows/shortproc.asm \
-                    src/windows/auto_testing_hook.h
-
+# On MSVC, we need our own versions of addr2line and nm to work with
+# pprof, plus couple more tests.
+WINDOWS_EXTRA = src/windows/preamble_patcher_test.cc \
+                src/windows/shortproc.asm \
+                src/windows/auto_testing_hook.h \
+                src/windows/nm-pdb.c \
+                src/windows/addr2line-pdb.c
 
 ### Unittests
 
 if WITH_HEAP_PROFILER_OR_CHECKER
-WINDOWS_PROJECTS += vsprojects/low_level_alloc_unittest/low_level_alloc_unittest.vcxproj
 TESTS += low_level_alloc_unittest
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
@@ -299,13 +283,6 @@ endif INSTALL_PPROF
 
 ### Documentation
 
-# On MSVC, we need our own versions of addr2line and nm to work with pprof.
-WINDOWS_PROJECTS += vsprojects/nm-pdb/nm-pdb.vcxproj
-WINDOWS_PROJECTS += vsprojects/addr2line-pdb/addr2line-pdb.vcxproj
-# This is a slight abuse of WINDOWS_PROJECTS, but not much
-WINDOWS_PROJECTS += src/windows/nm-pdb.c \
-                    src/windows/addr2line-pdb.c
-
 endif WITH_STACK_TRACE
 
 ### ------- tcmalloc_minimal (thread-caching malloc)
@@ -344,7 +321,6 @@ libtcmalloc_minimal_internal_la_LDFLAGS =  $(AM_LDFLAGS)
 libtcmalloc_minimal_internal_la_LIBADD =  $(LIBSPINLOCK)
 
 lib_LTLIBRARIES += libtcmalloc_minimal.la
-WINDOWS_PROJECTS += vsprojects/libtcmalloc_minimal/libtcmalloc_minimal.vcxproj
 libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC)
 libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
                                   $(PTHREAD_CFLAGS) -DNDEBUG $(AM_CXXFLAGS)
@@ -357,7 +333,6 @@ LIBS_TO_WEAKEN += libtcmalloc_minimal.la
 ### Unittests
 
 TESTS += tcmalloc_minimal_unittest
-WINDOWS_PROJECTS += vsprojects/tcmalloc_minimal_unittest/tcmalloc_minimal_unittest.vcxproj
 tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                     src/tests/testutil.cc
 tcmalloc_minimal_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -386,7 +361,6 @@ tcm_min_asserts_unittest_LDADD = $(LIBSPINLOCK) \
                                   liblogging.la $(PTHREAD_LIBS)
 
 TESTS += tcmalloc_minimal_large_unittest
-WINDOWS_PROJECTS += vsprojects/tcmalloc_minimal_large/tcmalloc_minimal_large_unittest.vcxproj
 tcmalloc_minimal_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
 tcmalloc_minimal_large_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 tcmalloc_minimal_large_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
@@ -401,7 +375,6 @@ tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = libtcmalloc_minimal.l
 # These all tests components of tcmalloc_minimal
 
 TESTS += addressmap_unittest
-WINDOWS_PROJECTS += vsprojects/addressmap_unittest/addressmap_unittest.vcxproj
 addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc
 if MINGW
 addressmap_unittest_SOURCES += src/windows/port.h src/windows/port.cc
@@ -409,7 +382,6 @@ endif MINGW
 addressmap_unittest_CXXFLAGS = -g $(AM_CXXFLAGS)
 addressmap_unittest_LDADD = liblogging.la
 
-WINDOWS_PROJECTS += vsprojects/system-alloc_unittest/system-alloc_unittest.vcxproj
 if !MINGW
 TESTS += system_alloc_unittest
 system_alloc_unittest_SOURCES = src/config_for_unittests.h \
@@ -428,21 +400,18 @@ unique_path_unittest_LDADD = libsysinfo.la liblogging.la $(PTHREAD_LIBS)
 endif !MINGW
 
 TESTS += packed_cache_test
-WINDOWS_PROJECTS += vsprojects/packed-cache_test/packed-cache_test.vcxproj
 packed_cache_test_SOURCES = src/tests/packed-cache_test.cc
 packed_cache_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 packed_cache_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 packed_cache_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += frag_unittest
-WINDOWS_PROJECTS += vsprojects/frag_unittest/frag_unittest.vcxproj
 frag_unittest_SOURCES = src/tests/frag_unittest.cc src/config_for_unittests.h
 frag_unittest_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
 frag_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 frag_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += markidle_unittest
-WINDOWS_PROJECTS += vsprojects/markidle_unittest/markidle_unittest.vcxproj
 markidle_unittest_SOURCES = src/tests/markidle_unittest.cc \
                             src/config_for_unittests.h \
                             src/tests/testutil.h src/tests/testutil.cc
@@ -451,7 +420,6 @@ markidle_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 markidle_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += current_allocated_bytes_test
-WINDOWS_PROJECTS += vsprojects/current_allocated_bytes_test/current_allocated_bytes_test.vcxproj
 current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc \
                                        src/config_for_unittests.h
 current_allocated_bytes_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -459,7 +427,6 @@ current_allocated_bytes_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 current_allocated_bytes_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += malloc_hook_test
-WINDOWS_PROJECTS += vsprojects/malloc_hook_test/malloc_hook_test.vcxproj
 malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
                            src/config_for_unittests.h \
                            src/base/logging.h \
@@ -479,7 +446,6 @@ endif !MINGW
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
 TESTS += malloc_extension_test
-WINDOWS_PROJECTS += vsprojects/malloc_extension_test/malloc_extension_test.vcxproj
 malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc \
                                 src/config_for_unittests.h \
                                 src/base/logging.h \
@@ -516,7 +482,6 @@ endif !OSX
 endif !MINGW
 
 TESTS += page_heap_test
-WINDOWS_PROJECTS += vsprojects/page_heap_test/page_heap_test.vcxproj
 page_heap_test_SOURCES = src/tests/page_heap_test.cc \
                          src/config_for_unittests.h \
                          src/base/logging.h \
@@ -527,7 +492,6 @@ page_heap_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 page_heap_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += pagemap_unittest
-WINDOWS_PROJECTS += vsprojects/pagemap_unittest/pagemap_unittest.vcxproj
 pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
                            src/config_for_unittests.h \
                            src/base/logging.h \
@@ -550,7 +514,6 @@ proc_maps_iterator_test_SOURCES = src/tests/proc_maps_iterator_test.cc
 proc_maps_iterator_test_LDADD = libsysinfo.la liblogging.la
 
 TESTS += realloc_unittest
-WINDOWS_PROJECTS += vsprojects/realloc_unittest/realloc_unittest.vcxproj
 realloc_unittest_SOURCES = src/tests/realloc_unittest.cc \
                            src/config_for_unittests.h \
                            src/base/logging.h
@@ -559,7 +522,6 @@ realloc_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 realloc_unittest_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += stack_trace_table_test
-WINDOWS_PROJECTS += vsprojects/stack_trace_table_test/stack_trace_table_test.vcxproj
 stack_trace_table_test_SOURCES = src/tests/stack_trace_table_test.cc \
                                  src/config_for_unittests.h
 stack_trace_table_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -567,7 +529,6 @@ stack_trace_table_test_LDFLAGS = $(PTHREAD_CFLAGS) $(TCMALLOC_FLAGS)
 stack_trace_table_test_LDADD = libtcmalloc_minimal.la $(PTHREAD_LIBS)
 
 TESTS += thread_dealloc_unittest
-WINDOWS_PROJECTS += vsprojects/thread_dealloc_unittest/thread_dealloc_unittest.vcxproj
 thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
                                   src/config_for_unittests.h \
                                   src/tests/testutil.h src/tests/testutil.cc
@@ -895,7 +856,6 @@ raw_printer_test_LDADD = $(LIBTCMALLOC) $(PTHREAD_LIBS)
 TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
 
 TESTS += sampler_test
-WINDOWS_PROJECTS += vsprojects/sampler_test/sampler_test.vcxproj
 sampler_test_SOURCES = src/tests/sampler_test.cc \
                        src/config_for_unittests.h
 sampler_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
@@ -1083,11 +1043,9 @@ libprofiler_la_LDFLAGS = -export-symbols-regex $(CPU_PROFILER_SYMBOLS) \
 
 ### Unittests
 TESTS += getpc_test
-#WINDOWS_PROJECTS += vsprojects/getpc_test/getpc_test.vcxproj
 getpc_test_SOURCES = src/tests/getpc_test.cc src/getpc.h
 
 TESTS += profiledata_unittest
-#WINDOWS_PROJECTS += vsprojects/profiledata_unittest/profiledata_unittest.vcxproj
 profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc \
                                src/profiledata.h \
                                src/base/commandlineflags.h \
@@ -1259,7 +1217,8 @@ $(top_distdir)/ChangeLog:
 EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              docs/pprof.see_also src/windows/TODO \
-             $(WINDOWS_PROJECTS) \
+             $(WINDOWS_EXTRA) \
+             gperftools.sln vsprojects \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \
              $(top_srcdir)/src/windows/*h $(top_srcdir)/src/gperftools/*h \
              CMakeLists.txt cmake
