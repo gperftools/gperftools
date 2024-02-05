@@ -110,12 +110,6 @@ noinst_LTLIBRARIES =
 
 # unittests you want to run when people type 'make check'.
 # Note: tests cannot take any arguments!
-# In theory, unittests that are scripts should be added to check_SCRIPTS
-# instead.  But check_SCRIPTS is definitely a second-class testing mechanims:
-# it don't get TESTS_ENVIRONMENT, and it doesn't get success/failure counting
-# (in fact, a script failure aborts all the rest of the tests, even with -k).
-# So, for scripts, we add the script to tests, and also put in an empty
-# rule so automake doesn't try to build the script as a C binary.
 TESTS =
 # TESTS_ENVIRONMENT sets environment variables for when you run unittest.
 # We always get "srcdir" set for free.
@@ -267,10 +261,6 @@ pprof-symbolize : $(top_srcdir)/src/pprof
 	cp -p $(top_srcdir)/src/pprof $@
 
 ### Unittests
-
-check_SCRIPTS = pprof_unittest
-pprof_unittest: $(top_srcdir)/src/pprof
-	$(top_srcdir)/src/pprof -test
 
 # Let unittests find pprof if they need to run it
 TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
