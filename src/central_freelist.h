@@ -45,7 +45,7 @@
 namespace tcmalloc {
 
 // Data kept per size-class in central cache.
-class alignas(64) CentralFreeList {
+class CACHELINE_ALIGNED CentralFreeList {
  public:
   constexpr CentralFreeList() {}
 

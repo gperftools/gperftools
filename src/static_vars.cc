@@ -60,8 +60,7 @@ void Static::InitStaticVars() {
   span_allocator_.New(); // Reduce cache conflicts
   span_allocator_.New(); // Reduce cache conflicts
   stacktrace_allocator_.Init();
-  // Do a bit of sanitizing: make sure central_cache is aligned properly
-  CHECK_CONDITION((sizeof(central_cache_[0]) % 64) == 0);
+
   for (int i = 0; i < num_size_classes(); ++i) {
     central_cache_[i].Init(i);
   }
