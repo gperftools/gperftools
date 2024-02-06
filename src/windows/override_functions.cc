@@ -66,7 +66,7 @@ void* _calloc_base(size_t n, size_t size) {
   return calloc(n, size);
 }
 
-void* _recalloc(void* old_ptr, size_t n, size_t size) {
+void* _recalloc_base(void* old_ptr, size_t n, size_t size) {
   // Ensure that (n * size) does not overflow
   if (!(n == 0 || (std::numeric_limits<size_t>::max)() / n >= size)) {
     errno = ENOMEM;
@@ -85,6 +85,10 @@ void* _recalloc(void* old_ptr, size_t n, size_t size) {
   }
 
   return new_ptr;
+}
+
+void* _recalloc(void* old_ptr, size_t n, size_t size) {
+  return _recalloc_base(old_ptr, n, size);
 }
 
 void* _calloc_impl(size_t n, size_t size) {
