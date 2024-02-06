@@ -55,7 +55,6 @@ namespace tcmalloc {
 enum LogMode {
   kLog,                       // Just print the message
   kCrash,                     // Print the message and crash
-  kCrashWithStats             // Print the message, some stats, and crash
 };
 
 class Logger;

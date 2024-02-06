@@ -146,7 +146,6 @@ using std::vector;
 
 using tcmalloc::kLog;
 using tcmalloc::kCrash;
-using tcmalloc::kCrashWithStats;
 using tcmalloc::Log;
 using tcmalloc::PageHeap;
 using tcmalloc::PageHeapAllocator;
