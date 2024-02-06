@@ -51,9 +51,6 @@ static void WriteMessage(const char* msg, int length) {
   WRITE_TO_STDERR(msg, length);
 }
 
-void (*log_message_writer)(const char* msg, int length) = WriteMessage;
-
-
 class Logger {
  public:
   bool Add(const LogItem& item);
@@ -89,11 +86,11 @@ void Log(LogMode mode, const char* filename, int line,
 
   int msglen = state.p_ - state.buf_;
   if (mode == kLog) {
-    (*log_message_writer)(state.buf_, msglen);
+    WriteMessage(state.buf_, msglen);
     return;
   }
 
-  (*log_message_writer)(state.buf_, msglen);
+  WriteMessage(state.buf_, msglen);
 
   abort();
 }
