@@ -220,7 +220,7 @@ static void DumpProfileLocked(const char* reason) {
     return;
   }
 
-  using FileWriter = tcmalloc::FileGenericWriter<1 << 20>;
+  using FileWriter = tcmalloc::RawFDGenericWriter<1 << 20>;
   FileWriter* writer = new (ProfilerMalloc(sizeof(FileWriter))) FileWriter(fd);
 
   DoDumpHeapProfileLocked(writer);

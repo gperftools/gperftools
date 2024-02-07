@@ -663,7 +663,7 @@ void SaveProcSelfMaps(GenericWriter* writer) {
 }
 
 void SaveProcSelfMapsToRawFD(RawFD fd) {
-  FileGenericWriter<> writer(fd);
+  RawFDGenericWriter<> writer(fd);
   SaveProcSelfMaps(&writer);
 }
 

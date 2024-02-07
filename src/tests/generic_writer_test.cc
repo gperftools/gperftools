@@ -41,7 +41,7 @@ void TestFile() {
   FILE* f = tmpfile();
 
   {
-    tcmalloc::FileGenericWriter<128> writer(static_cast<RawFD>(fileno(f)));
+    tcmalloc::RawFDGenericWriter<128> writer(static_cast<RawFD>(fileno(f)));
     PrintLargeAmount(&writer);
   }
 

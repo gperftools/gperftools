@@ -334,7 +334,7 @@ bool HeapProfileTable::WriteProfile(const char* file_name,
     return false;
   }
 
-  tcmalloc::FileGenericWriter<> writer{fd};
+  tcmalloc::RawFDGenericWriter<> writer{fd};
 
   writer.AppendStr(kProfileHeader);
 

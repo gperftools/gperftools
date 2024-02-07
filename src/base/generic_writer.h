@@ -76,16 +76,16 @@ private:
   char* buf_end_{};
 };
 
-// FileGenericWriter is implementation of GenericWriter that writes to
-// given file descriptor. Note, this implementation is good for usage
-// from inside guts of heap profiler and what not, under very strict
-// locks. In particular it avoids any memory allocation by holding
-// it's buffer within itself.
-template <int kSize = 8192>
-class ATTRIBUTE_VISIBILITY_HIDDEN FileGenericWriter : public GenericWriter {
+// WriteFnWriter is implementation of GenericWriter that writes via
+// given abstract writer fn (i.e. could be lambda in practice). Note,
+// this implementation is good for usage from inside guts of heap
+// profiler and what not, under very strict locks. In particular it
+// avoids any memory allocation by holding it's buffer within itself.
+template <typename WriteFn, int kSize>
+class ATTRIBUTE_VISIBILITY_HIDDEN WriteFnWriter : public GenericWriter {
 public:
-  explicit FileGenericWriter(RawFD fd) : fd_(fd) {}
-  ~FileGenericWriter() {
+  explicit WriteFnWriter(const WriteFn& write_fn) : write_fn_(write_fn) {}
+  ~WriteFnWriter() override {
     FinalRecycle();
   }
 
@@ -93,14 +93,34 @@ private:
   std::pair<char*, char*> RecycleBuffer(char* buf_begin, char* buf_end, int want_at_least) override {
     int actually_filled = buf_end - buf_begin;
     if (actually_filled > 0) {
-      RawWrite(fd_, static_buffer_, actually_filled);
+      write_fn_(static_buffer_, actually_filled);
     }
 
     return {static_buffer_, static_buffer_ + kSize};
   }
 
-  const RawFD fd_;
+  const WriteFn& write_fn_;
   char static_buffer_[kSize];
+};
+
+struct ATTRIBUTE_VISIBILITY_HIDDEN RawFDWriteFn {
+  const RawFD fd;
+  explicit RawFDWriteFn(RawFD fd) : fd(fd) {}
+  void operator()(const char* buf, size_t amt) const {
+    RawWrite(fd, buf, amt);
+  }
+};
+
+// RawFDGenericWriter is implementation of GenericWriter that writes to
+// given file descriptor. Note, this implementation is good for usage
+// from inside guts of heap profiler and what not, under very strict
+// locks. In particular it avoids any memory allocation by holding
+// it's buffer within itself.
+template <int kSize = 8192>
+class ATTRIBUTE_VISIBILITY_HIDDEN RawFDGenericWriter : private RawFDWriteFn, public WriteFnWriter<RawFDWriteFn, kSize> {
+public:
+  explicit RawFDGenericWriter(RawFD fd) : RawFDWriteFn(fd), WriteFnWriter<RawFDWriteFn, kSize>{*static_cast<RawFDWriteFn*>(this)} {}
+  ~RawFDGenericWriter() override = default;
 };
 
 // StringGenericWriter is GenericWriter implementation that appends to
