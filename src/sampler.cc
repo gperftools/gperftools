@@ -37,9 +37,8 @@
 
 #include <algorithm>  // For min()
 #include <math.h>
-#include "base/commandlineflags.h"
 
-using std::min;
+#include "base/commandlineflags.h"
 
 // The approximate gap in bytes between sampling actions.
 // I.e., we take one sample approximately once every
@@ -63,7 +62,7 @@ int Sampler::GetSamplePeriod() {
 
 // Run this before using your sampler
 void Sampler::Init(uint64_t seed) {
-  ASSERT(seed != 0);
+  DCHECK_NE(seed, 0);
 
   // Initialize PRNG
   rnd_ = seed;
@@ -75,7 +74,7 @@ void Sampler::Init(uint64_t seed) {
   bytes_until_sample_ = PickNextSamplingPoint();
 }
 
-#define MAX_SSIZE (static_cast<ssize_t>(static_cast<size_t>(static_cast<ssize_t>(-1)) >> 1))
+static constexpr auto kMaxSSize = (static_cast<ssize_t>(static_cast<size_t>(static_cast<ssize_t>(-1)) >> 1));
 
 // Generates a geometric variable with the specified mean (512K by default).
 // This is done by generating a random number between 0 and 1 and applying
@@ -115,7 +114,7 @@ ssize_t Sampler::PickNextSamplingPoint() {
   // hit such improbable condition, we simply cheat and clamp interval
   // to largest supported value.
   return static_cast<ssize_t>(
-    std::min<double>(interval, static_cast<double>(MAX_SSIZE)));
+    std::min<double>(interval, static_cast<double>(kMaxSSize)));
 }
 
 bool Sampler::RecordAllocationSlow(size_t k) {

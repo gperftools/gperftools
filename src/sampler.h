@@ -40,9 +40,9 @@
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint64_t, uint32_t, int32_t
 #include <string.h>                     // for memcpy
-#include "base/basictypes.h"  // for ASSERT
-#include "internal_logging.h"  // for ASSERT
-#include "static_vars.h"
+
+#include "base/basictypes.h"  // ssize_t
+#include "base/logging.h"
 
 namespace tcmalloc {
 
@@ -101,7 +101,7 @@ namespace tcmalloc {
 
 class SamplerTest;
 
-class PERFTOOLS_DLL_DECL Sampler {
+class Sampler {
  public:
   constexpr Sampler() {}
 
@@ -131,11 +131,6 @@ class PERFTOOLS_DLL_DECL Sampler {
   // The following are public for the purposes of testing
   static uint64_t NextRandom(uint64_t rnd_);  // Returns the next prng value
 
-  // C++03 requires that types stored in TLS be POD.  As a result, you must
-  // initialize these members to {0, 0, false} before using this class!
-  //
-  // TODO(ahh): C++11 support will let us make these private.
-
   // Bytes until we sample next.
   //
   // More specifically when bytes_until_sample_ is X, we can allocate
@@ -143,7 +138,7 @@ class PERFTOOLS_DLL_DECL Sampler {
   // byte, the containing allocation will be sampled.
   //
   // Always non-negative with only very brief exceptions (see
-  // DecrementFast{,Finish}, so casting to size_t is ok.
+  // TryRecordAllocationFast, so casting to size_t is ok.
  private:
   friend class SamplerTest;
   bool RecordAllocationSlow(size_t k);
@@ -154,22 +149,15 @@ class PERFTOOLS_DLL_DECL Sampler {
 };
 
 inline bool Sampler::RecordAllocation(size_t k) {
-  // The first time we enter this function we expect bytes_until_sample_
-  // to be zero, and we must call SampleAllocationSlow() to ensure
-  // proper initialization of static vars.
-  ASSERT(Static::IsInited() || bytes_until_sample_ == 0);
-
   // Note that we have to deal with arbitrarily large values of k
   // here. Thus we're upcasting bytes_until_sample_ to unsigned rather
   // than the other way around. And this is why this code cannot be
   // merged with DecrementFast code below.
   if (static_cast<size_t>(bytes_until_sample_) < k) {
     bool result = RecordAllocationSlow(k);
-    ASSERT(Static::IsInited());
     return result;
   } else {
     bytes_until_sample_ -= k;
-    ASSERT(Static::IsInited());
     return true;
   }
 }
@@ -188,7 +176,7 @@ inline bool Sampler::TryRecordAllocationFast(size_t k) {
   //
   // Our API contract explicitly states that only small values of k
   // are permitted. And thus it makes sense to assert on that.
-  ASSERT(static_cast<ssize_t>(k) >= 0);
+  DCHECK_GE(static_cast<ssize_t>(k), 0);
 
   bytes_until_sample_ -= static_cast<ssize_t>(k);
   if (PREDICT_FALSE(bytes_until_sample_ < 0)) {

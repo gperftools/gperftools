@@ -661,9 +661,9 @@ raw_printer_test_LDADD = libtcmalloc.la $(PTHREAD_LIBS)
 TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
 
 TESTS += sampler_test
-sampler_test_SOURCES = src/tests/sampler_test.cc
-sampler_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-sampler_test_LDADD = libtcmalloc.la
+sampler_test_SOURCES = src/tests/sampler_test.cc \
+                       src/sampler.cc
+sampler_test_LDADD = libcommon.la
 
 # These unittests often need to run binaries.  They're in the current dir
 TESTS_ENVIRONMENT += BINDIR=.
@@ -750,12 +750,6 @@ tcmalloc_debug_unittest_SOURCES = $(tcmalloc_unittest_SOURCES)
 tcmalloc_debug_unittest_CXXFLAGS = $(tcmalloc_unittest_CXXFLAGS) -DDEBUGALLOCATION
 tcmalloc_debug_unittest_LDFLAGS = $(tcmalloc_unittest_LDFLAGS)
 tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la
-
-TESTS += sampler_debug_test
-sampler_debug_test_SOURCES = $(sampler_test_SOURCES)
-sampler_debug_test_CXXFLAGS = $(samples_test_CXXFLAGS)
-sampler_debug_test_LDFLAGS = $(sampler_test_LDFLAGS)
-sampler_debug_test_LDADD = libtcmalloc_debug.la
 
 TESTS += sampling_debug_test.sh$(EXEEXT)
 sampling_debug_test_sh_SOURCES = src/tests/sampling_test.sh

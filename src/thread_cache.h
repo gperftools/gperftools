@@ -358,10 +358,12 @@ inline void ThreadCache::SetMaxSize(int32_t new_max_size) {
 #ifndef NO_TCMALLOC_SAMPLES
 
 inline bool ThreadCache::SampleAllocation(size_t k) {
+  ASSERT(Static::IsInited());
   return !sampler_.RecordAllocation(k);
 }
 
 inline bool ThreadCache::TryRecordAllocationFast(size_t k) {
+  ASSERT(Static::IsInited());
   return sampler_.TryRecordAllocationFast(k);
 }
 
