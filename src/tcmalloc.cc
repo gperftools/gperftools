@@ -515,53 +515,6 @@ static void PrintStats(int level) {
   delete[] buffer;
 }
 
-static void** DumpHeapGrowthStackTraces() {
-  // Count how much space we need
-  int needed_slots = 0;
-  {
-    SpinLockHolder h(Static::pageheap_lock());
-    for (StackTrace* t = Static::growth_stacks();
-         t != NULL;
-         t = reinterpret_cast<StackTrace*>(
-             t->stack[tcmalloc::kMaxStackDepth-1])) {
-      needed_slots += 3 + t->depth;
-    }
-    needed_slots += 100;            // Slop in case list grows
-    needed_slots += needed_slots/8; // An extra 12.5% slop
-  }
-
-  void** result = new void*[needed_slots];
-  if (result == NULL) {
-    Log(kLog, __FILE__, __LINE__,
-        "tcmalloc: allocation failed for stack trace slots",
-        needed_slots * sizeof(*result));
-    return NULL;
-  }
-
-  SpinLockHolder h(Static::pageheap_lock());
-  int used_slots = 0;
-  for (StackTrace* t = Static::growth_stacks();
-       t != NULL;
-       t = reinterpret_cast<StackTrace*>(
-           t->stack[tcmalloc::kMaxStackDepth-1])) {
-    ASSERT(used_slots < needed_slots);  // Need to leave room for terminator
-    if (used_slots + 3 + t->depth >= needed_slots) {
-      // No more room
-      break;
-    }
-
-    result[used_slots+0] = reinterpret_cast<void*>(static_cast<uintptr_t>(1));
-    result[used_slots+1] = reinterpret_cast<void*>(t->size);
-    result[used_slots+2] = reinterpret_cast<void*>(t->depth);
-    for (int d = 0; d < t->depth; d++) {
-      result[used_slots+3+d] = t->stack[d];
-    }
-    used_slots += 3 + t->depth;
-  }
-  result[used_slots] = reinterpret_cast<void*>(static_cast<uintptr_t>(0));
-  return result;
-}
-
 static void IterateOverRanges(void* arg, MallocExtension::RangeFunction func) {
   PageID page = 1;  // Some code may assume that page==0 is never used
   bool done = false;
@@ -648,7 +601,16 @@ class TCMallocImplementation : public MallocExtension {
   }
 
   virtual void** ReadHeapGrowthStackTraces() {
-    return DumpHeapGrowthStackTraces();
+    // Note: growth stacks are append only, and updated atomically. So
+    // we can just read them without any locks. And use arbitrarily long
+    // (since they're never cleared/deleted).
+    const StackTrace* head = Static::growth_stacks();
+    return ProduceStackTracesDump(
+      +[] (const void** current_head) {
+        const StackTrace* current = static_cast<const StackTrace*>(*current_head);
+        *current_head = current->stack[tcmalloc::kMaxStackDepth-1];
+        return current;
+      }, head).release();
   }
 
   virtual size_t GetThreadCacheSize() {

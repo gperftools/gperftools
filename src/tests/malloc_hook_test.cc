@@ -33,22 +33,23 @@
 
 #include "config_for_unittests.h"
 
+#include <gperftools/malloc_hook.h>
+#include "malloc_hook-inl.h"
+
 #include <assert.h>
 #include <stdio.h>
 
 #include <algorithm>
-#include <string>
-#include <vector>
-#include <mutex>
-#include <thread>
 #include <chrono>
+#include <condition_variable>
+#include <mutex>
+#include <string>
+#include <thread>
+#include <vector>
 
-#include <gperftools/malloc_hook.h>
-#include "malloc_hook-inl.h"
-#include "base/logging.h"
-#include "base/sysinfo.h"
-#include "base/threading.h"
 #include "tests/testutil.h"
+
+#include "base/logging.h"
 
 namespace {
 
@@ -225,25 +226,22 @@ void MultithreadedTestThread(TestHookList* list, int shift,
   fprintf(stderr, "thread %d: %s\n", thread_num, message.c_str());
 }
 
-static volatile int num_threads_remaining;
+static int num_threads_remaining;
 static TestHookList list{kTestValue};
 static std::mutex threadcount_lock;
+static std::condition_variable threadcount_ready;
 
 void MultithreadedTestThreadRunner(int thread_num) {
   // Wait for all threads to start running.
   {
-    std::lock_guard ml{threadcount_lock};
+    std::unique_lock ml{threadcount_lock};
 
     assert(num_threads_remaining > 0);
     --num_threads_remaining;
 
-    // We should use condvars and the like, but for this test, we'll
-    // go simple and busy-wait.
-    while (num_threads_remaining > 0) {
-      threadcount_lock.unlock();
-      std::this_thread::sleep_for(std::chrono::seconds(1));
-      threadcount_lock.lock();
-    }
+    threadcount_ready.wait(ml, [&] () { return num_threads_remaining == 0; });
+    // the last thread to decrement to 0 will wake everyone
+    threadcount_ready.notify_all();
   }
 
   // shift is the smallest number such that (1<<shift) > kHookListMaxValues

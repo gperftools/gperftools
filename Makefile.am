@@ -149,6 +149,23 @@ WINDOWS_EXTRA = src/windows/preamble_patcher_test.cc \
 
 ### Unittests
 
+# Note, we skip this test on mingw (and windows in general). It uses
+# unsetenv, which is not available on win32.
+if !MINGW
+TESTS += unique_path_unittest
+unique_path_unittest_SOURCES = src/tests/unique_path_unittest.cc
+unique_path_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
+unique_path_unittest_LDADD = libcommon.la
+endif !MINGW
+
+TESTS += generic_writer_test
+generic_writer_test_SOURCES = src/tests/generic_writer_test.cc
+generic_writer_test_LDADD = libcommon.la
+
+TESTS += proc_maps_iterator_test
+proc_maps_iterator_test_SOURCES = src/tests/proc_maps_iterator_test.cc
+proc_maps_iterator_test_LDADD = libcommon.la
+
 if WITH_HEAP_PROFILER_OR_CHECKER
 TESTS += low_level_alloc_unittest
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
@@ -256,7 +273,70 @@ libtcmalloc_minimal_la_CXXFLAGS = -DNO_TCMALLOC_SAMPLES \
 libtcmalloc_minimal_la_LDFLAGS = -version-info @TCMALLOC_SO_VERSION@ $(AM_LDFLAGS)
 libtcmalloc_minimal_la_LIBADD = libcommon.la
 
-### Unittests
+### ------- unit tests for various internal modules of tcmalloc
+
+TESTS += addressmap_unittest
+addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc
+addressmap_unittest_LDADD = libcommon.la
+
+TESTS += packed_cache_test
+packed_cache_test_SOURCES = src/tests/packed-cache_test.cc
+packed_cache_test_LDADD = libcommon.la
+
+TESTS += safe_strerror_test
+safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
+                             src/safe_strerror.cc
+safe_strerror_test_LDADD = libcommon.la
+
+TESTS += pagemap_unittest
+pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
+                           src/internal_logging.cc
+pagemap_unittest_LDADD = libcommon.la
+
+# note, it is not so great that page heap testing requires bringing
+# almost entirety of tcmalloc (short of tcmalloc.cc), but it is what
+# we have.
+TESTS += page_heap_test
+page_heap_test_SOURCES = src/tests/page_heap_test.cc \
+                         $(MINIMAL_MALLOC_SRC)
+page_heap_test_CXXFLAGS = -DNO_HEAP_CHECK -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
+page_heap_test_LDADD = libcommon.la
+
+# note, it is not so great that stack_trace_table testing requires
+# bringing almost entirety of tcmalloc (short of tcmalloc.cc), but it
+# is what we have.
+TESTS += stack_trace_table_test
+stack_trace_table_test_SOURCES = src/tests/stack_trace_table_test.cc \
+                                 src/stack_trace_table.cc src/internal_logging.cc
+stack_trace_table_test_CXXFLAGS = -DSTACK_TRACE_TABLE_IS_TESTED $(AM_CXXFLAGS)
+stack_trace_table_test_LDADD = libcommon.la
+
+TESTS += malloc_hook_test
+malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
+                           src/tests/testutil.cc \
+                           src/malloc_hook.cc
+malloc_hook_test_CXXFLAGS = -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
+malloc_hook_test_LDADD = libcommon.la
+
+if WITH_HEAP_PROFILER_OR_CHECKER
+if !MINGW
+TESTS += mmap_hook_test
+mmap_hook_test_SOURCES = src/tests/mmap_hook_test.cc \
+                         src/mmap_hook.cc
+mmap_hook_test_LDADD = libcommon.la
+endif !MINGW
+endif WITH_HEAP_PROFILER_OR_CHECKER
+
+# sampler_test and sampling_test both require sampling to be turned
+# on, which it's not by default.  Use the "standard" value of 2^19.
+TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
+
+TESTS += sampler_test
+sampler_test_SOURCES = src/tests/sampler_test.cc \
+                       src/sampler.cc
+sampler_test_LDADD = libcommon.la
+
+### Unittests for libtcmalloc_minimal.la
 
 TESTS += tcmalloc_minimal_unittest
 tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
@@ -285,29 +365,12 @@ tcmalloc_minimal_large_heap_fragmentation_unittest_SOURCES = src/tests/large_hea
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = libtcmalloc_minimal.la
 
-# These all tests components of tcmalloc_minimal
-
-TESTS += addressmap_unittest
-addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc
-addressmap_unittest_LDADD = libcommon.la
-
 if !MINGW
 TESTS += system_alloc_unittest
 system_alloc_unittest_SOURCES = src/tests/system-alloc_unittest.cc
 system_alloc_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 system_alloc_unittest_LDADD = libtcmalloc_minimal.la
-
-# Note, we skip this test on mingw (and windows in general). It uses
-# unsetenv, which is not available on win32.
-TESTS += unique_path_unittest
-unique_path_unittest_SOURCES = src/tests/unique_path_unittest.cc
-unique_path_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
-unique_path_unittest_LDADD = libcommon.la
 endif !MINGW
-
-TESTS += packed_cache_test
-packed_cache_test_SOURCES = src/tests/packed-cache_test.cc
-packed_cache_test_LDADD = libcommon.la
 
 TESTS += frag_unittest
 frag_unittest_SOURCES = src/tests/frag_unittest.cc
@@ -324,21 +387,6 @@ TESTS += current_allocated_bytes_test
 current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc
 current_allocated_bytes_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 current_allocated_bytes_test_LDADD = libtcmalloc_minimal.la
-
-TESTS += malloc_hook_test
-malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
-                           src/tests/testutil.cc
-malloc_hook_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-malloc_hook_test_LDADD = libtcmalloc_minimal.la
-
-if WITH_HEAP_PROFILER_OR_CHECKER
-if !MINGW
-TESTS += mmap_hook_test
-mmap_hook_test_SOURCES = src/tests/mmap_hook_test.cc \
-                         src/mmap_hook.cc
-mmap_hook_test_LDADD = libcommon.la
-endif !MINGW
-endif WITH_HEAP_PROFILER_OR_CHECKER
 
 TESTS += malloc_extension_test
 malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc
@@ -360,38 +408,10 @@ memalign_unittest_LDADD = libtcmalloc_minimal.la
 endif !OSX
 endif !MINGW
 
-TESTS += page_heap_test
-page_heap_test_SOURCES = src/tests/page_heap_test.cc
-page_heap_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-page_heap_test_LDADD = libtcmalloc_minimal.la
-
-TESTS += pagemap_unittest
-pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc
-pagemap_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-pagemap_unittest_LDADD = libtcmalloc_minimal.la
-
-TESTS += safe_strerror_test
-safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
-                             src/safe_strerror.cc
-safe_strerror_test_LDADD = libcommon.la
-
-TESTS += generic_writer_test
-generic_writer_test_SOURCES = src/tests/generic_writer_test.cc
-generic_writer_test_LDADD = libcommon.la
-
-TESTS += proc_maps_iterator_test
-proc_maps_iterator_test_SOURCES = src/tests/proc_maps_iterator_test.cc
-proc_maps_iterator_test_LDADD = libcommon.la
-
 TESTS += realloc_unittest
 realloc_unittest_SOURCES = src/tests/realloc_unittest.cc
 realloc_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 realloc_unittest_LDADD = libtcmalloc_minimal.la
-
-TESTS += stack_trace_table_test
-stack_trace_table_test_SOURCES = src/tests/stack_trace_table_test.cc
-stack_trace_table_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-stack_trace_table_test_LDADD = libtcmalloc_minimal.la
 
 TESTS += thread_dealloc_unittest
 thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
@@ -646,15 +666,6 @@ TESTS += tcmalloc_large_heap_fragmentation_unittest
 tcmalloc_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
 tcmalloc_large_heap_fragmentation_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 tcmalloc_large_heap_fragmentation_unittest_LDADD = libtcmalloc.la
-
-# sampler_test and sampling_test both require sampling to be turned
-# on, which it's not by default.  Use the "standard" value of 2^19.
-TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
-
-TESTS += sampler_test
-sampler_test_SOURCES = src/tests/sampler_test.cc \
-                       src/sampler.cc
-sampler_test_LDADD = libcommon.la
 
 # These unittests often need to run binaries.  They're in the current dir
 TESTS_ENVIRONMENT += BINDIR=.

@@ -23,13 +23,16 @@ namespace {
 
 // TODO: add testing from >1 min_span_size setting.
 
-static bool HaveSystemRelease() {
-  static bool retval = ([] () {
+bool HaveSystemRelease() {
+  static bool have = ([] () {
     size_t actual;
     auto ptr = TCMalloc_SystemAlloc(kPageSize, &actual, 0);
     return TCMalloc_SystemRelease(ptr, actual);
-  }());
-  return retval;
+  })();
+#if __linux__
+  assert(have);
+#endif
+  return have;
 }
 
 static void CheckStats(const tcmalloc::PageHeap* ph,
@@ -207,16 +210,8 @@ static void TestPageHeap_Limit() {
 
 }  // namespace
 
-int main(int argc, char **argv) {
+int main() {
   TestPageHeap_Stats();
   TestPageHeap_Limit();
   printf("PASS\n");
-  // on windows as part of library destructors we call getenv which
-  // calls malloc which fails due to our exhausted heap limit. It then
-  // causes fancy stack overflow because log message we're printing
-  // for failed allocation somehow cause malloc calls too
-  //
-  // To keep us out of trouble we just drop malloc limit
-  FLAGS_tcmalloc_heap_limit_mb = 0;
-  return 0;
 }

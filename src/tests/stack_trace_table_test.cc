@@ -7,50 +7,66 @@
 
 
 #include "config_for_unittests.h"
-#include <stdio.h>   // for puts()
+
 #include "stack_trace_table.h"
+
+#include <stdio.h>   // for puts()
+
+#include <vector>
+
 #include "base/logging.h"
-#include "base/spinlock.h"
-#include "static_vars.h"
 
-#undef ARRAYSIZE   // may be defined on, eg, windows
-#define ARRAYSIZE(a)  ( sizeof(a) / sizeof(*(a)) )
+class StackTraceTableTestHelper {
+public:
+  using StackTrace = tcmalloc::StackTrace;
 
-static void CheckTracesAndReset(tcmalloc::StackTraceTable* table,
-                        const uintptr_t* expected, int len) {
-  void** entries = table->ReadStackTracesAndClear();
-  for (int i = 0; i < len; ++i) {
-    CHECK_EQ(reinterpret_cast<uintptr_t>(entries[i]), expected[i]);
+  struct Entry {
+    const StackTrace trace;
+    std::unique_ptr<Entry> next{};
+    Entry(const StackTrace& t) : trace(t) {}
+  };
+  using EntryPtr = std::unique_ptr<Entry>;
+
+  void AddTrace(const StackTrace& t) {
+    EntryPtr e{new Entry{t}};
+    head_.swap(e->next);
+    head_.swap(e);
   }
-  delete[] entries;
-}
 
-static void AddTrace(tcmalloc::StackTraceTable* table,
-                     const tcmalloc::StackTrace& t) {
-  // Normally we'd need this lock, but since the test is single-threaded
-  // we don't.  I comment it out on windows because the DLL-decl thing
-  // is really annoying in this case.
-#ifndef _WIN32
-  SpinLockHolder h(tcmalloc::Static::pageheap_lock());
-#endif
-  table->AddTrace(t);
-}
+  std::unique_ptr<void*[]> DumpTraces() {
+    auto retval = ProduceStackTracesDump(
+      +[] (const void** current_head) {
+        const Entry* head = static_cast<const Entry*>(*current_head);
+        *current_head = head->next.get();
+        return &head->trace;
+      }, head_.get());
 
-int main(int argc, char **argv) {
-  tcmalloc::StackTraceTable table;
+    head_.reset();
+    return retval;
+  }
+
+  void CheckTracesAndReset(const uintptr_t* expected, int len) {
+    std::unique_ptr<void*[]> entries = DumpTraces();
+    for (int i = 0; i < len; i++) {
+      CHECK_EQ(reinterpret_cast<uintptr_t>(entries[i]), expected[i]);
+    }
+  }
+private:
+  EntryPtr head_;
+};
+
+int main() {
+  StackTraceTableTestHelper h;
 
   // Empty table
-  CHECK_EQ(table.depth_total(), 0);
-  CHECK_EQ(table.bucket_total(), 0);
   static const uintptr_t k1[] = {0};
-  CheckTracesAndReset(&table, k1, ARRAYSIZE(k1));
+  h.CheckTracesAndReset(k1, arraysize(k1));
 
   tcmalloc::StackTrace t1;
   t1.size = static_cast<uintptr_t>(1024);
   t1.depth = static_cast<uintptr_t>(2);
   t1.stack[0] = reinterpret_cast<void*>(1);
   t1.stack[1] = reinterpret_cast<void*>(2);
-
 
   tcmalloc::StackTrace t2;
   t2.size = static_cast<uintptr_t>(512);
@@ -59,19 +75,15 @@ int main(int argc, char **argv) {
   t2.stack[1] = reinterpret_cast<void*>(1);
 
   // Table w/ just t1
-  AddTrace(&table, t1);
-  CHECK_EQ(table.depth_total(), 2);
-  CHECK_EQ(table.bucket_total(), 1);
+  h.AddTrace(t1);
   static const uintptr_t k2[] = {1, 1024, 2, 1, 2, 0};
-  CheckTracesAndReset(&table, k2, ARRAYSIZE(k2));
+  h.CheckTracesAndReset(k2, arraysize(k2));
 
   // Table w/ t1, t2
-  AddTrace(&table, t1);
-  AddTrace(&table, t2);
-  CHECK_EQ(table.depth_total(), 4);
-  CHECK_EQ(table.bucket_total(), 2);
+  h.AddTrace(t1);
+  h.AddTrace(t2);
   static const uintptr_t k3[] = {1, 512, 2, 2, 1, 1, 1024, 2, 1, 2, 0};
-  CheckTracesAndReset(&table, k3, ARRAYSIZE(k3));
+  h.CheckTracesAndReset(k3, arraysize(k3));
 
   // Table w/ t1, t3
   // Same stack as t1, but w/ different size
@@ -81,13 +93,10 @@ int main(int argc, char **argv) {
   t3.stack[0] = reinterpret_cast<void*>(1);
   t3.stack[1] = reinterpret_cast<void*>(2);
 
-  AddTrace(&table, t1);
-  AddTrace(&table, t3);
-  CHECK_EQ(table.depth_total(), 4);
-  CHECK_EQ(table.bucket_total(), 2);
+  h.AddTrace(t1);
+  h.AddTrace(t3);
   static const uintptr_t k5[] = {1, 2, 2, 1, 2, 1, 1024, 2, 1, 2, 0};
-  CheckTracesAndReset(&table, k5, ARRAYSIZE(k5));
+  h.CheckTracesAndReset(k5, arraysize(k5));
 
   puts("PASS");
-  return 0;
 }

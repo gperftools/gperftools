@@ -51,6 +51,8 @@
 #include <stddef.h>                     // for NULL, size_t
 #include <string.h>                     // for memset
 #include <stdint.h>
+
+#include "base/basictypes.h"
 #include "internal_logging.h"  // for ASSERT
 
 // Single-level array
