@@ -100,7 +100,6 @@
 /profiler3_unittest
 /profiler4_unittest
 /profiler_unittest.sh
-/raw_printer_test
 /realloc_debug_unittest
 /realloc_unittest
 /realloc_unittest.exe

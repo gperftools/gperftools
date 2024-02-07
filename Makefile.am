@@ -581,7 +581,6 @@ FULL_MALLOC_SRC = $(HEAP_CHECKER_SOURCES) \
                   src/base/low_level_alloc.cc \
                   src/heap-profile-table.cc \
                   src/heap-profiler.cc \
-                  src/raw_printer.cc \
                   $(EMERGENCY_MALLOC_CC) \
                   src/mmap_hook.cc \
                   src/memory_region_map.cc
@@ -649,12 +648,6 @@ TESTS += tcmalloc_large_heap_fragmentation_unittest
 tcmalloc_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
 tcmalloc_large_heap_fragmentation_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 tcmalloc_large_heap_fragmentation_unittest_LDADD = libtcmalloc.la
-
-TESTS += raw_printer_test
-raw_printer_test_SOURCES = src/tests/raw_printer_test.cc
-raw_printer_test_CXXFLAGS = $(PTHREAD_CFLAGS) $(AM_CXXFLAGS)
-raw_printer_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-raw_printer_test_LDADD = libtcmalloc.la $(PTHREAD_LIBS)
 
 # sampler_test and sampling_test both require sampling to be turned
 # on, which it's not by default.  Use the "standard" value of 2^19.

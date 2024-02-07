@@ -210,7 +210,6 @@
     <ClCompile Include="..\..\src\malloc_extension.cc" />
     <ClCompile Include="..\..\src\malloc_hook.cc" />
     <ClCompile Include="..\..\src\page_heap.cc" />
-    <ClCompile Include="..\..\src\raw_printer.cc" />
     <ClCompile Include="..\..\src\sampler.cc" />
     <ClCompile Include="..\..\src\span.cc" />
     <ClCompile Include="..\..\src\stack_trace_table.cc" />

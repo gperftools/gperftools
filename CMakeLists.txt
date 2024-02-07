@@ -995,7 +995,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
   set(S_TCMALLOC_INCLUDES ${S_TCMALLOC_MINIMAL_INCLUDES}
           ${LOGGING_INCLUDES}
           src/addressmap-inl.h
-          src/raw_printer.h
           src/base/googleinit.h
           src/base/linuxthreads.h
           src/base/stl_allocator.h
@@ -1028,7 +1027,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
           src/mmap_hook.cc
           src/heap-profile-table.cc
           src/heap-profiler.cc
-          src/raw_printer.cc
           ${EMERGENCY_MALLOC_CC}
           src/memory_region_map.cc)
   set(libtcmalloc_internal_la_DEFINE NDEBUG ${EMERGENCY_MALLOC_DEFINE})
@@ -1115,10 +1113,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_executable(tcmalloc_large_heap_fragmentation_unittest src/tests/large_heap_fragmentation_unittest.cc)
     target_link_libraries(tcmalloc_large_heap_fragmentation_unittest tcmalloc Threads::Threads)
     add_test(tcmalloc_large_heap_fragmentation_unittest tcmalloc_large_heap_fragmentation_unittest)
-
-    add_executable(raw_printer_test src/tests/raw_printer_test.cc)
-    target_link_libraries(raw_printer_test tcmalloc Threads::Threads)
-    add_test(raw_printer_test raw_printer_test)
 
     # sampler_test and sampling_test both require sampling to be turned
     # on, which it's not by default.  Use the "standard" value of 2^19.

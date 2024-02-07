@@ -214,7 +214,6 @@
     <ClCompile Include="..\..\src\malloc_extension.cc" />
     <ClCompile Include="..\..\src\malloc_hook.cc" />
     <ClCompile Include="..\..\src\page_heap.cc" />
-    <ClCompile Include="..\..\src\raw_printer.cc" />
     <ClCompile Include="..\..\src\sampler.cc" />
     <ClCompile Include="..\..\src\span.cc" />
     <ClCompile Include="..\..\src\stacktrace.cc" />
@@ -268,7 +267,6 @@
     <ClInclude Include="..\..\src\pagemap.h" />
     <ClInclude Include="..\..\src\page_heap.h" />
     <ClInclude Include="..\..\src\page_heap_allocator.h" />
-    <ClInclude Include="..\..\src\raw_printer.h" />
     <ClInclude Include="..\..\src\sampler.h" />
     <ClInclude Include="..\..\src\span.h" />
     <ClInclude Include="..\..\src\stacktrace_config.h" />

@@ -50,9 +50,6 @@
     <ClCompile Include="..\..\src\page_heap.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\raw_printer.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\sampler.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

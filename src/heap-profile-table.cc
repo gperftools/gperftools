@@ -66,7 +66,6 @@
 #include "gperftools/malloc_hook.h"
 #include "gperftools/stacktrace.h"
 #include "memory_region_map.h"
-#include "raw_printer.h"
 #include "symbolize.h"
 
 using std::sort;
@@ -493,21 +492,26 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
       symbolization_table.Add(e.bucket->stack[j]);
     }
   }
-  static const int kBufSize = 2<<10;
-  char buffer[kBufSize];
   if (should_symbolize)
     symbolization_table.Symbolize();
-  for (int i = 0; i < to_report; i++) {
-    const Entry& e = entries[i];
-    base::RawPrinter printer(buffer, kBufSize);
-    printer.Printf("Leak of %zu bytes in %d objects allocated from:\n",
-                   e.bytes, e.count);
-    for (int j = 0; j < e.bucket->depth; j++) {
-      const void* pc = e.bucket->stack[j];
-      printer.Printf("\t@ %" PRIxPTR " %s\n",
-          reinterpret_cast<uintptr_t>(pc), symbolization_table.GetSymbol(pc));
+
+  {
+    auto do_log = +[] (const char* buf, size_t amt) {
+      RAW_LOG(ERROR, "%.*s", amt, buf);
+    };
+    constexpr int kBufSize = 2<<10;
+    tcmalloc::WriteFnWriter<decltype(do_log), kBufSize> printer{do_log};
+
+    for (int i = 0; i < to_report; i++) {
+      const Entry& e = entries[i];
+      printer.AppendF("Leak of %zu bytes in %d objects allocated from:\n",
+                      e.bytes, e.count);
+      for (int j = 0; j < e.bucket->depth; j++) {
+        const void* pc = e.bucket->stack[j];
+        printer.AppendF("\t@ %" PRIxPTR " %s\n",
+                        reinterpret_cast<uintptr_t>(pc), symbolization_table.GetSymbol(pc));
+      }
     }
-    RAW_LOG(ERROR, "%s", buffer);
   }
 
   if (to_report < n) {

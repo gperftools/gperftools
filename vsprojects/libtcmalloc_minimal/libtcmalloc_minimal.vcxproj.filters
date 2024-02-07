@@ -65,9 +65,6 @@
     <ClCompile Include="..\..\src\windows\system-alloc.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\raw_printer.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\span.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -188,9 +185,6 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\gperftools\profiler.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\raw_printer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\sampler.h">
