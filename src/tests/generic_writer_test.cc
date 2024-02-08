@@ -39,6 +39,10 @@ void PrintLargeAmount(GenericWriter* writer) {
 void TestFile() {
 #ifndef _WIN32
   FILE* f = tmpfile();
+  if (!f) {
+    perror("tmpfile");
+    abort();
+  }
 
   {
     tcmalloc::RawFDGenericWriter<128> writer(static_cast<RawFD>(fileno(f)));
