@@ -73,6 +73,7 @@
 /malloc_bench_shared_full
 /malloc_bench_shared_full.exe
 /malloc_extension_c_test
+/malloc_extension_c_test.exe
 /malloc_extension_debug_test
 /malloc_extension_test
 /malloc_extension_test.exe
@@ -105,8 +106,8 @@
 /realloc_unittest.exe
 /safe_strerror_test
 /safe_strerror_test.exe
-/sampler_debug_test
 /sampler_test
+/sampler_test.exe
 /sampling_debug_test
 /sampling_debug_test.sh
 /sampling_test
