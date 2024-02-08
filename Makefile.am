@@ -119,11 +119,9 @@ libcommon_la_SOURCES = src/base/logging.cc \
 
 if MINGW
 libcommon_la_SOURCES += src/windows/port.cc \
-                        src/windows/system-alloc.cc \
                         src/windows/ia32_modrm_map.cc \
                         src/windows/ia32_opcode_map.cc \
                         src/windows/mini_disassembler.cc \
-                        src/windows/patch_functions.cc \
                         src/windows/preamble_patcher.cc \
                         src/windows/preamble_patcher_with_stub.cc
 
@@ -131,8 +129,8 @@ libcommon_la_SOURCES += src/windows/port.cc \
 AM_LDFLAGS += -lpsapi -lsynchronization -lshlwapi
 
 # patch_functions.cc #includes tcmalloc.cc, so no need to link it in.
-TCMALLOC_CC =
-SYSTEM_ALLOC_CC =
+TCMALLOC_CC = src/windows/patch_functions.cc
+SYSTEM_ALLOC_CC = src/windows/system-alloc.cc
 
 else !MINGW
 
