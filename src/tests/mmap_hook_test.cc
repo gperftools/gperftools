@@ -49,7 +49,10 @@
 #include <string.h>
 
 extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
-  printf("first mmap!\n");
+  // Effing, FreeBSD. Super-annoying with broken everything when it is
+  // early.
+  static char msg[] = "first mmap!\n";
+  WRITE_TO_STDERR(msg, sizeof(msg) - 1);
   return 1;
 }
 
