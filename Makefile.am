@@ -660,7 +660,6 @@ sampler_test_LDADD = libcommon.la
 
 # These unittests often need to run binaries.  They're in the current dir
 TESTS_ENVIRONMENT += BINDIR=.
-TESTS_ENVIRONMENT += TMPDIR=/tmp/perftools
 
 TESTS += sampling_test.sh$(EXEEXT)
 sampling_test_sh_SOURCES = src/tests/sampling_test.sh
