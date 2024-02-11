@@ -44,6 +44,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nm-pdb", "vsprojects\nm-pdb
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "system-alloc_unittest", "vsprojects\system-alloc_unittest\system-alloc_unittest.vcxproj", "{387F753A-0312-4A7B-A1D6-B2795E832E96}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gtest", "vsprojects\gtest\gtest.vcxproj", "{0496DF42-D7AD-46B6-B10C-C57A07E89B0D}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|x64 = Debug|x64

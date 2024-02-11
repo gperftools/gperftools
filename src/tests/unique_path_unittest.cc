@@ -39,12 +39,15 @@
 
 #include "base/logging.h"
 #include "base/commandlineflags.h"
-#include "tests/legacy_assertions.h"
 
 #include <stdlib.h>   // for environment primitives
 #include <unistd.h>   // for getpid()
 #include <limits.h>   // for PATH_MAX
 #include <string>
+
+#include "base/logging.h"
+#include "base/commandlineflags.h"
+#include "gtest/gtest.h"
 
 struct WithEnv {
   const std::string var;
@@ -75,7 +78,7 @@ std::string GetTestPath() {
   return path;
 }
 
-void testDefault() {
+TEST(GetUniquePathTest, Default) {
   WithEnv withTestVar(TEST_VAR, TEST_VAL);
 
   EXPECT_EQ(TEST_VAL, GetTestPath());
@@ -97,7 +100,7 @@ void testDefault() {
 // PMIx is one type of MPI environments that we detect specially. We
 // expect .rank-${PMIX_RANK} to be appended when we detect this
 // environment.
-void testPMIx() {
+TEST(GetUniquePathTest, PMIx) {
   WithEnv rank("PMIX_RANK", "5");
   WithEnv withTestVar(TEST_VAR, TEST_VAL);
 
@@ -123,7 +126,7 @@ void testPMIx() {
 // Slurm is another type of MPI environments that we detect
 // specially. When only SLURM_JOB_ID is detected we force-append pid,
 // when SLURM_PROCID is given, we append ".slurmid-${SLURM_PROCID}
-void testSlurm() {
+TEST(GetUniquePathTest, Slurm) {
   WithEnv withJobID("SLURM_JOB_ID", "1");
   WithEnv withTestVar(TEST_VAR, TEST_VAL);
 
@@ -160,7 +163,7 @@ void testSlurm() {
 
 // Open MPI is another type of MPI environments that we detect. We
 // force-append pid if we detect it.
-void testOMPI() {
+TEST(GetUniquePathTest, OMPI) {
   WithEnv withOMPI("OMPI_HOME", "/some/path");
   WithEnv withTestVar(TEST_VAR, TEST_VAL);
 
@@ -185,7 +188,7 @@ void testOMPI() {
 // MPICH is another type of MPI environment that we detect. We
 // expect .rank-${PMI_RANK} to be appended when we detect this
 // environment.
-void testMPICH() {
+TEST(GetUniquePathTest, MPICH) {
   WithEnv rank("PMI_RANK", "5");
   WithEnv withTestVar(TEST_VAR, TEST_VAL);
 
@@ -206,15 +209,4 @@ void testMPICH() {
 
   // Test child case
   EXPECT_EQ(expectedChild, GetTestPath());
-}
-
-int main(int argc, char** argv) {
-  testDefault();
-  testPMIx();
-  testSlurm();
-  testOMPI();
-  testMPICH();
-
-  printf("PASS\n");
-  return 0;
 }

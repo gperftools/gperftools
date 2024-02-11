@@ -4,10 +4,12 @@
 #include "base/generic_writer.h"
 
 #include <stdio.h>
-#define _USE_MATH_DEFINES 
+#define _USE_MATH_DEFINES
 #include <math.h>
 
 #include <memory>
+
+#include "gtest/gtest.h"
 
 using tcmalloc::GenericWriter;
 
@@ -23,7 +25,7 @@ std::string expected_output = ([] () {
 void PrintLargeAmount(GenericWriter* writer) {
   char initial[256];
   int rv = snprintf(initial, sizeof(initial), "Answer is %d\nPI is %.6f\n", 42, M_PI);
-  CHECK_LT(rv, sizeof(initial));
+  EXPECT_LT(rv, sizeof(initial));
 
   writer->AppendF("Answer is %d\nPI is %.6f\n", 42, M_PI);
   writer->AppendStr(initial);
@@ -36,7 +38,7 @@ void PrintLargeAmount(GenericWriter* writer) {
   writer->AppendMem(large_data.get(), rest_amount);
 }
 
-void TestFile() {
+TEST(GenericWriterTest, File) {
 #ifndef _WIN32
   FILE* f = tmpfile();
   if (!f) {
@@ -51,7 +53,7 @@ void TestFile() {
 
   rewind(f);
   fseek(f, 0, SEEK_END);
-  CHECK_EQ(ftell(f), kLargeAmount);
+  EXPECT_EQ(ftell(f), kLargeAmount);
 
   rewind(f);
 
@@ -59,35 +61,25 @@ void TestFile() {
   s.resize(kLargeAmount);
   fread(&(s[0]), 1, kLargeAmount, f);
 
-  CHECK_EQ(s, expected_output);
-
-  printf("TestFile: PASS\n");
+  EXPECT_EQ(s, expected_output);
 #endif
 }
 
-void TestChunkedWriting() {
+TEST(GenericWriterTest, ChunkedWriting) {
   char* str = tcmalloc::WithWriterToStrDup(
     tcmalloc::ChunkedWriterConfig{malloc, free, 128},
     [] (GenericWriter* writer) {
       PrintLargeAmount(writer);
     });
-  CHECK_EQ(std::string(str), expected_output);
+  EXPECT_EQ(std::string(str), expected_output);
   free(str);
-  printf("TestChunkedWriting: PASS\n");
 }
 
-void TestString() {
+TEST(GenericWriterTest, String) {
   std::string s;
   {
     tcmalloc::StringGenericWriter writer(&s);
     PrintLargeAmount(&writer);
   }
-  CHECK_EQ(s, expected_output);
-  printf("TestString: PASS\n");
-}
-
-int main() {
-  TestFile();
-  TestChunkedWriting();
-  TestString();
+  EXPECT_EQ(s, expected_output);
 }

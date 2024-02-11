@@ -149,22 +149,42 @@ WINDOWS_EXTRA = src/windows/preamble_patcher_test.cc \
 
 ### Unittests
 
+noinst_LTLIBRARIES += libgtest.la
+libgtest_la_SOURCES = vendor/googletest/googletest/src/gtest_main.cc \
+ vendor/googletest/googletest/src/gtest-assertion-result.cc \
+ vendor/googletest/googletest/src/gtest-death-test.cc \
+ vendor/googletest/googletest/src/gtest-filepath.cc \
+ vendor/googletest/googletest/src/gtest-matchers.cc \
+ vendor/googletest/googletest/src/gtest-port.cc \
+ vendor/googletest/googletest/src/gtest-printers.cc \
+ vendor/googletest/googletest/src/gtest-test-part.cc \
+ vendor/googletest/googletest/src/gtest-typed-test.cc \
+ vendor/googletest/googletest/src/gtest.cc
+
+libgtest_la_CPPFLAGS = -I$(top_srcdir)/vendor/googletest/googletest/include \
+ -I$(top_srcdir)/vendor/googletest/googletest/ $(AM_CPPFLAGS)
+
+gtest_CPPFLAGS = -I$(top_srcdir)/vendor/googletest/googletest/include $(AM_CPPFLAGS)
+
 # Note, we skip this test on mingw (and windows in general). It uses
 # unsetenv, which is not available on win32.
 if !MINGW
 TESTS += unique_path_unittest
 unique_path_unittest_SOURCES = src/tests/unique_path_unittest.cc
 unique_path_unittest_LDFLAGS = $(PTHREAD_CFLAGS) $(AM_LDFLAGS)
-unique_path_unittest_LDADD = libcommon.la
+unique_path_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+unique_path_unittest_LDADD = libcommon.la libgtest.la
 endif !MINGW
 
 TESTS += generic_writer_test
 generic_writer_test_SOURCES = src/tests/generic_writer_test.cc
-generic_writer_test_LDADD = libcommon.la
+generic_writer_test_CPPFLAGS = $(gtest_CPPFLAGS)
+generic_writer_test_LDADD = libcommon.la libgtest.la
 
 TESTS += proc_maps_iterator_test
 proc_maps_iterator_test_SOURCES = src/tests/proc_maps_iterator_test.cc
-proc_maps_iterator_test_LDADD = libcommon.la
+proc_maps_iterator_test_CPPFLAGS = $(gtest_CPPFLAGS)
+proc_maps_iterator_test_LDADD = libcommon.la libgtest.la
 
 if WITH_HEAP_PROFILER_OR_CHECKER
 TESTS += low_level_alloc_unittest

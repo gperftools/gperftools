@@ -772,6 +772,23 @@ if(BUILD_TESTING)
           tcmalloc_minimal_large_heap_fragmentation_unittest PUBLIC tcmalloc_minimal)
   add_test(tcmalloc_minimal_large_heap_fragmentation_unittest tcmalloc_minimal_large_heap_fragmentation_unittest)
 
+  add_library(gtest STATIC vendor/googletest/googletest/src/gtest_main.cc
+    vendor/googletest/googletest/src/gtest-assertion-result.cc
+    vendor/googletest/googletest/src/gtest-death-test.cc
+    vendor/googletest/googletest/src/gtest-filepath.cc
+    vendor/googletest/googletest/src/gtest-matchers.cc
+    vendor/googletest/googletest/src/gtest-port.cc
+    vendor/googletest/googletest/src/gtest-printers.cc
+    vendor/googletest/googletest/src/gtest-test-part.cc
+    vendor/googletest/googletest/src/gtest-typed-test.cc
+    vendor/googletest/googletest/src/gtest.cc)
+  target_include_directories(gtest PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/googletest/googletest>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/googletest/googletest/include>)
+
+  target_include_directories(gtest INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/googletest/googletest/include>)
+
   add_executable(addressmap_unittest
           src/tests/addressmap_unittest.cc
           src/addressmap-inl.h
@@ -785,7 +802,7 @@ if(BUILD_TESTING)
     add_test(system_alloc_unittest system_alloc_unittest)
 
     add_executable(unique_path_unittest src/tests/unique_path_unittest.cc)
-    target_link_libraries(unique_path_unittest PRIVATE sysinfo logging)
+    target_link_libraries(unique_path_unittest PRIVATE sysinfo logging gtest)
     add_test(unique_path_unittest unique_path_unittest)
   endif()
 
@@ -872,11 +889,11 @@ if(BUILD_TESTING)
   add_test(safe_strerror_test safe_strerror_test)
 
   add_executable(generic_writer_test src/tests/generic_writer_test.cc ${MAYBE_PORT_CC})
-  target_link_libraries(generic_writer_test logging)
+  target_link_libraries(generic_writer_test logging gtest)
   add_test(generic_writer_test generic_writer_test)
 
   add_executable(proc_maps_iterator_test src/tests/proc_maps_iterator_test.cc ${MAYBE_PORT_CC})
-  target_link_libraries(proc_maps_iterator_test sysinfo logging)
+  target_link_libraries(proc_maps_iterator_test sysinfo logging gtest)
   add_test(proc_maps_iterator_test proc_maps_iterator_test)
 
   set(realloc_unittest_SOURCES src/tests/realloc_unittest.cc

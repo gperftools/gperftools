@@ -37,13 +37,14 @@
 #include <string>
 
 #include "base/generic_writer.h"
+#include "gtest/gtest.h"
 
 int variable;
 
 // There is not much we can thoroughly test. But it is easy to test
 // that we're seeing at least .bss bits. We can also check that we saw
 // at least one executable mapping.
-void TestForEachMapping() {
+TEST(ProcMapsIteratorTest, ForEachMapping) {
   bool seen_variable = false;
   bool seen_executable = false;
   bool ok = tcmalloc::ForEachProcMapping([&] (const tcmalloc::ProcMapping& mapping) {
@@ -55,24 +56,18 @@ void TestForEachMapping() {
       seen_executable = true;
     }
   });
-  RAW_CHECK(ok, "failed to open proc/self/maps");
-  RAW_CHECK(seen_variable, "");
-  RAW_CHECK(seen_executable, "");
+  ASSERT_TRUE(ok) << "failed to open proc/self/maps";
+  ASSERT_TRUE(seen_variable);
+  ASSERT_TRUE(seen_executable);
 }
 
-void TestSaveMappingsNonEmpty() {
+TEST(ProcMapsIteratorTest, SaveMappingNonEmpty) {
   std::string s;
   {
     tcmalloc::StringGenericWriter writer(&s);
     tcmalloc::SaveProcSelfMaps(&writer);
   }
   // Lets at least ensure we got something
-  CHECK_NE(s.size(), 0);
+  ASSERT_NE(s.size(), 0);
   printf("Got the following:\n%s\n---\n", s.c_str());
-}
-
-int main() {
-  TestForEachMapping();
-  TestSaveMappingsNonEmpty();
-  printf("PASS\n");
 }
