@@ -85,6 +85,7 @@
 #include <string>
 #include <vector>
 
+#include "base/cleanup.h"
 #include "base/logging.h"
 #include "gperftools/malloc_hook.h"
 #include "gperftools/malloc_extension.h"
@@ -1169,6 +1170,9 @@ static ATTRIBUTE_NOINLINE void TestNewOOMHandling() {
 
   std::new_handler old = std::set_new_handler(test_new_handler);
   get_test_sys_alloc()->simulate_oom = true;
+  tcmalloc::Cleanup restore_oom([] () {
+    get_test_sys_alloc()->simulate_oom = false;
+  });
 
   ASSERT_EQ(saw_new_handler_runs, 0);
 
@@ -1182,7 +1186,6 @@ static ATTRIBUTE_NOINLINE void TestNewOOMHandling() {
 
   ASSERT_GE(saw_new_handler_runs, 1);
 
-  get_test_sys_alloc()->simulate_oom = false;
   std::set_new_handler(old);
 }
 #endif  // !DEBUGALLOCATION

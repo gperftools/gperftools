@@ -59,6 +59,7 @@
 #include <atomic>
 
 #include "base/basictypes.h"
+#include "base/cleanup.h"
 #include "base/logging.h"
 
 #ifndef CLONE_UNTRACED
@@ -106,22 +107,6 @@ public:
   }
 private:
   int fd_;
-};
-
-template <typename Body>
-struct SimpleCleanup {
-  const Body body;
-
-  explicit SimpleCleanup(const Body& body) : body(body) {}
-
-  ~SimpleCleanup() {
-    body();
-  }
-};
-
-template <typename Body>
-SimpleCleanup<Body> MakeSimpleCleanup(const Body& body) {
-  return SimpleCleanup<Body>{body};
 };
 
 }  // namespace
@@ -561,7 +546,7 @@ int TCMalloc_ListAllProcessThreads(void *parameter,
 
   SetPTracerSetup        ptracer_setup;
 
-  auto cleanup = MakeSimpleCleanup([&] () {
+  tcmalloc::Cleanup cleanup([&] () {
     int old_errno = errno;
 
     if (need_sigprocmask) {
