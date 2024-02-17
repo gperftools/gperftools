@@ -280,7 +280,7 @@ addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc
 addressmap_unittest_LDADD = libcommon.la
 
 TESTS += packed_cache_test
-packed_cache_test_SOURCES = src/tests/packed-cache_test.cc
+packed_cache_test_SOURCES = src/tests/packed-cache_test.cc src/internal_logging.cc
 packed_cache_test_LDADD = libcommon.la
 
 TESTS += safe_strerror_test
