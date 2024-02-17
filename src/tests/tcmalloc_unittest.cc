@@ -141,15 +141,15 @@ static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
 
 #endif
 
-#define OVERALIGNMENT 64
+static constexpr size_t kOveralignment = 64;
 
 struct overaligned_type
 {
-  alignas(OVERALIGNMENT)
-  unsigned char data[OVERALIGNMENT * 2]; // make the object size different from
-                                         // alignment to make sure the correct
-                                         // values are passed to the new/delete
-                                         // implementation functions
+  alignas(kOveralignment)
+  unsigned char data[kOveralignment * 2]; // make the object size different from
+                                          // alignment to make sure the correct
+                                          // values are passed to the new/delete
+                                          // implementation functions
 };
 
 // On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
@@ -1364,59 +1364,59 @@ static int RunAllTests(int argc, char** argv) {
 
     overaligned_type* poveraligned = noopt(new overaligned_type);
     CHECK(poveraligned != NULL);
-    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)poveraligned) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
     delete poveraligned;
     VerifyDeleteHookWasCalled();
 
     poveraligned = noopt(new overaligned_type[10]);
     CHECK(poveraligned != NULL);
-    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)poveraligned) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
     delete[] poveraligned;
     VerifyDeleteHookWasCalled();
 
     poveraligned = noopt(new(std::nothrow) overaligned_type);
     CHECK(poveraligned != NULL);
-    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)poveraligned) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
     delete poveraligned;
     VerifyDeleteHookWasCalled();
 
     poveraligned = noopt(new(std::nothrow) overaligned_type[10]);
     CHECK(poveraligned != NULL);
-    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)poveraligned) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
     delete[] poveraligned;
     VerifyDeleteHookWasCalled();
 
     // Another way of calling operator new
-    p2 = noopt(static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT))));
+    p2 = noopt(static_cast<char*>(::operator new(100, std::align_val_t(kOveralignment))));
     CHECK(p2 != NULL);
-    CHECK((((size_t)p2) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)p2) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
-    ::operator delete(p2, std::align_val_t(OVERALIGNMENT));
+    ::operator delete(p2, std::align_val_t(kOveralignment));
     VerifyDeleteHookWasCalled();
 
-    p2 = noopt(static_cast<char*>(::operator new(100, std::align_val_t(OVERALIGNMENT), std::nothrow)));
+    p2 = noopt(static_cast<char*>(::operator new(100, std::align_val_t(kOveralignment), std::nothrow)));
     CHECK(p2 != NULL);
-    CHECK((((size_t)p2) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)p2) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
-    ::operator delete(p2, std::align_val_t(OVERALIGNMENT), std::nothrow);
+    ::operator delete(p2, std::align_val_t(kOveralignment), std::nothrow);
     VerifyDeleteHookWasCalled();
 
     poveraligned = noopt(new overaligned_type);
     CHECK(poveraligned != NULL);
-    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)poveraligned) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
-    ::operator delete(poveraligned, sizeof(overaligned_type), std::align_val_t(OVERALIGNMENT));
+    ::operator delete(poveraligned, sizeof(overaligned_type), std::align_val_t(kOveralignment));
     VerifyDeleteHookWasCalled();
 
     poveraligned = noopt(new overaligned_type[10]);
     CHECK(poveraligned != NULL);
-    CHECK((((size_t)poveraligned) % OVERALIGNMENT) == 0u);
+    CHECK((((size_t)poveraligned) % kOveralignment) == 0u);
     VerifyNewHookWasCalled();
-    ::operator delete[](poveraligned, sizeof(overaligned_type) * 10, std::align_val_t(OVERALIGNMENT));
+    ::operator delete[](poveraligned, sizeof(overaligned_type) * 10, std::align_val_t(kOveralignment));
     VerifyDeleteHookWasCalled();
 
 // On AIX user defined malloc replacement of libc routines
