@@ -85,6 +85,7 @@
 #include <string>
 #include <vector>
 
+#include "base/function_ref.h"
 #include "base/cleanup.h"
 #include "base/logging.h"
 #include "gperftools/malloc_hook.h"
@@ -820,47 +821,35 @@ static void TestHugeThreadCache() {
   delete[] array;
 }
 
-namespace {
+// Check that at least one of the callbacks from Ranges() contains
+// the specified address with the specified type, and has size
+// >= min_size.
+static void CheckRangeCallback(void* ptr, base::MallocRange::Type type,
+                               size_t min_size) {
+  bool matched = false;
+  const uintptr_t addr = reinterpret_cast<uintptr_t>(ptr);
+  auto callback = [&] (const base::MallocRange* r) -> void {
+    if (!(r->address <= addr && addr < r->address + r->length)) {
+      return;
+    }
 
-struct RangeCallbackState {
-  uintptr_t ptr;
-  base::MallocRange::Type expected_type;
-  size_t min_size;
-  bool matched;
-};
-
-static void RangeCallback(void* arg, const base::MallocRange* r) {
-  RangeCallbackState* state = reinterpret_cast<RangeCallbackState*>(arg);
-  if (state->ptr >= r->address &&
-      state->ptr < r->address + r->length) {
-    if (state->expected_type == base::MallocRange::FREE) {
+    if (type == base::MallocRange::FREE) {
       // We are expecting r->type == FREE, but ReleaseMemory
       // may have already moved us to UNMAPPED state instead (this happens in
       // approximately 0.1% of executions). Accept either state.
       CHECK(r->type == base::MallocRange::FREE ||
             r->type == base::MallocRange::UNMAPPED);
     } else {
-      CHECK_EQ(r->type, state->expected_type);
+      CHECK_EQ(r->type, type);
     }
-    CHECK_GE(r->length, state->min_size);
-    state->matched = true;
-  }
-}
+    CHECK_GE(r->length, min_size);
 
-// Check that at least one of the callbacks from Ranges() contains
-// the specified address with the specified type, and has size
-// >= min_size.
-static void CheckRangeCallback(void* ptr, base::MallocRange::Type type,
-                               size_t min_size) {
-  RangeCallbackState state;
-  state.ptr = reinterpret_cast<uintptr_t>(ptr);
-  state.expected_type = type;
-  state.min_size = min_size;
-  state.matched = false;
-  MallocExtension::instance()->Ranges(&state, RangeCallback);
-  CHECK(state.matched);
-}
+    matched = true;
+  };
 
+  tcmalloc::FunctionRefFirstDataArg<void(const base::MallocRange*)> ref(callback);
+  MallocExtension::instance()->Ranges(ref.data, ref.fn);
+  CHECK(matched);
 }
 
 static bool HaveSystemRelease() {
