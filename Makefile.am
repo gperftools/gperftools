@@ -304,17 +304,20 @@ addressmap_unittest_LDADD = libcommon.la libgtest.la
 
 TESTS += packed_cache_test
 packed_cache_test_SOURCES = src/tests/packed-cache_test.cc src/internal_logging.cc
-packed_cache_test_LDADD = libcommon.la
+packed_cache_test_CPPFLAGS = $(gtest_CPPFLAGS)
+packed_cache_test_LDADD = libcommon.la libgtest.la
 
 TESTS += safe_strerror_test
 safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
                              src/safe_strerror.cc
-safe_strerror_test_LDADD = libcommon.la
+safe_strerror_test_CPPFLAGS = $(gtest_CPPFLAGS)
+safe_strerror_test_LDADD = libcommon.la libgtest.la
 
 TESTS += pagemap_unittest
 pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
                            src/internal_logging.cc
-pagemap_unittest_LDADD = libcommon.la
+pagemap_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+pagemap_unittest_LDADD = libcommon.la libgtest.la
 
 # note, it is not so great that page heap testing requires bringing
 # almost entirety of tcmalloc (short of tcmalloc.cc), but it is what

@@ -37,21 +37,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <algorithm>
+#include <random>
 #include <vector>
 
-#include "base/logging.h"
-
-static void Permute(std::vector<intptr_t>* elements) {
-  if (elements->empty())
-    return;
-  const size_t num_elements = elements->size();
-  for (size_t i = num_elements - 1; i > 0; --i) {
-    const size_t newpos = rand() % (i + 1);
-    const intptr_t tmp = (*elements)[i];   // swap
-    (*elements)[i] = (*elements)[newpos];
-    (*elements)[newpos] = tmp;
-  }
-}
+#include "gtest/gtest.h"
 
 // Note: we leak memory every time a map is constructed, so do not
 // create too many maps.
@@ -59,17 +49,17 @@ static void Permute(std::vector<intptr_t>* elements) {
 // Test specified map type
 template <class Type>
 void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
-  RAW_LOG(INFO, "Running test with %d iterations...\n", limit);
+  printf("Running test with %d iterations...\n", limit);
 
   { // Test sequential ensure/assignment
     Type map(malloc);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
       map.Ensure(i, 1);
       map.set(i, (void*)(i+1));
-      CHECK_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i+1));
     }
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      CHECK_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i+1));
     }
   }
 
@@ -78,33 +68,32 @@ void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
     map.Ensure(0, limit);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
       map.set(i, (void*)(i+1));
-      CHECK_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i+1));
     }
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      CHECK_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i+1));
     }
   }
 
   // Test that we correctly notice overflow
   {
     Type map(malloc);
-    CHECK_EQ(map.Ensure(limit, limit+1), limit_is_below_the_overflow_boundary);
+    ASSERT_EQ(map.Ensure(limit, limit+1), limit_is_below_the_overflow_boundary);
   }
 
   { // Test randomized accesses
-    srand(301);   // srand isn't great, but it's portable
     std::vector<intptr_t> elements;
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) elements.push_back(i);
-    Permute(&elements);
+    std::shuffle(elements.begin(), elements.end(), std::mt19937(42));
 
     Type map(malloc);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
       map.Ensure(elements[i], 1);
       map.set(elements[i], (void*)(elements[i]+1));
-      CHECK_EQ(map.get(elements[i]), (void*)(elements[i]+1));
+      ASSERT_EQ(map.get(elements[i]), (void*)(elements[i]+1));
     }
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      CHECK_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i+1));
     }
   }
 }
@@ -116,23 +105,23 @@ void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
 //    PageMap3: array[16][16][4]
 template <class Type>
 void TestNext(const char* name) {
-  RAW_LOG(ERROR, "Running NextTest %s\n", name);
+  printf("Running NextTest %s\n", name);
   Type map(malloc);
   char a, b, c, d, e;
 
   // When map is empty
-  CHECK(map.Next(0) == NULL);
-  CHECK(map.Next(5) == NULL);
-  CHECK(map.Next(1<<30) == NULL);
+  ASSERT_EQ(map.Next(0), nullptr);
+  ASSERT_EQ(map.Next(5), nullptr);
+  ASSERT_EQ(map.Next(1<<30), nullptr);
 
   // Add a single value
   map.Ensure(40, 1);
   map.set(40, &a);
-  CHECK(map.Next(0) == &a);
-  CHECK(map.Next(39) == &a);
-  CHECK(map.Next(40) == &a);
-  CHECK(map.Next(41) == NULL);
-  CHECK(map.Next(1<<30) == NULL);
+  ASSERT_EQ(map.Next(0), &a);
+  ASSERT_EQ(map.Next(39), &a);
+  ASSERT_EQ(map.Next(40), &a);
+  ASSERT_EQ(map.Next(41), nullptr);
+  ASSERT_EQ(map.Next(1<<30), nullptr);
 
   // Add a few values
   map.Ensure(41, 1);
@@ -141,33 +130,30 @@ void TestNext(const char* name) {
   map.set(100, &c);
   map.set(101, &d);
   map.set(102, &e);
-  CHECK(map.Next(0) == &a);
-  CHECK(map.Next(39) == &a);
-  CHECK(map.Next(40) == &a);
-  CHECK(map.Next(41) == &b);
-  CHECK(map.Next(42) == &c);
-  CHECK(map.Next(63) == &c);
-  CHECK(map.Next(64) == &c);
-  CHECK(map.Next(65) == &c);
-  CHECK(map.Next(99) == &c);
-  CHECK(map.Next(100) == &c);
-  CHECK(map.Next(101) == &d);
-  CHECK(map.Next(102) == &e);
-  CHECK(map.Next(103) == NULL);
+  ASSERT_EQ(map.Next(0), &a);
+  ASSERT_EQ(map.Next(39), &a);
+  ASSERT_EQ(map.Next(40), &a);
+  ASSERT_EQ(map.Next(41), &b);
+  ASSERT_EQ(map.Next(42), &c);
+  ASSERT_EQ(map.Next(63), &c);
+  ASSERT_EQ(map.Next(64), &c);
+  ASSERT_EQ(map.Next(65), &c);
+  ASSERT_EQ(map.Next(99), &c);
+  ASSERT_EQ(map.Next(100), &c);
+  ASSERT_EQ(map.Next(101), &d);
+  ASSERT_EQ(map.Next(102), &e);
+  ASSERT_EQ(map.Next(103), nullptr);
 }
 
-int main(int argc, char** argv) {
-  TestMap< TCMalloc_PageMap1<10> > (100, true);
-  TestMap< TCMalloc_PageMap1<10> > (1 << 10, false);
-  TestMap< TCMalloc_PageMap2<20> > (100, true);
-  TestMap< TCMalloc_PageMap2<20> > (1 << 20, false);
-  TestMap< TCMalloc_PageMap3<20> > (100, true);
-  TestMap< TCMalloc_PageMap3<20> > (1 << 20, false);
+TEST(PageMapTest, Everything) {
+  ASSERT_NO_FATAL_FAILURE(TestMap<TCMalloc_PageMap1<10>>(100, true));
+  ASSERT_NO_FATAL_FAILURE(TestMap<TCMalloc_PageMap1<10>>(1 << 10, false));
+  ASSERT_NO_FATAL_FAILURE(TestMap<TCMalloc_PageMap2<20>>(100, true));
+  ASSERT_NO_FATAL_FAILURE(TestMap<TCMalloc_PageMap2<20>>(1 << 20, false));
+  ASSERT_NO_FATAL_FAILURE(TestMap<TCMalloc_PageMap3<20>>(100, true));
+  ASSERT_NO_FATAL_FAILURE(TestMap<TCMalloc_PageMap3<20>>(1 << 20, false));
 
-  TestNext< TCMalloc_PageMap1<10> >("PageMap1");
-  TestNext< TCMalloc_PageMap2<10> >("PageMap2");
-  TestNext< TCMalloc_PageMap3<10> >("PageMap3");
-
-  printf("PASS\n");
-  return 0;
+  ASSERT_NO_FATAL_FAILURE(TestNext<TCMalloc_PageMap1<10>>("PageMap1"));
+  ASSERT_NO_FATAL_FAILURE(TestNext<TCMalloc_PageMap2<10>>("PageMap2"));
+  ASSERT_NO_FATAL_FAILURE(TestNext<TCMalloc_PageMap3<10>>("PageMap3"));
 }

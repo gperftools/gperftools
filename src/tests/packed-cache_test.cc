@@ -30,18 +30,23 @@
 
 // ---
 // Author: Geoff Pike
+#include "config_for_unittests.h"
 
-#include <stdio.h>
-#include "base/logging.h"
 #include "packed-cache-inl.h"
 
-static const int kHashbits = PackedCache<20>::kHashbits;
+#include <optional>
+
+#include "gtest/gtest.h"
+
+static constexpr int kHashbits = PackedCache<20>::kHashbits;
 
 template <int kKeybits>
-static size_t MustGet(const PackedCache<kKeybits>& cache, uintptr_t key) {
+static std::optional<size_t> Get(const PackedCache<kKeybits>& cache, uintptr_t key) {
   uint32_t rv;
-  CHECK(cache.TryGet(key, &rv));
-  return rv;
+  if (!cache.TryGet(key, &rv)) {
+    return {};
+  }
+  return {rv};
 }
 
 template <int kKeybits>
@@ -51,32 +56,25 @@ static size_t Has(const PackedCache<kKeybits>& cache, uintptr_t key) {
 }
 
 // A basic sanity test.
-void PackedCacheTest_basic() {
+TEST(PackedCacheTest, Basic) {
   PackedCache<20> cache;
 
-  CHECK(!Has(cache, 0));
+  ASSERT_FALSE(Has(cache, 0));
   cache.Put(0, 17);
-  CHECK(Has(cache, 0));
-  CHECK_EQ(MustGet(cache, 0), 17);
+  ASSERT_TRUE(Has(cache, 0));
+  ASSERT_EQ(Get(cache, 0).value(), 17);
 
   cache.Put(19, 99);
-  CHECK_EQ(MustGet(cache, 0), 17);
-  CHECK_EQ(MustGet(cache, 19), 99);
+  ASSERT_EQ(Get(cache, 0).value(), 17);
+  ASSERT_EQ(Get(cache, 19).value(), 99);
 
   // Knock <0, 17> out by using a conflicting key.
   cache.Put(1 << kHashbits, 22);
-  CHECK(!Has(cache, 0));
-  CHECK_EQ(MustGet(cache, 1 << kHashbits), 22);
+  ASSERT_FALSE(Has(cache, 0));
+  ASSERT_EQ(Get(cache, 1 << kHashbits).value(), 22);
 
   cache.Invalidate(19);
-  CHECK(!Has(cache, 19));
-  CHECK(!Has(cache, 0));
-  CHECK(Has(cache, 1 << kHashbits));
-}
-
-int main(int argc, char **argv) {
-  PackedCacheTest_basic();
-
-  printf("PASS\n");
-  return 0;
+  ASSERT_FALSE(Has(cache, 19));
+  ASSERT_FALSE(Has(cache, 0));
+  ASSERT_TRUE(Has(cache, 1 << kHashbits));
 }

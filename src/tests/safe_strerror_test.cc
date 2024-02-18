@@ -33,18 +33,16 @@
 
 #include "safe_strerror.h"
 
-#include "base/logging.h"
-
 #include <string>
 
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>
 
-int main() {
-  CHECK_EQ(std::string{tcmalloc::SafeStrError(ENOMEM).c_str()}, "ENOMEM");
-  CHECK_EQ(std::string{tcmalloc::SafeStrError(999999999).c_str()}, "errno 999999999");
+#include "gtest/gtest.h"
 
-  printf("PASS\n");
+TEST(SafeStrerrorTest, Basic) {
+  ASSERT_EQ(std::string{tcmalloc::SafeStrError(ENOMEM).c_str()}, "ENOMEM");
+  ASSERT_EQ(std::string{tcmalloc::SafeStrError(999999999).c_str()}, "errno 999999999");
 }
 

@@ -807,7 +807,7 @@ if(BUILD_TESTING)
   endif()
 
   add_executable(packed_cache_test src/tests/packed-cache_test.cc)
-  target_link_libraries(packed_cache_test PUBLIC tcmalloc_minimal)
+  target_link_libraries(packed_cache_test logging gtest)
   add_test(packed_cache_test packed_cache_test)
 
   add_executable(frag_unittest src/tests/frag_unittest.cc)
@@ -880,12 +880,12 @@ if(BUILD_TESTING)
   endif()
   add_test(page_heap_test page_heap_test)
 
-  add_executable(pagemap_unittest src/tests/pagemap_unittest.cc)
-  target_link_libraries(pagemap_unittest PUBLIC tcmalloc_minimal)
+  add_executable(pagemap_unittest src/tests/pagemap_unittest.cc src/internal_logging.cc)
+  target_link_libraries(pagemap_unittest logging gtest)
   add_test(pagemap_unittest pagemap_unittest)
 
   add_executable(safe_strerror_test src/tests/safe_strerror_test.cc src/safe_strerror.cc)
-  target_link_libraries(safe_strerror_test logging)
+  target_link_libraries(safe_strerror_test logging gtest)
   add_test(safe_strerror_test safe_strerror_test)
 
   add_executable(generic_writer_test src/tests/generic_writer_test.cc ${MAYBE_PORT_CC})
