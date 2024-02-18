@@ -195,7 +195,8 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
 # By default, MallocHook takes stack traces for use by the heap-checker.
 # We don't need that functionality here, so we turn it off to reduce deps.
 low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
-low_level_alloc_unittest_LDADD = libcommon.la
+low_level_alloc_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+low_level_alloc_unittest_LDADD = libcommon.la libgtest.la
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
 ### ------- stack trace

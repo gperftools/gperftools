@@ -569,7 +569,7 @@ if(BUILD_TESTING)
   # By default, MallocHook takes stack traces for use by the heap-checker.
   # We don't need that functionality here, so we turn it off to reduce deps.
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES)
-  target_link_libraries(low_level_alloc_unittest spinlock sysinfo logging)
+  target_link_libraries(low_level_alloc_unittest spinlock sysinfo logging gtest)
   add_test(low_level_alloc_unittest low_level_alloc_unittest)
 endif()
 
