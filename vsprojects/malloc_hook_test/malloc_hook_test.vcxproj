@@ -215,6 +215,11 @@
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\src\windows\port.h" />
   </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\gtest\gtest.vcxproj">
+      <Project>{0496df42-d7ad-46b6-b10c-c57a07e89b0d}</Project>
+    </ProjectReference>
+  </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>

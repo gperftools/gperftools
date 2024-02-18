@@ -49,31 +49,7 @@
 
 #include "tests/testutil.h"
 
-#include "base/logging.h"
-#include "tests/legacy_assertions.h"
-
-namespace {
-
-std::vector<void (*)()> g_testlist;  // the tests to run
-
-#define TEST(a, b)                                      \
-  struct Test_##a##_##b {                               \
-    Test_##a##_##b() { g_testlist.push_back(&Run); }    \
-    static void Run();                                  \
-  };                                                    \
-  static Test_##a##_##b g_test_##a##_##b;               \
-  void Test_##a##_##b::Run()
-
-
-static int RUN_ALL_TESTS() {
-  std::vector<void (*)()>::const_iterator it;
-  for (it = g_testlist.begin(); it != g_testlist.end(); ++it) {
-    (*it)();   // The test will error-exit if there's a problem.
-  }
-  fprintf(stderr, "\nPassed %d tests\n\nPASS\n",
-          static_cast<int>(g_testlist.size()));
-  return 0;
-}
+#include "gtest/gtest.h"
 
 using base::internal::kHookListMaxValues;
 
@@ -267,10 +243,4 @@ TEST(HookListTest, MultithreadedTest) {
   MallocHook::NewHook values[kHookListMaxValues + 1];
   EXPECT_EQ(0, list.Traverse(values, kHookListMaxValues + 1));
   EXPECT_EQ(0, list.priv_end);
-}
-
-}  // namespace
-
-int main(int argc, char** argv) {
-  return RUN_ALL_TESTS();
 }

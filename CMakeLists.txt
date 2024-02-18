@@ -828,7 +828,7 @@ if(BUILD_TESTING)
   add_executable(malloc_hook_test
           src/tests/malloc_hook_test.cc
           src/tests/testutil.cc)
-  target_link_libraries(malloc_hook_test tcmalloc_minimal Threads::Threads)
+  target_link_libraries(malloc_hook_test tcmalloc_minimal Threads::Threads gtest)
   add_test(malloc_hook_test malloc_hook_test)
 
   add_executable(mmap_hook_test
@@ -836,9 +836,9 @@ if(BUILD_TESTING)
           src/mmap_hook.cc)
   if(MSVC)
     # Work around unresolved symbol from src/windows by linking against the entire library
-    target_link_libraries(mmap_hook_test tcmalloc_minimal Threads::Threads)
+    target_link_libraries(mmap_hook_test tcmalloc_minimal Threads::Threads gtest)
   else()
-    target_link_libraries(mmap_hook_test spinlock sysinfo logging)
+    target_link_libraries(mmap_hook_test spinlock sysinfo logging gtest)
   endif()
   add_test(mmap_hook_test mmap_hook_test)
 
@@ -874,9 +874,9 @@ if(BUILD_TESTING)
     # page_heap_test was changed such that it now refers to an unexported symbol.
     # Temporary workaround by linking to the .obj files instead of tcmalloc_minimal.
     # Also see commit e521472 for the VSProj changes.
-    target_link_libraries(page_heap_test tcmalloc_minimal spinlock sysinfo logging)
+    target_link_libraries(page_heap_test tcmalloc_minimal spinlock sysinfo logging gtest)
   else()
-    target_link_libraries(page_heap_test tcmalloc_minimal)
+    target_link_libraries(page_heap_test tcmalloc_minimal gtest)
   endif()
   add_test(page_heap_test page_heap_test)
 
@@ -905,7 +905,7 @@ if(BUILD_TESTING)
   add_test(realloc_unittest realloc_unittest)
 
   add_executable(stack_trace_table_test src/tests/stack_trace_table_test.cc)
-  target_link_libraries(stack_trace_table_test PUBLIC tcmalloc_minimal)
+  target_link_libraries(stack_trace_table_test PUBLIC tcmalloc_minimal gtest)
   add_test(stack_trace_table_test stack_trace_table_test)
 
   add_executable(thread_dealloc_unittest
@@ -1135,11 +1135,8 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     # on, which it's not by default.  Use the "standard" value of 2^19.
     list(APPEND TESTS_ENVIRONMENT TCMALLOC_SAMPLE_PARAMETER=524288)
 
-    set(sampler_test_SOURCES src/tests/sampler_test.cc
-            src/config_for_unittests.h)
-    set(sampler_test_LIBADD ${TCMALLOC_FLAGS} Threads::Threads m)
-    add_executable(sampler_test ${sampler_test_SOURCES})
-    target_link_libraries(sampler_test tcmalloc ${sampler_test_LIBADD})
+    add_executable(sampler_test src/tests/sampler_test.cc src/sampler.cc)
+    target_link_libraries(sampler_test gtest Threads::Threads m)
     add_test(sampler_test sampler_test)
 
     # These unittests often need to run binaries.  They're in the current dir
@@ -1211,10 +1208,6 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
       target_compile_definitions(tcmalloc_debug_unittest PRIVATE DEBUGALLOCATION ${tcmalloc_unittest})
       target_link_libraries(tcmalloc_debug_unittest tcmalloc_debug ${tcmalloc_unittest_LIBADD})
       add_test(tcmalloc_debug_unittest tcmalloc_debug_unittest)
-
-      add_executable(sampler_debug_test ${sampler_test_SOURCES})
-      target_link_libraries(sampler_debug_test tcmalloc_debug ${tcmalloc_unittest_LIBADD})
-      add_test(sampler_debug_test sampler_debug_test)
 
       add_executable(sampling_debug_test ${sampling_test_SOURCES})
       target_link_libraries(sampling_debug_test ${TCMALLOC_FLAGS} tcmalloc_debug Threads::Threads)

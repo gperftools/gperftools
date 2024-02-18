@@ -10,11 +10,11 @@
 
 #include "stack_trace_table.h"
 
-#include <stdio.h>   // for puts()
+#include <stdio.h>
 
 #include <vector>
 
-#include "base/logging.h"
+#include "gtest/gtest.h"
 
 class StackTraceTableTestHelper {
 public:
@@ -48,14 +48,14 @@ public:
   void CheckTracesAndReset(const uintptr_t* expected, int len) {
     std::unique_ptr<void*[]> entries = DumpTraces();
     for (int i = 0; i < len; i++) {
-      CHECK_EQ(reinterpret_cast<uintptr_t>(entries[i]), expected[i]);
+      EXPECT_EQ(reinterpret_cast<uintptr_t>(entries[i]), expected[i]);
     }
   }
 private:
   EntryPtr head_;
 };
 
-int main() {
+TEST(StackTraceTableTest, Basic) {
   StackTraceTableTestHelper h;
 
   // Empty table
@@ -97,6 +97,4 @@ int main() {
   h.AddTrace(t3);
   static const uintptr_t k5[] = {1, 2, 2, 1, 2, 1, 1024, 2, 1, 2, 0};
   h.CheckTracesAndReset(k5, arraysize(k5));
-
-  puts("PASS");
 }

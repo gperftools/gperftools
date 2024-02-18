@@ -326,7 +326,8 @@ TESTS += page_heap_test
 page_heap_test_SOURCES = src/tests/page_heap_test.cc \
                          $(MINIMAL_MALLOC_SRC)
 page_heap_test_CXXFLAGS = -DNO_HEAP_CHECK -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
-page_heap_test_LDADD = libcommon.la
+page_heap_test_CPPFLAGS = $(gtest_CPPFLAGS)
+page_heap_test_LDADD = libcommon.la libgtest.la
 
 # note, it is not so great that stack_trace_table testing requires
 # bringing almost entirety of tcmalloc (short of tcmalloc.cc), but it
@@ -334,22 +335,25 @@ page_heap_test_LDADD = libcommon.la
 TESTS += stack_trace_table_test
 stack_trace_table_test_SOURCES = src/tests/stack_trace_table_test.cc \
                                  src/stack_trace_table.cc src/internal_logging.cc
+stack_trace_table_test_CPPFLAGS = $(gtest_CPPFLAGS)
 stack_trace_table_test_CXXFLAGS = -DSTACK_TRACE_TABLE_IS_TESTED $(AM_CXXFLAGS)
-stack_trace_table_test_LDADD = libcommon.la
+stack_trace_table_test_LDADD = libcommon.la libgtest.la
 
 TESTS += malloc_hook_test
 malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
                            src/tests/testutil.cc \
                            src/malloc_hook.cc
 malloc_hook_test_CXXFLAGS = -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
-malloc_hook_test_LDADD = libcommon.la
+malloc_hook_test_CPPFLAGS = $(gtest_CPPFLAGS)
+malloc_hook_test_LDADD = libcommon.la libgtest.la
 
 if WITH_HEAP_PROFILER_OR_CHECKER
 if !MINGW
 TESTS += mmap_hook_test
 mmap_hook_test_SOURCES = src/tests/mmap_hook_test.cc \
                          src/mmap_hook.cc
-mmap_hook_test_LDADD = libcommon.la
+mmap_hook_test_CPPFLAGS = $(gtest_CPPFLAGS)
+mmap_hook_test_LDADD = libcommon.la libgtest.la
 endif !MINGW
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
@@ -360,7 +364,8 @@ TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
 TESTS += sampler_test
 sampler_test_SOURCES = src/tests/sampler_test.cc \
                        src/sampler.cc
-sampler_test_LDADD = libcommon.la
+sampler_test_CPPFLAGS = $(gtest_CPPFLAGS)
+sampler_test_LDADD = libcommon.la libgtest.la
 
 ### Unittests for libtcmalloc_minimal.la
 

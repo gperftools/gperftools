@@ -14,14 +14,11 @@
 
 #include "page_heap.h"
 #include "system-alloc.h"
-#include "base/logging.h"
 #include "common.h"
 
-#include "tests/legacy_assertions.h"
+#include "gtest/gtest.h"
 
 DECLARE_int64(tcmalloc_heap_limit_mb);
-
-namespace {
 
 // TODO: add testing from >1 min_span_size setting.
 
@@ -31,11 +28,14 @@ bool HaveSystemRelease() {
     auto ptr = TCMalloc_SystemAlloc(kPageSize, &actual, 0);
     return TCMalloc_SystemRelease(ptr, actual);
   })();
-#if __linux__
-  assert(have);
-#endif
   return have;
 }
+
+#if __linux__
+TEST(PageHeapTest, HaveSystemRelease) {
+  ASSERT_TRUE(HaveSystemRelease());
+}
+#endif
 
 static void CheckStats(const tcmalloc::PageHeap* ph,
                        uint64_t system_pages,
@@ -53,7 +53,7 @@ static void CheckStats(const tcmalloc::PageHeap* ph,
   EXPECT_EQ(unmapped_pages, stats.unmapped_bytes >> kPageShift);
 }
 
-static void TestPageHeap_Stats() {
+TEST(PageHeapTest, Stats) {
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
 
   // Empty page heap
@@ -96,21 +96,21 @@ static void AllocateAllPageTables() {
   tcmalloc::Span *spans[kNumberMaxPagesSpans * 2];
   for (int i = 0; i < kNumberMaxPagesSpans; ++i) {
     spans[i] = ph->New(kMaxPages);
-    EXPECT_NE(spans[i], NULL);
+    EXPECT_NE(spans[i], nullptr);
   }
   for (int i = 0; i < kNumberMaxPagesSpans; ++i) {
     ph->Delete(spans[i]);
   }
   for (int i = 0; i < kNumberMaxPagesSpans * 2; ++i) {
     spans[i] = ph->New(kMaxPages >> 1);
-    EXPECT_NE(spans[i], NULL);
+    EXPECT_NE(spans[i], nullptr);
   }
   for (int i = 0; i < kNumberMaxPagesSpans * 2; ++i) {
     ph->Delete(spans[i]);
   }
 }
 
-static void TestPageHeap_Limit() {
+TEST(PageHeapTest, Limit) {
   AllocateAllPageTables();
 
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
@@ -118,18 +118,18 @@ static void TestPageHeap_Limit() {
   // Lets also test if huge number of pages is ooming properly
   {
     auto res = ph->New(std::numeric_limits<Length>::max());
-    CHECK_EQ(res, nullptr);
-    CHECK_EQ(errno, ENOMEM);
+    ASSERT_EQ(res, nullptr);
+    ASSERT_EQ(errno, ENOMEM);
   }
 
-  CHECK_EQ(kMaxPages, 1 << (20 - kPageShift));
+  ASSERT_EQ(kMaxPages, 1 << (20 - kPageShift));
 
   // We do not know much is taken from the system for other purposes,
   // so we detect the proper limit:
   {
     FLAGS_tcmalloc_heap_limit_mb = 1;
-    tcmalloc::Span* s = NULL;
-    while((s = ph->New(kMaxPages)) == NULL) {
+    tcmalloc::Span* s = nullptr;
+    while((s = ph->New(kMaxPages)) == nullptr) {
       FLAGS_tcmalloc_heap_limit_mb++;
     }
     FLAGS_tcmalloc_heap_limit_mb += kNumberMaxPagesSpans - 1;
@@ -142,9 +142,9 @@ static void TestPageHeap_Limit() {
     tcmalloc::Span * spans[kNumberMaxPagesSpans];
     for (int i=0; i<kNumberMaxPagesSpans; ++i) {
       spans[i] = ph->New(kMaxPages);
-      EXPECT_NE(spans[i], NULL);
+      EXPECT_NE(spans[i], nullptr);
     }
-    EXPECT_EQ(ph->New(kMaxPages), NULL);
+    EXPECT_EQ(ph->New(kMaxPages), nullptr);
 
     for (int i=0; i<kNumberMaxPagesSpans; i += 2) {
       ph->Delete(spans[i]);
@@ -155,14 +155,14 @@ static void TestPageHeap_Limit() {
 
     if (HaveSystemRelease()) {
       // EnsureLimit should release deleted normal spans
-      EXPECT_NE(defragmented, NULL);
+      EXPECT_NE(defragmented, nullptr);
       ph->PrepareAndDelete(defragmented, [&] () {
         EXPECT_TRUE(ph->CheckExpensive());
       });
     }
     else
     {
-      EXPECT_EQ(defragmented, NULL);
+      EXPECT_EQ(defragmented, nullptr);
       EXPECT_TRUE(ph->CheckExpensive());
     }
 
@@ -176,11 +176,11 @@ static void TestPageHeap_Limit() {
     tcmalloc::Span * spans[kNumberMaxPagesSpans * 2];
     for (int i=0; i<kNumberMaxPagesSpans * 2; ++i) {
       spans[i] = ph->New(kMaxPages >> 1);
-      EXPECT_NE(spans[i], NULL);
+      EXPECT_NE(spans[i], nullptr);
     }
     // one more half size allocation may be possible:
     tcmalloc::Span * lastHalf = ph->New(kMaxPages >> 1);
-    EXPECT_EQ(ph->New(kMaxPages >> 1), NULL);
+    EXPECT_EQ(ph->New(kMaxPages >> 1), nullptr);
 
     for (int i=0; i<kNumberMaxPagesSpans * 2; i += 2) {
       ph->Delete(spans[i]);
@@ -190,7 +190,7 @@ static void TestPageHeap_Limit() {
          len < kNumberMaxPagesSpans / 2 * kMaxPages; len = len << 1) {
       if(len <= kMaxPages >> 1 || HaveSystemRelease()) {
         tcmalloc::Span *s = ph->New(len);
-        EXPECT_NE(s, NULL);
+        EXPECT_NE(s, nullptr);
         ph->Delete(s);
       }
     }
@@ -204,16 +204,8 @@ static void TestPageHeap_Limit() {
       ph->Delete(spans[i]);
     }
 
-    if (lastHalf != NULL) {
+    if (lastHalf != nullptr) {
       ph->Delete(lastHalf);
     }
   }
-}
-
-}  // namespace
-
-int main() {
-  TestPageHeap_Stats();
-  TestPageHeap_Limit();
-  printf("PASS\n");
 }
