@@ -308,21 +308,6 @@ void HeapProfileTable::SaveProfile(tcmalloc::GenericWriter* writer) const {
   tcmalloc::SaveProcSelfMaps(writer);
 }
 
-// Callback from NonLiveSnapshot; adds entry to arg->dest
-// if not the entry is not live and is not present in arg->base.
-void HeapProfileTable::AddIfNonLive(const void* ptr, AllocValue* v,
-                                    AddNonLiveArgs* arg) {
-  if (v->live()) {
-    v->set_live(false);
-  } else {
-    if (arg->base != NULL && arg->base->map_.Find(ptr) != NULL) {
-      // Present in arg->base, so do not save
-    } else {
-      arg->dest->Add(ptr, *v);
-    }
-  }
-}
-
 bool HeapProfileTable::WriteProfile(const char* file_name,
                                     const Bucket& total,
                                     AllocationMap* allocations) {
@@ -389,19 +374,15 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
 
 HeapProfileTable::Snapshot* HeapProfileTable::TakeSnapshot() {
   Snapshot* s = new (alloc_(sizeof(Snapshot))) Snapshot(alloc_, dealloc_);
-  address_map_->Iterate(AddToSnapshot, s);
+  address_map_->Iterate([s] (const void* ptr, AllocValue* v) {
+    s->Add(ptr, *v);
+  });
   return s;
 }
 
 void HeapProfileTable::ReleaseSnapshot(Snapshot* s) {
   s->~Snapshot();
   dealloc_(s);
-}
-
-// Callback from TakeSnapshot; adds a single entry to snapshot
-void HeapProfileTable::AddToSnapshot(const void* ptr, AllocValue* v,
-                                     Snapshot* snapshot) {
-  snapshot->Add(ptr, *v);
 }
 
 HeapProfileTable::Snapshot* HeapProfileTable::NonLiveSnapshot(
@@ -411,10 +392,17 @@ HeapProfileTable::Snapshot* HeapProfileTable::NonLiveSnapshot(
            total_.alloc_size - total_.free_size);
 
   Snapshot* s = new (alloc_(sizeof(Snapshot))) Snapshot(alloc_, dealloc_);
-  AddNonLiveArgs args;
-  args.dest = s;
-  args.base = base;
-  address_map_->Iterate<AddNonLiveArgs*>(AddIfNonLive, &args);
+  address_map_->Iterate([&] (const void* ptr, AllocValue* v) {
+    if (v->live()) {
+      v->set_live(false);
+    } else {
+      if (base != nullptr && base->map_.Find(ptr) != nullptr) {
+        // Present in arg->base, so do not save
+      } else {
+        s->Add(ptr, *v);
+      }
+    }
+  });
   RAW_VLOG(2, "NonLiveSnapshot output: %" PRId64 " %" PRId64 "\n",
            s->total_.allocs - s->total_.frees,
            s->total_.alloc_size - s->total_.free_size);
@@ -434,22 +422,6 @@ struct HeapProfileTable::Snapshot::Entry {
   }
 };
 
-// State used to generate leak report.  We keep a mapping from Bucket pointer
-// the collected stats for that bucket.
-struct HeapProfileTable::Snapshot::ReportState {
-  map<Bucket*, Entry> buckets_;
-};
-
-// Callback from ReportLeaks; updates ReportState.
-void HeapProfileTable::Snapshot::ReportCallback(const void* ptr,
-                                                AllocValue* v,
-                                                ReportState* state) {
-  Entry* e = &state->buckets_[v->bucket()]; // Creates empty Entry first time
-  e->bucket = v->bucket();
-  e->count++;
-  e->bytes += v->bytes;
-}
-
 void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
                                              const char* filename,
                                              bool should_symbolize) {
@@ -463,19 +435,24 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
           size_t(total_.allocs));
 
   // Group objects by Bucket
-  ReportState state;
-  map_.Iterate(&ReportCallback, &state);
+  std::map<Bucket*, Entry> buckets;
+  map_.Iterate([&] (const void* ptr, AllocValue* v) {
+    Entry* e = &buckets[v->bucket()]; // Creates empty Entry first time
+    e->bucket = v->bucket();
+    e->count++;
+    e->bytes += v->bytes;
+  });
 
   // Sort buckets by decreasing leaked size
-  const int n = state.buckets_.size();
+  const int n = buckets.size();
   Entry* entries = new Entry[n];
   int dst = 0;
-  for (map<Bucket*,Entry>::const_iterator iter = state.buckets_.begin();
-       iter != state.buckets_.end();
+  for (map<Bucket*,Entry>::const_iterator iter = buckets.begin();
+       iter != buckets.end();
        ++iter) {
     entries[dst++] = iter->second;
   }
-  sort(entries, entries + n);
+  std::sort(entries, entries + n);
 
   // Report a bounded number of leaks to keep the leak report from
   // growing too long.
@@ -525,15 +502,10 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
   }
 }
 
-void HeapProfileTable::Snapshot::ReportObject(const void* ptr,
-                                              AllocValue* v,
-                                              char* unused) {
-  // Perhaps also log the allocation stack trace (unsymbolized)
-  // on this line in case somebody finds it useful.
-  RAW_LOG(ERROR, "leaked %zu byte object %p", v->bytes, ptr);
-}
-
 void HeapProfileTable::Snapshot::ReportIndividualObjects() {
-  char unused;
-  map_.Iterate(ReportObject, &unused);
+  map_.Iterate([] (const void* ptr, AllocValue* v) {
+    // Perhaps also log the allocation stack trace (unsymbolized)
+    // on this line in case somebody finds it useful.
+    RAW_LOG(ERROR, "leaked %zu byte object %p", v->bytes, ptr);
+  });
 }

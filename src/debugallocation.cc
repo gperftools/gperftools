@@ -785,7 +785,13 @@ class MallocBlock {
 
   static bool CheckEverything() {
     alloc_map_lock_.Lock();
-    if (alloc_map_ != NULL)  alloc_map_->Iterate(CheckCallback, 0);
+    if (alloc_map_) {
+      alloc_map_->Iterate([] (const void* ptr, int* type) {
+        if ((*type & kDeallocatedTypeBit) == 0) {
+          FromRawPointer(ptr)->CheckLocked(*type);
+        }
+      });
+    }
     alloc_map_lock_.Unlock();
     return true;  // if we get here, we're okay
   }
@@ -797,7 +803,28 @@ class MallocBlock {
     stats_blocks_ = 0;
     stats_total_ = 0;
     stats_histogram_ = histogram;
-    if (alloc_map_ != NULL) alloc_map_->Iterate(StatsCallback, 0);
+
+    if (alloc_map_) {
+      alloc_map_->Iterate([] (const void* ptr, int* type) {
+        if ((*type & kDeallocatedTypeBit) == 0) {
+          const MallocBlock* b = FromRawPointer(ptr);
+          b->CheckLocked(*type);
+          ++stats_blocks_;
+          size_t mysize = b->size1_;
+          int entry = 0;
+          stats_total_ += mysize;
+          while (mysize) {
+            ++entry;
+            mysize >>= 1;
+          }
+          RAW_CHECK(entry < kMallocHistogramSize,
+                    "kMallocHistogramSize should be at least as large as log2 "
+                    "of the maximum process memory size");
+          stats_histogram_[entry] += 1;
+        }
+      });
+    }
+
     *blocks = stats_blocks_;
     *total = stats_total_;
     alloc_map_lock_.Unlock();
@@ -806,35 +833,10 @@ class MallocBlock {
 
  private:  // helpers for CheckEverything and MemoryStats
 
-  static void CheckCallback(const void* ptr, int* type, int dummy) {
-    if ((*type & kDeallocatedTypeBit) == 0) {
-      FromRawPointer(ptr)->CheckLocked(*type);
-    }
-  }
-
   // Accumulation variables for StatsCallback protected by alloc_map_lock_
   static int stats_blocks_;
   static size_t stats_total_;
   static int* stats_histogram_;
-
-  static void StatsCallback(const void* ptr, int* type, int dummy) {
-    if ((*type & kDeallocatedTypeBit) == 0) {
-      const MallocBlock* b = FromRawPointer(ptr);
-      b->CheckLocked(*type);
-      ++stats_blocks_;
-      size_t mysize = b->size1_;
-      int entry = 0;
-      stats_total_ += mysize;
-      while (mysize) {
-        ++entry;
-        mysize >>= 1;
-      }
-      RAW_CHECK(entry < kMallocHistogramSize,
-                "kMallocHistogramSize should be at least as large as log2 "
-                "of the maximum process memory size");
-      stats_histogram_[entry] += 1;
-    }
-  }
 };
 
 void DanglingWriteChecker() {

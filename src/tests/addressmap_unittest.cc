@@ -71,11 +71,6 @@ struct PtrAndSize {
 
 size_t SizeFunc(const ValueT& v) { return v.second; }
 
-static void SetCheckCallback(const void* ptr, ValueT* val,
-                             set<pair<const void*, int> >* check_set) {
-  check_set->insert(make_pair(ptr, val->first));
-}
-
 int main(int argc, char** argv) {
   // Get a bunch of pointers
   const int N = FLAGS_N;
@@ -154,7 +149,9 @@ int main(int argc, char** argv) {
 
     // Check all entries
     set<pair<const void*, int> > check_set;
-    map.Iterate(SetCheckCallback, &check_set);
+    map.Iterate([&] (const void* ptr, ValueT* val) {
+      check_set.insert(std::make_pair(ptr, val->first));
+    });
     CHECK_EQ(check_set.size(), N);
     for (int i = 0; i < N; ++i) {
       void* p = ptrs_and_sizes[i].ptr;

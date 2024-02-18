@@ -227,20 +227,6 @@ class HeapProfileTable {
   // creating the bucket if needed.
   Bucket* GetBucket(int depth, const void* const key[]);
 
-  // Helper for TakeSnapshot.  Saves object to snapshot.
-  static void AddToSnapshot(const void* ptr, AllocValue* v, Snapshot* s);
-
-  // Arguments passed to AddIfNonLive
-  struct AddNonLiveArgs {
-    Snapshot* dest;
-    Snapshot* base;
-  };
-
-  // Helper for NonLiveSnapshot.  Adds the object to the destination
-  // snapshot if it is non-live.
-  static void AddIfNonLive(const void* ptr, AllocValue* v,
-                           AddNonLiveArgs* arg);
-
   // Write contents of "*allocations" as a heap profile to
   // "file_name".  "total" must contain the total of all entries in
   // "*allocations".
@@ -318,9 +304,6 @@ class HeapProfileTable::Snapshot {
 
   // Helpers for sorting and generating leak reports
   struct Entry;
-  struct ReportState;
-  static void ReportCallback(const void* ptr, AllocValue* v, ReportState*);
-  static void ReportObject(const void* ptr, AllocValue* v, char*);
 
   DISALLOW_COPY_AND_ASSIGN(Snapshot);
 };

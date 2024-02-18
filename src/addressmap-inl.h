@@ -82,10 +82,13 @@
 #define BASE_ADDRESSMAP_INL_H_
 
 #include "config.h"
+
 #include <stddef.h>
 #include <string.h>
 #include <stdint.h>
 #include <inttypes.h>
+
+#include "base/function_ref.h"
 
 // This class is thread-unsafe -- that is, instances of this class can
 // not be accessed concurrently by multiple threads -- because the
@@ -135,19 +138,7 @@ class AddressMap {
 
   // Iterate over the address map calling 'callback'
   // for all stored key-value pairs and passing 'arg' to it.
-  // We don't use full Closure/Callback machinery not to add
-  // unnecessary dependencies to this class with low-level uses.
-  //
-  // body is callbable that gets (Key, Value*)
-  template <class Body>
-  void Iterate(Body body) const;
-
-  template <typename ArgType>
-  void Iterate(void (*callback)(Key, Value*, ArgType), ArgType arg) const {
-    Iterate([&] (Key k, Value* v) {
-      callback(k, v, arg);
-    });
-  }
+  void Iterate(tcmalloc::FunctionRef<void(Key, Value*)> body) const;
 
  private:
   typedef uintptr_t Number;
@@ -407,8 +398,7 @@ const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
 }
 
 template <class Value>
-template <class Body>
-void AddressMap<Value>::Iterate(Body body) const {
+void AddressMap<Value>::Iterate(tcmalloc::FunctionRef<void(Key, Value*)> body) const {
   // We could optimize this by traversing only non-empty clusters and/or blocks
   // but it does not speed up heap-checker noticeably.
   for (int h = 0; h < kHashSize; ++h) {
