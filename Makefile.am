@@ -223,9 +223,10 @@ stacktrace_unittest_LDADD = $(libstacktrace_la_LIBADD) $(STACKTRACE_UNITTEST_LIB
 # nice to have. Allows glibc's backtrace_symbols to work.
 stacktrace_unittest_LDFLAGS = -export-dynamic
 
-TESTS += check_address_unittest
-check_address_unittest_SOURCES = src/tests/check_address_test.cc
-check_address_unittest_LDADD = libcommon.la
+TESTS += check_address_test
+check_address_test_SOURCES = src/tests/check_address_test.cc
+check_address_test_CPPFLAGS = $(gtest_CPPFLAGS)
+check_address_test_LDADD = libcommon.la libgtest.la
 
 ### Documentation
 dist_doc_DATA +=

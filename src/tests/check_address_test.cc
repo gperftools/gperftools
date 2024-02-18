@@ -48,43 +48,49 @@
 # define MAP_ANONYMOUS MAP_ANON
 #endif
 
+#include "gtest/gtest.h"
+
 #include "tests/testutil.h"
 
-void* unreadable = mmap(0, getpagesize(), PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+void* unreadable = ([] () {
+  void* rv = mmap(nullptr, getpagesize(), PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  if (rv == MAP_FAILED) {
+    abort();
+  }
+  return rv;
+})();
 
-static void TestFn(bool (*access_check_fn)(uintptr_t,int)) {
+void TestFn(bool (*access_check_fn)(uintptr_t,int)) {
   int pagesize = getpagesize();
 
-  CHECK(!access_check_fn(0, pagesize));
-  CHECK(access_check_fn(reinterpret_cast<uintptr_t>(&pagesize), pagesize));
+  ASSERT_FALSE(access_check_fn(0, pagesize));
+  ASSERT_TRUE(access_check_fn(reinterpret_cast<uintptr_t>(&pagesize), pagesize));
 
-  CHECK(!access_check_fn(reinterpret_cast<uintptr_t>(unreadable), pagesize));
+  ASSERT_FALSE(access_check_fn(reinterpret_cast<uintptr_t>(unreadable), pagesize));
 
   for (int i = (256 << 10); i > 0; i--) {
     // Lets ensure that pipes access method is forced eventually to drain pipe
-    CHECK(noopt(access_check_fn)(reinterpret_cast<uintptr_t>(&pagesize), pagesize));
+    ASSERT_TRUE(noopt(access_check_fn)(reinterpret_cast<uintptr_t>(&pagesize), pagesize));
   }
 }
 
-int main() {
-  CHECK_NE(unreadable, MAP_FAILED);
-
-  puts("Checking main access fn");
-  TestFn([] (uintptr_t a, int ps) {
+TEST(CheckAddressTest, MainAccess) {
+  ASSERT_NO_FATAL_FAILURE(TestFn([] (uintptr_t a, int ps) {
     // note, this looks odd, but we do it so that each access_check_fn
     // call above reads CheckAddress freshly.
     return CheckAddress(a, ps);
-  });
+  }));
 
 #ifdef CHECK_ADDRESS_USES_SIGPROCMASK
-  puts("Checking pipes access fn");
-  TestFn(CheckAddressPipes);
-
-  CHECK_EQ(CheckAddress, CheckAccessSingleSyscall);
-
-  puts("Checking two sigprocmask access fn");
-  TestFn(CheckAccessTwoSyscalls);
+  ASSERT_EQ(CheckAddress, CheckAccessSingleSyscall);
 #endif
-
-  puts("PASS");
 }
+
+#ifdef CHECK_ADDRESS_USES_SIGPROCMASK
+TEST(CheckAddressTest, PipesAccess) {
+  ASSERT_NO_FATAL_FAILURE(TestFn(CheckAddressPipes));
+}
+TEST(CheckAddressPipes, TwoSyscalls) {
+  ASSERT_NO_FATAL_FAILURE(TestFn(CheckAccessTwoSyscalls));
+}
+#endif  // CHECK_ADDRESS_USES_SIGPROCMASK

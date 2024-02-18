@@ -615,9 +615,9 @@ if(WITH_STACK_TRACE)
     target_compile_definitions(stacktrace_unittest PRIVATE STACKTRACE_IS_TESTED)
     add_test(stacktrace_unittest stacktrace_unittest)
 
-    add_executable(check_address_unittest src/tests/check_address_test.cc)
-    target_link_libraries(check_address_unittest spinlock sysinfo logging)
-    add_test(check_address_unittest check_address_unittest)
+    add_executable(check_address_test src/tests/check_address_test.cc)
+    target_link_libraries(check_address_test spinlock sysinfo logging gtest)
+    add_test(check_address_test check_address_test)
   endif()
 
 endif()
