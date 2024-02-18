@@ -793,7 +793,7 @@ if(BUILD_TESTING)
           src/tests/addressmap_unittest.cc
           src/addressmap-inl.h
           ${MAYBE_PORT_CC})
-  target_link_libraries(addressmap_unittest logging)
+  target_link_libraries(addressmap_unittest logging gtest)
   add_test(addressmap_unittest addressmap_unittest)
 
   if(NOT MINGW AND NOT MSVC)

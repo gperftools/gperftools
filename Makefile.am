@@ -299,7 +299,8 @@ libtcmalloc_minimal_la_LIBADD = libcommon.la
 
 TESTS += addressmap_unittest
 addressmap_unittest_SOURCES = src/tests/addressmap_unittest.cc
-addressmap_unittest_LDADD = libcommon.la
+addressmap_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+addressmap_unittest_LDADD = libcommon.la libgtest.la
 
 TESTS += packed_cache_test
 packed_cache_test_SOURCES = src/tests/packed-cache_test.cc src/internal_logging.cc
