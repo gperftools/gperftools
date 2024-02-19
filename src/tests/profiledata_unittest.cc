@@ -44,6 +44,7 @@
 
 #include "base/commandlineflags.h"
 #include "base/logging.h"
+#include "tests/legacy_assertions.h"
 
 using std::string;
 

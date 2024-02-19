@@ -42,6 +42,8 @@
 #include "base/logging.h"
 #include "tests/testutil.h"
 
+#include "tests/legacy_assertions.h"
+
 using std::vector;
 
 vector<void (*)()> g_testlist;  // the tests to run

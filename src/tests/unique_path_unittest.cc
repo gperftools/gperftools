@@ -39,6 +39,7 @@
 
 #include "base/logging.h"
 #include "base/commandlineflags.h"
+#include "tests/legacy_assertions.h"
 
 #include <stdlib.h>   // for environment primitives
 #include <unistd.h>   // for getpid()

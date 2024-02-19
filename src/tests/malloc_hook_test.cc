@@ -50,6 +50,7 @@
 #include "tests/testutil.h"
 
 #include "base/logging.h"
+#include "tests/legacy_assertions.h"
 
 namespace {
 

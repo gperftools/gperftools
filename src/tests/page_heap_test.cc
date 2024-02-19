@@ -17,6 +17,8 @@
 #include "base/logging.h"
 #include "common.h"
 
+#include "tests/legacy_assertions.h"
+
 DECLARE_int64(tcmalloc_heap_limit_mb);
 
 namespace {

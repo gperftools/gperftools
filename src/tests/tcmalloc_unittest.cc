@@ -96,6 +96,8 @@
 #include "system-alloc.h"
 #include "tests/testutil.h"
 
+#include "tests/legacy_assertions.h"
+
 // Windows doesn't define pvalloc and a few other obsolete unix
 // functions; nor does it define posix_memalign (which is not obsolete).
 #if defined(_WIN32)

@@ -23,6 +23,7 @@
 #include <mutex>
 
 #include "base/logging.h"
+#include "tests/legacy_assertions.h"
 
 // Some helpful macros for the test class
 #define TEST_F(cls, fn)    void cls :: fn()
