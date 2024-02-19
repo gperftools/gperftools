@@ -39,6 +39,7 @@
 #include "config.h"
 
 #include <atomic>
+#include <cstddef>
 
 #include "base/basictypes.h"
 #include "base/spinlock.h"
