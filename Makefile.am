@@ -174,7 +174,7 @@ low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/tests/low_level_alloc_unittest.cc
 # By default, MallocHook takes stack traces for use by the heap-checker.
 # We don't need that functionality here, so we turn it off to reduce deps.
-low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES
+low_level_alloc_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
 low_level_alloc_unittest_LDADD = libcommon.la
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
@@ -472,7 +472,7 @@ libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
 
 TESTS += tcmalloc_minimal_debug_unittest
 tcmalloc_minimal_debug_unittest_SOURCES = $(tcmalloc_minimal_unittest_SOURCES)
-tcmalloc_minimal_debug_unittest_CXXFLAGS = $(tcmalloc_minimal_unittest_CXXFLAGS) -DDEBUGALLOCATION
+tcmalloc_minimal_debug_unittest_CXXFLAGS = $(AM_CXXFLAGS) -DDEBUGALLOCATION
 tcmalloc_minimal_debug_unittest_LDFLAGS = $(tcmalloc_minimal_unittest_LDFLAGS)
 tcmalloc_minimal_debug_unittest_LDADD = libtcmalloc_minimal_debug.la
 
@@ -748,7 +748,7 @@ libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
 
 TESTS += tcmalloc_debug_unittest
 tcmalloc_debug_unittest_SOURCES = $(tcmalloc_unittest_SOURCES)
-tcmalloc_debug_unittest_CXXFLAGS = $(tcmalloc_unittest_CXXFLAGS) -DDEBUGALLOCATION
+tcmalloc_debug_unittest_CXXFLAGS = $(AM_CXXFLAGS) -DDEBUGALLOCATION
 tcmalloc_debug_unittest_LDFLAGS = $(tcmalloc_unittest_LDFLAGS)
 tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la
 
@@ -892,7 +892,6 @@ libtcmalloc_and_profiler_la_LIBADD = $(libtcmalloc_la_LIBADD)
 
 TESTS += tcmalloc_and_profiler_unittest
 tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
-tcmalloc_and_profiler_unittest_CXXFLAGS = $(tcmalloc_both_unittest_cflags)
 tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
 tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
 
