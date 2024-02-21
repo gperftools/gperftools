@@ -992,10 +992,10 @@ $(top_distdir)/ChangeLog:
 
 EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
-             docs/pprof.see_also src/windows/TODO \
-             $(WINDOWS_EXTRA) \
-             gperftools.sln vsprojects \
+             docs/pprof.see_also $(WINDOWS_EXTRA) \
+             gperftools.sln vsprojects vendor \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \
+             $(top_srcdir)/src/tests/*h \
              $(top_srcdir)/src/windows/*h $(top_srcdir)/src/gperftools/*h \
              CMakeLists.txt cmake
 
