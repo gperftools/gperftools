@@ -313,6 +313,11 @@ safe_strerror_test_SOURCES = src/tests/safe_strerror_test.cc \
 safe_strerror_test_CPPFLAGS = $(gtest_CPPFLAGS)
 safe_strerror_test_LDADD = libcommon.la libgtest.la
 
+TESTS += cleanup_test
+cleanup_test_SOURCES = src/tests/cleanup_test.cc
+cleanup_test_CPPFLAGS = $(gtest_CPPFLAGS)
+cleanup_test_LDADD = libgtest.la
+
 TESTS += pagemap_unittest
 pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
                            src/internal_logging.cc

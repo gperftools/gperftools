@@ -888,6 +888,10 @@ if(BUILD_TESTING)
   target_link_libraries(safe_strerror_test logging gtest)
   add_test(safe_strerror_test safe_strerror_test)
 
+  add_executable(cleanup_test src/tests/cleanup_test.cc)
+  target_link_libraries(cleanup_test gtest)
+  add_test(cleanup_test cleanup_test)
+
   add_executable(generic_writer_test src/tests/generic_writer_test.cc ${MAYBE_PORT_CC})
   target_link_libraries(generic_writer_test logging gtest)
   add_test(generic_writer_test generic_writer_test)
