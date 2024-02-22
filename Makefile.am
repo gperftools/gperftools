@@ -334,7 +334,7 @@ pagemap_unittest_LDADD = libcommon.la libgtest.la
 # we have.
 TESTS += page_heap_test
 page_heap_test_SOURCES = src/tests/page_heap_test.cc \
-                         $(MINIMAL_MALLOC_SRC)
+                         $(libtcmalloc_minimal_la_SOURCES)
 page_heap_test_CXXFLAGS = -DNO_HEAP_CHECK -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
 page_heap_test_CPPFLAGS = $(gtest_CPPFLAGS)
 page_heap_test_LDADD = libcommon.la libgtest.la

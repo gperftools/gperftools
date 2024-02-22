@@ -100,7 +100,7 @@ template <> class MapSelector<32> {
 // contiguous runs of pages (called a "span").
 // -------------------------------------------------------------------------
 
-class PERFTOOLS_DLL_DECL PageHeap {
+class PageHeap {
  public:
   PageHeap() : PageHeap(1) {}
   PageHeap(Length smallest_span_size);

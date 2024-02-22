@@ -118,7 +118,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>PERFTOOLS_DLL_DECL=;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_HEAP_CHECK;NO_TCMALLOC_SAMPLES;PERFTOOLS_DLL_DECL=;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -129,7 +129,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PERFTOOLS_DLL_DECL=;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_HEAP_CHECK;NO_TCMALLOC_SAMPLES;PERFTOOLS_DLL_DECL=;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -140,7 +140,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Patch|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_HEAP_CHECK;NO_TCMALLOC_SAMPLES;PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
@@ -154,7 +154,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Override|Win32'">
     <ClCompile>
-      <PreprocessorDefinitions>PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_HEAP_CHECK;NO_TCMALLOC_SAMPLES;PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -169,7 +169,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Patch|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_HEAP_CHECK;NO_TCMALLOC_SAMPLES;PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <BufferSecurityCheck>false</BufferSecurityCheck>
       <EnforceTypeConversionRules>true</EnforceTypeConversionRules>
@@ -183,7 +183,7 @@
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release-Override|x64'">
     <ClCompile>
-      <PreprocessorDefinitions>PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>NO_HEAP_CHECK;NO_TCMALLOC_SAMPLES;PERFTOOLS_DLL_DECL=;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>Level3</WarningLevel>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <BufferSecurityCheck>false</BufferSecurityCheck>
@@ -220,6 +220,12 @@
     <ClCompile Include="..\..\src\thread_cache.cc" />
     <ClCompile Include="..\..\src\thread_cache_ptr.cc" />
     <ClCompile Include="..\..\src\windows\port.cc" />
+    <ClCompile Include="..\..\src\windows\ia32_modrm_map.cc" />
+    <ClCompile Include="..\..\src\windows\ia32_opcode_map.cc" />
+    <ClCompile Include="..\..\src\windows\patch_functions.cc" />
+    <ClCompile Include="..\..\src\windows\mini_disassembler.cc" />
+    <ClCompile Include="..\..\src\windows\preamble_patcher.cc" />
+    <ClCompile Include="..\..\src\windows\preamble_patcher_with_stub.cc" />
     <ClCompile Include="..\..\src\windows\system-alloc.cc" />
   </ItemGroup>
   <ItemGroup>

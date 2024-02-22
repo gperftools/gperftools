@@ -80,6 +80,24 @@
     <ClCompile Include="..\..\src\windows\port.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\windows\ia32_modrm_map.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\windows\ia32_opcode_map.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\windows\mini_disassembler.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\windows\patch_functions.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>>
+    <ClCompile Include="..\..\src\windows\preamble_patcher.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\windows\preamble_patcher_with_stub.cc">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\windows\system-alloc.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
