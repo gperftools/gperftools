@@ -318,6 +318,11 @@ cleanup_test_SOURCES = src/tests/cleanup_test.cc
 cleanup_test_CPPFLAGS = $(gtest_CPPFLAGS)
 cleanup_test_LDADD = libgtest.la
 
+TESTS += function_ref_test
+function_ref_test_SOURCES = src/tests/function_ref_test.cc
+function_ref_test_CPPFLAGS = $(gtest_CPPFLAGS)
+function_ref_test_LDADD = libgtest.la
+
 TESTS += pagemap_unittest
 pagemap_unittest_SOURCES = src/tests/pagemap_unittest.cc \
                            src/internal_logging.cc
