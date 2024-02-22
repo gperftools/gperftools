@@ -46,6 +46,10 @@
 #include <malloc.h>         // for memalign, valloc, pvalloc
 #endif
 
+#include <gperftools/malloc_extension.h>
+
+#include "base/basictypes.h"
+
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
 // optimization tool, but we may need to use it to match glibc prototypes.
@@ -68,3 +72,6 @@ extern "C" void* valloc(size_t __size) __THROW;
 #if !HAVE_DECL_PVALLOC
 extern "C" void* pvalloc(size_t __size) __THROW;
 #endif
+
+// Implemented in tcmalloc.cc or debugallocation.cc
+ATTRIBUTE_HIDDEN void SetupMallocExtension();

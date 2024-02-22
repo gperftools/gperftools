@@ -1087,23 +1087,8 @@ TCMallocGuard::TCMallocGuard() {
 
 #ifndef WIN32_OVERRIDE_ALLOCATORS
   ReplaceSystemAlloc();    // defined in libc_override_*.h
+  (void)MallocExtension::instance(); // make sure malloc extension is constructed
   tc_free(tc_malloc(1));
-  // Either we, or debugallocation.cc, or valgrind will control memory
-  // management.  We register our extension if we're the winner.
-#ifdef TCMALLOC_USING_DEBUGALLOCATION
-  // Let debugallocation register its extension.
-#else
-  if (RunningOnValgrind()) {
-    // Let Valgrind uses its own malloc (so don't register our extension).
-  } else {
-    static union {
-      char chars[sizeof(TCMallocImplementation)];
-      void *ptr;
-    } tcmallocimplementation_space;
-
-    MallocExtension::Register(new (tcmallocimplementation_space.chars) TCMallocImplementation());
-  }
-#endif  // !TCMALLOC_USING_DEBUGALLOCATION
 #endif  // !WIN32_OVERRIDE_ALLOCATORS
 
   ThreadCachePtr::InitThreadCachePtrLate();
@@ -1126,6 +1111,17 @@ TCMallocGuard::~TCMallocGuard() {
 }
 
 static TCMallocGuard module_enter_exit_hook;
+
+#ifndef TCMALLOC_USING_DEBUGALLOCATION
+
+void SetupMallocExtension() {
+  static struct {
+    alignas(TCMallocImplementation) char memory[sizeof(TCMallocImplementation)];
+  } storage;
+  MallocExtension::Register(new (storage.memory) TCMallocImplementation);
+}
+
+#endif  // TCMALLOC_USING_DEBUGALLOCATION
 
 //-------------------------------------------------------------------
 // Helpers for the exported routines below

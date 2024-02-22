@@ -44,6 +44,7 @@
 #include "base/spinlock.h"              // for SpinLockHolder
 #include "central_freelist.h"
 #include "getenv_safe.h"                // for TCMallocGetenvSafe
+#include "tcmalloc_internal.h"
 #include "thread_cache_ptr.h"
 
 using std::min;
@@ -293,6 +294,7 @@ void ThreadCache::InitModule() {
     }
     Static::InitStaticVars();
     threadcache_allocator.Init();
+    SetupMallocExtension();
     phinited = 1;
   }
 
