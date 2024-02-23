@@ -63,8 +63,7 @@ TEST(AddressMapUnittest, Basic) {
   // 100Mb to stress not finding previous object (AddressMap's cluster is 1Mb):
   constexpr size_t kMaxSize = 100 << 20;
 
-  std::random_device rd;
-  std::mt19937 rng(rd());
+  std::mt19937 rng(0);
 
   // generates uniformly distributed size_t in range [0, n)
   auto uniform = [&] (size_t n) -> size_t {
@@ -82,7 +81,7 @@ TEST(AddressMapUnittest, Basic) {
     printf("Iteration %d/%d...\n", x, kIters);
 
     // Permute pointers to get rid of allocation order issues
-    std::shuffle(ptrs_and_sizes.begin(), ptrs_and_sizes.end(), rd);
+    std::shuffle(ptrs_and_sizes.begin(), ptrs_and_sizes.end(), rng);
 
     AddressMap<ValueT> map(malloc, free);
     const ValueT* result;
