@@ -80,6 +80,9 @@
 #if __has_warning("-Wmissing-exception-spec")
 #pragma clang diagnostic ignored "-Wmissing-exception-spec"
 #endif
+#if __has_warning("-Wunused-const-variable")
+#pragma clang diagnostic ignored "-Wunused-const-variable"
+#endif
 #elif defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wpragmas" // warning: unknown option after '#pragma GCC diagnostic' kind
 #pragma GCC diagnostic ignored "-Wuse-after-free"

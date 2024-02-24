@@ -44,6 +44,10 @@
 
 #include "tests/legacy_assertions.h"
 
+#include "testing_portal.h"
+
+using tcmalloc::TestingPortal;
+
 using std::vector;
 
 vector<void (*)()> g_testlist;  // the tests to run
@@ -79,9 +83,6 @@ static int test_counter = 0;    // incremented every time the macro is called
     statement;                                          \
   }                                                     \
 } while (false)
-
-// This flag won't be compiled in in opt mode.
-DECLARE_int32(max_free_queue_size);
 
 // Test match as well as mismatch rules.  But do not test on OS X; on
 // OS X the OS converts new/new[] to malloc before it gets to us, so
@@ -203,7 +204,7 @@ TEST(DebugAllocationTest, DanglingPointerWriteTest) {
   int poisoned_x_value = *x;
   *x = 1;  // a dangling write.
 
-  char* s = noopt(new char[FLAGS_max_free_queue_size]);
+  char* s = noopt(new char[TestingPortal::Get()->GetMaxFreeQueueSize()]);
   // When we delete s, we push the storage that was previously allocated to x
   // off the end of the free queue.  At that point, the write to that memory
   // will be detected.
@@ -248,11 +249,11 @@ static size_t CurrentlyAllocatedBytes() {
 TEST(DebugAllocationTest, CurrentlyAllocated) {
   // Clear the free queue
 #if 1
-  FLAGS_max_free_queue_size = 0;
+  TestingPortal::Get()->GetMaxFreeQueueSize() = 0;
   // Force a round-trip through the queue management code so that the
   // new size is seen and the queue of recently-freed blocks is flushed.
   free(noopt(malloc(1)));
-  FLAGS_max_free_queue_size = 1048576;
+  TestingPortal::Get()->GetMaxFreeQueueSize() = 1048576;
 #endif
 
   // Free something and check that it disappears from allocated bytes
