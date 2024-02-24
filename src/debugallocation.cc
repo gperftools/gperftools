@@ -1055,6 +1055,13 @@ static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
   if (ptr)  MallocBlock::FromRawPointer(ptr)->Deallocate(type, given_size);
 }
 
+class ATTRIBUTE_HIDDEN DebugTestingPortal : public TestingPortalImpl {
+public:
+  ~DebugTestingPortal() override = default;
+  bool IsDebuggingMalloc() override { return true; }
+  int32_t& GetMaxFreeQueueSize() override { return FLAGS_max_free_queue_size; }
+};
+
 // ========================================================================= //
 
 // The following functions may be called via MallocExtension::instance()
@@ -1062,6 +1069,18 @@ static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
 class DebugMallocImplementation : public TCMallocImplementation {
  public:
   virtual bool GetNumericProperty(const char* name, size_t* value) {
+    if (TestingPortal** portal = TestingPortal::CheckGetPortal(name, value); portal) {
+      static DebugTestingPortal* ptr = ([] () {
+        static struct {
+          alignas(DebugTestingPortal) char memory[sizeof(DebugTestingPortal)];
+        } storage;
+        return new (storage.memory) DebugTestingPortal;
+      })();
+      *portal = ptr;
+      *value = 1;
+      return true;
+    }
+
     bool result = TCMallocImplementation::GetNumericProperty(name, value);
     if (result && (strcmp(name, "generic.current_allocated_bytes") == 0)) {
       // Subtract bytes kept in the free queue
