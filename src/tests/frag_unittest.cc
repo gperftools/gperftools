@@ -34,100 +34,108 @@
 // Test speed of handling fragmented heap
 
 #include "config_for_unittests.h"
+
+#include <gperftools/malloc_extension.h>
+
 #include <stdlib.h>
 #include <stdio.h>
+
 #ifdef HAVE_SYS_RESOURCE_H
 #include <sys/time.h>           // for struct timeval
 #include <sys/resource.h>       // for getrusage
 #endif
 #ifdef _WIN32
-#include <windows.h>            // for GetTickCount()
+#include <sysinfoapi.h>
 #endif
+
+#include <memory>
+#include <optional>
 #include <vector>
-#include "base/logging.h"
-#include "common.h"
-#include <gperftools/malloc_extension.h>
 
-using std::vector;
+#include "testing_portal.h"
+#include "tests/testutil.h"
 
-int main(int argc, char** argv) {
+#include "gtest/gtest.h"
+
+using tcmalloc::TestingPortal;
+
+static double GetCPUTime() {
+#ifdef HAVE_SYS_RESOURCE_H
+  struct rusage r;
+  getrusage(RUSAGE_SELF, &r);
+  struct timeval tv = r.ru_utime;
+  return 1e-6 * tv.tv_usec + tv.tv_sec;
+#elif defined(_WIN32)
+  return GetTickCount64() * 1e-3;
+#else
+# error No way to calculate time on your system
+#endif
+}
+
+static std::optional<size_t> GetSlackBytes() {
+  size_t slack;
+  if (!MallocExtension::instance()->GetNumericProperty(
+        "tcmalloc.slack_bytes",
+        &slack)) {
+    return {};
+  }
+  return slack;
+}
+
+TEST(FragTest, Slack) {
+  TestingPortal* portal = TestingPortal::Get();
+
   // Make kAllocSize one page larger than the maximum small object size.
-  static const int kAllocSize = kMaxSize + kPageSize;
+  const int kAllocSize = portal->GetMaxSize() + portal->GetPageSize();
   // Allocate 400MB in total.
-  static const int kTotalAlloc = 400 << 20;
-  static const int kAllocIterations = kTotalAlloc / kAllocSize;
+  const int kTotalAlloc = 400 << 20;
+  const int kAllocIterations = kTotalAlloc / kAllocSize;
 
   // Allocate lots of objects
-  vector<char*> saved(kAllocIterations);
+  std::vector<std::unique_ptr<char[]>> saved;
+  saved.reserve(kAllocIterations);
   for (int i = 0; i < kAllocIterations; i++) {
-    saved[i] = new char[kAllocSize];
+    saved.emplace_back(noopt(new char[kAllocSize]));
   }
 
   // Check the current "slack".
-  size_t slack_before;
-  MallocExtension::instance()->GetNumericProperty("tcmalloc.slack_bytes",
-                                                  &slack_before);
+  size_t slack_before = GetSlackBytes().value();
 
   // Free alternating ones to fragment heap
   size_t free_bytes = 0;
   for (int i = 0; i < saved.size(); i += 2) {
-    delete[] saved[i];
+    saved[i].reset();
     free_bytes += kAllocSize;
   }
 
   // Check that slack delta is within 10% of expected.
-  size_t slack_after;
-  MallocExtension::instance()->GetNumericProperty("tcmalloc.slack_bytes",
-                                                  &slack_after);
-  CHECK_GE(slack_after, slack_before);
+  size_t slack_after = GetSlackBytes().value();
+
+  ASSERT_GE(slack_after, slack_before);
   size_t slack = slack_after - slack_before;
 
-  CHECK_GT(double(slack), 0.9*free_bytes);
-  CHECK_LT(double(slack), 1.1*free_bytes);
+  ASSERT_GT(double(slack), 0.9*free_bytes);
+  ASSERT_LT(double(slack), 1.1*free_bytes);
 
   // Dump malloc stats
   static const int kBufSize = 1<<20;
   char* buffer = new char[kBufSize];
   MallocExtension::instance()->GetStats(buffer, kBufSize);
-  VLOG(1, "%s", buffer);
+  puts(buffer);
   delete[] buffer;
 
   // Now do timing tests
   for (int i = 0; i < 5; i++) {
-    static const int kIterations = 100000;
-#ifdef HAVE_SYS_RESOURCE_H
-    struct rusage r;
-    getrusage(RUSAGE_SELF, &r);    // figure out user-time spent on this
-    struct timeval tv_start = r.ru_utime;
-#elif defined(_WIN32)
-    long long int tv_start = GetTickCount();
-#else
-# error No way to calculate time on your system
-#endif
+    static constexpr int kIterations = 100000;
+    double start = GetCPUTime();
 
     for (int i = 0; i < kIterations; i++) {
-      size_t s;
-      MallocExtension::instance()->GetNumericProperty("tcmalloc.slack_bytes",
-                                                      &s);
+      size_t s = GetSlackBytes().value();
+      (void)s;
     }
 
-#ifdef HAVE_SYS_RESOURCE_H
-    getrusage(RUSAGE_SELF, &r);
-    struct timeval tv_end = r.ru_utime;
-    int64_t sumsec = static_cast<int64_t>(tv_end.tv_sec) - tv_start.tv_sec;
-    int64_t sumusec = static_cast<int64_t>(tv_end.tv_usec) - tv_start.tv_usec;
-#elif defined(_WIN32)
-    long long int tv_end = GetTickCount();
-    int64_t sumsec = (tv_end - tv_start) / 1000;
-    // Resolution in windows is only to the millisecond, alas
-    int64_t sumusec = ((tv_end - tv_start) % 1000) * 1000;
-#else
-# error No way to calculate time on your system
-#endif
+    double end = GetCPUTime();
     fprintf(stderr, "getproperty: %6.1f ns/call\n",
-            (sumsec * 1e9 + sumusec * 1e3) / kIterations);
+            (end-start) * 1e9 / kIterations);
   }
-
-  printf("PASS\n");
-  return 0;
 }

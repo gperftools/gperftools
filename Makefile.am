@@ -416,7 +416,8 @@ endif !MINGW
 TESTS += frag_unittest
 frag_unittest_SOURCES = src/tests/frag_unittest.cc
 frag_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-frag_unittest_LDADD = libtcmalloc_minimal.la
+frag_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+frag_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
 TESTS += markidle_unittest
 markidle_unittest_SOURCES = src/tests/markidle_unittest.cc \
