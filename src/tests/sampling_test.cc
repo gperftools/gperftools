@@ -47,19 +47,12 @@
 #include "gperftools/malloc_extension.h"
 #include "tests/testutil.h"
 
-using std::string;
-
-extern "C" void* AllocateAllocate() ATTRIBUTE_NOINLINE;
-
-extern "C" void* AllocateAllocate() {
-  // The VLOG's are mostly to discourage inlining
-  VLOG(1, "Allocating some more");
-  void* p = (noopt(malloc))(10000);
-  VLOG(1, "Done allocating");
-  return p;
+extern "C" ATTRIBUTE_NOINLINE
+void* AllocateAllocate() {
+  return noopt(malloc(10000));
 }
 
-static void WriteStringToFile(const string& s, const string& filename) {
+static void WriteStringToFile(std::string_view s, const std::string& filename) {
   FILE* fp = fopen(filename.c_str(), "w");
   fwrite(s.data(), 1, s.length(), fp);
   fclose(fp);
@@ -74,13 +67,13 @@ int main(int argc, char** argv) {
     AllocateAllocate();
   }
 
-  string s;
+  std::string s;
   MallocExtension::instance()->GetHeapSample(&s);
-  WriteStringToFile(s, string(argv[1]) + ".heap");
+  WriteStringToFile(s, std::string(argv[1]) + ".heap");
 
   s.clear();
   MallocExtension::instance()->GetHeapGrowthStacks(&s);
-  WriteStringToFile(s, string(argv[1]) + ".growth");
+  WriteStringToFile(s, std::string(argv[1]) + ".growth");
 
   return 0;
 }
