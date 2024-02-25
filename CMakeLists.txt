@@ -806,8 +806,8 @@ if(BUILD_TESTING)
     add_test(unique_path_unittest unique_path_unittest)
   endif()
 
-  add_executable(packed_cache_test src/tests/packed-cache_test.cc)
-  target_link_libraries(packed_cache_test logging gtest)
+  add_executable(packed_cache_test src/tests/packed-cache_test.cc src/internal_logging.cc)
+  target_link_libraries(packed_cache_test logging sysinfo spinlock gtest)
   add_test(packed_cache_test packed_cache_test)
 
   add_executable(frag_unittest src/tests/frag_unittest.cc)
