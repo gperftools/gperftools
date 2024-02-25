@@ -65,10 +65,12 @@
 #elif defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
 #endif
+
 #include "base/basictypes.h"
 #include "base/logging.h"
-#include "tests/testutil.h"
 
+#include "tests/testutil.h"
+#include "gtest/gtest.h"
 
 // Return the next interesting size/delta to check.  Returns -1 if no more.
 static int NextSize(int size) {
@@ -95,15 +97,10 @@ static int NextSize(int size) {
   }
 }
 
-// Shortform for cast
-static uintptr_t Number(void* p) {
-  return reinterpret_cast<uintptr_t>(p);
-}
-
-// Check alignment
-static void CheckAlignment(void* p, int align) {
-  if ((Number(p) & (align-1)) != 0)
-    LOG(FATAL, "wrong alignment; wanted 0x%x; got %p\n", align, p);
+static uintptr_t Misallignment(void* p, size_t mask) {
+  CHECK_NE(mask, 0);
+  CHECK_EQ(mask & (mask-1), 0);
+  return  reinterpret_cast<uintptr_t>(p) & uintptr_t{mask - 1};
 }
 
 // Fill a buffer of the specified size with a predetermined pattern
@@ -126,21 +123,20 @@ static bool Valid(const void* p, int n, char seed) {
   return true;
 }
 
-int main(int argc, char** argv) {
-  SetTestResourceLimit();
-
+// int main(int argc, char** argv) {
+TEST(MemalignTest, Basic) {
   // Try allocating data with a bunch of alignments and sizes
   for (int a = 1; a < 1048576; a *= 2) {
     for (int s = 0; s != -1; s = NextSize(s)) {
       void* ptr = memalign(a, s);
-      CheckAlignment(ptr, a);
+      ASSERT_EQ(Misallignment(ptr, a), 0);
       Fill(ptr, s, 'x');
       CHECK(Valid(ptr, s, 'x'));
       free(ptr);
 
       if ((a >= sizeof(void*)) && ((a & (a-1)) == 0)) {
         CHECK(posix_memalign(&ptr, a, s) == 0);
-        CheckAlignment(ptr, a);
+        ASSERT_EQ(Misallignment(ptr, a), 0);
         Fill(ptr, s, 'y');
         CHECK(Valid(ptr, s, 'y'));
         free(ptr);
@@ -153,9 +149,9 @@ int main(int argc, char** argv) {
     void* p1 = memalign(1<<20, 1<<19);
     void* p2 = memalign(1<<19, 1<<19);
     void* p3 = memalign(1<<21, 1<<19);
-    CheckAlignment(p1, 1<<20);
-    CheckAlignment(p2, 1<<19);
-    CheckAlignment(p3, 1<<21);
+    ASSERT_EQ(Misallignment(p1, 1<<20), 0);
+    ASSERT_EQ(Misallignment(p2, 1<<19), 0);
+    ASSERT_EQ(Misallignment(p3, 1<<21), 0);
     Fill(p1, 1<<19, 'a');
     Fill(p2, 1<<19, 'b');
     Fill(p3, 1<<19, 'c');
@@ -176,12 +172,12 @@ int main(int argc, char** argv) {
     CHECK(posix_memalign(&ptr, 4097, 1) == EINVAL);
 
     // Grab some memory so that the big allocation below will definitely fail.
-    void* p_small = malloc(4*1048576);
-    CHECK(p_small != NULL);
+    void* p_small = noopt(malloc)(4*1048576);
+    CHECK_NE(p_small, nullptr);
 
     // Make sure overflow is returned as ENOMEM
     const size_t zero = 0;
-    static const size_t kMinusNTimes = 10;
+    constexpr size_t kMinusNTimes = 10;
     for ( size_t i = 1; i < kMinusNTimes; ++i ) {
       int r = posix_memalign(&ptr, 1024, zero - i);
       CHECK(r == ENOMEM);
@@ -195,7 +191,7 @@ int main(int argc, char** argv) {
     // valloc
     for (int s = 0; s != -1; s = NextSize(s)) {
       void* p = valloc(s);
-      CheckAlignment(p, pagesize);
+      ASSERT_EQ(Misallignment(p, pagesize), 0);
       Fill(p, s, 'v');
       CHECK(Valid(p, s, 'v'));
       free(p);
@@ -206,14 +202,11 @@ int main(int argc, char** argv) {
     // pvalloc
     for (int s = 0; s != -1; s = NextSize(s)) {
       void* p = pvalloc(s);
-      CheckAlignment(p, pagesize);
+      ASSERT_EQ(Misallignment(p, pagesize), 0);
       int alloc_needed = ((s + pagesize - 1) / pagesize) * pagesize;
       Fill(p, alloc_needed, 'x');
       CHECK(Valid(p, alloc_needed, 'x'));
       free(p);
     }
   }
-
-  printf("PASS\n");
-  return 0;
 }

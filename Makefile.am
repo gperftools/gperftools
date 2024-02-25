@@ -446,7 +446,8 @@ TESTS += memalign_unittest
 memalign_unittest_SOURCES = src/tests/memalign_unittest.cc \
                             src/tests/testutil.cc
 memalign_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-memalign_unittest_LDADD = libtcmalloc_minimal.la
+memalign_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+memalign_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 endif !OSX
 endif !MINGW
 
@@ -530,7 +531,8 @@ TESTS += memalign_debug_unittest
 memalign_debug_unittest_SOURCES = $(memalign_unittest_SOURCES)
 memalign_debug_unittest_CXXFLAGS = $(memalign_unittest_CXXFLAGS)
 memalign_debug_unittest_LDFLAGS = $(memalign_unittest_LDFLAGS)
-memalign_debug_unittest_LDADD = libtcmalloc_minimal_debug.la
+memalign_debug_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+memalign_debug_unittest_LDADD = libtcmalloc_minimal_debug.la libgtest.la
 endif !OSX
 endif !MINGW
 

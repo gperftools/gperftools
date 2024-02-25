@@ -205,7 +205,7 @@ check_include_file("poll.h" HAVE_POLL_H) # optional; for forking out to symboliz
 check_include_file("fcntl.h" HAVE_FCNTL_H) # for tcmalloc_unittest
 check_include_file("grp.h" HAVE_GRP_H) # for heapchecker_unittest
 check_include_file("pwd.h" HAVE_PWD_H) # for heapchecker_unittest
-check_include_file("sys/resource.h" HAVE_SYS_RESOURCE_H) # for memalign_unittest.cc
+check_include_file("sys/resource.h" HAVE_SYS_RESOURCE_H) # for SetTestResourceLimit
 check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
 
 check_include_file("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)
@@ -717,7 +717,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     if(NOT MINGW AND NOT APPLE)
       add_executable(memalign_debug_unittest src/tests/memalign_unittest.cc src/tests/testutil.cc)
       target_link_libraries(memalign_debug_unittest
-              tcmalloc_minimal_debug Threads::Threads)
+              tcmalloc_minimal_debug gtest)
       add_test(memalign_debug_unittest memalign_debug_unittest)
     endif()
 
