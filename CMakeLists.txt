@@ -1290,7 +1290,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
             src/base/logging.h
             src/base/threading.h
             src/base/basictypes.h)
-    target_link_libraries(profiledata_unittest ${LIBPROFILER})
+    target_link_libraries(profiledata_unittest ${LIBPROFILER} gtest)
     add_test(profiledata_unittest profiledata_unittest)
 
     add_executable(profile_handler_unittest src/tests/profile-handler_unittest.cc

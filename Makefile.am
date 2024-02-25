@@ -861,8 +861,9 @@ TESTS += getpc_test
 getpc_test_SOURCES = src/tests/getpc_test.cc src/getpc.h
 
 TESTS += profiledata_unittest
-profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc
-profiledata_unittest_LDADD = libprofiler.la
+profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc src/profiledata.cc
+profiledata_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+profiledata_unittest_LDADD = libstacktrace.la libcommon.la libgtest.la
 
 TESTS += profile_handler_unittest
 profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc src/profile-handler.cc
