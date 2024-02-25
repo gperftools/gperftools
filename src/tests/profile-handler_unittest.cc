@@ -23,10 +23,7 @@
 #include <mutex>
 
 #include "base/logging.h"
-#include "tests/legacy_assertions.h"
-
-// Some helpful macros for the test class
-#define TEST_F(cls, fn)    void cls :: fn()
+#include "gtest/gtest.h"
 
 // Do we expect the profiler to be enabled?
 DEFINE_bool(test_profiler_enabled, true,
@@ -191,7 +188,7 @@ static void TickCounter(int sig, siginfo_t* sig_info, void *vuc,
 }
 
 // This class tests the profile-handler.h interface.
-class ProfileHandlerTest {
+class ProfileHandlerTest : public ::testing::Test {
  protected:
 
   // Determines the timer type.
@@ -216,7 +213,7 @@ class ProfileHandlerTest {
   //    left behind by the previous test or during module initialization when
   //    the test program was started.
   // 3. Starts a busy worker thread to accumulate CPU usage.
-  virtual void SetUp() {
+  void SetUp() override {
     // Reset the state of ProfileHandler between each test. This unregisters
     // all callbacks and stops the timer.
     ProfileHandlerReset();
@@ -226,7 +223,7 @@ class ProfileHandlerTest {
     StartWorker();
   }
 
-  virtual void TearDown() {
+  void TearDown() override {
     ProfileHandlerReset();
     // Stops the worker thread.
     StopWorker();
@@ -334,32 +331,6 @@ class ProfileHandlerTest {
 
   // Busy worker thread to accumulate cpu usage.
   BusyThread* busy_worker_;
-
- private:
-  // The tests to run
-  void RegisterUnregisterCallback();
-  void MultipleCallbacks();
-  void Reset();
-  void RegisterCallbackBeforeThread();
-
- public:
-#define RUN(test)  do {                         \
-    printf("Running %s\n", #test);              \
-    ProfileHandlerTest pht;                     \
-    pht.SetUp();                                \
-    pht.test();                                 \
-    pht.TearDown();                             \
-} while (0)
-
-  static int RUN_ALL_TESTS() {
-    SetUpTestCase();
-    RUN(RegisterUnregisterCallback);
-    RUN(MultipleCallbacks);
-    RUN(Reset);
-    RUN(RegisterCallbackBeforeThread);
-    printf("Done\n");
-    return 0;
-  }
 };
 
 // Verifies ProfileHandlerRegisterCallback and
@@ -449,7 +420,3 @@ TEST_F(ProfileHandlerTest, RegisterCallbackBeforeThread) {
 }
 
 }  // namespace
-
-int main(int argc, char** argv) {
-  return ProfileHandlerTest::RUN_ALL_TESTS();
-}

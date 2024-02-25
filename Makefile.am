@@ -865,8 +865,9 @@ profiledata_unittest_SOURCES = src/tests/profiledata_unittest.cc
 profiledata_unittest_LDADD = libprofiler.la
 
 TESTS += profile_handler_unittest
-profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc
-profile_handler_unittest_LDADD = libprofiler.la
+profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc src/profile-handler.cc
+profile_handler_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+profile_handler_unittest_LDADD = libstacktrace.la libcommon.la libgtest.la
 
 TESTS += profiler_unittest.sh$(EXEEXT)
 profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh

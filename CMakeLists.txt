@@ -1295,7 +1295,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
 
     add_executable(profile_handler_unittest src/tests/profile-handler_unittest.cc
             src/profile-handler.h)
-    target_link_libraries(profile_handler_unittest ${LIBPROFILER} Threads::Threads)
+    target_link_libraries(profile_handler_unittest ${LIBPROFILER} Threads::Threads gtest)
     add_test(profile_handler_unittest profile_handler_unittest)
 
     add_test(NAME profiler_unittest.sh
