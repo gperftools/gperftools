@@ -80,6 +80,7 @@
 // we reimplement memcmp and friends to avoid depending on any glibc
 // calls too early in the process lifetime. This allows us to use
 // GetenvBeforeMain from inside ifunc handler
+ATTRIBUTE_UNUSED
 static int slow_memcmp(const void *_a, const void *_b, size_t n) {
   const uint8_t *a = reinterpret_cast<const uint8_t *>(_a);
   const uint8_t *b = reinterpret_cast<const uint8_t *>(_b);
@@ -119,6 +120,7 @@ static size_t slow_strlen(const char *s) {
 // system calls to read the file, and thus avoid setting errno.
 // /proc/self/environ has a limit of how much data it exports (around
 // 8K), so it's not an ideal solution.
+#ifndef PLATFORM_WINDOWS
 const char* GetenvBeforeMain(const char* name) {
   const int namelen = slow_strlen(name);
 #if defined(HAVE___ENVIRON)   // if we have it, it's declared in unistd.h
@@ -129,14 +131,6 @@ const char* GetenvBeforeMain(const char* name) {
     }
     return NULL;
   }
-#endif
-#if defined(PLATFORM_WINDOWS)
-  // TODO(mbelshe) - repeated calls to this function will overwrite the
-  // contents of the static buffer.
-  static char envvar_buf[1024];  // enough to hold any envvar we care about
-  if (!GetEnvironmentVariableA(name, envvar_buf, sizeof(envvar_buf)-1))
-    return NULL;
-  return envvar_buf;
 #endif
   // static is ok because this function should only be called before
   // main(), when we're single-threaded.
@@ -166,6 +160,64 @@ const char* GetenvBeforeMain(const char* name) {
   }
   return NULL;                   // env var never found
 }
+#else  // PLATFORM_WINDOWS
+
+// One windows we could use C runtime environment access or more
+// "direct" GetEnvironmentVariable. But, notably, their "ASCII"
+// variant does memory allocation. So we resort to using "wide"/utf16
+// environment access. And we assume all our variables will be
+// ascii-valued (both variable names and values). In future if/when we
+// deal with filesystem paths we may have to do utf8 (here and FS
+// access codes), but not today.
+//
+// We also use static (so thread-hostile) buffer since users of this
+// function assume static storage. This implies subsequent calls to
+// this function "break" values returned from previous calls. We're
+// fine with that too.
+const char* GetenvBeforeMain(const char* name) {
+  const int namelen = slow_strlen(name);
+
+  static constexpr int kBufSize = 1024;
+  // This is the buffer we'll return from here. So it is static. See
+  // above.
+  static char envvar_buf[kBufSize];
+
+  // First, we convert variable name to windows 'wide' chars.
+  static constexpr int kNameBufSize = 256;
+  WCHAR wname[kNameBufSize];
+
+  if (namelen >= 256) {
+    return nullptr;
+  }
+
+  for (int i = 0; i <= namelen; i++) {
+    wname[i] = static_cast<uint8_t>(name[i]);
+  }
+
+  // Then we call environment variable access routine.
+  WCHAR wide_envvar_buf[kBufSize];  // enough to hold any envvar we care about
+  size_t used_buf;
+
+  if (!(used_buf = GetEnvironmentVariableW(wname, wide_envvar_buf, kBufSize))) {
+    return nullptr;
+  }
+  used_buf++; // include terminating \0 character.
+
+  // Then we convert variable value, if any, to 7-bit ascii.
+  for (size_t i = 0; i < used_buf ; i++) {
+    auto wch = wide_envvar_buf[i];
+    if ((wch >> 7)) {
+      // If we see any non-ascii char, we silently assume no env
+      // variable exists.
+      return nullptr;
+    }
+    envvar_buf[i] = wch;
+  }
+
+  return envvar_buf;
+}
+
+#endif  // !PLATFORM_WINDOWS
 
 extern "C" {
   const char* TCMallocGetenvSafe(const char* name) {
