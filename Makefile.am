@@ -428,7 +428,8 @@ markidle_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 TESTS += current_allocated_bytes_test
 current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc
 current_allocated_bytes_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-current_allocated_bytes_test_LDADD = libtcmalloc_minimal.la
+current_allocated_bytes_test_CPPFLAGS = $(gtest_CPPFLAGS)
+current_allocated_bytes_test_LDADD = libtcmalloc_minimal.la libgtest.la
 
 TESTS += malloc_extension_test
 malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc
