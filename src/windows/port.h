@@ -58,12 +58,12 @@
 #define NOMINMAX
 #endif
 
-// This must be defined before the windows.h is included.  We need at
-// least 0x0400 for mutex.h to have access to TryLock, and at least
-// 0x0501 for patch_functions.cc to have access to GetModuleHandleEx.
-// (This latter is an optimization we could take out if need be.)
+// Our spinlock futex-like wait support depends on windows 8
+// feature. So we ask for windows 8 APIs.
+//
+// https://learn.microsoft.com/en-us/cpp/porting/modifying-winver-and-win32-winnt?view=msvc-170
 #ifndef _WIN32_WINNT
-# define _WIN32_WINNT 0x0501
+# define _WIN32_WINNT 0x0602
 #endif
 
 // We want to make sure not to ever try to #include heap-checker.h
