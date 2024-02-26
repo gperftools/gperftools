@@ -32,12 +32,16 @@
 // Author: Sanjay Ghemawat
 //
 // MallocExtension::MarkThreadIdle() testing
+#include "config_for_unittests.h"
+
+#include <gperftools/malloc_extension.h>
+
 #include <stdio.h>
 
-#include "config_for_unittests.h"
-#include "base/logging.h"
-#include <gperftools/malloc_extension.h>
-#include "tests/testutil.h"   // for RunThread()
+#include <new>
+#include <thread>
+
+#include "gtest/gtest.h"
 
 // Helper routine to do lots of allocations
 static void TestAllocation() {
@@ -45,83 +49,67 @@ static void TestAllocation() {
   void* ptr[kNum];
   for (int size = 8; size <= 65536; size*=2) {
     for (int i = 0; i < kNum; i++) {
-      ptr[i] = malloc(size);
+      ptr[i] = ::operator new(size);
     }
     for (int i = 0; i < kNum; i++) {
-      free(ptr[i]);
+      ::operator delete(ptr[i]);
     }
   }
 }
 
 // Routine that does a bunch of MarkThreadIdle() calls in sequence
 // without any intervening allocations
-static void MultipleIdleCalls() {
-  for (int i = 0; i < 4; i++) {
-    MallocExtension::instance()->MarkThreadIdle();
-  }
+TEST(MarkIdleTest, MultipleIdleCalls) {
+  std::thread t([] () {
+    for (int i = 0; i < 4; i++) {
+      MallocExtension::instance()->MarkThreadIdle();
+    }
+  });
+
+  t.join();
 }
 
 // Routine that does a bunch of MarkThreadIdle() calls in sequence
 // with intervening allocations
-static void MultipleIdleNonIdlePhases() {
-  for (int i = 0; i < 4; i++) {
-    TestAllocation();
-    MallocExtension::instance()->MarkThreadIdle();
-  }
+TEST(MarkIdleTest, MultipleIdleNonIdlePhases) {
+  std::thread t([] () {
+    for (int i = 0; i < 4; i++) {
+      TestAllocation();
+      MallocExtension::instance()->MarkThreadIdle();
+    }
+  });
+
+  t.join();
 }
 
 // Get current thread cache usage
 static size_t GetTotalThreadCacheSize() {
   size_t result;
-  CHECK(MallocExtension::instance()->GetNumericProperty(
-            "tcmalloc.current_total_thread_cache_bytes",
-            &result));
+  EXPECT_TRUE(MallocExtension::instance()->GetNumericProperty(
+                "tcmalloc.current_total_thread_cache_bytes",
+                &result));
   return result;
 }
 
 // Check that MarkThreadIdle() actually reduces the amount
 // of per-thread memory.
-static void TestIdleUsage() {
-  const size_t original = GetTotalThreadCacheSize();
+TEST(MarkIdleTest, TestIdleUsage) {
+  std::thread t([] () {
+    const size_t original = GetTotalThreadCacheSize();
 
-  TestAllocation();
-  const size_t post_allocation = GetTotalThreadCacheSize();
-  CHECK_GT(post_allocation, original);
+    TestAllocation();
+    const size_t post_allocation = GetTotalThreadCacheSize();
+    EXPECT_GT(post_allocation, original);
 
-  MallocExtension::instance()->MarkThreadIdle();
-  const size_t post_idle = GetTotalThreadCacheSize();
-  CHECK_LE(post_idle, original);
+    MallocExtension::instance()->MarkThreadIdle();
+    const size_t post_idle = GetTotalThreadCacheSize();
+    EXPECT_LE(post_idle, original);
 
-  // Log after testing because logging can allocate heap memory.
-  VLOG(0, "Original usage: %zu\n", original);
-  VLOG(0, "Post allocation: %zu\n", post_allocation);
-  VLOG(0, "Post idle: %zu\n", post_idle);
-}
+    // Log after testing because logging can allocate heap memory.
+    printf("Original usage: %zu\n", original);
+    printf("Post allocation: %zu\n", post_allocation);
+    printf("Post idle: %zu\n", post_idle);
+  });
 
-static void TestTemporarilyIdleUsage() {
-  const size_t original = MallocExtension::instance()->GetThreadCacheSize();
-
-  TestAllocation();
-  const size_t post_allocation = MallocExtension::instance()->GetThreadCacheSize();
-  CHECK_GT(post_allocation, original);
-
-  MallocExtension::instance()->MarkThreadIdle();
-  const size_t post_idle = MallocExtension::instance()->GetThreadCacheSize();
-  CHECK_EQ(post_idle, 0);
-
-  // Log after testing because logging can allocate heap memory.
-  VLOG(0, "Original usage: %zu\n", original);
-  VLOG(0, "Post allocation: %zu\n", post_allocation);
-  VLOG(0, "Post idle: %zu\n", post_idle);
-}
-
-int main(int argc, char** argv) {
-  RunThread(&TestIdleUsage);
-  RunThread(&TestAllocation);
-  RunThread(&MultipleIdleCalls);
-  RunThread(&MultipleIdleNonIdlePhases);
-  RunThread(&TestTemporarilyIdleUsage);
-
-  printf("PASS\n");
-  return 0;
+  t.join();
 }

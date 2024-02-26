@@ -420,10 +420,10 @@ frag_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 frag_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
 TESTS += markidle_unittest
-markidle_unittest_SOURCES = src/tests/markidle_unittest.cc \
-                            src/tests/testutil.cc
+markidle_unittest_SOURCES = src/tests/markidle_unittest.cc
 markidle_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-markidle_unittest_LDADD = libtcmalloc_minimal.la
+markidle_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+markidle_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
 TESTS += current_allocated_bytes_test
 current_allocated_bytes_test_SOURCES = src/tests/current_allocated_bytes_test.cc

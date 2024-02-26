@@ -215,6 +215,9 @@
       <Project>{55e2b3ae-3ca1-4db6-97f7-0a044d6f446f}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
     </ProjectReference>
+    <ProjectReference Include="..\gtest\gtest.vcxproj">
+      <Project>{0496df42-d7ad-46b6-b10c-c57a07e89b0d}</Project>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
