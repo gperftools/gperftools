@@ -166,9 +166,6 @@
    functions/classes. It's safe to define this here because config.h is only
    used internally, to compile the DLL, and every DLL source file #includes
    "config.h" before anything else. */
-#ifndef WIN32
-#cmakedefine WIN32
-#endif
 #if defined(WIN32)
 #ifndef PERFTOOLS_DLL_DECL
 # define PERFTOOLS_IS_A_DLL  1
