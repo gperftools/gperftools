@@ -29,6 +29,11 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+// We require "native" off_t for the system. So that we're able to
+// interpose native libc's mmap/mmap64 correctly. Thus we "turn off"
+// _FILE_OFFSET_BITS define even if user asked for 64-bit off_t.
+#undef _FILE_OFFSET_BITS
+
 #include <config.h>
 
 #include "mmap_hook.h"
