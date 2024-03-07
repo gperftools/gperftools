@@ -33,6 +33,12 @@
 // interpose native libc's mmap/mmap64 correctly. Thus we "turn off"
 // _FILE_OFFSET_BITS define even if user asked for 64-bit off_t.
 #undef _FILE_OFFSET_BITS
+// Also, glibc somewhat reasonably insists that _TIME_BITS=64 has to
+// imply _FILE_OFFSET_BITS=64. So with us undef-inf _FILE_OFFSET_BITS,
+// we sadly need to do the same for _TIME_BITS. Thankfully, none of
+// the code in this file depends on time_t. Otherwise, we'd be risking
+// trouble.
+#undef _TIME_BITS
 
 #include <config.h>
 
