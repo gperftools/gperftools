@@ -205,7 +205,6 @@ check_include_file("poll.h" HAVE_POLL_H) # optional; for forking out to symboliz
 check_include_file("fcntl.h" HAVE_FCNTL_H) # for tcmalloc_unittest
 check_include_file("grp.h" HAVE_GRP_H) # for heapchecker_unittest
 check_include_file("pwd.h" HAVE_PWD_H) # for heapchecker_unittest
-check_include_file("sys/resource.h" HAVE_SYS_RESOURCE_H) # for SetTestResourceLimit
 check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
 
 check_include_file("sys/ucontext.h" HAVE_SYS_UCONTEXT_H)

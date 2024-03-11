@@ -39,14 +39,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-
-#ifdef HAVE_SYS_RESOURCE_H
-#include <sys/time.h>           // for struct timeval
-#include <sys/resource.h>       // for getrusage
-#endif
-#ifdef _WIN32
-#include <sysinfoapi.h>
-#endif
+#include <time.h>
 
 #include <memory>
 #include <optional>
@@ -60,16 +53,9 @@
 using tcmalloc::TestingPortal;
 
 static double GetCPUTime() {
-#ifdef HAVE_SYS_RESOURCE_H
-  struct rusage r;
-  getrusage(RUSAGE_SELF, &r);
-  struct timeval tv = r.ru_utime;
-  return 1e-6 * tv.tv_usec + tv.tv_sec;
-#elif defined(_WIN32)
-  return GetTickCount64() * 1e-3;
-#else
-# error No way to calculate time on your system
-#endif
+  // Note, we do plain wall-clock time instead of cpu time, but this
+  // is close enough for this file's purpose.
+  return clock() / static_cast<double>(CLOCKS_PER_SEC);
 }
 
 static std::optional<size_t> GetSlackBytes() {

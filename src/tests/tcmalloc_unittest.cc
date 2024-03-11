@@ -1174,8 +1174,6 @@ static int RunAllTests(int argc, char** argv) {
   // Optional argv[1] is the seed
   AllocatorState rnd(argc > 1 ? atoi(argv[1]) : 100);
 
-  SetTestResourceLimit();
-
 #ifndef DEBUGALLOCATION
   TestNewOOMHandling();
 #endif

@@ -51,12 +51,6 @@ extern "C" void RunManyThreads(void (*fn)(), int count);
 // where idx is the index of the thread (which of the X threads this is).
 extern "C" void RunManyThreadsWithId(void (*fn)(int), int count);
 
-// When compiled 64-bit and run on systems with swap several unittests will end
-// up trying to consume all of RAM+swap, and that can take quite some time.  By
-// limiting the address-space size we get sufficient coverage without blowing
-// out job limits.
-void SetTestResourceLimit();
-
 static void (* volatile noopt_helper)(void *) = [] (void* dummy) {};
 
 // This function forces compiler to forget specific knowledge about
