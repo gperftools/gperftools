@@ -561,7 +561,7 @@ if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_unittest
     src/tests/tcmalloc_unittest.cc
     src/tests/testutil.cc)
-  target_link_libraries(tcmalloc_minimal_unittest tcmalloc_minimal)
+  target_link_libraries(tcmalloc_minimal_unittest tcmalloc_minimal gtest)
   add_test(tcmalloc_minimal_unittest tcmalloc_minimal_unittest)
 
   add_executable(tcmalloc_minimal_large_unittest
@@ -703,8 +703,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
 
   if(BUILD_TESTING)
     add_executable(tcmalloc_minimal_debug_unittest src/tests/tcmalloc_unittest.cc src/tests/testutil.cc)
-    target_compile_definitions(tcmalloc_minimal_debug_unittest PRIVATE DEBUGALLOCATION)
-    target_link_libraries(tcmalloc_minimal_debug_unittest tcmalloc_minimal_debug)
+    target_link_libraries(tcmalloc_minimal_debug_unittest tcmalloc_minimal_debug gtest)
     add_test(tcmalloc_minimal_debug_unittest tcmalloc_minimal_debug_unittest)
 
     add_executable(malloc_extension_debug_test src/tests/malloc_extension_test.cc)
@@ -790,9 +789,8 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
   ### Unittests
   if(BUILD_TESTING)
     add_executable(tcmalloc_unittest src/tests/tcmalloc_unittest.cc src/tests/testutil.cc)
-    target_link_libraries(tcmalloc_unittest tcmalloc)
-    add_test(NAME tcmalloc_unittest
-            COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/tcmalloc_unittest.sh")
+    target_link_libraries(tcmalloc_unittest tcmalloc gtest)
+    add_test(tcmalloc_unittest tcmalloc_unittest)
 
     add_executable(tcmalloc_large_unittest src/tests/tcmalloc_large_unittest.cc)
     target_link_libraries(tcmalloc_large_unittest tcmalloc)
@@ -845,8 +843,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     ### Unittests
     if(BUILD_TESTING)
       add_executable(tcmalloc_debug_unittest src/tests/tcmalloc_unittest.cc src/tests/testutil.cc)
-      target_compile_definitions(tcmalloc_debug_unittest PRIVATE DEBUGALLOCATION)
-      target_link_libraries(tcmalloc_debug_unittest tcmalloc_debug)
+      target_link_libraries(tcmalloc_debug_unittest tcmalloc_debug gtest)
       add_test(tcmalloc_debug_unittest tcmalloc_debug_unittest)
 
       add_executable(sampling_debug_test src/tests/sampling_test.cc)

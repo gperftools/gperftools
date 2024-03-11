@@ -383,7 +383,8 @@ TESTS += tcmalloc_minimal_unittest
 tcmalloc_minimal_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                     src/tests/testutil.cc
 tcmalloc_minimal_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-tcmalloc_minimal_unittest_LDADD = libtcmalloc_minimal.la
+tcmalloc_minimal_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_minimal_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
 # lets make sure we exerice ASSERTs in at least in statically linked
 # configuration
@@ -393,8 +394,9 @@ tcm_min_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                                    $(libtcmalloc_minimal_la_SOURCES)
 tcm_min_asserts_unittest_CXXFLAGS = -DNO_TCMALLOC_SAMPLES -DNO_HEAP_CHECK \
                                     $(AM_CXXFLAGS)
+tcm_min_asserts_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 tcm_min_asserts_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-tcm_min_asserts_unittest_LDADD = libcommon.la
+tcm_min_asserts_unittest_LDADD = libcommon.la libgtest.la
 
 TESTS += tcmalloc_minimal_large_unittest
 tcmalloc_minimal_large_unittest_SOURCES = src/tests/tcmalloc_large_unittest.cc
@@ -521,9 +523,9 @@ libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
 
 TESTS += tcmalloc_minimal_debug_unittest
 tcmalloc_minimal_debug_unittest_SOURCES = $(tcmalloc_minimal_unittest_SOURCES)
-tcmalloc_minimal_debug_unittest_CXXFLAGS = $(AM_CXXFLAGS) -DDEBUGALLOCATION
 tcmalloc_minimal_debug_unittest_LDFLAGS = $(tcmalloc_minimal_unittest_LDFLAGS)
-tcmalloc_minimal_debug_unittest_LDADD = libtcmalloc_minimal_debug.la
+tcmalloc_minimal_debug_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_minimal_debug_unittest_LDADD = libtcmalloc_minimal_debug.la libgtest.la
 
 TESTS += malloc_extension_debug_test
 malloc_extension_debug_test_SOURCES = $(malloc_extension_test_SOURCES)
@@ -663,19 +665,12 @@ libtcmalloc_la_LIBADD = libstacktrace.la libcommon.la
 
 ### Unittests
 
-TESTS += tcmalloc_unittest.sh$(EXEEXT)
-tcmalloc_unittest_sh_SOURCES = src/tests/tcmalloc_unittest.sh
-noinst_SCRIPTS += $(tcmalloc_unittest_sh_SOURCES)
-tcmalloc_unittest.sh$(EXEEXT): $(top_srcdir)/$(tcmalloc_unittest_sh_SOURCES) \
-                               tcmalloc_unittest
-	rm -f $@
-	cp -p $(top_srcdir)/$(tcmalloc_unittest_sh_SOURCES) $@
-
-noinst_PROGRAMS += tcmalloc_unittest
+TESTS += tcmalloc_unittest
 tcmalloc_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
                             src/tests/testutil.cc
 tcmalloc_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-tcmalloc_unittest_LDADD = libtcmalloc.la
+tcmalloc_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_unittest_LDADD = libtcmalloc.la libgtest.la
 
 TESTS += tcm_asserts_unittest
 tcm_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
@@ -685,7 +680,8 @@ tcm_asserts_unittest_SOURCES = src/tests/tcmalloc_unittest.cc \
 tcm_asserts_unittest_CXXFLAGS = $(AM_CXXFLAGS) \
                                 $(MAYBE_NO_HEAP_CHECK) \
                                 $(EMERGENCY_MALLOC_DEFINE)
-tcm_asserts_unittest_LDADD = libstacktrace.la libcommon.la
+tcm_asserts_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcm_asserts_unittest_LDADD = libstacktrace.la libcommon.la libgtest.la
 
 # This makes sure it's safe to link in both tcmalloc and
 # tcmalloc_minimal.  (One would never do this on purpose, but perhaps
@@ -697,7 +693,7 @@ tcm_asserts_unittest_LDADD = libstacktrace.la libcommon.la
 tcmalloc_both_unittest_srcs = src/tests/tcmalloc_unittest.cc \
                               src/tests/testutil.h src/tests/testutil.cc
 tcmalloc_both_unittest_lflags = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-tcmalloc_both_unittest_ladd = libtcmalloc.la libtcmalloc_minimal.la
+tcmalloc_both_unittest_ladd = libtcmalloc.la libtcmalloc_minimal.la libgtest.la
 if WITH_CPU_PROFILER
 tcmalloc_both_unittest_ladd += libprofiler.la
 endif WITH_CPU_PROFILER
@@ -706,6 +702,7 @@ if !OSX
 TESTS += tcmalloc_both_unittest
 tcmalloc_both_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
 tcmalloc_both_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
+tcmalloc_both_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 tcmalloc_both_unittest_LDADD = $(tcmalloc_both_unittest_ladd)
 endif !OSX
 
@@ -792,9 +789,9 @@ libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
 
 TESTS += tcmalloc_debug_unittest
 tcmalloc_debug_unittest_SOURCES = $(tcmalloc_unittest_SOURCES)
-tcmalloc_debug_unittest_CXXFLAGS = $(AM_CXXFLAGS) -DDEBUGALLOCATION
 tcmalloc_debug_unittest_LDFLAGS = $(tcmalloc_unittest_LDFLAGS)
-tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la
+tcmalloc_debug_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la libgtest.la
 
 TESTS += sampling_debug_test
 sampling_debug_test_SOURCES = $(sampling_test_SOURCES)
@@ -932,7 +929,8 @@ libtcmalloc_and_profiler_la_LIBADD = $(libtcmalloc_la_LIBADD)
 TESTS += tcmalloc_and_profiler_unittest
 tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
 tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
-tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la
+tcmalloc_and_profiler_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la libgtest.la
 
 endif WITH_CPU_PROFILER
 endif WITH_HEAP_PROFILER_OR_CHECKER
