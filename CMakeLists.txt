@@ -723,10 +723,8 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
 
     if(WITH_STACK_TRACE)
       add_executable(debugallocation_test src/tests/debugallocation_test.cc)
-      target_link_libraries(debugallocation_test tcmalloc_minimal_debug)
-
-      add_test(NAME debugallocation_test
-              COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/src/tests/debugallocation_test.sh)
+      target_link_libraries(debugallocation_test tcmalloc_debug gtest)
+      add_test(debugallocation_test debugallocation_test)
     endif()
   endif()
 endif()
@@ -803,6 +801,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     # sampler_test and sampling_test both require sampling to be turned
     # on, which it's not by default.  Use the "standard" value of 2^19.
     list(APPEND TESTS_ENVIRONMENT TCMALLOC_SAMPLE_PARAMETER=524288)
+    list(APPEND TESTS_ENVIRONMENT PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
 
     add_executable(sampler_test src/tests/sampler_test.cc src/sampler.cc)
     target_link_libraries(sampler_test gtest)

@@ -36,53 +36,17 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h> // for memcmp
-#include <vector>
+
 #include "gperftools/malloc_extension.h"
 #include "gperftools/tcmalloc.h"
+
 #include "base/logging.h"
+#include "testing_portal.h"
 #include "tests/testutil.h"
 
-#include "tests/legacy_assertions.h"
-
-#include "testing_portal.h"
+#include "gtest/gtest.h"
 
 using tcmalloc::TestingPortal;
-
-using std::vector;
-
-vector<void (*)()> g_testlist;  // the tests to run
-
-#define TEST(a, b)                                      \
-  struct Test_##a##_##b {                               \
-    Test_##a##_##b() { g_testlist.push_back(&Run); }    \
-    static void Run();                                  \
-  };                                                    \
-  static Test_##a##_##b g_test_##a##_##b;               \
-  void Test_##a##_##b::Run()
-
-
-static int RUN_ALL_TESTS() {
-  vector<void (*)()>::const_iterator it;
-  for (it = g_testlist.begin(); it != g_testlist.end(); ++it) {
-    (*it)();   // The test will error-exit if there's a problem.
-  }
-  fprintf(stderr, "\nPassed %d tests\n\nPASS\n",
-          static_cast<int>(g_testlist.size()));
-  return 0;
-}
-
-// The death tests are meant to be run from a shell-script driver, which
-// passes in an integer saying which death test to run.  We store that
-// test-to-run here, and in the macro use a counter to see when we get
-// to that test, so we can run it.
-static int test_to_run = 0;     // set in main() based on argv
-static int test_counter = 0;    // incremented every time the macro is called
-#define IF_DEBUG_EXPECT_DEATH(statement, regex) do {    \
-  if (test_counter++ == test_to_run) {                  \
-    fprintf(stderr, "Expected regex:%s\n", regex);      \
-    statement;                                          \
-  }                                                     \
-} while (false)
 
 // Test match as well as mismatch rules.  But do not test on OS X; on
 // OS X the OS converts new/new[] to malloc before it gets to us, so
@@ -98,8 +62,8 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   // Allocate with malloc.
   {
     int* x = static_cast<int*>(noopt(malloc(sizeof(*x))));
-    IF_DEBUG_EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
-    IF_DEBUG_EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
+    EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
     // Should work fine.
     free(x);
   }
@@ -108,8 +72,8 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   {
     int* x = noopt(new int);
     int* y = noopt(new int);
-    IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
-    IF_DEBUG_EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
+    EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
     delete x;
     ::operator delete(y, std::nothrow);
   }
@@ -118,8 +82,8 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   {
     int* x = noopt(new int[1]);
     int* y = noopt(new int[1]);
-    IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
-    IF_DEBUG_EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
+    EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
+    EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
     delete [] x;
     ::operator delete[](y, std::nothrow);
   }
@@ -128,8 +92,8 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   {
     int* x = noopt(new (std::nothrow) int);
     int* y = noopt(new (std::nothrow) int);
-    IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
-    IF_DEBUG_EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
+    EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
     delete x;
     ::operator delete(y, std::nothrow);
   }
@@ -138,8 +102,8 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   {
     int* x = noopt(new (std::nothrow) int[1]);
     int* y = noopt(new (std::nothrow) int[1]);
-    IF_DEBUG_EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
-    IF_DEBUG_EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
+    EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
+    EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
     delete [] x;
     ::operator delete[](y, std::nothrow);
   }
@@ -149,25 +113,21 @@ TEST(DebugAllocationTest, DeallocMismatch) {
 TEST(DebugAllocationTest, DoubleFree) {
   int* pint = noopt(new int);
   delete pint;
-  IF_DEBUG_EXPECT_DEATH(delete pint, "has been already deallocated");
+  EXPECT_DEATH(delete pint, "has been already deallocated");
 }
 
 TEST(DebugAllocationTest, StompBefore) {
   int* pint = noopt(new int);
   (void)pint;
-#ifndef NDEBUG   // don't stomp memory if we're not in a position to detect it
   pint[-1] = 5;
-  IF_DEBUG_EXPECT_DEATH(delete pint, "a word before object");
-#endif
+  EXPECT_DEATH(delete pint, "a word before object");
 }
 
 TEST(DebugAllocationTest, StompAfter) {
   int* pint = noopt(new int);
   (void)pint;
-#ifndef NDEBUG   // don't stomp memory if we're not in a position to detect it
   pint[1] = 5;
-  IF_DEBUG_EXPECT_DEATH(delete pint, "a word after object");
-#endif
+  EXPECT_DEATH(delete pint, "a word after object");
 }
 
 TEST(DebugAllocationTest, FreeQueueTest) {
@@ -188,7 +148,7 @@ TEST(DebugAllocationTest, FreeQueueTest) {
     // it commented out.
     // EXPECT_EQ(x, old_x);
   #endif
-  old_x = NULL;  // avoid breaking opt build with an unused variable warning.
+  old_x = nullptr;  // avoid breaking opt build with an unused variable warning.
   delete x;
 }
 
@@ -208,7 +168,7 @@ TEST(DebugAllocationTest, DanglingPointerWriteTest) {
   // When we delete s, we push the storage that was previously allocated to x
   // off the end of the free queue.  At that point, the write to that memory
   // will be detected.
-  IF_DEBUG_EXPECT_DEATH(delete [] s, "Memory was written to after being freed.");
+  EXPECT_DEATH(delete [] s, "Memory was written to after being freed.");
 
   // restore the poisoned value of x so that we can delete s without causing a
   // crash.
@@ -224,7 +184,7 @@ TEST(DebugAllocationTest, DanglingWriteAtExitTest) {
   *x = 1;
   // verify that dangling writes are caught at program termination if the
   // corrupted block never got pushed off of the end of the free queue.
-  IF_DEBUG_EXPECT_DEATH(exit(0), "Memory was written to after being freed.");
+  EXPECT_DEATH(exit(0), "Memory was written to after being freed.");
   *x = old_x_value;  // restore x so that the test can exit successfully.
 }
 
@@ -235,7 +195,7 @@ TEST(DebugAllocationTest, StackTraceWithDanglingWriteAtExitTest) {
   *x = 1;
   // verify that we also get a stack trace when we have a dangling write.
   // The " @ " is part of the stack trace output.
-  IF_DEBUG_EXPECT_DEATH(exit(0), " @ .*main");
+  EXPECT_DEATH(exit(0), " @ .*main");
   *x = old_x_value;  // restore x so that the test can exit successfully.
 }
 
@@ -306,14 +266,13 @@ TEST(DebugAllocationTest, HugeAlloc) {
   // integral-constant-expression which can be *statically* rejected by the
   // compiler as too large for the allocation.
   size_t kTooBig = ~static_cast<size_t>(0);
-  void* a = NULL;
+  void* a = nullptr;
 
   (void)kTooBig;
   (void)a;
-#ifndef NDEBUG
 
   a = noopt(malloc(noopt(kTooBig)));
-  EXPECT_EQ(NULL, a);
+  EXPECT_EQ(nullptr, a);
 
   // kAlsoTooBig is small enough not to get caught by debugallocation's check,
   // but will still fall through to tcmalloc's check. This must also be
@@ -321,8 +280,7 @@ TEST(DebugAllocationTest, HugeAlloc) {
   size_t kAlsoTooBig = kTooBig - 1024;
 
   a = noopt(malloc(noopt(kAlsoTooBig)));
-  EXPECT_EQ(NULL, a);
-#endif
+  EXPECT_EQ(nullptr, a);
 }
 
 // based on test program contributed by mikesart@gmail.com aka
@@ -331,29 +289,12 @@ TEST(DebugAllocationTest, ReallocAfterMemalign) {
   char stuff[50];
   memset(stuff, 0x11, sizeof(stuff));
   void *p = tc_memalign(16, sizeof(stuff));
-  EXPECT_NE(p, NULL);
+  EXPECT_NE(p, nullptr);
   memcpy(stuff, p, sizeof(stuff));
 
   p = noopt(realloc(p, sizeof(stuff) + 10));
-  EXPECT_NE(p, NULL);
+  EXPECT_NE(p, nullptr);
 
   int rv = memcmp(stuff, p, sizeof(stuff));
   EXPECT_EQ(rv, 0);
-}
-
-int main(int argc, char** argv) {
-  // If you run without args, we run the non-death parts of the test.
-  // Otherwise, argv[1] should be a number saying which death-test
-  // to run.  We will output a regexp we expect the death-message
-  // to include, and then run the given death test (which hopefully
-  // will produce that error message).  If argv[1] > the number of
-  // death tests, we will run only the non-death parts.  One way to
-  // tell when you are done with all tests is when no 'expected
-  // regexp' message is printed for a given argv[1].
-  if (argc < 2) {
-    test_to_run = -1;   // will never match
-  } else {
-    test_to_run = atoi(argv[1]);
-  }
-  return RUN_ALL_TESTS();
 }

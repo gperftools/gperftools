@@ -555,19 +555,12 @@ realloc_debug_unittest_LDADD = libtcmalloc_minimal_debug.la libgtest.la
 # debugallocation_test checks that we print a proper stacktrace when
 # debug-allocs fail, so we can't run it if we don't have stacktrace info.
 if WITH_STACK_TRACE
-TESTS += debugallocation_test.sh$(EXEEXT)
-debugallocation_test_sh_SOURCES = src/tests/debugallocation_test.sh
-noinst_SCRIPTS += $(debugallocation_test_sh_SOURCES)
-debugallocation_test.sh$(EXEEXT): $(top_srcdir)/$(debugallocation_test_sh_SOURCES) \
-                                  debugallocation_test
-	rm -f $@
-	cp -p $(top_srcdir)/$(debugallocation_test_sh_SOURCES) $@
 
-# This is the sub-program used by debugallocation_test.sh
-noinst_PROGRAMS += debugallocation_test
+TESTS += debugallocation_test
 debugallocation_test_SOURCES = src/tests/debugallocation_test.cc
 debugallocation_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-debugallocation_test_LDADD = libtcmalloc_debug.la
+debugallocation_test_CPPFLAGS = $(gtest_CPPFLAGS)
+debugallocation_test_LDADD = libtcmalloc_debug.la libgtest.la
 endif WITH_STACK_TRACE
 
 endif WITH_DEBUGALLOC
