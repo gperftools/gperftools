@@ -32,28 +32,30 @@
  * Author: Craig Silverstein
  *
  * This tests the c shims: malloc_extension_c.h and malloc_hook_c.h.
- * Mostly, we'll just care that these shims compile under gcc
- * (*not* g++!)
- *
- * NOTE: this is C code, not C++ code!
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stddef.h>   /* for size_t */
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
 #include <gperftools/tcmalloc.h>
 
-#define FAIL(msg) do {                          \
-  fprintf(stderr, "FATAL ERROR: %s\n", msg);    \
-  exit(1);                                      \
-} while (0)
+#include <stdio.h>
+#include <stdlib.h>
+#include <stddef.h>   /* for size_t */
+
+#include "base/basictypes.h"
+#include "gtest/gtest.h"
 
 static int g_new_hook_calls = 0;
 static int g_delete_hook_calls = 0;
 
 void TestNewHook(const void* ptr, size_t size) {
+  void* result[5];
+
+  ASSERT_LE(MallocHook_GetCallerStackTrace(
+              result,
+              sizeof(result)/sizeof(*result), 0),
+            2);
+
   g_new_hook_calls++;
 }
 
@@ -66,117 +68,67 @@ void *forced_malloc(size_t size)
 {
   void *rv = tc_malloc(size);
   if (!rv) {
-    FAIL("malloc is not supposed to fail here");
+    abort();
   }
   return rv;
 }
 
-void TestMallocHook(void) {
-  /* TODO(csilvers): figure out why we get:
-   * E0100 00:00:00.000000  7383 malloc_hook.cc:244] RAW: google_malloc section is missing, thus InHookCaller is broken!
-   */
-#if 0
-  void* result[5];
-
-  if (MallocHook_GetCallerStackTrace(result, sizeof(result)/sizeof(*result),
-                                     0) < 2) {  /* should have this and main */
-    FAIL("GetCallerStackTrace failed");
-  }
-#endif
-
-  if (!MallocHook_AddNewHook(&TestNewHook)) {
-    FAIL("Failed to add new hook");
-  }
-  if (!MallocHook_AddDeleteHook(&TestDeleteHook)) {
-    FAIL("Failed to add delete hook");
-  }
+TEST(TestMalloc, Hook) {
+  ASSERT_TRUE(MallocHook_AddNewHook(&TestNewHook));
+  ASSERT_TRUE(MallocHook_AddDeleteHook(&TestDeleteHook));
 
   free(forced_malloc(10));
   free(forced_malloc(20));
-  if (g_new_hook_calls != 2) {
-    FAIL("Wrong number of calls to the new hook");
-  }
-  if (g_delete_hook_calls != 2) {
-    FAIL("Wrong number of calls to the delete hook");
-  }
-  if (!MallocHook_RemoveNewHook(&TestNewHook)) {
-    FAIL("Failed to remove new hook");
-  }
-  if (!MallocHook_RemoveDeleteHook(&TestDeleteHook)) {
-    FAIL("Failed to remove delete hook");
-  }
+  ASSERT_EQ(g_new_hook_calls, 2);
+  ASSERT_EQ(g_delete_hook_calls, 2);
+  ASSERT_TRUE(MallocHook_RemoveNewHook(&TestNewHook));
+
+  ASSERT_TRUE(MallocHook_RemoveDeleteHook(&TestDeleteHook));
 
   free(forced_malloc(10));
   free(forced_malloc(20));
-  if (g_new_hook_calls != 2) {
-    FAIL("Wrong number of calls to the new hook");
-  }
+  ASSERT_EQ(g_new_hook_calls, 2);
 
   MallocHook_SetNewHook(&TestNewHook);
   MallocHook_SetDeleteHook(&TestDeleteHook);
 
   free(forced_malloc(10));
   free(forced_malloc(20));
-  if (g_new_hook_calls != 4) {
-    FAIL("Wrong number of calls to the singular new hook");
-  }
+  ASSERT_EQ(g_new_hook_calls, 4);
 
-  if (MallocHook_SetNewHook(NULL) == NULL) {
-    FAIL("Failed to set new hook");
-  }
-  if (MallocHook_SetDeleteHook(NULL) == NULL) {
-    FAIL("Failed to set delete hook");
-  }
+  ASSERT_NE(MallocHook_SetNewHook(nullptr), nullptr);
+  ASSERT_NE(MallocHook_SetDeleteHook(nullptr), nullptr);
 }
 
-void TestMallocExtension(void) {
+TEST(TestMalloc, Extension) {
   int blocks;
   size_t total;
   int hist[64];
   char buffer[200];
-  char* x = (char*)malloc(10);
+  char* x = (char*)forced_malloc(10);
 
   MallocExtension_VerifyAllMemory();
   MallocExtension_VerifyMallocMemory(x);
   MallocExtension_MallocMemoryStats(&blocks, &total, hist);
   MallocExtension_GetStats(buffer, sizeof(buffer));
-  if (!MallocExtension_GetNumericProperty("generic.current_allocated_bytes",
-                                          &total)) {
-    FAIL("GetNumericProperty failed for generic.current_allocated_bytes");
-  }
-  if (total < 10) {
-    FAIL("GetNumericProperty had bad return for generic.current_allocated_bytes");
-  }
-  if (!MallocExtension_GetNumericProperty("generic.current_allocated_bytes",
-                                          &total)) {
-    FAIL("GetNumericProperty failed for generic.current_allocated_bytes");
-  }
+
+  ASSERT_TRUE(
+    MallocExtension_GetNumericProperty(
+      "generic.current_allocated_bytes",
+      &total));
+
+  ASSERT_GE(total, 10) << "GetNumericProperty had bad return for generic.current_allocated_bytes";
+
   MallocExtension_MarkThreadIdle();
   MallocExtension_MarkThreadBusy();
   MallocExtension_ReleaseToSystem(1);
   MallocExtension_ReleaseFreeMemory();
-  if (MallocExtension_GetEstimatedAllocatedSize(10) < 10) {
-    FAIL("GetEstimatedAllocatedSize returned a bad value (too small)");
-  }
-  if (MallocExtension_GetAllocatedSize(x) < 10) {
-    FAIL("GetEstimatedAllocatedSize returned a bad value (too small)");
-  }
-  if (MallocExtension_GetOwnership(x) != MallocExtension_kOwned) {
-    FAIL("DidAllocatePtr returned a bad value (kNotOwned)");
-  }
-  /* TODO(csilvers): this relies on undocumented behavior that
-     GetOwnership works on stack-allocated variables.  Use a better test. */
-  if (MallocExtension_GetOwnership(hist) != MallocExtension_kNotOwned) {
-    FAIL("DidAllocatePtr returned a bad value (kOwned)");
-  }
+
+  ASSERT_GE(MallocExtension_GetEstimatedAllocatedSize(10), 10);
+
+  ASSERT_GE(MallocExtension_GetAllocatedSize(x), 10);
+  ASSERT_EQ(MallocExtension_GetOwnership(x), MallocExtension_kOwned);
+  ASSERT_EQ(MallocExtension_GetOwnership(hist), MallocExtension_kNotOwned);
 
   free(x);
-}
-
-int main(int argc, char** argv) {
-  TestMallocHook();
-  TestMallocExtension();
-
-  printf("PASS\n");
-  return 0;
 }

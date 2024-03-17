@@ -441,7 +441,8 @@ malloc_extension_test_LDADD = libtcmalloc_minimal.la libgtest.la
 TESTS += malloc_extension_c_test
 malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.cc
 malloc_extension_c_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-malloc_extension_c_test_LDADD = libtcmalloc_minimal.la
+malloc_extension_c_test_CPPFLAGS = $(gtest_CPPFLAGS)
+malloc_extension_c_test_LDADD = libtcmalloc_minimal.la libgtest.la
 
 if !MINGW
 if !OSX
