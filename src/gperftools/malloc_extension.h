@@ -91,12 +91,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
  public:
   virtual ~MallocExtension();
 
-  // Call this very early in the program execution -- say, in a global
-  // constructor -- to set up parameters and state needed by all
-  // instrumented malloc implemenatations.  One example: this routine
-  // sets environemnt variables to tell STL to use libc's malloc()
-  // instead of doing its own memory management.  This is safe to call
-  // multiple times, as long as each time is before threads start up.
+  // DEPRECATED. No-op.
   static void Initialize();
 
   // See "verify_memory.h" to see what these routines do
@@ -340,8 +335,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // The current malloc implementation.  Always non-NULL.
   static MallocExtension* instance();
 
-  // Change the malloc implementation.  Typically called by the
-  // malloc implementation during initialization.
+  // DEPRECATED. Internal.
   static void Register(MallocExtension* implementation);
 
   // Returns detailed information about malloc's freelists. For each list,

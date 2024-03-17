@@ -50,6 +50,8 @@
 #include "base/proc_maps_iterator.h"
 #include "tcmalloc_internal.h"
 
+#include "gperftools/tcmalloc.h"
+
 #ifndef NO_HEAP_CHECK
 #include "gperftools/heap-checker.h"
 #endif
@@ -60,9 +62,7 @@ static void DumpAddressMap(std::string* result) {
   tcmalloc::SaveProcSelfMaps(&writer);
 }
 
-void MallocExtension::Initialize() {
-  // no-op
-}
+void MallocExtension::Initialize() {}
 
 // SysAllocator implementation
 SysAllocator::~SysAllocator() {}
@@ -167,20 +167,15 @@ static std::atomic<MallocExtension*> current_instance;
 
 MallocExtension* MallocExtension::instance() {
   MallocExtension* inst = current_instance.load(std::memory_order_relaxed);
-  if (PREDICT_FALSE(!inst)) {
-    // Note, we expect the 'new' call to trigger malloc
-    // initialization. Which will call MallocExtension::Register and
-    // set right value of current_instance. So we check for that.
-    MallocExtension* candidate = new MallocExtension;
-    inst = current_instance.load();
-    if (!inst) {
-      Register(candidate);
-    } else {
-      delete candidate;
-    }
+  if (PREDICT_TRUE(inst != nullptr)) {
+    return inst;
   }
 
-  return inst;
+  // if MallocExtension isn't set up yet, it could be we're called
+  // super-early. Trigger tcmalloc initialization and assume it will
+  // set up instance().
+  tc_free(tc_malloc(32));
+  return instance();
 }
 
 void MallocExtension::Register(MallocExtension* implementation) {
