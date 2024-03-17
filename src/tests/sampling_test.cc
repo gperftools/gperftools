@@ -39,41 +39,155 @@
 
 #include "config_for_unittests.h"
 
+#include "gperftools/malloc_extension.h"
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <regex.h>
+
+#include <memory>
 #include <string>
+#include <string_view>
+
+#include "tests/testutil.h"
 
 #include "base/logging.h"
-#include "gperftools/malloc_extension.h"
-#include "tests/testutil.h"
+#include "base/cleanup.h"
+#include "testing_portal.h"
+
+static std::string NaiveShellQuote(std::string_view arg) {
+  // We're naive, so don't support paths with quote char. With that
+  // we're able to quote by simply wrapping things with quotes.
+  CHECK_EQ(arg.find('"'), std::string_view::npos);
+  std::string retval({'"'});
+  retval.append(arg);
+  retval.append({'"'});
+  return retval;
+}
 
 extern "C" ATTRIBUTE_NOINLINE
 void* AllocateAllocate() {
   return noopt(malloc(10000));
 }
 
-static void WriteStringToFile(std::string_view s, const std::string& filename) {
-  FILE* fp = fopen(filename.c_str(), "w");
-  fwrite(s.data(), 1, s.length(), fp);
-  fclose(fp);
+#ifndef PPROF_PATH
+#error compiling this file requires PPROF_PATH to be set correctly
+#endif
+
+#define XSTR(x) #x
+#define STR(x) XSTR(x)
+
+const char kPProfPath[] = STR(PPROF_PATH);
+
+static void VerifyWithPProf(std::string_view argv0, std::string_view path) {
+  std::string cmdline = NaiveShellQuote(kPProfPath) + " --text " + NaiveShellQuote(argv0) + " " + NaiveShellQuote(path);
+  printf("pprof cmdline: %s\n", cmdline.c_str());
+  FILE* p = popen(cmdline.c_str(), "r");
+  if (!p) {
+    perror("popen");
+    abort();
+  }
+  tcmalloc::Cleanup close_pipe([p] () { (void)pclose(p); });
+
+  constexpr int kBufSize = 1024;
+  std::string contents;
+  char buf[kBufSize];
+  while (!feof(p)) {
+    size_t amt = fread(buf, 1, kBufSize, p);
+    contents.append(buf, buf + amt);
+  }
+
+  printf("pprof output:\n%s\n\n", contents.c_str());
+
+  regmatch_t pmatch[3];
+  regex_t regex;
+  CHECK_EQ(regcomp(&regex, "([0-9.]+) *([0-9.]+)% *_*AllocateAllocate", REG_NEWLINE | REG_EXTENDED), 0);
+  CHECK_EQ(regexec(&regex, contents.c_str(), 3, pmatch, 0), 0);
+
+  printf("AllocateAllocate regex match: %.*s\n",
+         int(pmatch[0].rm_eo - pmatch[0].rm_so),
+         contents.data() + pmatch[0].rm_so);
+
+  std::string number{contents.data() + pmatch[1].rm_so, contents.data() + pmatch[1].rm_eo};
+
+  errno = 0;
+  char* endptr;
+  double percent = strtod(number.c_str(), &endptr);
+  CHECK(endptr && *endptr == '\0');
+  CHECK_EQ(errno, 0);
+
+  // We allocate 8*10^7 bytes of memory, which is 76M.  Because we
+  // sample, the estimate may be a bit high or a bit low: we accept
+  // anything from 50M to 99M.
+  CHECK_LE(50, percent);
+  CHECK_LE(percent, 99);
 }
 
-int main(int argc, char** argv) {
-  if (argc < 2) {
-    fprintf(stderr, "USAGE: %s <base of output files>\n", argv[0]);
-    exit(1);
+struct TempFile {
+  FILE* f;
+  std::string const path;
+
+  TempFile(FILE* f, std::string_view path) : f(f), path(path) {}
+
+  ~TempFile() {
+    if (f) {
+      (void)fclose(f);
+    }
   }
+
+  FILE* ReleaseFile() {
+    FILE* retval = f;
+    f = nullptr;
+    return retval;
+  }
+
+  static TempFile Create(std::string_view base_template) {
+    CHECK_EQ(base_template.substr(base_template.size() - 6), "XXXXXX");
+
+    const char* raw_tmpdir = getenv("TMPDIR");
+    if (raw_tmpdir == nullptr) {
+      raw_tmpdir = "/tmp";
+    }
+    std::string_view tmpdir{raw_tmpdir};
+    size_t len = tmpdir.size() + 1 + base_template.size() + 1;
+    std::unique_ptr<char[]> path_template{new char[len]};
+    auto it = std::copy(tmpdir.begin(), tmpdir.end(), path_template.get());
+    *it++ = '/';
+    it = std::copy(base_template.begin(), base_template.end(), it);
+    *it++ = '\0';
+    CHECK_EQ(it, path_template.get() + len);
+
+    int fd = mkstemp(path_template.get());
+    CHECK_GE(fd, 0);
+
+    return TempFile{fdopen(fd, "r+"), std::string(path_template.get(), len-1)};
+  }
+};
+
+int main(int argc, char** argv) {
+  tcmalloc::TestingPortal::Get()->GetSampleParameter() = 512 << 10;
+
   for (int i = 0; i < 8000; i++) {
     AllocateAllocate();
   }
 
+  TempFile heap_tmp = TempFile::Create("sampling_test.heap.XXXXXX");
+  TempFile growth_tmp = TempFile::Create("sampling_test.growth.XXXXXX");
+  tcmalloc::Cleanup unlink_temps{[&] () {
+    (void)unlink(heap_tmp.path.c_str());
+    (void)unlink(growth_tmp.path.c_str());
+  }};
+
   std::string s;
   MallocExtension::instance()->GetHeapSample(&s);
-  WriteStringToFile(s, std::string(argv[1]) + ".heap");
+  fwrite(s.data(), 1, s.size(), heap_tmp.f);
+  fclose(heap_tmp.ReleaseFile());
 
   s.clear();
   MallocExtension::instance()->GetHeapGrowthStacks(&s);
-  WriteStringToFile(s, std::string(argv[1]) + ".growth");
+  fwrite(s.data(), 1, s.size(), growth_tmp.f);
+  fclose(growth_tmp.ReleaseFile());
 
-  return 0;
+  VerifyWithPProf(argv[0], heap_tmp.path);
+  VerifyWithPProf(argv[0], growth_tmp.path);
 }

@@ -723,19 +723,10 @@ tcmalloc_large_heap_fragmentation_unittest_LDADD = libtcmalloc.la libgtest.la
 # These unittests often need to run binaries.  They're in the current dir
 TESTS_ENVIRONMENT += BINDIR=.
 
-TESTS += sampling_test.sh$(EXEEXT)
-sampling_test_sh_SOURCES = src/tests/sampling_test.sh
-noinst_SCRIPTS += $(sampling_test_sh_SOURCES)
-sampling_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
-                           sampling_test
-	rm -f $@
-	cp -p $(top_srcdir)/$(sampling_test_sh_SOURCES) $@
-
-# This is the sub-program used by sampling_test.sh
-# The -g is so pprof can get symbol information.
-noinst_PROGRAMS += sampling_test
+TESTS += sampling_test
 sampling_test_SOURCES = src/tests/sampling_test.cc
 sampling_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
+sampling_test_CPPFLAGS = $(AM_CPPFLAGS) "-DPPROF_PATH=$(top_srcdir)/src/pprof"
 sampling_test_LDADD = libtcmalloc.la
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
@@ -805,17 +796,10 @@ tcmalloc_debug_unittest_CXXFLAGS = $(AM_CXXFLAGS) -DDEBUGALLOCATION
 tcmalloc_debug_unittest_LDFLAGS = $(tcmalloc_unittest_LDFLAGS)
 tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la
 
-TESTS += sampling_debug_test.sh$(EXEEXT)
-sampling_debug_test_sh_SOURCES = src/tests/sampling_test.sh
-sampling_debug_test.sh$(EXEEXT): $(top_srcdir)/$(sampling_test_sh_SOURCES) \
-                                 sampling_debug_test
-	rm -f $@
-	sed -e 's/sampling_test/sampling_debug_test/g' <$(top_srcdir)/$(sampling_test_sh_SOURCES) >$@
-	chmod +x $@
-
-noinst_PROGRAMS += sampling_debug_test
+TESTS += sampling_debug_test
 sampling_debug_test_SOURCES = $(sampling_test_SOURCES)
 sampling_debug_test_CXXFLAGS = $(sampling_test_CXXFLAGS)
+sampling_debug_test_CPPFLAGS = $(sampling_test_CPPFLAGS)
 sampling_debug_test_LDFLAGS = $(sampling_test_LDFLAGS)
 sampling_debug_test_LDADD = libtcmalloc_debug.la
 
