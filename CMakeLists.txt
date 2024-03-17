@@ -798,9 +798,6 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     target_link_libraries(tcmalloc_large_heap_fragmentation_unittest tcmalloc gtest)
     add_test(tcmalloc_large_heap_fragmentation_unittest tcmalloc_large_heap_fragmentation_unittest)
 
-    # sampler_test and sampling_test both require sampling to be turned
-    # on, which it's not by default.  Use the "standard" value of 2^19.
-    list(APPEND TESTS_ENVIRONMENT TCMALLOC_SAMPLE_PARAMETER=524288)
     list(APPEND TESTS_ENVIRONMENT PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
 
     add_executable(sampler_test src/tests/sampler_test.cc src/sampler.cc)

@@ -39,6 +39,9 @@
 // heap-profiler_unittest.sh.
 
 #include "config_for_unittests.h"
+
+#include <gperftools/heap-profiler.h>
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <fcntl.h>                  // for mkdir()
@@ -48,11 +51,10 @@
 #endif
 #include <sys/wait.h>               // for wait()
 #include <string>
+
 #include "base/basictypes.h"
 #include "base/logging.h"
-#include <gperftools/heap-profiler.h>
-
-using std::string;
+#include "testing_portal.h"
 
 static const int kMaxCount = 100000;
 int* g_array[kMaxCount];              // an array of int-vectors
@@ -90,7 +92,7 @@ static void TestHeapProfilerStartStopIsRunning() {
     if (tmpdir == NULL)
       tmpdir = "/tmp";
     mkdir(tmpdir, 0755);     // if necessary
-    HeapProfilerStart((string(tmpdir) + "/start_stop").c_str());
+    HeapProfilerStart((std::string(tmpdir) + "/start_stop").c_str());
     CHECK(IsHeapProfilerRunning());
 
     Allocate(0, 40, 100);
@@ -109,7 +111,7 @@ static void TestDumpHeapProfiler() {
     if (tmpdir == NULL)
       tmpdir = "/tmp";
     mkdir(tmpdir, 0755);     // if necessary
-    HeapProfilerStart((string(tmpdir) + "/dump").c_str());
+    HeapProfilerStart((std::string(tmpdir) + "/dump").c_str());
     CHECK(IsHeapProfilerRunning());
 
     Allocate(0, 40, 100);
@@ -123,6 +125,8 @@ static void TestDumpHeapProfiler() {
 
 
 int main(int argc, char** argv) {
+  tcmalloc::TestingPortal::Get()->GetSampleParameter() = 512 << 10;
+
   if (argc > 2 || (argc == 2 && argv[1][0] == '-')) {
     printf("USAGE: %s [number of children to fork]\n", argv[0]);
     exit(0);

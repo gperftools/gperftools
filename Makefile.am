@@ -367,10 +367,6 @@ mmap_hook_test_LDADD = libcommon.la libgtest.la
 endif !MINGW
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
-# sampler_test and sampling_test both require sampling to be turned
-# on, which it's not by default.  Use the "standard" value of 2^19.
-TESTS_ENVIRONMENT += TCMALLOC_SAMPLE_PARAMETER=524288
-
 TESTS += sampler_test
 sampler_test_SOURCES = src/tests/sampler_test.cc \
                        src/sampler.cc
