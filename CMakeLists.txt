@@ -675,7 +675,7 @@ if(BUILD_TESTING)
   add_test(proc_maps_iterator_test proc_maps_iterator_test)
 
   add_executable(realloc_unittest src/tests/realloc_unittest.cc)
-  target_link_libraries(realloc_unittest tcmalloc_minimal)
+  target_link_libraries(realloc_unittest tcmalloc_minimal gtest)
   add_test(realloc_unittest realloc_unittest)
 
   add_executable(stack_trace_table_test
@@ -720,7 +720,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     endif()
 
     add_executable(realloc_debug_unittest src/tests/realloc_unittest.cc)
-    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug)
+    target_link_libraries(realloc_debug_unittest PUBLIC tcmalloc_minimal_debug gtest)
     add_test(realloc_debug_unittest realloc_debug_unittest)
 
     if(WITH_STACK_TRACE)

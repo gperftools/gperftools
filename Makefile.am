@@ -458,7 +458,8 @@ endif !MINGW
 TESTS += realloc_unittest
 realloc_unittest_SOURCES = src/tests/realloc_unittest.cc
 realloc_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-realloc_unittest_LDADD = libtcmalloc_minimal.la
+realloc_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+realloc_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
 TESTS += thread_dealloc_unittest
 thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
@@ -545,7 +546,8 @@ TESTS += realloc_debug_unittest
 realloc_debug_unittest_SOURCES = $(realloc_unittest_SOURCES)
 realloc_debug_unittest_CXXFLAGS = $(realloc_unittest_CXXFLAGS)
 realloc_debug_unittest_LDFLAGS = $(realloc_unittest_LDFLAGS)
-realloc_debug_unittest_LDADD = libtcmalloc_minimal_debug.la
+realloc_debug_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+realloc_debug_unittest_LDADD = libtcmalloc_minimal_debug.la libgtest.la
 
 # debugallocation_test checks that we print a proper stacktrace when
 # debug-allocs fail, so we can't run it if we don't have stacktrace info.
