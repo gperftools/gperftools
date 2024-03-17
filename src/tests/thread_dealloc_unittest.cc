@@ -34,13 +34,14 @@
 // Check that we do not leak memory when cycling through lots of threads.
 
 #include "config_for_unittests.h"
-#include <stdio.h>
-#include "base/logging.h"
 #include <gperftools/malloc_extension.h>
 
+#include <stdio.h>
 #include <memory>
 #include <thread>
 #include <vector>
+
+#include "base/logging.h"
 
 // Size/number of objects to allocate per thread (1 MB per thread)
 static const int kObjectSize = 1024;
