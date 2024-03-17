@@ -435,7 +435,8 @@ current_allocated_bytes_test_LDADD = libtcmalloc_minimal.la libgtest.la
 TESTS += malloc_extension_test
 malloc_extension_test_SOURCES = src/tests/malloc_extension_test.cc
 malloc_extension_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-malloc_extension_test_LDADD = libtcmalloc_minimal.la
+malloc_extension_test_CPPFLAGS = $(gtest_CPPFLAGS)
+malloc_extension_test_LDADD = libtcmalloc_minimal.la libgtest.la
 
 TESTS += malloc_extension_c_test
 malloc_extension_c_test_SOURCES = src/tests/malloc_extension_c_test.cc
@@ -525,7 +526,8 @@ TESTS += malloc_extension_debug_test
 malloc_extension_debug_test_SOURCES = $(malloc_extension_test_SOURCES)
 malloc_extension_debug_test_CXXFLAGS = $(malloc_extension_test_CXXFLAGS)
 malloc_extension_debug_test_LDFLAGS = $(malloc_extension_test_LDFLAGS)
-malloc_extension_debug_test_LDADD = libtcmalloc_minimal_debug.la
+malloc_extension_debug_test_CPPFLAGS = $(gtest_CPPFLAGS)
+malloc_extension_debug_test_LDADD = libtcmalloc_minimal_debug.la libgtest.la
 
 if !MINGW
 if !OSX

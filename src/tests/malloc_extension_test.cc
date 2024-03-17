@@ -34,15 +34,17 @@
 // Simple test of malloc_extension.  Includes test of C shims.
 
 #include "config_for_unittests.h"
-#include <stdio.h>
-#include <sys/types.h>
-#include "base/logging.h"
+
 #include <gperftools/malloc_extension.h>
 #include <gperftools/malloc_extension_c.h>
 
-#include "tests/legacy_assertions.h"
+#include <stdio.h>
+#include <sys/types.h>
+#include "base/logging.h"
 
-int main(int argc, char** argv) {
+#include "gtest/gtest.h"
+
+TEST(MallocExtensionTest, Basics) {
   void* a = malloc(1000);
 
   size_t cxx_bytes_used, c_bytes_used;
@@ -58,8 +60,7 @@ int main(int argc, char** argv) {
 
   ASSERT_EQ(MallocExtension::kOwned,
             MallocExtension::instance()->GetOwnership(a));
-  // TODO(csilvers): this relies on undocumented behavior that
-  // GetOwnership works on stack-allocated variables.  Use a better test.
+
   ASSERT_EQ(MallocExtension::kNotOwned,
             MallocExtension::instance()->GetOwnership(&cxx_bytes_used));
   ASSERT_EQ(MallocExtension::kNotOwned,
@@ -94,7 +95,4 @@ int main(int argc, char** argv) {
             static_cast<int>(MallocExtension_kOwned));
   ASSERT_EQ(static_cast<int>(MallocExtension::kNotOwned),
             static_cast<int>(MallocExtension_kNotOwned));
-
-  printf("DONE\n");
-  return 0;
 }

@@ -711,7 +711,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     add_test(tcmalloc_minimal_debug_unittest tcmalloc_minimal_debug_unittest)
 
     add_executable(malloc_extension_debug_test src/tests/malloc_extension_test.cc)
-    target_link_libraries(malloc_extension_debug_test tcmalloc_minimal_debug)
+    target_link_libraries(malloc_extension_debug_test tcmalloc_minimal_debug gtest)
     add_test(malloc_extension_debug_test malloc_extension_debug_test)
 
     if(NOT MINGW AND NOT APPLE)
