@@ -30,99 +30,59 @@
 
 // ---
 // Author: Arun Sharma
-
 #include "config_for_unittests.h"
 
-#include "system-alloc.h"
+#include "gperftools/malloc_extension.h"
 
 #include <stdio.h>
-#include <stdint.h>             // to get uintptr_t
+#include <stdint.h>
 #include <sys/types.h>
 
 #include <algorithm>
 #include <limits>
 
-#include "base/logging.h"                // for Check_GEImpl, Check_LTImpl, etc
-#include "common.h"                      // for kAddressBits
-#include "gperftools/malloc_extension.h" // for MallocExtension::instance
-#include "gperftools/tcmalloc.h"
+#include "base/cleanup.h"
 #include "tests/testutil.h"
 
-class ArraySysAllocator : public SysAllocator {
+#include "gtest/gtest.h"
+
+class TestSysAllocator : public SysAllocator {
 public:
   // Was this allocator invoked at least once?
-  bool invoked_;
+  bool invoked_ = false;
 
-  ArraySysAllocator() : SysAllocator() {
-    ptr_ = 0;
-    invoked_ = false;
-  }
+  TestSysAllocator(SysAllocator* prev) : SysAllocator(), prev_(prev) {}
+  ~TestSysAllocator() override {}
 
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment) {
+  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override {
     invoked_ = true;
-
-    if (size > kArraySize) {
-      return NULL;
-    }
-
-    void *result = &array_[ptr_];
-    uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
-
-    if (actual_size) {
-      *actual_size = size;
-    }
-
-    // Try to get more memory for alignment
-    size_t extra = alignment - (ptr & (alignment-1));
-    size += extra;
-    CHECK_LT(ptr_ + size, kArraySize);
-
-    if ((ptr & (alignment-1)) != 0) {
-      ptr += alignment - (ptr & (alignment-1));
-    }
-
-    ptr_ += size;
-    return reinterpret_cast<void *>(ptr);
+    return prev_->Alloc(size, actual_size, alignment);
   }
-
-  void DumpStats() {
-  }
-
 private:
-  static const int kArraySize = 8 * 1024 * 1024;
-  char array_[kArraySize];
-  // We allocate the next chunk from here
-  int ptr_;
-
+  SysAllocator* const prev_;
 };
-const int ArraySysAllocator::kArraySize;
-ArraySysAllocator a;
 
-static void TestBasicInvoked() {
-  MallocExtension::instance()->SetSystemAllocator(&a);
+TEST(SystemAllocTest, GetsInvoked) {
+  SysAllocator* prev = MallocExtension::instance()->GetSystemAllocator();
+  tcmalloc::Cleanup restore_sys_allocator([prev] () {
+    MallocExtension::instance()->SetSystemAllocator(prev);
+  });
+
+  // Note, normally SysAllocator instances cannot be destroyed, but
+  // we're single-threaded isolated unit test. And we know what we're
+  // doing.
+  TestSysAllocator test_allocator{prev};
+  MallocExtension::instance()->SetSystemAllocator(&test_allocator);
 
   // An allocation size that is likely to trigger the system allocator.
-  // XXX: this is implementation specific.
-  char *p =  noopt(new char[1024 * 1024]);
+  char *p =  noopt(new char[20 << 20]);
   delete [] p;
 
   // Make sure that our allocator was invoked.
-  CHECK(a.invoked_);
+  ASSERT_TRUE(test_allocator.invoked_);
 }
 
-#if 0  // could port this to various OSs, but won't bother for now
-TEST(AddressBits, CpuVirtualBits) {
-  // Check that kAddressBits is as least as large as either the number of bits
-  // in a pointer or as the number of virtual bits handled by the processor.
-  // To be effective this test must be run on each processor model.
-  const int kPointerBits = 8 * sizeof(void*);
-  const int kImplementedVirtualBits = NumImplementedVirtualBits();
-
-  CHECK_GE(kAddressBits, std::min(kImplementedVirtualBits, kPointerBits));
-}
-#endif
-
-static void TestBasicRetryFailTest() {
+TEST(SystemAllocTest, RetryAfterFail) {
   // Check with the allocator still works after a failed allocation.
   //
   // There is no way to call malloc and guarantee it will fail.  malloc takes a
@@ -137,21 +97,13 @@ static void TestBasicRetryFailTest() {
   // If the second allocation succeeds, you will have to rewrite or
   // disable this test.
   // The weird parens are to avoid macro-expansion of 'max' on windows.
-  const size_t kHugeSize = (std::numeric_limits<size_t>::max)() / 2;
+  constexpr size_t kHugeSize = std::numeric_limits<size_t>::max() / 2;
   void* p1 = noopt(malloc(kHugeSize));
   void* p2 = noopt(malloc(kHugeSize));
-  CHECK(p2 == NULL);
-  if (p1 != NULL) free(p1);
+  ASSERT_EQ(p2, nullptr);
+
+  free(p1);
 
   char* q = noopt(new char[1024]);
-  CHECK(q != NULL);
   delete [] q;
-}
-
-int main(int argc, char** argv) {
-  TestBasicInvoked();
-  TestBasicRetryFailTest();
-
-  printf("PASS\n");
-  return 0;
 }

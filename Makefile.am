@@ -411,7 +411,8 @@ if !MINGW
 TESTS += system_alloc_unittest
 system_alloc_unittest_SOURCES = src/tests/system-alloc_unittest.cc
 system_alloc_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-system_alloc_unittest_LDADD = libtcmalloc_minimal.la
+system_alloc_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+system_alloc_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 endif !MINGW
 
 TESTS += frag_unittest
