@@ -136,6 +136,8 @@ public:
   MmapSysAllocator() : SysAllocator() {
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+private:
+  uintptr_t hint_ = 0;
 };
 static union {
   char buf[sizeof(MmapSysAllocator)];
@@ -249,7 +251,7 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
 void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
 #ifndef HAVE_MMAP
-  return NULL;
+  return nullptr;
 #else
   // Check if we should use mmap allocation.
   // FLAGS_malloc_skip_mmap starts out as false (its uninitialized
@@ -258,7 +260,7 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
   // Chances are we never get here before the flags are initialized since
   // sbrk is used until the heap is exhausted (before mmap is used).
   if (FLAGS_malloc_skip_mmap) {
-    return NULL;
+    return nullptr;
   }
 
   // Enforce page alignment
@@ -266,7 +268,7 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
   if (alignment < pagesize) alignment = pagesize;
   size_t aligned_size = ((size + alignment - 1) / alignment) * alignment;
   if (aligned_size < size) {
-    return NULL;
+    return nullptr;
   }
   size = aligned_size;
 
@@ -274,6 +276,29 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
   // p up to and including (p + actual_size - 1) have been allocated.
   if (actual_size) {
     *actual_size = size;
+  }
+
+  if (hint_ && hint_ + size > size && (hint_ & (alignment - 1)) == 0) {
+    // We try to 'continue' previous mapping. But we first check that
+    // alignment requirements are met and that it won't overflow
+    // address space.
+    void* result = mmap(reinterpret_cast<void*>(hint_), size,
+                        PROT_READ|PROT_WRITE,
+                        MAP_PRIVATE|MAP_ANONYMOUS,
+                        -1, 0);
+
+    uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
+
+    // If the new mapping (even if at different address than hint
+    // passed) requested alignment, then we return it.
+    if ((ptr & (alignment - 1)) == 0) {
+      hint_ = ptr + size;
+      return result;
+    }
+
+    // Otherwise, we unmap and run "full" logic that is able to align
+    // to arbitrary alignment. And that doesn't use hint.
+    munmap(result, size);
   }
 
   // Ask for extra memory if alignment > pagesize
@@ -286,12 +311,12 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
   //            size + alignment < (1<<NBITS).
   // and        extra <= alignment
   // therefore  size + extra < (1<<NBITS)
-  void* result = mmap(NULL, size + extra,
+  void* result = mmap(nullptr, size + extra,
                       PROT_READ|PROT_WRITE,
                       MAP_PRIVATE|MAP_ANONYMOUS,
                       -1, 0);
   if (result == reinterpret_cast<void*>(MAP_FAILED)) {
-    return NULL;
+    return nullptr;
   }
 
   // Adjust the return memory so it is aligned
@@ -310,6 +335,7 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
   }
 
   ptr += adjust;
+  hint_ = ptr + size;
   return reinterpret_cast<void*>(ptr);
 #endif  // HAVE_MMAP
 }
