@@ -59,35 +59,26 @@
 // (see the comment in our .h file).
 
 #include "config_for_unittests.h"
-#ifdef HAVE_POLL_H
-#include <poll.h>
-#endif
-#include <stdint.h>
-#include <sys/types.h>
-#include <stdlib.h>
-#include <errno.h>              // errno
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>             // for sleep(), geteuid()
-#endif
-#ifdef HAVE_MMAP
-#include <sys/mman.h>
-#endif
-#include <fcntl.h>              // for open(), close()
-#ifdef HAVE_EXECINFO_H
+
+#include <gperftools/heap-checker.h>
+
+#include <errno.h>
 #include <execinfo.h>           // backtrace
-#endif
-#ifdef HAVE_GRP_H
+#include <fcntl.h>
 #include <grp.h>                // getgrent, getgrnam
-#endif
-#ifdef HAVE_PWD_H
+#include <poll.h>
 #include <pwd.h>
-#endif
-#include <spawn.h> // for posix_spawn
-#include <sys/wait.h> // waitpid etc
+#include <spawn.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <sys/mman.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <unistd.h>
 
 #include <algorithm>
-#include <iostream>             // for cout
-#include <iomanip>              // for hex
+#include <iomanip>
+#include <iostream>
 #include <list>
 #include <map>
 #include <memory>
@@ -95,23 +86,14 @@
 #include <string>
 #include <vector>
 
-#include "base/commandlineflags.h"
-#include "base/googleinit.h"
-#include "base/logging.h"
-#include "base/commandlineflags.h"
-#include "base/linuxthreads.h"
-#include <gperftools/heap-checker.h>
-#include "memory_region_map.h"
 #include <gperftools/malloc_extension.h>
 #include <gperftools/stacktrace.h>
 
-// On systems (like freebsd) that don't define MAP_ANONYMOUS, use the old
-// form of the name instead.
-#ifndef MAP_ANONYMOUS
-# define MAP_ANONYMOUS MAP_ANON
-#endif
+#include "base/commandlineflags.h"
+#include "base/logging.h"
+#include "memory_region_map.h"
 
-using namespace std;
+#include "testing_portal.h"
 
 // ========================================================================= //
 
@@ -155,16 +137,17 @@ DEFINE_bool(no_threads,
             // This is used so we can make can_create_leaks_reliably true
             // for any pthread implementation and test with that.
 
-DECLARE_int64(heap_check_max_pointer_offset);   // heap-checker.cc
-DECLARE_string(heap_check);  // in heap-checker.cc
-
 #define WARN_IF(cond, msg)   LOG_IF(WARNING, cond, msg)
 
 // This is an evil macro!  Be very careful using it...
 #undef VLOG          // and we start by evilling overriding logging.h VLOG
-#define VLOG(lvl)    if (FLAGS_verbose >= (lvl))  cout << "\n"
+#define VLOG(lvl)    if (FLAGS_verbose >= (lvl))  std::cout << "\n"
 // This is, likewise, evil
 #define LOGF         VLOG(INFO)
+
+std::string_view GetHeapCheckFlag() {
+  return tcmalloc::TestingPortal::Get()->GetHeapCheckFlag();
+}
 
 static void RunHeapBusyThreads();  // below
 
@@ -315,7 +298,7 @@ static void UnHide(T** ptr) {
 
 static void LogHidden(const char* message, const void* ptr) {
   LOGF << message << " : "
-       << ptr << " ^ " << reinterpret_cast<void*>(kHideMask) << endl;
+       << ptr << " ^ " << reinterpret_cast<void*>(kHideMask) << std::endl;
 }
 
 // volatile to fool the compiler against inlining the calls to these
@@ -717,7 +700,7 @@ static void TestHeapLeakCheckerDisabling() {
   CHECK(check.SameHeap());
 }
 
-typedef set<int> IntSet;
+typedef std::set<int> IntSet;
 
 static int some_ints[] = { 1, 2, 3, 21, 22, 23, 24, 25 };
 
@@ -783,7 +766,7 @@ static void TestSTLAllocInverse() {
 
 template<class Alloc>
 static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
-  HeapLeakChecker check((string("direct_stl-") + name).c_str());
+  HeapLeakChecker check((std::string("direct_stl-") + name).c_str());
   static const int kSize = 1000;
   typename Alloc::value_type* ptrs[kSize];
   for (int i = 0; i < kSize; ++i) {
@@ -841,21 +824,15 @@ static void TestLibCAllocate() {
   strerror(errno);
   const time_t now = time(NULL);
   ctime(&now);
-#ifdef HAVE_EXECINFO_H
   void *stack[1];
   backtrace(stack, 1);
-#endif
 
   if (grplock.TryLock()) {
-#ifdef HAVE_GRP_H
     gid_t gid = getgid();
     getgrgid(gid);
     if (grp == NULL)  grp = getgrent();  // a race condition here is okay
     getgrnam(grp->gr_name);
-#endif
-#ifdef HAVE_PWD_H
     getpwuid(geteuid());
-#endif
     grplock.Unlock();
   }
 }
@@ -879,7 +856,7 @@ static void* HeapBusyThreadBody(void* a) {
   register int** ptr;
 #endif
   ptr = NULL;
-  typedef set<int> Set;
+  typedef std::set<int> Set;
   Set s1;
   while (1) {
     // TestLibCAllocate() calls libc functions that don't work so well
@@ -891,7 +868,7 @@ static void* HeapBusyThreadBody(void* a) {
       ptr = new(initialized) int*[1];
       *ptr = new(initialized) int[1];
     }
-    set<int>* s2 = new(initialized) set<int>[1];
+    std::set<int>* s2 = new(initialized) std::set<int>[1];
     s1.insert(random());
     s2->insert(*s1.begin());
     user += *s2->begin();
@@ -973,7 +950,7 @@ static void RunHeapBusyThreads() {
 // returns a "weird" pointer to a new object for which
 // it's worth checking that the object is reachable via that pointer.
 typedef void* (*ObjMakerFunc)();
-static list<ObjMakerFunc> obj_makers;  // list of registered object makers
+static std::list<ObjMakerFunc> obj_makers;  // list of registered object makers
 
 // Helper macro to register an object making function
 // 'name' is an identifier of this object maker,
@@ -995,7 +972,7 @@ struct ObjMakerRegistrar {
 
 // List of the objects/pointers made with all the obj_makers
 // to test reachability via global data pointers during leak checks.
-static list<void*>* live_objects = new list<void*>;
+static std::list<void*>* live_objects = new std::list<void*>;
   // pointer so that it does not get destructed on exit
 
 // Exerciser for one ObjMakerFunc.
@@ -1012,7 +989,7 @@ static void TestPointerReach(ObjMakerFunc obj_maker) {
 
 // Test all ObjMakerFunc registred via REGISTER_OBJ_MAKER.
 static void TestObjMakers() {
-  for (list<ObjMakerFunc>::const_iterator i = obj_makers.begin();
+  for (std::list<ObjMakerFunc>::const_iterator i = obj_makers.begin();
        i != obj_makers.end(); ++i) {
     TestPointerReach(*i);
     TestPointerReach(*i);  // a couple more times would not hurt
@@ -1086,11 +1063,12 @@ REGISTER_OBJ_MAKER(3_sized, void* p = malloc(3);)
 REGISTER_OBJ_MAKER(4_sized, void* p = malloc(4);)
 
 static int set_data[] = { 1, 2, 3, 4, 5, 6, 7, 21, 22, 23, 24, 25, 26, 27 };
-static set<int> live_leak_set(set_data, set_data+7);
-static const set<int> live_leak_const_set(set_data, set_data+14);
+static std::set<int> live_leak_set(set_data, set_data+7);
+static const std::set<int> live_leak_const_set(set_data, set_data+14);
 
-REGISTER_OBJ_MAKER(set,
-  set<int>* p = new(initialized) set<int>(set_data, set_data + 13);
+REGISTER_OBJ_MAKER(
+  set,
+  std::set<int>* p = new(initialized) std::set<int>(set_data, set_data + 13);
 )
 
 class ClassA {
@@ -1309,16 +1287,14 @@ static void VerifyMemoryRegionMapStackGet() {
   uintptr_t caller_addr_limit;
   void* addr = (*mmapper_addr)(&caller_addr_limit);
   uintptr_t caller = 0;
-  { MemoryRegionMap::LockHolder l;
-    for (MemoryRegionMap::RegionIterator
-           i = MemoryRegionMap::BeginRegionLocked();
-           i != MemoryRegionMap::EndRegionLocked(); ++i) {
-      if (i->start_addr == reinterpret_cast<uintptr_t>(addr)) {
+  tcmalloc::TestingPortal::Get()->IterateMemoryRegionMap(
+    [&] (const void* _region) {
+      const MemoryRegionMap::Region* region = static_cast<const MemoryRegionMap::Region*>(_region);
+      if (region->start_addr == reinterpret_cast<uintptr_t>(addr)) {
         CHECK_EQ(caller, 0);
-        caller = i->caller();
+        caller = region->caller();
       }
-    }
-  }
+    });
   // caller must point into Mmapper function:
   if (!(GetFunctionAddress(mmapper_addr) <= caller  &&
         caller < caller_addr_limit)) {
@@ -1423,7 +1399,7 @@ int main(int argc, char** argv) {
   run_hidden_ptr = DoRunHidden;
   wipe_stack_ptr = DoWipeStack;
   if (!HeapLeakChecker::IsActive()) {
-    CHECK_EQ(FLAGS_heap_check, "");
+    CHECK_EQ(GetHeapCheckFlag(), "");
     LOG(WARNING, "HeapLeakChecker got turned off; we won't test much...");
   } else {
     VerifyMemoryRegionMapStackGet();
@@ -1449,7 +1425,7 @@ int main(int argc, char** argv) {
   }
   TestLibCAllocate();
 
-  LOGF << "In main(): heap_check=" << FLAGS_heap_check << endl;
+  LOGF << "In main(): heap_check=" << GetHeapCheckFlag() << std::endl;
 
   CHECK(HeapLeakChecker::NoGlobalLeaks());  // so far, so good
 
@@ -1550,14 +1526,14 @@ int main(int argc, char** argv) {
   DTSL(std::allocator<char>());
   DTSL(std::allocator<int>());
   DTSL(std::string().get_allocator());
-  DTSL(string().get_allocator());
-  DTSL(vector<int>().get_allocator());
-  DTSL(vector<double>().get_allocator());
-  DTSL(vector<vector<int> >().get_allocator());
-  DTSL(vector<string>().get_allocator());
-  DTSL((map<string, string>().get_allocator()));
-  DTSL((map<string, int>().get_allocator()));
-  DTSL(set<char>().get_allocator());
+  DTSL(std::string().get_allocator());
+  DTSL(std::vector<int>().get_allocator());
+  DTSL(std::vector<double>().get_allocator());
+  DTSL(std::vector<std::vector<int> >().get_allocator());
+  DTSL(std::vector<std::string>().get_allocator());
+  DTSL((std::map<std::string, std::string>().get_allocator()));
+  DTSL((std::map<std::string, int>().get_allocator()));
+  DTSL(std::set<char>().get_allocator());
 #undef DTSL
 
   TestLibCAllocate();

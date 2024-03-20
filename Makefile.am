@@ -749,7 +749,7 @@ heap-checker-death_unittest.sh$(EXEEXT): $(heap_checker_death_unittest_sh_SOURCE
 TESTS += heap-checker_unittest
 heap_checker_unittest_SOURCES = src/tests/heap-checker_unittest.cc
 heap_checker_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-heap_checker_unittest_LDADD = libtcmalloc.la
+heap_checker_unittest_LDADD = libtcmalloc.la libcommon.la
 
 endif WITH_HEAP_CHECKER
 
@@ -815,7 +815,7 @@ TESTS += heap-checker_debug_unittest
 heap_checker_debug_unittest_SOURCES = $(heap_checker_unittest_SOURCES)
 heap_checker_debug_unittest_CXXFLAGS = $(heap_checker_unittest_CXXFLAGS)
 heap_checker_debug_unittest_LDFLAGS = $(heap_checker_unittest_LDFLAGS)
-heap_checker_debug_unittest_LDADD = libtcmalloc_debug.la
+heap_checker_debug_unittest_LDADD = libtcmalloc_debug.la libcommon.la
 
 endif WITH_HEAP_CHECKER
 endif WITH_DEBUGALLOC
