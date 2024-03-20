@@ -31,7 +31,7 @@ bool HaveSystemRelease() {
   return have;
 }
 
-#if __linux__
+#if __linux__ || __APPLE__ || _WIN32 || __FreeBSD__ || __NetBSD__
 TEST(PageHeapTest, HaveSystemRelease) {
   ASSERT_TRUE(HaveSystemRelease());
 }
