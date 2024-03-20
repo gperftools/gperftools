@@ -404,7 +404,8 @@ tcmalloc_minimal_large_unittest_LDADD = libtcmalloc_minimal.la
 TESTS += tcmalloc_minimal_large_heap_fragmentation_unittest
 tcmalloc_minimal_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
 tcmalloc_minimal_large_heap_fragmentation_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = libtcmalloc_minimal.la
+tcmalloc_minimal_large_heap_fragmentation_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_minimal_large_heap_fragmentation_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
 if !MINGW
 TESTS += system_alloc_unittest
@@ -710,7 +711,8 @@ tcmalloc_large_unittest_LDADD = libtcmalloc.la $(PTHREAD_LIBS)
 TESTS += tcmalloc_large_heap_fragmentation_unittest
 tcmalloc_large_heap_fragmentation_unittest_SOURCES = src/tests/large_heap_fragmentation_unittest.cc
 tcmalloc_large_heap_fragmentation_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-tcmalloc_large_heap_fragmentation_unittest_LDADD = libtcmalloc.la
+tcmalloc_large_heap_fragmentation_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+tcmalloc_large_heap_fragmentation_unittest_LDADD = libtcmalloc.la libgtest.la
 
 # These unittests often need to run binaries.  They're in the current dir
 TESTS_ENVIRONMENT += BINDIR=.

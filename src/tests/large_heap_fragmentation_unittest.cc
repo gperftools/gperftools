@@ -29,19 +29,25 @@
 // meg) page spans. It makes sure that allocations/releases of
 // increasing memory chunks do not blowup memory
 // usage. See also https://github.com/gperftools/gperftools/issues/371
+#include "config.h"
 
+#include <gperftools/malloc_extension.h>
+#include <gperftools/tcmalloc.h>
 
 #include <stddef.h>
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "base/logging.h"
-#include "common.h"
-#include <gperftools/malloc_extension.h>
-#include <gperftools/tcmalloc.h>
+#include "gtest/gtest.h"
 
+TEST(LargeHeapFragmentationTest, Basic) {
+  // First grow heap by single large amount, to ensure that we do have
+  // a big chunk of consecutive memory. Otherwise details of
+  // sys-allocator behavior may trigger fragmentation regardless of
+  // our mitigations.
+  tc_free(tc_malloc(550 << 20));
+  MallocExtension::instance()->ReleaseFreeMemory();
 
-int main (int argc, char** argv) {
   for (int pass = 1; pass <= 3; pass++) {
     size_t size = 100*1024*1024;
     while (size < 500*1024*1024) {
@@ -50,14 +56,11 @@ int main (int argc, char** argv) {
       size += 20000;
 
       size_t heap_size = static_cast<size_t>(-1);
-      MallocExtension::instance()->GetNumericProperty("generic.heap_size",
-                                                      &heap_size);
+      ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty(
+                    "generic.heap_size",
+                    &heap_size));
 
-
-      CHECK_LT(heap_size, 1*1024*1024*1024);
+      ASSERT_LT(heap_size, 1 << 30);
     }
   }
-
-  printf("PASS\n");
-  return 0;
 }

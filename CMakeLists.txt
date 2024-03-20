@@ -574,7 +574,7 @@ if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_large_heap_fragmentation_unittest
           src/tests/large_heap_fragmentation_unittest.cc)
   target_link_libraries(
-          tcmalloc_minimal_large_heap_fragmentation_unittest tcmalloc_minimal)
+          tcmalloc_minimal_large_heap_fragmentation_unittest tcmalloc_minimal gtest)
   add_test(tcmalloc_minimal_large_heap_fragmentation_unittest tcmalloc_minimal_large_heap_fragmentation_unittest)
 
   add_executable(addressmap_unittest
@@ -802,7 +802,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_test(tcmalloc_large_unittest tcmalloc_large_unittest)
 
     add_executable(tcmalloc_large_heap_fragmentation_unittest src/tests/large_heap_fragmentation_unittest.cc)
-    target_link_libraries(tcmalloc_large_heap_fragmentation_unittest tcmalloc)
+    target_link_libraries(tcmalloc_large_heap_fragmentation_unittest tcmalloc gtest)
     add_test(tcmalloc_large_heap_fragmentation_unittest tcmalloc_large_heap_fragmentation_unittest)
 
     # sampler_test and sampling_test both require sampling to be turned
