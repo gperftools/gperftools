@@ -60,7 +60,7 @@ static const int kHookListSingularIdx = 7;
 // HookList: a class that provides synchronized insertions and removals and
 // lockless traversal.  Most of the implementation is in malloc_hook.cc.
 template <typename T>
-struct PERFTOOLS_DLL_DECL HookList {
+struct HookList {
   static_assert(sizeof(T) <= sizeof(uintptr_t), "must fit in uintptr_t");
 
   constexpr HookList() = default;

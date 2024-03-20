@@ -89,7 +89,7 @@ class LogItem {
   } u_;
 };
 
-extern PERFTOOLS_DLL_DECL void Log(LogMode mode, const char* filename, int line,
+extern void Log(LogMode mode, const char* filename, int line,
                 LogItem a, LogItem b = LogItem(),
                 LogItem c = LogItem(), LogItem d = LogItem());
 
