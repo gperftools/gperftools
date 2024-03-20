@@ -78,7 +78,7 @@ PERFTOOLS_DLL_DECL void HeapProfilerStart(const char* prefix);
  * also if the program has been run with HEAPPROFILER, or some other
  * way to turn on whole-program profiling.
  */
-int IsHeapProfilerRunning();
+PERFTOOLS_DLL_DECL int IsHeapProfilerRunning();
 
 /* Stop heap profiling.  Can be restarted again with HeapProfilerStart(),
  * but the currently accumulated profiling information will be cleared.
