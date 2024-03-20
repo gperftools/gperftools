@@ -475,15 +475,17 @@ AS_IF([test "x$ac_cv_header_execinfo_h" = xyes],
      LIBS=$save_LIBS]))
 AC_SUBST(STACKTRACE_UNITTEST_LIBS)
 
-# For windows, this has a non-trivial value (__declspec(export)), but any
-# system that uses configure wants this to be the empty string.
-AC_DEFINE(PERFTOOLS_DLL_DECL,,
-          [Always the empty-string on non-windows systems.
-           On windows, should be "__declspec(dllexport)".
-	   This way, when we compile the dll, we export our functions/classes.
-	   It's safe to define this here because config.h is only used
-	   internally, to compile the DLL, and every DLL source file
-	   #includes "config.h" before anything else.])
+AC_ARG_ENABLE([hidden-visibility],
+              [AS_HELP_STRING([--enable-hidden-visibility],
+                              [build libraries with -fvisibility=hidden])],
+              [enable_visibility=yes],
+              [enable_visibility=no])
+
+AC_DEFINE([PERFTOOLS_DLL_DECL], [], [dllexport or attribute visibility])
+
+AS_IF([test "x$enable_visibility" = xyes],
+  [AC_DEFINE([PERFTOOLS_DLL_DECL], [__attribute((visibility("default")))], [])
+   CXXFLAGS="-fvisibility=hidden $CXXFLAGS"])
 
 # In theory, config.h files shouldn't need a header guard.
 # Now there were historical reasons for doing so
