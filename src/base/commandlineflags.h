@@ -57,13 +57,13 @@
 
 #define DECLARE_VARIABLE(type, name)                                          \
   namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead {  \
-  extern PERFTOOLS_DLL_DECL type FLAGS_##name;                                \
+  extern type FLAGS_##name;                                \
   }                                                                           \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead::FLAGS_##name
 
 #define DEFINE_VARIABLE(type, name, value, meaning) \
   namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead {  \
-  PERFTOOLS_DLL_DECL type FLAGS_##name(value);                                \
+  type FLAGS_##name(value);                                \
   char FLAGS_no##name;                                                        \
   }                                                                           \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead::FLAGS_##name
