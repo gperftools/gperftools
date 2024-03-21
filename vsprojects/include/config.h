@@ -80,9 +80,6 @@
 /* Define to 1 if you have the <glob.h> header file. */
 /* #undef HAVE_GLOB_H */
 
-/* Define to 1 if you have the <grp.h> header file. */
-/* #undef HAVE_GRP_H */
-
 /* Define to 1 if you have the <libunwind.h> header file. */
 /* #undef HAVE_LIBUNWIND_H */
 
@@ -100,9 +97,6 @@
 
 /* define if libc has program_invocation_name */
 /* #undef HAVE_PROGRAM_INVOCATION_NAME */
-
-/* Define to 1 if you have the <pwd.h> header file. */
-/* #undef HAVE_PWD_H */
 
 /* Define to 1 if you have the `sbrk' function. */
 /* #undef HAVE_SBRK */
