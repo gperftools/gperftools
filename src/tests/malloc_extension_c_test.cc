@@ -34,6 +34,8 @@
  * This tests the c shims: malloc_extension_c.h and malloc_hook_c.h.
  */
 
+#include "config.h"
+
 #include <gperftools/malloc_extension_c.h>
 #include <gperftools/malloc_hook_c.h>
 #include <gperftools/tcmalloc.h>
