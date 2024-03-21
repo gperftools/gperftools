@@ -55,7 +55,7 @@
 # error libc_override_gcc_and_weak.h is for gcc distributions only.
 #endif
 
-#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn), used))
+#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn), used)) PERFTOOLS_DLL_DECL
 
 void* operator new(size_t size) CPP_BADALLOC  ALIAS(tc_new);
 void operator delete(void* p) CPP_NOTHROW     ALIAS(tc_delete);

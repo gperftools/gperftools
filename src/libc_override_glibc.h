@@ -70,7 +70,7 @@
 // do it inside the gcc #ifdef, since redhat uses gcc.
 // TODO(csilvers): only do this if we detect we're an old enough glibc?
 
-#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn)))
+#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn))) PERFTOOLS_DLL_DECL
 extern "C" {
   void* __libc_malloc(size_t size)                ALIAS(tc_malloc);
   void __libc_free(void* ptr)                     ALIAS(tc_free);
