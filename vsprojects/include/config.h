@@ -65,9 +65,6 @@
 /* Define to 1 if you have the <dlfcn.h> header file. */
 /* #undef HAVE_DLFCN_H */
 
-/* Define to 1 if the system has the type `Elf32_Versym'. */
-/* #undef HAVE_ELF32_VERSYM */
-
 /* Define to 1 if you have the <execinfo.h> header file. */
 /* #undef HAVE_EXECINFO_H */
 

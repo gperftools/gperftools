@@ -186,9 +186,6 @@ check_c_source_compiles("#include <stdlib.h>
 set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
 check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
 check_type_size("struct mallinfo2" STRUCT_MALLINFO2 LANGUAGE CXX)
-set(CMAKE_EXTRA_INCLUDE_FILES "elf.h")
-check_type_size("Elf32_Versym" ELF32_VERSYM LANGUAGE CXX) # for vdso_support.h
-set(CMAKE_EXTRA_INCLUDE_FILES)
 check_function_exists("sbrk" HAVE_SBRK) # for tcmalloc to get memory
 check_function_exists("__sbrk" HAVE___SBRK) # for tcmalloc to get memory
 check_function_exists("geteuid" HAVE_GETEUID) # for turning off services when run as root

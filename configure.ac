@@ -253,7 +253,6 @@ AC_MSG_RESULT($ac_cv___attribute__aligned_fn)
 # TODO(csilvers): we could remove a lot when WITH_CPU_PROFILER etc is "no".
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
 AC_CHECK_TYPES([struct mallinfo2],,, [#include <malloc.h>])
-AC_CHECK_TYPES([Elf32_Versym],,, [#include <elf.h>])   # for vdso_support.h
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(__sbrk)          # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
