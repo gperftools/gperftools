@@ -37,13 +37,10 @@
 #define BASE_ELF_MEM_IMAGE_H_
 
 #include <config.h>
-#ifdef HAVE_FEATURES_H
-#include <features.h>   // for __GLIBC__
-#endif
 
-// Maybe one day we can rewrite this file not to require the elf
-// symbol extensions in glibc, but for right now we need them.
-#if defined(__ELF__) && defined(__GLIBC__) && !defined(__native_client__)
+// Note, in gperftools we only use it on GNU/Linux PPC and nowhere
+// else.
+#if defined(__linux__) && defined(__PPC__)
 
 #define HAVE_ELF_MEM_IMAGE 1
 
