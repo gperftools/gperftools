@@ -152,9 +152,6 @@
 /* Define to 1 if you have the `__sbrk' function. */
 #cmakedefine01 HAVE___SBRK
 
-/* prefix where we look for installed files */
-#cmakedefine INSTALL_PREFIX
-
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 #cmakedefine LT_OBJDIR
 

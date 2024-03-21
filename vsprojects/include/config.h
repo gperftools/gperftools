@@ -164,9 +164,6 @@
 /* Define to 1 if you have the `__sbrk' function. */
 /* #undef HAVE___SBRK */
 
-/* prefix where we look for installed files */
-/* #undef INSTALL_PREFIX */
-
 /* Define to the sub-directory where libtool stores uninstalled libraries. */
 /* #undef LT_OBJDIR */
 

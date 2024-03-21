@@ -449,9 +449,6 @@ AX_PTHREAD
 # Figure out where libc has program_invocation_name
 AC_PROGRAM_INVOCATION_NAME
 
-# Make the install prefix available, to figure out where to look for pprof
-AC_INSTALL_PREFIX
-
 dnl only very recent mingw has sleep and nanosleep
 case "$host" in
    *-mingw*)
