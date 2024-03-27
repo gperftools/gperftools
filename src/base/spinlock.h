@@ -46,6 +46,7 @@
 
 #include "base/basictypes.h"
 #include "base/dynamic_annotations.h"
+#include "base/static_storage.h"
 #include "base/thread_annotations.h"
 
 class LOCKABLE SpinLock {
@@ -128,7 +129,7 @@ public:
       return false;
     }
 
-    SpinLockHolder h(reinterpret_cast<SpinLock*>(&lock_storage_));
+    SpinLockHolder h(lock_storage_.get());
 
     if (done_atomic->load(std::memory_order_relaxed) == 1) {
       // barrier provided by lock
@@ -141,7 +142,7 @@ public:
 
 private:
   int done_flag_;
-  alignas(alignof(SpinLock)) char lock_storage_[sizeof(SpinLock)];
+  StaticStorage<SpinLock> lock_storage_;
 };
 
 static_assert(std::is_trivial<TrivialOnce>::value == true, "");
