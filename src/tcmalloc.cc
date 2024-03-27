@@ -591,14 +591,14 @@ public:
     abort();
   }
 
-  std::string_view GetHeapCheckFlag() {
+  std::string_view GetHeapCheckFlag() override {
 #ifndef NO_HEAP_CHECK
     return FLAGS_heap_check;
 #else
     return "";
 #endif
   }
-  void IterateMemoryRegionMap(tcmalloc::FunctionRef<void(const void*)> callback) {
+  void IterateMemoryRegionMap(tcmalloc::FunctionRef<void(const void*)> callback) override {
 #ifndef NO_HEAP_CHECK
     DoIterateMemoryRegionMap(callback);
 #endif
