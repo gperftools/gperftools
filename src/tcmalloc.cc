@@ -592,11 +592,7 @@ public:
   }
 
   bool HasEmergencyMalloc() override {
-#if ENABLE_EMERGENCY_MALLOC
-    return true;
-#else
-    return false;
-#endif
+    return kUseEmergencyMalloc;
   }
 
   void WithEmergencyMallocEnabled(FunctionRef<void()> body) override {
