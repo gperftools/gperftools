@@ -33,6 +33,8 @@
 
 #include "emergency_malloc.h"
 
+#include <tuple>
+
 #include <errno.h>                      // for ENOMEM, errno
 #include <string.h>                     // for memset
 
@@ -41,6 +43,7 @@
 #include "base/low_level_alloc.h"
 #include "base/spinlock.h"
 #include "internal_logging.h"
+#include "mmap_hook.h"
 #include "thread_cache_ptr.h"
 
 namespace tcmalloc {
@@ -69,9 +72,8 @@ class EmergencyArenaPagesAllocator : public LowLevelAlloc::PagesAllocator {
 };
 
 static void InitEmergencyMalloc(void) {
-  constexpr int32_t flags = LowLevelAlloc::kAsyncSignalSafe;
-
-  void *arena = LowLevelAlloc::GetDefaultPagesAllocator()->MapPages(flags, kEmergencyArenaSize * 2);
+  auto [arena, success] = DirectAnonMMap(false, kEmergencyArenaSize * 2);
+  CHECK_CONDITION(success);
 
   uintptr_t arena_ptr = reinterpret_cast<uintptr_t>(arena);
   uintptr_t ptr = (arena_ptr + kEmergencyArenaSize - 1) & ~(kEmergencyArenaSize-1);
@@ -90,12 +92,12 @@ static void InitEmergencyMalloc(void) {
   uintptr_t head_unmap_size = ptr - arena_ptr;
   CHECK_CONDITION(head_unmap_size < kEmergencyArenaSize);
   if (head_unmap_size != 0) {
-    LowLevelAlloc::GetDefaultPagesAllocator()->UnMapPages(flags, arena, ptr - arena_ptr);
+    DirectMUnMap(false, arena, ptr - arena_ptr);
   }
 
   uintptr_t tail_unmap_size = kEmergencyArenaSize - head_unmap_size;
   void *tail_start = reinterpret_cast<void *>(arena_ptr + head_unmap_size + kEmergencyArenaSize);
-  LowLevelAlloc::GetDefaultPagesAllocator()->UnMapPages(flags, tail_start, tail_unmap_size);
+  DirectMUnMap(false, tail_start, tail_unmap_size);
 }
 
 ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {
