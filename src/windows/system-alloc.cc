@@ -57,7 +57,7 @@ public:
   }
   void* Alloc(size_t size, size_t *actual_size, size_t alignment);
 };
-static char virtual_space[sizeof(VirtualSysAllocator)];
+static tcmalloc::StaticStorage<VirtualSysAllocator> virtual_space;
 
 // This is mostly like MmapSysAllocator::Alloc, except it does these weird
 // munmap's in the middle of the page, which is forbidden in windows.
@@ -121,7 +121,7 @@ SysAllocator* tc_get_sysalloc_override(SysAllocator *def)
 
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
-  VirtualSysAllocator *alloc = new (virtual_space) VirtualSysAllocator();
+  VirtualSysAllocator *alloc = virtual_space.Construct();
   tcmalloc_sys_alloc = tc_get_sysalloc_override(alloc);
 }
 
