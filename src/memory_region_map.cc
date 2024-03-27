@@ -192,7 +192,7 @@ void MemoryRegionMap::Init(int max_stack_depth, bool use_buckets) NO_THREAD_SAFE
   // Note that Init() can be (and is) sometimes called
   // already from within an mmap/sbrk hook.
   recursive_insert = true;
-  arena_ = LowLevelAlloc::NewArena(LowLevelAlloc::DefaultArena());
+  arena_ = LowLevelAlloc::NewArena(nullptr);
   recursive_insert = false;
   HandleSavedRegionsLocked(&InsertRegionLocked);  // flush the buffered ones
     // Can't instead use HandleSavedRegionsLocked(&DoInsertRegionLocked) before

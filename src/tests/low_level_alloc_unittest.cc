@@ -84,7 +84,7 @@ static void ExerciseAllocator(bool use_new_arena, int n) {
   int rnd;
   LowLevelAlloc::Arena *arena = 0;
   if (use_new_arena) {
-    arena = LowLevelAlloc::NewArena(LowLevelAlloc::DefaultArena());
+    arena = LowLevelAlloc::NewArena(nullptr);
   }
   for (int i = 0; i != n; i++) {
     if (i != 0 && i % 10000 == 0) {

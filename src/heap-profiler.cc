@@ -405,7 +405,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
     tcmalloc::HookMMapEvents(&mmap_logging_hook_space, LogMappingEvent);
   }
 
-  heap_profiler_memory = LowLevelAlloc::NewArena(LowLevelAlloc::DefaultArena());
+  heap_profiler_memory = LowLevelAlloc::NewArena(nullptr);
 
   heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
       HeapProfileTable(ProfilerMalloc, ProfilerFree, FLAGS_mmap_profile);

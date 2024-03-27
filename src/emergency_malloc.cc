@@ -84,7 +84,7 @@ static void InitEmergencyMalloc(void) {
   static StaticStorage<EmergencyArenaPagesAllocator> pages_allocator_place;
   EmergencyArenaPagesAllocator* allocator = pages_allocator_place.Construct();
 
-  emergency_arena = LowLevelAlloc::NewArenaWithCustomAlloc(LowLevelAlloc::DefaultArena(), allocator);
+  emergency_arena = LowLevelAlloc::NewArenaWithCustomAlloc(nullptr, allocator);
 
   emergency_arena_start_shifted = reinterpret_cast<uintptr_t>(emergency_arena_start) >> kEmergencyArenaShift;
 

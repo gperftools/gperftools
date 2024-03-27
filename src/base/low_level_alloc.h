@@ -41,16 +41,6 @@
 #include <stddef.h>             // for size_t
 #include "base/basictypes.h"
 
-#ifndef __APPLE__
-// As of now, whatever clang version apple ships (clang-1205.0.22.11),
-// somehow miscompiles LowLevelAlloc when we try this section
-// thingy. Thankfully, we only need this section stuff heap leak
-// checker which is Linux-only anyways.
-#define ATTR_MALLOC_SECTION ATTRIBUTE_SECTION(malloc_hook)
-#else
-#define ATTR_MALLOC_SECTION
-#endif
-
 class LowLevelAlloc {
  public:
   class PagesAllocator {
@@ -60,8 +50,6 @@ class LowLevelAlloc {
     virtual void UnMapPages(void *addr, size_t size) = 0;
   };
 
-  static PagesAllocator *GetDefaultPagesAllocator(void);
-
   struct Arena;       // an arena from which memory may be allocated
 
   // Returns a pointer to a block of at least "request" bytes
@@ -70,27 +58,23 @@ class LowLevelAlloc {
   // Returns 0 if passed request==0.
   // Does not return 0 under other circumstances; it crashes if memory
   // is not available.
-  static void *Alloc(size_t request)
-    ATTR_MALLOC_SECTION;
-  static void *AllocWithArena(size_t request, Arena *arena)
-    ATTR_MALLOC_SECTION;
+  //
+  // Passing nullptr arena implies use of DefaultArena
+  static void *AllocWithArena(size_t request, Arena *arena);
+  // Equivalent to AllocWithArena(request, nullptr)
+  static void *Alloc(size_t request);
 
   // Deallocates a region of memory that was previously allocated with
   // Alloc().   Does nothing if passed 0.   "s" must be either 0,
   // or must have been returned from a call to Alloc() and not yet passed to
   // Free() since that call to Alloc().  The space is returned to the arena
   // from which it was allocated.
-  static void Free(void *s) ATTR_MALLOC_SECTION;
-
-  // ATTR_MALLOC_SECTION for Alloc* and Free
-  // are to put all callers of MallocHook::Invoke* in this module
-  // into special section,
-  // so that MallocHook::GetCallerStackTrace can function accurately.
+  static void Free(void *s);
 
   static Arena *NewArena(Arena *meta_data_arena);
 
   // note: pages allocator will never be destroyed and allocated pages will never be freed
-  // When allocator is NULL, it's same as NewArena
+  // When allocator is nullptr, it's same as NewArena
   static Arena *NewArenaWithCustomAlloc(Arena *meta_data_arena, PagesAllocator *allocator);
 
   // Destroys an arena allocated by NewArena and returns true,
@@ -100,10 +84,10 @@ class LowLevelAlloc {
   // It is illegal to attempt to destroy the DefaultArena().
   static bool DeleteArena(Arena *arena);
 
-  // The default arena that always exists.
-  static Arena *DefaultArena();
-
  private:
+  static Arena *DefaultArena();
+  static PagesAllocator *GetDefaultPagesAllocator(void);
+
   LowLevelAlloc();      // no instances
 };
 
