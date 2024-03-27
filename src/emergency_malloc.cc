@@ -42,6 +42,7 @@
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
 #include "base/spinlock.h"
+#include "base/static_storage.h"
 #include "internal_logging.h"
 #include "mmap_hook.h"
 #include "thread_cache_ptr.h"
@@ -80,11 +81,9 @@ static void InitEmergencyMalloc(void) {
 
   emergency_arena_end = emergency_arena_start = reinterpret_cast<char *>(ptr);
 
-  static struct alignas(alignof(EmergencyArenaPagesAllocator)) {
-    uint8_t bytes[sizeof(EmergencyArenaPagesAllocator)];
-  } pages_allocator_place;
+  static StaticStorage<EmergencyArenaPagesAllocator> pages_allocator_place;
+  EmergencyArenaPagesAllocator* allocator = pages_allocator_place.Construct();
 
-  EmergencyArenaPagesAllocator *allocator = new (&pages_allocator_place) EmergencyArenaPagesAllocator();
   emergency_arena = LowLevelAlloc::NewArenaWithCustomAlloc(0, LowLevelAlloc::DefaultArena(), allocator);
 
   emergency_arena_start_shifted = reinterpret_cast<uintptr_t>(emergency_arena_start) >> kEmergencyArenaShift;
