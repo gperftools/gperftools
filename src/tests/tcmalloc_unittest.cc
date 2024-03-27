@@ -820,6 +820,7 @@ TEST(TCMallocTest, OperatorsNewOOMs) {
         (MallocHook::hook_type)&IncrementCallsTo##hook_type));          \
   }                                                                     \
   static void Reset##hook_type() {                                      \
+    g_##hook_type##_calls = 0;                                          \
     CHECK(MallocHook::Remove##hook_type(                                \
         (MallocHook::hook_type)&IncrementCallsTo##hook_type));          \
   }
@@ -1306,6 +1307,12 @@ TEST(TCMallocTest, AllTests) {
     // tcmalloc version of these routines, and not the libc version.
     SetNewHook();      // defined as part of MAKE_HOOK_CALLBACK, above
     SetDeleteHook();   // ditto
+    tcmalloc::Cleanup unhook([] () {
+      // Reset the hooks to what they used to be.  These are all
+      // defined as part of MAKE_HOOK_CALLBACK, above.
+      ResetNewHook();
+      ResetDeleteHook();
+    });
 
     void* p1 = noopt(malloc)(10);
     ASSERT_NE(p1, nullptr);    // force use of this variable
@@ -1492,11 +1499,6 @@ TEST(TCMallocTest, AllTests) {
     free(p2);
     VerifyDeleteHookWasCalled();
 #endif
-
-    // Reset the hooks to what they used to be.  These are all
-    // defined as part of MAKE_HOOK_CALLBACK, above.
-    ResetNewHook();
-    ResetDeleteHook();
   }
 
   // Check that "lots" of memory can be allocated
@@ -1552,6 +1554,46 @@ TEST(TCMallocTest, AllTests) {
       free(large_object);
     }
   }
+}
+
+TEST(TCMallocTest, EmergencyMalloc) {
+  auto portal = TestingPortal::Get();
+  if (!portal->HasEmergencyMalloc()) {
+    return;
+  }
+
+  SetNewHook();
+  SetDeleteHook();
+  tcmalloc::Cleanup unhook([] () {
+    ResetNewHook();
+    ResetDeleteHook();
+  });
+
+  void* p1 = noopt(malloc)(32);
+  void* p2 = nullptr;
+
+  VerifyNewHookWasCalled();
+
+  portal->WithEmergencyMallocEnabled([&] () {
+    p2 = noopt(malloc)(32);
+  });
+
+  ASSERT_NE(p2, nullptr);
+
+  // Emergency malloc doesn't call hook
+  ASSERT_EQ(g_NewHook_calls, 0);
+
+  // Emergency malloc doesn't return pointers recognized by MallocExtension
+  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p1), MallocExtension::kOwned);
+  ASSERT_NE(MallocExtension::instance()->GetOwnership(p2), MallocExtension::kOwned);
+
+  // Emergency malloc automagically does the right thing for free()
+  // calls and doesn't invoke hooks.
+  free(p2);
+  ASSERT_EQ(g_DeleteHook_calls, 0);
+
+  free(p1);
+  VerifyDeleteHookWasCalled();
 }
 
 TEST(TCMallocTest, Version) {

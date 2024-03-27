@@ -591,6 +591,22 @@ public:
     abort();
   }
 
+  bool HasEmergencyMalloc() override {
+#if ENABLE_EMERGENCY_MALLOC
+    return true;
+#else
+    return false;
+#endif
+  }
+
+  void WithEmergencyMallocEnabled(FunctionRef<void()> body) override {
+#if ENABLE_EMERGENCY_MALLOC
+    StacktraceScope scope;
+    CHECK(scope.IsStacktraceAllowed());
+    body();
+#endif
+  }
+
   std::string_view GetHeapCheckFlag() override {
 #ifndef NO_HEAP_CHECK
     return FLAGS_heap_check;
@@ -598,7 +614,7 @@ public:
     return "";
 #endif
   }
-  void IterateMemoryRegionMap(tcmalloc::FunctionRef<void(const void*)> callback) override {
+  void IterateMemoryRegionMap(FunctionRef<void(const void*)> callback) override {
 #ifndef NO_HEAP_CHECK
     DoIterateMemoryRegionMap(callback);
 #endif

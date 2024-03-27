@@ -76,9 +76,12 @@ public:
   virtual double& GetReleaseRate() = 0;
   virtual int32_t& GetMaxFreeQueueSize() = 0;
 
+  virtual bool HasEmergencyMalloc() = 0;
+  virtual void WithEmergencyMallocEnabled(FunctionRef<void()> body) = 0;
+
   // For heap checker unit test
   virtual std::string_view GetHeapCheckFlag() = 0;
-  virtual void IterateMemoryRegionMap(tcmalloc::FunctionRef<void(const void*)> callback) = 0;
+  virtual void IterateMemoryRegionMap(FunctionRef<void(const void*)> callback) = 0;
 
 protected:
   virtual ~TestingPortal();
