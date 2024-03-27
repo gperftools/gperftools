@@ -58,7 +58,7 @@ static LowLevelAlloc::Arena *emergency_arena;
 
 class EmergencyArenaPagesAllocator : public LowLevelAlloc::PagesAllocator {
   ~EmergencyArenaPagesAllocator() {}
-  void *MapPages(int32_t flags, size_t size) {
+  void *MapPages(size_t size) override {
     char *new_end = emergency_arena_end + size;
     if (new_end > emergency_arena_start + kEmergencyArenaSize) {
       RAW_LOG(FATAL, "Unable to allocate %zu bytes in emergency zone.", size);
@@ -67,7 +67,7 @@ class EmergencyArenaPagesAllocator : public LowLevelAlloc::PagesAllocator {
     emergency_arena_end = new_end;
     return static_cast<void *>(rv);
   }
-  void UnMapPages(int32_t flags, void *addr, size_t size) {
+  void UnMapPages(void *addr, size_t size) override {
     RAW_LOG(FATAL, "UnMapPages is not implemented for emergency arena");
   }
 };
@@ -84,7 +84,7 @@ static void InitEmergencyMalloc(void) {
   static StaticStorage<EmergencyArenaPagesAllocator> pages_allocator_place;
   EmergencyArenaPagesAllocator* allocator = pages_allocator_place.Construct();
 
-  emergency_arena = LowLevelAlloc::NewArenaWithCustomAlloc(0, LowLevelAlloc::DefaultArena(), allocator);
+  emergency_arena = LowLevelAlloc::NewArenaWithCustomAlloc(LowLevelAlloc::DefaultArena(), allocator);
 
   emergency_arena_start_shifted = reinterpret_cast<uintptr_t>(emergency_arena_start) >> kEmergencyArenaShift;
 

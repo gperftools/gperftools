@@ -76,10 +76,7 @@ static bool using_low_level_alloc = false;
 // before being freed.  At the end of the run,
 // all remaining allocated blocks are freed.
 // If use_new_arena is true, use a fresh arena, and then delete it.
-// If call_malloc_hook is true and user_arena is true,
-// allocations and deallocations are reported via the MallocHook
-// interface.
-static void ExerciseAllocator(bool use_new_arena, bool call_malloc_hook, int n) {
+static void ExerciseAllocator(bool use_new_arena, int n) {
   typedef std::map<int, BlockDesc> AllocMap;
   AllocMap allocated;
   AllocMap::iterator it;
@@ -87,8 +84,7 @@ static void ExerciseAllocator(bool use_new_arena, bool call_malloc_hook, int n) 
   int rnd;
   LowLevelAlloc::Arena *arena = 0;
   if (use_new_arena) {
-    int32_t flags = call_malloc_hook?  LowLevelAlloc::kCallMallocHook :  0;
-    arena = LowLevelAlloc::NewArena(flags, LowLevelAlloc::DefaultArena());
+    arena = LowLevelAlloc::NewArena(LowLevelAlloc::DefaultArena());
   }
   for (int i = 0; i != n; i++) {
     if (i != 0 && i % 10000 == 0) {
@@ -144,47 +140,9 @@ static void ExerciseAllocator(bool use_new_arena, bool call_malloc_hook, int n) 
   }
 }
 
-// used for counting allocates and frees
-static int32_t allocates;
-static int32_t frees;
-
-// called on each alloc if kCallMallocHook specified
-static void AllocHook(const void *p, size_t size) {
-  if (using_low_level_alloc) {
-    allocates++;
-  }
-}
-
-// called on each free if kCallMallocHook specified
-static void FreeHook(const void *p) {
-  if (using_low_level_alloc) {
-    frees++;
-  }
-}
-
 TEST(LowLevelAllocTest, Basic) {
-  ASSERT_TRUE(MallocHook::AddNewHook(&AllocHook));
-  ASSERT_TRUE(MallocHook::AddDeleteHook(&FreeHook));
-  ASSERT_EQ(allocates, 0);
-  ASSERT_EQ(frees, 0);
-
-  ExerciseAllocator(false, false, 50000);
-  ASSERT_NE(allocates, 0);   // default arena calls hooks
-  ASSERT_NE(frees, 0);
-  for (int i = 0; i != 16; i++) {
-    bool call_hooks = ((i & 1) == 1);
-    allocates = 0;
-    frees = 0;
-    ExerciseAllocator(true, call_hooks, 15000);
-    if (call_hooks) {
-      ASSERT_GT(allocates, 5000); // arena calls hooks
-      ASSERT_GT(frees, 5000);
-    } else {
-      ASSERT_EQ(allocates, 0);    // arena doesn't call hooks
-      ASSERT_EQ(frees, 0);
-    }
+  ExerciseAllocator(false, 50000);
+  for (int i = 0; i < 8; i++) {
+    ExerciseAllocator(true, 15000);
   }
-
-  ASSERT_TRUE(MallocHook::RemoveNewHook(&AllocHook));
-  ASSERT_TRUE(MallocHook::RemoveDeleteHook(&FreeHook));
 }

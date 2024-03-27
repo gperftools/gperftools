@@ -367,7 +367,7 @@ class HeapLeakChecker::Allocator {
   static void Init() {
     RAW_DCHECK(heap_checker_lock.IsHeld(), "");
     RAW_DCHECK(arena_ == NULL, "");
-    arena_ = LowLevelAlloc::NewArena(0, LowLevelAlloc::DefaultArena());
+    arena_ = LowLevelAlloc::NewArena(LowLevelAlloc::DefaultArena());
   }
   static void Shutdown() {
     RAW_DCHECK(heap_checker_lock.IsHeld(), "");

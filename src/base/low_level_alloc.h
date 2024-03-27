@@ -56,8 +56,8 @@ class LowLevelAlloc {
   class PagesAllocator {
   public:
     virtual ~PagesAllocator();
-    virtual void *MapPages(int32_t flags, size_t size) = 0;
-    virtual void UnMapPages(int32_t flags, void *addr, size_t size) = 0;
+    virtual void *MapPages(size_t size) = 0;
+    virtual void UnMapPages(void *addr, size_t size) = 0;
   };
 
   static PagesAllocator *GetDefaultPagesAllocator(void);
@@ -82,36 +82,16 @@ class LowLevelAlloc {
   // from which it was allocated.
   static void Free(void *s) ATTR_MALLOC_SECTION;
 
-    // ATTR_MALLOC_SECTION for Alloc* and Free
-    // are to put all callers of MallocHook::Invoke* in this module
-    // into special section,
-    // so that MallocHook::GetCallerStackTrace can function accurately.
+  // ATTR_MALLOC_SECTION for Alloc* and Free
+  // are to put all callers of MallocHook::Invoke* in this module
+  // into special section,
+  // so that MallocHook::GetCallerStackTrace can function accurately.
 
-  // Create a new arena.
-  // The root metadata for the new arena is allocated in the
-  // meta_data_arena; the DefaultArena() can be passed for meta_data_arena.
-  // These values may be ored into flags:
-  enum {
-    // Report calls to Alloc() and Free() via the MallocHook interface.
-    // Set in the DefaultArena.
-    kCallMallocHook = 0x0001,
-
-    // Make calls to Alloc(), Free() be async-signal-safe.  Not set in
-    // DefaultArena().
-    kAsyncSignalSafe = 0x0002,
-
-    // When used with DefaultArena(), the NewArena() and DeleteArena() calls
-    // obey the flags given explicitly in the NewArena() call, even if those
-    // flags differ from the settings in DefaultArena().  So the call
-    // NewArena(kAsyncSignalSafe, DefaultArena()) is itself async-signal-safe,
-    // as well as generatating an arena that provides async-signal-safe
-    // Alloc/Free.
-  };
-  static Arena *NewArena(int32_t flags, Arena *meta_data_arena);
+  static Arena *NewArena(Arena *meta_data_arena);
 
   // note: pages allocator will never be destroyed and allocated pages will never be freed
   // When allocator is NULL, it's same as NewArena
-  static Arena *NewArenaWithCustomAlloc(int32_t flags, Arena *meta_data_arena, PagesAllocator *allocator);
+  static Arena *NewArenaWithCustomAlloc(Arena *meta_data_arena, PagesAllocator *allocator);
 
   // Destroys an arena allocated by NewArena and returns true,
   // provided no allocated blocks remain in the arena.
