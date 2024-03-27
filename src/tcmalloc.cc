@@ -622,10 +622,8 @@ public:
 
   static TestingPortalImpl* Get() {
     static TestingPortalImpl* ptr = ([] () {
-      static struct {
-        alignas(TestingPortalImpl) char memory[sizeof(TestingPortalImpl)];
-      } storage;
-      return new (storage.memory) TestingPortalImpl;
+      static StaticStorage<TestingPortalImpl> storage;
+      return storage.Construct();
     }());
     return ptr;
   }
@@ -1212,11 +1210,10 @@ static TCMallocGuard module_enter_exit_hook;
 
 #ifndef TCMALLOC_USING_DEBUGALLOCATION
 
+static tcmalloc::StaticStorage<TCMallocImplementation> malloc_impl_storage;
+
 void SetupMallocExtension() {
-  static struct {
-    alignas(TCMallocImplementation) char memory[sizeof(TCMallocImplementation)];
-  } storage;
-  MallocExtension::Register(new (storage.memory) TCMallocImplementation);
+  MallocExtension::Register(malloc_impl_storage.Construct());
 }
 
 #endif  // TCMALLOC_USING_DEBUGALLOCATION

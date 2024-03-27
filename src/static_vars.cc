@@ -53,6 +53,7 @@ PageHeapAllocator<Span> Static::span_allocator_;
 PageHeapAllocator<StackTrace> Static::stacktrace_allocator_;
 Span Static::sampled_objects_;
 std::atomic<StackTrace*> Static::growth_stacks_;
+StaticStorage<PageHeap> Static::pageheap_;
 
 void Static::InitStaticVars() {
   sizemap_.Init();
@@ -65,7 +66,7 @@ void Static::InitStaticVars() {
     central_cache_[i].Init(i);
   }
 
-  new (&pageheap_.memory) PageHeap(sizemap_.min_span_size_in_pages());
+  new (pageheap()) PageHeap(sizemap_.min_span_size_in_pages());
 
 #if defined(ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT)
   const bool kDefaultAggressiveDecommit = true;

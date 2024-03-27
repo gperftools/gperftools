@@ -56,6 +56,7 @@
 #include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
 #include "base/googleinit.h"
+#include "base/static_storage.h"
 #include "base/sysinfo.h"
 #include "internal_logging.h"
 #include "safe_strerror.h"
@@ -114,10 +115,7 @@ private:
 
   SysAllocator* fallback_;  // Default system allocator to fall back to.
 };
-static union {
-  char buf[sizeof(HugetlbSysAllocator)];
-  void *ptr;
-} hugetlb_space;
+static tcmalloc::StaticStorage<HugetlbSysAllocator> hugetlb_space;
 
 // No locking needed here since we assume that tcmalloc calls
 // us with an internal lock held (see tcmalloc/system-alloc.cc).
@@ -270,8 +268,7 @@ bool HugetlbSysAllocator::Initialize() {
 REGISTER_MODULE_INITIALIZER(memfs_malloc, {
   if (FLAGS_memfs_malloc_path.length()) {
     SysAllocator* alloc = MallocExtension::instance()->GetSystemAllocator();
-    HugetlbSysAllocator* hp =
-      new (hugetlb_space.buf) HugetlbSysAllocator(alloc);
+    HugetlbSysAllocator* hp = hugetlb_space.Construct(alloc);
     if (hp->Initialize()) {
       MallocExtension::instance()->SetSystemAllocator(hp);
     }

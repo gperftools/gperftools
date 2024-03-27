@@ -50,9 +50,8 @@ SpinLock init_cache_lock;
 bool init_cache_ready;
 
 ThreadCache* GetInitCache() {
-  alignas(ThreadCache) static std::byte init_cache_storage[sizeof(ThreadCache)];
-
-  return reinterpret_cast<ThreadCache*>(init_cache_storage);
+  static StaticStorage<ThreadCache> storage;
+  return storage.get();
 }
 
 }  // namespace

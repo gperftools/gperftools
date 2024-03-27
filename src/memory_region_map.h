@@ -257,6 +257,11 @@ class MemoryRegionMap {
   typedef std::set<Region, RegionCmp,
               STL_Allocator<Region, MyAllocator> > RegionSet;
 
+  // The bytes where MemoryRegionMap::regions_ will point to.  We use
+  // StaticStorage with noop c-tor so that global construction does
+  // not interfere.
+  static inline tcmalloc::StaticStorage<RegionSet> regions_rep_;
+
  public:  // more in-depth interface ==========================================
 
   // STL iterator with values of Region
@@ -275,11 +280,6 @@ class MemoryRegionMap {
   // Return the accumulated sizes of mapped and unmapped regions.
   static int64_t MapSize() { return map_size_; }
   static int64_t UnmapSize() { return unmap_size_; }
-
-  // Effectively private type from our .cc =================================
-  // public to let us declare global objects:
-  union RegionSetRep;
-
  private:
   // representation ===========================================================
 

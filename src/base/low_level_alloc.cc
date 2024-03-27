@@ -37,8 +37,9 @@
 #include "base/low_level_alloc.h"
 
 #include "base/dynamic_annotations.h"
-#include "base/spinlock.h"
 #include "base/logging.h"
+#include "base/spinlock.h"
+#include "base/static_storage.h"
 
 #include "malloc_hook-inl.h"
 #include <gperftools/malloc_hook.h>
@@ -524,18 +525,14 @@ LowLevelAlloc::Arena *LowLevelAlloc::DefaultArena() {
   return &default_arena;
 }
 
-static DefaultPagesAllocator *default_pages_allocator;
-static union {
-  char chars[sizeof(DefaultPagesAllocator)];
-  void *ptr;
-} debug_pages_allocator_space;
+static tcmalloc::StaticStorage<DefaultPagesAllocator> default_pages_allocator;
 
 LowLevelAlloc::PagesAllocator *LowLevelAlloc::GetDefaultPagesAllocator(void) {
-  if (default_pages_allocator) {
-    return default_pages_allocator;
-  }
-  default_pages_allocator = new (debug_pages_allocator_space.chars) DefaultPagesAllocator();
-  return default_pages_allocator;
+  static tcmalloc::TrivialOnce once;
+  once.RunOnce(+[] () {
+    default_pages_allocator.Construct();
+  });
+  return default_pages_allocator.get();
 }
 
 void *DefaultPagesAllocator::MapPages(int32_t flags, size_t size) {

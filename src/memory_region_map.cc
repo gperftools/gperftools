@@ -163,20 +163,6 @@ static inline bool current_thread_is(std::thread::id should_be) {
 
 // ========================================================================= //
 
-// Constructor-less place-holder to store a RegionSet in.
-union MemoryRegionMap::RegionSetRep {
-  char rep[sizeof(RegionSet)];
-  void* align_it;  // do not need a better alignment for 'rep' than this
-  RegionSet* region_set() { return reinterpret_cast<RegionSet*>(rep); }
-};
-
-// The bytes where MemoryRegionMap::regions_ will point to.
-// We use RegionSetRep with noop c-tor so that global construction
-// does not interfere.
-static MemoryRegionMap::RegionSetRep regions_rep;
-
-// ========================================================================= //
-
 // Has InsertRegionLocked been called recursively
 // (or rather should we *not* use regions_ to record a hooked mmap).
 static bool recursive_insert = false;
@@ -527,7 +513,7 @@ void MemoryRegionMap::RestoreSavedBucketsLocked() {
 
 inline void MemoryRegionMap::InitRegionSetLocked() {
   RAW_VLOG(12, "Initializing region set");
-  regions_ = regions_rep.region_set();
+  regions_ = regions_rep_.get();
   recursive_insert = true;
   new (regions_) RegionSet();
   HandleSavedRegionsLocked(&DoInsertRegionLocked);

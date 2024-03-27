@@ -86,6 +86,7 @@
 
 #include "base/function_ref.h"
 #include "base/cleanup.h"
+#include "base/static_storage.h"
 
 #include "tests/testutil.h"
 
@@ -205,13 +206,9 @@ struct OOMAbleSysAlloc : public SysAllocator {
   }
 };
 
-static union {
-  char buf[sizeof(OOMAbleSysAlloc)];
-  void *ptr;
-} test_sys_alloc_space;
-
 static OOMAbleSysAlloc* get_test_sys_alloc() {
-  return reinterpret_cast<OOMAbleSysAlloc*>(&test_sys_alloc_space);
+  static tcmalloc::StaticStorage<OOMAbleSysAlloc> storage;
+  return storage.get();
 }
 
 void setup_oomable_sys_alloc() {

@@ -43,6 +43,7 @@
 
 #include "base/basictypes.h"
 #include "base/spinlock.h"
+#include "base/static_storage.h"
 #include "central_freelist.h"
 #include "common.h"
 #include "page_heap.h"
@@ -74,7 +75,7 @@ class Static {
   // must be protected by pageheap_lock.
 
   // Page-level allocator.
-  static PageHeap* pageheap() { return reinterpret_cast<PageHeap *>(&pageheap_.memory); }
+  static PageHeap* pageheap() { return pageheap_.get(); }
 
   static PageHeapAllocator<Span>* span_allocator() { return &span_allocator_; }
 
@@ -100,10 +101,7 @@ class Static {
   static bool IsInited() { return inited_; }
 
  private:
-  // some unit tests depend on this and link to static vars
-  // imperfectly. Thus we keep those unhidden for now. Thankfully
-  // they're not performance-critical.
-  /* ATTRIBUTE_HIDDEN */ static bool inited_;
+  ATTRIBUTE_HIDDEN static bool inited_;
 
   // These static variables require explicit initialization.  We cannot
   // count on their constructors to do any initialization because other
@@ -122,9 +120,7 @@ class Static {
   // is stored in trace->stack[kMaxStackDepth-1].
   ATTRIBUTE_HIDDEN static std::atomic<StackTrace*> growth_stacks_;
 
-  /* ATTRIBUTE_HIDDEN */ static inline struct {
-    alignas(alignof(PageHeap)) std::byte memory[sizeof(PageHeap)];
-  }  pageheap_;
+  ATTRIBUTE_HIDDEN static StaticStorage<PageHeap> pageheap_;
 };
 
 }  // namespace tcmalloc
