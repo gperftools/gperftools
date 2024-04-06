@@ -2244,8 +2244,6 @@ void HeapLeakChecker::TurnItselfOffLocked() {
   RAW_CHECK(!heap_checker_on, "");
 }
 
-extern bool heap_leak_checker_bcad_variable;  // in heap-checker-bcad.cc
-
 static bool has_called_before_constructors = false;
 
 // TODO(maxim): inline this function with
@@ -2260,7 +2258,6 @@ void HeapLeakChecker_BeforeConstructors() {
   has_called_before_constructors = true;
 
   heap_checker_pid = getpid();  // set it always
-  heap_leak_checker_bcad_variable = true;
   // just to reference it, so that heap-checker-bcad.o is linked in
 
   // This function can be called *very* early, before the normal
@@ -2305,6 +2302,13 @@ extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
 }
 
 // This function is executed after all global object destructors run.
+//
+// Note, heap checker is Linux-only. Which implies we're dealing with
+// gcc-compatible compiler, so we can do __attribute__ thingy. In
+// practice destructor functions end up being called after c++
+// destructors (those are set up via __cxa_atexit thingy), so we get
+// the right ordering.
+__attribute__((destructor))
 void HeapLeakChecker_AfterDestructors() {
   { SpinLockHolder l(&heap_checker_lock);
     // can get here (via forks?) with other pids

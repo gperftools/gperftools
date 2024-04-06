@@ -757,8 +757,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
 
   if(GPERFTOOLS_BUILD_HEAP_CHECKER)
     set(HEAP_CHECKER_SRC src/base/linuxthreads.cc
-                         src/heap-checker.cc
-                         src/heap-checker-bcad.cc)
+                         src/heap-checker.cc)
     set(HEAP_CHECKER_DEFINE )
   else()
     set(HEAP_CHECKER_SRC )

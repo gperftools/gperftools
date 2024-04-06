@@ -624,13 +624,8 @@ endif !BUILD_EMERGENCY_MALLOC
 ### Making the library
 
 if WITH_HEAP_CHECKER
-# heap-checker-bcad is last, in hopes its global ctor will run first.
-# (Note this is added to libtcmalloc.la, not libtcmalloc_internal.la,
-# but that's ok; the internal/external distinction is only useful for
-# cygwin, and cygwin doesn't use HEAP_CHECKER anyway.)
 HEAP_CHECKER_SOURCES = src/base/linuxthreads.cc \
-                       src/heap-checker.cc \
-                       src/heap-checker-bcad.cc
+                       src/heap-checker.cc
 MAYBE_NO_HEAP_CHECK =
 else !WITH_HEAP_CHECKER
 HEAP_CHECKER_SOURCES =
