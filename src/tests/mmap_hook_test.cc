@@ -42,11 +42,18 @@
 
 #include "mmap_hook.h"
 
+#include "base/function_ref.h"
+#include "gperftools/stacktrace.h"
+
+#include "tests/testutil.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #include "gtest/gtest.h"
+
+static bool got_first_allocation;
 
 extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
 #ifndef __FreeBSD__
@@ -54,6 +61,10 @@ extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
   // early.
   printf("first mmap!\n");
 #endif
+  if (got_first_allocation) {
+    abort();
+  }
+  got_first_allocation = true;
   return 1;
 }
 
@@ -73,10 +84,20 @@ public:
     assert(!have_last_evt_);
     memcpy(&last_evt_, &evt, sizeof(evt));
     have_last_evt_ = true;
+    assert(evt.stack_depth == 1);
+    backtrace_address_ = evt.stack[0];
+  }
+
+  void SetUp() {
+    have_last_evt_ = false;
+    backtrace_address_ = nullptr;
   }
 
   static void SetUpTestSuite() {
-    tcmalloc::HookMMapEvents(&hook_space_, &HandleMappingEvent);
+    tcmalloc::HookMMapEventsWithBacktrace(&hook_space_, &HandleMappingEvent,
+                                          [] (const tcmalloc::MappingEvent& evt) {
+                                            return 1;
+                                          });
   }
   static void TearDownTestSuite() {
     tcmalloc::UnHookMMapEvents(&hook_space_);
@@ -84,46 +105,10 @@ public:
 
 protected:
   static inline tcmalloc::MappingEvent last_evt_;
+  static inline void* backtrace_address_;
   static inline bool have_last_evt_;
   static inline tcmalloc::MappingHookSpace hook_space_;
 };
-
-TEST_F(MMapHookTest, Sbrk) {
-  if (!tcmalloc::sbrk_hook_works) {
-    puts("sbrk test SKIPPED");
-    return;
-  }
-
-  void* addr = sbrk(8);
-
-  EXPECT_TRUE(last_evt_.is_sbrk);
-  EXPECT_TRUE(!last_evt_.before_valid && !last_evt_.file_valid && last_evt_.after_valid);
-  EXPECT_EQ(last_evt_.after_address, addr);
-  EXPECT_EQ(last_evt_.after_length, 8);
-
-  ASSERT_FALSE(HasFatalFailure());
-  have_last_evt_ = false;
-
-  void* addr2 = sbrk(16);
-
-  EXPECT_TRUE(last_evt_.is_sbrk);
-  EXPECT_TRUE(!last_evt_.before_valid && !last_evt_.file_valid && last_evt_.after_valid);
-  EXPECT_EQ(last_evt_.after_address, addr2);
-  EXPECT_EQ(last_evt_.after_length, 16);
-
-  ASSERT_FALSE(HasFatalFailure());
-  have_last_evt_ = false;
-
-  char* addr3 = static_cast<char*>(sbrk(-13));
-
-  EXPECT_TRUE(last_evt_.is_sbrk);
-  EXPECT_TRUE(last_evt_.before_valid && !last_evt_.file_valid && !last_evt_.after_valid);
-  EXPECT_EQ(last_evt_.before_address, addr3-13);
-  EXPECT_EQ(last_evt_.before_length, 13);
-
-  ASSERT_FALSE(HasFatalFailure());
-  have_last_evt_ = false;
-}
 
 TEST_F(MMapHookTest, MMap) {
   if (!tcmalloc::mmap_hook_works) {
@@ -161,6 +146,8 @@ TEST_F(MMapHookTest, MMap) {
 
   have_last_evt_ = false;
   ASSERT_FALSE(HasFatalFailure());
+
+  ASSERT_TRUE(got_first_allocation);
 
 #ifdef __linux__
   void* reserve = mmap(nullptr, pagesz * 2, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
@@ -231,5 +218,118 @@ TEST_F(MMapHookTest, MMap) {
   have_last_evt_ = false;
   ASSERT_FALSE(HasFatalFailure());
 }
+
+TEST_F(MMapHookTest, MMapBacktrace) {
+  if (!tcmalloc::mmap_hook_works) {
+    puts("mmap backtrace test SKIPPED");
+    return;
+  }
+
+  using mmap_fn = void* (*)(void*, size_t, int, int, int, off_t);
+
+  static void* expected_address;
+
+  struct Helper {
+    // noinline ensures that all trampoline invocations will call fn
+    // with same return address (inside trampoline). We use that to
+    // test backtrace accuracy.
+    static ATTRIBUTE_NOINLINE
+    void trampoline(void** res, mmap_fn fn) {
+      *res = noopt(fn)(nullptr, getpagesize(), PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+    }
+    static void* prepare(void* hint, size_t sz, int prot, int flags, int fd, off_t off) {
+      EXPECT_EQ(1, GetStackTrace(&expected_address, 1, 1));
+      return nullptr;
+    }
+  };
+
+  void* addr;
+  Helper::trampoline(&addr, Helper::prepare);
+  ASSERT_NE(nullptr, expected_address);
+  ASSERT_EQ(nullptr, addr);
+
+  Helper::trampoline(&addr, mmap);
+  ASSERT_NE(nullptr, addr);
+  ASSERT_EQ(backtrace_address_, expected_address);
+}
+
+#ifdef HAVE_SBRK
+
+TEST_F(MMapHookTest, Sbrk) {
+  if (!tcmalloc::sbrk_hook_works) {
+    puts("sbrk test SKIPPED");
+    return;
+  }
+
+  void* addr = sbrk(8);
+
+  ASSERT_TRUE(got_first_allocation);
+
+  EXPECT_TRUE(last_evt_.is_sbrk);
+  EXPECT_TRUE(!last_evt_.before_valid && !last_evt_.file_valid && last_evt_.after_valid);
+  EXPECT_EQ(last_evt_.after_address, addr);
+  EXPECT_EQ(last_evt_.after_length, 8);
+
+  ASSERT_FALSE(HasFatalFailure());
+  have_last_evt_ = false;
+
+  void* addr2 = sbrk(16);
+
+  EXPECT_TRUE(last_evt_.is_sbrk);
+  EXPECT_TRUE(!last_evt_.before_valid && !last_evt_.file_valid && last_evt_.after_valid);
+  EXPECT_EQ(last_evt_.after_address, addr2);
+  EXPECT_EQ(last_evt_.after_length, 16);
+
+  ASSERT_FALSE(HasFatalFailure());
+  have_last_evt_ = false;
+
+  char* addr3 = static_cast<char*>(sbrk(-13));
+
+  EXPECT_TRUE(last_evt_.is_sbrk);
+  EXPECT_TRUE(last_evt_.before_valid && !last_evt_.file_valid && !last_evt_.after_valid);
+  EXPECT_EQ(last_evt_.before_address, addr3-13);
+  EXPECT_EQ(last_evt_.before_length, 13);
+
+  ASSERT_FALSE(HasFatalFailure());
+  have_last_evt_ = false;
+}
+
+TEST_F(MMapHookTest, SbrkBacktrace) {
+  if (!tcmalloc::sbrk_hook_works) {
+    puts("sbrk backtrace test SKIPPED");
+    return;
+  }
+
+  static void* expected_address;
+
+  struct Helper {
+    // noinline ensures that all trampoline invocations will call fn
+    // with same return address (inside trampoline). We use that to
+    // test backtrace accuracy.
+    static ATTRIBUTE_NOINLINE
+    void trampoline(void** res, void* (*fn)(intptr_t increment)) {
+      *res = noopt(fn)(32);
+    }
+    static void* prepare(intptr_t increment) {
+      EXPECT_EQ(1, GetStackTrace(&expected_address, 1, 1));
+      return nullptr;
+    }
+  };
+
+  void* addr;
+  Helper::trampoline(&addr, Helper::prepare);
+  ASSERT_NE(nullptr, expected_address);
+  ASSERT_EQ(nullptr, addr);
+
+  printf("expected_address: %p, &trampoline: %p\n",
+         expected_address, reinterpret_cast<void*>(&Helper::trampoline));
+
+  // Why cast? Because some OS-es define sbrk as accepting long.
+  Helper::trampoline(&addr, reinterpret_cast<void*(*)(intptr_t)>(sbrk));
+  ASSERT_NE(nullptr, addr);
+  ASSERT_EQ(backtrace_address_, expected_address);
+}
+
+#endif // HAVE_SBRK
 
 #endif // HAVE_MMAP

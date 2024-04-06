@@ -122,7 +122,6 @@
 #include "mmap_hook.h"
 
 #include <gperftools/stacktrace.h>
-#include <gperftools/malloc_hook.h> // For MallocHook::GetCallerStackTrace
 
 using std::max;
 
@@ -175,7 +174,7 @@ void MemoryRegionMap::Init(int max_stack_depth, bool use_buckets) NO_THREAD_SAFE
   }
 
   // Set our hooks and make sure they were installed:
-  tcmalloc::HookMMapEvents(&mapping_hook_space_, HandleMappingEvent);
+  tcmalloc::HookMMapEventsWithBacktrace(&mapping_hook_space_, HandleMappingEvent, NeedBacktrace);
 
   // We need to set recursive_insert since the NewArena call itself
   // will already do some allocations with mmap which our hooks will catch
@@ -540,45 +539,16 @@ inline void MemoryRegionMap::InsertRegionLocked(const Region& region) {
   }
 }
 
-// We strip out different number of stack frames in debug mode
-// because less inlining happens in that case
-#ifdef NDEBUG
-static const int kStripFrames = 1;
-#else
-static const int kStripFrames = 3;
-#endif
-
-void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
+void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size,
+                                           int stack_depth, void** stack) {
   // Record start/end info about this memory acquisition call in a new region:
   Region region;
   region.Create(start, size);
-  // First get the call stack info into the local varible 'region':
-  int depth = 0;
-  // NOTE: libunwind also does mmap and very much likely while holding
-  // it's own lock(s). So some threads may first take libunwind lock,
-  // and then take region map lock (necessary to record mmap done from
-  // inside libunwind). On the other hand other thread(s) may do
-  // normal mmap. Which would call this method to record it. Which
-  // would then proceed with installing that record to region map
-  // while holding region map lock. That may cause mmap from our own
-  // internal allocators, so attempt to unwind in this case may cause
-  // reverse order of taking libuwind and region map locks. Which is
-  // obvious deadlock.
-  //
-  // Thankfully, we can easily detect if we're holding region map lock
-  // and avoid recording backtrace in this (rare and largely
-  // irrelevant) case. By doing this we "declare" that thread needing
-  // both locks must take region map lock last. In other words we do
-  // not allow taking libuwind lock when we already have region map
-  // lock. Note, this is generally impossible when somebody tries to
-  // mix cpu profiling and heap checking/profiling, because cpu
-  // profiler grabs backtraces at arbitrary places. But at least such
-  // combination is rarer and less relevant.
-  if (max_stack_depth_ > 0 && !LockIsHeld()) {
-    depth = MallocHook::GetCallerStackTrace(const_cast<void**>(region.call_stack),
-                                            max_stack_depth_, kStripFrames + 1);
+  stack_depth = std::min(stack_depth, max_stack_depth_);
+  if (stack_depth) {
+    memcpy(region.call_stack, stack, sizeof(*stack)*stack_depth);
   }
-  region.set_call_stack_depth(depth);  // record stack info fully
+  region.set_call_stack_depth(stack_depth);
   RAW_VLOG(10, "New global region %p..%p from %p",
               reinterpret_cast<void*>(region.start_addr),
               reinterpret_cast<void*>(region.end_addr),
@@ -590,7 +560,7 @@ void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size) {
     // This will (eventually) allocate storage for and copy over the stack data
     // from region.call_stack_data_ that is pointed by region.call_stack().
   if (bucket_table_ != NULL) {
-    HeapProfileBucket* b = GetBucket(depth, region.call_stack);
+    HeapProfileBucket* b = GetBucket(stack_depth, region.call_stack);
     ++b->allocs;
     b->alloc_size += size;
     if (!recursive_insert) {
@@ -730,6 +700,10 @@ void MemoryRegionMap::RecordRegionRemovalInBucket(int depth,
   b->free_size += size;
 }
 
+static bool HasAddition(const tcmalloc::MappingEvent& evt) {
+  return evt.after_valid && (evt.after_length != 0);
+}
+
 void MemoryRegionMap::HandleMappingEvent(const tcmalloc::MappingEvent& evt) {
   RAW_VLOG(10, "MMap: before: %p, +%zu; after: %p, +%zu; fd: %d, off: %lld, sbrk: %s",
            evt.before_address, evt.before_valid ? evt.before_length : 0,
@@ -739,9 +713,46 @@ void MemoryRegionMap::HandleMappingEvent(const tcmalloc::MappingEvent& evt) {
   if (evt.before_valid && evt.before_length != 0) {
     RecordRegionRemoval(evt.before_address, evt.before_length);
   }
-  if (evt.after_valid && evt.after_length != 0) {
-    RecordRegionAddition(evt.after_address, evt.after_length);
+  if (HasAddition(evt)) {
+    RecordRegionAddition(evt.after_address, evt.after_length,
+                         evt.stack_depth, evt.stack);
   }
+}
+
+int MemoryRegionMap::NeedBacktrace(const tcmalloc::MappingEvent& evt) {
+  // We only use backtraces when recording additions (see
+  // above). Otherwise, no backtrace is needed.
+  if (!HasAddition(evt)) {
+    return 0;
+  }
+
+  // NOTE: libunwind also does mmap and very much likely while holding
+  // it's own lock(s). So some threads may first take libunwind lock,
+  // and then take region map lock (necessary to record mmap done from
+  // inside libunwind). On the other hand other thread(s) may do
+  // normal mmap. Which would call this method to record it. Which
+  // would then proceed with installing that record to region map
+  // while holding region map lock. That may cause mmap from our own
+  // internal allocators, so attempt to unwind in this case may cause
+  // reverse order of taking libuwind and region map locks. Which is
+  // obvious deadlock.
+  //
+  // Thankfully, we can easily detect if we're holding region map lock
+  // and avoid recording backtrace in this (rare and largely
+  // irrelevant) case. By doing this we "declare" that thread needing
+  // both locks must take region map lock last. In other words we do
+  // not allow taking libuwind lock when we already have region map
+  // lock.
+  //
+  // Note, such rule is in general impossible to enforce, when
+  // somebody tries to mix cpu profiling and heap checking/profiling,
+  // because cpu profiler grabs backtraces at arbitrary places. But at
+  // least such combination is rarer and less relevant.
+  if (LockIsHeld()) {
+    return 0;
+  }
+
+  return max_stack_depth_;
 }
 
 void MemoryRegionMap::LogAllLocked() {

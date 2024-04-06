@@ -614,12 +614,15 @@ if(BUILD_TESTING)
   target_link_libraries(malloc_hook_test common gtest)
   add_test(malloc_hook_test malloc_hook_test)
 
-  if(NOT MINGW AND NOT MSVC)
-    add_executable(mmap_hook_test
-            src/tests/mmap_hook_test.cc
-            src/mmap_hook.cc)
-    target_link_libraries(mmap_hook_test common gtest)
-    add_test(mmap_hook_test mmap_hook_test)
+  if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
+    if(NOT MINGW AND NOT MSVC)
+      add_executable(mmap_hook_test
+              src/tests/mmap_hook_test.cc
+              src/mmap_hook.cc
+              src/malloc_backtrace.cc)
+      target_link_libraries(mmap_hook_test stacktrace common gtest)
+      add_test(mmap_hook_test mmap_hook_test)
+    endif()
   endif()
 
   add_executable(malloc_extension_test src/tests/malloc_extension_test.cc)

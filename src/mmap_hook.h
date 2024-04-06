@@ -86,6 +86,11 @@ struct MappingEvent {
   unsigned before_valid:1;
   unsigned file_valid:1;
   unsigned is_sbrk:1;
+
+  // NOTE, in order to get mapping event backtrace you need to request
+  // it via need_backtrace callback.
+  int stack_depth;
+  void** stack;
 };
 
 // Pass this to Hook/Unhook function below. Note, nature of
@@ -100,17 +105,21 @@ public:
 
   bool initialized = false;
 
-  static constexpr size_t kSize = sizeof(void*) * 3;
+  static constexpr size_t kSize = sizeof(void*) * 4;
   alignas(alignof(void*)) char storage[kSize] = {};
 };
 
 using MMapEventFn = void (*)(const MappingEvent& evt);
+using MMapEventNeedBacktraceFn = int (*)(const MappingEvent& evt);
 
 // HookMMapEvents address hook for mmap events, using given place to
 // store relevant metadata (linked list membership etc).
 //
 // It does no memory allocation and is safe to be called from hooks of all kinds.
 ATTRIBUTE_VISIBILITY_HIDDEN void HookMMapEvents(MappingHookSpace* place, MMapEventFn callback);
+
+ATTRIBUTE_VISIBILITY_HIDDEN void HookMMapEventsWithBacktrace(MappingHookSpace* place, MMapEventFn callback,
+                                                             MMapEventNeedBacktraceFn need_backtrace);
 
 // UnHookMMapEvents undoes effect of HookMMapEvents. This one is also
 // entirely safe to be called from out of anywhere. Including from

@@ -44,14 +44,16 @@
 
 #include "mmap_hook.h"
 
-#include "base/spinlock.h"
-#include "base/logging.h"
-
-#include <atomic>
-
 #if HAVE_SYS_SYSCALL_H
 #include <sys/syscall.h>
 #endif
+
+#include <algorithm>
+#include <atomic>
+
+#include "base/logging.h"
+#include "base/spinlock.h"
+#include "malloc_backtrace.h"
 
 // Disable the glibc prototype of mremap(), as older versions of the
 // system headers define this function with only four arguments,
@@ -83,9 +85,12 @@ namespace tcmalloc {
 namespace {
 
 struct MappingHookDescriptor {
-  MappingHookDescriptor(MMapEventFn fn) : fn(fn) {}
+  MappingHookDescriptor(MMapEventFn fn,
+                        MMapEventNeedBacktraceFn need_backtrace)
+    : fn(fn), need_backtrace(need_backtrace) {}
 
   const MMapEventFn fn;
+  const MMapEventNeedBacktraceFn need_backtrace;
 
   std::atomic<bool> inactive{false};
   std::atomic<MappingHookDescriptor*> next;
@@ -103,7 +108,7 @@ public:
     return reinterpret_cast<MappingHookDescriptor*>(space->storage);
   }
 
-  void Add(MappingHookSpace *space, MMapEventFn fn) {
+  void Add(MappingHookSpace *space, MMapEventFn fn, MMapEventNeedBacktraceFn need_backtrace) {
     MappingHookDescriptor* desc = SpaceToDesc(space);
     if (space->initialized) {
       desc->inactive.store(false);
@@ -111,7 +116,7 @@ public:
     }
 
     space->initialized = true;
-    new (desc) MappingHookDescriptor(fn);
+    new (desc) MappingHookDescriptor(fn, need_backtrace);
 
     MappingHookDescriptor* next_candidate = list_head_.load(std::memory_order_relaxed);
     do {
@@ -124,7 +129,7 @@ public:
     SpaceToDesc(space)->inactive.store(true);
   }
 
-  void InvokeAll(const MappingEvent& evt) {
+  int PreInvokeAll(const MappingEvent& evt) {
     if (!ran_initial_hooks_.load(std::memory_order_relaxed)) {
       bool already_ran = ran_initial_hooks_.exchange(true, std::memory_order_seq_cst);
       if (!already_ran) {
@@ -132,6 +137,21 @@ public:
       }
     }
 
+    int stack_depth = 0;
+
+    std::atomic<MappingHookDescriptor*> *place = &list_head_;
+    while (MappingHookDescriptor* desc = place->load(std::memory_order_acquire)) {
+      place = &desc->next;
+      if (!desc->inactive && desc->need_backtrace) {
+        int need = desc->need_backtrace(evt);
+        stack_depth = std::max(stack_depth, need);
+      }
+    }
+
+    return stack_depth;
+  }
+
+  void InvokeAll(const MappingEvent& evt) {
     std::atomic<MappingHookDescriptor*> *place = &list_head_;
     while (MappingHookDescriptor* desc = place->load(std::memory_order_acquire)) {
       place = &desc->next;
@@ -141,7 +161,7 @@ public:
     }
   }
 
-  void InvokeSbrk(void* result, intptr_t increment) {
+  static MappingEvent FillSbrk(void* result, intptr_t increment) {
     MappingEvent evt;
     evt.is_sbrk = 1;
     if (increment > 0) {
@@ -155,8 +175,7 @@ public:
       evt.before_length = -increment;
       evt.before_valid = 1;
     }
-
-    InvokeAll(evt);
+    return evt;
   }
 
 private:
@@ -168,7 +187,11 @@ private:
 }  // namespace
 
 void HookMMapEvents(MappingHookSpace* place, MMapEventFn callback) {
-  mapping_hooks.Add(place, callback);
+  mapping_hooks.Add(place, callback, nullptr);
+}
+
+void HookMMapEventsWithBacktrace(MappingHookSpace* place, MMapEventFn callback, MMapEventNeedBacktraceFn need_backtrace) {
+  mapping_hooks.Add(place, callback, need_backtrace);
 }
 
 void UnHookMMapEvents(MappingHookSpace* place) {
@@ -236,8 +259,31 @@ static void* do_mmap(void* start, size_t length, int prot, int flags, int fd, in
 #define DEFINED_DO_MMAP
 #endif  // 64-bit FreeBSD
 
+namespace {
+
+struct BacktraceHelper {
+  static inline constexpr int kDepth = 32;
+  void* backtrace[kDepth];
+
+  int PreInvoke(tcmalloc::MappingEvent* evt) {
+    int want_stack = tcmalloc::mapping_hooks.PreInvokeAll(*evt);
+    if (want_stack) {
+      want_stack = std::min(want_stack, kDepth);
+      evt->stack = backtrace;
+    }
+    return want_stack;
+  }
+};
+
+}  // namespace
+
 #ifdef DEFINED_DO_MMAP
 
+// Note, this code gets build by gcc or gcc-compatible compilers
+// (e.g. clang). So we can rely on ALWAYS_INLINE to actually work even
+// when built with -O0 -fno-inline. This matters because we're
+// carefully controlling backtrace skipping count, so that mmap hook
+// sees backtrace just "up-to" mmap call.
 static ALWAYS_INLINE
 void* do_mmap_with_hooks(void* start, size_t length, int prot, int flags, int fd, int64_t offset) {
   void* result = do_mmap(start, length, prot, flags, fd, offset);
@@ -255,6 +301,12 @@ void* do_mmap_with_hooks(void* start, size_t length, int prot, int flags, int fd
   evt.file_valid = 1;
   evt.flags = flags;
   evt.prot = prot;
+
+  BacktraceHelper helper;
+  int want_stack = helper.PreInvoke(&evt);
+  if (want_stack) {
+    evt.stack_depth = tcmalloc::GrabBacktrace(evt.stack, want_stack, 1);
+  }
 
   tcmalloc::mapping_hooks.InvokeAll(evt);
 
@@ -300,10 +352,13 @@ static_assert(sizeof(int64_t) == sizeof(off_t), "");
 #undef mmap64
 #undef mmap
 
-extern "C" PERFTOOLS_DLL_DECL void* mmap64(void* start, size_t length, int prot, int flags, int fd, off_t off)
-  __THROW ATTRIBUTE_SECTION(malloc_hook);
-extern "C" PERFTOOLS_DLL_DECL void* mmap(void* start, size_t length, int prot, int flags, int fd, off_t off)
-  __THROW ATTRIBUTE_SECTION(malloc_hook);
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE
+void* mmap64(void* start, size_t length, int prot, int flags, int fd, off_t off)
+  __THROW;
+
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE
+void* mmap(void* start, size_t length, int prot, int flags, int fd, off_t off)
+  __THROW;
 
 void* mmap64(void* start, size_t length, int prot, int flags, int fd, off_t off) __THROW {
   return do_mmap_with_hooks(start, length, prot, flags, fd, off);
@@ -320,10 +375,13 @@ void* mmap(void* start, size_t length, int prot, int flags, int fd, off_t off) _
 
 static_assert(sizeof(int32_t) == sizeof(off_t), "");
 
-extern "C" PERFTOOLS_DLL_DECL void* mmap64(void* start, size_t length, int prot, int flags, int fd, int64_t off)
-  __THROW ATTRIBUTE_SECTION(malloc_hook);
-extern "C" PERFTOOLS_DLL_DECL void* mmap(void* start, size_t length, int prot, int flags, int fd, off_t off)
-  __THROW ATTRIBUTE_SECTION(malloc_hook);
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE
+void* mmap64(void* start, size_t length, int prot, int flags, int fd, int64_t off)
+  __THROW;
+
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE
+void* mmap(void* start, size_t length, int prot, int flags, int fd, off_t off)
+  __THROW;
 
 void* mmap(void *start, size_t length, int prot, int flags, int fd, off_t off) __THROW {
   return do_mmap_with_hooks(start, length, prot, flags, fd, off);
@@ -340,7 +398,8 @@ void* mmap64(void *start, size_t length, int prot, int flags, int fd, int64_t of
 
 #ifdef HOOKED_MMAP
 
-extern "C" PERFTOOLS_DLL_DECL int munmap(void* start, size_t length) __THROW ATTRIBUTE_SECTION(malloc_hook);
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE int munmap(void* start, size_t length) __THROW;
+
 int munmap(void* start, size_t length) __THROW {
   int result = tcmalloc::DirectMUnMap(/* invoke_hooks=*/ false, start, length);
   if (result < 0) {
@@ -351,6 +410,12 @@ int munmap(void* start, size_t length) __THROW {
   evt.before_address = start;
   evt.before_length = length;
   evt.before_valid = 1;
+
+  BacktraceHelper helper;
+  int want_stack = helper.PreInvoke(&evt);
+  if (want_stack) {
+    evt.stack_depth = tcmalloc::GrabBacktrace(evt.stack, want_stack, 1);
+  }
 
   tcmalloc::mapping_hooks.InvokeAll(evt);
 
@@ -382,9 +447,9 @@ int tcmalloc::DirectMUnMap(bool invoke_hooks, void *start, size_t length) {
 }
 
 #if __linux__
-extern "C" PERFTOOLS_DLL_DECL
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE
 void* mremap(void* old_addr, size_t old_size, size_t new_size,
-             int flags, ...) __THROW ATTRIBUTE_SECTION(malloc_hook);
+             int flags, ...) __THROW;
 // We only handle mremap on Linux so far.
 void* mremap(void* old_addr, size_t old_size, size_t new_size,
              int flags, ...) __THROW {
@@ -405,6 +470,12 @@ void* mremap(void* old_addr, size_t old_size, size_t new_size,
     evt.after_valid = 1;
     evt.flags = flags;
 
+    BacktraceHelper helper;
+    int want_stack = helper.PreInvoke(&evt);
+    if (want_stack) {
+      evt.stack_depth = tcmalloc::GrabBacktrace(evt.stack, want_stack, 1);
+    }
+
     tcmalloc::mapping_hooks.InvokeAll(evt);
   }
 
@@ -417,27 +488,13 @@ void* mremap(void* old_addr, size_t old_size, size_t new_size,
 // glibc's version:
 extern "C" void* __sbrk(intptr_t increment);
 
-extern "C" PERFTOOLS_DLL_DECL void* sbrk(intptr_t increment) __THROW ATTRIBUTE_SECTION(malloc_hook);
-
-void* sbrk(intptr_t increment) __THROW {
-  void *result = __sbrk(increment);
-  if (increment == 0 || result == reinterpret_cast<void*>(static_cast<intptr_t>(-1))) {
-    return result;
-  }
-
-  tcmalloc::mapping_hooks.InvokeSbrk(result, increment);
-
-  return result;
-}
+#define do_sbrk(i) __sbrk(i)
 
 #define HOOKED_SBRK
-
-#endif
+#endif  // linux and __sbrk
 
 #if defined(__FreeBSD__) && defined(_LP64) && defined(HAVE_SBRK)
-extern "C" PERFTOOLS_DLL_DECL void* sbrk(intptr_t increment) __THROW ATTRIBUTE_SECTION(malloc_hook);
-
-void* sbrk(intptr_t increment) __THROW {
+static void* do_sbrk(intptr_t increment) {
   uintptr_t curbrk = __syscall(SYS_break, nullptr);
   uintptr_t badbrk = static_cast<uintptr_t>(static_cast<intptr_t>(-1));
   if (curbrk == badbrk) {
@@ -464,15 +521,32 @@ void* sbrk(intptr_t increment) __THROW {
     goto nomem;
   }
 
-  auto result = reinterpret_cast<void*>(curbrk);
-  tcmalloc::mapping_hooks.InvokeSbrk(result, increment);
-
-  return result;
+  return reinterpret_cast<void*>(curbrk);
 }
 
 #define HOOKED_SBRK
+#endif  // FreeBSD
 
-#endif
+#ifdef HOOKED_SBRK
+extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE void* sbrk(intptr_t increment) __THROW;
+
+void* sbrk(intptr_t increment) __THROW {
+  void *result = do_sbrk(increment);
+  if (increment == 0 || result == reinterpret_cast<void*>(static_cast<intptr_t>(-1))) {
+    return result;
+  }
+
+  tcmalloc::MappingEvent evt = tcmalloc::MappingHooks::FillSbrk(result, increment);
+  BacktraceHelper helper;
+  int want_stack = helper.PreInvoke(&evt);
+  if (want_stack) {
+    evt.stack_depth = tcmalloc::GrabBacktrace(evt.stack, want_stack, 1);
+  }
+  tcmalloc::mapping_hooks.InvokeAll(evt);
+
+  return result;
+}
+#endif  // HOOKED_SBRK
 
 namespace tcmalloc {
 #ifdef HOOKED_MMAP
