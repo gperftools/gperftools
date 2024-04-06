@@ -255,13 +255,20 @@ TEST_F(MMapHookTest, MMapBacktrace) {
 
 #ifdef HAVE_SBRK
 
+extern "C" void* tcmalloc_hooked_sbrk(intptr_t increment);
+
+static bool sbrk_works = ([] () {
+  void* result = tcmalloc_hooked_sbrk(8);
+  return result != reinterpret_cast<void*>(intptr_t{-1});
+}());
+
 TEST_F(MMapHookTest, Sbrk) {
-  if (!tcmalloc::sbrk_hook_works) {
+  if (!sbrk_works) {
     puts("sbrk test SKIPPED");
     return;
   }
 
-  void* addr = sbrk(8);
+  void* addr = tcmalloc_hooked_sbrk(8);
 
   ASSERT_TRUE(got_first_allocation);
 
@@ -273,7 +280,7 @@ TEST_F(MMapHookTest, Sbrk) {
   ASSERT_FALSE(HasFatalFailure());
   have_last_evt_ = false;
 
-  void* addr2 = sbrk(16);
+  void* addr2 = tcmalloc_hooked_sbrk(16);
 
   EXPECT_TRUE(last_evt_.is_sbrk);
   EXPECT_TRUE(!last_evt_.before_valid && !last_evt_.file_valid && last_evt_.after_valid);
@@ -283,7 +290,7 @@ TEST_F(MMapHookTest, Sbrk) {
   ASSERT_FALSE(HasFatalFailure());
   have_last_evt_ = false;
 
-  char* addr3 = static_cast<char*>(sbrk(-13));
+  char* addr3 = static_cast<char*>(tcmalloc_hooked_sbrk(-13));
 
   EXPECT_TRUE(last_evt_.is_sbrk);
   EXPECT_TRUE(last_evt_.before_valid && !last_evt_.file_valid && !last_evt_.after_valid);
@@ -295,7 +302,7 @@ TEST_F(MMapHookTest, Sbrk) {
 }
 
 TEST_F(MMapHookTest, SbrkBacktrace) {
-  if (!tcmalloc::sbrk_hook_works) {
+  if (!sbrk_works) {
     puts("sbrk backtrace test SKIPPED");
     return;
   }
@@ -325,7 +332,7 @@ TEST_F(MMapHookTest, SbrkBacktrace) {
          expected_address, reinterpret_cast<void*>(&Helper::trampoline));
 
   // Why cast? Because some OS-es define sbrk as accepting long.
-  Helper::trampoline(&addr, reinterpret_cast<void*(*)(intptr_t)>(sbrk));
+  Helper::trampoline(&addr, reinterpret_cast<void*(*)(intptr_t)>(tcmalloc_hooked_sbrk));
   ASSERT_NE(nullptr, addr);
   ASSERT_EQ(backtrace_address_, expected_address);
 }

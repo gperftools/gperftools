@@ -161,23 +161,6 @@ public:
     }
   }
 
-  static MappingEvent FillSbrk(void* result, intptr_t increment) {
-    MappingEvent evt;
-    evt.is_sbrk = 1;
-    if (increment > 0) {
-      evt.after_address = result;
-      evt.after_length = increment;
-      evt.after_valid = 1;
-    } else {
-      intptr_t res_addr = reinterpret_cast<uintptr_t>(result);
-      intptr_t new_brk = res_addr + increment;
-      evt.before_address = reinterpret_cast<void*>(new_brk);
-      evt.before_length = -increment;
-      evt.before_valid = 1;
-    }
-    return evt;
-  }
-
 private:
   std::atomic<MappingHookDescriptor*> list_head_{};
   std::atomic<bool> ran_initial_hooks_{};
@@ -481,62 +464,30 @@ void* mremap(void* old_addr, size_t old_size, size_t new_size,
 
   return result;
 }
+#endif  // __linux__
 
-#endif
-
-#if defined(__linux__) && HAVE___SBRK
-// glibc's version:
-extern "C" void* __sbrk(intptr_t increment);
-
-#define do_sbrk(i) __sbrk(i)
-
-#define HOOKED_SBRK
-#endif  // linux and __sbrk
-
-#if defined(__FreeBSD__) && defined(_LP64) && defined(HAVE_SBRK)
-static void* do_sbrk(intptr_t increment) {
-  uintptr_t curbrk = __syscall(SYS_break, nullptr);
-  uintptr_t badbrk = static_cast<uintptr_t>(static_cast<intptr_t>(-1));
-  if (curbrk == badbrk) {
-  nomem:
-    errno = ENOMEM;
-    return reinterpret_cast<void*>(badbrk);
-  }
-
-  if (increment == 0) {
-    return reinterpret_cast<void*>(curbrk);
-  }
-
-  if (increment > 0) {
-    if (curbrk + static_cast<uintptr_t>(increment) < curbrk) {
-      goto nomem;
-    }
-  } else {
-    if (curbrk + static_cast<uintptr_t>(increment) > curbrk) {
-      goto nomem;
-    }
-  }
-
-  if (brk(reinterpret_cast<void*>(curbrk + increment)) < 0) {
-    goto nomem;
-  }
-
-  return reinterpret_cast<void*>(curbrk);
-}
-
-#define HOOKED_SBRK
-#endif  // FreeBSD
-
-#ifdef HOOKED_SBRK
-extern "C" PERFTOOLS_DLL_DECL ATTRIBUTE_NOINLINE void* sbrk(intptr_t increment) __THROW;
-
-void* sbrk(intptr_t increment) __THROW {
-  void *result = do_sbrk(increment);
-  if (increment == 0 || result == reinterpret_cast<void*>(static_cast<intptr_t>(-1))) {
+#if defined(HAVE_SBRK)
+extern "C" ATTRIBUTE_VISIBILITY_HIDDEN ATTRIBUTE_NOINLINE
+void* tcmalloc_hooked_sbrk(intptr_t increment) {
+  void *result = sbrk(increment);
+  if (increment == 0 || result == reinterpret_cast<void*>(intptr_t{-1})) {
     return result;
   }
 
-  tcmalloc::MappingEvent evt = tcmalloc::MappingHooks::FillSbrk(result, increment);
+  tcmalloc::MappingEvent evt;
+  evt.is_sbrk = 1;
+  if (increment > 0) {
+    evt.after_address = result;
+    evt.after_length = increment;
+    evt.after_valid = 1;
+  } else {
+    intptr_t res_addr = reinterpret_cast<uintptr_t>(result);
+    intptr_t new_brk = res_addr + increment;
+    evt.before_address = reinterpret_cast<void*>(new_brk);
+    evt.before_length = -increment;
+    evt.before_valid = 1;
+  }
+
   BacktraceHelper helper;
   int want_stack = helper.PreInvoke(&evt);
   if (want_stack) {
@@ -546,18 +497,12 @@ void* sbrk(intptr_t increment) __THROW {
 
   return result;
 }
-#endif  // HOOKED_SBRK
+#endif
 
 namespace tcmalloc {
 #ifdef HOOKED_MMAP
 const bool mmap_hook_works = true;
 #else
 const bool mmap_hook_works = false;
-#endif
-
-#ifdef HOOKED_SBRK
-const bool sbrk_hook_works = true;
-#else
-const bool sbrk_hook_works = false;
 #endif
 }  // namespace tcmalloc

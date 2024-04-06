@@ -149,9 +149,6 @@
 /* Define to 1 if compiler supports __environ */
 /* #undef HAVE___ENVIRON */
 
-/* Define to 1 if you have the `__sbrk' function. */
-/* #undef HAVE___SBRK */
-
 /* Always the empty-string on non-windows systems. On windows, should be
    "__declspec(dllexport)". This way, when we compile the dll, we export our
    functions/classes. It's safe to define this here because config.h is only

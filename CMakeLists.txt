@@ -187,7 +187,6 @@ set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
 check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
 check_type_size("struct mallinfo2" STRUCT_MALLINFO2 LANGUAGE CXX)
 check_function_exists("sbrk" HAVE_SBRK) # for tcmalloc to get memory
-check_function_exists("__sbrk" HAVE___SBRK) # for tcmalloc to get memory
 check_function_exists("geteuid" HAVE_GETEUID) # for turning off services when run as root
 check_include_file("features.h" HAVE_FEATURES_H) # for vdso_support.h, Where __GLIBC__ is defined
 check_include_file("malloc.h" HAVE_MALLOC_H) # some systems define stuff there, others not

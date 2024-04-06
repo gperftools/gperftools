@@ -254,7 +254,6 @@ AC_MSG_RESULT($ac_cv___attribute__aligned_fn)
 AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
 AC_CHECK_TYPES([struct mallinfo2],,, [#include <malloc.h>])
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
-AC_CHECK_FUNCS(__sbrk)          # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h, __GLIBC__ macros
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
