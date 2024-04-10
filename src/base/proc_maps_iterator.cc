@@ -360,7 +360,6 @@ bool DoIterateQNX(void (*body)(const ProcMapping& mapping, void* arg), void* arg
       // vaddr,size,flags,prot,maxprot,dev,ino,offset,rsv,guardsize,refcnt,mapcnt,path
       // 0x00000025e9df9000,0x0000000000053000,0x00000071,0x05,0x0f,0x0000040b,0x0000000000000094,
       //   0x0000000000000000,0x0000000000000000,0x00000000,0x00000005,0x00000003,/system/xbin/cat
-      char flags_tmp[10];
       ProcMapping mapping;
       unsigned filename_offset;
 
