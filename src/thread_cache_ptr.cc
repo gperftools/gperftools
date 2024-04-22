@@ -70,10 +70,7 @@ inline ThreadCache* CreateBadTLSCache(const TlsKey& slow_thread_cache_key) {
   static HashEntry* in_progress[kTableSize];
   static SpinLock lock;
 
-  // We use errno address as thread id. Works on windows including
-  // mingw without recursing back into malloc.
-  uintptr_t thread_id = reinterpret_cast<uintptr_t>(&errno);
-
+  uintptr_t thread_id = tcmalloc::SelfThreadId();
   HashEntry** parent = &in_progress[std::hash<uintptr_t>{}(thread_id) % kTableSize];
 
   {

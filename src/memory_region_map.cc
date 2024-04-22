@@ -135,7 +135,7 @@ LowLevelAlloc::Arena* MemoryRegionMap::arena_ = nullptr;
 SpinLock MemoryRegionMap::lock_;
 SpinLock MemoryRegionMap::owner_lock_;  // ACQUIRED_AFTER(lock_)
 int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
-std::thread::id MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
+uintptr_t MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
 int64_t MemoryRegionMap::map_size_ = 0;
 int64_t MemoryRegionMap::unmap_size_ = 0;
 HeapProfileBucket** MemoryRegionMap::bucket_table_ = nullptr;  // GUARDED_BY(lock_)
@@ -148,17 +148,8 @@ tcmalloc::MappingHookSpace MemoryRegionMap::mapping_hook_space_;
 
 // ========================================================================= //
 
-// Simple hook into execution of global object constructors,
-// so that we do not call std::this_thread::get_id() when it does not yet work.
-static bool libpthread_initialized = false;
-REGISTER_MODULE_INITIALIZER(libpthread_initialized_setter,
-                            libpthread_initialized = true);
-
-static inline bool current_thread_is(std::thread::id should_be) {
-  // Before main() runs, there's only one thread, so we're always that thread
-  if (!libpthread_initialized) return true;
-  // this starts working only sometime well into global constructor execution:
-  return std::this_thread::get_id() == should_be;
+static inline bool current_thread_is(uintptr_t should_be) {
+  return tcmalloc::SelfThreadId() == should_be;
 }
 
 // ========================================================================= //
@@ -258,7 +249,7 @@ bool MemoryRegionMap::IsRecordingLocked() {
   return client_count_ > 0;
 }
 
-// Invariants (once libpthread_initialized is true):
+// Invariants:
 //   * While lock_ is not held, recursion_count_ is 0 (and
 //     lock_owner_tid_ is the previous owner, but we don't rely on
 //     that).
@@ -266,7 +257,7 @@ bool MemoryRegionMap::IsRecordingLocked() {
 //     both lock_ and owner_lock_ are held. They may be read under
 //     just owner_lock_.
 //   * At entry and exit of Lock() and Unlock(), the current thread
-//     owns lock_ iff lock_owner_tid_ == std::this_thread::get_id()
+//     owns lock_ iff lock_owner_tid_ == tcmalloc::SelfThreadId()
 //     && recursion_count_ > 0.
 void MemoryRegionMap::Lock() NO_THREAD_SAFETY_ANALYSIS {
   {
@@ -284,8 +275,7 @@ void MemoryRegionMap::Lock() NO_THREAD_SAFETY_ANALYSIS {
     SpinLockHolder l(&owner_lock_);
     RAW_CHECK(recursion_count_ == 0,
               "Last Unlock didn't reset recursion_count_");
-    if (libpthread_initialized)
-      lock_owner_tid_ = std::this_thread::get_id();
+    lock_owner_tid_ = tcmalloc::SelfThreadId();
     recursion_count_ = 1;
   }
 }

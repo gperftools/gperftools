@@ -208,7 +208,7 @@ struct MallocBlockQueueEntry {
           deleter_pcs,
           sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
           4);
-      deleter_threadid = std::this_thread::get_id();
+      deleter_threadid = tcmalloc::SelfThreadId();
     } else {
       num_deleter_pcs = 0;
     }
@@ -223,7 +223,7 @@ struct MallocBlockQueueEntry {
   // overhead under the LP64 data model.)
   void* deleter_pcs[16];
   int num_deleter_pcs;
-  std::thread::id deleter_threadid;
+  uintptr_t deleter_threadid;
 };
 
 class MallocBlock {
@@ -693,8 +693,8 @@ class MallocBlock {
     const MallocBlock* b = queue_entry.block;
     const size_t size = queue_entry.size;
     if (queue_entry.num_deleter_pcs > 0) {
-      TracePrintf(STDERR_FILENO, "Deleted by thread %" GPRIxTHREADID "\n",
-                  PRINTABLE_THREADID(queue_entry.deleter_threadid));
+      TracePrintf(STDERR_FILENO, "Deleted by thread %zx\n",
+                  queue_entry.deleter_threadid);
 
       // We don't want to allocate or deallocate memory here, so we use
       // placement-new.  It's ok that we don't destroy this, since we're
@@ -1007,8 +1007,8 @@ static SpinLock malloc_trace_lock;
   do {                                                                               \
     if (FLAGS_malloctrace) {                                                         \
       SpinLockHolder l(&malloc_trace_lock);                                          \
-      TracePrintf(TraceFd(), "%s\t%zu\t%p\t%" GPRIuTHREADID,                         \
-                  name, size, addr, PRINTABLE_THREADID(std::this_thread::get_id())); \
+      TracePrintf(TraceFd(), "%s\t%zu\t%p\t%zu",                                     \
+                  name, size, addr, tcmalloc::SelfThreadId());                       \
       TraceStack();                                                                  \
       TracePrintf(TraceFd(), "\n");                                                  \
     }                                                                                \

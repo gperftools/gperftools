@@ -35,72 +35,74 @@
 #include "base/basictypes.h"
 #include <thread>
 
-// Also allow for printing of a std::thread::id.
-#define GPRIuTHREADID "zu"
-#define GPRIxTHREADID "zx"
-
-// Unfortunately std::thread::id does not provide a non-allocating,
-// non-throwing and generally "safe" means to print its value.
-// Nor does it provide a native_handle() function to get the underlying
-// platform-specific tid.
-// Doing the next best thing which is to print its hash value instead.
-#define PRINTABLE_THREADID(tid) std::hash<std::thread::id>()(tid)
-
 #ifdef _WIN32 // Should cover both toolchains on Windows - MSVC & MINGW
 
 namespace tcmalloc {
 
-    using TlsKey = DWORD;
+using TlsKey = DWORD;
 
-    ATTRIBUTE_VISIBILITY_HIDDEN TlsKey WinTlsKeyCreate(void (*destr_fn)(void*));  /* windows/port.cc */
+ATTRIBUTE_VISIBILITY_HIDDEN TlsKey WinTlsKeyCreate(void (*destr_fn)(void*));  /* windows/port.cc */
 
-    ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
-      TlsKey key = WinTlsKeyCreate(destructor);
+ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
+  TlsKey key = WinTlsKeyCreate(destructor);
 
-      if (key != TLS_OUT_OF_INDEXES) {
-        *(pkey) = key;
-        return 0;
-      }
-      else {
-        return GetLastError();
-      }
-    }
-    ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
-      DWORD err = GetLastError();
-      void* rv = TlsGetValue(key);
+  if (key != TLS_OUT_OF_INDEXES) {
+    *(pkey) = key;
+    return 0;
+  }
+  else {
+    return GetLastError();
+  }
+}
+ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
+  DWORD err = GetLastError();
+  void* rv = TlsGetValue(key);
 
-      if (err) SetLastError(err);
-      return rv;
-    }
-    ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
-      if (TlsSetValue(key, (LPVOID)value)) {
-        return 0;
-      }
-      else {
-        return GetLastError();
-      }
-    }
+  if (err) SetLastError(err);
+  return rv;
+}
+ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
+  if (TlsSetValue(key, (LPVOID)value)) {
+    return 0;
+  }
+  else {
+    return GetLastError();
+  }
+}
+
+ATTRIBUTE_VISIBILITY_HIDDEN inline uintptr_t SelfThreadId() {
+  // Notably, windows/ms crt errno access recurses into malloc (!), so
+  // we have to do this. But this is fast and good enough.
+  return static_cast<uintptr_t>(GetCurrentThreadId());
+}
+
 
 } // namespace tcmalloc
 
 #else
 
-#  include <pthread.h>
-#  include <sched.h>
+#include <errno.h>
+#include <pthread.h>
 
 namespace tcmalloc {
 
-    using TlsKey = pthread_key_t;
+using TlsKey = pthread_key_t;
 
-    ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
-      return pthread_key_create(pkey, destructor);
-    }
-    ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
-      return pthread_getspecific(key);
-    }
-    ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
-      return pthread_setspecific(key, value);
-    }
+ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
+  return pthread_key_create(pkey, destructor);
+}
+ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
+  return pthread_getspecific(key);
+}
+ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
+  return pthread_setspecific(key, value);
+}
+ATTRIBUTE_VISIBILITY_HIDDEN inline uintptr_t SelfThreadId() {
+  // Most platforms (with notable exception of windows C runtime) can
+  // use address of errno as a quick and portable and recursion-free
+  // thread identifier.
+  return reinterpret_cast<uintptr_t>(&errno);
+}
 
 } // namespace tcmalloc
 
