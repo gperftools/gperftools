@@ -1279,8 +1279,8 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOO
   if (size != 0 && total_size / size != count) return NULL;
 
   void* block = do_debug_malloc_or_debug_cpp_alloc(total_size);
-  MallocHook::InvokeNewHook(block, total_size);
   if (block)  memset(block, 0, total_size);
+  MallocHook::InvokeNewHook(block, total_size);
   return block;
 }
 
