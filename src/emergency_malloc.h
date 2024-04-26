@@ -48,7 +48,6 @@ ATTRIBUTE_HIDDEN extern uintptr_t emergency_arena_start_shifted;;
 
 ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size);
 ATTRIBUTE_HIDDEN void EmergencyFree(void *p);
-ATTRIBUTE_HIDDEN void *EmergencyCalloc(size_t n, size_t elem_size);
 ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *old_ptr, size_t new_size);
 
 static inline bool IsEmergencyPtr(const void *_ptr) {
@@ -56,29 +55,6 @@ static inline bool IsEmergencyPtr(const void *_ptr) {
   return PREDICT_FALSE((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted)
     && emergency_arena_start_shifted;
 }
-
-class StacktraceScope {
-public:
-  StacktraceScope() : stacktrace_allowed_(EnterStacktraceScope()) { }
-  bool IsStacktraceAllowed() {
-    return stacktrace_allowed_;
-  }
-  ~StacktraceScope() {
-    if (stacktrace_allowed_) {
-      tcmalloc::ResetUseEmergencyMalloc();
-    }
-  }
-private:
-  static bool EnterStacktraceScope() {
-    if (tcmalloc::IsUseEmergencyMalloc()) {
-      return false;
-    }
-    tcmalloc::SetUseEmergencyMalloc();
-    return true;
-  }
-
-  const bool stacktrace_allowed_;
-};
 
 } // namespace tcmalloc
 

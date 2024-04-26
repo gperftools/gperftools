@@ -772,6 +772,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     src/heap-profile-table.cc
     src/heap-profiler.cc
     ${EMERGENCY_MALLOC_CC}
+    src/malloc_backtrace.cc
     src/mmap_hook.cc
     src/memory_region_map.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})

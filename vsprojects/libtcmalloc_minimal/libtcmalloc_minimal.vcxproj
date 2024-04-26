@@ -211,6 +211,7 @@
     <ClCompile Include="..\..\src\central_freelist.cc" />
     <ClCompile Include="..\..\src\common.cc" />
     <ClCompile Include="..\..\src\internal_logging.cc" />
+    <ClCompile Include="..\..\src\malloc_backtrace.cc" />
     <ClCompile Include="..\..\src\malloc_extension.cc" />
     <ClCompile Include="..\..\src\malloc_hook.cc" />
     <ClCompile Include="..\..\src\page_heap.cc" />
@@ -257,6 +258,7 @@
     <ClInclude Include="..\..\src\base\thread_annotations.h" />
     <ClInclude Include="..\..\src\central_freelist.h" />
     <ClInclude Include="..\..\src\common.h" />
+    <ClInclude Include="..\..\src\gperftools\malloc_backtrace.h" />
     <ClInclude Include="..\..\src\gperftools\malloc_extension.h" />
     <ClInclude Include="..\..\src\gperftools\malloc_hook.h" />
     <ClInclude Include="..\..\src\gperftools\profiler.h" />

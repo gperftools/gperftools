@@ -49,6 +49,7 @@
 #include <algorithm>
 #include "base/logging.h"
 #include "base/spinlock.h"
+#include "malloc_backtrace.h"
 #include "maybe_emergency_malloc.h"
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,

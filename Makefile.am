@@ -643,6 +643,7 @@ FULL_MALLOC_SRC = $(HEAP_CHECKER_SOURCES) \
                   src/heap-profile-table.cc \
                   src/heap-profiler.cc \
                   $(EMERGENCY_MALLOC_CC) \
+                  src/malloc_backtrace.cc \
                   src/mmap_hook.cc \
                   src/memory_region_map.cc
 lib_LTLIBRARIES += libtcmalloc.la

@@ -28,25 +28,42 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef MAYBE_EMERGENCY_MALLOC_H
-#define MAYBE_EMERGENCY_MALLOC_H
+#ifndef MALLOC_BACKTRACE_H
+#define MALLOC_BACKTRACE_H
 
-#ifdef ENABLE_EMERGENCY_MALLOC
+#include "config.h"
 
-#include "emergency_malloc.h"
-
-#else
+#include "base/basictypes.h"
+#include "gperftools/stacktrace.h"
 
 namespace tcmalloc {
 
-static inline void *EmergencyMalloc(size_t size) {return nullptr;}
-static inline void EmergencyFree(void *p) {}
-static inline void *EmergencyCalloc(size_t n, size_t elem_size) {return nullptr;}
-static inline void *EmergencyRealloc(void *old_ptr, size_t new_size) {return nullptr;}
-static inline bool IsEmergencyPtr(const void *_ptr) {return false;}
+#ifdef NO_TCMALLOC_SAMPLES
+
+inline int GrabBacktrace(void** result, int max_depth, int skip_count) { return 0; }
+
+inline void MallocBacktraceInit() {}
+
+#else
+
+// GrabBacktrace is the API to use when capturing backtrace for
+// various tcmalloc features. It has optional emergency malloc
+// integration for occasional case where stacktrace capturing method
+// calls back to malloc (so we divert those calls to emergency malloc
+// facility).
+int GrabBacktrace(void** result, int max_depth, int skip_count);
+
+#endif
 
 }  // namespace tcmalloc
 
-#endif  // ENABLE_EMERGENCY_MALLOC
+#ifndef THIS_IS_MALLOC_BACKTRACE_CC
+// When something includes this file, don't let us use 'regular'
+// stacktrace API directly.
+#define GetStackTrace(...) missing
+#define GetStackTraceWithContext(...) missing
+#define GetStackFrames(...) missing
+#define GetStackFramesWithContext(...) missing
+#endif // THIS_IS_MALLOC_BACKTRACE_CC
 
-#endif  // MAYBE_EMERGENCY_MALLOC_H
+#endif  // MALLOC_BACKTRACE_H

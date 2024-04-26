@@ -158,15 +158,4 @@ ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {
   return new_ptr;
 }
 
-ATTRIBUTE_HIDDEN void *EmergencyCalloc(size_t n, size_t elem_size) {
-  // Overflow check
-  const size_t size = n * elem_size;
-  if (elem_size != 0 && size / elem_size != n) return NULL;
-  void *rv = EmergencyMalloc(size);
-  if (rv != NULL) {
-    memset(rv, 0, size);
-  }
-  return rv;
-}
-
 }  // namespace tcmalloc

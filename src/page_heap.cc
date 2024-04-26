@@ -43,7 +43,7 @@
 #include "base/commandlineflags.h"
 #include "gperftools/malloc_extension.h"      // for MallocRange, etc
 #include "internal_logging.h"  // for ASSERT, TCMalloc_Printer, etc
-#include "maybe_emergency_malloc.h"
+#include "malloc_backtrace.h"
 #include "page_heap_allocator.h"  // for PageHeapAllocator
 #include "static_vars.h"       // for Static
 #include "system-alloc.h"      // for TCMalloc_SystemAlloc, etc

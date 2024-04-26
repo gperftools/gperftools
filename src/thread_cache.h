@@ -288,7 +288,6 @@ class ThreadCache {
   Sampler       sampler_;               // A sampler
 
   static void RecomputePerThreadCacheSize();
-public:
 
   // All ThreadCache objects are kept in a linked list (for stats collection)
   ThreadCache* next_;

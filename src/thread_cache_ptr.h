@@ -39,7 +39,7 @@
 
 // This module encapsulates tcmalloc's thread cache access. Including
 // fast-path access, early access (when process is too young and TLS
-// facility isn't set up yet) and emergency malloc mode signalling.
+// facility isn't set up yet) and emergency malloc mode signaling.
 
 namespace tcmalloc {
 
@@ -57,43 +57,42 @@ inline constexpr bool kHaveGoodTLS = true;
 #endif
 
 #if defined(ENABLE_EMERGENCY_MALLOC)
-inline constexpr bool kUseEmergencyMalloc = kHaveGoodTLS;
+inline constexpr bool kUseEmergencyMalloc = true;
 #else
 inline constexpr bool kUseEmergencyMalloc = false;
 #endif
 
+
 class ThreadCachePtr {
 public:
-  static ThreadCache* GetFast() {
+  static bool ThreadCacheKeyIsReady() {
+    return (tls_key_ != kInvalidTLSKey);
+  }
+
+  static ThreadCache* GetIfPresent() {
     if constexpr (kHaveGoodTLS) {
       return tls_data_.fast_path_cache;
-    } else {
-      if (!tls_ready_) {
-        return nullptr;
-      }
-      return static_cast<ThreadCache*>(GetTlsValue(slow_thread_cache_key_));
     }
+
+    if (PREDICT_FALSE(!ThreadCacheKeyIsReady())) {
+      return nullptr;
+    }
+    return static_cast<ThreadCache*>(GetTlsValue(tls_key_));
   }
 
   static void InitThreadCachePtrLate();
 
-  static ThreadCachePtr GetSlow() {
-    if constexpr (kHaveGoodTLS) {
-      ThreadCache* cache = tls_data_.slow_path_cache;
-      if (PREDICT_TRUE(cache != nullptr)) {
-        return {cache, false};
-      }
+  static ThreadCachePtr Grab() {
+    ThreadCache* cache = GetIfPresent();
+    if (cache) {
+      return {cache, false};
     }
-    return DoGetSlow();
+
+    return GetSlow();
   }
 
-  ThreadCachePtr(const ThreadCachePtr& other) = delete;
-  ThreadCachePtr& operator=(const ThreadCachePtr& other) = delete;
-
-  ~ThreadCachePtr() {
-    if (locked_) {
-      PutLocked();
-    }
+  bool IsEmergencyMallocEnabled() const {
+    return kUseEmergencyMalloc && is_emergency_malloc_;
   }
 
   ThreadCache* get() const { return ptr_; }
@@ -105,54 +104,46 @@ public:
   // TCMallocImplementation::MarkThreadIdle.
   static ThreadCache* ReleaseAndClear();
 
-private:
-  static ThreadCachePtr DoGetSlow();
-  static void ClearCacheTLS();
-  static void PutLocked();
+  // WithStacktraceScope runs passed function with given arg enabling
+  // emergency malloc around that call. If emergency malloc for
+  // current thread is already in effect it passes false to
+  // stacktrace_allowed argument of `fn'. See malloc_backtrace.cc for
+  // it's usage.
+  static void WithStacktraceScope(void (*fn)(bool stacktrace_allowed, void* arg), void* arg);
 
-  ThreadCachePtr(ThreadCache* ptr, bool locked);
+private:
+  friend class SlowTLS;
+
+  static ThreadCachePtr GetSlow();
+  static ThreadCachePtr GetReallySlow();
+
+  static void ClearCacheTLS();
+
+  ThreadCachePtr(ThreadCache* ptr, bool is_emergency_malloc)
+    : ptr_(ptr), is_emergency_malloc_(is_emergency_malloc) {
+  }
 
   struct TLSData {
     ThreadCache* fast_path_cache;
-    ThreadCache* slow_path_cache;
-    bool use_emergency_malloc;
   };
 
   static inline thread_local TLSData tls_data_ ATTR_INITIAL_EXEC;
-  static bool tls_ready_;
-  static TlsKey slow_thread_cache_key_;
-
-  friend void SetUseEmergencyMalloc();
-  friend void ResetUseEmergencyMalloc();
-  friend bool IsUseEmergencyMalloc();
+  static TlsKey tls_key_;
 
   ThreadCache* const ptr_;
-  bool locked_;
+  const bool is_emergency_malloc_;
 };
 
-inline void SetUseEmergencyMalloc() {
-  if constexpr (kUseEmergencyMalloc) {
-    auto& tls_data = ThreadCachePtr::tls_data_;
-    tls_data.fast_path_cache = nullptr;
-    tls_data.use_emergency_malloc = true;
-  }
-}
 
-inline void ResetUseEmergencyMalloc() {
-  if constexpr (kUseEmergencyMalloc) {
-    auto& tls_data = ThreadCachePtr::tls_data_;
-    tls_data.fast_path_cache = tls_data.slow_path_cache;
-    tls_data.use_emergency_malloc = false;
-  }
+#if !defined(ENABLE_EMERGENCY_MALLOC)
+// Note, the "real" implementation for ENABLE_EMERGENCY_MALLOC case is in .cc
+inline ATTRIBUTE_NOINLINE
+void ThreadCachePtr::WithStacktraceScope(void (*fn)(bool stacktrace_allowed, void* arg), void* arg) {
+  fn(true, arg);
+  // prevent tail-calling fn.
+  (void)*const_cast<volatile char*>(reinterpret_cast<char *>(arg));
 }
-
-inline bool IsUseEmergencyMalloc() {
-  if constexpr (kUseEmergencyMalloc) {
-    return PREDICT_FALSE(ThreadCachePtr::tls_data_.use_emergency_malloc);
-  } else {
-    return false;
-  }
-}
+#endif // !ENABLE_EMERGENCY_MALLOC
 
 }  // namespace tcmalloc
 

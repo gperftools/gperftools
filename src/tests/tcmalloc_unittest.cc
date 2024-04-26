@@ -1567,7 +1567,7 @@ TEST(TCMallocTest, EmergencyMalloc) {
     ResetDeleteHook();
   });
 
-  void* p1 = noopt(malloc)(32);
+  void* p1 = noopt(tc_malloc)(32);
   void* p2 = nullptr;
 
   VerifyNewHookWasCalled();
@@ -1587,10 +1587,10 @@ TEST(TCMallocTest, EmergencyMalloc) {
 
   // Emergency malloc automagically does the right thing for free()
   // calls and doesn't invoke hooks.
-  free(p2);
+  tc_free(p2);
   ASSERT_EQ(g_DeleteHook_calls, 0);
 
-  free(p1);
+  tc_free(p1);
   VerifyDeleteHookWasCalled();
 }
 
