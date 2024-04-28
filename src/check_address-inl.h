@@ -107,13 +107,16 @@ bool (* volatile CheckAddress)(uintptr_t addr, int pagesize) = CheckAddressFirst
 // single-syscall approach actually works and switch to a proper
 // version.
 bool CheckAddressFirstCall(uintptr_t addr, int pagesize) {
+  // Note, mmap call below might recurse into backtrace via heap
+  // checker (mmap "profiler"). So lets make things safe for recursion
+  // first.
+  CheckAddress = CheckAccessTwoSyscalls;
+
   void* unreadable = mmap(0, pagesize, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   RAW_CHECK(unreadable != MAP_FAILED, "mmap of unreadable");
 
   if (!CheckAccessSingleSyscall(reinterpret_cast<uintptr_t>(unreadable), pagesize)) {
     CheckAddress = CheckAccessSingleSyscall;
-  } else {
-    CheckAddress = CheckAccessTwoSyscalls;
   }
 
   // Sanity check that our unreadable address is unreadable and that
