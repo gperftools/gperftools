@@ -118,7 +118,7 @@ private:
     bool use_emergency_malloc;
   };
 
-  static inline thread_local TLSData tls_data_;
+  static inline thread_local TLSData tls_data_ ATTR_INITIAL_EXEC;
   static bool tls_ready_;
   static TlsKey slow_thread_cache_key_;
 
