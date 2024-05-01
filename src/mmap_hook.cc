@@ -434,7 +434,7 @@ void* sbrk(intptr_t increment) __THROW {
 
 #endif
 
-#if defined(__FreeBSD__) && defined(_LP64) && HAVE_SBRK
+#if defined(__FreeBSD__) && defined(_LP64) && defined(HAVE_SBRK)
 extern "C" PERFTOOLS_DLL_DECL void* sbrk(intptr_t increment) __THROW ATTRIBUTE_SECTION(malloc_hook);
 
 void* sbrk(intptr_t increment) __THROW {
