@@ -37,7 +37,6 @@
 #include <config.h>
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint64_t, int64_t, uint16_t
-#include <gperftools/malloc_extension.h>
 #include "base/basictypes.h"
 #include "base/spinlock.h"
 #include "base/thread_annotations.h"
