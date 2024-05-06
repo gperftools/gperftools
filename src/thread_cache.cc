@@ -61,6 +61,12 @@ using std::max;
 //              "for the cache to go over this bound in certain circumstances. "
 //              "Maximum value of this flag is capped to 1 GB.");
 
+DEFINE_int64(tcmalloc_force_lower_bound_per_thread_cache_bytes,
+             EnvToInt64("TCMALLOC_FORCE_LOWER_BOUND_PER_THREAD_CACHE_BYTES",
+                        0),
+             "If set greater than 0, forces given lower bound on the amount "
+             "of bytes allocated to per-thread cache. Default lower bound is "
+             "set to 512KB.");
 
 namespace tcmalloc {
 
@@ -78,6 +84,11 @@ ThreadCache::ThreadCache() {
   ASSERT(Static::pageheap_lock()->IsHeld());
 
   size_ = 0;
+
+  if (FLAGS_tcmalloc_force_lower_bound_per_thread_cache_bytes > 0) {
+    kMinThreadCacheSize =
+      FLAGS_tcmalloc_force_lower_bound_per_thread_cache_bytes;
+  }
 
   max_size_ = 0;
   IncreaseCacheLimitLocked();

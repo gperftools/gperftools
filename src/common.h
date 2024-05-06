@@ -96,7 +96,7 @@ static const size_t kDefaultOverallThreadCacheSize = 8u * kMaxThreadCacheSize;
 #endif
 
 // Lower bound on the per-thread cache sizes
-static const size_t kMinThreadCacheSize = kMaxSize * 2;
+static size_t kMinThreadCacheSize = kMaxSize * 2;
 
 // The number of bytes one ThreadCache will steal from another when
 // the first ThreadCache is forced to Scavenge(), delaying the
