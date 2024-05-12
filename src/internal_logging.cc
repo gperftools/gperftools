@@ -92,6 +92,12 @@ void Log(LogMode mode, const char* filename, int line,
 
   WriteMessage(state.buf_, msglen);
 
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_trap)
+  __builtin_trap();
+#endif
+#endif  // defined(__has_builtin)
+
   abort();
 }
 
