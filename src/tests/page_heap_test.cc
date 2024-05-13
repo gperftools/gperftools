@@ -13,8 +13,10 @@
 #include <memory>
 
 #include "page_heap.h"
-#include "system-alloc.h"
+
+#include "base/cleanup.h"
 #include "common.h"
+#include "system-alloc.h"
 
 #include "gtest/gtest.h"
 
@@ -112,6 +114,10 @@ static void AllocateAllPageTables() {
 
 TEST(PageHeapTest, Limit) {
   AllocateAllPageTables();
+
+  tcmalloc::Cleanup restore_heap_limit_flag{[] () {
+    FLAGS_tcmalloc_heap_limit_mb = 0;
+  }};
 
   std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
 
