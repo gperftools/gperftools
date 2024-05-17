@@ -466,6 +466,12 @@ thread_dealloc_unittest_SOURCES = src/tests/thread_dealloc_unittest.cc \
 thread_dealloc_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 thread_dealloc_unittest_LDADD = libtcmalloc_minimal.la
 
+TESTS += min_per_thread_cache_size_test
+min_per_thread_cache_size_test_SOURCES = src/tests/min_per_thread_cache_size_test.cc
+min_per_thread_cache_size_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
+min_per_thread_cache_size_test_CPPFLAGS = $(gtest_CPPFLAGS)
+min_per_thread_cache_size_test_LDADD = libtcmalloc_minimal.la libgtest.la
+
 ### Documentation
 dist_doc_DATA += docs/tcmalloc.html \
                  docs/overview.gif \

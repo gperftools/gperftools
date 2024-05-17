@@ -403,7 +403,7 @@ threads. The raw data used to generate these graphs (the output of the
 </table>
 
 
-<ul> 
+<ul>
   <li> TCMalloc is much more consistently scalable than PTMalloc2 - for
        all thread counts &gt;1 it achieves ~7-9 million ops/sec for small
        allocations, falling to ~2 million ops/sec for larger
@@ -517,7 +517,7 @@ environment variables.</p>
 
 <tr valign=top>
   <td><code>TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES</code></td>
-  <td>default: 16777216</td>
+  <td>default: 33554432</td>
   <td>
     Bound on the total amount of bytes allocated to thread caches.  This
     bound is not strict, so it is possible for the cache to go over this
@@ -743,6 +743,16 @@ you can access them with a call like
   <td>
     A measure of some of the memory TCMalloc is using (for
     small objects).
+  </td>
+</tr>
+
+<tr valign=top>
+  <td><code>tcmalloc.min_per_thread_cache_bytes</code></td>
+  <td>
+    A lower limit to how much memory TCMalloc dedicates for small objects per
+    thread. Note that this property only shows effect if per-thread cache
+    calculated using tcmalloc.max_total_thread_cache_bytes ended up being less
+    than tcmalloc.min_per_thread_cache_bytes.
   </td>
 </tr>
 
