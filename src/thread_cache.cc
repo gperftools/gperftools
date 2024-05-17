@@ -67,6 +67,8 @@ namespace tcmalloc {
 static bool phinited = false;
 
 volatile size_t ThreadCache::per_thread_cache_size_ = kMaxThreadCacheSize;
+
+std::atomic<size_t> ThreadCache::min_per_thread_cache_size_ = kMinThreadCacheSize;
 size_t ThreadCache::overall_thread_cache_size_ = kDefaultOverallThreadCacheSize;
 ssize_t ThreadCache::unclaimed_cache_space_ = kDefaultOverallThreadCacheSize;
 PageHeapAllocator<ThreadCache> threadcache_allocator;
@@ -84,10 +86,11 @@ ThreadCache::ThreadCache() {
   if (max_size_ == 0) {
     // There isn't enough memory to go around.  Just give the minimum to
     // this thread.
-    SetMaxSize(kMinThreadCacheSize);
+    size_t min_size = min_per_thread_cache_size_.load(std::memory_order_relaxed);
+    SetMaxSize(min_size);
 
     // Take unclaimed_cache_space_ negative.
-    unclaimed_cache_space_ -= kMinThreadCacheSize;
+    unclaimed_cache_space_ -= min_size;
     ASSERT(unclaimed_cache_space_ < 0);
   }
 
@@ -267,7 +270,8 @@ void ThreadCache::IncreaseCacheLimitLocked() {
       next_memory_steal_ = thread_heaps_;
     }
     if (next_memory_steal_ == this ||
-        next_memory_steal_->max_size_ <= kMinThreadCacheSize) {
+        next_memory_steal_->max_size_
+          <= min_per_thread_cache_size_.load(std::memory_order_relaxed)) {
       continue;
     }
     next_memory_steal_->SetMaxSize(next_memory_steal_->max_size_ - kStealAmount);
@@ -352,8 +356,9 @@ void ThreadCache::RecomputePerThreadCacheSize() {
   int n = thread_heap_count_ > 0 ? thread_heap_count_ : 1;
   size_t space = overall_thread_cache_size_ / n;
 
+  size_t min_size = min_per_thread_cache_size_.load(std::memory_order_relaxed);
   // Limit to allowed range
-  if (space < kMinThreadCacheSize) space = kMinThreadCacheSize;
+  if (space < min_size) space = min_size;
   if (space > kMaxThreadCacheSize) space = kMaxThreadCacheSize;
 
   double ratio = space / max<double>(1, per_thread_cache_size_);
@@ -383,7 +388,10 @@ void ThreadCache::GetThreadStats(uint64_t* total_bytes, uint64_t* class_count) {
 
 void ThreadCache::set_overall_thread_cache_size(size_t new_size) {
   // Clip the value to a reasonable range
-  if (new_size < kMinThreadCacheSize) new_size = kMinThreadCacheSize;
+  size_t min_size = min_per_thread_cache_size_.load(std::memory_order_relaxed);
+  if (new_size < min_size) {
+    new_size = min_size;
+  }
   if (new_size > (1<<30)) new_size = (1<<30);     // Limit to 1GB
   overall_thread_cache_size_ = new_size;
 

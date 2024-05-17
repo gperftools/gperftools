@@ -155,6 +155,8 @@
 /test-driver
 /thread_dealloc_unittest
 /thread_dealloc_unittest.exe
+/per_thread_cache_size_test
+/per_thread_cache_size_test.exe
 /unique_path_unittest
 /unique_path_unittest.exe
 /unwind_bench

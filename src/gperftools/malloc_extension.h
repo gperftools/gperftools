@@ -175,7 +175,14 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   // --------
   // "tcmalloc.max_total_thread_cache_bytes"
   //      Upper limit on total number of bytes stored across all
-  //      per-thread caches.  Default: 16MB.
+  //      per-thread caches.  Default: 32MB.
+  //
+  // "tcmalloc.min_per_thread_cache_bytes"
+  //      Lower limit on total number of bytes stored per-thread cache.
+  //      Default: 512kB.
+  //      Note that this property only shows effect if per-thread cache
+  //      calculated using tcmalloc.max_total_thread_cache_bytes ended up being
+  //      less than tcmalloc.min_per_thread_cache_bytes.
   //
   // "tcmalloc.current_total_thread_cache_bytes"
   //      Number of bytes used across all thread caches.

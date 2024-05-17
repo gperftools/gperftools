@@ -833,6 +833,11 @@ class TCMallocImplementation : public MallocExtension {
       return true;
     }
 
+    if (strcmp(name, "tcmalloc.min_per_thread_cache_bytes") == 0) {
+      *value = ThreadCache::min_per_thread_cache_size();
+      return true;
+    }
+
     if (strcmp(name, "tcmalloc.current_total_thread_cache_bytes") == 0) {
       TCMallocStats stats;
       ExtractStats(&stats, NULL, NULL, NULL);
@@ -873,6 +878,11 @@ class TCMallocImplementation : public MallocExtension {
     if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
       SpinLockHolder l(Static::pageheap_lock());
       ThreadCache::set_overall_thread_cache_size(value);
+      return true;
+    }
+
+    if (strcmp(name, "tcmalloc.min_per_thread_cache_bytes") == 0) {
+      ThreadCache::set_min_per_thread_cache_size(value);
       return true;
     }
 

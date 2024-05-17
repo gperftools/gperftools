@@ -687,6 +687,10 @@ if(BUILD_TESTING)
           src/tests/testutil.cc)
   target_link_libraries(thread_dealloc_unittest tcmalloc_minimal)
   add_test(thread_dealloc_unittest thread_dealloc_unittest)
+
+  add_executable(min_per_thread_cache_size_test src/tests/min_per_thread_cache_size_test.cc)
+  target_link_libraries(min_per_thread_cache_size_test tcmalloc_minimal gtest)
+  add_test(min_per_thread_cache_size_test min_per_thread_cache_size_test)
 endif()
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
