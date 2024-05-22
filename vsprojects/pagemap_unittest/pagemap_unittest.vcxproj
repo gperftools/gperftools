@@ -125,7 +125,6 @@
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
-      <ForceSymbolReferences>__tcmalloc;%(ForceSymbolReferences)</ForceSymbolReferences>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
