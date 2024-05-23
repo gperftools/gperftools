@@ -73,7 +73,7 @@ int GrabBacktrace(void** result, int max_depth, int skip_count) {
     (tc_delete)(tc_new(32));
 #endif
 
-    args->result_depth = GetStackTrace(args->result, args->max_depth, args->skip_count + 2);
+    args->result_depth = GetStackTrace(args->result, args->max_depth, args->skip_count + 3);
   }, &args);
 
   // Prevent tail calling WithStacktraceScope above
