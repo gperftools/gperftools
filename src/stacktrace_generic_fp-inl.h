@@ -177,8 +177,12 @@ int capture(void **result, int max_depth, int skip_count,
   // older gcc's (circa gcc 6 or so) did something that looks right,
   // but not recent ones).
   constexpr uintptr_t kAlignment = 4;
+#elif defined(__aarch64__)
+  // aarch64 ABI does not specify the frame pointer location, so we can only
+  // know it's 8 byte aligned (as the register size)
+  constexpr uintptr_t kAlignment = 8;
 #else
-  // This is simplistic yet. Here we're targeting x86, aarch64 and
+  // This is simplistic yet. Here we're targeting x86 and
   // riscv. They all have 16 bytes stack alignment (even 32 bit
   // riscv). This can be made more elaborate as we consider more
   // architectures.
