@@ -61,20 +61,25 @@ int GrabBacktrace(void** result, int max_depth, int skip_count) {
   args.skip_count = skip_count;
   args.result_depth = 0;
 
-  ThreadCachePtr::WithStacktraceScope(+[] (bool stacktrace_allowed, void* _args) {
-    Args* args = static_cast<Args*>(_args);
-    if (!stacktrace_allowed) {
-      return;
-    }
+  struct Body {
+    static ATTRIBUTE_NOINLINE
+    void Run(bool stacktrace_allowed, void* _args) {
+      Args* args = static_cast<Args*>(_args);
+      if (!stacktrace_allowed) {
+        return;
+      }
 
 #if (!defined(NDEBUG) || defined(TCMALLOC_FORCE_BAD_TLS)) && defined(ENABLE_EMERGENCY_MALLOC)
-    // Lets ensure test coverage of emergency malloc even in
-    // configurations that otherwise don't exercise it.
-    (tc_delete)(tc_new(32));
+      // Lets ensure test coverage of emergency malloc even in
+      // configurations that otherwise don't exercise it.
+      (tc_delete)(tc_new(32));
 #endif
 
-    args->result_depth = GetStackTrace(args->result, args->max_depth, args->skip_count + 3);
-  }, &args);
+      args->result_depth = GetStackTrace(args->result, args->max_depth, args->skip_count + 3);
+    }
+  };
+
+  ThreadCachePtr::WithStacktraceScope(Body::Run, &args);
 
   // Prevent tail calling WithStacktraceScope above
   return *const_cast<volatile int*>(&args.result_depth);
