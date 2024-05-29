@@ -382,12 +382,6 @@ void InitSystemAllocators(void) {
   // pointer).
   DefaultSysAllocator *sdef = default_space.Construct();
   bool want_mmap = kDebugMode && (sizeof(void*) > 4);
-#if __sun__
-  // TODO: solaris has nice but annoying feature that makes it use
-  // full range of addresses and mmap tends to use it. Making mmap-ed
-  // addresses be 0xffff... For now lets avoid the trouble.
-  want_mmap = false;
-#endif
   if (want_mmap) {
     sdef->SetChildAllocator(mmap, 0, mmap_name);
     sdef->SetChildAllocator(sbrk, 1, sbrk_name);
