@@ -315,7 +315,7 @@ void MallocHook::InvokeDeleteHookSlow(const void* p) {
 
 #undef INVOKE_HOOKS
 
-#ifndef NO_TCMALLOC_SAMPLES
+#if !defined(NO_TCMALLOC_SAMPLES) && HAVE_ATTRIBUTE_SECTION_START
 
 DEFINE_ATTRIBUTE_SECTION_VARS(google_malloc);
 DECLARE_ATTRIBUTE_SECTION_VARS(google_malloc);

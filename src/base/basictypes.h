@@ -166,6 +166,7 @@ inline void bit_store(Dest *dest, const Source *source) {
 //    where in memory a given section is.  All functions declared with
 //    ATTRIBUTE_SECTION are guaranteed to be between START and STOP.
 
+
 #if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
 # define ATTRIBUTE_SECTION(name) __attribute__ ((section (#name))) __attribute__((noinline))
 
@@ -185,65 +186,8 @@ inline void bit_store(Dest *dest, const Source *source) {
 # define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
 # define HAVE_ATTRIBUTE_SECTION_START 1
 
-#elif defined(HAVE___ATTRIBUTE__) && defined(__MACH__)
-# define ATTRIBUTE_SECTION(name) __attribute__ ((section ("__TEXT, " #name))) __attribute__((noinline))
+#else
 
-#include <mach-o/getsect.h>
-#include <mach-o/dyld.h>
-class AssignAttributeStartEnd {
- public:
-  AssignAttributeStartEnd(const char* name, char** pstart, char** pend) {
-    // Find out what dynamic library name is defined in
-    for (int i = _dyld_image_count() - 1; i >= 0; --i) {
-      const mach_header* hdr = _dyld_get_image_header(i);
-#ifdef MH_MAGIC_64
-      if (hdr->magic == MH_MAGIC_64) {
-        uint64_t len;
-        *pstart = getsectdatafromheader_64((mach_header_64*)hdr,
-                                           "__TEXT", name, &len);
-        if (*pstart) {   // NULL if not defined in this dynamic library
-          *pstart += _dyld_get_image_vmaddr_slide(i);   // correct for reloc
-          *pend = *pstart + len;
-          return;
-        }
-      }
-#endif
-      if (hdr->magic == MH_MAGIC) {
-        uint32_t len;
-        *pstart = getsectdatafromheader(hdr, "__TEXT", name, &len);
-        if (*pstart) {   // NULL if not defined in this dynamic library
-          *pstart += _dyld_get_image_vmaddr_slide(i);   // correct for reloc
-          *pend = *pstart + len;
-          return;
-        }
-      }
-    }
-
-    // If we get here, not defined in a dll at all.  See if defined statically.
-    unsigned long len;    // don't ask me why this type isn't uint32_t too...
-    *pstart = getsectdata("__TEXT", name, &len);
-    *pend = *pstart + len;
-  }
-};
-
-#define DECLARE_ATTRIBUTE_SECTION_VARS(name)    \
-  extern char* __start_##name;                  \
-  extern char* __stop_##name
-
-#define INIT_ATTRIBUTE_SECTION_VARS(name)               \
-  DECLARE_ATTRIBUTE_SECTION_VARS(name);                 \
-  static const AssignAttributeStartEnd __assign_##name( \
-    #name, &__start_##name, &__stop_##name)
-
-#define DEFINE_ATTRIBUTE_SECTION_VARS(name)     \
-  char* __start_##name, *__stop_##name;         \
-  INIT_ATTRIBUTE_SECTION_VARS(name)
-
-# define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(__start_##name))
-# define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(__stop_##name))
-# define HAVE_ATTRIBUTE_SECTION_START 1
-
-#else  // not HAVE___ATTRIBUTE__ && __ELF__, nor HAVE___ATTRIBUTE__ && __MACH__
 # define ATTRIBUTE_SECTION(name)
 # define DECLARE_ATTRIBUTE_SECTION_VARS(name)
 # define INIT_ATTRIBUTE_SECTION_VARS(name)
@@ -251,7 +195,7 @@ class AssignAttributeStartEnd {
 # define ATTRIBUTE_SECTION_START(name) (reinterpret_cast<void*>(0))
 # define ATTRIBUTE_SECTION_STOP(name) (reinterpret_cast<void*>(0))
 
-#endif  // HAVE___ATTRIBUTE__ and __ELF__ or __MACH__
+#endif  // HAVE___ATTRIBUTE__ and __ELF__
 
 #if defined(HAVE___ATTRIBUTE__)
 # if (defined(__i386__) || defined(__x86_64__))
