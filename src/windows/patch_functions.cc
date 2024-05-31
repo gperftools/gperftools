@@ -997,6 +997,43 @@ BOOL WINAPI WindowsInfo::Perftools_FreeLibrary(HMODULE hLibModule) {
   return rv;
 }
 
+// see https://learn.microsoft.com/en-us/answers/questions/518344/tell-if-process-archtitecture-is-arm64-(x64-compat
+typedef BOOL (WINAPI* PFNISWOW64PROCESS2)(HANDLE hProcess,
+                                          USHORT *pProcessMachine,
+                                          USHORT *pNativeMachine);
+#ifndef IMAGE_FILE_MACHINE_UNKNOWN
+#define IMAGE_FILE_MACHINE_UNKNOWN 0x0
+#endif // IMAGE_FILE_MACHINE_UNKNOWN
+#ifndef IMAGE_FILE_MACHINE_ARM64
+#define IMAGE_FILE_MACHINE_ARM64 0xAA64
+#endif // IMAGE_FILE_MACHINE_ARM64
+
+static BOOL IsWow64Process2Wrapper(HANDLE hProcess,
+                                   USHORT *pProcessMachine,
+                                   USHORT *pNativeMachine) {
+  HMODULE m = GetModuleHandleW(L"Kernel32.dll");
+  assert(m && "kernel32 dll not loaded");
+  static const auto fPointer =
+    reinterpret_cast<PFNISWOW64PROCESS2>(
+      reinterpret_cast<void*>(::GetProcAddress(m, "IsWow64Process2")));
+  if (fPointer == nullptr) {
+    ::SetLastError(ERROR_CALL_NOT_IMPLEMENTED);
+    return FALSE;
+  }
+  return fPointer(hProcess, pProcessMachine, pNativeMachine);
+}
+
+static bool IsArm64NativeMachine() {
+  USHORT ProcessMachine = IMAGE_FILE_MACHINE_UNKNOWN;
+  USHORT NativeMachine = IMAGE_FILE_MACHINE_UNKNOWN;
+
+  if (!IsWow64Process2Wrapper(GetCurrentProcess(),
+                              &ProcessMachine, &NativeMachine)) {
+    return false;
+  }
+  return NativeMachine == IMAGE_FILE_MACHINE_ARM64;
+}
+
 
 // ---------------------------------------------------------------------
 // PatchWindowsFunctions()
@@ -1011,7 +1048,9 @@ void PatchWindowsFunctions() {
                            disable_env[0] == '1' &&
                            disable_env[1] == '\0';
 
-  if (!should_skip) {
+  const bool is_arm64_native = IsArm64NativeMachine();
+
+  if (!should_skip && !is_arm64_native) {
     // This does the libc patching in every module, and the main executable.
     PatchAllModules();
     main_executable_windows.Patch();
