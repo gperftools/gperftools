@@ -315,10 +315,13 @@ esac
 # we're dealing with unknown system, we have to check if GetPC
 # actually works. But don't bother if we're not doing cpu-profiling.
 if test "$enable_cpu_profiler" = yes; then
-  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include "src/getpc.h"]], [GetPC({})])],
+  OLD_CXXFLAGS="$CXXFLAGS"
+  CXXFLAGS="$CXXFLAGS -I$srcdir/src"
+  AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include "getpc.h"]], [GetPC({})])],
                     [],
                     [AC_MSG_WARN(Could not find the PC.  Will not try to compile libprofiler...)
                      enable_cpu_profiler=no])
+  CXXFLAGS="$OLD_CXXFLAGS"
 fi
 
 # Some tests test the behavior of .so files, and only make sense for dynamic.
