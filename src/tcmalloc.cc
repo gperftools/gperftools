@@ -1510,7 +1510,19 @@ ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
 
   void* result = do_malloc_or_cpp_alloc(size);
   if (result != NULL) {
-    memset(result, 0, tc_nallocx(size, 0));
+    size_t total_size = size;
+    if (!tcmalloc::IsEmergencyPtr(result)) {
+      // On windows we support recalloc (which was apparently
+      // originally introduced in Irix). In order for recalloc to work
+      // we need to zero-out not just the size we were asked for, but
+      // entire usable size. See also
+      // https://github.com/gperftools/gperftools/pull/994.
+      //
+      // But we can do it only when not dealing with emergency
+      // malloc-ed memory.
+      total_size = tc_nallocx(size, 0);
+    }
+    memset(result, 0, total_size);
   }
   return result;
 }
