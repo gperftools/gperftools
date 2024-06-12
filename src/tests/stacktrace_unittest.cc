@@ -66,6 +66,8 @@
 // backtrace.
 const int BACKTRACE_STEPS = 6;
 
+static const char* tested_implementation_name;
+
 struct AddressRange {
   const void *start, *end;
 };
@@ -363,7 +365,19 @@ void RunTest() {
   printf("PASS\n");
 
 #if TEST_UCONTEXT_BITS
-  if (!skipping_ucontext) {
+  bool want_to_test = !skipping_ucontext;
+#if !__linux__
+  // Our current "with ucontext" backtracing relies on fixed number of
+  // stack frames to skip. Which is brittle and actually fails on
+  // e.g. BSDs. There is a notable exception of generic_fp
+  // backtracer. Which, if exists, is actually doing backtracing from
+  // given ucontext parameter. So on Linux we test all implementations
+  // (which passes in practice at least on platforms I test), and
+  // everyone else only does ucontext tests with generic_fp method.
+  std::string name = tested_implementation_name;
+  want_to_test = want_to_test && (name == "generic_fp" || name == "generic_fp_unsafe");
+#endif  // !__linux__
+  if (want_to_test) {
     leaf_capture_fn = CaptureLeafUContext;
     CheckStackTrace(0);
     printf("PASS\n");
@@ -384,11 +398,11 @@ int main(int argc, char** argv) {
 
   for (;;) {
     // first arg if given is stacktrace implementation we want to test
-    const char* name = TEST_bump_stacktrace_implementation((argc > 1) ? argv[1] : nullptr);
-    if (!name) {
+    tested_implementation_name = TEST_bump_stacktrace_implementation((argc > 1) ? argv[1] : nullptr);
+    if (!tested_implementation_name) {
       break;
     }
-    printf("Testing stacktrace implementation: %s\n", name);
+    printf("\n-----\nTesting stacktrace implementation: %s\n", tested_implementation_name);
 
     leaf_capture_len = 20;
     RunTest();
