@@ -414,8 +414,10 @@ class MallocBlock {
     alloc_map_lock_.Unlock();
     // clear us
     const size_t size = real_size();
+#if !defined(TCMALLOC_DONT_VERIFY_SIZE)
     RAW_CHECK(!given_size || given_size == size1_,
               "right size must be passed to sized delete");
+#endif
     memset(this, kMagicDeletedByte, size);
     return size;
   }
