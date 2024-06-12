@@ -372,6 +372,23 @@ const char* TEST_bump_stacktrace_implementation(const char* suggestion) {
       // skip null implementation
       continue;
     }
+#ifdef HAVE_GST_arm
+    if (get_stack_impl == &impl__arm) {
+      // "arm" backtracer is hopelessly broken. So don't test. We
+      // still ship it, though, just in case.
+      continue;
+    }
+#endif  // HAVE_GST_arm
+#if defined(HAVE_GST_generic_fp) && (!__x86_64__ && !__i386__ && !__aarch64__ && !__riscv)
+    // Those "major" architectures have functional frame pointer
+    // backtracer and they're built with -fno-omit-frame-pointers
+    // -mno-omit-leaf-frame-pointer. So we do expect those tests to
+    // succeed. Everyone else (e.g. 32-bit legacy arm) is unlikely to
+    // pass.
+    if (get_stack_impl == &impl__generic_fp || get_stack_impl == &impl__generic_fp_unsafe) {
+      continue;
+    }
+#endif  // generic_fp && !"good architecture"
     break;
   } while (true);
 
