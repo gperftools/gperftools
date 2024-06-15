@@ -1,3 +1,98 @@
+== 16 September 2024
+
+gperftools 2.16rc is out!
+
+This release doesn't have major fixes or big headline features, but it
+has quite a lot of internal modernizations and cleanups. By the number
+of commits, 2.16 is going to be our biggest release ever.
+
+This release's main focus was making our code and building
+infrastructure simpler, more straightforward, more portable, and more
+modern.
+
+Please note that the gperftools 2.16 release will be the last release
+with the heap leak checker included. The time has come to drop this
+feature entirely. All users should migrate to relevant gcc/clang
+sanitizers.
+
+Here are the most notable changes:
+
+* we've upgraded our C++ standard to C++ 17. Some fraction of our code
+  base was modernized.
+
+* We've integrated (vendored copy of) GoogleTest, and most tests now
+  use it. GoogleTest has helped us eliminate some legacy code and
+  reduce the number of tests that use shell scripts.
+
+* There are no more unnecessary wrappers around mutexes and threads
+  for unit tests. We now use C++ standard mutexes and threads in our
+  tests.
+
+* We've done the bulk of the work necessary to enable hidden
+  visibility. The most significant change is that tests no longer
+  reach into libtcmalloc's guts. We use a special TestingPortal
+  interface instead. We now offer the --enable-hidden-visibility
+  configure option, which does what it says. But please note that
+  hidden visibility is off by default for now.
+
+* autotools build was significantly refactored, modernized and
+  simplified.
+
+* The cmake build has also been radically simplified. The previous
+  version attempted to duplicate the same complexity that we had in
+  the autotools build and did not do it very well. More tests now pass
+  under cmake. But please note that cmake support is still not
+  entirely functional, and we're not yet able to promise anything
+  about it.
+
+* Thread-local storage access and emergency malloc integration have
+  been reworked. We now support emergency malloc even on systems with
+  emutls and similarly "bad" TLS support. As a result, backtracing is
+  now more reliable (e.g., on QNX).
+
+* OSX operator new/delete performance has been improved. OSX's malloc
+  performance is badly compromised by its support of malloc zones, so
+  we cannot help much (the same applies to much of our competition
+  among memory allocators). But the C++ new/delete API doesn't have to
+  integrate with this stuff, so we now directly replace those
+  functions for a sizeable speedup. Note that OSX performance is still
+  not on par with other "prime tier" OSes due to its lack of efficient
+  TLS support.
+
+* Long deprecated google/ headers have been deleted (use, e.g.,
+  "gperftools/tcmalloc.h" instead)
+
+* All clang builds now use -Wthread-safety and actually check
+  thread-safety declarations
+
+* Our code has stopped being incompatible with _TIME_BITS=64 on modern
+  GNU Linux systems (relevant only for 32-bit systems)
+
+* OpenSolaris build has been verified and fixed when needed
+
+Thanks to the following people for code contributions:
+
+* Github user oPiZiL (build fix for gcc 7.5)
+
+* Github user zhangdexin (qnx fixes)
+
+* Ishant Goyal (support for configuring minimal per-thread cache size)
+
+* Lennox Ho (several build fixes and several fixes around Windows support)
+
+* Olivier Langlois
+
+* Sergey Fedorovhas (another fix for building gperftools on old PPC
+  OSX computers)
+
+* Xiang.Lin (several OSX fixes)
+
+* Yikai Zhao (aarch64 generic_fp stack frame validation)
+
+You can find the list of all GitHub issues fixes in this release here:
+
+https://github.com/gperftools/gperftools/issues?q=label%3Afixed-in-2.16+is%3Aclosed
+
 == 5 Jan 2024
 gperftools 2.15 is out!
 
