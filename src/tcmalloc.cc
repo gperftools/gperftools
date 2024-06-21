@@ -1169,13 +1169,8 @@ size_t TCMallocImplementation::GetEstimatedAllocatedSize(size_t size) {
 // The constructor allocates an object to ensure that initialization
 // runs before main(), and therefore we do not have a chance to become
 // multi-threaded before initialization.  We also create the TSD key
-// here.  Presumably by the time this constructor runs, glibc is in
+// here.  Presumably by the time this constructor runs, runtime is in
 // good enough shape to handle tcmalloc::CreateTlsKey().
-//
-// The constructor also takes the opportunity to tell STL to use
-// tcmalloc.  We want to do this early, before construct time, so
-// all user STL allocations go through tcmalloc (which works really
-// well for STL).
 //
 // The destructor prints stats when the program exits.
 static int tcmallocguard_refcount;
