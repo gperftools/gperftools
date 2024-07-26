@@ -70,6 +70,7 @@
 
 use strict;
 use warnings;
+use File::Basename;
 use Getopt::Long;
 use Cwd;
 use POSIX;
@@ -4535,7 +4536,7 @@ sub ParseLibraries {
       $finish = HexExtend($2);
       $offset = $zero_offset;
       $lib = $3;
-    } elsif (($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+)$/i) && ($4 eq $prog)) {
+    } elsif (($l =~ /^($h)-($h)\s+..x.\s+($h)\s+\S+:\S+\s+\d+\s+(\S+)$/i) && (basename($4) eq basename($prog))) {
       # PIEs and address space randomization do not play well with our
       # default assumption that main executable is at lowest
       # addresses. So we're detecting main executable in
