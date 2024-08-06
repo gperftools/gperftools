@@ -277,13 +277,15 @@ static GetStackImplementation *get_stack_impl;
 #if 0
 // This is for the benefit of code analysis tools that may have
 // trouble with the computed #include above.
-# include "stacktrace_libunwind-inl.h"
 # include "stacktrace_generic-inl.h"
+# include "stacktrace_libgcc-inl.h"
+# include "stacktrace_libunwind-inl.h"
 # include "stacktrace_generic_fp-inl.h"
 # include "stacktrace_powerpc-linux-inl.h"
-# include "stacktrace_win32-inl.h"
+# include "stacktrace_powerpc-darwin-inl.h"
 # include "stacktrace_arm-inl.h"
 # include "stacktrace_instrument-inl.h"
+# include "stacktrace_win32-inl.h"
 #endif
 
 static void init_default_stack_impl_inner(void);
