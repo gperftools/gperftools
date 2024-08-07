@@ -52,6 +52,8 @@ def dwm!(d)
     d.field "mc_eip", "FreeBSD/i386"
     d.field "mc_srr0", "FreeBSD/ppc"
     d.field "mc_rip", "FreeBSD/x86_64"
+    d.field "cpu.elr", "QNX/aarch64"
+    d.field "cpu.rip", "QNX/x86_64"
   end
 
   d.with_prefix "uc_mcontext->" do

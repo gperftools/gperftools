@@ -334,6 +334,10 @@ static int GET_STACK_TRACE_OR_FRAMES {
 #elif __NetBSD__
     // NetBSD has those portable defines. Nice!
     SETUP_FRAME(&_UC_MACHINE_PC(uc), _UC_MACHINE_FP(uc));
+#elif __QNXNTO__ && __aarch64__
+    SETUP_FRAME(&uc->uc_mcontext.cpu.elr, uc->uc_mcontext.cpu.gpr[AARCH64_REG_X29]);
+#elif __QNXNTO__ && __x86_64__
+    SETUP_FRAME(&uc->uc_mcontext.cpu.rip, uc->uc_mcontext.cpu.rbp);
 #elif defined(HAVE_GETPC)
     // So if we're dealing with architecture that doesn't belong to
     // one of cases above, we still have plenty more cases supported

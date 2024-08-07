@@ -74,6 +74,16 @@
 #define sigev_notify_thread_id _sigev_un._tid
 #endif
 
+// SIGPROF is obsoleted on QNX, always use SIGALRM
+// https://www.qnx.com/developers/docs/7.1/#com.qnx.doc.neutrino.lib_ref/topic/s/signalaction.html
+#if defined(__QNXNTO__)
+#define SA_RESTART 0
+#undef SIGPROF
+#define SIGPROF SIGALRM
+#undef ITIMER_PROF
+#define ITIMER_PROF ITIMER_REAL
+#endif
+
 using std::list;
 using std::string;
 

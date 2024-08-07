@@ -45,6 +45,14 @@
 #include <signal.h>
 #include <sys/time.h>     // for setitimer
 
+#ifdef __QNXNTO__
+#define SA_RESTART 0
+#undef SIGPROF
+#define SIGPROF SIGALRM
+#undef ITIMER_PROF
+#define ITIMER_PROF ITIMER_REAL
+#endif
+
 // Needs to be volatile so compiler doesn't try to optimize it away
 static volatile void* getpc_retval = NULL;    // what GetPC returns
 static volatile bool prof_handler_called = false;
