@@ -515,6 +515,7 @@ AH_BOTTOM([
 ])
 AM_CONDITIONAL(MINGW, expr $host : '.*-mingw' >/dev/null 2>&1)
 AM_CONDITIONAL(OSX, expr $host : '.*-apple-darwin.*' >/dev/null 2>&1)
+AM_CONDITIONAL(QNX, expr $host : '.*-nto-qnx.*' >/dev/null 2>&1)
 
 # Export the --enable flags we set above.  We do this at the end so
 # other configure rules can enable or disable targets based on what

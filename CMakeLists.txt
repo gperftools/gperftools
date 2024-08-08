@@ -34,6 +34,8 @@ if(MINGW OR MSVC)
   set(DEFAULT_BUILD_DEBUGALLOC OFF)
 elseif(CYGWIN)
   set(DEFAULT_BUILD_CPU_PROFILER OFF)
+elseif(CMAKE_SYSTEM_NAME MATCHES QNX)
+  set(DEFAULT_BUILD_CPU_PROFILER OFF)
 endif()
 
 # Heap checker is Linux-only (and deprecated).
@@ -466,6 +468,10 @@ link_libraries(psapi synchronization shlwapi)
 
 endif()
 
+if(CMAKE_SYSTEM_NAME MATCHES QNX)
+  link_libraries(socket)
+endif()
+
 if(BUILD_TESTING)
   add_library(gtest STATIC vendor/googletest/googletest/src/gtest_main.cc
     vendor/googletest/googletest/src/gtest-assertion-result.cc
@@ -483,6 +489,10 @@ if(BUILD_TESTING)
 
   target_include_directories(gtest INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/googletest/googletest/include>)
+
+  if(CMAKE_SYSTEM_NAME MATCHES QNX)
+    target_link_libraries(gtest INTERFACE regex)
+  endif()
 
   add_executable(low_level_alloc_unittest src/base/low_level_alloc.cc
           src/malloc_hook.cc
@@ -810,7 +820,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     set(sampling_test_SOURCES src/tests/sampling_test.cc)
     add_executable(sampling_test src/tests/sampling_test.cc)
     target_compile_definitions(sampling_test PRIVATE PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
-    target_link_libraries(sampling_test tcmalloc)
+    target_link_libraries(sampling_test tcmalloc $<$<PLATFORM_ID:QNX>:regex>)
     add_test(sampling_test sampling_test)
 
     if(GPERFTOOLS_BUILD_HEAP_PROFILER)
@@ -845,7 +855,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
 
       add_executable(sampling_debug_test src/tests/sampling_test.cc)
           target_compile_definitions(sampling_debug_test PRIVATE PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
-      target_link_libraries(sampling_debug_test tcmalloc_debug)
+      target_link_libraries(sampling_debug_test tcmalloc_debug $<$<PLATFORM_ID:QNX>:regex>)
       add_test(sampling_debug_test sampling_debug_test)
 
       if(GPERFTOOLS_BUILD_HEAP_PROFILER)
