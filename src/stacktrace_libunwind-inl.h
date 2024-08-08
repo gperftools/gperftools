@@ -81,45 +81,18 @@ static __thread int recursive ATTR_INITIAL_EXEC;
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 static int GET_STACK_TRACE_OR_FRAMES {
-  int n = 0;
-  if (recursive) {
-    return 0;
-  }
-  ++recursive;
-
-#if (!IS_WITH_CONTEXT && !IS_STACK_FRAMES)
-  // GetStackTrace(): Use unw_backtrace() to get the backtrace more quickly.
-
-  // From malloc_hook.cc, the maximum backtrace size that's requested is
-  // <= 32 + 6 + 3 + 1 + max_depth. We add another 2 for GetStackTrace()'s
-  // skip_count.
-  constexpr size_t kMaxBacktraceSize = 32 + 6 + 3 + 1 + 32 + 2;
-  static __thread void *libunwind_backtrace_result[kMaxBacktraceSize];
-
-  skip_count += 2;
-  if (PREDICT_FALSE(skip_count + max_depth > kMaxBacktraceSize)) {
-    fprintf(stderr,
-            "error: exceeded max backtrace size of %lu. max depth = %d, skip "
-            "count = %d.\n",
-            kMaxBacktraceSize, max_depth, skip_count);
-    exit(1);
-  }
-  n = unw_backtrace(libunwind_backtrace_result, max_depth + skip_count);
-  n -= skip_count;
-  if (PREDICT_FALSE(n <= 0)) {
-    n = 0;
-    goto out;
-  }
-
-  std::copy(libunwind_backtrace_result + skip_count,
-            libunwind_backtrace_result + skip_count + n, result);
-#else
   void *ip;
+  int n = 0;
   unw_cursor_t cursor;
   unw_context_t uc;
 #if IS_STACK_FRAMES
   unw_word_t sp = 0, next_sp = 0;
 #endif
+
+  if (recursive) {
+    return 0;
+  }
+  ++recursive;
 
 #if (IS_WITH_CONTEXT && defined(BASE_STACKTRACE_UNW_CONTEXT_IS_UCONTEXT))
   if (ucp) {
@@ -174,8 +147,6 @@ static int GET_STACK_TRACE_OR_FRAMES {
     sizes[n - 1] = next_sp - sp;
 #endif
   }
-#endif
-
 out:
   --recursive;
   return n;
