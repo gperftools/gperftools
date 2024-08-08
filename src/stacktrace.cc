@@ -199,6 +199,8 @@ struct GetStackImplementation {
 #define PREFER_FP_UNWINDER 1
 #elif TCMALLOC_DONT_PREFER_LIBUNWIND && !defined(PREFER_LIBGCC_UNWINDER)
 #define PREFER_FP_UNWINDER 1
+#elif defined(__QNXNTO__) && !defined(PREFER_LIBGCC_UNWINDER)
+#define PREFER_FP_UNWINDER 1
 #else
 #define PREFER_FP_UNWINDER 0
 #endif
