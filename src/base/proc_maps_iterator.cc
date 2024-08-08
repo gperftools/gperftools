@@ -354,17 +354,20 @@ bool DoIterateLinux(const char* path, void (*body)(const ProcMapping& mapping, v
 inline
 bool DoIterateQNX(void (*body)(const ProcMapping& mapping, void* arg), void* arg) {
   return ForEachLine(
-    "proc/self/pmap",
+    "/proc/self/pmap",
     [&] (char* line_start, char* line_end) {
-      // https://www.qnx.com/developers/docs/7.1/#com.qnx.doc.neutrino.sys_arch/topic/vm_calculations.html
-      // vaddr,size,flags,prot,maxprot,dev,ino,offset,rsv,guardsize,refcnt,mapcnt,path
-      // 0x00000025e9df9000,0x0000000000053000,0x00000071,0x05,0x0f,0x0000040b,0x0000000000000094,
-      //   0x0000000000000000,0x0000000000000000,0x00000000,0x00000005,0x00000003,/system/xbin/cat
       ProcMapping mapping;
       unsigned filename_offset;
 
       uint64_t q_vaddr, q_size, q_ino, q_offset;
       uint32_t q_flags, q_dev, q_prot;
+
+      // pmap file start with below header info, skip it.
+      // vaddr,size,flags,prot,maxprot,dev,ino,offset,rsv,guardsize,refcnt,mapcnt,path
+      if (!strncmp(line_start, "vaddr,size,", 11)) {
+          return true;
+      }
+
       if (sscanf(line_start,
                  "0x%" SCNx64 ",0x%" SCNx64 ",0x%" SCNx32        \
                  ",0x%" SCNx32 ",0x%*x,0x%" SCNx32 ",0x%" SCNx64 \
