@@ -272,10 +272,21 @@ class ProfileHandlerTest : public ::testing::Test {
     uint64_t interrupts_before = GetInterruptCount();
     // Sleep for a bit and check that tick counter is making progress.
     int old_tick_count = tick_counter;
+    int new_tick_count;
+    uint64_t interrupts_after;
     Delay(kSleepInterval);
-    int new_tick_count = tick_counter;
-    uint64_t interrupts_after = GetInterruptCount();
     if (FLAGS_test_profiler_enabled) {
+      // The "sleep" check we do here is somewhat inherently
+      // brittle. But we can repeat waiting a bit more to ensure that
+      // ticks do occur.
+      for (int i = 10; i > 0; i--) {
+        new_tick_count = tick_counter;
+        interrupts_after = GetInterruptCount();
+        if (new_tick_count > old_tick_count && interrupts_after > interrupts_before) {
+          break;
+        }
+        Delay(kSleepInterval);
+      }
       EXPECT_GT(new_tick_count, old_tick_count);
       EXPECT_GT(interrupts_after, interrupts_before);
     } else {
