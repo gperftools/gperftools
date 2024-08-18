@@ -163,6 +163,7 @@ libgtest_la_SOURCES = vendor/googletest/googletest/src/gtest_main.cc \
 
 libgtest_la_CPPFLAGS = -I$(top_srcdir)/vendor/googletest/googletest/include \
  -I$(top_srcdir)/vendor/googletest/googletest/ $(AM_CPPFLAGS)
+libgtest_la_LIBADD = $(REGEX_LIBS)
 
 gtest_CPPFLAGS = -I$(top_srcdir)/vendor/googletest/googletest/include $(AM_CPPFLAGS)
 
@@ -721,7 +722,7 @@ TESTS += sampling_test
 sampling_test_SOURCES = src/tests/sampling_test.cc
 sampling_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 sampling_test_CPPFLAGS = $(AM_CPPFLAGS) "-DPPROF_PATH=$(top_srcdir)/src/pprof"
-sampling_test_LDADD = libtcmalloc.la
+sampling_test_LDADD = libtcmalloc.la $(REGEX_LIBS)
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
@@ -795,7 +796,7 @@ sampling_debug_test_SOURCES = $(sampling_test_SOURCES)
 sampling_debug_test_CXXFLAGS = $(sampling_test_CXXFLAGS)
 sampling_debug_test_CPPFLAGS = $(sampling_test_CPPFLAGS)
 sampling_debug_test_LDFLAGS = $(sampling_test_LDFLAGS)
-sampling_debug_test_LDADD = libtcmalloc_debug.la
+sampling_debug_test_LDADD = libtcmalloc_debug.la $(REGEX_LIBS)
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
 

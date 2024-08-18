@@ -276,6 +276,18 @@ AC_CHECK_HEADERS(asm/ptrace.h)           # get ptrace macros, e.g. PT_NIP
 # check for socketpair, some system, such as QNX, need link in an socket library to use it
 AC_SEARCH_LIBS([socketpair], [socket])
 
+REGEX_LIBS=
+# "sufficiently unix" systems need regexec for unit tests
+if test "x$need_nanosleep" = xyes; then
+  save_LIBS="$LIBS"
+  LIBS="$REGEX_LIBS"
+  # QNX needs -lregex; but lets test just in case
+  AC_SEARCH_LIBS([regexec], [regex], [], [AC_MSG_ERROR([failed to locate regexec() (used for tests)])])
+  REGEX_LIBS="$LIBS"
+  LIBS="$save_LIBS"
+fi
+AC_SUBST(REGEX_LIBS)
+
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 AC_CHECK_DECLS([cfree,
