@@ -69,11 +69,6 @@ class ThreadCache {
   // REQUIRES: Static::pageheap_lock is not held.
   static void DeleteCache(ThreadCache* heap);
 
-  // REQUIRES: Static::pageheap_lock is held
-  ThreadCache();
-  // REQUIRES: Static::pageheap_lock is not held
-  ~ThreadCache();
-
   // Accessors (mostly just for printing stats)
   int freelist_length(uint32_t cl) const { return list_[cl].length(); }
 
@@ -239,6 +234,11 @@ class ThreadCache {
       if (length_ < lowater_) lowater_ = length_;
     }
   };
+
+  // REQUIRES: Static::pageheap_lock is held
+  ThreadCache();
+  // REQUIRES: Static::pageheap_lock is not held
+  ~ThreadCache();
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.
