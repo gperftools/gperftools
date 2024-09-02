@@ -70,6 +70,8 @@ volatile size_t ThreadCache::per_thread_cache_size_ = kMaxThreadCacheSize;
 
 std::atomic<size_t> ThreadCache::min_per_thread_cache_size_ = kMinThreadCacheSize;
 size_t ThreadCache::overall_thread_cache_size_ = kDefaultOverallThreadCacheSize;
+size_t ThreadCache::initial_thread_cache_size_ = kStealAmount;
+bool ThreadCache::use_batch_size_from_start_ = false;
 ssize_t ThreadCache::unclaimed_cache_space_ = kDefaultOverallThreadCacheSize;
 PageHeapAllocator<ThreadCache> threadcache_allocator;
 ThreadCache* ThreadCache::thread_heaps_ = NULL;
@@ -82,7 +84,7 @@ ThreadCache::ThreadCache() {
   size_ = 0;
 
   max_size_ = 0;
-  IncreaseCacheLimitLocked();
+  SetInitialLimitLocked();
   if (max_size_ == 0) {
     // There isn't enough memory to go around.  Just give the minimum to
     // this thread.
@@ -96,9 +98,15 @@ ThreadCache::ThreadCache() {
 
   next_ = nullptr;
   prev_ = nullptr;
-  for (uint32_t cl = 0; cl < Static::num_size_classes(); ++cl) {
-    list_[cl].Init(Static::sizemap()->class_to_size(cl));
-  }
+  if (!use_batch_size_from_start_)
+    for (uint32_t cl = 0; cl < Static::num_size_classes(); ++cl) {
+      list_[cl].Init(Static::sizemap()->class_to_size(cl));
+    }
+  else
+    for (uint32_t cl = 0; cl < Static::num_size_classes(); ++cl) {
+      list_[cl].Init(Static::sizemap()->class_to_size(cl));
+      list_[cl].set_max_length(Static::sizemap()->num_objects_to_move(cl));
+    }
 
   uintptr_t sampler_seed;
   uintptr_t addr = reinterpret_cast<uintptr_t>(&sampler_seed);
@@ -282,6 +290,16 @@ void ThreadCache::IncreaseCacheLimitLocked() {
   }
 }
 
+void ThreadCache::SetInitialLimitLocked()
+{
+  if (unclaimed_cache_space_ >= initial_thread_cache_size_) {
+    unclaimed_cache_space_ -= initial_thread_cache_size_;
+    SetMaxSize(initial_thread_cache_size_);
+    return;
+  }
+  IncreaseCacheLimitLocked();
+}
+
 int ThreadCache::GetSamplePeriod() {
   return Sampler::GetSamplePeriod();
 }
@@ -296,6 +314,13 @@ void ThreadCache::InitModule() {
     if (tcb) {
       set_overall_thread_cache_size(strtoll(tcb, NULL, 10));
     }
+    const char *tcib = TCMallocGetenvSafe("TCMALLOC_INITIAL_THREAD_CACHE_BYTES");
+    if (tcib) {
+      long long tcib_val = strtoll(tcib, NULL, 10);
+      if (tcib_val > kStealAmount)
+        initial_thread_cache_size_ = tcib_val;
+    }
+    use_batch_size_from_start_ = TCMallocGetenvSafe("TCMALLOC_BATCH_SIZE_FROM_START");
     Static::InitStaticVars();
     threadcache_allocator.Init();
     SetupMallocExtension();

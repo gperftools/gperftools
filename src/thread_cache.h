@@ -262,6 +262,7 @@ class ThreadCache {
   void IncreaseCacheLimit();
   // Same as above but requires Static::pageheap_lock() is held.
   void IncreaseCacheLimitLocked();
+  void SetInitialLimitLocked();
 
   // Linked list of heap objects.  Protected by Static::pageheap_lock.
   static ThreadCache* thread_heaps_;
@@ -279,6 +280,8 @@ class ThreadCache {
   // Overall thread cache size.  Protected by Static::pageheap_lock.
   static size_t overall_thread_cache_size_;
 
+  static size_t initial_thread_cache_size_;
+
   // Global per-thread cache size.  Writes are protected by
   // Static::pageheap_lock.  Reads are done without any locking, which should be
   // fine as long as size_t can be written atomically and we don't place
@@ -288,6 +291,8 @@ class ThreadCache {
   // Represents overall_thread_cache_size_ minus the sum of max_size_
   // across all ThreadCaches.  Protected by Static::pageheap_lock.
   static ssize_t unclaimed_cache_space_;
+
+  static bool use_batch_size_from_start_;
 
   // This class is laid out with the most frequently used fields
   // first so that hot elements are placed on the same cache line.
