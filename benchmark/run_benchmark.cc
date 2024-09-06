@@ -114,7 +114,7 @@ void report_benchmark(const char *name, bench_body body, uintptr_t param)
     if (padding_size < 1) {
       padding_size = 1;
     }
-    printf("%*c%f nsec\n", padding_size, ' ', nsec);
+    printf("%*c%f nsec (rate: %f Mops/sec)\n", padding_size, ' ', nsec, 1e9/nsec/1e6);
     fflush(stdout);
   }
 }
