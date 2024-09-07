@@ -225,11 +225,15 @@ void randomize_size_classes() {
   }
 }
 
-int main(void)
+int main(int argc, char **argv)
 {
-  printf("Trying to randomize freelists..."); fflush(stdout);
-  randomize_size_classes();
-  printf("done.\n");
+  init_benchmark(&argc, &argv);
+
+  if (!benchmark_list_only) {
+    printf("Trying to randomize freelists..."); fflush(stdout);
+    randomize_size_classes();
+    printf("done.\n");
+  }
 
   report_benchmark("bench_fastpath_throughput", bench_fastpath_throughput, 0);
   report_benchmark("bench_fastpath_dependent", bench_fastpath_dependent, 0);

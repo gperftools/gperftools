@@ -157,6 +157,8 @@
 /test-driver
 /thread_dealloc_unittest
 /thread_dealloc_unittest.exe
+/trivialre_test
+/trivialre_test.exe
 /unique_path_unittest
 /unique_path_unittest.exe
 /unwind_bench

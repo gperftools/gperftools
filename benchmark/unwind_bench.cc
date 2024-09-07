@@ -127,7 +127,9 @@ static void bench_unwind_no_context(long iterations, uintptr_t param) {
   } while (iterations > 0);
 }
 
-int main(void) {
+int main(int argc, char **argv) {
+  init_benchmark(&argc, &argv);
+
 #if BENCHMARK_UCONTEXT_STUFF
   report_benchmark("unwind_context", bench_unwind_context, 1024);
 #endif

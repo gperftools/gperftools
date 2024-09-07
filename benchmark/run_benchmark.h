@@ -32,6 +32,10 @@
 extern "C" {
 #endif
 
+void init_benchmark(int *argc, char ***argv);
+
+extern bool benchmark_list_only;
+
 typedef void (*bench_body)(long iterations, uintptr_t param);
 
 void report_benchmark(const char *name, bench_body body, uintptr_t param);
