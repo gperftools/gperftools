@@ -33,6 +33,7 @@
 #include <memory>
 #include <new>
 #include <random>
+#include <thread>
 
 #include "run_benchmark.h"
 
@@ -190,6 +191,50 @@ static void bench_fastpath_rnd_dependent(long iterations,
   }
 }
 
+static void bench_fastpath_rnd_dependent_8cores(long iterations,
+                                                uintptr_t _param)
+{
+  static const uintptr_t rnd_c = 1013904223;
+  static const uintptr_t rnd_a = 1664525;
+
+  if ((_param & (_param - 1))) {
+    abort();
+  }
+
+  long param = static_cast<long>(_param);
+  param = std::max(1l, param);
+
+  auto body = [iterations, param] () {
+    size_t sz = 128;
+    std::unique_ptr<void*[]> ptrs = std::make_unique<void*[]>(param);
+
+    for (long i = iterations; i>0; i -= param) {
+      for (int k = param-1; k >= 0; k--) {
+        void *p = (operator new)(sz);
+        ptrs[k] = p;
+        sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
+      }
+
+      // this will iterate through all objects in order that is
+      // unpredictable to processor's prefetchers
+      uint32_t rnd = 0;
+      uint32_t free_idx = 0;
+      do {
+        (operator delete)(ptrs[free_idx]);
+        rnd = rnd * rnd_a + rnd_c;
+        free_idx = rnd & (param - 1);
+      } while (free_idx != 0);
+    }
+  };
+
+  std::thread ts[] = {
+    std::thread{body}, std::thread{body}, std::thread{body}, std::thread{body},
+    std::thread{body}, std::thread{body}, std::thread{body}, std::thread{body}};
+  for (auto &t : ts) {
+    t.join();
+  }
+}
+
 void randomize_one_size_class(size_t size) {
   size_t count = (100<<20) / size;
   auto randomize_buffer = std::make_unique<void*[]>(count);
@@ -262,5 +307,8 @@ int main(int argc, char **argv)
   report_benchmark("bench_fastpath_rnd_dependent", bench_fastpath_rnd_dependent, 32);
   report_benchmark("bench_fastpath_rnd_dependent", bench_fastpath_rnd_dependent, 8192);
   report_benchmark("bench_fastpath_rnd_dependent", bench_fastpath_rnd_dependent, 32768);
+
+  report_benchmark("bench_fastpath_rnd_dependent_8cores", bench_fastpath_rnd_dependent_8cores, 32768);
+
   return 0;
 }
