@@ -1493,6 +1493,7 @@ class DoAllAction<FinalAction> {
   // providing a call operator because even with a particular set of arguments
   // they don't have a fixed return type.
 
+  // We support conversion to OnceAction whenever the sub-action does.
   template <typename R, typename... Args,
             typename std::enable_if<
                 std::is_convertible<FinalAction, OnceAction<R(Args...)>>::value,
@@ -1501,6 +1502,21 @@ class DoAllAction<FinalAction> {
     return std::move(final_action_);
   }
 
+  // We also support conversion to OnceAction whenever the sub-action supports
+  // conversion to Action (since any Action can also be a OnceAction).
+  template <
+      typename R, typename... Args,
+      typename std::enable_if<
+          conjunction<
+              negation<
+                  std::is_convertible<FinalAction, OnceAction<R(Args...)>>>,
+              std::is_convertible<FinalAction, Action<R(Args...)>>>::value,
+          int>::type = 0>
+  operator OnceAction<R(Args...)>() && {  // NOLINT
+    return Action<R(Args...)>(std::move(final_action_));
+  }
+
+  // We support conversion to Action whenever the sub-action does.
   template <
       typename R, typename... Args,
       typename std::enable_if<
@@ -1580,16 +1596,16 @@ class DoAllAction<InitialAction, OtherActions...>
       : Base({}, std::forward<U>(other_actions)...),
         initial_action_(std::forward<T>(initial_action)) {}
 
-  template <typename R, typename... Args,
-            typename std::enable_if<
-                conjunction<
-                    // Both the initial action and the rest must support
-                    // conversion to OnceAction.
-                    std::is_convertible<
-                        InitialAction,
-                        OnceAction<void(InitialActionArgType<Args>...)>>,
-                    std::is_convertible<Base, OnceAction<R(Args...)>>>::value,
-                int>::type = 0>
+  // We support conversion to OnceAction whenever both the initial action and
+  // the rest support conversion to OnceAction.
+  template <
+      typename R, typename... Args,
+      typename std::enable_if<
+          conjunction<std::is_convertible<
+                          InitialAction,
+                          OnceAction<void(InitialActionArgType<Args>...)>>,
+                      std::is_convertible<Base, OnceAction<R(Args...)>>>::value,
+          int>::type = 0>
   operator OnceAction<R(Args...)>() && {  // NOLINT
     // Return an action that first calls the initial action with arguments
     // filtered through InitialActionArgType, then forwards arguments directly
@@ -1612,12 +1628,34 @@ class DoAllAction<InitialAction, OtherActions...>
     };
   }
 
+  // We also support conversion to OnceAction whenever the initial action
+  // supports conversion to Action (since any Action can also be a OnceAction).
+  //
+  // The remaining sub-actions must also be compatible, but we don't need to
+  // special case them because the base class deals with them.
   template <
       typename R, typename... Args,
       typename std::enable_if<
           conjunction<
-              // Both the initial action and the rest must support conversion to
-              // Action.
+              negation<std::is_convertible<
+                  InitialAction,
+                  OnceAction<void(InitialActionArgType<Args>...)>>>,
+              std::is_convertible<InitialAction,
+                                  Action<void(InitialActionArgType<Args>...)>>,
+              std::is_convertible<Base, OnceAction<R(Args...)>>>::value,
+          int>::type = 0>
+  operator OnceAction<R(Args...)>() && {  // NOLINT
+    return DoAll(
+        Action<void(InitialActionArgType<Args>...)>(std::move(initial_action_)),
+        std::move(static_cast<Base&>(*this)));
+  }
+
+  // We support conversion to Action whenever both the initial action and the
+  // rest support conversion to Action.
+  template <
+      typename R, typename... Args,
+      typename std::enable_if<
+          conjunction<
               std::is_convertible<const InitialAction&,
                                   Action<void(InitialActionArgType<Args>...)>>,
               std::is_convertible<const Base&, Action<R(Args...)>>>::value,
@@ -1665,8 +1703,9 @@ template <size_t k>
 struct ReturnArgAction {
   template <typename... Args,
             typename = typename std::enable_if<(k < sizeof...(Args))>::type>
-  auto operator()(Args&&... args) const -> decltype(std::get<k>(
-      std::forward_as_tuple(std::forward<Args>(args)...))) {
+  auto operator()(Args&&... args) const
+      -> decltype(std::get<k>(
+          std::forward_as_tuple(std::forward<Args>(args)...))) {
     return std::get<k>(std::forward_as_tuple(std::forward<Args>(args)...));
   }
 };
@@ -2135,13 +2174,13 @@ struct ActionImpl<R(Args...), Impl> : ImplBase<Impl>::type {
   R operator()(Args&&... arg) const {
     static constexpr size_t kMaxArgs =
         sizeof...(Args) <= 10 ? sizeof...(Args) : 10;
-    return Apply(MakeIndexSequence<kMaxArgs>{},
-                 MakeIndexSequence<10 - kMaxArgs>{},
+    return Apply(std::make_index_sequence<kMaxArgs>{},
+                 std::make_index_sequence<10 - kMaxArgs>{},
                  args_type{std::forward<Args>(arg)...});
   }
 
   template <std::size_t... arg_id, std::size_t... excess_id>
-  R Apply(IndexSequence<arg_id...>, IndexSequence<excess_id...>,
+  R Apply(std::index_sequence<arg_id...>, std::index_sequence<excess_id...>,
           const args_type& args) const {
     // Impl need not be specific to the signature of action being implemented;
     // only the implementing function body needs to have all of the specific
@@ -2174,9 +2213,9 @@ template <typename F, typename Impl>
 }
 
 #define GMOCK_INTERNAL_ARG_UNUSED(i, data, el) \
-  , const arg##i##_type& arg##i GTEST_ATTRIBUTE_UNUSED_
-#define GMOCK_ACTION_ARG_TYPES_AND_NAMES_UNUSED_                 \
-  const args_type& args GTEST_ATTRIBUTE_UNUSED_ GMOCK_PP_REPEAT( \
+  , GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED const arg##i##_type& arg##i
+#define GMOCK_ACTION_ARG_TYPES_AND_NAMES_UNUSED_                               \
+  GTEST_INTERNAL_ATTRIBUTE_MAYBE_UNUSED const args_type& args GMOCK_PP_REPEAT( \
       GMOCK_INTERNAL_ARG_UNUSED, , 10)
 
 #define GMOCK_INTERNAL_ARG(i, data, el) , const arg##i##_type& arg##i

@@ -37,12 +37,13 @@
 #include <tuple>
 #include <vector>
 
+#include "gmock/gmock.h"
 #include "test/gmock-matchers_test.h"
+#include "gtest/gtest.h"
 
 // Silence warning C4244: 'initializing': conversion from 'int' to 'short',
 // possible loss of data and C4100, unreferenced local parameter
 GTEST_DISABLE_MSC_WARNINGS_PUSH_(4244 4100)
-
 
 namespace testing {
 namespace gmock_matchers_test {
@@ -2334,9 +2335,11 @@ TEST(ExplainMatchResultTest, AllOf_True_True) {
   EXPECT_EQ("which is 0 modulo 2, and which is 0 modulo 3", Explain(m, 6));
 }
 
+// Tests that when AllOf() succeeds, but matchers have no explanation,
+// the matcher description is used.
 TEST(ExplainMatchResultTest, AllOf_True_True_2) {
   const Matcher<int> m = AllOf(Ge(2), Le(3));
-  EXPECT_EQ("", Explain(m, 2));
+  EXPECT_EQ("is >= 2, and is <= 3", Explain(m, 2));
 }
 
 INSTANTIATE_GTEST_MATCHER_TEST_P(ExplainmatcherResultTest);
