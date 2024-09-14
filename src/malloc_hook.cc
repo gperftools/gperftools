@@ -320,9 +320,6 @@ void MallocHook::InvokeDeleteHookSlow(const void* p) {
 DEFINE_ATTRIBUTE_SECTION_VARS(google_malloc);
 DECLARE_ATTRIBUTE_SECTION_VARS(google_malloc);
   // actual functions are in debugallocation.cc or tcmalloc.cc
-DEFINE_ATTRIBUTE_SECTION_VARS(malloc_hook);
-DECLARE_ATTRIBUTE_SECTION_VARS(malloc_hook);
-  // actual functions are in this file, malloc_hook.cc, and low_level_alloc.cc
 
 #define ADDR_IN_ATTRIBUTE_SECTION(addr, name) \
   (reinterpret_cast<uintptr_t>(ATTRIBUTE_SECTION_START(name)) <= \
@@ -334,8 +331,7 @@ DECLARE_ATTRIBUTE_SECTION_VARS(malloc_hook);
 // that calls one of our hooks via MallocHook:Invoke*.
 // A helper for GetCallerStackTrace.
 static inline bool InHookCaller(const void* caller) {
-  return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc) ||
-         ADDR_IN_ATTRIBUTE_SECTION(caller, malloc_hook);
+  return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc);
   // We can use one section for everything except tcmalloc_or_debug
   // due to its special linkage mode, which prevents merging of the sections.
 }
@@ -350,12 +346,6 @@ static inline void CheckInHookCaller() {
     if (ATTRIBUTE_SECTION_START(google_malloc) ==
         ATTRIBUTE_SECTION_STOP(google_malloc)) {
       RAW_LOG(ERROR, "google_malloc section is missing, "
-                     "thus InHookCaller is broken!");
-    }
-    INIT_ATTRIBUTE_SECTION_VARS(malloc_hook);
-    if (ATTRIBUTE_SECTION_START(malloc_hook) ==
-        ATTRIBUTE_SECTION_STOP(malloc_hook)) {
-      RAW_LOG(ERROR, "malloc_hook section is missing, "
                      "thus InHookCaller is broken!");
     }
     checked_sections = true;

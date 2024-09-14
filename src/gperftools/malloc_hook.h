@@ -55,7 +55,7 @@
 //
 // CAVEAT: If you add new MallocHook::Invoke* calls then those calls must be
 // directly in the code of the (de)allocation function that is provided to the
-// user and that function must have an ATTRIBUTE_SECTION(malloc_hook) attribute.
+// user and that function must have an ATTRIBUTE_SECTION(google_malloc) attribute.
 //
 // Note: the Invoke*Hook() functions are defined in malloc_hook-inl.h.  If you
 // need to invoke a hook (which you shouldn't unless you're part of tcmalloc),
