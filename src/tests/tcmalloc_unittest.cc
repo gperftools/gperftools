@@ -1609,7 +1609,7 @@ TEST(TCMallocTest, EmergencyMallocNoHook) {
   portal->WithEmergencyMallocEnabled([&] () {
     p2 = noopt(malloc)(32);
     for (int i = 11; i < 999; i++) {
-      free(p3);
+      tc_free(p3);
       p3 = tc_calloc(1, i);
     }
     p4 = tc_calloc(4096, 1024);

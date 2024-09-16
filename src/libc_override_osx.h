@@ -108,6 +108,9 @@ extern "C" {
 // We need to provide wrappers around all the libc functions.
 namespace {
 size_t mz_size(malloc_zone_t* zone, const void* ptr) {
+  // Note, this does not work for emergency malloc's memory. And in
+  // principle OSX doesn't need or use it. But by default we enable
+  // it, so that our unit test coverage is wider.
   if (MallocExtension::instance()->GetOwnership(ptr) != MallocExtension::kOwned)
     return 0;  // malloc_zone semantics: return 0 if we don't own the memory
 
