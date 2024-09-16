@@ -58,14 +58,14 @@ inline bool MatchSubstring(const Matcher& m, std::string_view str) {
   size_t sz = str.size();
   CB succeed = [](std::string_view str, bool line_start) { return true; };
   bool line_start = true;
-  for (size_t i = 0; i <= sz; i++) {
+  for (size_t i = 0; i < sz; i++) {
     if (m(str, line_start, succeed)) {
       return true;
     }
     line_start = (str[0] == '\n');
     str.remove_prefix(1);
   }
-  return false;
+  return m("", line_start, succeed);
 }
 
 Matcher CompileREOrDie(std::string_view str);

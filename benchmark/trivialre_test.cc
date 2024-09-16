@@ -154,6 +154,8 @@ TEST(TrivialRETest, Runnings) {
       {"^a", "+a", "-ba", "+b\na"},
       {"a$", "+a\nb", "+ba", "+b\na"},
       {"a$\\nb", "+a\nb"},
+      {"$", "+", "+aaa"},
+      {"^$", "+", "-aaa", "+aaa\n"},
   };
 
   for (const auto& vec : cases2) {
