@@ -263,7 +263,7 @@ void MallocExtension::GetHeapSample(MallocExtensionWriter* writer) {
   }
 
   char label[32];
-  sprintf(label, "heap_v2/%d", sample_period);
+  snprintf(label, sizeof(label), "heap_v2/%d", sample_period);
   PrintHeader(writer, label, entries);
   for (void** entry = entries; Count(entry) != 0; entry += 3 + Depth(entry)) {
     PrintStackEntry(writer, entry);
