@@ -577,7 +577,7 @@ endif WITH_DEBUGALLOC
 if !MINGW
 noinst_LTLIBRARIES += librun_benchmark.la
 librun_benchmark_la_SOURCES = \
-	benchmark/run_benchmark.cc benchmark/run_benchmark.h
+	benchmark/run_benchmark.cc
 
 noinst_PROGRAMS += malloc_bench malloc_bench_shared \
 	binary_trees binary_trees_shared
@@ -999,6 +999,7 @@ EXTRA_DIST = $(SCRIPTS) \
              docs/pprof.see_also $(WINDOWS_EXTRA) \
              gperftools.sln vsprojects vendor \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \
+             $(top_srcdir)/benchmark/*h \
              $(top_srcdir)/src/tests/*h \
              $(top_srcdir)/src/windows/*h $(top_srcdir)/src/gperftools/*h \
              CMakeLists.txt cmake
