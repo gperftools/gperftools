@@ -63,10 +63,6 @@ static void RandomizeBlockDesc(BlockDesc *d) {
   }
 }
 
-// Use to indicate to the malloc hooks that
-// this calls is from LowLevelAlloc.
-static bool using_low_level_alloc = false;
-
 // n times, toss a coin, and based on the outcome
 // either allocate a new block or deallocate an old block.
 // New blocks are placed in a map with a random key
@@ -94,22 +90,18 @@ static void ExerciseAllocator(bool use_new_arena, int n) {
 
     switch(rand() & 1) {      // toss a coin
     case 0:     // coin came up heads: add a block
-      using_low_level_alloc = true;
       block_desc.len = rand() & 0x3fff;
       block_desc.ptr =
         reinterpret_cast<char *>(
                         arena == 0
                         ? LowLevelAlloc::Alloc(block_desc.len)
                         : LowLevelAlloc::AllocWithArena(block_desc.len, arena));
-      using_low_level_alloc = false;
       RandomizeBlockDesc(&block_desc);
       rnd = rand();
       it = allocated.find(rnd);
       if (it != allocated.end()) {
         CheckBlockDesc(it->second);
-        using_low_level_alloc = true;
         LowLevelAlloc::Free(it->second.ptr);
-        using_low_level_alloc = false;
         it->second = block_desc;
       } else {
         allocated[rnd] = block_desc;
@@ -119,9 +111,7 @@ static void ExerciseAllocator(bool use_new_arena, int n) {
       it = allocated.begin();
       if (it != allocated.end()) {
         CheckBlockDesc(it->second);
-        using_low_level_alloc = true;
         LowLevelAlloc::Free(it->second.ptr);
-        using_low_level_alloc = false;
         allocated.erase(it);
       }
       break;
@@ -130,9 +120,7 @@ static void ExerciseAllocator(bool use_new_arena, int n) {
   // remove all remaniing blocks
   while ((it = allocated.begin()) != allocated.end()) {
     CheckBlockDesc(it->second);
-    using_low_level_alloc = true;
     LowLevelAlloc::Free(it->second.ptr);
-    using_low_level_alloc = false;
     allocated.erase(it);
   }
   if (use_new_arena) {
