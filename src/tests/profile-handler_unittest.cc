@@ -25,11 +25,6 @@
 #include "base/logging.h"
 #include "gtest/gtest.h"
 
-// Do we expect the profiler to be enabled?
-DEFINE_bool(test_profiler_enabled, true,
-            "expect profiler to be enabled during tests");
-
-
 // In order to cover fix for github issue at:
 // https://github.com/gperftools/gperftools/issues/412 we override
 // operators new/delete to simulate condition where another thread is
@@ -268,31 +263,27 @@ class ProfileHandlerTest : public ::testing::Test {
     // Check the callback count.
     EXPECT_GT(GetCallbackCount(), 0);
     // Check that the profile timer is enabled.
-    EXPECT_EQ(FLAGS_test_profiler_enabled, linux_per_thread_timers_mode_ || IsTimerEnabled());
+    EXPECT_TRUE(linux_per_thread_timers_mode_ || IsTimerEnabled());
     uint64_t interrupts_before = GetInterruptCount();
     // Sleep for a bit and check that tick counter is making progress.
     int old_tick_count = tick_counter;
     int new_tick_count;
     uint64_t interrupts_after;
     Delay(kSleepInterval);
-    if (FLAGS_test_profiler_enabled) {
-      // The "sleep" check we do here is somewhat inherently
-      // brittle. But we can repeat waiting a bit more to ensure that
-      // ticks do occur.
-      for (int i = 10; i > 0; i--) {
-        new_tick_count = tick_counter;
-        interrupts_after = GetInterruptCount();
-        if (new_tick_count > old_tick_count && interrupts_after > interrupts_before) {
-          break;
-        }
-        Delay(kSleepInterval);
+
+    // The "sleep" check we do here is somewhat inherently
+    // brittle. But we can repeat waiting a bit more to ensure that
+    // ticks do occur.
+    for (int i = 10; i > 0; i--) {
+      new_tick_count = tick_counter;
+      interrupts_after = GetInterruptCount();
+      if (new_tick_count > old_tick_count && interrupts_after > interrupts_before) {
+        break;
       }
-      EXPECT_GT(new_tick_count, old_tick_count);
-      EXPECT_GT(interrupts_after, interrupts_before);
-    } else {
-      EXPECT_EQ(new_tick_count, old_tick_count);
-      EXPECT_EQ(interrupts_after, interrupts_before);
+      Delay(kSleepInterval);
     }
+    EXPECT_GT(new_tick_count, old_tick_count);
+    EXPECT_GT(interrupts_after, interrupts_before);
   }
 
   // Verifies that a callback is not receiving profile ticks.
@@ -427,7 +418,7 @@ TEST_F(ProfileHandlerTest, RegisterCallbackBeforeThread) {
   RegisterCallback(&tick_count);
   EXPECT_EQ(1, GetCallbackCount());
   VerifyRegistration(tick_count);
-  EXPECT_EQ(FLAGS_test_profiler_enabled, linux_per_thread_timers_mode_ || IsTimerEnabled());
+  EXPECT_TRUE(linux_per_thread_timers_mode_ || IsTimerEnabled());
 }
 
 }  // namespace
