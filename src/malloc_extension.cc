@@ -52,10 +52,6 @@
 
 #include "gperftools/tcmalloc.h"
 
-#ifndef NO_HEAP_CHECK
-#include "gperftools/heap-checker.h"
-#endif
-
 static void DumpAddressMap(std::string* result) {
   tcmalloc::StringGenericWriter writer(result);
   writer.AppendStr("\nMAPPED_LIBRARIES:\n");
@@ -180,10 +176,6 @@ MallocExtension* MallocExtension::instance() {
 
 void MallocExtension::Register(MallocExtension* implementation) {
   current_instance.store(implementation);
-
-#ifndef NO_HEAP_CHECK
-  HeapLeakChecker::IgnoreObject(implementation);
-#endif
 }
 
 // -----------------------------------------------------------------------

@@ -14,14 +14,12 @@ set(TCMALLOC_SO_VERSION 9.18.5)
 set(PROFILER_SO_VERSION 5.13.5)
 set(TCMALLOC_AND_PROFILER_SO_VERSION 10.13.6)
 
-# The user can choose not to compile in the heap-profiler, the
-# heap-checker, or the cpu-profiler.  There's also the possibility
-# for a 'fully minimal' compile, which leaves out the stacktrace
-# code as well.  By default, we include all of these that the
-# target system supports.
+# The user can choose not to compile in the heap-profiler, or the
+# cpu-profiler.  There's also the possibility for a 'fully minimal'
+# compile, which leaves out the stacktrace code as well.  By default,
+# we include all of these that the target system supports.
 set(DEFAULT_BUILD_CPU_PROFILER ON)
 set(DEFAULT_BUILD_HEAP_PROFILER ON)
-set(DEFAULT_BUILD_HEAP_CHECKER OFF)
 set(DEFAULT_BUILD_DEBUGALLOC ON)
 set(DEFAULT_BUILD_MINIMAL OFF)
 
@@ -34,11 +32,6 @@ if(MINGW OR MSVC)
   set(DEFAULT_BUILD_DEBUGALLOC OFF)
 elseif(CYGWIN)
   set(DEFAULT_BUILD_CPU_PROFILER OFF)
-endif()
-
-# Heap checker is Linux-only (and deprecated).
-if(CMAKE_SYSTEM MATCHES Linux)
-  set(DEFAULT_BUILD_HEAP_CHECKER ON)
 endif()
 
 include(CheckCCompilerFlag)
@@ -90,9 +83,6 @@ cmake_dependent_option(
   GPERFTOOLS_BUILD_HEAP_PROFILER "Build heap-profiler" ${DEFAULT_BUILD_HEAP_PROFILER}
   "NOT gperftools_build_minimal" OFF)
 cmake_dependent_option(
-  GPERFTOOLS_BUILD_HEAP_CHECKER "Build heap-checker" ${DEFAULT_BUILD_HEAP_CHECKER}
-  "NOT gperftools_build_minimal" OFF)
-cmake_dependent_option(
   GPERFTOOLS_BUILD_DEBUGALLOC "Build debugalloc" ${DEFAULT_BUILD_DEBUGALLOC}
   "NOT gperftools_build_minimal" OFF)
 option(
@@ -102,7 +92,6 @@ option(
 if(gperftools_build_minimal)
   set(GPERFTOOLS_BUILD_CPU_PROFILER OFF)
   set(GPERFTOOLS_BUILD_HEAP_PROFILER OFF)
-  set(GPERFTOOLS_BUILD_HEAP_CHECKER OFF)
 endif()
 
 cmake_dependent_option(
@@ -191,7 +180,7 @@ check_function_exists("geteuid" HAVE_GETEUID) # for turning off services when ru
 check_include_file("features.h" HAVE_FEATURES_H) # for vdso_support.h, Where __GLIBC__ is defined
 check_include_file("malloc.h" HAVE_MALLOC_H) # some systems define stuff there, others not
 check_include_file("glob.h" HAVE_GLOB_H) # for heap-profile-table (cleaning up profiles)
-check_include_file("execinfo.h" HAVE_EXECINFO_H) # for stacktrace? and heapchecker_unittest
+check_include_file("execinfo.h" HAVE_EXECINFO_H) # for stacktrace
 check_include_file("unwind.h" HAVE_UNWIND_H) # for stacktrace
 check_include_file("sched.h" HAVE_SCHED_H) # for being nice in our spinlock code
 check_include_file("sys/syscall.h" HAVE_SYS_SYSCALL_H)
@@ -379,8 +368,7 @@ configure_file(cmake/tcmalloc.h.in
                @ONLY)
 
 if(GPERFTOOLS_BUILD_CPU_PROFILER OR
-   GPERFTOOLS_BUILD_HEAP_PROFILER OR
-   GPERFTOOLS_BUILD_HEAP_CHECKER)
+   GPERFTOOLS_BUILD_HEAP_PROFILER)
   set(WITH_STACK_TRACE ON)
 endif()
 
@@ -547,7 +535,7 @@ set(MINIMAL_MALLOC_SRC
   src/malloc_extension.cc)
 
 add_library(tcmalloc_minimal ${TCMALLOC_CC} ${MINIMAL_MALLOC_SRC})
-target_compile_definitions(tcmalloc_minimal PRIVATE NO_TCMALLOC_SAMPLES NO_HEAP_CHECK)
+target_compile_definitions(tcmalloc_minimal PRIVATE NO_TCMALLOC_SAMPLES)
 target_link_options(tcmalloc_minimal INTERFACE ${TCMALLOC_FLAGS})
 target_link_libraries(tcmalloc_minimal PRIVATE common)
 
@@ -613,7 +601,7 @@ if(BUILD_TESTING)
   target_link_libraries(malloc_hook_test common gtest)
   add_test(malloc_hook_test malloc_hook_test)
 
-  if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
+  if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     if(NOT MINGW AND NOT MSVC)
       add_executable(mmap_hook_test
               src/tests/mmap_hook_test.cc
@@ -641,7 +629,7 @@ if(BUILD_TESTING)
   # page heap test is somewhat special it compiles and links entirety
   # of tcmalloc statically. We'll eventually make it right.
   add_executable(page_heap_test src/tests/page_heap_test.cc ${TCMALLOC_CC} ${MINIMAL_MALLOC_SRC})
-  target_compile_definitions(page_heap_test PRIVATE NO_HEAP_CHECK NO_TCMALLOC_SAMPLES PERFTOOLS_DLL_DECL= )
+  target_compile_definitions(page_heap_test PRIVATE NO_TCMALLOC_SAMPLES PERFTOOLS_DLL_DECL= )
   target_link_libraries(page_heap_test common gtest)
   add_test(page_heap_test page_heap_test)
 
@@ -701,7 +689,7 @@ endif()
 
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
   add_library(tcmalloc_minimal_debug src/debugallocation.cc ${MINIMAL_MALLOC_SRC})
-  target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES NO_HEAP_CHECK)
+  target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE common)
 
   ### Unittests
@@ -741,7 +729,7 @@ if(NOT MINGW AND NOT MSVC)
     add_executable(malloc_bench benchmark/malloc_bench.cc)
     target_link_libraries(malloc_bench tcmalloc_minimal run_benchmark)
 
-    if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
+    if(GPERFTOOLS_BUILD_HEAP_PROFILER)
       add_executable(malloc_bench_shared_full benchmark/malloc_bench.cc)
       target_link_libraries(malloc_bench_shared_full run_benchmark tcmalloc)
     endif()
@@ -753,9 +741,9 @@ if(NOT MINGW AND NOT MSVC)
   endif()
 endif()
 
-### ------- tcmalloc (thread-caching malloc + heap profiler + heap checker)
+### ------- tcmalloc (thread-caching malloc + heap profiler)
 
-if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
+if(GPERFTOOLS_BUILD_HEAP_PROFILER)
   if(gperftools_emergency_malloc)
     set(EMERGENCY_MALLOC_CC src/emergency_malloc.cc)
     set(EMERGENCY_MALLOC_DEFINE ENABLE_EMERGENCY_MALLOC)
@@ -765,17 +753,7 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
 
   ### Making the library
 
-  if(GPERFTOOLS_BUILD_HEAP_CHECKER)
-    set(HEAP_CHECKER_SRC src/base/linuxthreads.cc
-                         src/heap-checker.cc)
-    set(HEAP_CHECKER_DEFINE )
-  else()
-    set(HEAP_CHECKER_SRC )
-    set(HEAP_CHECKER_DEFINE NO_HEAP_CHECK)
-  endif()
-
   set(FULL_MALLOC_SRC
-    ${HEAP_CHECKER_SRC}
     ${MINIMAL_MALLOC_SRC}
     src/base/low_level_alloc.cc
     src/heap-profile-table.cc
@@ -783,9 +761,10 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     ${EMERGENCY_MALLOC_CC}
     src/malloc_backtrace.cc
     src/mmap_hook.cc
-    src/memory_region_map.cc)
+    src/memory_region_map.cc
+    src/heap-checker-stub.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})
-  target_compile_definitions(tcmalloc PRIVATE ${HEAP_CHECKER_DEFINE} ${EMERGENCY_MALLOC_DEFINE})
+  target_compile_definitions(tcmalloc PRIVATE ${EMERGENCY_MALLOC_DEFINE})
   target_link_libraries(tcmalloc PRIVATE stacktrace common)
   target_link_options(tcmalloc INTERFACE ${TCMALLOC_FLAGS})
 
@@ -804,6 +783,10 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_test(tcmalloc_large_heap_fragmentation_unittest tcmalloc_large_heap_fragmentation_unittest)
 
     list(APPEND TESTS_ENVIRONMENT PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
+
+    add_executable(heap_checker_stub_test src/tests/heap-checker-stub-test.cc)
+    target_link_libraries(heap_checker_stub_test tcmalloc)
+    add_test(heap_checker_stub_test heap_checker_stub_test)
 
     add_executable(sampler_test src/tests/sampler_test.cc
       src/sampler.cc
@@ -828,22 +811,15 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
       add_test(NAME heap-profiler_unittest.sh
               COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh" heap-profiler_unittest)
     endif()
-    if(GPERFTOOLS_BUILD_HEAP_CHECKER)
-      add_executable(heap_checker_unittest src/tests/heap-checker_unittest.cc)
-      target_link_libraries(heap_checker_unittest tcmalloc common)
-      add_test(heap-checker_unittest heap_checker_unittest)
-      add_test(NAME heap-checker-death_unittest.sh
-              COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-checker-death_unittest.sh")
-    endif()
   endif()
 
 endif()
 
 ### ------- tcmalloc with debugallocation
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
-  if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
+  if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_library(tcmalloc_debug src/debugallocation.cc ${FULL_MALLOC_SRC})
-    target_compile_definitions(tcmalloc_debug PRIVATE ${HEAP_CHECKER_DEFINE} ${EMERGENCY_MALLOC_DEFINE})
+    target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
     target_link_libraries(tcmalloc_debug PRIVATE stacktrace common)
 
     ### Unittests
@@ -861,11 +837,6 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
         add_executable(heap_profiler_debug_unittest src/tests/heap-profiler_unittest.cc)
         target_link_libraries(heap_profiler_debug_unittest tcmalloc_debug)
         add_test(heap-profiler_debug_unittest.sh "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/heap-profiler_unittest.sh" heap-profiler_debug_unittest)
-      endif()
-      if(GPERFTOOLS_BUILD_HEAP_CHECKER)
-        add_executable(heap_checker_debug_unittest src/tests/heap-checker_unittest.cc)
-        target_link_libraries(heap_checker_debug_unittest tcmalloc_debug common)
-        add_test(heap_checker_debug_unittest heap_checker_debug_unittest)
       endif()
     endif()
   endif()

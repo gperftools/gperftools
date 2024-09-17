@@ -28,61 +28,46 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
-#ifndef TESTING_PORTAL_H_
-#define TESTING_PORTAL_H_
 #include "config.h"
 
-#include <stdlib.h>
-#include <string.h>
+#include "gperftools/heap-checker.h"
 
-#include <gperftools/malloc_extension.h>
+#include <assert.h>
 
-#include "base/function_ref.h"
-#include "base/basictypes.h"
+#include <string>
 
-namespace tcmalloc {
+#if defined __has_attribute
+#  if __has_attribute(noinline)
+#    define ATTR_NOINLINE __attribute__ ((noinline))
+#  endif
+#endif
 
-class ATTRIBUTE_HIDDEN TestingPortal {
-public:
-  static inline constexpr char kMagic[] = "tcmalloc.impl.testing-portal";
-  static TestingPortal* Get() {
-    static TestingPortal* instance = ([] () {
-      struct {
-        TestingPortal* ptr = nullptr;
-        size_t v = 0;
-      } s;
-      bool ok = MallocExtension::instance()->GetNumericProperty(kMagic, &s.v);
-      if (!ok || s.ptr == nullptr) {
-        abort();
-      }
-      return s.ptr;
-    })();
-
-    return instance;
+ATTR_NOINLINE void partial() {
+  std::string str;
+  for (int i = 0; i < 1024; i++) {
+    str.append("-");
   }
-  static TestingPortal** CheckGetPortal(const char* property_name, size_t* value) {
-    if (strcmp(property_name, kMagic) != 0) {
-      return nullptr;
-    }
-    return reinterpret_cast<TestingPortal**>(value) - 1;
+  printf("the thing: '%.10s\n", str.c_str());
+
+  static std::string* staticted = new std::string("something");
+  printf("staticted: %s\n", staticted->c_str());
+
+  {
+    HeapLeakChecker::Disabler disabled;
+    std::string* leaked2 = new std::string("leaked2");
+    printf("leaked2 address: %p\n", leaked2);
+    printf("leaked2: %s\n", leaked2->c_str());
   }
 
-  virtual bool HaveSystemRelease() = 0;
-  virtual bool IsDebuggingMalloc() = 0;
-  virtual size_t GetPageSize() = 0;
-  virtual size_t GetMinAlign() = 0;
-  virtual size_t GetMaxSize() = 0;
-  virtual int64_t& GetSampleParameter() = 0;
-  virtual double& GetReleaseRate() = 0;
-  virtual int32_t& GetMaxFreeQueueSize() = 0;
+  std::string* leaked3 = new std::string("leaked3");
+  printf("leaked3 address: %p\n", leaked3);
+  HeapLeakChecker::IgnoreObject(leaked3);
+  printf("leaked3: %s\n", leaked3->c_str());
+}
 
-  virtual bool HasEmergencyMalloc() = 0;
-  virtual void WithEmergencyMallocEnabled(FunctionRef<void()> body) = 0;
-
-protected:
-  virtual ~TestingPortal();
-};
-
-}  // namespace tcmalloc
-
-#endif  // TESTING_PORTAL_H_
+int main() {
+  HeapLeakChecker heap_checker("test_foo");
+  printf("sizeof(HeapLeakChecker) = %zu\n", sizeof(heap_checker));
+  partial();
+  if (!heap_checker.NoLeaks()) assert(nullptr == "heap memory leak");
+}

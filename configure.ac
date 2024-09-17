@@ -33,26 +33,20 @@ AC_SUBST(TC_VERSION_MINOR)
 AC_SUBST(TC_VERSION_PATCH)
 AC_SUBST(PACKAGE_STRING)
 
-# The user can choose not to compile in the heap-profiler, the
-# heap-checker, or the cpu-profiler.  There's also the possibility
-# for a 'fully minimal' compile, which leaves out the stacktrace
-# code as well.  By default, we include all of these that the
-# target system supports.
+# The user can choose not to compile in the heap-profiler, , or the
+# cpu-profiler.  There's also the possibility for a 'fully minimal'
+# compile, which leaves out the stacktrace code as well.  By default,
+# we include all of these that the target system supports.
 default_enable_cpu_profiler=yes
 default_enable_heap_profiler=yes
-# heap checker is Linux-only.
-default_enable_heap_checker=no
-heap_checker_supported=no
 default_enable_debugalloc=yes
 default_enable_minimal=no
 default_tcmalloc_alignment=16
-heap_checker_is_default=no
 need_nanosleep=yes   # Used later, to decide if to run ACX_NANOSLEEP
 case "$host" in
    *-mingw*) default_enable_minimal=yes; default_enable_debugalloc=no;
              need_nanosleep=no;;
    *-cygwin*) default_enable_cpu_profiler=no;;
-   *-linux*) default_enable_heap_checker=yes; heap_checker_supported=yes;;
 esac
 
 # Currently only backtrace works on s390 and OSX.
@@ -84,11 +78,6 @@ AC_ARG_ENABLE([heap-profiler],
                               [do not build the heap profiler])],
               [],
               [enable_heap_profiler="$default_enable_heap_profiler"])
-AC_ARG_ENABLE([heap-checker],
-              [AS_HELP_STRING([--disable-heap-checker],
-                              [do not build the heap checker])],
-              [],
-              [enable_heap_checker="$default_enable_heap_checker"; heap_checker_is_default=yes])
 AC_ARG_ENABLE([debugalloc],
               [AS_HELP_STRING([--disable-debugalloc],
                               [do not build versions of libs with debugalloc])],
@@ -102,7 +91,6 @@ AC_ARG_ENABLE([minimal],
 if test "$enable_minimal" = yes; then
   enable_cpu_profiler=no
   enable_heap_profiler=no
-  enable_heap_checker=no
 fi
 AC_ARG_ENABLE([stacktrace-via-backtrace],
               [AS_HELP_STRING([--enable-stacktrace-via-backtrace],
@@ -162,36 +150,6 @@ case "$with_tcmalloc_alignment" in
   *)
        AC_MSG_WARN([${with_tcmalloc_alignment} bytes not supported, using default tcmalloc allocation alignment.])
 esac
-
-AS_IF([test "x$enable_heap_checker" = xyes],
-      [AS_IF([test "x$heap_checker_supported" = xno],
-             [AC_MSG_NOTICE([your system isn't Linux, and I won't build heap checker despite your request])]
-              enable_heap_checker=no)])
-
-dnl Heap checker is (and has always been) Linux-only, and also now
-dnl depends on clone support in libc.  Most Linux libc's do ship clone()
-dnl (includes glibc, musl and even bionic), but not all. So we check.
-AS_IF([test "x$enable_heap_checker" = xyes],
-      [AC_MSG_CHECKING([clone() support])
-      AC_LINK_IFELSE([AC_LANG_PROGRAM([[
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE
-#endif
-
-#include <sched.h>
-
-static int fn(void *dummy) { return 0; }
-
-]],[[
-  char stk[16];
-  return clone(fn, stk, CLONE_VM|CLONE_FS|CLONE_FILES, 0);
-]])], [AC_MSG_RESULT([yes])], [ dnl clone not found
-  AC_MSG_RESULT([no])
-  enable_heap_checker=no
-  AS_IF([test "x$heap_checker_is_default" = xyes],
-        [AC_MSG_NOTICE([your Linux system won't have heap checker built due to missing clone() support])],
-        [AC_MSG_WARN([you requested heap checker built, but your libc doesn't have clone() support])])
-])])
 
 # Checks for programs.
 AC_PROG_CXX
@@ -258,7 +216,8 @@ AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h, __GLIBC__ macros
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
-AC_CHECK_HEADERS(execinfo.h)    # for stacktrace? and heapchecker_unittest
+dnl TODO; FIXME
+AC_CHECK_HEADERS(execinfo.h)    # for stacktrace
 AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(sys/syscall.h)
@@ -479,7 +438,7 @@ fi
 
 STACKTRACE_UNITTEST_LIBS=
 AS_IF([test "x$ac_cv_header_execinfo_h" = xyes],
-  AS_IF([test "x$enable_cpu_profiler" = xyes -o "x$enable_heap_profiler" = xyes -o "x$enable_heap_checker" = xyes],
+  AS_IF([test "x$enable_cpu_profiler" = xyes -o "x$enable_heap_profiler" = xyes],
     [AC_CHECK_DECLS([backtrace_symbols], [], [], [#include <execinfo.h>
                                                   ])
      save_LIBS=$LIBS
@@ -533,16 +492,14 @@ AM_CONDITIONAL(OSX, expr $host : '.*-apple-darwin.*' >/dev/null 2>&1)
 # they find.
 AM_CONDITIONAL(WITH_CPU_PROFILER, test "$enable_cpu_profiler" = yes)
 AM_CONDITIONAL(WITH_HEAP_PROFILER, test "$enable_heap_profiler" = yes)
-AM_CONDITIONAL(WITH_HEAP_CHECKER, test "$enable_heap_checker" = yes)
 AM_CONDITIONAL(WITH_DEBUGALLOC, test "$enable_debugalloc" = yes)
 # We make tcmalloc.so if either heap-profiler or heap-checker is asked for.
+# TODO/FIXME
 AM_CONDITIONAL(WITH_HEAP_PROFILER_OR_CHECKER,
-               test "$enable_heap_profiler" = yes -o \
-                    "$enable_heap_checker" = yes)
+               test "$enable_heap_profiler" = yes)
 # If we don't use any profilers, we don't need stack traces (or pprof)
 AM_CONDITIONAL(WITH_STACK_TRACE, test "$enable_cpu_profiler" = yes -o \
-                                      "$enable_heap_profiler" = yes -o \
-                                      "$enable_heap_checker" = yes)
+                                      "$enable_heap_profiler" = yes)
 
 have_linux_sigev_thread_id=no
 AC_MSG_CHECKING([for Linux SIGEV_THREAD_ID])

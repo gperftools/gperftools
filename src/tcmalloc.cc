@@ -163,10 +163,6 @@ using tcmalloc::TestingPortal;
 DECLARE_double(tcmalloc_release_rate);
 DECLARE_int64(tcmalloc_heap_limit_mb);
 
-#ifndef NO_HEAP_CHECK
-DECLARE_string(heap_check);
-#endif
-
 // Those common architectures are known to be safe w.r.t. aliasing function
 // with "extra" unused args to function with fewer arguments (e.g.
 // tc_delete_nothrow being aliased to tc_delete).
@@ -550,9 +546,6 @@ namespace tcmalloc {
 
 TestingPortal::~TestingPortal() = default;
 
-// implemented in heap-checker.cc
-extern void DoIterateMemoryRegionMap(tcmalloc::FunctionRef<void(const void*)> callback);
-
 class ATTRIBUTE_HIDDEN TestingPortalImpl : public TestingPortal {
 public:
   ~TestingPortalImpl() override = default;
@@ -598,19 +591,6 @@ public:
     };
     FunctionRef<void(bool)> ref{body_adaptor};
     ThreadCachePtr::WithStacktraceScope(ref.fn, ref.data);
-  }
-
-  std::string_view GetHeapCheckFlag() override {
-#ifndef NO_HEAP_CHECK
-    return FLAGS_heap_check;
-#else
-    return "";
-#endif
-  }
-  void IterateMemoryRegionMap(FunctionRef<void(const void*)> callback) override {
-#ifndef NO_HEAP_CHECK
-    DoIterateMemoryRegionMap(callback);
-#endif
   }
 
   static TestingPortalImpl* Get() {

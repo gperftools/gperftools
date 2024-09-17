@@ -66,9 +66,6 @@
 # define _WIN32_WINNT 0x0602
 #endif
 
-// We want to make sure not to ever try to #include heap-checker.h
-#define NO_HEAP_CHECK 1
-
 #if defined(__MINGW32__) && __MSVCRT_VERSION__ < 0x0700
 // Older version of the mingw msvcrt don't define _aligned_malloc
 # define PERFTOOLS_NO_ALIGNED_MALLOC 1
