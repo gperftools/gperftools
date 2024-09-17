@@ -81,7 +81,7 @@ class Thread {
   }
   void Join()  {
     assert(joinable_);
-    pthread_join(thread_, NULL);
+    pthread_join(thread_, nullptr);
   }
   virtual void Run() = 0;
  private:
@@ -93,7 +93,7 @@ class Thread {
 
     ProfileHandlerRegisterThread();
     self->Run();
-    return NULL;
+    return nullptr;
   }
   pthread_t thread_;
   bool joinable_;
@@ -191,10 +191,10 @@ class ProfileHandlerTest : public ::testing::Test {
     timer_type_ = (getenv("CPUPROFILE_REALTIME") ? ITIMER_REAL : ITIMER_PROF);
 
 #if HAVE_LINUX_SIGEV_THREAD_ID
-    linux_per_thread_timers_mode_ = (getenv("CPUPROFILE_PER_THREAD_TIMERS") != NULL);
+    linux_per_thread_timers_mode_ = (getenv("CPUPROFILE_PER_THREAD_TIMERS") != nullptr);
     const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
     if (signal_number) {
-      //signal_number_ = strtol(signal_number, NULL, 0);
+      //signal_number_ = strtol(signal_number, nullptr, 0);
       linux_per_thread_timers_mode_ = true;
       Delay(kTimerResetInterval);
     }

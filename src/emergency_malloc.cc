@@ -102,13 +102,13 @@ static void InitEmergencyMalloc(void) {
 ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {
   SpinLockHolder l(&emergency_malloc_lock);
 
-  if (emergency_arena_start == NULL) {
+  if (emergency_arena_start == nullptr) {
     InitEmergencyMalloc();
-    CHECK_CONDITION(emergency_arena_start != NULL);
+    CHECK_CONDITION(emergency_arena_start != nullptr);
   }
 
   void *rv = LowLevelAlloc::AllocWithArena(size, emergency_arena);
-  if (rv == NULL) {
+  if (rv == nullptr) {
     errno = ENOMEM;
   }
   return rv;
@@ -116,9 +116,9 @@ ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {
 
 ATTRIBUTE_HIDDEN void EmergencyFree(void *p) {
   SpinLockHolder l(&emergency_malloc_lock);
-  if (emergency_arena_start == NULL) {
+  if (emergency_arena_start == nullptr) {
     InitEmergencyMalloc();
-    CHECK_CONDITION(emergency_arena_start != NULL);
+    CHECK_CONDITION(emergency_arena_start != nullptr);
     free(p);
     return;
   }
@@ -127,12 +127,12 @@ ATTRIBUTE_HIDDEN void EmergencyFree(void *p) {
 }
 
 ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {
-  if (_old_ptr == NULL) {
+  if (_old_ptr == nullptr) {
     return EmergencyMalloc(new_size);
   }
   if (new_size == 0) {
     EmergencyFree(_old_ptr);
-    return NULL;
+    return nullptr;
   }
   SpinLockHolder l(&emergency_malloc_lock);
   CHECK_CONDITION(emergency_arena_start);
@@ -148,9 +148,9 @@ ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {
   size_t copy_size = (new_size < old_ptr_size) ? new_size : old_ptr_size;
 
   void *new_ptr = LowLevelAlloc::AllocWithArena(new_size, emergency_arena);
-  if (new_ptr == NULL) {
+  if (new_ptr == nullptr) {
     errno = ENOMEM;
-    return NULL;
+    return nullptr;
   }
   memcpy(new_ptr, old_ptr, copy_size);
 

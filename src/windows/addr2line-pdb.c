@@ -101,7 +101,7 @@ int main(int argc, char *argv[]) {
 
   process = GetCurrentProcess();
 
-  if (!SymInitialize(process, NULL, FALSE)) {
+  if (!SymInitialize(process, nullptr, FALSE)) {
     error = GetLastError();
     fprintf(stderr, "SymInitialize returned error : %lu\n", error);
     return 1;
@@ -128,7 +128,7 @@ int main(int argc, char *argv[]) {
   }
 
   SymSetOptions(symopts);
-  module_base = SymLoadModuleEx(process, NULL, filename, NULL, 0, 0, NULL, 0);
+  module_base = SymLoadModuleEx(process, nullptr, filename, nullptr, 0, 0, nullptr, 0);
   if (!module_base) {
     /* SymLoadModuleEx failed */
     error = GetLastError();
@@ -143,7 +143,7 @@ int main(int argc, char *argv[]) {
     /* GNU addr2line seems to just do a strtol and ignore any
      * weird characters it gets, so we will too.
      */
-    unsigned __int64 reladdr = _strtoui64(buf, NULL, 16);
+    unsigned __int64 reladdr = _strtoui64(buf, nullptr, 16);
     ULONG64 buffer[(sizeof(SYMBOL_INFO) +
                     MAX_SYM_NAME*sizeof(TCHAR) +
                     sizeof(ULONG64) - 1)
@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
     // The length of the name is not including the null-terminating character.
     pSymbol->MaxNameLen = MAX_SYM_NAME - 1;
     if (print_function_name) {
-      if (SymFromAddr(process, (DWORD64)absaddr, NULL, pSymbol)) {
+      if (SymFromAddr(process, (DWORD64)absaddr, nullptr, pSymbol)) {
         printf("%s\n", pSymbol->Name);
       } else {
         printf("??\n");

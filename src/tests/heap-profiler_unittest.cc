@@ -91,7 +91,7 @@ static void TestHeapProfilerStartStopIsRunning() {
   // IsHeapProfilerRunning should return true.
   if (!IsHeapProfilerRunning()) {
     const char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == NULL)
+    if (tmpdir == nullptr)
       tmpdir = "/tmp";
     mkdir(tmpdir, 0755);     // if necessary
     HeapProfilerStart((std::string(tmpdir) + "/start_stop").c_str());
@@ -110,7 +110,7 @@ static void TestDumpHeapProfiler() {
   // IsHeapProfilerRunning should return true.
   if (!IsHeapProfilerRunning()) {
     const char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == NULL)
+    if (tmpdir == nullptr)
       tmpdir = "/tmp";
     mkdir(tmpdir, 0755);     // if necessary
     HeapProfilerStart((std::string(tmpdir) + "/dump").c_str());
@@ -162,9 +162,9 @@ int main(int argc, char** argv) {
         printf("FORK failed!\n");
         return 1;
       case 0:             // child
-        return execl(argv[0], argv[0], NULL);   // run child with no args
+        return execl(argv[0], argv[0], nullptr);   // run child with no args
       default:
-        wait(NULL);       // we'll let the kids run one at a time
+        wait(nullptr);       // we'll let the kids run one at a time
     }
   }
 

@@ -148,7 +148,7 @@ static double measure_once(struct internal_bench *b, long iterations)
   int rv;
   double time;
 
-  rv = gettimeofday(&tv_before, NULL);
+  rv = gettimeofday(&tv_before, nullptr);
   if (rv) {
     perror("gettimeofday");
     abort();
@@ -156,7 +156,7 @@ static double measure_once(struct internal_bench *b, long iterations)
 
   run_body(b, iterations);
 
-  rv = gettimeofday(&tv_after, NULL);
+  rv = gettimeofday(&tv_after, nullptr);
   if (rv) {
     perror("gettimeofday");
     abort();

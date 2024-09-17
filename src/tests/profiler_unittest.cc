@@ -128,7 +128,7 @@ int main(int argc, char** argv) {
 
   g_iters = atoi(argv[1]);
   int num_threads = 1;
-  const char* filename = NULL;
+  const char* filename = nullptr;
   if (argc > 2) {
     num_threads = atoi(argv[2]);
   }
@@ -161,9 +161,9 @@ int main(int argc, char** argv) {
           printf("FORK failed!\n");
           return 1;
         case 0:             // child
-          return execl(argv[0], argv[0], argv[1], NULL);
+          return execl(argv[0], argv[0], argv[1], nullptr);
         default:
-          wait(NULL);       // we'll let the kids run one at a time
+          wait(nullptr);       // we'll let the kids run one at a time
       }
     }
 #else

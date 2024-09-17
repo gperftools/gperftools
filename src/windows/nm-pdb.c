@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
   SYM_CONTEXT ctx;
   int i;
   char* search;
-  char* filename = NULL;
+  char* filename = nullptr;
   int rv = 0;
   /* We may add SYMOPT_UNDNAME if --demangle is specified: */
   DWORD symopts = SYMOPT_DEFERRED_LOADS | SYMOPT_DEBUG;
@@ -215,7 +215,7 @@ int main(int argc, char *argv[]) {
 
   process = GetCurrentProcess();
 
-  if (!SymInitialize(process, NULL, FALSE)) {
+  if (!SymInitialize(process, nullptr, FALSE)) {
     error = GetLastError();
     fprintf(stderr, "SymInitialize returned error : %d\n", error);
     return 1;
@@ -242,7 +242,7 @@ int main(int argc, char *argv[]) {
  }
 
   SymSetOptions(symopts);
-  module_base = SymLoadModuleEx(process, NULL, filename, NULL, 0, 0, NULL, 0);
+  module_base = SymLoadModuleEx(process, nullptr, filename, nullptr, 0, 0, nullptr, 0);
   if (!module_base) {
     /* SymLoadModuleEx failed */
     error = GetLastError();
@@ -256,7 +256,7 @@ int main(int argc, char *argv[]) {
 
   memset(&ctx, 0, sizeof(ctx));
   ctx.module_base = module_base;
-  if (!SymEnumSymbols(process, module_base, NULL, EnumSymProc, &ctx)) {
+  if (!SymEnumSymbols(process, module_base, nullptr, EnumSymProc, &ctx)) {
     error = GetLastError();
     fprintf(stderr, "SymEnumSymbols returned error: %d\n", error);
     rv = 1;

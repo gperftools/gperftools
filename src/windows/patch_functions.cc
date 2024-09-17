@@ -173,7 +173,7 @@ class LibcInfo {
   }
 
   // Populates all the windows_fn_[] vars based on our module info.
-  // Returns false if windows_fn_ is all NULL's, because there's
+  // Returns false if windows_fn_ is all nullptr's, because there's
   // nothing to patch.  Also populates the rest of the module_entry
   // info, such as the module's name.
   bool PopulateWindowsFn(const ModuleEntryCopy& module_entry);
@@ -214,7 +214,7 @@ class LibcInfo {
   // PatchOneModule) won't work, since there are no dlls.  Instead,
   // you just want to be taking the address of malloc/etc directly.
   // In the common, non-static-link case, these pointers will all be
-  // NULL, since this initializer runs before msvcrt.dll is loaded.
+  // nullptr, since this initializer runs before msvcrt.dll is loaded.
   static const GenericFnPtr static_fn_[kNumFunctions];
 
   // This is the address of the function we are going to patch
@@ -316,7 +316,7 @@ struct ModuleEntryCopy {
   GenericFnPtr rgProcAddresses[LibcInfo::ctrgProcAddress];
 
   ModuleEntryCopy() {
-    modBaseAddr = NULL;
+    modBaseAddr = nullptr;
     modBaseSize = 0;
     for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
       rgProcAddresses[i] = LibcInfo::static_fn(i);
@@ -336,7 +336,7 @@ struct ModuleEntryCopy {
       if (modBaseAddr <= target_addr && target_addr < modEndAddr)
         rgProcAddresses[i] = (GenericFnPtr)target;
       else
-        rgProcAddresses[i] = (GenericFnPtr)NULL;
+        rgProcAddresses[i] = (GenericFnPtr)nullptr;
     }
   }
 };
@@ -404,11 +404,11 @@ const char* const LibcInfo::function_name_[] = {
   // Ideally we should patch the nothrow versions of new/delete, but
   // at least in msvcrt, nothrow-new machine-code is of a type we
   // can't patch.  Since these are relatively rare, I'm hoping it's ok
-  // not to patch them.  (NULL name turns off patching.)
-  NULL,  // kMangledNewNothrow,
-  NULL,  // kMangledNewArrayNothrow,
-  NULL,  // kMangledDeleteNothrow,
-  NULL,  // kMangledDeleteArrayNothrow,
+  // not to patch them.  (nullptr name turns off patching.)
+  nullptr,  // kMangledNewNothrow,
+  nullptr,  // kMangledNewArrayNothrow,
+  nullptr,  // kMangledDeleteNothrow,
+  nullptr,  // kMangledDeleteArrayNothrow,
   "_msize", "_expand", "_calloc_crt", "_free_base", "_free_dbg"
 };
 
@@ -423,7 +423,7 @@ const GenericFnPtr LibcInfo::static_fn_[] = {
   (GenericFnPtr)&::realloc,
   (GenericFnPtr)&::calloc,
 #ifdef __MINGW32__
-  NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
 #else
   (GenericFnPtr)(void*(*)(size_t))&::operator new,
   (GenericFnPtr)(void*(*)(size_t))&::operator new[],
@@ -477,10 +477,10 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
 };
 
 /*static*/ WindowsInfo::FunctionInfo WindowsInfo::function_info_[] = {
-  { "HeapAlloc", NULL, NULL, (GenericFnPtr)&Perftools_HeapAlloc },
-  { "HeapFree", NULL, NULL, (GenericFnPtr)&Perftools_HeapFree },
-  { "LoadLibraryExW", NULL, NULL, (GenericFnPtr)&Perftools_LoadLibraryExW },
-  { "FreeLibrary", NULL, NULL, (GenericFnPtr)&Perftools_FreeLibrary },
+  { "HeapAlloc", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapAlloc },
+  { "HeapFree", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapFree },
+  { "LoadLibraryExW", nullptr, nullptr, (GenericFnPtr)&Perftools_LoadLibraryExW },
+  { "FreeLibrary", nullptr, nullptr, (GenericFnPtr)&Perftools_FreeLibrary },
 };
 
 bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
@@ -499,29 +499,29 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   }
 
   // Some modules use the same function pointer for new and new[].  If
-  // we find that, set one of the pointers to NULL so we don't double-
+  // we find that, set one of the pointers to nullptr so we don't double-
   // patch.  Same may happen with new and nothrow-new, or even new[]
   // and nothrow-new.  It's easiest just to check each fn-ptr against
   // every other.
   for (int i = 0; i < kNumFunctions; i++) {
     for (int j = i+1; j < kNumFunctions; j++) {
       if (windows_fn_[i] == windows_fn_[j]) {
-        // We NULL the later one (j), so as to minimize the chances we
-        // NULL kFree and kRealloc.  See comments below.  This is fragile!
-        windows_fn_[j] = NULL;
+        // We nullptr the later one (j), so as to minimize the chances we
+        // nullptr kFree and kRealloc.  See comments below.  This is fragile!
+        windows_fn_[j] = nullptr;
       }
     }
   }
 
   // There's always a chance that our module uses the same function
   // as another module that we've already loaded.  In that case, we
-  // need to set our windows_fn to NULL, to avoid double-patching.
+  // need to set our windows_fn to nullptr, to avoid double-patching.
   for (int ifn = 0; ifn < kNumFunctions; ifn++) {
     for (int imod = 0;
          imod < sizeof(g_module_libcs)/sizeof(*g_module_libcs);  imod++) {
       if (g_module_libcs[imod]->is_valid() &&
           this->windows_fn(ifn) == g_module_libcs[imod]->windows_fn(ifn)) {
-        windows_fn_[ifn] = NULL;
+        windows_fn_[ifn] = nullptr;
       }
     }
   }
@@ -534,8 +534,8 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   if (!found_non_null)
     return false;
 
-  // It's important we didn't NULL out windows_fn_[kFree] or [kRealloc].
-  // The reason is, if those are NULL-ed out, we'll never patch them
+  // It's important we didn't nullptr out windows_fn_[kFree] or [kRealloc].
+  // The reason is, if those are nullptr-ed out, we'll never patch them
   // and thus never get an origstub_fn_ value for them, and when we
   // try to call origstub_fn_[kFree/kRealloc] in Perftools_free and
   // Perftools_realloc, below, it will fail.  We could work around
@@ -555,13 +555,13 @@ bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
   CopyFrom(me_info);   // copies the module_entry and the windows_fn_ array
   for (int i = 0; i < kNumFunctions; i++) {
     if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i]) {
-      // if origstub_fn_ is not NULL, it's left around from a previous
-      // patch.  We need to set it to NULL for the new Patch call.
+      // if origstub_fn_ is not nullptr, it's left around from a previous
+      // patch.  We need to set it to nullptr for the new Patch call.
       //
       // Note that origstub_fn_ was logically freed by
       // PreamblePatcher::Unpatch, so we don't have to do anything
       // about it.
-      origstub_fn_[i] = NULL;   // Patch() will fill this in
+      origstub_fn_[i] = nullptr;   // Patch() will fill this in
       CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
                PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i],
                                       &origstub_fn_[i]));
@@ -587,23 +587,23 @@ void LibcInfoWithPatchFunctions<T>::Unpatch() {
 
 void WindowsInfo::Patch() {
   HMODULE hkernel32 = ::GetModuleHandleA("kernel32");
-  CHECK_NE(hkernel32, NULL);
+  CHECK_NE(hkernel32, nullptr);
 
   // Unlike for libc, we know these exist in our module, so we can get
   // and patch at the same time.
   for (int i = 0; i < kNumFunctions; i++) {
     function_info_[i].windows_fn = (GenericFnPtr)
         ::GetProcAddress(hkernel32, function_info_[i].name);
-    // If origstub_fn is not NULL, it's left around from a previous
-    // patch.  We need to set it to NULL for the new Patch call.
+    // If origstub_fn is not nullptr, it's left around from a previous
+    // patch.  We need to set it to nullptr for the new Patch call.
     // Since we've patched Unpatch() not to delete origstub_fn_ (it
     // causes problems in some contexts, though obviously not this
-    // one), we should delete it now, before setting it to NULL.
+    // one), we should delete it now, before setting it to nullptr.
     // NOTE: casting from a function to a pointer is contra the C++
     //       spec.  It's not safe on IA64, but is on i386.  We use
     //       a C-style cast here to emphasize this is not legal C++.
     delete[] (char*)(function_info_[i].origstub_fn);
-    function_info_[i].origstub_fn = NULL;  // Patch() will fill this in
+    function_info_[i].origstub_fn = nullptr;  // Patch() will fill this in
     CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
              PreamblePatcher::Patch(function_info_[i].windows_fn,
                                     function_info_[i].perftools_fn,
@@ -837,7 +837,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use)
 template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
     void* old_ptr, size_t new_size) __THROW {
-  if (old_ptr == NULL) {
+  if (old_ptr == nullptr) {
     void* result = do_malloc_or_cpp_alloc(new_size);
     MallocHook::InvokeNewHook(result, new_size);
     return result;
@@ -846,7 +846,7 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
     MallocHook::InvokeDeleteHook(old_ptr);
     do_free_with_callback(old_ptr,
                           (void (*)(void*))origstub_fn_[kFree], false, 0);
-    return NULL;
+    return nullptr;
   }
   return do_realloc_with_callback(
       old_ptr, new_size,
@@ -984,7 +984,7 @@ BOOL WINAPI WindowsInfo::Perftools_FreeLibrary(HMODULE hLibModule) {
   // address and seeing if it comes back with the same address.  If it
   // is the same address it's still loaded, so the FreeLibrary() call
   // was a noop, and there's no need to redo the patching.
-  HMODULE owner = NULL;
+  HMODULE owner = nullptr;
   BOOL result = ::GetModuleHandleExW(
       (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
        GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT),

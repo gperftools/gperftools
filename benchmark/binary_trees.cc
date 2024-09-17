@@ -92,7 +92,7 @@ int main(int argc, char *argv[]) {
   std::vector<pthread_t> threads(thread_count);
 
   for (int i = 0; i < thread_count; i++) {
-    int rv = pthread_create(&threads[i], NULL,
+    int rv = pthread_create(&threads[i], nullptr,
                             run_tramp,
                             reinterpret_cast<void *>(given_depth));
     if (rv) {
@@ -102,7 +102,7 @@ int main(int argc, char *argv[]) {
   }
   run_tramp(reinterpret_cast<void *>(given_depth));
   for (int i = 0; i < thread_count; i++) {
-    pthread_join(threads[i], NULL);
+    pthread_join(threads[i], nullptr);
   }
   return 0;
 }

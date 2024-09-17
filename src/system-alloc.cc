@@ -34,7 +34,7 @@
 #include <config.h>
 #include <errno.h>                      // for EAGAIN, errno
 #include <fcntl.h>                      // for open, O_RDWR
-#include <stddef.h>                     // for size_t, NULL, ptrdiff_t
+#include <stddef.h>                     // for size_t, ptrdiff_t
 #include <stdint.h>                     // for uintptr_t, intptr_t
 #ifdef HAVE_MMAP
 #include <sys/mman.h>                   // for munmap, mmap, MADV_DONTNEED, etc
@@ -104,7 +104,7 @@ static size_t pagesize = 0;
 #endif
 
 // The current system allocator
-SysAllocator* tcmalloc_sys_alloc = NULL;
+SysAllocator* tcmalloc_sys_alloc;
 
 // Number of bytes taken from system.
 size_t TCMalloc_SystemTaken = 0;
@@ -144,13 +144,13 @@ class DefaultSysAllocator : public SysAllocator {
   DefaultSysAllocator() : SysAllocator() {
     for (int i = 0; i < kMaxAllocators; i++) {
       failed_[i] = true;
-      allocs_[i] = NULL;
-      names_[i] = NULL;
+      allocs_[i] = nullptr;
+      names_[i] = nullptr;
     }
   }
   void SetChildAllocator(SysAllocator* alloc, unsigned int index,
                          const char* name) {
-    if (index < kMaxAllocators && alloc != NULL) {
+    if (index < kMaxAllocators && alloc != nullptr) {
       allocs_[index] = alloc;
       failed_[index] = false;
       names_[index] = name;
@@ -183,7 +183,7 @@ extern "C" {
 void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
 #if !defined(HAVE_SBRK) || defined(__UCLIBC__)
-  return NULL;
+  return nullptr;
 #else
   // Check if we should use sbrk allocation.
   // FLAGS_malloc_skip_sbrk starts out as false (its uninitialized
@@ -192,12 +192,12 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
   // That means that even if this flag is set to true, some (initial)
   // memory will be allocated with sbrk before the flag takes effect.
   if (FLAGS_malloc_skip_sbrk) {
-    return NULL;
+    return nullptr;
   }
 
   // sbrk will release memory if passed a negative number, so we do
   // a strict check here
-  if (static_cast<ptrdiff_t>(size + alignment) < 0) return NULL;
+  if (static_cast<ptrdiff_t>(size + alignment) < 0) return nullptr;
 
   // This doesn't overflow because TCMalloc_SystemAlloc has already
   // tested for overflow at the alignment boundary.
@@ -217,12 +217,12 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
   //    http://sourceware.org/cgi-bin/cvsweb.cgi/~checkout~/libc/misc/sbrk.c?rev=1.1.2.1&content-type=text/plain&cvsroot=glibc
   // Without this check, sbrk may succeed when it ought to fail.)
   if (reinterpret_cast<intptr_t>(tcmalloc_hooked_sbrk(0)) + size < size) {
-    return NULL;
+    return nullptr;
   }
 
   void* result = tcmalloc_hooked_sbrk(size);
   if (result == reinterpret_cast<void*>(-1)) {
-    return NULL;
+    return nullptr;
   }
 
   // Is it aligned?
@@ -241,7 +241,7 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
   // that we can find an aligned region within it.
   result = tcmalloc_hooked_sbrk(size + alignment - 1);
   if (result == reinterpret_cast<void*>(-1)) {
-    return NULL;
+    return nullptr;
   }
   ptr = reinterpret_cast<uintptr_t>(result);
   if ((ptr & (alignment-1)) != 0) {
@@ -346,9 +346,9 @@ void* MmapSysAllocator::Alloc(size_t size, size_t *actual_size,
 void* DefaultSysAllocator::Alloc(size_t size, size_t *actual_size,
                                  size_t alignment) {
   for (int i = 0; i < kMaxAllocators; i++) {
-    if (!failed_[i] && allocs_[i] != NULL) {
+    if (!failed_[i] && allocs_[i] != nullptr) {
       void* result = allocs_[i]->Alloc(size, actual_size, alignment);
-      if (result != NULL) {
+      if (result != nullptr) {
         return result;
       }
       failed_[i] = true;
@@ -359,7 +359,7 @@ void* DefaultSysAllocator::Alloc(size_t size, size_t *actual_size,
   for (int i = 0; i < kMaxAllocators; i++) {
     failed_[i] = false;
   }
-  return NULL;
+  return nullptr;
 }
 
 ATTRIBUTE_WEAK ATTRIBUTE_NOINLINE
@@ -396,7 +396,7 @@ void InitSystemAllocators(void) {
 void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
                            size_t alignment) {
   // Discard requests that overflow
-  if (size + alignment < size) return NULL;
+  if (size + alignment < size) return nullptr;
 
   SpinLockHolder lock_holder(&spinlock);
 
@@ -409,12 +409,12 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   if (alignment < sizeof(MemoryAligner)) alignment = sizeof(MemoryAligner);
 
   size_t actual_size_storage;
-  if (actual_size == NULL) {
+  if (actual_size == nullptr) {
     actual_size = &actual_size_storage;
   }
 
   void* result = tcmalloc_sys_alloc->Alloc(size, actual_size, alignment);
-  if (result != NULL) {
+  if (result != nullptr) {
     CHECK_CONDITION(
       CheckAddressBits(reinterpret_cast<uintptr_t>(result) + *actual_size - 1));
     TCMalloc_SystemTaken += *actual_size;

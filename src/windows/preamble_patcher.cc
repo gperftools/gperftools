@@ -59,10 +59,10 @@
 
 namespace sidestep {
 
-PreamblePatcher::PreamblePage* PreamblePatcher::preamble_pages_ = NULL;
-long PreamblePatcher::granularity_ = 0;
-long PreamblePatcher::pagesize_ = 0;
-bool PreamblePatcher::initialized_ = false;
+PreamblePatcher::PreamblePage* PreamblePatcher::preamble_pages_;
+long PreamblePatcher::granularity_;
+long PreamblePatcher::pagesize_;
+bool PreamblePatcher::initialized_;
 
 static const unsigned int kPreamblePageMagic = 0x4347414D; // "MAGC"
 
@@ -84,8 +84,8 @@ static const unsigned int kPreamblePageMagic = 0x4347414D; // "MAGC"
 void* PreamblePatcher::ResolveTargetImpl(unsigned char* target,
                                          unsigned char* stop_before,
                                          bool stop_before_trampoline) {
-  if (target == NULL)
-    return NULL;
+  if (target == nullptr)
+    return nullptr;
   while (1) {
     unsigned char* new_target;
     if (target[0] == ASM_JMP32REL) {
@@ -159,7 +159,7 @@ class DeleteUnsignedCharArray {
 
   unsigned char* Release() {
     unsigned char* temp = array_;
-    array_ = NULL;
+    array_ = nullptr;
     return temp;
   }
 
@@ -268,7 +268,7 @@ SideStepError PreamblePatcher::RawPatch(void* target_function,
 
   SideStepError error_code = RawPatchWithStubAndProtections(
       target_function, replacement_function, preamble_stub,
-      MAX_PREAMBLE_STUB_SIZE, NULL);
+      MAX_PREAMBLE_STUB_SIZE, nullptr);
 
   if (SIDESTEP_SUCCESS != error_code) {
     SIDESTEP_ASSERT(false);
@@ -437,8 +437,8 @@ void PreamblePatcher::Initialize() {
 
 unsigned char* PreamblePatcher::AllocPreambleBlockNear(void* target) {
   PreamblePage* preamble_page = preamble_pages_;
-  while (preamble_page != NULL) {
-    if (preamble_page->free_ != NULL) {
+  while (preamble_page != nullptr) {
+    if (preamble_page->free_ != nullptr) {
       __int64 val = reinterpret_cast<__int64>(preamble_page) -
           reinterpret_cast<__int64>(target);
       if ((val > 0 && val + pagesize_ <= INT_MAX) ||
@@ -450,12 +450,12 @@ unsigned char* PreamblePatcher::AllocPreambleBlockNear(void* target) {
   }
 
   // The free_ member of the page is used to store the next available block
-  // of memory to use or NULL if there are no chunks available, in which case
+  // of memory to use or nullptr if there are no chunks available, in which case
   // we'll allocate a new page.
-  if (preamble_page == NULL || preamble_page->free_ == NULL) {
+  if (preamble_page == nullptr || preamble_page->free_ == nullptr) {
     // Create a new preamble page and initialize the free list
     preamble_page = reinterpret_cast<PreamblePage*>(AllocPageNear(target));
-    SIDESTEP_ASSERT(preamble_page != NULL && "Could not allocate page!");
+    SIDESTEP_ASSERT(preamble_page != nullptr && "Could not allocate page!");
     void** pp = &preamble_page->free_;
     unsigned char* ptr = reinterpret_cast<unsigned char*>(preamble_page) +
         MAX_PREAMBLE_STUB_SIZE;
@@ -466,7 +466,7 @@ unsigned char* PreamblePatcher::AllocPreambleBlockNear(void* target) {
       pp = reinterpret_cast<void**>(ptr);
       ptr += MAX_PREAMBLE_STUB_SIZE;
     }
-    *pp = NULL;
+    *pp = nullptr;
     // Insert the new page into the list
     preamble_page->magic_ = kPreamblePageMagic;
     preamble_page->next_ = preamble_pages_;
@@ -478,7 +478,7 @@ unsigned char* PreamblePatcher::AllocPreambleBlockNear(void* target) {
 }
 
 void PreamblePatcher::FreePreambleBlock(unsigned char* block) {
-  SIDESTEP_ASSERT(block != NULL);
+  SIDESTEP_ASSERT(block != nullptr);
   SIDESTEP_ASSERT(granularity_ != 0);
   uintptr_t ptr = reinterpret_cast<uintptr_t>(block);
   ptr -= ptr & (granularity_ - 1);
@@ -498,12 +498,12 @@ void* PreamblePatcher::AllocPageNear(void* target) {
     PreamblePatcher::Initialize();
     SIDESTEP_ASSERT(initialized_);
   }
-  void* pv = NULL;
+  void* pv = nullptr;
   unsigned char* allocation_base = reinterpret_cast<unsigned char*>(
       mbi.AllocationBase);
   __int64 i = 1;
   bool high_target = reinterpret_cast<__int64>(target) > UINT_MAX;
-  while (pv == NULL) {
+  while (pv == nullptr) {
     __int64 val = reinterpret_cast<__int64>(allocation_base) -
         (i * granularity_);
     if (high_target &&
@@ -521,13 +521,13 @@ void* PreamblePatcher::AllocPageNear(void* target) {
   }
 
   // We couldn't allocate low, try to allocate high
-  if (pv == NULL) {
+  if (pv == nullptr) {
     i = 1;
     // Round up to the next multiple of page granularity
     allocation_base = reinterpret_cast<unsigned char*>(
         (reinterpret_cast<__int64>(target) &
         (~(granularity_ - 1))) + granularity_);
-    while (pv == NULL) {
+    while (pv == nullptr) {
       __int64 val = reinterpret_cast<__int64>(allocation_base) +
           (i * granularity_) - reinterpret_cast<__int64>(target);
       if (val > INT_MAX || val < 0) {

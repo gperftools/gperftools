@@ -194,7 +194,7 @@ static bool IsDebuggerAttached(void) {    // only works under linux, probably
     const char *const kTracerPid = "TracerPid:\t";
     buf[len - 1] = '\0';
     const char *p = strstr(buf, kTracerPid);
-    if (p != NULL) {
+    if (p != nullptr) {
       rc = (strncmp(p + strlen(kTracerPid), "0\n", 2) != 0);
     }
   }
@@ -319,12 +319,12 @@ static SpinLock heap_checker_lock;
 
 // Heap profile prefix for leak checking profiles.
 // Gets assigned once when leak checking is turned on, then never modified.
-static const string* profile_name_prefix = NULL;
+static const string* profile_name_prefix;
 
 // Whole-program heap leak checker.
 // Gets assigned once when leak checking is turned on,
 // then main_heap_checker is never deleted.
-static HeapLeakChecker* main_heap_checker = NULL;
+static HeapLeakChecker* main_heap_checker;
 
 // Whether we will use main_heap_checker to do a check at program exit
 // automatically. In any case user can ask for more checks on main_heap_checker
@@ -336,7 +336,7 @@ static bool do_main_heap_check = false;
 // together with setting heap_checker_on (below) to true
 // and registering our new/delete malloc hooks;
 // similarly all are unset in HeapLeakChecker::TurnItselfOffLocked.
-static HeapProfileTable* heap_profile = NULL;
+static HeapProfileTable* heap_profile;
 
 // If we are doing (or going to do) any kind of heap-checking.
 static bool heap_checker_on = false;
@@ -366,7 +366,7 @@ class HeapLeakChecker::Allocator {
  public:
   static void Init() {
     RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-    RAW_DCHECK(arena_ == NULL, "");
+    RAW_DCHECK(arena_ == nullptr, "");
     arena_ = LowLevelAlloc::NewArena(nullptr);
   }
   static void Shutdown() {
@@ -393,22 +393,22 @@ class HeapLeakChecker::Allocator {
   static void Free(void* p, size_t /* n */) {
     Free(p);
   }
-  // destruct, free, and make *p to be NULL
+  // destruct, free, and make *p to be nullptr
   template<typename T> static void DeleteAndNull(T** p) {
     (*p)->~T();
     Free(*p);
-    *p = NULL;
+    *p = nullptr;
   }
   template<typename T> static void DeleteAndNullIfNot(T** p) {
-    if (*p != NULL) DeleteAndNull(p);
+    if (*p != nullptr) DeleteAndNull(p);
   }
  private:
   static LowLevelAlloc::Arena* arena_;
   static int alloc_count_;
 };
 
-LowLevelAlloc::Arena* HeapLeakChecker::Allocator::arena_ = NULL;
-int HeapLeakChecker::Allocator::alloc_count_ = 0;
+LowLevelAlloc::Arena* HeapLeakChecker::Allocator::arena_;
+int HeapLeakChecker::Allocator::alloc_count_;
 
 //----------------------------------------------------------------------
 // HeapLeakChecker live object tracking components
@@ -441,7 +441,7 @@ typedef map<uintptr_t, size_t, less<uintptr_t>,
             STL_Allocator<pair<const uintptr_t, size_t>,
                           HeapLeakChecker::Allocator>
            > IgnoredObjectsMap;
-static IgnoredObjectsMap* ignored_objects = NULL;
+static IgnoredObjectsMap* ignored_objects;
 
 // All objects (memory ranges) that we consider to be the sources of pointers
 // to live (not leaked) objects.
@@ -455,7 +455,7 @@ static IgnoredObjectsMap* ignored_objects = NULL;
 typedef vector<AllocObject,
                STL_Allocator<AllocObject, HeapLeakChecker::Allocator>
               > LiveObjectsStack;
-static LiveObjectsStack* live_objects = NULL;
+static LiveObjectsStack* live_objects;
 
 // A special string type that uses my allocator
 typedef basic_string<char, char_traits<char>,
@@ -468,7 +468,7 @@ typedef map<HCL_string, LiveObjectsStack, less<HCL_string>,
             STL_Allocator<pair<const HCL_string, LiveObjectsStack>,
                           HeapLeakChecker::Allocator>
            > LibraryLiveObjectsStacks;
-static LibraryLiveObjectsStacks* library_live_objects = NULL;
+static LibraryLiveObjectsStacks* library_live_objects;
 
 // Value stored in the map of disabled address ranges;
 // its key is the end of the address range.
@@ -484,7 +484,7 @@ typedef map<uintptr_t, HeapLeakChecker::RangeValue, less<uintptr_t>,
            > DisabledRangeMap;
 // The disabled program counter address ranges for profile dumping
 // that are registered with HeapLeakChecker::DisableChecksFromToLocked.
-static DisabledRangeMap* disabled_ranges = NULL;
+static DisabledRangeMap* disabled_ranges;
 
 // Set of stack tops.
 // These are used to consider live only appropriate chunks of the memory areas
@@ -493,7 +493,7 @@ static DisabledRangeMap* disabled_ranges = NULL;
 typedef set<uintptr_t, less<uintptr_t>,
             STL_Allocator<uintptr_t, HeapLeakChecker::Allocator>
            > StackTopSet;
-static StackTopSet* stack_tops = NULL;
+static StackTopSet* stack_tops;
 
 // A map of ranges of code addresses for the system libraries
 // that can mmap/mremap/sbrk-allocate memory regions for stacks
@@ -503,7 +503,7 @@ typedef map<uintptr_t, uintptr_t, less<uintptr_t>,
             STL_Allocator<pair<const uintptr_t, uintptr_t>,
                           HeapLeakChecker::Allocator>
            > GlobalRegionCallerRangeMap;
-static GlobalRegionCallerRangeMap* global_region_caller_ranges = NULL;
+static GlobalRegionCallerRangeMap* global_region_caller_ranges;
 
 // TODO(maxim): make our big data structs into own modules
 
@@ -569,19 +569,19 @@ inline static uintptr_t AsInt(const void* ptr) {
 static const char* hc_strstr(const char* s1, const char* s2) {
   const size_t len = strlen(s2);
   RAW_CHECK(len > 0, "Unexpected empty string passed to strstr()");
-  for (const char* p = strchr(s1, *s2); p != NULL; p = strchr(p+1, *s2)) {
+  for (const char* p = strchr(s1, *s2); p != nullptr; p = strchr(p+1, *s2)) {
     if (strncmp(p, s2, len) == 0) {
       return p;
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 //----------------------------------------------------------------------
 
 // Our hooks for MallocHook
 static void NewHook(const void* ptr, size_t size) {
-  if (ptr != NULL) {
+  if (ptr != nullptr) {
     const int counter = get_thread_disable_counter();
     const bool ignore = (counter > 0);
     RAW_VLOG(16, "Recording Alloc: %p of %zu; %d", ptr, size,
@@ -609,7 +609,7 @@ static void NewHook(const void* ptr, size_t size) {
 }
 
 static void DeleteHook(const void* ptr) {
-  if (ptr != NULL) {
+  if (ptr != nullptr) {
     RAW_VLOG(16, "Recording Free %p", ptr);
     { SpinLockHolder l(&heap_checker_lock);
       if (heap_checker_on) heap_profile->RecordFree(ptr);
@@ -819,8 +819,8 @@ static void RecordGlobalDataLocked(uintptr_t start_address,
                                    const char* filename) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
   // Ignore non-writeable regions.
-  if (strchr(permissions, 'w') == NULL) return;
-  if (filename == NULL  ||  *filename == '\0') {
+  if (strchr(permissions, 'w') == nullptr) return;
+  if (filename == nullptr  ||  *filename == '\0') {
     filename = kUnnamedProcSelfMapEntry;
   }
   RAW_VLOG(11, "Looking into %s: 0x%" PRIxPTR "..0x%" PRIxPTR,
@@ -836,7 +836,7 @@ static void RecordGlobalDataLocked(uintptr_t start_address,
 static bool IsLibraryNamed(const char* library, const char* library_base) {
   const char* p = hc_strstr(library, library_base);
   size_t sz = strlen(library_base);
-  return p != NULL  &&  (p[sz] == '.'  ||  p[sz] == '-');
+  return p != nullptr  &&  (p[sz] == '.'  ||  p[sz] == '-');
 }
 
 // static
@@ -893,7 +893,7 @@ void HeapLeakChecker::DisableLibraryAllocsLocked(const char* library,
         IsLibraryNamed(library, "/ld")) {
       RAW_VLOG(10, "Global memory regions made by %s will be live data",
                   library);
-      if (global_region_caller_ranges == NULL) {
+      if (global_region_caller_ranges == nullptr) {
         global_region_caller_ranges =
           new(Allocator::Allocate(sizeof(GlobalRegionCallerRangeMap)))
             GlobalRegionCallerRangeMap;
@@ -1257,7 +1257,7 @@ static va_list dummy_ap;
 // static
 void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
-  RAW_CHECK(live_objects == NULL, "");
+  RAW_CHECK(live_objects == nullptr, "");
   live_objects = new(Allocator::Allocate(sizeof(LiveObjectsStack)))
                    LiveObjectsStack;
   stack_tops = new(Allocator::Allocate(sizeof(StackTopSet))) StackTopSet;
@@ -1297,7 +1297,7 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
     // these two conditions:
     bool want_and_can_run_in_main_thread =
       ProfilingIsEnabledForAllThreads()  &&
-      TCMalloc_ListAllProcessThreads(NULL, IsOneThread) == 1;
+      TCMalloc_ListAllProcessThreads(nullptr, IsOneThread) == 1;
     // When the normal path of TCMalloc_ListAllProcessThreads below is taken,
     // we fully suspend the threads right here before any liveness checking
     // and keep them suspended for the whole time of liveness checking
@@ -1306,8 +1306,8 @@ void HeapLeakChecker::IgnoreAllLiveObjectsLocked(const void* self_stack_top) {
     //  if not suspended they could still mess with the pointer
     //  graph while we walk it).
     int r = want_and_can_run_in_main_thread
-            ? IgnoreLiveThreadsLocked(NULL, 1, &self_thread_pid, dummy_ap)
-            : TCMalloc_ListAllProcessThreads(NULL, IgnoreLiveThreadsLocked);
+            ? IgnoreLiveThreadsLocked(nullptr, 1, &self_thread_pid, dummy_ap)
+            : TCMalloc_ListAllProcessThreads(nullptr, IgnoreLiveThreadsLocked);
     need_to_ignore_non_thread_objects = r < 0;
     if (r < 0) {
       RAW_LOG(WARNING, "Thread finding failed with %d errno=%d", r, errno);
@@ -1520,7 +1520,7 @@ void HeapLeakChecker::DoIgnoreObject(const void* ptr) {
   } else {
     RAW_VLOG(10, "Going to ignore live object at %p of %zu bytes",
                 ptr, object_size);
-    if (ignored_objects == NULL)  {
+    if (ignored_objects == nullptr)  {
       ignored_objects = new(Allocator::Allocate(sizeof(IgnoredObjectsMap)))
                           IgnoredObjectsMap;
     }
@@ -1570,8 +1570,8 @@ char* HeapLeakChecker::MakeProfileNameLocked() {
 
 void HeapLeakChecker::Create(const char *name, bool make_start_snapshot) {
   SpinLockHolder l(lock_);
-  name_ = NULL;  // checker is inactive
-  start_snapshot_ = NULL;
+  name_ = nullptr;  // checker is inactive
+  start_snapshot_ = nullptr;
   has_checked_ = false;
   inuse_bytes_increase_ = 0;
   inuse_allocs_increase_ = 0;
@@ -1582,8 +1582,8 @@ void HeapLeakChecker::Create(const char *name, bool make_start_snapshot) {
     SpinLockHolder al(&alignment_checker_lock);
     SpinLockHolder hl(&heap_checker_lock);
     MemoryRegionMap::LockHolder ml;
-    if (heap_checker_on  &&  profile_name_prefix != NULL) {
-      RAW_DCHECK(strchr(name, '/') == NULL, "must be a simple name");
+    if (heap_checker_on  &&  profile_name_prefix != nullptr) {
+      RAW_DCHECK(strchr(name, '/') == nullptr, "must be a simple name");
       memcpy(n, name, strlen(name) + 1);
       name_ = n;  // checker is active
       if (make_start_snapshot) {
@@ -1602,7 +1602,7 @@ void HeapLeakChecker::Create(const char *name, bool make_start_snapshot) {
     RAW_LOG(WARNING, "To activate set the HEAPCHECK environment variable.\n");
     }
   }
-  if (name_ == NULL) {
+  if (name_ == nullptr) {
     UnIgnoreObject(n);
     delete[] n;  // must be done after we unlock
   }
@@ -1721,15 +1721,15 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
             " program-exit's automatic check.");
   }
 
-  HeapProfileTable::Snapshot* leaks = NULL;
-  char* pprof_file = NULL;
+  HeapProfileTable::Snapshot* leaks = nullptr;
+  char* pprof_file = nullptr;
 
   {
     // Heap activity in other threads is paused during this function
     // (i.e. until we got all profile difference info).
     SpinLockHolder hl(&heap_checker_lock);
     if (heap_checker_on == false) {
-      if (name_ != NULL) {  // leak checking enabled when created the checker
+      if (name_ != nullptr) {  // leak checking enabled when created the checker
         RAW_LOG(WARNING, "Heap leak checker got turned off after checker "
                 "\"%s\" has been created, no leak check is being done for it!",
                 name_);
@@ -1748,7 +1748,7 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
     // can detect leaks in the heap-leak-checket itself
     const int initial_allocs = Allocator::alloc_count();
 
-    if (name_ == NULL) {
+    if (name_ == nullptr) {
       RAW_LOG(FATAL, "Heap leak checker must not be turned on "
               "after construction of a HeapLeakChecker");
     }
@@ -1768,7 +1768,7 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
     inuse_allocs_increase_ = static_cast<ssize_t>(leaks->total().allocs);
     if (leaks->Empty()) {
       heap_profile->ReleaseSnapshot(leaks);
-      leaks = NULL;
+      leaks = nullptr;
 
       // We can only check for internal leaks along the no-user-leak
       // path since in the leak path we temporarily release
@@ -1804,13 +1804,13 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
       }
     }
 
-    if (leaks != NULL) {
+    if (leaks != nullptr) {
       pprof_file = MakeProfileNameLocked();
     }
   }
 
   has_checked_ = true;
-  if (leaks == NULL) {
+  if (leaks == nullptr) {
     if (FLAGS_heap_check_max_pointer_offset == -1) {
       RAW_LOG(WARNING,
               "Found no leaks without max_pointer_offset restriction: "
@@ -1837,13 +1837,13 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
       // typically only want to report once in a program's run, at the
       // very end.
       if (MallocHook::GetNewHook() == NewHook)
-        MallocHook::SetNewHook(NULL);
+        MallocHook::SetNewHook(nullptr);
       if (MallocHook::GetDeleteHook() == DeleteHook)
-        MallocHook::SetDeleteHook(NULL);
+        MallocHook::SetDeleteHook(nullptr);
       MemoryRegionMap::Shutdown();
       // Make sure all the hooks really got unset:
-      RAW_CHECK(MallocHook::GetNewHook() == NULL, "");
-      RAW_CHECK(MallocHook::GetDeleteHook() == NULL, "");
+      RAW_CHECK(MallocHook::GetNewHook() == nullptr, "");
+      RAW_CHECK(MallocHook::GetDeleteHook() == nullptr, "");
       have_disabled_hooks_for_symbolize = true;
       leaks->ReportLeaks(name_, pprof_file, true);  // true = should_symbolize
     } else {
@@ -1862,18 +1862,18 @@ bool HeapLeakChecker::DoNoLeaks(ShouldSymbolize should_symbolize) {
     }
   }
 
-  return (leaks == NULL);
+  return (leaks == nullptr);
 }
 
 HeapLeakChecker::~HeapLeakChecker() {
-  if (name_ != NULL) {  // had leak checking enabled when created the checker
+  if (name_ != nullptr) {  // had leak checking enabled when created the checker
     if (!has_checked_) {
       RAW_LOG(FATAL, "Some *NoLeaks|SameHeap method"
                      " must be called on any created HeapLeakChecker");
     }
 
     // Deallocate any snapshot taken at start
-    if (start_snapshot_ != NULL) {
+    if (start_snapshot_ != nullptr) {
       SpinLockHolder l(&heap_checker_lock);
       heap_profile->ReleaseSnapshot(
           reinterpret_cast<HeapProfileTable::Snapshot*>(start_snapshot_));
@@ -1881,7 +1881,7 @@ HeapLeakChecker::~HeapLeakChecker() {
 
     UnIgnoreObject(name_);
     delete[] name_;
-    name_ = NULL;
+    name_ = nullptr;
   }
   delete lock_;
 }
@@ -1896,12 +1896,12 @@ bool HeapLeakChecker::IsActive() {
   return heap_checker_on;
 }
 
-vector<HeapCleaner::void_function>* HeapCleaner::heap_cleanups_ = NULL;
+vector<HeapCleaner::void_function>* HeapCleaner::heap_cleanups_;
 
 // When a HeapCleaner object is intialized, add its function to the static list
 // of cleaners to be run before leaks checking.
 HeapCleaner::HeapCleaner(void_function f) {
-  if (heap_cleanups_ == NULL)
+  if (heap_cleanups_ == nullptr)
     heap_cleanups_ = new vector<HeapCleaner::void_function>;
   heap_cleanups_->push_back(f);
 }
@@ -1915,7 +1915,7 @@ void HeapCleaner::RunHeapCleanups() {
     f();
   }
   delete heap_cleanups_;
-  heap_cleanups_ = NULL;
+  heap_cleanups_ = nullptr;
 }
 
 // Program exit heap cleanup registered as a module object destructor.
@@ -2062,7 +2062,7 @@ void HeapLeakChecker_InternalInitStart() {
   snprintf(pid_buf, sizeof(pid_buf), ".%d", main_thread_pid);
   *profile_prefix += pid_buf;
   { SpinLockHolder l(&heap_checker_lock);
-    RAW_DCHECK(profile_name_prefix == NULL, "");
+    RAW_DCHECK(profile_name_prefix == nullptr, "");
     profile_name_prefix = profile_prefix;
   }
 
@@ -2099,7 +2099,7 @@ void HeapLeakChecker_InternalInitStart() {
   if (FLAGS_heap_check != "local") {
     HeapLeakChecker* main_hc = new HeapLeakChecker();
     SpinLockHolder l(&heap_checker_lock);
-    RAW_DCHECK(main_heap_checker == NULL,
+    RAW_DCHECK(main_heap_checker == nullptr,
                "Repeated creation of main_heap_checker");
     main_heap_checker = main_hc;
     do_main_heap_check = true;
@@ -2212,7 +2212,7 @@ void HeapLeakChecker::BeforeConstructorsLocked() {
     // Set up MemoryRegionMap with (at least) one caller stack frame to record
     // (important that it's done before HeapProfileTable creation below).
   Allocator::Init();
-  RAW_CHECK(heap_profile == NULL, "");
+  RAW_CHECK(heap_profile == nullptr, "");
   heap_profile = new(Allocator::Allocate(sizeof(HeapProfileTable)))
       HeapProfileTable(&Allocator::Allocate, &Allocator::Free,
                        /* profile_mmap */ false);
@@ -2317,7 +2317,7 @@ void HeapLeakChecker_AfterDestructors() {
   if (FLAGS_heap_check_after_destructors) {
     if (HeapLeakChecker::DoMainHeapCheck()) {
       const struct timespec sleep_time = { 0, 500000000 };  // 500 ms
-      nanosleep(&sleep_time, NULL);
+      nanosleep(&sleep_time, nullptr);
         // Need this hack to wait for other pthreads to exit.
         // Otherwise tcmalloc find errors
         // on a free() call from pthreads.
@@ -2339,7 +2339,7 @@ void HeapLeakChecker::DisableChecksFromToLocked(const void* start_address,
                                                 int max_depth) {
   RAW_DCHECK(heap_checker_lock.IsHeld(), "");
   RAW_DCHECK(start_address < end_address, "");
-  if (disabled_ranges == NULL) {
+  if (disabled_ranges == nullptr) {
     disabled_ranges = new(Allocator::Allocate(sizeof(DisabledRangeMap)))
                         DisabledRangeMap;
   }

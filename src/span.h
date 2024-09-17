@@ -144,8 +144,9 @@ void DeleteSpan(Span* span);
 // Initialize *list to an empty list.
 void DLL_Init(Span* list);
 
-// Remove 'span' from the linked list in which it resides, updating the
-// pointers of adjacent Spans and setting span's next and prev to NULL.
+// Remove 'span' from the linked list in which it resides, updating
+// the pointers of adjacent Spans and setting span's next and prev to
+// nullptr.
 void DLL_Remove(Span* span);
 
 // Return true iff "list" is empty.

@@ -110,7 +110,7 @@ class CpuProfiler {
   SpinLock      lock_;
   ProfileData   collector_;
 
-  // Filter function and its argument, if any.  (NULL means include all
+  // Filter function and its argument, if any.  (nullptr means include all
   // samples).  Set at start, read-only while running.  Written while holding
   // lock_, read and executed in the context of SIGPROF interrupt.
   int           (*filter_)(void*);
@@ -169,8 +169,8 @@ CpuProfiler CpuProfiler::instance_;
 
 // Initialize profiling: activated if getenv("CPUPROFILE") exists.
 CpuProfiler::CpuProfiler()
-    : prof_handler_token_(NULL) {
-  if (getenv("CPUPROFILE") == NULL) {
+    : prof_handler_token_(nullptr) {
+  if (getenv("CPUPROFILE") == nullptr) {
     return;
   }
 
@@ -182,8 +182,8 @@ CpuProfiler::CpuProfiler()
 #endif
 
   char *signal_number_str = getenv("CPUPROFILESIGNAL");
-  if (signal_number_str != NULL) {
-    long int signal_number = strtol(signal_number_str, NULL, 10);
+  if (signal_number_str != nullptr) {
+    long int signal_number = strtol(signal_number_str, nullptr, 10);
     if (signal_number >= 1 && signal_number <= 64) {
       intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, CpuProfilerSwitch));
       if (old_signal_handler == 0) {
@@ -200,7 +200,7 @@ CpuProfiler::CpuProfiler()
       return;
     }
 
-    if (!Start(fname, NULL)) {
+    if (!Start(fname, nullptr)) {
       RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
               fname, strerror(errno));
     }
@@ -223,8 +223,8 @@ bool CpuProfiler::Start(const char* fname, const ProfilerOptions* options) {
     return false;
   }
 
-  filter_ = NULL;
-  if (options != NULL && options->filter_in_thread != NULL) {
+  filter_ = nullptr;
+  if (options != nullptr && options->filter_in_thread != nullptr) {
     filter_ = options->filter_in_thread;
     filter_arg_ = options->filter_in_thread_arg;
   }
@@ -309,15 +309,15 @@ void CpuProfiler::GetCurrentState(ProfilerState* state) {
 }
 
 void CpuProfiler::EnableHandler() {
-  RAW_CHECK(prof_handler_token_ == NULL, "SIGPROF handler already registered");
+  RAW_CHECK(prof_handler_token_ == nullptr, "SIGPROF handler already registered");
   prof_handler_token_ = ProfileHandlerRegisterCallback(prof_handler, this);
-  RAW_CHECK(prof_handler_token_ != NULL, "Failed to set up SIGPROF handler");
+  RAW_CHECK(prof_handler_token_ != nullptr, "Failed to set up SIGPROF handler");
 }
 
 void CpuProfiler::DisableHandler() {
-  RAW_CHECK(prof_handler_token_ != NULL, "SIGPROF handler is not registered");
+  RAW_CHECK(prof_handler_token_ != nullptr, "SIGPROF handler is not registered");
   ProfileHandlerUnregisterCallback(prof_handler_token_);
-  prof_handler_token_ = NULL;
+  prof_handler_token_ = nullptr;
 }
 
 // Signal handler that records the pc in the profile-data structure. We do no
@@ -330,7 +330,7 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
                                void* cpu_profiler) {
   CpuProfiler* instance = static_cast<CpuProfiler*>(cpu_profiler);
 
-  if (instance->filter_ == NULL ||
+  if (instance->filter_ == nullptr ||
       (*instance->filter_)(instance->filter_arg_)) {
     void* stack[ProfileData::kMaxStackDepth];
 
@@ -378,7 +378,7 @@ extern "C" PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads() {
 }
 
 extern "C" PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname) {
-  return CpuProfiler::instance_.Start(fname, NULL);
+  return CpuProfiler::instance_.Start(fname, nullptr);
 }
 
 extern "C" PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(

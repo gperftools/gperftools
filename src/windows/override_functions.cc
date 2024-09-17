@@ -70,7 +70,7 @@ void* _recalloc(void* old_ptr, size_t n, size_t size) {
   // Ensure that (n * size) does not overflow
   if (!(n == 0 || (std::numeric_limits<size_t>::max)() / n >= size)) {
     errno = ENOMEM;
-    return NULL;
+    return nullptr;
   }
 
   const size_t old_size = tc_malloc_size(old_ptr);
@@ -80,7 +80,7 @@ void* _recalloc(void* old_ptr, size_t n, size_t size) {
 
   // If the reallocation succeeded and the new block is larger, zero-fill the
   // new bytes:
-  if (new_ptr != NULL && new_size > old_size) {
+  if (new_ptr != nullptr && new_size > old_size) {
     memset(static_cast<char*>(new_ptr) + old_size, 0, tc_nallocx(new_size, 0) - old_size);
   }
 

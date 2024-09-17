@@ -156,17 +156,17 @@ static void ProfilerFree(void* p) {
 //----------------------------------------------------------------------
 
 // Access to all of these is protected by heap_lock.
-static bool  is_on = false;           // If are on as a subsytem.
-static bool  dumping = false;         // Dumping status to prevent recursion
-static char* filename_prefix = NULL;  // Prefix used for profile file names
-                                      // (NULL if no need for dumping yet)
-static int   dump_count = 0;          // How many dumps so far
-static int64_t last_dump_alloc = 0;     // alloc_size when did we last dump
-static int64_t last_dump_free = 0;      // free_size when did we last dump
-static int64_t high_water_mark = 0;     // In-use-bytes at last high-water dump
-static int64_t last_dump_time = 0;      // The time of the last dump
+static bool  is_on;           // If are on as a subsytem.
+static bool  dumping;         // Dumping status to prevent recursion
+static char* filename_prefix; // Prefix used for profile file names
+                              // (nullptr if no need for dumping yet)
+static int   dump_count;      // How many dumps so far
+static int64_t last_dump_alloc;  // alloc_size when did we last dump
+static int64_t last_dump_free;   // free_size when did we last dump
+static int64_t high_water_mark;  // In-use-bytes at last high-water dump
+static int64_t last_dump_time;   // The time of the last dump
 
-static HeapProfileTable* heap_profile = NULL;  // the heap profile table
+static HeapProfileTable* heap_profile;  // the heap profile table
 
 //----------------------------------------------------------------------
 // Profile generation
@@ -199,7 +199,7 @@ static void DumpProfileLocked(const char* reason) {
   RAW_DCHECK(is_on, "");
   RAW_DCHECK(!dumping, "");
 
-  if (filename_prefix == NULL) return;  // we do not yet need dumping
+  if (filename_prefix == nullptr) return;  // we do not yet need dumping
 
   dumping = true;
 
@@ -268,7 +268,7 @@ static void MaybeDumpProfileLocked() {
                inuse_bytes >> 20);
       need_to_dump = true;
     } else if (FLAGS_heap_profile_time_interval > 0 ) {
-      int64_t current_time = time(NULL);
+      int64_t current_time = time(nullptr);
       if (current_time - last_dump_time >=
           FLAGS_heap_profile_time_interval) {
         snprintf(buf, sizeof(buf), "%" PRId64 " sec since the last dump",
@@ -315,12 +315,12 @@ static void RecordFree(const void* ptr) {
 
 // static
 void NewHook(const void* ptr, size_t size) {
-  if (ptr != NULL) RecordAlloc(ptr, size, 0);
+  if (ptr != nullptr) RecordAlloc(ptr, size, 0);
 }
 
 // static
 void DeleteHook(const void* ptr) {
-  if (ptr != NULL) RecordFree(ptr);
+  if (ptr != nullptr) RecordFree(ptr);
 }
 
 static tcmalloc::MappingHookSpace mmap_logging_hook_space;
@@ -332,7 +332,7 @@ static void LogMappingEvent(const tcmalloc::MappingEvent& evt) {
 
   if (evt.file_valid) {
     // We use PRIxPTR not just '%p' to avoid deadlocks
-    // in pretty-printing of NULL as "nil".
+    // in pretty-printing of nullptr as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO,
             "mmap(start=0x%" PRIxPTR ", len=%zu, prot=0x%x, flags=0x%x, "
@@ -342,7 +342,7 @@ static void LogMappingEvent(const tcmalloc::MappingEvent& evt) {
             (uintptr_t) evt.after_address);
   } else if (evt.after_valid && evt.before_valid) {
     // We use PRIxPTR not just '%p' to avoid deadlocks
-    // in pretty-printing of NULL as "nil".
+    // in pretty-printing of nullptr as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO,
             "mremap(old_addr=0x%" PRIxPTR ", old_size=%zu, "
@@ -365,7 +365,7 @@ static void LogMappingEvent(const tcmalloc::MappingEvent& evt) {
                   increment, (uintptr_t) result);
   } else if (evt.before_valid) {
     // We use PRIxPTR not just '%p' to avoid deadlocks
-    // in pretty-printing of NULL as "nil".
+    // in pretty-printing of nullptr as "nil".
     // TODO(maxim): instead should use a safe snprintf reimplementation
     RAW_LOG(INFO, "munmap(start=0x%" PRIxPTR ", len=%zu)",
                   (uintptr_t) evt.before_address, evt.before_length);
@@ -426,7 +426,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   }
 
   // Copy filename prefix
-  RAW_DCHECK(filename_prefix == NULL, "");
+  RAW_DCHECK(filename_prefix == nullptr, "");
   const int prefix_length = strlen(prefix);
   filename_prefix = reinterpret_cast<char*>(ProfilerMalloc(prefix_length + 1));
   memcpy(filename_prefix, prefix, prefix_length);
@@ -456,11 +456,11 @@ extern "C" void HeapProfilerStop() {
   // free profile
   heap_profile->~HeapProfileTable();
   ProfilerFree(heap_profile);
-  heap_profile = NULL;
+  heap_profile = nullptr;
 
   // free prefix
   ProfilerFree(filename_prefix);
-  filename_prefix = NULL;
+  filename_prefix = nullptr;
 
   if (!LowLevelAlloc::DeleteArena(heap_profiler_memory)) {
     RAW_LOG(FATAL, "Memory leak in HeapProfiler:");
@@ -515,8 +515,8 @@ static void HeapProfilerInit() {
 #endif
 
   char *signal_number_str = getenv("HEAPPROFILESIGNAL");
-  if (signal_number_str != NULL) {
-    long int signal_number = strtol(signal_number_str, NULL, 10);
+  if (signal_number_str != nullptr) {
+    long int signal_number = strtol(signal_number_str, nullptr, 10);
     intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, HeapProfilerDumpSignal));
     if (old_signal_handler == reinterpret_cast<intptr_t>(SIG_ERR)) {
       RAW_LOG(FATAL, "Failed to set signal. Perhaps signal number %s is invalid\n", signal_number_str);

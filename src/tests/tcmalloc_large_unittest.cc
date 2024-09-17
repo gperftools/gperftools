@@ -36,7 +36,7 @@
 // For 32 bits, this means allocations near 2^32 bytes and 2^31 bytes.
 // For 64 bits, this means allocations near 2^64 bytes and 2^63 bytes.
 
-#include <stddef.h>                     // for size_t, NULL
+#include <stddef.h>                     // for size_t
 #include <stdlib.h>                     // for malloc, free, realloc
 #include <stdio.h>
 #include <set>                          // for set, etc
@@ -51,13 +51,13 @@ using std::set;
 
 void TryAllocExpectFail(size_t size) {
   void* p1 = noopt(malloc)(size);
-  CHECK(p1 == NULL);
+  CHECK(p1 == nullptr);
 
   void* p2 = noopt(malloc)(1);
-  CHECK(p2 != NULL);
+  CHECK(p2 != nullptr);
 
   void* p3 = noopt(realloc)(p2, size);
-  CHECK(p3 == NULL);
+  CHECK(p3 == nullptr);
 
   free(p2);
 }
@@ -67,7 +67,7 @@ void TryAllocExpectFail(size_t size) {
 
 void TryAllocMightFail(size_t size) {
   unsigned char* p = static_cast<unsigned char*>(noopt(malloc)(size));
-  if (p != NULL) {
+  if (p != nullptr) {
     static const size_t kPoints = 1024;
 
     for ( size_t i = 0; i < kPoints; ++i ) {
@@ -95,7 +95,7 @@ int main (int argc, char** argv) {
     set<char*> p_set;
     for ( int i = 0; i < kZeroTimes; ++i ) {
       char* p = new char;
-      CHECK(p != NULL);
+      CHECK(p != nullptr);
       CHECK(p_set.find(p) == p_set.end());
       p_set.insert(p_set.end(), p);
     }
@@ -105,7 +105,7 @@ int main (int argc, char** argv) {
   // Grab some memory so that some later allocations are guaranteed to fail.
   printf("Test small malloc\n");
   void* p_small = noopt(malloc(4*1048576));
-  CHECK(p_small != NULL);
+  CHECK(p_small != nullptr);
 
   // Test sizes up near the maximum size_t.
   // These allocations test the wrap-around code.
@@ -117,7 +117,7 @@ int main (int argc, char** argv) {
   }
 
   // Test sizes a bit smaller.
-  // The small malloc above guarantees that all these return NULL.
+  // The small malloc above guarantees that all these return nullptr.
   printf("Test malloc(0 - 1048576 - N)\n");
   static const size_t kMinusMBMinusNTimes = 16384;
   for ( size_t i = 0; i < kMinusMBMinusNTimes; ++i) {

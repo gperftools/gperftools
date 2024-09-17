@@ -102,14 +102,14 @@ namespace {
 // Finds |c| in |text|, and assign '\0' at the found position.
 // The original character at the modified position should be |c|.
 // A pointer to the modified position is stored in |endptr|.
-// |endptr| should not be NULL.
+// |endptr| should not be nullptr.
 bool ExtractUntilChar(char *text, int c, char **endptr) {
-  CHECK_NE(text, NULL);
-  CHECK_NE(endptr, NULL);
+  CHECK_NE(text, nullptr);
+  CHECK_NE(endptr, nullptr);
   char *found;
   found = strchr(text, c);
-  if (found == NULL) {
-    *endptr = NULL;
+  if (found == nullptr) {
+    *endptr = nullptr;
     return false;
   }
 
@@ -152,8 +152,8 @@ inline uint64_t StringToInteger<uint64_t>(char *text, char **endptr, int base) {
 template<typename T>
 T StringToIntegerUntilChar(
     char *text, int base, int c, char **endptr_result) {
-  CHECK_NE(endptr_result, NULL);
-  *endptr_result = NULL;
+  CHECK_NE(endptr_result, nullptr);
+  *endptr_result = nullptr;
 
   char *endptr_extract;
   if (!ExtractUntilChar(text, c, &endptr_extract))
@@ -177,7 +177,7 @@ char *CopyStringUntilChar(
     char *text, unsigned out_len, int c, char *out) {
   char *endptr;
   if (!ExtractUntilChar(text, c, &endptr))
-    return NULL;
+    return nullptr;
 
   strncpy(out, text, out_len);
   out[out_len-1] = '\0';
@@ -191,7 +191,7 @@ template<typename T>
 bool StringToIntegerUntilCharWithCheck(
     T *outptr, char *text, int base, int c, char **endptr) {
   *outptr = StringToIntegerUntilChar<T>(*endptr, base, c, endptr);
-  if (*endptr == NULL || **endptr == '\0') return false;
+  if (*endptr == nullptr || **endptr == '\0') return false;
   ++(*endptr);
   return true;
 }
@@ -207,7 +207,7 @@ bool ParseProcMapsLine(char *text, uint64_t *start, uint64_t *end,
    *        start, end, flags, offset, major, minor, inode, filename_offset)
    */
   char *endptr = text;
-  if (endptr == NULL || *endptr == '\0')  return false;
+  if (endptr == nullptr || *endptr == '\0')  return false;
 
   if (!StringToIntegerUntilCharWithCheck(start, endptr, 16, '-', &endptr))
     return false;
@@ -216,7 +216,7 @@ bool ParseProcMapsLine(char *text, uint64_t *start, uint64_t *end,
     return false;
 
   endptr = CopyStringUntilChar(endptr, 5, ' ', flags);
-  if (endptr == NULL || *endptr == '\0')  return false;
+  if (endptr == nullptr || *endptr == '\0')  return false;
   ++endptr;
 
   if (!StringToIntegerUntilCharWithCheck(offset, endptr, 16, ' ', &endptr))

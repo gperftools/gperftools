@@ -96,7 +96,7 @@ TEST(ReallocUnittest, Basics) {
       ASSERT_TRUE(Valid(dst, std::min(src_size, dst_size)));
       Fill(dst, dst_size);
       ASSERT_TRUE(Valid(dst, dst_size));
-      if (dst != NULL) free(dst);
+      if (dst != nullptr) free(dst);
     }
   }
 

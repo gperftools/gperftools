@@ -221,7 +221,7 @@ static volatile int *sig_pids, sig_num_threads;
 static void SignalHandler(int signum, siginfo_t *si, void *data) {
   RAW_LOG(ERROR, "Got fatal signal %d inside ListerThread", signum);
 
-  if (sig_pids != NULL) {
+  if (sig_pids != nullptr) {
     if (signum == SIGABRT) {
       prctl(PR_SET_PDEATHSIG, 0);
       while (sig_num_threads-- > 0) {
@@ -235,7 +235,7 @@ static void SignalHandler(int signum, siginfo_t *si, void *data) {
       TCMalloc_ResumeAllProcessThreads(sig_num_threads, (int *)sig_pids);
     }
   }
-  sig_pids = NULL;
+  sig_pids = nullptr;
 
   syscall(SYS_exit, signum == SIGABRT ? 1 : 2);
 }
@@ -502,7 +502,7 @@ static int ListerThread(struct ListerParams *args) {
     detach_threads:
       /* Resume all threads prior to retrying the operation */
       TCMalloc_ResumeAllProcessThreads(num_threads, pids);
-      sig_pids = NULL;
+      sig_pids = nullptr;
       num_threads = 0;
       sig_num_threads = num_threads;
       max_threads += 100;

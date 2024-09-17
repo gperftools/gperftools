@@ -33,7 +33,7 @@
 
 #include <config.h>
 #include "static_vars.h"
-#include <stddef.h>                     // for NULL
+#include <stddef.h>
 #include <new>                          // for operator new
 #ifndef _WIN32
 #include <pthread.h>                    // for pthread_atfork

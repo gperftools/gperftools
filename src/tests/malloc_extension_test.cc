@@ -64,7 +64,7 @@ TEST(MallocExtensionTest, Basics) {
   ASSERT_EQ(MallocExtension::kNotOwned,
             MallocExtension::instance()->GetOwnership(&cxx_bytes_used));
   ASSERT_EQ(MallocExtension::kNotOwned,
-            MallocExtension::instance()->GetOwnership(NULL));
+            MallocExtension::instance()->GetOwnership(nullptr));
   ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(a), 1000);
   // This is just a sanity check.  If we allocated too much, tcmalloc is broken
   ASSERT_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
@@ -81,7 +81,7 @@ TEST(MallocExtensionTest, Basics) {
   ASSERT_EQ(MallocExtension_kOwned, MallocExtension_GetOwnership(a));
   ASSERT_EQ(MallocExtension_kNotOwned,
             MallocExtension_GetOwnership(&cxx_bytes_used));
-  ASSERT_EQ(MallocExtension_kNotOwned, MallocExtension_GetOwnership(NULL));
+  ASSERT_EQ(MallocExtension_kNotOwned, MallocExtension_GetOwnership(nullptr));
   ASSERT_GE(MallocExtension_GetAllocatedSize(a), 1000);
   ASSERT_LE(MallocExtension_GetAllocatedSize(a), 5000);
   ASSERT_GE(MallocExtension_GetEstimatedAllocatedSize(1000), 1000);

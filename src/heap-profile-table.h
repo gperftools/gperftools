@@ -161,9 +161,10 @@ class HeapProfileTable {
   void ReleaseSnapshot(Snapshot* snapshot);
 
   // Return a snapshot of every non-live, non-ignored object in *this.
-  // If "base" is non-NULL, skip any objects present in "base".
-  // As a side-effect, clears the "live" bit on every live object in *this.
-  // Caller must call ReleaseSnapshot() on result when no longer needed.
+  // If "base" is non-nullptr, skip any objects present in "base".  As
+  // a side-effect, clears the "live" bit on every live object in
+  // *this.  Caller must call ReleaseSnapshot() on result when no
+  // longer needed.
   Snapshot* NonLiveSnapshot(Snapshot* base);
 
  private:

@@ -103,7 +103,7 @@ bool ProfileData::Start(const char* fname,
     return false;
   }
 
-  start_time_ = time(NULL);
+  start_time_ = time(nullptr);
   fname_ = strdup(fname);
 
   // Reset counters

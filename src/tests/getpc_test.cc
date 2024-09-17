@@ -46,8 +46,8 @@
 #include <sys/time.h>     // for setitimer
 
 // Needs to be volatile so compiler doesn't try to optimize it away
-static volatile void* getpc_retval = NULL;    // what GetPC returns
-static volatile bool prof_handler_called = false;
+static volatile void* getpc_retval;    // what GetPC returns
+static volatile bool prof_handler_called;
 
 extern "C" {
   // This helps us inspect codegen of GetPC function, just in case.
@@ -68,7 +68,7 @@ static void RoutineCallingTheSignal() {
   sa.sa_sigaction = prof_handler;
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
-  if (sigaction(SIGPROF, &sa, NULL) != 0) {
+  if (sigaction(SIGPROF, &sa, nullptr) != 0) {
     perror("sigaction");
     exit(1);
   }

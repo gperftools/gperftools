@@ -59,12 +59,12 @@ SideStepError PreamblePatcher::RawPatchWithStub(
     unsigned char* preamble_stub,
     unsigned long stub_size,
     unsigned long* bytes_needed) {
-  if ((NULL == target_function) ||
-      (NULL == replacement_function) ||
-      (NULL == preamble_stub)) {
+  if ((nullptr == target_function) ||
+      (nullptr == replacement_function) ||
+      (nullptr == preamble_stub)) {
     SIDESTEP_ASSERT(false &&
                     "Invalid parameters - either pTargetFunction or "
-                    "pReplacementFunction or pPreambleStub were NULL.");
+                    "pReplacementFunction or pPreambleStub were nullptr.");
     return SIDESTEP_INVALID_PARAMETER;
   }
 
@@ -199,7 +199,7 @@ SideStepError PreamblePatcher::RawPatchWithStub(
     preamble_bytes += cur_bytes;
   }
 
-  if (NULL != bytes_needed)
+  if (nullptr != bytes_needed)
     *bytes_needed = stub_bytes + kRequiredStubJumpBytes
         + required_trampoline_bytes;
 

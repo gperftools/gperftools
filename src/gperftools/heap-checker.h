@@ -91,8 +91,8 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   static bool IsActive();
 
   // Return pointer to the whole-program checker if it has been created
-  // and NULL otherwise.
-  // Once GlobalChecker() returns non-NULL that object will not disappear and
+  // and nullptr otherwise.
+  // Once GlobalChecker() returns non-nullptr that object will not disappear and
   // will be returned by all later GlobalChecker calls.
   // This is mainly to access BytesLeaked() and ObjectsLeaked() (see below)
   // for the whole-program checker after one calls NoGlobalLeaks()
@@ -357,9 +357,9 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
 
   class SpinLock* lock_;  // to make HeapLeakChecker objects thread-safe
   const char* name_;  // our remembered name (we own it)
-                      // NULL means this leak checker is a noop
+                      // nullptr means this leak checker is a noop
 
-  // Snapshot taken when the checker was created.  May be NULL
+  // Snapshot taken when the checker was created.  May be nullptr
   // for the global heap checker object.  We use void* instead of
   // HeapProfileTable::Snapshot* to avoid including heap-profile-table.h.
   void* start_snapshot_;

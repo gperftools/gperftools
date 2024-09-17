@@ -42,7 +42,7 @@
 #include <errno.h>                      // for errno, EINVAL
 #include <inttypes.h>                   // for PRId64
 #include <limits.h>                     // for PATH_MAX
-#include <stddef.h>                     // for size_t, NULL
+#include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for int64_t, uintptr_t
 #include <stdio.h>                      // for snprintf
 #include <stdlib.h>                     // for mkstemp
@@ -128,7 +128,7 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
   // We don't respond to allocation requests smaller than big_page_size_ unless
   // the caller is ok to take more than they asked for. Used by MetaDataAlloc.
   if (!FLAGS_memfs_malloc_disable_fallback &&
-      actual_size == NULL && size < big_page_size_) {
+      actual_size == nullptr && size < big_page_size_) {
     return fallback_->Alloc(size, actual_size, alignment);
   }
 
@@ -142,10 +142,10 @@ void* HugetlbSysAllocator::Alloc(size_t size, size_t *actual_size,
   }
 
   void* result = AllocInternal(aligned_size, actual_size, new_alignment);
-  if (result != NULL) {
+  if (result != nullptr) {
     return result;
   } else if (FLAGS_memfs_malloc_disable_fallback) {
-    return NULL;
+    return nullptr;
   }
   Log(kLog, __FILE__, __LINE__,
       "HugetlbSysAllocator: (failed, allocated)", failed_, hugetlb_base_);
@@ -176,7 +176,7 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
       Log(kLog, __FILE__, __LINE__,
           "alloc too large (size, bytes left)", size, limit-hugetlb_base_);
     }
-    return NULL;
+    return nullptr;
   }
 
   // This is not needed for hugetlbfs, but needed for tmpfs.  Annoyingly
@@ -186,7 +186,7 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
     Log(kLog, __FILE__, __LINE__,
         "ftruncate failed", tcmalloc::SafeStrError(errno).c_str());
     failed_ = true;
-    return NULL;
+    return nullptr;
   }
 
   // Note: size + extra does not overflow since:
@@ -204,7 +204,7 @@ void* HugetlbSysAllocator::AllocInternal(size_t size, size_t* actual_size,
           tcmalloc::SafeStrError(errno).c_str());
       failed_ = true;
     }
-    return NULL;
+    return nullptr;
   }
   uintptr_t ptr = reinterpret_cast<uintptr_t>(result);
 

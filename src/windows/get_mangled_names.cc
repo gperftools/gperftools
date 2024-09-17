@@ -52,7 +52,7 @@
 #include <sys/types.h>   // for size_t
 #include <new>           // for nothrow_t
 
-static char m;   // some dummy memory so new doesn't return NULL.
+static char m;   // some dummy memory so new doesn't return nullptr.
 
 void* operator new(size_t size) { return &m; }
 void operator delete(void* p) throw() { }

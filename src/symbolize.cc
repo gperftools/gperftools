@@ -113,7 +113,7 @@ const char* readlink_strdup(const char* path) {
 
 }  // namespace
 
-// Returns NULL if we're on an OS where we can't get the invocation name.
+// Returns nullptr if we're on an OS where we can't get the invocation name.
 // Using a static var is ok because we're not called from a thread.
 static const char* GetProgramInvocationName() {
 #if defined(__linux__) || defined(__NetBSD__)
@@ -138,16 +138,16 @@ static const char* GetProgramInvocationName() {
   if (program_invocation_name[0] == '\0') {  // first time calculating
     uint32_t length = sizeof(program_invocation_name);
     if (_NSGetExecutablePath(program_invocation_name, &length))
-      return NULL;
+      return nullptr;
   }
   return program_invocation_name;
 #elif defined(__FreeBSD__)
   static char program_invocation_name[PATH_MAX];
   size_t len = sizeof(program_invocation_name);
   static const int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
-  if (!sysctl(name, 4, program_invocation_name, &len, NULL, 0))
+  if (!sysctl(name, 4, program_invocation_name, &len, nullptr, 0))
     return program_invocation_name;
-  return NULL;
+  return nullptr;
 #else
   return nullptr; // figure out a way to get argv[0]
 #endif
@@ -184,7 +184,7 @@ int SymbolTable::Symbolize() {
   return 0;
 #else
   const char* argv0 = GetProgramInvocationName();
-  if (argv0 == NULL) {  // can't call symbolize if we can't figure out our name
+  if (argv0 == nullptr) {  // can't call symbolize if we can't figure out our name
     PrintError("Cannot figure out the name of this executable (argv0)");
     return 0;
   }
@@ -194,8 +194,8 @@ int SymbolTable::Symbolize() {
   }
 
   // All this work is to do two-way communication.  ugh.
-  int *child_in = NULL;   // file descriptors
-  int *child_out = NULL;  // for now, we don't worry about child_err
+  int *child_in = nullptr;   // file descriptors
+  int *child_out = nullptr;  // for now, we don't worry about child_err
   int child_fds[5][2];    // socketpair may be called up to five times below
 
   // The client program may close its stdin and/or stdout and/or stderr
@@ -214,7 +214,7 @@ int SymbolTable::Symbolize() {
       return 0;
     } else {
       if ((child_fds[i][0] > 2) && (child_fds[i][1] > 2)) {
-        if (child_in == NULL) {
+        if (child_in == nullptr) {
           child_in = child_fds[i];
         } else {
           child_out = child_fds[i];
@@ -251,7 +251,7 @@ int SymbolTable::Symbolize() {
       unsetenv("HEAPCHECK");
       unsetenv("PERFTOOLS_VERBOSE");
       execlp(get_pprof_path(), get_pprof_path(),
-             "--symbols", argv0, NULL);
+             "--symbols", argv0, nullptr);
       _exit(3);  // if execvp fails, it's bad news for us
     }
     default: {  // parent
@@ -309,7 +309,7 @@ int SymbolTable::Symbolize() {
           return 0;
         } else if (bytes_read == 0) {
           close(child_out[1]);
-          wait(NULL);
+          wait(nullptr);
           break;
         } else {
           total_bytes_read += bytes_read;

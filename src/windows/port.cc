@@ -119,7 +119,7 @@ struct DestrFnClosure {
   tcmalloc::TlsKey key_for_destr_fn_arg;
 };
 
-static DestrFnClosure destr_fn_info;   // initted to all NULL/0.
+static DestrFnClosure destr_fn_info;   // initted to all nullptr/0.
 
 static int on_process_term(void) {
   if (destr_fn_info.destr_fn) {
@@ -127,8 +127,8 @@ static int on_process_term(void) {
     // This shouldn't be necessary, but in Release mode, Windows
     // sometimes trashes the pointer in the TLS slot, so we need to
     // remove the pointer from the TLS slot before the thread dies.
-    TlsSetValue(destr_fn_info.key_for_destr_fn_arg, NULL);
-    if (ptr)  // pthread semantics say not to call if ptr is NULL
+    TlsSetValue(destr_fn_info.key_for_destr_fn_arg, nullptr);
+    if (ptr)  // pthread semantics say not to call if ptr is nullptr
       (*destr_fn_info.destr_fn)(ptr);
   }
   return 0;
@@ -185,11 +185,11 @@ BOOL WINAPI DllMain(HINSTANCE h, DWORD dwReason, PVOID pv) {
 tcmalloc::TlsKey tcmalloc::WinTlsKeyCreate(void (*destr_fn)(void*)) {
   // Semantics are: we create a new key, and then promise to call
   // destr_fn with TlsGetValue(key) when the thread is destroyed
-  // (as long as TlsGetValue(key) is not NULL).
+  // (as long as TlsGetValue(key) is not nullptr).
   tcmalloc::TlsKey key = TlsAlloc();
   if (destr_fn) {   // register it
     // If this assert fails, we'll need to support an array of destr_fn_infos
-    assert(destr_fn_info.destr_fn == NULL);
+    assert(destr_fn_info.destr_fn == nullptr);
     destr_fn_info.destr_fn = destr_fn;
     destr_fn_info.key_for_destr_fn_arg = key;
   }

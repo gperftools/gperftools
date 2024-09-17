@@ -86,7 +86,7 @@ class ElfMemImage {
 
   explicit ElfMemImage(const void *base);
   void                 Init(const void *base);
-  bool                 IsPresent() const { return ehdr_ != NULL; }
+  bool                 IsPresent() const { return ehdr_ != nullptr; }
   const ElfW(Phdr)*    GetPhdr(int index) const;
   const ElfW(Sym)*     GetDynsym(int index) const;
   const ElfW(Versym)*  GetVersym(int index) const;
@@ -103,14 +103,14 @@ class ElfMemImage {
   // Look up versioned dynamic symbol in the image.
   // Returns false if image is not present, or doesn't contain given
   // symbol/version/type combination.
-  // If info_out != NULL, additional details are filled in.
+  // If info_out != nullptr, additional details are filled in.
   bool LookupSymbol(const char *name, const char *version,
                     int symbol_type, SymbolInfo *info_out) const;
 
   // Find info about symbol (if any) which overlaps given address.
   // Returns true if symbol was found; false if image isn't present
   // or doesn't have a symbol overlapping given address.
-  // If info_out != NULL, additional details are filled in.
+  // If info_out != nullptr, additional details are filled in.
   bool LookupSymbolByAddress(const void *address, SymbolInfo *info_out) const;
 
  private:

@@ -62,7 +62,7 @@ static inline void InitTCMallocTransferNumObjects()
   if (FLAGS_tcmalloc_transfer_num_objects == 0) {
     const char *envval = TCMallocGetenvSafe("TCMALLOC_TRANSFER_NUM_OBJ");
     FLAGS_tcmalloc_transfer_num_objects = !envval ? kDefaultTransferNumObjecs :
-      strtol(envval, NULL, 10);
+      strtol(envval, nullptr, 10);
   }
 }
 
@@ -281,8 +281,8 @@ static SpinLock metadata_alloc_lock;
 void* MetaDataAlloc(size_t bytes) {
   if (bytes >= kMetadataAllocChunkSize) {
     void *rv = TCMalloc_SystemAlloc(bytes,
-                                    NULL, kMetadataAllignment);
-    if (rv != NULL) {
+                                    nullptr, kMetadataAllignment);
+    if (rv != nullptr) {
       metadata_system_bytes_ += bytes;
     }
     return rv;
@@ -301,8 +301,8 @@ void* MetaDataAlloc(size_t bytes) {
     size_t real_size;
     void *ptr = TCMalloc_SystemAlloc(kMetadataAllocChunkSize,
                                      &real_size, kMetadataAllignment);
-    if (ptr == NULL) {
-      return NULL;
+    if (ptr == nullptr) {
+      return nullptr;
     }
 
     metadata_chunk_alloc_ = static_cast<char *>(ptr);

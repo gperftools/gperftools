@@ -47,9 +47,9 @@
 static SpinLock spinlock;
 
 // The current system allocator declaration
-SysAllocator* tcmalloc_sys_alloc = NULL;
+SysAllocator* tcmalloc_sys_alloc;
 // Number of bytes taken from system.
-size_t TCMalloc_SystemTaken = 0;
+size_t TCMalloc_SystemTaken;
 
 class VirtualSysAllocator : public SysAllocator {
 public:
@@ -85,8 +85,8 @@ void* VirtualSysAllocator::Alloc(size_t size, size_t *actual_size,
 
   void* result = VirtualAlloc(0, size,
                               MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-  if (result == NULL)
-    return NULL;
+  if (result == nullptr)
+    return nullptr;
 
   // If the result is not aligned memory fragmentation will result which can
   // lead to pathological memory use.
@@ -136,7 +136,7 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   }
 
   void* result = tcmalloc_sys_alloc->Alloc(size, actual_size, alignment);
-  if (result != NULL) {
+  if (result != nullptr) {
     if (actual_size) {
       TCMalloc_SystemTaken += *actual_size;
     } else {

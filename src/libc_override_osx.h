@@ -221,7 +221,7 @@ extern "C" {
 }  // extern "C"
 
 static malloc_zone_t *get_default_zone() {
-   malloc_zone_t **zones = NULL;
+   malloc_zone_t **zones = nullptr;
    unsigned int num_zones = 0;
 
    /*
@@ -234,7 +234,7 @@ static malloc_zone_t *get_default_zone() {
     * So get the list of zones to get the first one, instead of relying on
     * malloc_default_zone.
     */
-   if (KERN_SUCCESS != malloc_get_all_zones(0, NULL, (vm_address_t**) &zones,
+   if (KERN_SUCCESS != malloc_get_all_zones(0, nullptr, (vm_address_t**) &zones,
                                             &num_zones)) {
        /* Reset the value in case the failure happened after it was set. */
        num_zones = 0;
@@ -272,8 +272,8 @@ static void ReplaceSystemAlloc() {
   tcmalloc_zone.free = &mz_free;
   tcmalloc_zone.realloc = &mz_realloc;
   tcmalloc_zone.destroy = &mz_destroy;
-  tcmalloc_zone.batch_malloc = NULL;
-  tcmalloc_zone.batch_free = NULL;
+  tcmalloc_zone.batch_malloc = nullptr;
+  tcmalloc_zone.batch_free = nullptr;
   tcmalloc_zone.introspect = &tcmalloc_introspection;
 
   // from AvailabilityMacros.h

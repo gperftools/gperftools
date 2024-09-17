@@ -245,7 +245,7 @@ static void DoWipeStack(int n);  // defined below
 static void WipeStack() { DoWipeStack(20); }
 
 static void Pause() {
-  poll(NULL, 0, 77);  // time for thread activity in HeapBusyThreadBody
+  poll(nullptr, 0, 77);  // time for thread activity in HeapBusyThreadBody
 
   // Indirectly test malloc_extension.*:
   CHECK(MallocExtension::instance()->VerifyAllMemory());
@@ -366,14 +366,14 @@ static void DoDeAllocHidden(void** ptr) {
 
 static void DeAllocHidden(void** ptr) {
   RunHidden(NewCallback(DoDeAllocHidden, ptr));
-  *ptr = NULL;
+  *ptr = nullptr;
   Use(ptr);
 }
 
 void PreventHeapReclaiming(size_t size) {
 #ifdef NDEBUG
   if (true) {
-    static void** no_reclaim_list = NULL;
+    static void** no_reclaim_list = nullptr;
     CHECK(size >= sizeof(void*));
     // We can't use malloc_reclaim_memory flag in opt mode as debugallocation.cc
     // is not used. Instead we allocate a bunch of heap objects that are
@@ -683,7 +683,7 @@ static void ThreadDisabledLeaks() {
   pthread_t tid;
   pthread_attr_t attr;
   CHECK_EQ(pthread_attr_init(&attr), 0);
-  CHECK_EQ(pthread_create(&tid, &attr, RunDisabledLeaks, NULL), 0);
+  CHECK_EQ(pthread_create(&tid, &attr, RunDisabledLeaks, nullptr), 0);
   void* res;
   CHECK_EQ(pthread_join(tid, &res), 0);
 }
@@ -692,10 +692,10 @@ static void ThreadDisabledLeaks() {
 static void TestHeapLeakCheckerDisabling() {
   HeapLeakChecker check("disabling");
 
-  RunDisabledLeaks(NULL);
-  RunDisabledLeaks(NULL);
+  RunDisabledLeaks(nullptr);
+  RunDisabledLeaks(nullptr);
   ThreadDisabledLeaks();
-  RunDisabledLeaks(NULL);
+  RunDisabledLeaks(nullptr);
   ThreadDisabledLeaks();
   ThreadDisabledLeaks();
 
@@ -783,13 +783,13 @@ static void DirectTestSTLAlloc(Alloc allocator, const char* name) {
   }
   for (int i = 0; i < kSize; ++i) {
     allocator.deallocate(ptrs[i], i*3+1);
-    ptrs[i] = NULL;
+    ptrs[i] = nullptr;
   }
   CHECK(check.BriefSameHeap());  // just in case
 }
 
 static SpinLock grplock;
-static struct group* grp = NULL;
+static struct group* grp;
 static const int kKeys = 50;
 static pthread_key_t key[kKeys];
 
@@ -812,7 +812,7 @@ static void TestLibCAllocate() {
   CHECK(key_init_has_run);
   for (int i = 0; i < kKeys; ++i) {
     void* p = pthread_getspecific(key[i]);
-    if (NULL == p) {
+    if (nullptr == p) {
       if (i == 0) {
         // Test-logging inside threads which (potentially) creates and uses
         // thread-local data inside standard C++ library:
@@ -826,7 +826,7 @@ static void TestLibCAllocate() {
   }
 
   strerror(errno);
-  const time_t now = time(NULL);
+  const time_t now = time(nullptr);
   ctime(&now);
 
 #ifdef HAVE_EXECINFO_H
@@ -837,7 +837,7 @@ static void TestLibCAllocate() {
   if (grplock.TryLock()) {
     gid_t gid = getgid();
     getgrgid(gid);
-    if (grp == NULL)  grp = getgrent();  // a race condition here is okay
+    if (grp == nullptr)  grp = getgrent();  // a race condition here is okay
     getgrnam(grp->gr_name);
     getpwuid(geteuid());
     grplock.Unlock();
@@ -862,7 +862,7 @@ static void* HeapBusyThreadBody(void* a) {
 #else
   int** ptr;
 #endif
-  ptr = NULL;
+  ptr = nullptr;
   typedef std::set<int> Set;
   Set s1;
   while (1) {
@@ -871,7 +871,7 @@ static void* HeapBusyThreadBody(void* a) {
     if (!g_have_exited_main)
       TestLibCAllocate();
 
-    if (ptr == NULL) {
+    if (ptr == nullptr) {
       ptr = new(initialized) int*[1];
       *ptr = new(initialized) int[1];
     }
@@ -914,13 +914,13 @@ static void* HeapBusyThreadBody(void* a) {
       ptr = reinterpret_cast<int **>(
           reinterpret_cast<uintptr_t>(ptr) ^ kHideMask);
     } else {
-      poll(NULL, 0, random() % 100);
+      poll(nullptr, 0, random() % 100);
     }
     VLOG(2) << pthread_self() << ": continuing";
     if (random() % 3 == 0) {
       delete [] *ptr;
       delete [] ptr;
-      ptr = NULL;
+      ptr = nullptr;
     }
     delete [] s2;
   }
@@ -1080,7 +1080,7 @@ REGISTER_OBJ_MAKER(
 
 class ClassA {
  public:
-  explicit ClassA(int a) : ptr(NULL) { }
+  explicit ClassA(int a) : ptr(nullptr) { }
   mutable char* ptr;
 };
 static const ClassA live_leak_mutable(1);
@@ -1088,7 +1088,7 @@ static const ClassA live_leak_mutable(1);
 template<class C>
 class TClass {
  public:
-  explicit TClass(int a) : ptr(NULL) { }
+  explicit TClass(int a) : ptr(nullptr) { }
   mutable C val;
   mutable C* ptr;
 };
@@ -1254,7 +1254,7 @@ static void TestHeapLeakCheckerLiveness() {
 
 // Get address (PC value) following the mmap call into addr_after_mmap_call
 static void* Mmapper(uintptr_t* addr_after_mmap_call) {
-  void* r = mmap(NULL, 100, PROT_READ|PROT_WRITE,
+  void* r = mmap(nullptr, 100, PROT_READ|PROT_WRITE,
                  MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
   // Get current PC value into addr_after_mmap_call
   void* stack[1];

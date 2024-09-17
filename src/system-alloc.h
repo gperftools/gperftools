@@ -46,8 +46,8 @@ class SysAllocator;
 //
 // Allocate and return "N" bytes of zeroed memory.
 //
-// If actual_bytes is NULL then the returned memory is exactly the
-// requested size.  If actual bytes is non-NULL then the allocator
+// If actual_bytes is nullptr then the returned memory is exactly the
+// requested size.  If actual bytes is non-nullptr then the allocator
 // may optionally return more bytes than asked for (i.e. return an
 // entire "huge" page if a huge page allocator is in use).
 //
@@ -57,7 +57,7 @@ class SysAllocator;
 // CACHELINE_ALIGNED, the return pointer will always be cacheline
 // aligned.
 //
-// Returns NULL when out of memory.
+// Returns nullptr when out of memory.
 extern PERFTOOLS_DLL_DECL
 void* TCMalloc_SystemAlloc(size_t bytes, size_t *actual_bytes,
 			   size_t alignment = 0);

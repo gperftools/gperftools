@@ -149,7 +149,7 @@ static bool kOSSupportsMemalign = false;
 static inline void* Memalign(size_t align, size_t size) {
   //LOG(FATAL) << "memalign not supported on windows";
   exit(1);
-  return NULL;
+  return nullptr;
 }
 static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
   //LOG(FATAL) << "posix_memalign not supported on windows";
@@ -164,7 +164,7 @@ static bool kOSSupportsMemalign = false;
 static inline void* Memalign(size_t align, size_t size) {
   //LOG(FATAL) << "memalign not supported on OS X";
   exit(1);
-  return NULL;
+  return nullptr;
 }
 static inline int PosixMemalign(void** ptr, size_t align, size_t size) {
   //LOG(FATAL) << "posix_memalign not supported on OS X";
@@ -200,7 +200,7 @@ struct OOMAbleSysAlloc : public SysAllocator {
 
   void* Alloc(size_t size, size_t* actual_size, size_t alignment) {
     if (simulate_oom) {
-      return NULL;
+      return nullptr;
     }
     return child->Alloc(size, actual_size, alignment);
   }
@@ -366,7 +366,7 @@ class AllocatorState : public TestHarness {
           if (err != 0) {
             CHECK_EQ(err, ENOMEM);
           }
-          return err == 0 ? result : NULL;
+          return err == 0 ? result : nullptr;
         }
       }
     }
@@ -609,12 +609,12 @@ TEST(TCMallocTest, ManyThreads) {
 
 static void TryHugeAllocation(size_t s, AllocatorState* rnd) {
   void* p = rnd->alloc(noopt(s));
-  CHECK(p == NULL);   // huge allocation s should fail!
+  CHECK(p == nullptr);   // huge allocation s should fail!
 }
 
 static void TestHugeAllocations(AllocatorState* rnd) {
   // Check that asking for stuff tiny bit smaller than largest possible
-  // size returns NULL.
+  // size returns nullptr.
   for (size_t i = 0; i < 70000; i += rnd->Uniform(20)) {
     TryHugeAllocation(kMaxSize - i, rnd);
   }
@@ -623,9 +623,9 @@ static void TestHugeAllocations(AllocatorState* rnd) {
   if (!TestingPortal::Get()->IsDebuggingMalloc()) {
    // debug allocation takes forever for huge allocs
     for (size_t i = 0; i < 100; i++) {
-      void* p = NULL;
+      void* p = nullptr;
       p = rnd->alloc(kMaxSignedSize + i);
-      if (p) free(p);    // if: free(NULL) is not necessarily defined
+      if (p) free(p);    // if: free(nullptr) is not necessarily defined
       p = rnd->alloc(kMaxSignedSize - i);
       if (p) free(p);
     }
@@ -641,9 +641,9 @@ static void TestHugeAllocations(AllocatorState* rnd) {
 static void TestCalloc(size_t n, size_t s, bool ok) {
   char* p = reinterpret_cast<char*>(noopt(calloc)(n, s));
   if (!ok) {
-    CHECK(p == NULL);  // calloc(n, s) should not succeed
+    CHECK(p == nullptr);  // calloc(n, s) should not succeed
   } else {
-    CHECK(p != NULL);  // calloc(n, s) should succeed
+    CHECK(p != nullptr);  // calloc(n, s) should succeed
     for (int i = 0; i < n*s; i++) {
       CHECK(p[i] == '\0');
     }
@@ -1043,8 +1043,8 @@ TEST(TCMallocTest, AggressiveDecommit) {
 // On MSVC10, in release mode, the optimizer convinces itself
 // g_no_memory is never changed (I guess it doesn't realize OnNoMemory
 // might be called).  Work around this by setting the var volatile.
-volatile bool g_no_memory = false;
-std::new_handler g_old_handler = NULL;
+volatile bool g_no_memory;
+std::new_handler g_old_handler;
 static void OnNoMemory() {
   g_no_memory = true;
   std::set_new_handler(g_old_handler);
@@ -1056,19 +1056,19 @@ TEST(TCMallocTest, SetNewMode) {
   g_old_handler = std::set_new_handler(&OnNoMemory);
   g_no_memory = false;
   void* ret = noopt(malloc(noopt(kTooBig)));
-  EXPECT_EQ(NULL, ret);
+  EXPECT_EQ(nullptr, ret);
   EXPECT_TRUE(g_no_memory);
 
   g_old_handler = std::set_new_handler(&OnNoMemory);
   g_no_memory = false;
   ret = noopt(calloc(1, noopt(kTooBig)));
-  EXPECT_EQ(NULL, ret);
+  EXPECT_EQ(nullptr, ret);
   EXPECT_TRUE(g_no_memory);
 
   g_old_handler = std::set_new_handler(&OnNoMemory);
   g_no_memory = false;
   ret = noopt(realloc(nullptr, noopt(kTooBig)));
-  EXPECT_EQ(NULL, ret);
+  EXPECT_EQ(nullptr, ret);
   EXPECT_TRUE(g_no_memory);
 
   if (kOSSupportsMemalign) {
@@ -1079,14 +1079,14 @@ TEST(TCMallocTest, SetNewMode) {
     g_old_handler = std::set_new_handler(&OnNoMemory);
     g_no_memory = false;
     ret = Memalign(kAlignment, kTooBig);
-    EXPECT_EQ(NULL, ret);
+    EXPECT_EQ(nullptr, ret);
     EXPECT_TRUE(g_no_memory);
 
     g_old_handler = std::set_new_handler(&OnNoMemory);
     g_no_memory = false;
     EXPECT_EQ(ENOMEM,
               PosixMemalign(&ret, kAlignment, kTooBig));
-    EXPECT_EQ(NULL, ret);
+    EXPECT_EQ(nullptr, ret);
     EXPECT_TRUE(g_no_memory);
   }
 
@@ -1098,18 +1098,18 @@ TEST(TCMallocTest, TestErrno) {
   if (kOSSupportsMemalign) {
     errno = 0;
     ret = Memalign(128, kTooBig);
-    EXPECT_EQ(NULL, ret);
+    EXPECT_EQ(nullptr, ret);
     EXPECT_EQ(ENOMEM, errno);
   }
 
   errno = 0;
   ret = noopt(malloc(noopt(kTooBig)));
-  EXPECT_EQ(NULL, ret);
+  EXPECT_EQ(nullptr, ret);
   EXPECT_EQ(ENOMEM, errno);
 
   errno = 0;
   ret = tc_malloc_skip_new_handler(kTooBig);
-  EXPECT_EQ(NULL, ret);
+  EXPECT_EQ(nullptr, ret);
   EXPECT_EQ(ENOMEM, errno);
 }
 
@@ -1531,11 +1531,11 @@ TEST(TCMallocTest, AllTests) {
   // Do the memory intensive tests after threads are done, since exhausting
   // the available address space can make pthread_create to fail.
 
-  // Check that huge allocations fail with NULL instead of crashing
+  // Check that huge allocations fail with nullptr instead of crashing
   printf("Testing huge allocations\n");
   TestHugeAllocations(&rnd);
 
-  // Check that large allocations fail with NULL instead of crashing
+  // Check that large allocations fail with nullptr instead of crashing
   //
   // debug allocation takes forever for huge allocs
   if (!TestingPortal::Get()->IsDebuggingMalloc()) {

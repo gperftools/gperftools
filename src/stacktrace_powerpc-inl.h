@@ -43,7 +43,7 @@
 // Anything that should only be defined once should be here:
 
 #include <stdint.h>   // for uintptr_t
-#include <stdlib.h>   // for NULL
+#include <stdlib.h>
 #include <gperftools/stacktrace.h>
 
 struct layout_ppc {
@@ -55,7 +55,7 @@ struct layout_ppc {
 };
 
 // Given a pointer to a stack frame, locate and return the calling
-// stackframe, or return NULL if no stackframe can be found. Perform sanity
+// stackframe, or return nullptr if no stackframe can be found. Perform sanity
 // checks (the strictness of which is controlled by the boolean parameter
 // "STRICT_UNWINDING") to reduce the chance that a bad pointer is returned.
 template<bool STRICT_UNWINDING>
@@ -69,21 +69,21 @@ static layout_ppc *NextStackFrame(layout_ppc *current) {
     // With the stack growing downwards, older stack frame must be
     // at a greater address that the current one.
     if (new_sp <= old_sp)
-      return NULL;
+      return nullptr;
     // Assume stack frames larger than 100,000 bytes are bogus.
     if (new_sp - old_sp > 100000)
-      return NULL;
+      return nullptr;
   } else {
     // In the non-strict mode, allow discontiguous stack frames.
     // (alternate-signal-stacks for example).
     if (new_sp == old_sp)
-      return NULL;
+      return nullptr;
     // And allow frames upto about 1MB.
     if ((new_sp > old_sp) && (new_sp - old_sp > 1000000))
-      return NULL;
+      return nullptr;
   }
   if (new_sp & (sizeof(void *) - 1))
-    return NULL;
+    return nullptr;
   return current->next;
 }
 
@@ -168,8 +168,8 @@ static int GET_STACK_TRACE_OR_FRAMES {
 
   // It's possible the second-last stack frame can't return
   // (that is, it's __libc_start_main), in which case
-  // the CRT startup code will have set its LR to 'NULL'.
-  if (n > 0 && result[n-1] == NULL)
+  // the CRT startup code will have set its LR to 'nullptr'.
+  if (n > 0 && result[n-1] == nullptr)
     n--;
 
   return n;

@@ -111,7 +111,7 @@ class ProfileDataChecker {
  public:
   ProfileDataChecker() {
     const char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == NULL)
+    if (tmpdir == nullptr)
       tmpdir = "/tmp";
     mkdir(tmpdir, 0755);     // if necessary
     filename_ = std::string(tmpdir) + "/profiledata_unittest.tmp";
@@ -124,7 +124,7 @@ class ProfileDataChecker {
   // data matched, otherwise returns an indication of the cause of the
   // mismatch.
   std::string Check(const ProfileDataSlot* slots, int num_slots) {
-    return CheckWithSkips(slots, num_slots, NULL, 0);
+    return CheckWithSkips(slots, num_slots, nullptr, 0);
   }
 
   // Checks the first 'num_slots' profile data slots in the file

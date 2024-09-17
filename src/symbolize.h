@@ -36,7 +36,7 @@
 
 #include "config.h"
 #include <stdint.h>  // for uintptr_t
-#include <stddef.h>  // for NULL
+#include <stddef.h>
 #include <map>
 
 using std::map;
@@ -48,7 +48,7 @@ using std::map;
 class SymbolTable {
  public:
   SymbolTable()
-    : symbol_buffer_(NULL) {}
+    : symbol_buffer_(nullptr) {}
   ~SymbolTable() {
     delete[] symbol_buffer_;
   }

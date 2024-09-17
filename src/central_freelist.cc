@@ -96,11 +96,11 @@ void CentralFreeList::ReleaseListToSpans(void* start) {
 void CentralFreeList::ReleaseToSpans(void* object) {
   const PageID p = reinterpret_cast<uintptr_t>(object) >> kPageShift;
   Span* span = Static::pageheap()->GetDescriptor(p);
-  ASSERT(span != NULL);
+  ASSERT(span != nullptr);
   ASSERT(span->refcount > 0);
 
   // If span is empty, move it to non-empty list
-  if (span->objects == NULL) {
+  if (span->objects == nullptr) {
     tcmalloc::DLL_Remove(span);
     tcmalloc::DLL_Prepend(&nonempty_, span);
   }
@@ -109,7 +109,7 @@ void CentralFreeList::ReleaseToSpans(void* object) {
   if (false) {
     // Check that object does not occur in list
     int got = 0;
-    for (void* p = span->objects; p != NULL; p = *((void**) p)) {
+    for (void* p = span->objects; p != nullptr; p = *((void**) p)) {
       ASSERT(p != object);
       got++;
     }
@@ -247,15 +247,15 @@ int CentralFreeList::RemoveRange(void **start, void **end, int N) {
   }
 
   int result = 0;
-  *start = NULL;
-  *end = NULL;
+  *start = nullptr;
+  *end = nullptr;
   // TODO: Prefetch multiple TCEntries?
   result = FetchFromOneSpansSafe(N, start, end);
   if (result != 0) {
     while (result < N) {
       int n;
-      void* head = NULL;
-      void* tail = NULL;
+      void* head = nullptr;
+      void* tail = nullptr;
       n = FetchFromOneSpans(N - result, &head, &tail);
       if (!n) break;
       result += n;
@@ -280,7 +280,7 @@ int CentralFreeList::FetchFromOneSpans(int N, void **start, void **end) {
   if (tcmalloc::DLL_IsEmpty(&nonempty_)) return 0;
   Span* span = nonempty_.next;
 
-  ASSERT(span->objects != NULL);
+  ASSERT(span->objects != nullptr);
 
   int result = 0;
   void *prev, *curr;
@@ -288,9 +288,9 @@ int CentralFreeList::FetchFromOneSpans(int N, void **start, void **end) {
   do {
     prev = curr;
     curr = *(reinterpret_cast<void**>(curr));
-  } while (++result < N && curr != NULL);
+  } while (++result < N && curr != nullptr);
 
-  if (curr == NULL) {
+  if (curr == nullptr) {
     // Move to empty list
     tcmalloc::DLL_Remove(span);
     tcmalloc::DLL_Prepend(&empty_, span);
@@ -299,7 +299,7 @@ int CentralFreeList::FetchFromOneSpans(int N, void **start, void **end) {
   *start = span->objects;
   *end = prev;
   span->objects = curr;
-  SLL_SetNext(*end, NULL);
+  SLL_SetNext(*end, nullptr);
   span->refcount += result;
   counter_ -= result;
   return result;
@@ -366,7 +366,7 @@ void CentralFreeList::Populate() {
   }
   ASSERT(ptr <= limit);
   ASSERT(ptr > limit - size); // same as ptr + size > limit but avoiding overflow
-  *tail = NULL;
+  *tail = nullptr;
   span->refcount = 0; // No sub-object in use yet
 
   // Add span to list of non-empty spans

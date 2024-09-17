@@ -198,7 +198,7 @@ class FreeQueue {
 };
 
 struct MallocBlockQueueEntry {
-  MallocBlockQueueEntry() : block(NULL), size(0),
+  MallocBlockQueueEntry() : block(nullptr), size(0),
                             num_deleter_pcs(0) {}
   MallocBlockQueueEntry(MallocBlock* b, size_t s) : block(b), size(s) {
     if (FLAGS_max_free_queue_size != 0 && b != nullptr) {
@@ -425,8 +425,8 @@ class MallocBlock {
   void CheckLocked(int type) const {
     int map_type = 0;
     const int* found_type =
-      alloc_map_ != NULL ? alloc_map_->Find(data_addr()) : NULL;
-    if (found_type == NULL) {
+      alloc_map_ != nullptr ? alloc_map_->Find(data_addr()) : nullptr;
+    if (found_type == nullptr) {
       RAW_LOG(FATAL, "memory allocation bug: object at %p "
                      "has never been allocated", data_addr());
     } else {
@@ -517,9 +517,9 @@ class MallocBlock {
     static size_t max_size_t = ~0;
     if (size > max_size_t - sizeof(MallocBlock)) {
       RAW_LOG(ERROR, "Massive size passed to malloc: %zu", size);
-      return NULL;
+      return nullptr;
     }
-    MallocBlock* b = NULL;
+    MallocBlock* b = nullptr;
     const bool use_malloc_page_fence = FLAGS_malloc_page_fence;
     const bool malloc_page_fence_readable = FLAGS_malloc_page_fence_readable;
 #ifdef HAVE_MMAP
@@ -529,10 +529,10 @@ class MallocBlock {
       size_t sz = real_mmapped_size(size);
       int pagesize = getpagesize();
       int num_pages = (sz + pagesize - 1) / pagesize + 1;
-      char* p = (char*) mmap(NULL, num_pages * pagesize, PROT_READ|PROT_WRITE,
+      char* p = (char*) mmap(nullptr, num_pages * pagesize, PROT_READ|PROT_WRITE,
                              MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
       if (p == MAP_FAILED) {
-        // If the allocation fails, abort rather than returning NULL to
+        // If the allocation fails, abort rather than returning nullptr to
         // malloc. This is because in most cases, the program will run out
         // of memory in this mode due to tremendous amount of wastage. There
         // is no point in propagating the error elsewhere.
@@ -556,8 +556,8 @@ class MallocBlock {
     // It would be nice to output a diagnostic on allocation failure
     // here, but logging (other than FATAL) requires allocating
     // memory, which could trigger a nasty recursion. Instead, preserve
-    // malloc semantics and return NULL on failure.
-    if (b != NULL) {
+    // malloc semantics and return nullptr on failure.
+    if (b != nullptr) {
       b->magic1_ = use_malloc_page_fence ? kMagicMMap : kMagicMalloc;
       b->Initialize(size, type);
     }
@@ -605,11 +605,11 @@ class MallocBlock {
     int num_entries = 0;
     MallocBlockQueueEntry new_entry(b, size);
     free_queue_lock_.Lock();
-    if (free_queue_ == NULL)
+    if (free_queue_ == nullptr)
       free_queue_ = new FreeQueue<MallocBlockQueueEntry>;
     RAW_CHECK(!free_queue_->Full(), "Free queue mustn't be full!");
 
-    if (b != NULL) {
+    if (b != nullptr) {
       free_queue_size_ += size + sizeof(MallocBlockQueueEntry);
       free_queue_->Push(new_entry);
     }
@@ -845,7 +845,7 @@ class MallocBlock {
 
 void DanglingWriteChecker() {
   // Clear out the remaining free queue to check for dangling writes.
-  MallocBlock::ProcessFreeQueue(NULL, 0, 0);
+  MallocBlock::ProcessFreeQueue(nullptr, 0, 0);
 }
 
 // ========================================================================= //
@@ -860,14 +860,14 @@ const char* const MallocBlock::kAllocName[] = {
   "malloc",
   "new",
   "new []",
-  NULL,
+  nullptr,
 };
 
 const char* const MallocBlock::kDeallocName[] = {
   "free",
   "delete",
   "delete []",
-  NULL,
+  nullptr,
 };
 
 int MallocBlock::stats_blocks_;
@@ -987,7 +987,7 @@ static int TraceFd() {
     }
     // Add a header to the log.
     TracePrintf(trace_fd, "Trace started: %lu\n",
-                static_cast<unsigned long>(time(NULL)));
+                static_cast<unsigned long>(time(nullptr)));
     TracePrintf(trace_fd,
                 "func\tsize\tptr\tthread_id\tstack pcs for tools/symbolize\n");
   }
@@ -1051,7 +1051,7 @@ static inline void* DebugAllocate(size_t size, int type) {
   if (size == 0) size = 1;
 #endif
   MallocBlock* ptr = MallocBlock::Allocate(size, type);
-  if (ptr == NULL)  return NULL;
+  if (ptr == nullptr)  return nullptr;
   MALLOC_TRACE("malloc", size, ptr->data_addr());
   return ptr->data_addr();
 }
@@ -1141,7 +1141,7 @@ class DebugMallocImplementation : public TCMallocImplementation {
 
   virtual MallocExtension::Ownership GetOwnership(const void* p) {
     if (!p) {
-      // nobody owns NULL
+      // nobody owns nullptr
       return MallocExtension::kNotOwned;
     }
 
@@ -1220,7 +1220,7 @@ static void *retry_debug_allocate(void *arg) {
 // from the logic of calling the new-handler.
 inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
   void* p = DebugAllocate(size, new_type);
-  if (p != NULL) {
+  if (p != nullptr) {
     return p;
   }
   struct debug_alloc_retry_data data;
@@ -1232,7 +1232,7 @@ inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
 
 inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
   void* p = DebugAllocate(size, MallocBlock::kMallocType);
-  if (p != NULL) {
+  if (p != nullptr) {
     return p;
   }
   struct debug_alloc_retry_data data;
@@ -1278,7 +1278,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOO
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOOLS_NOTHROW {
   // Overflow check
   const size_t total_size = count * size;
-  if (size != 0 && total_size / size != count) return NULL;
+  if (size != 0 && total_size / size != count) return nullptr;
 
   void* block = do_debug_malloc_or_debug_cpp_alloc(total_size);
   if (block)  memset(block, 0, total_size);
@@ -1329,7 +1329,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS
 extern "C" PERFTOOLS_DLL_DECL void* tc_new(size_t size) {
   void* ptr = debug_cpp_alloc(size, MallocBlock::kNewType, false);
   MallocHook::InvokeNewHook(ptr, size);
-  if (ptr == NULL) {
+  if (ptr == nullptr) {
     RAW_LOG(FATAL, "Unable to allocate %zu bytes: new failed.", size);
   }
   return ptr;
@@ -1364,7 +1364,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
   void* ptr = debug_cpp_alloc(size, MallocBlock::kArrayNewType, false);
   MallocHook::InvokeNewHook(ptr, size);
-  if (ptr == NULL) {
+  if (ptr == nullptr) {
     RAW_LOG(FATAL, "Unable to allocate %zu bytes: new[] failed.", size);
   }
   return ptr;
@@ -1407,7 +1407,7 @@ static void *do_debug_memalign(size_t alignment, size_t size, int type) {
   // Allocate "alignment-1" extra bytes to ensure alignment is possible, and
   // a further data_offset bytes for an additional fake header.
   size_t extra_bytes = data_offset + alignment - 1;
-  if (size + extra_bytes < size) return NULL;         // Overflow
+  if (size + extra_bytes < size) return nullptr;         // Overflow
   p = DebugAllocate(size + extra_bytes, type);
   if (p != 0) {
     intptr_t orig_p = reinterpret_cast<intptr_t>(p);
@@ -1448,7 +1448,7 @@ void* do_debug_memalign_or_debug_cpp_memalign(size_t align,
                                                      bool from_operator,
                                                      bool nothrow) {
   void* p = do_debug_memalign(align, size, type);
-  if (p != NULL) {
+  if (p != nullptr) {
     return p;
   }
 
@@ -1477,7 +1477,7 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
 
   void* result = do_debug_memalign_or_debug_cpp_memalign(align, size, MallocBlock::kMallocType, false, true);
   MallocHook::InvokeNewHook(result, size);
-  if (result == NULL) {
+  if (result == nullptr) {
     return ENOMEM;
   } else {
     *result_ptr = result;

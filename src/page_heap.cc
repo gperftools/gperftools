@@ -127,7 +127,7 @@ Span* PageHeap::SearchFreeAndLargeLists(Length n) {
     }
   }
   // No luck in free lists, our last chance is in a larger class.
-  return AllocLarge(n);  // May be NULL
+  return AllocLarge(n);  // May be nullptr
 }
 
 static const size_t kForcedCoalesceInterval = 128*1024*1024;
@@ -178,7 +178,7 @@ Span* PageHeap::NewLocked(Length n, LockingContext* context) {
   n = RoundUpSize(n);
 
   Span* result = SearchFreeAndLargeLists(n);
-  if (result != NULL)
+  if (result != nullptr)
     return result;
 
   if (stats_.free_bytes != 0 && stats_.unmapped_bytes != 0
@@ -210,7 +210,7 @@ Span* PageHeap::NewLocked(Length n, LockingContext* context) {
     // unlucky memory fragmentation we'll be consuming virtual address
     // space, but not real memory
     result = SearchFreeAndLargeLists(n);
-    if (result != NULL) return result;
+    if (result != nullptr) return result;
   }
 
   // Grow the heap and try again.
@@ -223,7 +223,7 @@ Span* PageHeap::NewLocked(Length n, LockingContext* context) {
     // Setting errno to ENOMEM here allows us to avoid dealing with it
     // in fast-path.
     errno = ENOMEM;
-    return NULL;
+    return nullptr;
   }
   return SearchFreeAndLargeLists(n);
 }
@@ -270,8 +270,8 @@ Span* PageHeap::NewAligned(Length n, Length align_pages) {
 
 Span* PageHeap::AllocLarge(Length n) {
   ASSERT(lock_.IsHeld());
-  Span *best = NULL;
-  Span *best_normal = NULL;
+  Span *best = nullptr;
+  Span *best_normal = nullptr;
 
   // Create a Span to use as an upper bound.
   Span bound;
@@ -291,14 +291,14 @@ Span* PageHeap::AllocLarge(Length n) {
   if (place != large_returned_.end()) {
     Span *c = place->span;
     ASSERT(c->location == Span::ON_RETURNED_FREELIST);
-    if (best_normal == NULL
+    if (best_normal == nullptr
         || c->length < best->length
         || (c->length == best->length && c->start < best->start))
       best = place->span;
   }
 
   if (best == best_normal) {
-    return best == NULL ? NULL : Carve(best, n);
+    return best == nullptr ? nullptr : Carve(best, n);
   }
 
   // best comes from RETURNED set.
@@ -315,9 +315,9 @@ Span* PageHeap::AllocLarge(Length n) {
   }
 
   // If best_normal existed, EnsureLimit would succeeded:
-  ASSERT(best_normal == NULL);
+  ASSERT(best_normal == nullptr);
   // We are not allowed to take best from returned list.
-  return NULL;
+  return nullptr;
 }
 
 Span* PageHeap::Split(Span* span, Length n) {
@@ -375,12 +375,12 @@ Span* PageHeap::Carve(Span* span, Length n) {
 
     // The previous span of |leftover| was just splitted -- no need to
     // coalesce them. The next span of |leftover| was not previously coalesced
-    // with |span|, i.e. is NULL or has got location other than |old_location|.
+    // with |span|, i.e. is nullptr or has got location other than |old_location|.
 #ifndef NDEBUG
     const PageID p = leftover->start;
     const Length len = leftover->length;
     Span* next = GetDescriptor(p+len);
-    ASSERT (next == NULL ||
+    ASSERT (next == nullptr ||
             next->location == Span::IN_USE ||
             next->location != leftover->location);
 #endif
@@ -426,9 +426,9 @@ void PageHeap::DeleteLocked(Span* span) {
 // checks if 'other' span is mergable with 'span'. If it is, removes
 // other span from free list, performs aggressive decommit if
 // necessary and returns 'other' span. Otherwise 'other' span cannot
-// be merged and is left untouched. In that case NULL is returned.
+// be merged and is left untouched. In that case nullptr is returned.
 Span* PageHeap::CheckAndHandlePreMerge(Span* span, Span* other) {
-  if (other == NULL) {
+  if (other == nullptr) {
     return other;
   }
   // if we're in aggressive decommit mode and span is decommitted,
@@ -437,10 +437,10 @@ Span* PageHeap::CheckAndHandlePreMerge(Span* span, Span* other) {
       && span->location == Span::ON_RETURNED_FREELIST) {
     bool worked = DecommitSpan(other);
     if (!worked) {
-      return NULL;
+      return nullptr;
     }
   } else if (other->location != span->location) {
-    return NULL;
+    return nullptr;
   }
 
   RemoveFromFreeList(other);
@@ -478,7 +478,7 @@ void PageHeap::MergeIntoFreeList(Span* span) {
   }
 
   Span* prev = CheckAndHandlePreMerge(span, GetDescriptor(p-1));
-  if (prev != NULL) {
+  if (prev != nullptr) {
     // Merge preceding span into this span
     ASSERT(prev->start + prev->length == p);
     const Length len = prev->length;
@@ -488,7 +488,7 @@ void PageHeap::MergeIntoFreeList(Span* span) {
     pagemap_.set(span->start, span);
   }
   Span* next = CheckAndHandlePreMerge(span, GetDescriptor(p+n));
-  if (next != NULL) {
+  if (next != nullptr) {
     // Merge next span into this span
     ASSERT(next->start == p+n);
     const Length len = next->length;
@@ -695,7 +695,7 @@ void PageHeap::GetLargeSpanStatsLocked(LargeSpanStats* result) {
 bool PageHeap::GetNextRange(PageID start, base::MallocRange* r) {
   ASSERT(lock_.IsHeld());
   Span* span = reinterpret_cast<Span*>(pagemap_.Next(start));
-  if (span == NULL) {
+  if (span == nullptr) {
     return false;
   }
   r->address = span->start << kPageShift;
@@ -730,11 +730,11 @@ bool PageHeap::GrowHeap(Length n, LockingContext* context) {
   if (n > kMaxValidPages) return false;
   Length ask = (n>kMinSystemAlloc) ? n : static_cast<Length>(kMinSystemAlloc);
   size_t actual_size;
-  void* ptr = NULL;
+  void* ptr = nullptr;
   if (EnsureLimit(ask)) {
       ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
   }
-  if (ptr == NULL) {
+  if (ptr == nullptr) {
     if (n < ask) {
       // Try growing just "n" pages
       ask = n;
@@ -742,7 +742,7 @@ bool PageHeap::GrowHeap(Length n, LockingContext* context) {
         ptr = TCMalloc_SystemAlloc(ask << kPageShift, &actual_size, kPageSize);
       }
     }
-    if (ptr == NULL) return false;
+    if (ptr == nullptr) return false;
   }
   ask = actual_size >> kPageShift;
   context->grown_by += ask << kPageShift;

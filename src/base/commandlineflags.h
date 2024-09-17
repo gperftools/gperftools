@@ -135,21 +135,21 @@ namespace tcmalloc {
       if (!value) {
         return def;
       }
-      return strtol(value, NULL, 10);
+      return strtol(value, nullptr, 10);
     }
 
     inline long long StringToLongLong(const char *value, long long def) {
       if (!value) {
         return def;
       }
-      return strtoll(value, NULL, 10);
+      return strtoll(value, nullptr, 10);
     }
 
     inline double StringToDouble(const char *value, double def) {
       if (!value) {
         return def;
       }
-      return strtod(value, NULL);
+      return strtod(value, nullptr);
     }
   }
 }

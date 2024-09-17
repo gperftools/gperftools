@@ -81,7 +81,7 @@ extern "C" {
 #endif
   /*
    * Returns a human-readable version string.  If major, minor,
-   * and/or patch are not NULL, they are set to the major version,
+   * and/or patch are not nullptr, they are set to the major version,
    * minor version, and patch-code (a string, usually "").
    */
   PERFTOOLS_DLL_DECL const char* tc_version(int* major, int* minor,

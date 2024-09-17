@@ -166,7 +166,7 @@ const ElfW(Verdef) *ElfMemImage::GetVerdef(int index) const {
         reinterpret_cast<const ElfW(Verdef) *>(version_definition_as_char +
                                                version_definition->vd_next);
   }
-  return version_definition->vd_ndx == index ? version_definition : NULL;
+  return version_definition->vd_ndx == index ? version_definition : nullptr;
 }
 
 const ElfW(Verdaux) *ElfMemImage::GetVerdefAux(
@@ -180,12 +180,12 @@ const char *ElfMemImage::GetVerstr(ElfW(Word) offset) const {
 }
 
 void ElfMemImage::Init(const void *base) {
-  ehdr_      = NULL;
-  dynsym_    = NULL;
-  dynstr_    = NULL;
-  versym_    = NULL;
-  verdef_    = NULL;
-  hash_      = NULL;
+  ehdr_      = nullptr;
+  dynsym_    = nullptr;
+  dynstr_    = nullptr;
+  versym_    = nullptr;
+  verdef_    = nullptr;
+  hash_      = nullptr;
   strsize_   = 0;
   verdefnum_ = 0;
   link_base_ = ~0L;  // Sentinel: PT_LOAD .p_vaddr can't possibly be this.
@@ -229,7 +229,7 @@ void ElfMemImage::Init(const void *base) {
   }
 
   ehdr_ = reinterpret_cast<const ElfW(Ehdr) *>(base);
-  const ElfW(Phdr) *dynamic_program_header = NULL;
+  const ElfW(Phdr) *dynamic_program_header = nullptr;
   for (int i = 0; i < ehdr_->e_phnum; ++i) {
     const ElfW(Phdr) *const program_header = GetPhdr(i);
     switch (program_header->p_type) {
@@ -406,7 +406,7 @@ void ElfMemImage::SymbolIterator::Update(int increment) {
   CHECK(symbol && version_symbol);
   const char *const symbol_name = image->GetDynstr(symbol->st_name);
   const ElfW(Versym) version_index = version_symbol[0] & VERSYM_VERSION;
-  const ElfW(Verdef) *version_definition = NULL;
+  const ElfW(Verdef) *version_definition = nullptr;
   const char *version_name = "";
   if (symbol->st_shndx == SHN_UNDEF) {
     // Undefined symbols reference DT_VERNEED, not DT_VERDEF, and

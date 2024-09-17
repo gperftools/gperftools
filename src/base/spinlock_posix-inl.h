@@ -51,7 +51,7 @@ void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
     struct timespec tm;
     tm.tv_sec = 0;
     tm.tv_nsec = base::internal::SuggestedDelayNS(loop);
-    nanosleep(&tm, NULL);
+    nanosleep(&tm, nullptr);
   }
   errno = save_errno;
 }

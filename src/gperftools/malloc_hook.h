@@ -98,7 +98,7 @@ extern "C" {
 class PERFTOOLS_DLL_DECL MallocHook {
  public:
   // The NewHook is invoked whenever an object is allocated.
-  // It may be passed NULL if the allocator returned NULL.
+  // It may be passed nullptr if the allocator returned nullptr.
   typedef MallocHook_NewHook NewHook;
   inline static bool AddNewHook(NewHook hook) {
     return MallocHook_AddNewHook(hook);
@@ -109,7 +109,7 @@ class PERFTOOLS_DLL_DECL MallocHook {
   inline static void InvokeNewHook(const void* p, size_t s);
 
   // The DeleteHook is invoked whenever an object is deallocated.
-  // It may be passed NULL if the caller is trying to delete NULL.
+  // It may be passed nullptr if the caller is trying to delete nullptr.
   typedef MallocHook_DeleteHook DeleteHook;
   inline static bool AddDeleteHook(DeleteHook hook) {
     return MallocHook_AddDeleteHook(hook);

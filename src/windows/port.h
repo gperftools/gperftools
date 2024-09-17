@@ -155,11 +155,11 @@ typedef _off_t off_t;
 /* VirtualAlloc only replaces for mmap when certain invariants are kept. */
 inline void *mmap(void *addr, size_t length, int prot, int flags,
                   int fd, off_t offset) {
-  if (addr == NULL && fd == -1 && offset == 0 &&
+  if (addr == nullptr && fd == -1 && offset == 0 &&
       prot == (PROT_READ|PROT_WRITE) && flags == (MAP_PRIVATE|MAP_ANONYMOUS)) {
     return VirtualAlloc(0, length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
   } else {
-    return NULL;
+    return nullptr;
   }
 }
 
@@ -228,7 +228,7 @@ EXTERN_C PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len);
 
 /* Handle case when poll is used to simulate sleep. */
 inline int poll(struct pollfd* fds, int nfds, int timeout) {
-  assert(fds == NULL);
+  assert(fds == nullptr);
   assert(nfds == 0);
   Sleep(timeout);
   return 0;

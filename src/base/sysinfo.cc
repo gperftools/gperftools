@@ -124,12 +124,12 @@ static size_t slow_strlen(const char *s) {
 const char* GetenvBeforeMain(const char* name) {
   const int namelen = slow_strlen(name);
 #if defined(HAVE___ENVIRON)   // if we have it, it's declared in unistd.h
-  if (__environ) {            // can exist but be NULL, if statically linked
+  if (__environ) {            // can exist but be nullptr, if statically linked
     for (char** p = __environ; *p; p++) {
       if (!slow_memcmp(*p, name, namelen) && (*p)[namelen] == '=')
         return *p + namelen+1;
     }
-    return NULL;
+    return nullptr;
   }
 #endif
   // static is ok because this function should only be called before
@@ -152,13 +152,13 @@ const char* GetenvBeforeMain(const char* name) {
     // proc file has the format NAME=value\0NAME=value\0NAME=value\0...
     const char* endp = (char*)slow_memchr(p, '\0',
                                           sizeof(envbuf) - (p - envbuf));
-    if (endp == NULL)            // this entry isn't NUL terminated
-      return NULL;
+    if (endp == nullptr)            // this entry isn't NUL terminated
+      return nullptr;
     else if (!slow_memcmp(p, name, namelen) && p[namelen] == '=')    // it's a match
       return p + namelen+1;      // point after =
     p = endp + 1;
   }
-  return NULL;                   // env var never found
+  return nullptr;                   // env var never found
 }
 #else  // PLATFORM_WINDOWS
 

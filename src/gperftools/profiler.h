@@ -89,7 +89,7 @@ extern "C" {
 struct ProfilerOptions {
   /* Filter function and argument.
    *
-   * If filter_in_thread is not NULL, when a profiling tick is delivered
+   * If filter_in_thread is not nullptr, when a profiling tick is delivered
    * the profiler will call:
    *
    *   (*filter_in_thread)(filter_in_thread_arg)
@@ -112,7 +112,7 @@ struct ProfilerOptions {
 /* Start profiling and write profile info into fname, discarding any
  * existing profiling data in that file.
  *
- * This is equivalent to calling ProfilerStartWithOptions(fname, NULL).
+ * This is equivalent to calling ProfilerStartWithOptions(fname, nullptr).
  */
 PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname);
 
@@ -122,7 +122,7 @@ PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname);
  * The profiler is configured using the options given by 'options'.
  * Options which are not specified are given default values.
  *
- * 'options' may be NULL, in which case all are given default values.
+ * 'options' may be nullptr, in which case all are given default values.
  *
  * Returns nonzero if profiling was started successfully, or zero else.
  */

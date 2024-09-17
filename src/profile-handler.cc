@@ -99,11 +99,11 @@ class ScopedSignalBlocker {
   ScopedSignalBlocker(int signo) {
     sigemptyset(&sig_set_);
     sigaddset(&sig_set_, signo);
-    RAW_CHECK(sigprocmask(SIG_BLOCK, &sig_set_, NULL) == 0,
+    RAW_CHECK(sigprocmask(SIG_BLOCK, &sig_set_, nullptr) == 0,
               "sigprocmask (block)");
   }
   ~ScopedSignalBlocker() {
-    RAW_CHECK(sigprocmask(SIG_UNBLOCK, &sig_set_, NULL) == 0,
+    RAW_CHECK(sigprocmask(SIG_UNBLOCK, &sig_set_, nullptr) == 0,
               "sigprocmask (unblock)");
   }
 
@@ -228,15 +228,15 @@ class ProfileHandler {
   DISALLOW_COPY_AND_ASSIGN(ProfileHandler);
 };
 
-ProfileHandler* ProfileHandler::instance_ = NULL;
+ProfileHandler* ProfileHandler::instance_;
 
 const int32_t ProfileHandler::kMaxFrequency;
 const int32_t ProfileHandler::kDefaultFrequency;
 
 // If we are LD_PRELOAD-ed against a non-pthreads app, then these functions
 // won't be defined.  We declare them here, for that case (with weak linkage)
-// which will cause the non-definition to resolve to NULL.  We can then check
-// for NULL or not in Instance.
+// which will cause the non-definition to resolve to nullptr.  We can then check
+// for nullptr or not in Instance.
 extern "C" {
 #if HAVE_LINUX_SIGEV_THREAD_ID
 int timer_create(clockid_t clockid, struct sigevent* evp,
@@ -336,7 +336,7 @@ ProfileHandler::ProfileHandler()
   // Get frequency of interrupts (if specified)
   char junk;
   const char* fr = getenv("CPUPROFILE_FREQUENCY");
-  if (fr != NULL && (sscanf(fr, "%u%c", &frequency_, &junk) == 1) &&
+  if (fr != nullptr && (sscanf(fr, "%u%c", &frequency_, &junk) == 1) &&
       (frequency_ > 0)) {
     // Limit to kMaxFrequency
     frequency_ = (frequency_ > kMaxFrequency) ? kMaxFrequency : frequency_;
@@ -360,7 +360,7 @@ ProfileHandler::ProfileHandler()
       per_thread_timer_enabled_ = true;
       // Override signal number if requested.
       if (signal_number) {
-        signal_number_ = strtol(signal_number, NULL, 0);
+        signal_number_ = strtol(signal_number, nullptr, 0);
       }
     } else {
       RAW_LOG(INFO,
@@ -385,7 +385,7 @@ ProfileHandler::ProfileHandler()
   sa.sa_sigaction = SignalHandler;
   sa.sa_flags = SA_RESTART | SA_SIGINFO;
   sigemptyset(&sa.sa_mask);
-  RAW_CHECK(sigaction(signal_number_, &sa, NULL) == 0, "sigprof (enable)");
+  RAW_CHECK(sigaction(signal_number_, &sa, nullptr) == 0, "sigprof (enable)");
 }
 
 ProfileHandler::~ProfileHandler() {
@@ -523,7 +523,7 @@ void ProfileHandler::UpdateTimer(bool enable) {
 
 bool ProfileHandler::IsSignalHandlerAvailable() {
   struct sigaction sa;
-  RAW_CHECK(sigaction(signal_number_, NULL, &sa) == 0, "is-signal-handler avail");
+  RAW_CHECK(sigaction(signal_number_, nullptr, &sa) == 0, "is-signal-handler avail");
 
   // We only take over the handler if the current one is unset.
   // It must be SIG_IGN or SIG_DFL, not some other function.
@@ -541,7 +541,7 @@ void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {
   // enabled in RegisterThread or RegisterCallback only after
   // ProfileHandler::Instance runs.
   ProfileHandler* instance = instance_;
-  RAW_CHECK(instance != NULL, "ProfileHandler is not initialized");
+  RAW_CHECK(instance != nullptr, "ProfileHandler is not initialized");
   {
     SpinLockHolder sl(&instance->signal_lock_);
     ++instance->interrupts_;
@@ -590,7 +590,7 @@ void ProfileHandlerRegisterThread() {
 
 ProfileHandlerToken* ProfileHandlerRegisterCallback(
     ProfileHandlerCallback callback, void* callback_arg) {
-  return NULL;
+  return nullptr;
 }
 
 void ProfileHandlerUnregisterCallback(ProfileHandlerToken* token) {

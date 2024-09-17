@@ -74,12 +74,12 @@ inline bool SLL_TryPop(void **list, void **rv) {
 
 // Remove N elements from a linked list to which head points.  head will be
 // modified to point to the new head.  start and end will point to the first
-// and last nodes of the range.  Note that end will point to NULL after this
+// and last nodes of the range.  Note that end will point to nullptr after this
 // function is called.
 inline void SLL_PopRange(void **head, int N, void **start, void **end) {
   if (N == 0) {
-    *start = NULL;
-    *end = NULL;
+    *start = nullptr;
+    *end = nullptr;
     return;
   }
 
@@ -92,7 +92,7 @@ inline void SLL_PopRange(void **head, int N, void **start, void **end) {
   *end = tmp;
   *head = SLL_Next(tmp);
   // Unlink range from list.
-  SLL_SetNext(tmp, NULL);
+  SLL_SetNext(tmp, nullptr);
 }
 
 inline void SLL_PushRange(void **head, void *start, void *end) {

@@ -41,12 +41,12 @@
 // are implemented with the member "HeapProfileBucket* next".
 //
 // A structure of a hash table HeapProfileBucket** bucket_table would be like:
-// bucket_table[0] => NULL
-// bucket_table[1] => HeapProfileBucket() => HeapProfileBucket() => NULL
+// bucket_table[0] => nullptr
+// bucket_table[1] => HeapProfileBucket() => HeapProfileBucket() => nullptr
 // ...
-// bucket_table[i] => HeapProfileBucket() => NULL
+// bucket_table[i] => HeapProfileBucket() => nullptr
 // ...
-// bucket_table[n] => HeapProfileBucket() => NULL
+// bucket_table[n] => HeapProfileBucket() => nullptr
 
 #ifndef HEAP_PROFILE_STATS_H_
 #define HEAP_PROFILE_STATS_H_

@@ -117,7 +117,7 @@ class AutoTestingHookImpl : public AutoTestingHookBase {
  private:
   AutoTestingHookImpl(T target_function, T replacement_function, bool do_it)
       : target_function_(target_function),
-        original_function_(NULL),
+        original_function_(nullptr),
         replacement_function_(replacement_function),
         did_it_(do_it) {
     if (do_it) {

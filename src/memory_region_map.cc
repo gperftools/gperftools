@@ -127,19 +127,19 @@ using std::max;
 
 // ========================================================================= //
 
-int MemoryRegionMap::client_count_ = 0;
-int MemoryRegionMap::max_stack_depth_ = 0;
-MemoryRegionMap::RegionSet* MemoryRegionMap::regions_ = nullptr;
-LowLevelAlloc::Arena* MemoryRegionMap::arena_ = nullptr;
+int MemoryRegionMap::client_count_;
+int MemoryRegionMap::max_stack_depth_;
+MemoryRegionMap::RegionSet* MemoryRegionMap::regions_;
+LowLevelAlloc::Arena* MemoryRegionMap::arena_;
 SpinLock MemoryRegionMap::lock_;
 SpinLock MemoryRegionMap::owner_lock_;  // ACQUIRED_AFTER(lock_)
-int MemoryRegionMap::recursion_count_ = 0;  // GUARDED_BY(owner_lock_)
+int MemoryRegionMap::recursion_count_;  // GUARDED_BY(owner_lock_)
 uintptr_t MemoryRegionMap::lock_owner_tid_;  // GUARDED_BY(owner_lock_)
-int64_t MemoryRegionMap::map_size_ = 0;
-int64_t MemoryRegionMap::unmap_size_ = 0;
-HeapProfileBucket** MemoryRegionMap::bucket_table_ = nullptr;  // GUARDED_BY(lock_)
-int MemoryRegionMap::num_buckets_ = 0;  // GUARDED_BY(lock_)
-int MemoryRegionMap::saved_buckets_count_ = 0;  // GUARDED_BY(lock_)
+int64_t MemoryRegionMap::map_size_;
+int64_t MemoryRegionMap::unmap_size_;
+HeapProfileBucket** MemoryRegionMap::bucket_table_;  // GUARDED_BY(lock_)
+int MemoryRegionMap::num_buckets_;  // GUARDED_BY(lock_)
+int MemoryRegionMap::saved_buckets_count_;  // GUARDED_BY(lock_)
 HeapProfileBucket MemoryRegionMap::saved_buckets_[20];  // GUARDED_BY(lock_)
 // GUARDED_BY(lock_)
 const void* MemoryRegionMap::saved_buckets_keys_[20][kMaxStackDepth];
@@ -197,7 +197,7 @@ void MemoryRegionMap::Init(int max_stack_depth, bool use_buckets) NO_THREAD_SAFE
     memset(bucket_table_, 0, table_bytes);
     num_buckets_ = 0;
   }
-  if (regions_ == NULL) {  // init regions_
+  if (regions_ == nullptr) {  // init regions_
     InitRegionSetLocked();
   }
   Unlock();
@@ -214,7 +214,7 @@ bool MemoryRegionMap::Shutdown() NO_THREAD_SAFETY_ANALYSIS {
     RAW_VLOG(10, "MemoryRegionMap Shutdown decrement done");
     return true;
   }
-  if (bucket_table_ != NULL) {
+  if (bucket_table_ != nullptr) {
     for (int i = 0; i < kHashTableSize; i++) {
       for (HeapProfileBucket* curr = bucket_table_[i]; curr != 0; /**/) {
         HeapProfileBucket* bucket = curr;
@@ -225,13 +225,13 @@ bool MemoryRegionMap::Shutdown() NO_THREAD_SAFETY_ANALYSIS {
     }
     MyAllocator::Free(bucket_table_, 0);
     num_buckets_ = 0;
-    bucket_table_ = NULL;
+    bucket_table_ = nullptr;
   }
 
   tcmalloc::UnHookMMapEvents(&mapping_hook_space_);
 
   if (regions_) regions_->~RegionSet();
-  regions_ = NULL;
+  regions_ = nullptr;
   bool deleted_arena = LowLevelAlloc::DeleteArena(arena_);
   if (deleted_arena) {
     arena_ = 0;
@@ -299,7 +299,7 @@ bool MemoryRegionMap::LockIsHeld() {
 const MemoryRegionMap::Region*
 MemoryRegionMap::DoFindRegionLocked(uintptr_t addr) {
   RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
-  if (regions_ != NULL) {
+  if (regions_ != nullptr) {
     Region sample;
     sample.SetRegionSetKey(addr);
     RegionSet::iterator region = regions_->lower_bound(sample);
@@ -310,22 +310,22 @@ MemoryRegionMap::DoFindRegionLocked(uintptr_t addr) {
       }
     }
   }
-  return NULL;
+  return nullptr;
 }
 
 bool MemoryRegionMap::FindRegion(uintptr_t addr, Region* result) {
   Lock();
   const Region* region = DoFindRegionLocked(addr);
-  if (region != NULL) *result = *region;  // create it as an independent copy
+  if (region != nullptr) *result = *region;  // create it as an independent copy
   Unlock();
-  return region != NULL;
+  return region != nullptr;
 }
 
 bool MemoryRegionMap::FindAndMarkStackRegion(uintptr_t stack_top,
                                              Region* result) {
   Lock();
   const Region* region = DoFindRegionLocked(stack_top);
-  if (region != NULL) {
+  if (region != nullptr) {
     RAW_VLOG(10, "Stack at %p is inside region %p..%p",
                 reinterpret_cast<void*>(stack_top),
                 reinterpret_cast<void*>(region->start_addr),
@@ -335,7 +335,7 @@ bool MemoryRegionMap::FindAndMarkStackRegion(uintptr_t stack_top,
     *result = *region;  // create *result as an independent copy
   }
   Unlock();
-  return region != NULL;
+  return region != nullptr;
 }
 
 HeapProfileBucket* MemoryRegionMap::GetBucket(int depth,
@@ -372,7 +372,7 @@ HeapProfileBucket* MemoryRegionMap::GetBucket(int depth,
     memset(bucket, 0, sizeof(*bucket));
     ++saved_buckets_count_;
     bucket->stack = key_copy;
-    bucket->next  = NULL;
+    bucket->next  = nullptr;
   } else {
     recursive_insert = true;
     const void** key_copy = static_cast<const void**>(
@@ -396,13 +396,13 @@ HeapProfileBucket* MemoryRegionMap::GetBucket(int depth,
 
 MemoryRegionMap::RegionIterator MemoryRegionMap::BeginRegionLocked() {
   RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
-  RAW_CHECK(regions_ != NULL, "");
+  RAW_CHECK(regions_ != nullptr, "");
   return regions_->begin();
 }
 
 MemoryRegionMap::RegionIterator MemoryRegionMap::EndRegionLocked() {
   RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
-  RAW_CHECK(regions_ != NULL, "");
+  RAW_CHECK(regions_ != nullptr, "");
   return regions_->end();
 }
 
@@ -528,7 +528,7 @@ inline void MemoryRegionMap::InsertRegionLocked(const Region& region) {
     // then increment saved_regions_count.
     saved_regions[saved_regions_count++] = region;
   } else {  // not a recusrive call
-    if (regions_ == NULL) {  // init regions_
+    if (regions_ == nullptr) {  // init regions_
       InitRegionSetLocked();
     }
     recursive_insert = true;
@@ -559,7 +559,7 @@ void MemoryRegionMap::RecordRegionAddition(const void* start, size_t size,
   InsertRegionLocked(region);
     // This will (eventually) allocate storage for and copy over the stack data
     // from region.call_stack_data_ that is pointed by region.call_stack().
-  if (bucket_table_ != NULL) {
+  if (bucket_table_ != nullptr) {
     HeapProfileBucket* b = GetBucket(stack_depth, region.call_stack);
     ++b->allocs;
     b->alloc_size += size;
@@ -602,7 +602,7 @@ void MemoryRegionMap::RecordRegionRemoval(const void* start, size_t size) {
       }
     }
   }
-  if (regions_ == NULL) {  // We must have just unset the hooks,
+  if (regions_ == nullptr) {  // We must have just unset the hooks,
                            // but this thread was already inside the hook.
     Unlock();
     return;
@@ -694,7 +694,7 @@ void MemoryRegionMap::RecordRegionRemovalInBucket(int depth,
                                                   const void* const stack[],
                                                   size_t size) {
   RAW_CHECK(LockIsHeld(), "should be held (by this thread)");
-  if (bucket_table_ == NULL) return;
+  if (bucket_table_ == nullptr) return;
   HeapProfileBucket* b = GetBucket(depth, stack);
   ++b->frees;
   b->free_size += size;

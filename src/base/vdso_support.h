@@ -48,7 +48,7 @@
 //  VDSOSupport vdso;
 //  VDSOSupport::SymbolInfo info;
 //  typedef (*FN)(unsigned *, void *, void *);
-//  FN fn = NULL;
+//  FN fn = nullptr;
 //  if (vdso.LookupSymbol("__vdso_getcpu", "LINUX_2.6", STT_FUNC, &info)) {
 //     fn = reinterpret_cast<FN>(info.address);
 //  }
@@ -66,7 +66,7 @@
 // See elf_mem_image.h. We only define HAVE_ELF_MEM_IMAGE for Linux/PPC.
 #define HAVE_VDSO_SUPPORT 1
 
-#include <stdlib.h>     // for NULL
+#include <stdlib.h>
 
 namespace base {
 
@@ -89,14 +89,14 @@ class VDSOSupport {
   // Look up versioned dynamic symbol in the kernel VDSO.
   // Returns false if VDSO is not present, or doesn't contain given
   // symbol/version/type combination.
-  // If info_out != NULL, additional details are filled in.
+  // If info_out != nullptr, additional details are filled in.
   bool LookupSymbol(const char *name, const char *version,
                     int symbol_type, SymbolInfo *info_out) const;
 
   // Find info about symbol (if any) which overlaps given address.
   // Returns true if symbol was found; false if VDSO isn't present
   // or doesn't have a symbol overlapping given address.
-  // If info_out != NULL, additional details are filled in.
+  // If info_out != nullptr, additional details are filled in.
   bool LookupSymbolByAddress(const void *address, SymbolInfo *info_out) const;
 
   // Used only for testing. Replace real VDSO base with a mock.
@@ -111,7 +111,7 @@ class VDSOSupport {
 
  private:
   // image_ represents VDSO ELF image in memory.
-  // image_.ehdr_ == NULL implies there is no VDSO.
+  // image_.ehdr_ == nullptr implies there is no VDSO.
   ElfMemImage image_;
 
   // Cached value of auxv AT_SYSINFO_EHDR, computed once.

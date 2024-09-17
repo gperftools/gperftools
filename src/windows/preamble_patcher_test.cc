@@ -93,10 +93,10 @@ extern "C" int JumpAbsoluteFunction(int);
 extern "C" int CallNearRelativeFunction(int);
 
 typedef int (*IncrementingFunc)(int);
-IncrementingFunc original_function = NULL;
+IncrementingFunc original_function;
 
 int HookIncrementNumber(int i) {
-  SIDESTEP_ASSERT(original_function != NULL);
+  SIDESTEP_ASSERT(original_function != nullptr);
   int incremented_once = original_function(i);
   return incremented_once + 1;
 }
@@ -132,10 +132,10 @@ bool TestDisassembler() {
 }
 
 bool TestPatchWithLongJump() {
-  original_function = NULL;
+  original_function = nullptr;
   void *p = ::VirtualAlloc(reinterpret_cast<void *>(0x0000020000000000), 4096,
                            MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
-  SIDESTEP_EXPECT_TRUE(p != NULL);
+  SIDESTEP_EXPECT_TRUE(p != nullptr);
   memset(p, 0xcc, 4096);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(IncrementNumber,
@@ -151,7 +151,7 @@ bool TestPatchWithLongJump() {
 }
 
 bool TestPatchWithPreambleShortCondJump() {
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(JumpShortCondFunction,
                                                         HookIncrementNumber,
@@ -165,7 +165,7 @@ bool TestPatchWithPreambleShortCondJump() {
 }
 
 bool TestPatchWithPreambleNearRelativeCondJump() {
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(JumpNearCondFunction,
                                                         HookIncrementNumber,
@@ -180,7 +180,7 @@ bool TestPatchWithPreambleNearRelativeCondJump() {
 }
 
 bool TestPatchWithPreambleAbsoluteJump() {
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(JumpAbsoluteFunction,
                                                         HookIncrementNumber,
@@ -195,7 +195,7 @@ bool TestPatchWithPreambleAbsoluteJump() {
 }
 
 bool TestPatchWithPreambleNearRelativeCall() {
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(
                                                     CallNearRelativeFunction,
@@ -211,7 +211,7 @@ bool TestPatchWithPreambleNearRelativeCall() {
 }
 
 bool TestPatchUsingDynamicStub() {
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(IncrementNumber(1) == 2);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(IncrementNumber,
@@ -232,7 +232,7 @@ bool TestPatchUsingDynamicStub() {
   // jmp to the hook function.  So verify that we now can not patch
   // IncrementNumber because it starts with a jump.
 #if 0
-  IncrementingFunc dummy = NULL;
+  IncrementingFunc dummy = nullptr;
   // TODO(joi@chromium.org): restore this test once flag is added to
   // disable JMP following
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_JUMP_INSTRUCTION ==
@@ -243,7 +243,7 @@ bool TestPatchUsingDynamicStub() {
   // This test disabled because code in preamble_patcher_with_stub.cc
   // asserts before returning the error code -- so there is no way
   // to get an error code here, in debug build.
-  dummy = NULL;
+  dummy = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_FUNCTION_TOO_SMALL ==
                        sidestep::PreamblePatcher::Patch(TooShortFunction,
                                                         HookIncrementNumber,
@@ -258,7 +258,7 @@ bool TestPatchUsingDynamicStub() {
 }
 
 bool PatchThenUnpatch() {
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
                        sidestep::PreamblePatcher::Patch(IncrementNumber,
                                                         HookIncrementNumber,
@@ -271,7 +271,7 @@ bool PatchThenUnpatch() {
                        UNPATCH(IncrementNumber,
                                HookIncrementNumber,
                                original_function));
-  original_function = NULL;
+  original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(IncrementNumber(3) == 4);
 
   return true;
@@ -314,12 +314,12 @@ bool TestPreambleAllocation() {
   void* p1 = reinterpret_cast<void*>(0x110000000);
   void* p2 = reinterpret_cast<void*>(0x810000000);
   unsigned char* b1 = PreamblePatcher::AllocPreambleBlockNear(p1);
-  SIDESTEP_EXPECT_TRUE(b1 != NULL);
+  SIDESTEP_EXPECT_TRUE(b1 != nullptr);
   diff = reinterpret_cast<__int64>(p1) - reinterpret_cast<__int64>(b1);
   // Ensure blocks are within 2GB
   SIDESTEP_EXPECT_TRUE(diff <= INT_MAX && diff >= INT_MIN);
   unsigned char* b2 = PreamblePatcher::AllocPreambleBlockNear(p2);
-  SIDESTEP_EXPECT_TRUE(b2 != NULL);
+  SIDESTEP_EXPECT_TRUE(b2 != nullptr);
   diff = reinterpret_cast<__int64>(p2) - reinterpret_cast<__int64>(b2);
   SIDESTEP_EXPECT_TRUE(diff <= INT_MAX && diff >= INT_MIN);
 

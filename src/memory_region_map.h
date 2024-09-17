@@ -142,13 +142,13 @@ class MemoryRegionMap {
     // Convenience accessor for call_stack[0],
     // i.e. (the program counter of) the immediate caller
     // of this region's allocation function,
-    // but it also returns NULL when call_stack_depth is 0,
+    // but it also returns nullptr when call_stack_depth is 0,
     // i.e whe we weren't able to get the call stack.
     // This usually happens in recursive calls, when the stack-unwinder
     // calls mmap() which in turn calls the stack-unwinder.
     uintptr_t caller() const {
       return reinterpret_cast<uintptr_t>(call_stack_depth >= 1
-                                         ? call_stack[0] : NULL);
+                                         ? call_stack[0] : nullptr);
     }
 
     // Return true iff this region overlaps region x.
@@ -344,7 +344,7 @@ class MemoryRegionMap {
   // helpers ==================================================================
 
   // Helper for FindRegion and FindAndMarkStackRegion:
-  // returns the region covering 'addr' or NULL; assumes our lock_ is held.
+  // returns the region covering 'addr' or nullptr; assumes our lock_ is held.
   static const Region* DoFindRegionLocked(uintptr_t addr);
 
   // Verifying wrapper around regions_->insert(region)
@@ -395,7 +395,7 @@ template <class Body>
 void MemoryRegionMap::IterateBuckets(Body body) {
   for (int index = 0; index < kHashTableSize; index++) {
     for (HeapProfileBucket* bucket = bucket_table_[index];
-         bucket != NULL;
+         bucket != nullptr;
          bucket = bucket->next) {
       body(bucket);
     }

@@ -96,11 +96,11 @@ bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total,
 }
 
 void** MallocExtension::ReadStackTraces(int* sample_period) {
-  return NULL;
+  return nullptr;
 }
 
 void** MallocExtension::ReadHeapGrowthStackTraces() {
-  return NULL;
+  return nullptr;
 }
 
 void MallocExtension::MarkThreadIdle() {
@@ -112,7 +112,7 @@ void MallocExtension::MarkThreadBusy() {
 }
 
 SysAllocator* MallocExtension::GetSystemAllocator() {
-  return NULL;
+  return nullptr;
 }
 
 void MallocExtension::SetSystemAllocator(SysAllocator *a) {
@@ -252,7 +252,7 @@ void PrintStackEntry(MallocExtensionWriter* writer, void** entry) {
 void MallocExtension::GetHeapSample(MallocExtensionWriter* writer) {
   int sample_period = 0;
   void** entries = ReadStackTraces(&sample_period);
-  if (entries == NULL) {
+  if (entries == nullptr) {
     const char* const kErrorMsg =
         "This malloc implementation does not support sampling.\n"
         "As of 2005/01/26, only tcmalloc supports sampling, and\n"
@@ -275,7 +275,7 @@ void MallocExtension::GetHeapSample(MallocExtensionWriter* writer) {
 
 void MallocExtension::GetHeapGrowthStacks(MallocExtensionWriter* writer) {
   void** entries = ReadHeapGrowthStackTraces();
-  if (entries == NULL) {
+  if (entries == nullptr) {
     const char* const kErrorMsg =
         "This malloc implementation does not support "
         "ReadHeapGrowthStackTraces().\n"

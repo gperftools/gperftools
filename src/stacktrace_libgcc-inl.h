@@ -99,7 +99,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
 
   _Unwind_Backtrace(libgcc_backtrace_helper, &data);
 
-  if (data.pos > 1 && data.array[data.pos - 1] == NULL)
+  if (data.pos > 1 && data.array[data.pos - 1] == nullptr)
     --data.pos;
 
 #if IS_STACK_FRAMES

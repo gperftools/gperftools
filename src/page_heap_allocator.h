@@ -34,7 +34,7 @@
 #ifndef TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
 #define TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
 
-#include <stddef.h>                     // for NULL, size_t
+#include <stddef.h>            // for size_t
 
 #include "common.h"            // for MetaDataAlloc
 #include "internal_logging.h"  // for ASSERT
@@ -54,9 +54,9 @@ class PageHeapAllocator {
   void Init() {
     ASSERT(sizeof(T) <= kAllocIncrement);
     inuse_ = 0;
-    free_area_ = NULL;
+    free_area_ = nullptr;
     free_avail_ = 0;
-    free_list_ = NULL;
+    free_list_ = nullptr;
     // Reserve some space at the beginning to avoid fragmentation.
     Delete(New());
   }
@@ -64,7 +64,7 @@ class PageHeapAllocator {
   T* New() {
     // Consult free list
     void* result;
-    if (free_list_ != NULL) {
+    if (free_list_ != nullptr) {
       result = free_list_;
       free_list_ = *(reinterpret_cast<void**>(result));
     } else {
@@ -72,7 +72,7 @@ class PageHeapAllocator {
         // Need more room. We assume that MetaDataAlloc returns
         // suitably aligned memory.
         free_area_ = reinterpret_cast<char*>(MetaDataAlloc(kAllocIncrement));
-        if (free_area_ == NULL) {
+        if (free_area_ == nullptr) {
           Log(kCrash, __FILE__, __LINE__,
               "FATAL ERROR: Out of memory trying to allocate internal "
               "tcmalloc data (bytes, object-size)",

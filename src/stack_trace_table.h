@@ -69,7 +69,7 @@ class StackTraceTable {
   void AddTrace(const StackTrace& t);
 
   // Returns stack traces formatted per MallocExtension guidelines.
-  // May return NULL on error.  Clears state before returning.
+  // May return nullptr on error.  Clears state before returning.
   //
   // REQUIRES: L < pageheap_lock
   void** ReadStackTracesAndClear();

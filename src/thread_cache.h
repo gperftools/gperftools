@@ -36,7 +36,7 @@
 
 #include <config.h>
 #include <atomic>
-#include <stddef.h>                     // for size_t, NULL
+#include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint32_t, uint64_t
 #include <sys/types.h>                  // for ssize_t
 #include "base/commandlineflags.h"
@@ -96,7 +96,7 @@ class ThreadCache {
   static inline int HeapsInUse();
 
   // Adds to *total_bytes the total number of bytes used by all thread heaps.
-  // Also, if class_count is not NULL, it must be an array of size kNumClasses,
+  // Also, if class_count is not nullptr, it must be an array of size kNumClasses,
   // and this function will increment each element of class_count by the number
   // of items in all thread-local freelists of the corresponding size class.
   // REQUIRES: Static::pageheap_lock is held.
@@ -149,7 +149,7 @@ class ThreadCache {
 
    public:
     void Init(size_t size) {
-      list_ = NULL;
+      list_ = nullptr;
       length_ = 0;
       lowater_ = 0;
       max_length_ = 1;
@@ -188,7 +188,7 @@ class ThreadCache {
 
     // Is list empty?
     bool empty() const {
-      return list_ == NULL;
+      return list_ == nullptr;
     }
 
     // Low-water mark management
@@ -203,7 +203,7 @@ class ThreadCache {
     }
 
     void* Pop() {
-      ASSERT(list_ != NULL);
+      ASSERT(list_ != nullptr);
       length_--;
       if (length_ < lowater_) lowater_ = length_;
       return SLL_Pop(&list_);

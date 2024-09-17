@@ -76,14 +76,14 @@ const void *VDSOSupport::Init() {
     // But going directly to kernel via /proc/self/auxv below bypasses
     // Valgrind zapping. So we check for Valgrind separately.
     if (RunningOnValgrind()) {
-      vdso_base_ = NULL;
-      return NULL;
+      vdso_base_ = nullptr;
+      return nullptr;
     }
     int fd = open("/proc/self/auxv", O_RDONLY);
     if (fd == -1) {
       // Kernel too old to have a VDSO.
-      vdso_base_ = NULL;
-      return NULL;
+      vdso_base_ = nullptr;
+      return nullptr;
     }
     ElfW(auxv_t) aux;
     while (read(fd, &aux, sizeof(aux)) == sizeof(aux)) {
@@ -97,7 +97,7 @@ const void *VDSOSupport::Init() {
     close(fd);
     if (vdso_base_ == ElfMemImage::kInvalidBase) {
       // Didn't find AT_SYSINFO_EHDR in auxv[].
-      vdso_base_ = NULL;
+      vdso_base_ = nullptr;
     }
   }
   return vdso_base_;

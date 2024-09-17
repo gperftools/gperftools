@@ -117,9 +117,9 @@ HeapProfileTable::HeapProfileTable(Allocator alloc,
     : alloc_(alloc),
       dealloc_(dealloc),
       profile_mmap_(profile_mmap),
-      bucket_table_(NULL),
+      bucket_table_(nullptr),
       num_buckets_(0),
-      address_map_(NULL) {
+      address_map_(nullptr) {
   // Make a hash table for buckets.
   const int table_bytes = kHashTableSize * sizeof(*bucket_table_);
   bucket_table_ = static_cast<Bucket**>(alloc_(table_bytes));
@@ -138,7 +138,7 @@ HeapProfileTable::~HeapProfileTable() {
   // Free the allocation map.
   address_map_->~AllocationMap();
   dealloc_(address_map_);
-  address_map_ = NULL;
+  address_map_ = nullptr;
 
   // Free the hash table.
   for (int i = 0; i < kHashTableSize; i++) {
@@ -150,7 +150,7 @@ HeapProfileTable::~HeapProfileTable() {
     }
   }
   dealloc_(bucket_table_);
-  bucket_table_ = NULL;
+  bucket_table_ = nullptr;
 }
 
 HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
@@ -224,19 +224,19 @@ void HeapProfileTable::RecordFree(const void* ptr) {
 
 bool HeapProfileTable::FindAlloc(const void* ptr, size_t* object_size) const {
   const AllocValue* alloc_value = address_map_->Find(ptr);
-  if (alloc_value != NULL) *object_size = alloc_value->bytes;
-  return alloc_value != NULL;
+  if (alloc_value != nullptr) *object_size = alloc_value->bytes;
+  return alloc_value != nullptr;
 }
 
 bool HeapProfileTable::FindAllocDetails(const void* ptr,
                                         AllocInfo* info) const {
   const AllocValue* alloc_value = address_map_->Find(ptr);
-  if (alloc_value != NULL) {
+  if (alloc_value != nullptr) {
     info->object_size = alloc_value->bytes;
     info->call_stack = alloc_value->bucket()->stack;
     info->stack_depth = alloc_value->bucket()->depth;
   }
-  return alloc_value != NULL;
+  return alloc_value != nullptr;
 }
 
 bool HeapProfileTable::FindInsideAlloc(const void* ptr,
@@ -245,8 +245,8 @@ bool HeapProfileTable::FindInsideAlloc(const void* ptr,
                                        size_t* object_size) const {
   const AllocValue* alloc_value =
     address_map_->FindInside(&AllocValueSize, max_size, ptr, object_ptr);
-  if (alloc_value != NULL) *object_size = alloc_value->bytes;
-  return alloc_value != NULL;
+  if (alloc_value != nullptr) *object_size = alloc_value->bytes;
+  return alloc_value != nullptr;
 }
 
 bool HeapProfileTable::MarkAsLive(const void* ptr) {
@@ -354,7 +354,7 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
   string pattern = string(prefix) + ".*" + kFileExt;
 #if defined(HAVE_GLOB_H)
   glob_t g;
-  const int r = glob(pattern.c_str(), GLOB_ERR, NULL, &g);
+  const int r = glob(pattern.c_str(), GLOB_ERR, nullptr, &g);
   if (r == 0 || r == GLOB_NOMATCH) {
     const int prefix_length = strlen(prefix);
     for (int i = 0; i < g.gl_pathc; i++) {

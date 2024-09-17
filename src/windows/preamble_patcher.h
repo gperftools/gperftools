@@ -161,7 +161,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   // example:
   // @code
   // typedef BOOL (WINAPI *MessageBoxPtr)(HWND, LPCTSTR, LPCTSTR, UINT);
-  // MessageBoxPtr original = NULL;
+  // MessageBoxPtr original = nullptr;
   // PreamblePatcher::Patch(MessageBox, Hook_MessageBox, &original);
   // @endcode
   template <class T>
@@ -195,7 +195,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   //
   // @param original_function_stub Pointer to memory that should receive a
   // pointer that can be used (e.g. in the replacement function) to call the
-  // original function, or NULL to indicate failure.
+  // original function, or nullptr to indicate failure.
   //
   // @return One of the EnSideStepError error codes; only SIDESTEP_SUCCESS
   // indicates success.
@@ -211,7 +211,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
       return SIDESTEP_INVALID_PARAMETER;
     }
     HMODULE module = ::GetModuleHandle(module_name);
-    SIDESTEP_ASSERT(module != NULL);
+    SIDESTEP_ASSERT(module != nullptr);
     if (!module) {
       SIDESTEP_ASSERT(false && "Invalid module name.");
       return SIDESTEP_NO_SUCH_MODULE;
@@ -245,11 +245,11 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   //
   // @param original_function_stub Pointer to memory that should receive a
   // pointer that can be used (e.g. in the replacement function) to call the
-  // original function, or NULL to indicate failure.
+  // original function, or nullptr to indicate failure.
   //
   // @param original_function_stub Pointer to memory that should receive a
   // pointer that can be used (e.g. in the replacement function) to call the
-  // original function, or NULL to indicate failure.
+  // original function, or nullptr to indicate failure.
   //
   // @return One of the EnSideStepError error codes; only SIDESTEP_SUCCESS
   // indicates success.
@@ -307,7 +307,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   // of a chain of JMPs).
   template <class T>
   static T ResolveTarget(T target_function) {
-    return (T)ResolveTargetImpl((unsigned char*)target_function, NULL);
+    return (T)ResolveTargetImpl((unsigned char*)target_function, nullptr);
   }
 
   // Allocates a block of memory of size MAX_PREAMBLE_STUB_SIZE that is as
@@ -335,7 +335,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
     unsigned int magic_;
     PreamblePage* next_;
     // This member points to a linked list of free blocks within the page
-    // or NULL if at the end
+    // or nullptr if at the end
     void* free_;
   };
 
@@ -383,7 +383,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   // preamble_stub
   //
   // @param bytes_needed Pointer to a variable that receives the minimum
-  // number of bytes required for the stub.  Can be set to NULL if you're
+  // number of bytes required for the stub.  Can be set to nullptr if you're
   // not interested.
   //
   // @return An error code indicating the result of patching.
@@ -414,7 +414,7 @@ class PERFTOOLS_DLL_DECL PreamblePatcher {
   // preamble_stub
   //
   // @param bytes_needed Pointer to a variable that receives the minimum
-  // number of bytes required for the stub.  Can be set to NULL if you're
+  // number of bytes required for the stub.  Can be set to nullptr if you're
   // not interested.
   //
   // @return An error code indicating the result of patching.

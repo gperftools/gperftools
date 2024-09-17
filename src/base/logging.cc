@@ -50,8 +50,8 @@ RawFD RawOpenForWriting(const char* filename) {
   // that ever becomes a problem then we ought to compute the absolute
   // path on its behalf (perhaps the ntdll/kernel function isn't aware
   // of the working directory?)
-  RawFD fd = CreateFileA(filename, GENERIC_WRITE, 0, NULL,
-                         CREATE_ALWAYS, 0, NULL);
+  RawFD fd = CreateFileA(filename, GENERIC_WRITE, 0, nullptr,
+                         CREATE_ALWAYS, 0, nullptr);
   if (fd != kIllegalRawFD && GetLastError() == ERROR_ALREADY_EXISTS)
     SetEndOfFile(fd);    // truncate the existing file
   return fd;
@@ -60,7 +60,7 @@ RawFD RawOpenForWriting(const char* filename) {
 void RawWrite(RawFD handle, const char* buf, size_t len) {
   while (len > 0) {
     DWORD wrote;
-    BOOL ok = WriteFile(handle, buf, len, &wrote, NULL);
+    BOOL ok = WriteFile(handle, buf, len, &wrote, nullptr);
     // We do not use an asynchronous file handle, so ok==false means an error
     if (!ok) break;
     buf += wrote;
