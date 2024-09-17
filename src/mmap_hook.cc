@@ -75,11 +75,6 @@
 # define __THROW   // __THROW is just an optimization, so ok to make it ""
 #endif
 
-// Used in initial hooks to call into heap checker
-// initialization. Defined empty and weak inside malloc_hooks and
-// proper definition is in heap_checker.cc
-extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker();
-
 namespace tcmalloc {
 
 namespace {
@@ -130,13 +125,6 @@ public:
   }
 
   int PreInvokeAll(const MappingEvent& evt) {
-    if (!ran_initial_hooks_.load(std::memory_order_relaxed)) {
-      bool already_ran = ran_initial_hooks_.exchange(true, std::memory_order_seq_cst);
-      if (!already_ran) {
-        MallocHook_InitAtFirstAllocation_HeapLeakChecker();
-      }
-    }
-
     int stack_depth = 0;
 
     std::atomic<MappingHookDescriptor*> *place = &list_head_;
@@ -163,7 +151,6 @@ public:
 
 private:
   std::atomic<MappingHookDescriptor*> list_head_{};
-  std::atomic<bool> ran_initial_hooks_{};
 
 } mapping_hooks;
 

@@ -53,21 +53,6 @@
 
 #include "gtest/gtest.h"
 
-static bool got_first_allocation;
-
-extern "C" int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
-#ifndef __FreeBSD__
-  // Effing, FreeBSD. Super-annoying with broken everything when it is
-  // early.
-  printf("first mmap!\n");
-#endif
-  if (got_first_allocation) {
-    abort();
-  }
-  got_first_allocation = true;
-  return 1;
-}
-
 #ifdef HAVE_MMAP
 
 #include <fcntl.h>
@@ -146,8 +131,6 @@ TEST_F(MMapHookTest, MMap) {
 
   have_last_evt_ = false;
   ASSERT_FALSE(HasFatalFailure());
-
-  ASSERT_TRUE(got_first_allocation);
 
 #ifdef __linux__
   void* reserve = mmap(nullptr, pagesz * 2, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
@@ -269,8 +252,6 @@ TEST_F(MMapHookTest, Sbrk) {
   }
 
   void* addr = tcmalloc_hooked_sbrk(8);
-
-  ASSERT_TRUE(got_first_allocation);
 
   EXPECT_TRUE(last_evt_.is_sbrk);
   EXPECT_TRUE(!last_evt_.before_valid && !last_evt_.file_valid && last_evt_.after_valid);

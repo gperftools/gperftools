@@ -62,78 +62,6 @@
 using std::copy;
 
 
-// Declaration of default weak initialization function, that can be overridden
-// by linking-in a strong definition (as heap-checker.cc does).  This is
-// extern "C" so that it doesn't trigger gold's --detect-odr-violations warning,
-// which only looks at C++ symbols.
-//
-// This function is declared here as weak, and defined later, rather than a more
-// straightforward simple weak definition, as a workround for an icc compiler
-// issue ((Intel reference 290819).  This issue causes icc to resolve weak
-// symbols too early, at compile rather than link time.  By declaring it (weak)
-// here, then defining it below after its use, we can avoid the problem.
-extern "C" {
-  ATTRIBUTE_WEAK int MallocHook_InitAtFirstAllocation_HeapLeakChecker() {
-    return 0;
-  }
-}
-
-namespace {
-
-bool RemoveInitialHooksAndCallInitializers();  // below.
-
-// These hooks are installed in MallocHook as the only initial hooks.  The first
-// hook that is called will run RemoveInitialHooksAndCallInitializers (see the
-// definition below) and then redispatch to any malloc hooks installed by
-// RemoveInitialHooksAndCallInitializers.
-//
-// Note(llib): there is a possibility of a race in the event that there are
-// multiple threads running before the first allocation.  This is pretty
-// difficult to achieve, but if it is then multiple threads may concurrently do
-// allocations.  The first caller will call
-// RemoveInitialHooksAndCallInitializers via one of the initial hooks.  A
-// concurrent allocation may, depending on timing either:
-// * still have its initial malloc hook installed, run that and block on waiting
-//   for the first caller to finish its call to
-//   RemoveInitialHooksAndCallInitializers, and proceed normally.
-// * occur some time during the RemoveInitialHooksAndCallInitializers call, at
-//   which point there could be no initial hooks and the subsequent hooks that
-//   are about to be set up by RemoveInitialHooksAndCallInitializers haven't
-//   been installed yet.  I think the worst we can get is that some allocations
-//   will not get reported to some hooks set by the initializers called from
-//   RemoveInitialHooksAndCallInitializers.
-//
-// Note, RemoveInitialHooksAndCallInitializers returns false if
-// MallocHook_InitAtFirstAllocation_HeapLeakChecker was already called
-// (i.e. through mmap hooks). And true otherwise (i.e. we're first to
-// call it). In that former case (return of false), we assume that
-// heap checker already installed it's hook, so we don't re-execute
-// new hook.
-void InitialNewHook(const void* ptr, size_t size) {
-  if (RemoveInitialHooksAndCallInitializers()) {
-    MallocHook::InvokeNewHook(ptr, size);
-  }
-}
-
-// This function is called at most once by one of the above initial malloc
-// hooks.  It removes all initial hooks and initializes all other clients that
-// want to get control at the very first memory allocation.  The initializers
-// may assume that the initial malloc hooks have been removed.  The initializers
-// may set up malloc hooks and allocate memory.
-bool RemoveInitialHooksAndCallInitializers() {
-  static tcmalloc::TrivialOnce once;
-  once.RunOnce([] () {
-    RAW_CHECK(MallocHook::RemoveNewHook(&InitialNewHook), "");
-  });
-
-  // HeapLeakChecker is currently the only module that needs to get control on
-  // the first memory allocation, but one can add other modules by following the
-  // same weak/strong function pattern.
-  return (MallocHook_InitAtFirstAllocation_HeapLeakChecker() != 0);
-}
-
-}  // namespace
-
 namespace base { namespace internal {
 
 // This lock is shared between all implementations of HookList::Add & Remove.
@@ -228,7 +156,7 @@ T HookList<T>::ExchangeSingular(T value) {
 // are instantiated.
 template struct HookList<MallocHook::NewHook>;
 
-HookList<MallocHook::NewHook> new_hooks_{InitialNewHook};
+HookList<MallocHook::NewHook> new_hooks_;
 HookList<MallocHook::DeleteHook> delete_hooks_;
 
 } }  // namespace base::internal
