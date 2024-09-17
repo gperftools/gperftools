@@ -139,13 +139,10 @@ SYSTEM_ALLOC_CC = src/system-alloc.cc
 
 endif !MINGW
 
-# On MSVC, we need our own versions of addr2line and nm to work with
-# pprof, plus couple more tests.
+# On MSVC, we need couple more tests.
 WINDOWS_EXTRA = src/windows/preamble_patcher_test.cc \
                 src/windows/shortproc.asm \
-                src/windows/auto_testing_hook.h \
-                src/windows/nm-pdb.c \
-                src/windows/addr2line-pdb.c
+                src/windows/auto_testing_hook.h
 
 ### Unittests
 

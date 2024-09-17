@@ -85,8 +85,6 @@ my %obj_tool_map = (
   "addr2line" => "addr2line",
   "c++filt" => "c++filt",
   ## ConfigureObjTools may add architecture-specific entries:
-  #"nm_pdb" => "nm-pdb",       # for reading windows (PDB-format) executables
-  #"addr2line_pdb" => "addr2line-pdb",                                # ditto
   #"otool" => "otool",         # equivalent of objdump on OS X
 );
 # NOTE: these are lists, so you can put in commandline flags if you want.
@@ -5056,15 +5054,6 @@ sub ConfigureObjTools {
     # profiles, since the actual addresses referenced are generally in low
     # memory even for 64-bit programs.
     $address_length = 16;
-  }
-
-  if ($file_type =~ /MS Windows/) {
-    # For windows, we provide a version of nm and addr2line as part of
-    # the opensource release, which is capable of parsing
-    # Windows-style PDB executables.  It should live in the path, or
-    # in the same directory as pprof.
-    $obj_tool_map{"nm_pdb"} = "nm-pdb";
-    $obj_tool_map{"addr2line_pdb"} = "addr2line-pdb";
   }
 
   if ($file_type =~ /Mach-O/) {

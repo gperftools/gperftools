@@ -38,10 +38,6 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "thread_dealloc_unittest", "
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "preamble_patcher_test", "vsprojects\preamble_patcher_test\preamble_patcher_test.vcxproj", "{5765198D-5305-4AB0-9A21-A0CD8201EB2A}"
 EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "addr2line-pdb", "vsprojects\addr2line-pdb\addr2line-pdb.vcxproj", "{81CA712E-90B8-4AE5-9E89-5B436578D6DA}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "nm-pdb", "vsprojects\nm-pdb\nm-pdb.vcxproj", "{3A559C75-FD26-4300-B86B-165FD43EE1CE}"
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "system-alloc_unittest", "vsprojects\system-alloc_unittest\system-alloc_unittest.vcxproj", "{387F753A-0312-4A7B-A1D6-B2795E832E96}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "gtest", "vsprojects\gtest\gtest.vcxproj", "{0496DF42-D7AD-46B6-B10C-C57A07E89B0D}"

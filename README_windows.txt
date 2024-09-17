@@ -13,9 +13,7 @@ When you build the solution, it will create a number of unittests,
 which you can run by hand (or, more easily, under the Visual Studio
 debugger) to make sure everything is working properly on your system.
 The binaries will end up in a directory called "debug" or "release" in
-the top-level directory (next to the .sln file).  It will also create
-two binaries, nm-pdb and addr2line-pdb, which you should install in
-the same directory you install the 'pprof' perl script.
+the top-level directory (next to the .sln file).
 
 I don't know very much about how to install DLLs on Windows, so you'll
 have to figure out that part for yourself.  If you choose to just
