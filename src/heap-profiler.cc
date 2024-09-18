@@ -44,9 +44,6 @@
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>    // for open()
 #endif
-#ifdef HAVE_MMAP
-#include <sys/mman.h>
-#endif
 #include <errno.h>
 #include <assert.h>
 #include <sys/types.h>
@@ -71,7 +68,6 @@
 #include "base/sysinfo.h"      // for GetUniquePathFromEnv()
 #include "heap-profile-table.h"
 #include "memory_region_map.h"
-#include "mmap_hook.h"
 
 #ifndef	PATH_MAX
 #ifdef MAXPATHLEN
@@ -111,16 +107,6 @@ DEFINE_int64(heap_profile_time_interval,
              EnvToInt64("HEAP_PROFILE_TIME_INTERVAL", 0),
              "If non-zero, dump heap profiling information once every "
              "specified number of seconds since the last dump.");
-DEFINE_bool(mmap_log,
-            EnvToBool("HEAP_PROFILE_MMAP_LOG", false),
-            "Should mmap/munmap calls be logged?");
-DEFINE_bool(mmap_profile,
-            EnvToBool("HEAP_PROFILE_MMAP", false),
-            "If heap-profiling is on, also profile mmap, mremap, and sbrk)");
-DEFINE_bool(only_mmap_profile,
-            EnvToBool("HEAP_PROFILE_ONLY_MMAP", false),
-            "If heap-profiling is on, only profile mmap, mremap, and sbrk; "
-            "do not profile malloc/new/etc");
 
 
 //----------------------------------------------------------------------
@@ -323,55 +309,6 @@ void DeleteHook(const void* ptr) {
   if (ptr != nullptr) RecordFree(ptr);
 }
 
-static tcmalloc::MappingHookSpace mmap_logging_hook_space;
-
-static void LogMappingEvent(const tcmalloc::MappingEvent& evt) {
-  if (!FLAGS_mmap_log) {
-    return;
-  }
-
-  if (evt.file_valid) {
-    // We use PRIxPTR not just '%p' to avoid deadlocks
-    // in pretty-printing of nullptr as "nil".
-    // TODO(maxim): instead should use a safe snprintf reimplementation
-    RAW_LOG(INFO,
-            "mmap(start=0x%" PRIxPTR ", len=%zu, prot=0x%x, flags=0x%x, "
-            "fd=%d, offset=0x%llx) = 0x%" PRIxPTR "",
-            (uintptr_t) evt.before_address, evt.after_length, evt.prot,
-            evt.flags, evt.file_fd, (unsigned long long) evt.file_off,
-            (uintptr_t) evt.after_address);
-  } else if (evt.after_valid && evt.before_valid) {
-    // We use PRIxPTR not just '%p' to avoid deadlocks
-    // in pretty-printing of nullptr as "nil".
-    // TODO(maxim): instead should use a safe snprintf reimplementation
-    RAW_LOG(INFO,
-            "mremap(old_addr=0x%" PRIxPTR ", old_size=%zu, "
-            "new_size=%zu, flags=0x%x, new_addr=0x%" PRIxPTR ") = "
-            "0x%" PRIxPTR "",
-            (uintptr_t) evt.before_address, evt.before_length, evt.after_length, evt.flags,
-            (uintptr_t) evt.after_address, (uintptr_t) evt.after_address);
-  } else if (evt.is_sbrk) {
-    intptr_t increment;
-    uintptr_t result;
-    if (evt.after_valid) {
-      increment = evt.after_length;
-      result = reinterpret_cast<uintptr_t>(evt.after_address) + evt.after_length;
-    } else {
-      increment = -static_cast<intptr_t>(evt.before_length);
-      result = reinterpret_cast<uintptr_t>(evt.before_address);
-    }
-
-    RAW_LOG(INFO, "sbrk(inc=%zd) = 0x%" PRIxPTR "",
-                  increment, (uintptr_t) result);
-  } else if (evt.before_valid) {
-    // We use PRIxPTR not just '%p' to avoid deadlocks
-    // in pretty-printing of nullptr as "nil".
-    // TODO(maxim): instead should use a safe snprintf reimplementation
-    RAW_LOG(INFO, "munmap(start=0x%" PRIxPTR ", len=%zu)",
-                  (uintptr_t) evt.before_address, evt.before_length);
-  }
-}
-
 //----------------------------------------------------------------------
 // Starting/stopping/dumping
 //----------------------------------------------------------------------
@@ -389,26 +326,10 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   // call new, and we want that to be accounted for correctly.
   MallocExtension::Initialize();
 
-  if (FLAGS_only_mmap_profile) {
-    FLAGS_mmap_profile = true;
-  }
-
-  if (FLAGS_mmap_profile) {
-    // Ask MemoryRegionMap to record all mmap, mremap, and sbrk
-    // call stack traces of at least size kMaxStackDepth:
-    MemoryRegionMap::Init(HeapProfileTable::kMaxStackDepth,
-                          /* use_buckets */ true);
-  }
-
-  if (FLAGS_mmap_log) {
-    // Install our hooks to do the logging:
-    tcmalloc::HookMMapEvents(&mmap_logging_hook_space, LogMappingEvent);
-  }
-
   heap_profiler_memory = LowLevelAlloc::NewArena(nullptr);
 
   heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
-      HeapProfileTable(ProfilerMalloc, ProfilerFree, FLAGS_mmap_profile);
+      HeapProfileTable(ProfilerMalloc, ProfilerFree);
 
   last_dump_alloc = 0;
   last_dump_free = 0;
@@ -419,11 +340,9 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   // HeapProfilerStart/HeapProfileStop, we will get a continuous
   // sequence of profiles.
 
-  if (FLAGS_only_mmap_profile == false) {
-    // Now set the hooks that capture new/delete and malloc/free.
-    RAW_CHECK(MallocHook::AddNewHook(&NewHook), "");
-    RAW_CHECK(MallocHook::AddDeleteHook(&DeleteHook), "");
-  }
+  // Now set the hooks that capture new/delete and malloc/free.
+  RAW_CHECK(MallocHook::AddNewHook(&NewHook), "");
+  RAW_CHECK(MallocHook::AddDeleteHook(&DeleteHook), "");
 
   // Copy filename prefix
   RAW_DCHECK(filename_prefix == nullptr, "");
@@ -443,15 +362,9 @@ extern "C" void HeapProfilerStop() {
 
   if (!is_on) return;
 
-  if (FLAGS_only_mmap_profile == false) {
-    // Unset our new/delete hooks, checking they were set:
-    RAW_CHECK(MallocHook::RemoveNewHook(&NewHook), "");
-    RAW_CHECK(MallocHook::RemoveDeleteHook(&DeleteHook), "");
-  }
-  if (FLAGS_mmap_log) {
-    // Restore mmap/sbrk hooks, checking that our hooks were set:
-    tcmalloc::UnHookMMapEvents(&mmap_logging_hook_space);
-  }
+  // Unset our new/delete hooks, checking they were set:
+  RAW_CHECK(MallocHook::RemoveNewHook(&NewHook), "");
+  RAW_CHECK(MallocHook::RemoveDeleteHook(&DeleteHook), "");
 
   // free profile
   heap_profile->~HeapProfileTable();
@@ -464,10 +377,6 @@ extern "C" void HeapProfilerStop() {
 
   if (!LowLevelAlloc::DeleteArena(heap_profiler_memory)) {
     RAW_LOG(FATAL, "Memory leak in HeapProfiler:");
-  }
-
-  if (FLAGS_mmap_profile) {
-    MemoryRegionMap::Shutdown();
   }
 
   is_on = false;

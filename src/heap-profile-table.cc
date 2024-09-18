@@ -112,11 +112,9 @@ static const int kStripFrames = 3;
 //----------------------------------------------------------------------
 
 HeapProfileTable::HeapProfileTable(Allocator alloc,
-                                   DeAllocator dealloc,
-                                   bool profile_mmap)
+                                   DeAllocator dealloc)
     : alloc_(alloc),
       dealloc_(dealloc),
-      profile_mmap_(profile_mmap),
       bucket_table_(nullptr),
       num_buckets_(0),
       address_map_(nullptr) {
@@ -285,14 +283,6 @@ void HeapProfileTable::UnparseBucket(const Bucket& b,
 void HeapProfileTable::SaveProfile(tcmalloc::GenericWriter* writer) const {
   writer->AppendStr(kProfileHeader);
   UnparseBucket(total_, writer, " heapprofile");
-
-  // Dump the mmap list first.
-  if (profile_mmap_) {
-    MemoryRegionMap::LockHolder holder{};
-    MemoryRegionMap::IterateBuckets([writer] (const Bucket* bucket) {
-      UnparseBucket(*bucket, writer, "");
-    });
-  }
 
   int bucket_count = 0;
   for (int i = 0; i < kHashTableSize; i++) {

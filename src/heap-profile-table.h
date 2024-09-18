@@ -78,7 +78,7 @@ class HeapProfileTable {
 
   // interface ---------------------------
 
-  HeapProfileTable(Allocator alloc, DeAllocator dealloc, bool profile_mmap);
+  HeapProfileTable(Allocator alloc, DeAllocator dealloc);
   ~HeapProfileTable();
 
   // Collect the stack trace for the function that asked to do the
@@ -244,8 +244,6 @@ class HeapProfileTable {
   // Overall profile stats; we use only the Stats part,
   // but make it a Bucket to pass to UnparseBucket.
   Bucket total_;
-
-  bool profile_mmap_;
 
   // Bucket hash table for malloc.
   // We hand-craft one instead of using one of the pre-written
