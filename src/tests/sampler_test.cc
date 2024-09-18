@@ -82,6 +82,10 @@ DECLARE_int64(tcmalloc_sample_parameter);
 class SamplerTest : public ::testing::Test {
 public:
   void SetUp() {
+    // Make sure Sampler's TrivialOnce logic runs before we're messing
+    // up with sample parameter.
+    tcmalloc::Sampler{}.Init(1);
+
     old_parameter_ = 512 << 10;
     std::swap(old_parameter_, FLAGS_tcmalloc_sample_parameter);
   }
