@@ -28,9 +28,9 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// This file defines structs to accumulate memory allocation and deallocation
-// counts.  These structs are commonly used for malloc (in HeapProfileTable)
-// and mmap (in MemoryRegionMap).
+// This file defines structs to accumulate memory allocation and
+// deallocation counts.  These structs are commonly used for malloc
+// profiles (in HeapProfileTable).
 
 // A bucket is data structure for heap profiling to store a pair of a stack
 // trace and counts of (de)allocation.  Buckets are stored in a hash table

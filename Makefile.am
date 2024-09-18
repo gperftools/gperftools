@@ -639,7 +639,6 @@ FULL_MALLOC_SRC = $(MINIMAL_MALLOC_SRC) \
                   $(EMERGENCY_MALLOC_CC) \
                   src/malloc_backtrace.cc \
                   src/mmap_hook.cc \
-                  src/memory_region_map.cc \
                   src/heap-checker-stub.cc
 
 lib_LTLIBRARIES += libtcmalloc.la

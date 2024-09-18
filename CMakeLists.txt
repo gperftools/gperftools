@@ -761,7 +761,6 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     ${EMERGENCY_MALLOC_CC}
     src/malloc_backtrace.cc
     src/mmap_hook.cc
-    src/memory_region_map.cc
     src/heap-checker-stub.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})
   target_compile_definitions(tcmalloc PRIVATE ${EMERGENCY_MALLOC_DEFINE})
