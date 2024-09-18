@@ -59,9 +59,15 @@ using base::internal::kHookListMaxValues;
 typedef base::internal::HookList<MallocHook::NewHook> TestHookList;
 
 
-const MallocHook::NewHook kTestValue = reinterpret_cast<MallocHook::NewHook>(69);
-const MallocHook::NewHook kAnotherTestValue = reinterpret_cast<MallocHook::NewHook>(42);
-const MallocHook::NewHook kThirdTestValue = reinterpret_cast<MallocHook::NewHook>(7);
+const MallocHook::NewHook kTestValue = [] (const void* ptr, size_t size) {
+  printf("kTestValue\n");
+};
+const MallocHook::NewHook kAnotherTestValue = [] (const void* ptr, size_t size) {
+  printf("kAnotherTestValue\n");
+};
+const MallocHook::NewHook kThirdTestValue = [] (const void* ptr, size_t size) {
+  printf("kThirdTestValue\n");
+};
 
 TEST(HookListTest, InitialValueExists) {
   TestHookList list{kTestValue};
