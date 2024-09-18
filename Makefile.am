@@ -188,7 +188,6 @@ if WITH_HEAP_PROFILER_OR_CHECKER
 TESTS += low_level_alloc_unittest
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
                                    src/malloc_hook.cc \
-                                   src/mmap_hook.cc \
                                    src/tests/low_level_alloc_unittest.cc
 # By default, MallocHook takes stack traces for use by the heap-checker.
 # We don't need that functionality here, so we turn it off to reduce deps.
@@ -358,17 +357,6 @@ malloc_hook_test_SOURCES = src/tests/malloc_hook_test.cc \
 malloc_hook_test_CXXFLAGS = -DNO_TCMALLOC_SAMPLES $(AM_CXXFLAGS)
 malloc_hook_test_CPPFLAGS = $(gtest_CPPFLAGS)
 malloc_hook_test_LDADD = libcommon.la libgtest.la
-
-if WITH_HEAP_PROFILER_OR_CHECKER
-if !MINGW
-TESTS += mmap_hook_test
-mmap_hook_test_SOURCES = src/tests/mmap_hook_test.cc \
-                         src/mmap_hook.cc \
-                         src/malloc_backtrace.cc
-mmap_hook_test_CPPFLAGS = $(gtest_CPPFLAGS)
-mmap_hook_test_LDADD = libstacktrace.la libcommon.la libgtest.la
-endif !MINGW
-endif WITH_HEAP_PROFILER_OR_CHECKER
 
 TESTS += sampler_test
 sampler_test_SOURCES = src/tests/sampler_test.cc \
@@ -638,7 +626,6 @@ FULL_MALLOC_SRC = $(MINIMAL_MALLOC_SRC) \
                   src/heap-profiler.cc \
                   $(EMERGENCY_MALLOC_CC) \
                   src/malloc_backtrace.cc \
-                  src/mmap_hook.cc \
                   src/heap-checker-stub.cc
 
 lib_LTLIBRARIES += libtcmalloc.la

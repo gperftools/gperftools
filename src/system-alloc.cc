@@ -168,18 +168,6 @@ static tcmalloc::StaticStorage<DefaultSysAllocator> default_space;
 static const char sbrk_name[] = "SbrkSysAllocator";
 static const char mmap_name[] = "MmapSysAllocator";
 
-#ifdef HAVE_SBRK
-extern "C" {
-  // When we're building "full" tcmalloc with mmap_hook.cc linked-in,
-  // this definition gets overriden by definition in mmap_hook.cc
-  // which handles hooks which is required by heap checker.
-  ATTRIBUTE_VISIBILITY_HIDDEN ATTRIBUTE_WEAK
-  void* tcmalloc_hooked_sbrk(intptr_t increment) {
-    return sbrk(increment);
-  }
-}
-#endif
-
 void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
                               size_t alignment) {
 #if !defined(HAVE_SBRK) || defined(__UCLIBC__)
@@ -216,11 +204,11 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
   //    http://src.opensolaris.org/source/xref/onnv/onnv-gate/usr/src/lib/libc/port/sys/sbrk.c?a=true
   //    http://sourceware.org/cgi-bin/cvsweb.cgi/~checkout~/libc/misc/sbrk.c?rev=1.1.2.1&content-type=text/plain&cvsroot=glibc
   // Without this check, sbrk may succeed when it ought to fail.)
-  if (reinterpret_cast<intptr_t>(tcmalloc_hooked_sbrk(0)) + size < size) {
+  if (reinterpret_cast<intptr_t>(sbrk(0)) + size < size) {
     return nullptr;
   }
 
-  void* result = tcmalloc_hooked_sbrk(size);
+  void* result = sbrk(size);
   if (result == reinterpret_cast<void*>(-1)) {
     return nullptr;
   }
@@ -231,7 +219,7 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
 
   // Try to get more memory for alignment
   size_t extra = alignment - (ptr & (alignment-1));
-  void* r2 = tcmalloc_hooked_sbrk(extra);
+  void* r2 = sbrk(extra);
   if (reinterpret_cast<uintptr_t>(r2) == (ptr + size)) {
     // Contiguous with previous result
     return reinterpret_cast<void*>(ptr + extra);
@@ -239,7 +227,7 @@ void* SbrkSysAllocator::Alloc(size_t size, size_t *actual_size,
 
   // Give up and ask for "size + alignment - 1" bytes so
   // that we can find an aligned region within it.
-  result = tcmalloc_hooked_sbrk(size + alignment - 1);
+  result = sbrk(size + alignment - 1);
   if (result == reinterpret_cast<void*>(-1)) {
     return nullptr;
   }

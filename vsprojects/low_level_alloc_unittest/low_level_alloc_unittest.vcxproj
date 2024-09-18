@@ -209,7 +209,6 @@
     <ClCompile Include="..\..\src\base\generic_writer.cc" />
     <ClCompile Include="..\..\src\base\sysinfo.cc" />
     <ClCompile Include="..\..\src\base\proc_maps_iterator.cc" />
-    <ClCompile Include="..\..\src\mmap_hook.cc" />
     <ClCompile Include="..\..\src\malloc_backtrace.cc" />
     <ClCompile Include="..\..\src\malloc_hook.cc" />
     <ClCompile Include="..\..\src\stacktrace.cc" />
@@ -233,7 +232,6 @@
     <ClInclude Include="..\..\src\gperftools\stacktrace_config.h" />
     <ClInclude Include="..\..\src\malloc_backtrace.h" />
     <ClInclude Include="..\..\src\malloc_hook-inl.h" />
-    <ClInclude Include="..\..\src\mmap_hook.h" />
     <ClInclude Include="..\..\src\stacktrace_win32-inl.h.h" />
     <ClInclude Include="..\config.h" />
     <ClInclude Include="..\..\src\windows\port.h" />

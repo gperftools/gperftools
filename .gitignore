@@ -92,7 +92,6 @@
 /min_per_thread_cache_size_test
 /min_per_thread_cache_size_test.exe
 /missing
-/mmap_hook_test
 /packed_cache_test
 /packed_cache_test.exe
 /page_heap_test

@@ -348,9 +348,6 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
 // are no op and we keep them only because we have them exposed in
 // headers we ship. So keep them for somewhat formal ABI compat.
 //
-// For non-public API for hooking mapping updates see
-// mmap_hook.h
-
 extern "C"
 int MallocHook_AddPreMmapHook(MallocHook_PreMmapHook hook) {
   return 0;

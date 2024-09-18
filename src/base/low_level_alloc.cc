@@ -33,6 +33,7 @@
 // modules without introducing dependency cycles.
 // This allocator is slow and wasteful of memory;
 // it should not be used when performance is key.
+#include "config.h"
 
 #include "base/low_level_alloc.h"
 
@@ -41,10 +42,11 @@
 #include "base/spinlock.h"
 #include "base/static_storage.h"
 
+// FIXME (need hooks?)
 #include "malloc_hook-inl.h"
 #include <gperftools/malloc_hook.h>
 
-#include "mmap_hook.h"
+#include "memmap.h"
 
 // A first-fit allocator with amortized logarithmic free() time.
 
@@ -450,7 +452,7 @@ LowLevelAlloc::PagesAllocator *LowLevelAlloc::GetDefaultPagesAllocator(void) {
 }
 
 void *DefaultPagesAllocator::MapPages(size_t size) {
-  auto result = tcmalloc::DirectAnonMMap(true, size);
+  auto result = tcmalloc::MapAnonymous(size);
 
   RAW_CHECK(result.success, "mmap error");
 
@@ -458,7 +460,7 @@ void *DefaultPagesAllocator::MapPages(size_t size) {
 }
 
 void DefaultPagesAllocator::UnMapPages(void *region, size_t size) {
-  int munmap_result = tcmalloc::DirectMUnMap(true, region, size);
+  int munmap_result = munmap(region, size);
   RAW_CHECK(munmap_result == 0,
             "LowLevelAlloc::DeleteArena: munmap failed address");
 }

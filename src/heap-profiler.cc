@@ -67,7 +67,6 @@
 #include "base/low_level_alloc.h"
 #include "base/sysinfo.h"      // for GetUniquePathFromEnv()
 #include "heap-profile-table.h"
-#include "memory_region_map.h"
 
 #ifndef	PATH_MAX
 #ifdef MAXPATHLEN

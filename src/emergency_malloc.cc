@@ -44,7 +44,7 @@
 #include "base/spinlock.h"
 #include "base/static_storage.h"
 #include "internal_logging.h"
-#include "mmap_hook.h"
+#include "memmap.h"
 #include "thread_cache_ptr.h"
 
 namespace tcmalloc {
@@ -73,7 +73,7 @@ class EmergencyArenaPagesAllocator : public LowLevelAlloc::PagesAllocator {
 };
 
 static void InitEmergencyMalloc(void) {
-  auto [arena, success] = DirectAnonMMap(false, kEmergencyArenaSize * 2);
+  auto [arena, success] = MapAnonymous(kEmergencyArenaSize * 2);
   CHECK_CONDITION(success);
 
   uintptr_t arena_ptr = reinterpret_cast<uintptr_t>(arena);
@@ -91,12 +91,15 @@ static void InitEmergencyMalloc(void) {
   uintptr_t head_unmap_size = ptr - arena_ptr;
   CHECK_CONDITION(head_unmap_size < kEmergencyArenaSize);
   if (head_unmap_size != 0) {
-    DirectMUnMap(false, arena, ptr - arena_ptr);
+    // Note, yes, we ignore any potential, but ~impossible
+    // failures. It should be harmless.
+    (void)munmap(arena, ptr - arena_ptr);
   }
 
   uintptr_t tail_unmap_size = kEmergencyArenaSize - head_unmap_size;
   void *tail_start = reinterpret_cast<void *>(arena_ptr + head_unmap_size + kEmergencyArenaSize);
-  DirectMUnMap(false, tail_start, tail_unmap_size);
+  // Failures are ignored. See above.
+  (void)munmap(tail_start, tail_unmap_size);
 }
 
 ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {

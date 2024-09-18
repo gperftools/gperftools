@@ -474,7 +474,6 @@ if(BUILD_TESTING)
 
   add_executable(low_level_alloc_unittest src/base/low_level_alloc.cc
           src/malloc_hook.cc
-          src/mmap_hook.cc
           src/tests/low_level_alloc_unittest.cc)
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES PERFTOOLS_DLL_DECL= )
   target_link_libraries(low_level_alloc_unittest common gtest)
@@ -600,17 +599,6 @@ if(BUILD_TESTING)
   target_compile_definitions(malloc_hook_test PRIVATE NO_TCMALLOC_SAMPLES PERFTOOLS_DLL_DECL= )
   target_link_libraries(malloc_hook_test common gtest)
   add_test(malloc_hook_test malloc_hook_test)
-
-  if(GPERFTOOLS_BUILD_HEAP_PROFILER)
-    if(NOT MINGW AND NOT MSVC)
-      add_executable(mmap_hook_test
-              src/tests/mmap_hook_test.cc
-              src/mmap_hook.cc
-              src/malloc_backtrace.cc)
-      target_link_libraries(mmap_hook_test stacktrace common gtest)
-      add_test(mmap_hook_test mmap_hook_test)
-    endif()
-  endif()
 
   add_executable(malloc_extension_test src/tests/malloc_extension_test.cc)
   target_link_libraries(malloc_extension_test tcmalloc_minimal gtest)
@@ -760,7 +748,6 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     src/heap-profiler.cc
     ${EMERGENCY_MALLOC_CC}
     src/malloc_backtrace.cc
-    src/mmap_hook.cc
     src/heap-checker-stub.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})
   target_compile_definitions(tcmalloc PRIVATE ${EMERGENCY_MALLOC_DEFINE})
