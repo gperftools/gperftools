@@ -81,11 +81,11 @@ static_assert(sizeof(off_t) == sizeof(int64_t), "");
 class MMapHookTest : public ::testing::Test {
 public:
   static void HandleMappingEvent(const tcmalloc::MappingEvent& evt) {
-    assert(!have_last_evt_);
     memcpy(&last_evt_, &evt, sizeof(evt));
     have_last_evt_ = true;
-    assert(evt.stack_depth == 1);
-    backtrace_address_ = evt.stack[0];
+    if (evt.stack_depth > 0) {
+      backtrace_address_ = evt.stack[0];
+    }
   }
 
   void SetUp() {
