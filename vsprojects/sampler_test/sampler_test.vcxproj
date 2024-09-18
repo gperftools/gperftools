@@ -197,6 +197,9 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="..\..\src\base\spinlock.cc" />
+    <ClCompile Include="..\..\src\base\spinlock_internal.cc" />
+    <ClCompile Include="..\..\src\base\sysinfo.cc" />
     <ClCompile Include="..\..\src\tests\sampler_test.cc" />
     <ClCompile Include="..\..\src\sampler.cc" />
     <ClCompile Include="..\..\src\base\logging.cc" />

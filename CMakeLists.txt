@@ -805,7 +805,12 @@ if(GPERFTOOLS_BUILD_HEAP_CHECKER OR GPERFTOOLS_BUILD_HEAP_PROFILER)
 
     list(APPEND TESTS_ENVIRONMENT PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
 
-    add_executable(sampler_test src/tests/sampler_test.cc src/sampler.cc)
+    add_executable(sampler_test src/tests/sampler_test.cc
+      src/sampler.cc
+      src/base/spinlock.cc
+      src/base/spinlock_internal.cc
+      src/base/sysinfo.cc
+      src/base/logging.cc)
     target_link_libraries(sampler_test gtest)
     add_test(sampler_test sampler_test)
 

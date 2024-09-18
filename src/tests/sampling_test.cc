@@ -97,30 +97,32 @@ static void VerifyWithPProf(std::string_view argv0, std::string_view path) {
     contents.append(buf, buf + amt);
   }
 
-  printf("pprof output:\n%s\n\n", contents.c_str());
+  fprintf(stderr, "pprof output:\n%s\n\n", contents.c_str());
 
   regmatch_t pmatch[3];
   regex_t regex;
-  CHECK_EQ(regcomp(&regex, "([0-9.]+) *([0-9.]+)% *_*AllocateAllocate", REG_NEWLINE | REG_EXTENDED), 0);
+  CHECK_EQ(regcomp(&regex, "([0-9.]+)(MB)? *([0-9.]+)% *_*AllocateAllocate", REG_NEWLINE | REG_EXTENDED), 0);
   CHECK_EQ(regexec(&regex, contents.c_str(), 3, pmatch, 0), 0);
 
-  printf("AllocateAllocate regex match: %.*s\n",
-         int(pmatch[0].rm_eo - pmatch[0].rm_so),
-         contents.data() + pmatch[0].rm_so);
+  fprintf(stderr,"AllocateAllocate regex match: %.*s\n",
+          int(pmatch[0].rm_eo - pmatch[0].rm_so),
+          contents.data() + pmatch[0].rm_so);
 
   std::string number{contents.data() + pmatch[1].rm_so, contents.data() + pmatch[1].rm_eo};
 
   errno = 0;
   char* endptr;
-  double percent = strtod(number.c_str(), &endptr);
+  double megs = strtod(number.c_str(), &endptr);
   CHECK(endptr && *endptr == '\0');
   CHECK_EQ(errno, 0);
 
   // We allocate 8*10^7 bytes of memory, which is 76M.  Because we
   // sample, the estimate may be a bit high or a bit low: we accept
   // anything from 50M to 99M.
-  CHECK_LE(50, percent);
-  CHECK_LE(percent, 99);
+  if (!(50 <= megs && megs < 100)) {
+    fprintf(stderr, "expected megs to be between 50 and 100. Got: %f\n", megs);
+    abort();
+  }
 }
 
 struct TempFile {
@@ -166,6 +168,9 @@ struct TempFile {
 
 int main(int argc, char** argv) {
   tcmalloc::TestingPortal::Get()->GetSampleParameter() = 512 << 10;
+  // Make sure allocations we sample are done on fresh thread cache, so that
+  // sampling parameter update is taken into account.
+  MallocExtension::instance()->MarkThreadIdle();
 
   for (int i = 0; i < 8000; i++) {
     AllocateAllocate();
