@@ -67,7 +67,10 @@ static std::string NaiveShellQuote(std::string_view arg) {
 
 extern "C" ATTRIBUTE_NOINLINE
 void* AllocateAllocate() {
-  return noopt(malloc(10000));
+  auto local_noopt = [] (void* ptr) ATTRIBUTE_NOINLINE -> void* {
+    return noopt(ptr);
+  };
+  return local_noopt(malloc(10000));
 }
 
 #ifndef PPROF_PATH
