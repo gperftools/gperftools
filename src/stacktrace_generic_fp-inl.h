@@ -254,6 +254,10 @@ int capture(void **result, int max_depth, int skip_count,
   if (WithSizes && i > 0 && skip_count == 0) {
     sizes[0] = 0;
   }
+  if (skip_count > i) {
+    // Avoid returning negative depth.
+    i = skip_count;
+  }
   return i - skip_count;
 }
 

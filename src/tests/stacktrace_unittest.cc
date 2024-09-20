@@ -251,7 +251,14 @@ int ATTRIBUTE_NOINLINE CaptureLeafWSkip(void **stack, int stack_len) {
     return rv;
   };
 
-  int size = trampoline(stack, stack_len);
+  int size;
+
+  // Lets ensure size skip_count > frames_available case is sensible
+  // as well.
+  size = GetStackTrace(stack, stack_len, 10240);
+  CHECK_EQ(size, 0);
+
+  size = trampoline(stack, stack_len);
 
   printf("Obtained %d stack frames.\n", size);
   CHECK_GE(size, 1);
