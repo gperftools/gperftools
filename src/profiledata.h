@@ -143,6 +143,8 @@ class ProfileData {
   void GetCurrentState(State* state) const;
 
  private:
+  friend class CpuProfiler;
+
   static const int kAssociativity = 4;          // For hashtable
   static const int kBuckets = 1 << 10;          // For hashtable
   static const int kBufferLength = 1 << 18;     // For eviction buffer

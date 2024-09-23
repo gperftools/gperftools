@@ -2,11 +2,11 @@
 
 # Copyright (c) 2005, Google Inc.
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 #     * Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
 #     * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -53,14 +53,11 @@ if [ "x$1" = "x-h" -o "x$1" = "x--help" ]; then
   exit 1
 fi
 
-TMPDIR=/tmp/profile_info
+# note, this also creates temp directory
+TMPDIR=`mktemp -d`
 
 UNITTEST_DIR=${1:-$BINDIR}
 PPROF=${2:-$PPROF_PATH}
-
-# We test the sliding-window functionality of the cpu-profile reader
-# by using a small stride, forcing lots of reads.
-PPROF_FLAGS="--test_stride=128"
 
 PROFILER1="$UNITTEST_DIR/profiler1_unittest"
 PROFILER2="$UNITTEST_DIR/profiler2_unittest"
@@ -85,17 +82,6 @@ PROFILER4_REALNAME=`Realname "$PROFILER4"`
 # It's meaningful to the profiler, so make sure we know its state
 unset CPUPROFILE
 
-# Some output/logging in the profiler can cause issues when running the unit
-# tests. For example, logging a warning when the profiler is detected as being
-# present but no CPUPROFILE is specified in the environment. Especially when
-# we are checking for a silent run or specific timing constraints are being
-# checked. So set the env variable signifying that we are running in a unit
-# test environment.
-PERFTOOLS_UNITTEST=1 
-
-rm -rf "$TMPDIR"
-mkdir "$TMPDIR" || exit 2
-
 num_failures=0
 
 RegisterFailure() {
@@ -118,8 +104,8 @@ VerifySimilar() {
   # We are careful not to put exec1 and exec2 in quotes, because if
   # they are the empty string, it means we want to use the 1-arg
   # version of pprof.
-  mthread1=`"$PPROF" $PPROF_FLAGS $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
-  mthread2=`"$PPROF" $PPROF_FLAGS $exec2 "$prof2" | grep test_main_thread | awk '{print $1}'`
+  mthread1=`"$PPROF" $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
+  mthread2=`"$PPROF" $exec2 "$prof2" | grep test_main_thread | awk '{print $1}'`
   mthread1_plus=`expr $mthread1 + 5`
   mthread2_plus=`expr $mthread2 + 5`
   if [ -z "$mthread1" ] || [ -z "$mthread2" ] || \
@@ -151,8 +137,8 @@ VerifyAcrossThreads() {
 
   # We are careful not to put exec1 in quotes, because if it is the
   # empty string, it means we want to use the 1-arg version of pprof.
-  mthread=`$PPROF $PPROF_FLAGS $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
-  othread=`$PPROF $PPROF_FLAGS $exec1 "$prof1" | grep test_other_thread | awk '{print $1}'`
+  mthread=`$PPROF $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
+  othread=`$PPROF $exec1 "$prof1" | grep test_other_thread | awk '{print $1}'`
   if [ -z "$mthread" ] || [ -z "$othread" ] || \
      [ "$mthread" -le 0 -o "$othread" -le 0 ]
 #    || [ `expr $mthread \* $mult \* 3` -gt `expr $othread \* 10` -o \
@@ -165,13 +151,6 @@ VerifyAcrossThreads() {
     RegisterFailure
   fi
 }
-
-echo
-echo ">>> WARNING <<<"
-echo "This test looks at timing information to determine correctness."
-echo "If your system is loaded, the test may spuriously fail."
-echo "If the test does fail with an 'Actual times' error, try running again."
-echo
 
 # profiler1 is a non-threaded version
 "$PROFILER1" 50 1 "$TMPDIR/p1" || RegisterFailure

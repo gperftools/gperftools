@@ -68,12 +68,6 @@ typedef int ucontext_t;   // just to quiet the compiler, mostly
 
 using std::string;
 
-DEFINE_bool(cpu_profiler_unittest,
-            EnvToBool("PERFTOOLS_UNITTEST", true),
-            "Determines whether or not we are running under the \
-             control of a unit test. This allows us to include or \
-			 exclude certain behaviours.");
-
 // Collects up all profile data. This is a singleton, which is
 // initialized by a constructor at startup. If no cpu profiler
 // signal is specified then the profiler lifecycle is either
@@ -176,22 +170,13 @@ CpuProfiler CpuProfiler::instance_;
 // Initialize profiling: activated if getenv("CPUPROFILE") exists.
 CpuProfiler::CpuProfiler()
     : prof_handler_token_(NULL) {
-  // TODO(cgd) Move this code *out* of the CpuProfile constructor into a
-  // separate object responsible for initialization. With ProfileHandler there
-  // is no need to limit the number of profilers.
   if (getenv("CPUPROFILE") == NULL) {
-    if (!FLAGS_cpu_profiler_unittest) {
-      RAW_LOG(WARNING, "CPU profiler linked but no valid CPUPROFILE environment variable found\n");
-    }
     return;
   }
 
   // We don't enable profiling if setuid -- it's a security risk
 #ifdef HAVE_GETEUID
   if (getuid() != geteuid()) {
-    if (!FLAGS_cpu_profiler_unittest) {
-      RAW_LOG(WARNING, "Cannot perform CPU profiling when running with setuid\n");
-    }
     return;
   }
 #endif
@@ -212,11 +197,8 @@ CpuProfiler::CpuProfiler()
   } else {
     char fname[PATH_MAX];
     if (!GetUniquePathFromEnv("CPUPROFILE", fname)) {
-      if (!FLAGS_cpu_profiler_unittest) {
-        RAW_LOG(WARNING, "CPU profiler linked but no valid CPUPROFILE environment variable found\n");
-      }
       return;
-	}
+    }
 
     if (!Start(fname, NULL)) {
       RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
@@ -307,9 +289,23 @@ void CpuProfiler::GetCurrentState(ProfilerState* state) {
   state->enabled = collector_state.enabled;
   state->start_time = static_cast<time_t>(collector_state.start_time);
   state->samples_gathered = collector_state.samples_gathered;
-  int buf_size = sizeof(state->profile_name);
-  strncpy(state->profile_name, collector_state.profile_name, buf_size);
-  state->profile_name[buf_size-1] = '\0';
+
+  constexpr int kBufSize = sizeof(state->profile_name);
+  std::string_view profile_name{collector_state.profile_name};
+  memcpy(state->profile_name, profile_name.data(), std::min<size_t>(kBufSize, profile_name.size() + 1));
+  state->profile_name[kBufSize - 1] = '\0';
+
+  // Note, this is "secret" and version-specific API we do for
+  // profiler_unittest. It is explicitly not part of any API/ABI
+  // stability guarantees.
+  //
+  // If there is space in profile_name left for the pointer, then we
+  // append address of samples_gathered. The test uses this "ticks
+  // count" as a form of clock to know how long it runs.
+  if (profile_name.size() + 1 + sizeof(void*) <= kBufSize) {
+    void* ptr = &collector_.count_;
+    memcpy(state->profile_name + profile_name.size() + 1, &ptr, sizeof(ptr));
+  }
 }
 
 void CpuProfiler::EnableHandler() {
