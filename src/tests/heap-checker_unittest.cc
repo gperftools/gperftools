@@ -63,7 +63,11 @@
 #include <gperftools/heap-checker.h>
 
 #include <errno.h>
+
+#ifdef HAVE_EXECINFO_H
 #include <execinfo.h>           // backtrace
+#endif
+
 #include <fcntl.h>
 #include <grp.h>                // getgrent, getgrnam
 #include <poll.h>
@@ -824,8 +828,11 @@ static void TestLibCAllocate() {
   strerror(errno);
   const time_t now = time(NULL);
   ctime(&now);
+
+#ifdef HAVE_EXECINFO_H
   void *stack[1];
   backtrace(stack, 1);
+#endif
 
   if (grplock.TryLock()) {
     gid_t gid = getgid();
