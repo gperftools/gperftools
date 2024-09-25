@@ -1,3 +1,10 @@
+== 25 September 2024
+
+gperftools 2.16 is out!
+
+Only minor fixes have been made since RC release. See NEWS entry for
+RC release for actual set of changes.
+
 == 16 September 2024
 
 gperftools 2.16rc is out!
