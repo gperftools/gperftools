@@ -373,7 +373,7 @@ void RunTest() {
 
 #if TEST_UCONTEXT_BITS
   bool want_to_test = !skipping_ucontext;
-#if !__linux__
+#if !__linux__ || !defined(__GLIBC__)
   // Our current "with ucontext" backtracing relies on fixed number of
   // stack frames to skip. Which is brittle and actually fails on
   // e.g. BSDs. There is a notable exception of generic_fp
