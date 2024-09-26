@@ -1,4 +1,0 @@
-language: c++
-sudo: required
-dist: xenial
-script: ./autogen.sh && ./configure && make -j`getconf _NPROCESSORS_ONLN` && make check
