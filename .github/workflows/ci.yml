@@ -1,0 +1,124 @@
+name: CI
+on:
+  push:
+    branches:
+      - "*"
+    tags:
+      - "*"
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt install automake autoconf libtool build-essential patch perl libc-bin libunwind-dev
+      - name: Build and test
+        run: |
+          ./autogen.sh
+          ./configure
+          export NUMCPUS=`getconf _NPROCESSORS_ONLN`
+          export MORECPUS="$(($NUMCPUS * 3))"
+          printf "NUMCPUS=%d MORECPUS=%d\n" "$NUMCPUS" "$MORECPUS"
+          make "-j${NUMCPUS}"
+          make "-j${MORECPUS}" check || make "-j${MORECPUS}" recheck
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          retention-days: 7
+          path: |
+            *.log
+  test-i386:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+      - name: Install dependencies
+        run: |
+          sudo apt install automake autoconf libtool build-essential patch perl libc-bin g++-multilib
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      - name: Build and test
+        # GNU/Linux i386 currently fails with libgcc backtracer due to wrong unwind info in memcpy-ia32.S. So we force frame pointers.
+        run: |
+          ./autogen.sh
+          ./configure CXX='g++ -m32' CC='gcc -m32' --enable-frame-pointers
+          export NUMCPUS=`getconf _NPROCESSORS_ONLN`
+          export MORECPUS="$(($NUMCPUS * 3))"
+          printf "NUMCPUS=%d MORECPUS=%d\n" "$NUMCPUS" "$MORECPUS"
+          make "-j${NUMCPUS}"
+          make "-j${MORECPUS}" check || make "-j${MORECPUS}" recheck
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          retention-days: 7
+          path: |
+            *.log
+  test-cmake-minimal:
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        build_type: [RelWithDebInfo, Debug]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}-${{ matrix.os }}-${{ matrix.build_type }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      - name: cmake setup
+        run: cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja -DGPERFTOOLS_BUILD_HEAP_PROFILER=OFF -Dgperftools_build_minimal=ON -S . -B build
+      - name: cmake build
+        run: ninja -C build -v
+      - name: test
+        run: ctest -j12 --test-dir build
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}-${{ matrix.os }}-${{ matrix.build_type }}
+          retention-days: 7
+          path: |
+            build/Testing/Temporary/LastTest.log
+  test-cmake-windows:
+    strategy:
+      matrix:
+        os: [windows-latest]
+        build_type: [RelWithDebInfo, Debug]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Clone
+        uses: actions/checkout@v4
+      - uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: cmake setup
+        run: |
+          ruby .github/workflows/scripts/msvc-env.rb cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja -DGPERFTOOLS_BUILD_HEAP_PROFILER=OFF -Dgperftools_build_minimal=ON -S . -B build
+      - name: cmake build
+        run: ruby .github/workflows/scripts/msvc-env.rb ninja -C build -v
+      - name: test
+        env:
+          CTEST_PARALLEL_LEVEL: 12
+        run: ninja -C build -v test
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v4
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}-${{ matrix.os }}-${{ matrix.build_type }}
+          retention-days: 7
+          path: |
+            build/Testing/Temporary/LastTest.log
