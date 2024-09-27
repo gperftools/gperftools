@@ -55,9 +55,6 @@ class HeapProfileTable {
   // Extension to be used for heap pforile files.
   static const char kFileExt[];
 
-  // Longest stack trace we record.
-  static const int kMaxStackDepth = 32;
-
   // data types ----------------------------
 
   // Profile stats.
@@ -80,15 +77,6 @@ class HeapProfileTable {
 
   HeapProfileTable(Allocator alloc, DeAllocator dealloc);
   ~HeapProfileTable();
-
-  // Collect the stack trace for the function that asked to do the
-  // allocation for passing to RecordAlloc() below.
-  //
-  // The stack trace is stored in 'stack'. The stack depth is returned.
-  //
-  // 'skip_count' gives the number of stack frames between this call
-  // and the memory allocation function.
-  static int GetCallerStackTrace(int skip_count, void* stack[kMaxStackDepth]);
 
   // Record an allocation at 'ptr' of 'bytes' bytes.  'stack_depth'
   // and 'call_stack' identifying the function that requested the

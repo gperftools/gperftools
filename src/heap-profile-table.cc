@@ -96,7 +96,6 @@ const char HeapProfileTable::kFileExt[] = ".heap";
 //----------------------------------------------------------------------
 
 static const int kHashTableSize = 179999;   // Size for bucket_table_.
-/*static*/ const int HeapProfileTable::kMaxStackDepth;
 
 //----------------------------------------------------------------------
 
@@ -185,12 +184,6 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
   bucket_table_[buck] = b;
   num_buckets_++;
   return b;
-}
-
-int HeapProfileTable::GetCallerStackTrace(
-    int skip_count, void* stack[kMaxStackDepth]) {
-  return MallocHook::GetCallerStackTrace(
-      stack, kMaxStackDepth, kStripFrames + skip_count + 1);
 }
 
 void HeapProfileTable::RecordAlloc(
