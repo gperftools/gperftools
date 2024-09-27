@@ -98,8 +98,6 @@ class PERFTOOLS_DLL_DECL MallocHook {
   inline static bool RemoveNewHook(NewHook hook) {
     return MallocHook_RemoveNewHook(hook);
   }
-  inline static void InvokeNewHook(const void* p, size_t s);
-
   // The DeleteHook is invoked whenever an object is deallocated.
   // It may be passed nullptr if the caller is trying to delete nullptr.
   typedef MallocHook_DeleteHook DeleteHook;
@@ -229,43 +227,6 @@ class PERFTOOLS_DLL_DECL MallocHook {
     return MallocHook_SetSbrkHook(hook);
   }
   // End of DEPRECATED methods.
-
- private:
-  // Slow path versions of Invoke*Hook.
-  static void InvokeNewHookSlow(const void* p, size_t s);
-  static void InvokeDeleteHookSlow(const void* p);
-  static void InvokePreMmapHookSlow(const void* start,
-                                    size_t size,
-                                    int protection,
-                                    int flags,
-                                    int fd,
-                                    off_t offset);
-  static void InvokeMmapHookSlow(const void* result,
-                                 const void* start,
-                                 size_t size,
-                                 int protection,
-                                 int flags,
-                                 int fd,
-                                 off_t offset);
-  static bool InvokeMmapReplacementSlow(const void* start,
-                                        size_t size,
-                                        int protection,
-                                        int flags,
-                                        int fd,
-                                        off_t offset,
-                                        void** result);
-  static void InvokeMunmapHookSlow(const void* p, size_t size);
-  static bool InvokeMunmapReplacementSlow(const void* p,
-                                          size_t size,
-                                          int* result);
-  static void InvokeMremapHookSlow(const void* result,
-                                   const void* old_addr,
-                                   size_t old_size,
-                                   size_t new_size,
-                                   int flags,
-                                   const void* new_addr);
-  static void InvokePreSbrkHookSlow(ptrdiff_t increment);
-  static void InvokeSbrkHookSlow(const void* result, ptrdiff_t increment);
 };
 
 #ifdef _MSC_VER

@@ -206,42 +206,31 @@ MallocHook_DeleteHook MallocHook_SetDeleteHook(MallocHook_DeleteHook hook) {
   return delete_hooks_.ExchangeSingular(hook);
 }
 
-// Note: embedding the function calls inside the traversal of HookList would be
-// very confusing, as it is legal for a hook to remove itself and add other
-// hooks.  Doing traversal first, and then calling the hooks ensures we only
-// call the hooks registered at the start.
-#define INVOKE_HOOKS(HookType, hook_list, args) do {                    \
-    HookType hooks[kHookListMaxValues];                                 \
-    int num_hooks = hook_list.Traverse(hooks, kHookListMaxValues);      \
-    for (int i = 0; i < num_hooks; ++i) {                               \
-      (*hooks[i])args;                                                  \
-    }                                                                   \
-  } while (0)
+namespace tcmalloc {
 
-// There should only be one replacement. Return the result of the first
-// one, or false if there is none.
-#define INVOKE_REPLACEMENT(HookType, hook_list, args) do {              \
-    HookType hooks[kHookListMaxValues];                                 \
-    int num_hooks = hook_list.Traverse(hooks, kHookListMaxValues);      \
-    return (num_hooks > 0 && (*hooks[0])args);                          \
-  } while (0)
-
-
-void MallocHook::InvokeNewHookSlow(const void* p, size_t s) {
-  if (tcmalloc::IsEmergencyPtr(p)) {
+void InvokeNewHookSlow(const void* p, size_t s) {
+  if (IsEmergencyPtr(p)) {
     return;
   }
-  INVOKE_HOOKS(NewHook, new_hooks_, (p, s));
+  MallocHook::NewHook hooks[kHookListMaxValues];
+  int num_hooks = base::internal::new_hooks_.Traverse(hooks, kHookListMaxValues);
+  for (int i = 0; i < num_hooks; i++) {
+    hooks[i](p, s);
+  }
 }
 
-void MallocHook::InvokeDeleteHookSlow(const void* p) {
-  if (tcmalloc::IsEmergencyPtr(p)) {
+void InvokeDeleteHookSlow(const void* p) {
+  if (IsEmergencyPtr(p)) {
     return;
   }
-  INVOKE_HOOKS(DeleteHook, delete_hooks_, (p));
+  MallocHook::DeleteHook hooks[kHookListMaxValues];
+  int num_hooks = base::internal::delete_hooks_.Traverse(hooks, kHookListMaxValues);
+  for (int i = 0; i < num_hooks; i++) {
+    hooks[i](p);
+  }
 }
 
-#undef INVOKE_HOOKS
+}  // namespace tcmalloc
 
 #if !defined(NO_TCMALLOC_SAMPLES) && HAVE_ATTRIBUTE_SECTION_START
 

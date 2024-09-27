@@ -805,7 +805,7 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
+  tcmalloc::InvokeDeleteHook(ptr);
   // This calls the windows free if do_free decides ptr was not
   // allocated by tcmalloc.  Note it calls the origstub_free from
   // *this* templatized instance of LibcInfo.  See "template
@@ -815,7 +815,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW{
-  MallocHook::InvokeDeleteHook(ptr);
+  tcmalloc::InvokeDeleteHook(ptr);
   // This calls the windows free if do_free decides ptr was not
   // allocated by tcmalloc.  Note it calls the origstub_free from
   // *this* templatized instance of LibcInfo.  See "template
@@ -825,7 +825,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW{
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use) __THROW {
-  MallocHook::InvokeDeleteHook(ptr);
+  tcmalloc::InvokeDeleteHook(ptr);
   // The windows _free_dbg is called if ptr isn't owned by tcmalloc.
   if (MallocExtension::instance()->GetOwnership(ptr) == MallocExtension::kOwned) {
     do_free(ptr);
@@ -839,11 +839,11 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
     void* old_ptr, size_t new_size) __THROW {
   if (old_ptr == nullptr) {
     void* result = do_malloc_or_cpp_alloc(new_size);
-    MallocHook::InvokeNewHook(result, new_size);
+    tcmalloc::InvokeNewHook(result, new_size);
     return result;
   }
   if (new_size == 0) {
-    MallocHook::InvokeDeleteHook(old_ptr);
+    tcmalloc::InvokeDeleteHook(old_ptr);
     do_free_with_callback(old_ptr,
                           (void (*)(void*))origstub_fn_[kFree], false, 0);
     return nullptr;
@@ -858,7 +858,7 @@ template<int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(
     size_t n, size_t elem_size) __THROW {
   void* result = do_calloc(n, elem_size);
-  MallocHook::InvokeNewHook(result, n * elem_size);
+  tcmalloc::InvokeNewHook(result, n * elem_size);
   return result;
 }
 
@@ -874,13 +874,13 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete(void *p) {
-  MallocHook::InvokeDeleteHook(p);
+  tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void *p) {
-  MallocHook::InvokeDeleteHook(p);
+  tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
@@ -899,14 +899,14 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(
     void *p, const std::nothrow_t&) __THROW {
-  MallocHook::InvokeDeleteHook(p);
+  tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
 template<int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
     void *p, const std::nothrow_t&) __THROW {
-  MallocHook::InvokeDeleteHook(p);
+  tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
@@ -929,13 +929,13 @@ LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,
   LPVOID result = ((LPVOID (WINAPI *)(HANDLE, DWORD, DWORD_PTR))
                    function_info_[kHeapAlloc].origstub_fn)(
                        hHeap, dwFlags, dwBytes);
-  MallocHook::InvokeNewHook(result, dwBytes);
+  tcmalloc::InvokeNewHook(result, dwBytes);
   return result;
 }
 
 BOOL WINAPI WindowsInfo::Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags,
                                             LPVOID lpMem) {
-  MallocHook::InvokeDeleteHook(lpMem);
+  tcmalloc::InvokeDeleteHook(lpMem);
 
   // We perform this check to work around a malloc/HeapFree mismatch
   // in shell32.dll versions [10.0.22000.0, 10.0.22621.900)
