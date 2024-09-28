@@ -77,8 +77,6 @@
 #endif
 #endif
 
-using std::string;
-
 //----------------------------------------------------------------------
 // Flags that control heap-profiling
 //

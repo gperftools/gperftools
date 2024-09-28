@@ -65,16 +65,14 @@
 #include <sys/sysctl.h>
 #endif
 
-using std::string;
-
 // pprof may be used after destructors are
 // called (since that's when leak-checking is done), so we make
 // a more-permanent copy that won't ever get destroyed.
 static char* get_pprof_path() {
   static char* result = ([] () {
-      string pprof_string = EnvToString("PPROF_PATH", "pprof-symbolize");
-      return strdup(pprof_string.c_str());
-    })();
+    std::string pprof_string = EnvToString("PPROF_PATH", "pprof-symbolize");
+    return strdup(pprof_string.c_str());
+  })();
 
   return result;
 }

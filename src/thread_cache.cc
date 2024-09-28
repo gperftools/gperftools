@@ -47,9 +47,6 @@
 #include "tcmalloc_internal.h"
 #include "thread_cache_ptr.h"
 
-using std::min;
-using std::max;
-
 // Note: this is initialized manually in InitModule to ensure that
 // it's configured at right time
 //
@@ -124,7 +121,7 @@ void* ThreadCache::FetchFromCentralCache(uint32_t cl, int32_t byte_size,
   ASSERT(list->empty());
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
 
-  const int num_to_move = min<int>(list->max_length(), batch_size);
+  const int num_to_move = std::min<int>(list->max_length(), batch_size);
   void *start, *end;
   int fetch_count = Static::central_cache()[cl].RemoveRange(
       &start, &end, num_to_move);
@@ -149,7 +146,7 @@ void* ThreadCache::FetchFromCentralCache(uint32_t cl, int32_t byte_size,
     // Don't let the list get too long.  In 32 bit builds, the length
     // is represented by a 16 bit int, so we need to watch out for
     // integer overflow.
-    int new_length = min<int>(list->max_length() + batch_size,
+    int new_length = std::min<int>(list->max_length() + batch_size,
                               kMaxDynamicFreeListLength);
     // The list's max_length must always be a multiple of batch_size,
     // and kMaxDynamicFreeListLength is not necessarily a multiple
@@ -237,7 +234,7 @@ void ThreadCache::Scavenge() {
       const int batch_size = Static::sizemap()->num_objects_to_move(cl);
       if (list->max_length() > batch_size) {
         list->set_max_length(
-            max<int>(list->max_length() - batch_size, batch_size));
+          std::max<int>(list->max_length() - batch_size, batch_size));
       }
     }
     list->clear_lowwatermark();
@@ -361,7 +358,7 @@ void ThreadCache::RecomputePerThreadCacheSize() {
   if (space < min_size) space = min_size;
   if (space > kMaxThreadCacheSize) space = kMaxThreadCacheSize;
 
-  double ratio = space / max<double>(1, per_thread_cache_size_);
+  double ratio = space / std::max<double>(1, per_thread_cache_size_);
   size_t claimed = 0;
   for (ThreadCache* h = thread_heaps_; h != nullptr; h = h->next_) {
     // Increasing the total cache size should not circumvent the

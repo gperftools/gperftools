@@ -39,8 +39,6 @@
 #include <stddef.h>
 #include <map>
 
-using std::map;
-
 // SymbolTable encapsulates the address operations necessary for stack trace
 // symbolization. A common use-case is to Add() the addresses from one or
 // several stack traces to a table, call Symbolize() once and use GetSymbol()
@@ -67,7 +65,7 @@ class SymbolTable {
   int Symbolize();
 
  private:
-  typedef map<const void*, const char*> SymbolMap;
+  typedef std::map<const void*, const char*> SymbolMap;
 
   // An average size of memory allocated for a stack trace symbol.
   static const int kSymbolSize = 1024;

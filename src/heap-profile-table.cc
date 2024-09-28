@@ -67,12 +67,6 @@
 #include "gperftools/stacktrace.h"
 #include "symbolize.h"
 
-using std::sort;
-using std::equal;
-using std::copy;
-using std::string;
-using std::map;
-
 //----------------------------------------------------------------------
 
 DEFINE_bool(cleanup_old_heap_profiles,
@@ -166,7 +160,7 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
   for (Bucket* b = bucket_table_[buck]; b != 0; b = b->next) {
     if ((b->hash == h) &&
         (b->depth == depth) &&
-        equal(key, key + depth, b->stack)) {
+        std::equal(key, key + depth, b->stack)) {
       return b;
     }
   }
@@ -174,7 +168,7 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
   // Create new bucket
   const size_t key_size = sizeof(key[0]) * depth;
   const void** kcopy = reinterpret_cast<const void**>(alloc_(key_size));
-  copy(key, key + depth, kcopy);
+  std::copy(key, key + depth, kcopy);
   Bucket* b = reinterpret_cast<Bucket*>(alloc_(sizeof(Bucket)));
   memset(b, 0, sizeof(*b));
   b->hash  = h;
@@ -333,7 +327,7 @@ bool HeapProfileTable::WriteProfile(const char* file_name,
 void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
   if (!FLAGS_cleanup_old_heap_profiles)
     return;
-  string pattern = string(prefix) + ".*" + kFileExt;
+  std::string pattern = std::string(prefix) + ".*" + kFileExt;
 #if defined(HAVE_GLOB_H)
   glob_t g;
   const int r = glob(pattern.c_str(), GLOB_ERR, nullptr, &g);
@@ -429,7 +423,7 @@ void HeapProfileTable::Snapshot::ReportLeaks(const char* checker_name,
   const int n = buckets.size();
   Entry* entries = new Entry[n];
   int dst = 0;
-  for (map<Bucket*,Entry>::const_iterator iter = buckets.begin();
+  for (std::map<Bucket*,Entry>::const_iterator iter = buckets.begin();
        iter != buckets.end();
        ++iter) {
     entries[dst++] = iter->second;

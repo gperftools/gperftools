@@ -139,11 +139,6 @@
 // Some windows file somewhere (at least on cygwin) #define's small (!)
 #undef small
 
-using std::max;
-using std::min;
-using std::numeric_limits;
-using std::vector;
-
 #include "libc_override.h"
 
 using tcmalloc::kLog;
@@ -925,7 +920,7 @@ class TCMallocImplementation : public MallocExtension {
     // num_bytes might be less than one page.  If we pass zero to
     // ReleaseAtLeastNPages, it won't do anything, so we release a whole
     // page now and let extra_bytes_released_ smooth it out over time.
-    Length num_pages = max<Length>(num_bytes >> kPageShift, 1);
+    Length num_pages = std::max<Length>(num_bytes >> kPageShift, 1);
     size_t bytes_released = Static::pageheap()->ReleaseAtLeastNPages(
         num_pages) << kPageShift;
     if (bytes_released > num_bytes) {
@@ -971,7 +966,7 @@ class TCMallocImplementation : public MallocExtension {
     return span ? kOwned : kNotOwned;
   }
 
-  virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
+  virtual void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {
     static const char kCentralCacheType[] = "tcmalloc.central";
     static const char kTransferCacheType[] = "tcmalloc.transfer";
     static const char kThreadCacheType[] = "tcmalloc.thread";
@@ -1037,7 +1032,7 @@ class TCMallocImplementation : public MallocExtension {
     // large spans: mapped
     MallocExtension::FreeListInfo span_info;
     span_info.type = kLargeSpanType;
-    span_info.max_object_size = (numeric_limits<size_t>::max)();
+    span_info.max_object_size = (std::numeric_limits<size_t>::max)();
     span_info.min_object_size = kMaxPages << kPageShift;
     span_info.total_bytes_free = large.normal_pages << kPageShift;
     v->push_back(span_info);
@@ -1661,7 +1656,7 @@ ALWAYS_INLINE void* do_realloc_with_callback(
   //    . If we need to grow, grow to max(new_size, old_size * 1.X)
   //    . Don't shrink unless new_size < old_size * 0.Y
   // X and Y trade-off time for wasted space.  For now we do 1.25 and 0.5.
-  const size_t min_growth = min(old_size / 4,
+  const size_t min_growth = std::min(old_size / 4,
       (std::numeric_limits<size_t>::max)() - old_size);  // Avoid overflow.
   const size_t lower_bound_to_grow = old_size + min_growth;
   const size_t upper_bound_to_shrink = old_size / 2ul;

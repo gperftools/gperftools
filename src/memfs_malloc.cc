@@ -65,7 +65,6 @@
 using tcmalloc::kLog;
 using tcmalloc::kCrash;
 using tcmalloc::Log;
-using std::string;
 
 DEFINE_string(memfs_malloc_path, EnvToString("TCMALLOC_MEMFS_MALLOC_PATH", ""),
               "Path where hugetlbfs or tmpfs is mounted. The caller is "

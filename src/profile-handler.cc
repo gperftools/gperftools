@@ -74,9 +74,6 @@
 #define sigev_notify_thread_id _sigev_un._tid
 #endif
 
-using std::list;
-using std::string;
-
 // This structure is used by ProfileHandlerRegisterCallback and
 // ProfileHandlerUnregisterCallback as a handle to a registered callback.
 struct ProfileHandlerToken {
@@ -209,7 +206,7 @@ class ProfileHandler {
   //  - Acquire signal_lock_
   // For read-only access outside SIGPROF handler:
   //  - Acquire control_lock_
-  typedef list<ProfileHandlerToken*> CallbackList;
+  typedef std::list<ProfileHandlerToken*> CallbackList;
   typedef CallbackList::iterator CallbackIterator;
   CallbackList callbacks_ GUARDED_BY(signal_lock_);
 

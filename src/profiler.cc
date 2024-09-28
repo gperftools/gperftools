@@ -66,8 +66,6 @@ typedef int ucontext_t;   // just to quiet the compiler, mostly
 #include "profiledata.h"
 #include "profile-handler.h"
 
-using std::string;
-
 // Collects up all profile data. This is a singleton, which is
 // initialized by a constructor at startup. If no cpu profiler
 // signal is specified then the profiler lifecycle is either

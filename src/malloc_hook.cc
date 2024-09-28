@@ -59,9 +59,6 @@
 # define __THROW   // __THROW is just an optimization, so ok to make it ""
 #endif
 
-using std::copy;
-
-
 namespace base { namespace internal {
 
 // This lock is shared between all implementations of HookList::Add & Remove.
@@ -315,7 +312,7 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
       i += 1;  // skip hook caller frame
       depth -= i;  // correct depth
       if (depth > max_depth) depth = max_depth;
-      copy(stack + i, stack + i + depth, result);
+      std::copy(stack + i, stack + i + depth, result);
       if (depth < max_depth  &&  depth + i == kStackSize) {
         // get frames for the missing depth
         depth +=

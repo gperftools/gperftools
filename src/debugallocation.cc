@@ -1172,7 +1172,7 @@ class DebugMallocImplementation : public TCMallocImplementation {
     return TCMallocImplementation::GetOwnership(mb);
   }
 
-  virtual void GetFreeListSizes(vector<MallocExtension::FreeListInfo>* v) {
+  virtual void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {
     static const char* kDebugFreeQueue = "debug.free_queue";
 
     TCMallocImplementation::GetFreeListSizes(v);
@@ -1180,7 +1180,7 @@ class DebugMallocImplementation : public TCMallocImplementation {
     MallocExtension::FreeListInfo i;
     i.type = kDebugFreeQueue;
     i.min_object_size = 0;
-    i.max_object_size = numeric_limits<size_t>::max();
+    i.max_object_size = std::numeric_limits<size_t>::max();
     i.total_bytes_free = MallocBlock::FreeQueueSize();
     v->push_back(i);
   }

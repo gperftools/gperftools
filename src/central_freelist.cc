@@ -45,9 +45,6 @@
 #endif
 #endif
 
-using std::min;
-using std::max;
-
 namespace tcmalloc {
 
 void CentralFreeList::Init(size_t cl) {
@@ -76,10 +73,9 @@ void CentralFreeList::Init(size_t cl) {
     // whichever is greater. Total transfer cache memory used across all
     // size classes then can't be greater than approximately
     // 1MB * kMaxNumTransferEntries.
-    // min and max are in parens to avoid macro-expansion on windows.
-    max_cache_size_ = (min)(max_cache_size_,
-                          (max)(1, (1024 * 1024) / (bytes * objs_to_move)));
-    cache_size_ = (min)(cache_size_, max_cache_size_);
+    max_cache_size_ = std::min(max_cache_size_,
+                               std::max(1, (1024 * 1024) / (bytes * objs_to_move)));
+    cache_size_ = std::min(cache_size_, max_cache_size_);
   }
   used_slots_ = 0;
   ASSERT(cache_size_ <= max_cache_size_);
