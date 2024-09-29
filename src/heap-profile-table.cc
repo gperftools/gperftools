@@ -62,10 +62,8 @@
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/proc_maps_iterator.h"
-#include "base/sysinfo.h"
 #include "gperftools/malloc_hook.h"
 #include "gperftools/stacktrace.h"
-#include "symbolize.h"
 
 //----------------------------------------------------------------------
 

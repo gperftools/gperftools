@@ -124,9 +124,6 @@
     <ClInclude Include="..\..\src\base\googleinit.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\symbolize.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\common.h">
       <Filter>Header Files</Filter>
     </ClInclude>
