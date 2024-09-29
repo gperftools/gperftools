@@ -137,26 +137,7 @@ class HeapProfileTable {
   // Cleanup any old profile files matching prefix + ".*" + kFileExt.
   static void CleanupOldProfiles(const char* prefix);
 
-  // Return a snapshot of the current contents of *this.
-  // Caller must call ReleaseSnapshot() on result when no longer needed.
-  // The result is only valid while this exists and until
-  // the snapshot is discarded by calling ReleaseSnapshot().
-  class Snapshot;
-  Snapshot* TakeSnapshot();
-
-  // Release a previously taken snapshot.  snapshot must not
-  // be used after this call.
-  void ReleaseSnapshot(Snapshot* snapshot);
-
-  // Return a snapshot of every non-live, non-ignored object in *this.
-  // If "base" is non-nullptr, skip any objects present in "base".  As
-  // a side-effect, clears the "live" bit on every live object in
-  // *this.  Caller must call ReleaseSnapshot() on result when no
-  // longer needed.
-  Snapshot* NonLiveSnapshot(Snapshot* base);
-
  private:
-
   // data types ----------------------------
 
   // Hash table bucket to hold (de)allocation stats
@@ -244,55 +225,6 @@ class HeapProfileTable {
   AllocationMap* address_map_;
 
   DISALLOW_COPY_AND_ASSIGN(HeapProfileTable);
-};
-
-class HeapProfileTable::Snapshot {
- public:
-  const Stats& total() const { return total_; }
-
-  // Report anything in this snapshot as a leak.
-  // May use new/delete for temporary storage.
-  // If should_symbolize is true, will fork (which is not threadsafe)
-  // to turn addresses into symbol names.  Set to false for maximum safety.
-  // Also writes a heap profile to "filename" that contains
-  // all of the objects in this snapshot.
-  void ReportLeaks(const char* checker_name, const char* filename,
-                   bool should_symbolize);
-
-  // Report the addresses of all leaked objects.
-  // May use new/delete for temporary storage.
-  void ReportIndividualObjects();
-
-  bool Empty() const {
-    return (total_.allocs == 0) && (total_.alloc_size == 0);
-  }
-
- private:
-  friend class HeapProfileTable;
-
-  // Total count/size are stored in a Bucket so we can reuse UnparseBucket
-  Bucket total_;
-
-  // We share the Buckets managed by the parent table, but have our
-  // own object->bucket map.
-  AllocationMap map_;
-
-  Snapshot(Allocator alloc, DeAllocator dealloc) : map_(alloc, dealloc) {
-    memset(&total_, 0, sizeof(total_));
-  }
-
-  // Callback used to populate a Snapshot object with entries found
-  // in another allocation map.
-  inline void Add(const void* ptr, const AllocValue& v) {
-    map_.Insert(ptr, v);
-    total_.allocs++;
-    total_.alloc_size += v.bytes;
-  }
-
-  // Helpers for sorting and generating leak reports
-  struct Entry;
-
-  DISALLOW_COPY_AND_ASSIGN(Snapshot);
 };
 
 #endif  // BASE_HEAP_PROFILE_TABLE_H_
