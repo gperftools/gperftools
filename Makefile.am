@@ -276,7 +276,6 @@ MINIMAL_MALLOC_SRC = src/common.cc \
                      src/span.cc \
                      src/stack_trace_table.cc \
                      src/static_vars.cc \
-                     src/symbolize.cc \
                      src/thread_cache.cc \
                      src/thread_cache_ptr.cc \
                      src/malloc_hook.cc \
@@ -506,11 +505,15 @@ dist_doc_DATA += docs/overview.dot \
 
 if WITH_DEBUGALLOC
 
+noinst_LTLIBRARIES += libsymbolize.la
+libsymbolize_la_SOURCES = src/symbolize.cc
+
 lib_LTLIBRARIES += libtcmalloc_minimal_debug.la
-libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc $(MINIMAL_MALLOC_SRC)
+libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc \
+                                       $(MINIMAL_MALLOC_SRC)
 libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS)
 libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS)
-libtcmalloc_minimal_debug_la_LIBADD = $(libtcmalloc_minimal_la_LIBADD)
+libtcmalloc_minimal_debug_la_LIBADD = libsymbolize.la $(libtcmalloc_minimal_la_LIBADD)
 
 ### Unittests
 
@@ -736,7 +739,7 @@ lib_LTLIBRARIES += libtcmalloc_debug.la
 libtcmalloc_debug_la_SOURCES = src/debugallocation.cc $(FULL_MALLOC_SRC)
 libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS)
 libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS)
-libtcmalloc_debug_la_LIBADD = $(libtcmalloc_la_LIBADD)
+libtcmalloc_debug_la_LIBADD = libsymbolize.la $(libtcmalloc_la_LIBADD)
 
 ### Unittests
 

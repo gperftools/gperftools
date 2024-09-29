@@ -529,7 +529,6 @@ set(MINIMAL_MALLOC_SRC
   src/span.cc
   src/stack_trace_table.cc
   src/static_vars.cc
-  src/symbolize.cc
   src/thread_cache.cc
   src/thread_cache_ptr.cc
   src/malloc_hook.cc
@@ -678,7 +677,7 @@ endif()
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
 
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
-  add_library(tcmalloc_minimal_debug src/debugallocation.cc ${MINIMAL_MALLOC_SRC})
+  add_library(tcmalloc_minimal_debug src/debugallocation.cc src/symbolize.cc ${MINIMAL_MALLOC_SRC})
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE common)
 
@@ -806,7 +805,7 @@ endif()
 ### ------- tcmalloc with debugallocation
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
   if(GPERFTOOLS_BUILD_HEAP_PROFILER)
-    add_library(tcmalloc_debug src/debugallocation.cc ${FULL_MALLOC_SRC})
+    add_library(tcmalloc_debug src/debugallocation.cc src/symbolize.cc ${FULL_MALLOC_SRC})
     target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
     target_link_libraries(tcmalloc_debug PRIVATE stacktrace common)
 
