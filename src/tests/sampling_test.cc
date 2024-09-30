@@ -163,6 +163,9 @@ struct TempFile {
     CHECK_EQ(it, path_template.get() + len);
 
     int fd = mkstemp(path_template.get());
+    if (fd < 0) {
+      perror("mkstemp");
+    }
     CHECK_GE(fd, 0);
 
     return TempFile{fdopen(fd, "r+"), std::string(path_template.get(), len-1)};
