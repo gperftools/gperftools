@@ -307,6 +307,12 @@ static void DeleteHook(const void* ptr) {
 //----------------------------------------------------------------------
 
 extern "C" void HeapProfilerStart(const char* prefix) {
+  // A bit of a kludge. When we dump heap profiles on certain systems
+  // (e.g. FreeBSD), we'll invoke GetProgramInvocationName and it'll
+  // malloc. And we cannot malloc when under heap profiler lock(s). So
+  // lets do it now (it caches the name internally).
+  (void)tcmalloc::GetProgramInvocationName();
+
   SpinLockHolder l(&heap_lock);
 
   if (is_on) return;

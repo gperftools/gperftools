@@ -71,7 +71,20 @@
 #include <sys/sysmacros.h>
 #endif
 
+#if __FreeBSD__ && !defined TCMALLOC_WANT_DL_ITERATE_PHDR
+#define TCMALLOC_WANT_DL_ITERATE_PHDR
+#endif
+
+#if defined TCMALLOC_WANT_DL_ITERATE_PHDR
+#include <link.h>
+#endif
+
+#include <string>
+
+#include "base/function_ref.h"
 #include "base/logging.h"
+#include "base/sysinfo.h"
+
 
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
@@ -241,14 +254,7 @@ bool ParseProcMapsLine(char *text, uint64_t *start, uint64_t *end,
 
 template <typename Body>
 bool ForEachLine(const char* path, const Body& body) {
-#ifdef __FreeBSD__
-  // FreeBSD requires us to read all of the maps file at once, so
-  // we have to make a buffer that's "always" big enough
-  // TODO(alk): thats not good enough. We can do better.
-  static constexpr size_t kBufSize = 102400;
-#else   // a one-line buffer is good enough
   static constexpr size_t kBufSize = PATH_MAX + 1024;
-#endif
   char buf[kBufSize];
   char* const buf_end = buf + sizeof(buf) - 1;
 
@@ -407,39 +413,6 @@ bool DoIterateQNX(void (*body)(const ProcMapping& mapping, void* arg), void* arg
     });
 }
 #endif
-
-inline
-bool DoIterateFreeBSD(void (*body)(const ProcMapping& mapping, void* arg), void* arg) {
-  return ForEachLine(
-    "/proc/curproc/map",
-    [&] (char* line_start, char* line_end) {
-      if (line_start == line_end) {
-        return true; // freebsd is weird
-      }
-      ProcMapping mapping;
-      memset(&mapping, 0, sizeof(mapping));
-
-      unsigned filename_offset;
-      char flags_tmp[10];
-      // start end resident privateresident obj(?) prot refcnt shadowcnt
-      // flags copy_on_write needs_copy type filename:
-      // 0x8048000 0x804a000 2 0 0xc104ce70 r-x 1 0 0x0 COW NC vnode /bin/cat
-      if (sscanf(line_start, "0x%" SCNx64 " 0x%" SCNx64 " %*d %*d %*p %3s %*d %*d 0x%*x %*s %*s %*s %n",
-                 &mapping.start,
-                 &mapping.end,
-                 flags_tmp,
-                 &filename_offset) != 3) {
-        return false;
-      }
-
-      mapping.flags = flags_tmp;
-      mapping.filename = line_start + filename_offset;
-
-      body(mapping, arg);
-
-      return true;
-    });
-}
 
 #if defined(__sun__)
 inline
@@ -642,7 +615,65 @@ void FormatLine(tcmalloc::GenericWriter* writer,
 }  // namespace
 
 bool DoForEachProcMapping(void (*body)(const ProcMapping& mapping, void* arg), void* arg) {
-#if defined(PLATFORM_WINDOWS)
+#if defined TCMALLOC_WANT_DL_ITERATE_PHDR
+  auto callback = [&] (struct dl_phdr_info *info, size_t _size) -> int {
+    ProcMapping mapping;
+    memset(&mapping, 0, sizeof(mapping));
+    uintptr_t addr = info->dlpi_addr;
+    if (!info->dlpi_name || info->dlpi_name[0] == 0) {
+      mapping.filename = tcmalloc::GetProgramInvocationName();
+      if (!mapping.filename) {
+        mapping.filename = "";
+      }
+    } else {
+      mapping.filename = info->dlpi_name;
+    }
+    for (int i = 0; i < info->dlpi_phnum; i++) {
+      auto phdr = info->dlpi_phdr + i;
+      if (phdr->p_type != PT_LOAD) {
+        continue;
+      }
+      uint64_t vaddr = phdr->p_vaddr + addr;
+      uint64_t align = phdr->p_align;
+      uint64_t offset = phdr->p_offset;
+      uint64_t size = phdr->p_filesz;
+      uint64_t start_adj = vaddr & (align - 1); // amount we need to round down to align start
+      uint64_t end_adj = (~(vaddr + size) + 1) & (align - 1); // likewise, but for end of mapping
+
+      vaddr -= start_adj;
+      offset -= start_adj;
+      size += start_adj + end_adj;
+      CHECK_EQ((size & (align - 1)), 0);
+
+      char flags[5] = "---p";
+      auto fl = phdr->p_flags;
+      if ((fl & PF_R)) {
+        flags[0] = 'r';
+      }
+      if ((fl & PF_W)) {
+        flags[1] = 'w';
+      }
+      if ((fl & PF_X)) {
+        flags[2] = 'x';
+      }
+
+      mapping.start = vaddr;
+      mapping.end = vaddr + size;
+      mapping.flags = flags;
+      mapping.offset = offset;
+      mapping.inode = 0;
+
+      body(mapping, arg);
+    }
+
+    return 0;
+  };
+
+  tcmalloc::FunctionRef<int(struct dl_phdr_info *, size_t)> ref{callback};
+  (void)dl_iterate_phdr(ref.fn, ref.data);
+
+  return true;
+#elif defined(PLATFORM_WINDOWS)
   return DoIterateWindows(body, arg);
 #elif defined(__MACH__)
   return DoIterateOSX(body, arg);
