@@ -36,6 +36,7 @@
 
 #include "config.h"
 #include "symbolize.h"
+
 #include <stdlib.h>
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>   // for write()
@@ -65,6 +66,8 @@
 #include <sys/sysctl.h>
 #endif
 
+#include "base/sysinfo.h"
+
 // pprof may be used after destructors are
 // called (since that's when leak-checking is done), so we make
 // a more-permanent copy that won't ever get destroyed.
@@ -75,80 +78,6 @@ static char* get_pprof_path() {
   })();
 
   return result;
-}
-
-namespace {
-
-#ifndef _WIN32
-inline // NOTE: inline makes us avoid unused function warning
-const char* readlink_strdup(const char* path) {
-  int sz = 1024;
-  char* retval = nullptr;
-  for (;;) {
-    if (INT_MAX / 2 <= sz) {
-      free(retval);
-      retval = nullptr;
-      break;
-    }
-    sz *= 2;
-    retval = static_cast<char*>(realloc(retval, sz));
-    int rc = readlink(path, retval, sz);
-    if (rc < 0) {
-      perror("GetProgramInvocationName:readlink");
-      free(retval);
-      retval = nullptr;
-      break;
-    }
-    if (rc < sz) {
-      retval[rc] = 0;
-      break;
-    }
-    // repeat if readlink may have truncated it's output
-  }
-  return retval;
-}
-#endif  // _WIN32
-
-}  // namespace
-
-// Returns nullptr if we're on an OS where we can't get the invocation name.
-// Using a static var is ok because we're not called from a thread.
-static const char* GetProgramInvocationName() {
-#if defined(__linux__) || defined(__NetBSD__)
-  // Those systems have functional procfs. And we can simply readlink
-  // /proc/self/exe.
-  static const char* argv0 = readlink_strdup("/proc/self/exe");
-  return argv0;
-#elif defined(__sun__)
-  static const char* argv0 = readlink_strdup("/proc/self/path/a.out");
-  return argv0;
-#elif defined(HAVE_PROGRAM_INVOCATION_NAME)
-#ifdef __UCLIBC__
-  extern const char* program_invocation_name; // uclibc provides this
-#else
-  extern char* program_invocation_name;  // gcc provides this
-#endif
-  return program_invocation_name;
-#elif defined(__MACH__)
-  // We don't want to allocate memory for this since we may be
-  // calculating it when memory is corrupted.
-  static char program_invocation_name[PATH_MAX];
-  if (program_invocation_name[0] == '\0') {  // first time calculating
-    uint32_t length = sizeof(program_invocation_name);
-    if (_NSGetExecutablePath(program_invocation_name, &length))
-      return nullptr;
-  }
-  return program_invocation_name;
-#elif defined(__FreeBSD__)
-  static char program_invocation_name[PATH_MAX];
-  size_t len = sizeof(program_invocation_name);
-  static const int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
-  if (!sysctl(name, 4, program_invocation_name, &len, nullptr, 0))
-    return program_invocation_name;
-  return nullptr;
-#else
-  return nullptr; // figure out a way to get argv[0]
-#endif
 }
 
 // Prints an error message when you can't run Symbolize().
@@ -181,7 +110,7 @@ int SymbolTable::Symbolize() {
   PrintError("Perftools does not know how to call a sub-process on this O/S");
   return 0;
 #else
-  const char* argv0 = GetProgramInvocationName();
+  const char* argv0 = tcmalloc::GetProgramInvocationName();
   if (argv0 == nullptr) {  // can't call symbolize if we can't figure out our name
     PrintError("Cannot figure out the name of this executable (argv0)");
     return 0;

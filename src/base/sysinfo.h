@@ -65,4 +65,9 @@ extern bool GetUniquePathFromEnv(const char* env_name, char* path);
 
 extern int GetSystemCPUsCount();
 
+
+namespace tcmalloc {
+ATTRIBUTE_VISIBILITY_HIDDEN const char* GetProgramInvocationName();
+}  // namespace tcmalloc
+
 #endif   /* #ifndef _SYSINFO_H_ */
