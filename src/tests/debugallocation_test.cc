@@ -40,6 +40,7 @@
 #include "gperftools/malloc_extension.h"
 #include "gperftools/tcmalloc.h"
 
+#include "base/basictypes.h"
 #include "base/logging.h"
 #include "testing_portal.h"
 #include "tests/testutil.h"
@@ -188,14 +189,23 @@ TEST(DebugAllocationTest, DanglingWriteAtExitTest) {
   *x = old_x_value;  // restore x so that the test can exit successfully.
 }
 
+namespace FooBar {
+ATTRIBUTE_NOINLINE
+void StackTraceMarker(int *x) {
+  (::operator delete)(x);
+  // prevent tail-call above
+  noopt(x);
+}
+}  // namespace FooBar
+
 TEST(DebugAllocationTest, StackTraceWithDanglingWriteAtExitTest) {
   int *x = noopt(new int);
-  delete x;
+  FooBar::StackTraceMarker(x);
   int old_x_value = *x;
   *x = 1;
   // verify that we also get a stack trace when we have a dangling write.
   // The " @ " is part of the stack trace output.
-  EXPECT_DEATH(exit(0), " @ .*(main|RUN_ALL_TESTS)");
+  EXPECT_DEATH(exit(0), " @ .*FooBar::StackTraceMarker");
   *x = old_x_value;  // restore x so that the test can exit successfully.
 }
 
