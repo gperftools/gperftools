@@ -202,13 +202,10 @@ struct MallocBlockQueueEntry {
                             num_deleter_pcs(0) {}
   MallocBlockQueueEntry(MallocBlock* b, size_t s) : block(b), size(s) {
     if (FLAGS_max_free_queue_size != 0 && b != nullptr) {
-      // Adjust the number of frames to skip (4) if you change the
-      // location of this call.
-      num_deleter_pcs =
-        MallocHook::GetCallerStackTrace(
-          deleter_pcs,
-          sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
-          4);
+      num_deleter_pcs = tcmalloc::GrabBacktrace(
+        deleter_pcs,
+        sizeof(deleter_pcs) / sizeof(deleter_pcs[0]),
+        1);
       deleter_threadid = tcmalloc::SelfThreadId();
     } else {
       num_deleter_pcs = 0;
