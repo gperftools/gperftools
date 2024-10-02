@@ -81,28 +81,72 @@ std::string MapFlags(uintptr_t flags) {
 
 std::string MapType(uintptr_t p_type) {
 #define PT(c) do { if (p_type == c) return (#c); } while (false)
+#ifdef PT_NULL
   PT(PT_NULL);
+#endif
+#ifdef PT_LOAD
   PT(PT_LOAD);
+#endif
+#ifdef PT_DYNAMIC
   PT(PT_DYNAMIC);
+#endif
+#ifdef PT_INTERP
   PT(PT_INTERP);
+#endif
+#ifdef PT_NOTE
   PT(PT_NOTE);
+#endif
+#ifdef PT_SHLIB
   PT(PT_SHLIB);
+#endif
+#ifdef PT_PHDR
   PT(PT_PHDR);
+#endif
+#ifdef PT_TLS
   PT(PT_TLS);
+#endif
+#ifdef PT_NUM
   PT(PT_NUM);
+#endif
+#ifdef PT_LOOS
   PT(PT_LOOS);
+#endif
+#ifdef PT_GNU_EH_FRAME
   PT(PT_GNU_EH_FRAME);
+#endif
+#ifdef PT_GNU_STACK
   PT(PT_GNU_STACK);
+#endif
+#ifdef PT_GNU_RELRO
   PT(PT_GNU_RELRO);
+#endif
+#ifdef PT_GNU_PROPERTY
   PT(PT_GNU_PROPERTY);
+#endif
+#ifdef PT_GNU_SFRAME
   PT(PT_GNU_SFRAME);
+#endif
+#ifdef PT_LOSUNW
   PT(PT_LOSUNW);
+#endif
+#ifdef PT_SUNWBSS
   PT(PT_SUNWBSS);
+#endif
+#ifdef PT_SUNWSTACK
   PT(PT_SUNWSTACK);
+#endif
+#ifdef PT_HISUNW
   PT(PT_HISUNW);
+#endif
+#ifdef PT_HIOS
   PT(PT_HIOS);
+#endif
+#ifdef PT_LOPROC
   PT(PT_LOPROC);
+#endif
+#ifdef PT_HIPROC
   PT(PT_HIPROC);
+#endif
 #undef PT
   return "(UNKNOWN)";
 }
