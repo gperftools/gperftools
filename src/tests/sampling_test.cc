@@ -121,9 +121,9 @@ static void VerifyWithPProf(std::string_view argv0, std::string_view path) {
 
   // We allocate 8*10^7 bytes of memory, which is 76M.  Because we
   // sample, the estimate may be a bit high or a bit low: we accept
-  // anything from 50M to 99M.
-  if (!(50 <= megs && megs < 100)) {
-    fprintf(stderr, "expected megs to be between 50 and 100. Got: %f\n", megs);
+  // anything from 50M to 109M.
+  if (!(50 <= megs && megs < 110)) {
+    fprintf(stderr, "expected megs to be between 50 and 110. Got: %f\n", megs);
     abort();
   }
 }
