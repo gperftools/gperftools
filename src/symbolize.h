@@ -1,5 +1,5 @@
 // -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*-
-// Copyright (c) 2009, Google Inc.
+// Copyright (c) 2024, gperftools Contributors
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -28,53 +28,21 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// ---
-// Author: Craig Silverstein
-
 #ifndef TCMALLOC_SYMBOLIZE_H_
 #define TCMALLOC_SYMBOLIZE_H_
 
 #include "config.h"
-#include <stdint.h>  // for uintptr_t
-#include <stddef.h>
-#include <map>
 
-// SymbolTable encapsulates the address operations necessary for stack trace
-// symbolization. A common use-case is to Add() the addresses from one or
-// several stack traces to a table, call Symbolize() once and use GetSymbol()
-// to get the symbol names for pretty-printing the stack traces.
-class SymbolTable {
- public:
-  SymbolTable()
-    : symbol_buffer_(nullptr) {}
-  ~SymbolTable() {
-    delete[] symbol_buffer_;
-  }
+#include <stdint.h>
 
-  // Adds an address to the table. This may overwrite a currently known symbol
-  // name, so Add() should not generally be called after Symbolize().
-  void Add(const void* addr);
+#include <string_view>
 
-  // Returns the symbol name for addr, if the given address was added before
-  // the last successful call to Symbolize(). Otherwise may return an empty
-  // c-string.
-  const char* GetSymbol(const void* addr);
+namespace tcmalloc {
 
-  // Obtains the symbol names for the addresses stored in the table and returns
-  // the number of addresses actually symbolized.
-  int Symbolize();
-
- private:
-  typedef std::map<const void*, const char*> SymbolMap;
-
-  // An average size of memory allocated for a stack trace symbol.
-  static const int kSymbolSize = 1024;
-
-  // Map from addresses to symbol names.
-  SymbolMap symbolization_table_;
-
-  // Pointer to the buffer that stores the symbol names.
-  char *symbol_buffer_;
-};
+// ATTRIBUTE_VISIBILITY_HIDDEN
+void DumpStackTraceToStderr(
+  void * const *stack, int stack_depth, bool want_symbolize,
+  std::string_view line_prefix);
+}  // namespace tcmalloc
 
 #endif  // TCMALLOC_SYMBOLIZE_H_

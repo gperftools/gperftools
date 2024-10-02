@@ -9,7 +9,7 @@ ACLOCAL_AMFLAGS = -I m4
 AUTOMAKE_OPTIONS = subdir-objects
 
 # This is so we can #include <gperftools/foo>
-AM_CPPFLAGS = -I$(top_srcdir)/src
+AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_builddir)/src
 
 if !WITH_STACK_TRACE
 AM_CPPFLAGS += -DNO_TCMALLOC_SAMPLES
@@ -506,15 +506,29 @@ dist_doc_DATA += docs/overview.dot \
 
 if WITH_DEBUGALLOC
 
+noinst_LTLIBRARIES += libbacktrace.la
+libbacktrace_la_SOURCES = vendor/libbacktrace-integration/file-format.c \
+                          vendor/libbacktrace/dwarf.c \
+                          vendor/libbacktrace/fileline.c \
+                          vendor/libbacktrace/posix.c \
+                          vendor/libbacktrace/sort.c \
+                          vendor/libbacktrace/state.c \
+                          vendor/libbacktrace/read.c
+# note, we're not including our "usual" project-wide AM_CPPFLAGS here
+libbacktrace_la_CPPFLAGS = -I$(top_srcdir)/vendor/libbacktrace-integration \
+                           -I$(top_srcdir)/vendor/libbacktrace
+
+
 noinst_LTLIBRARIES += libsymbolize.la
-libsymbolize_la_SOURCES = src/symbolize.cc
+libsymbolize_la_SOURCES = src/symbolize.cc vendor/libbacktrace-integration/backtrace-alloc.cc
+libsymbolize_la_LIBADD = libbacktrace.la
 
 lib_LTLIBRARIES += libtcmalloc_minimal_debug.la
 libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc \
                                        $(MINIMAL_MALLOC_SRC)
 libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS)
 libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS)
-libtcmalloc_minimal_debug_la_LIBADD = libsymbolize.la $(libtcmalloc_minimal_la_LIBADD)
+libtcmalloc_minimal_debug_la_LIBADD = libsymbolize.la liblow_level_alloc.la $(libtcmalloc_minimal_la_LIBADD)
 
 ### Unittests
 

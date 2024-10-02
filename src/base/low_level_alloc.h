@@ -90,9 +90,10 @@ class LowLevelAlloc {
   // It is illegal to attempt to destroy the DefaultArena().
   static bool DeleteArena(Arena *arena);
 
- private:
-  static Arena *DefaultArena();
   static PagesAllocator *GetDefaultPagesAllocator(void);
+
+private:
+  static Arena *DefaultArena();
 
   LowLevelAlloc();      // no instances
 };

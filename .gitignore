@@ -165,3 +165,7 @@
 /unwind_bench.exe
 /vendor/googletest/googletest/src/.deps
 /vendor/googletest/googletest/src/.dirstamp
+/vendor/libbacktrace-integration/.deps
+/vendor/libbacktrace-integration/.dirstamp
+/vendor/libbacktrace/.deps
+/vendor/libbacktrace/.dirstamp

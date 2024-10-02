@@ -20,7 +20,7 @@ AC_SUBST(TCMALLOC_AND_PROFILER_SO_VERSION)
 AC_CONFIG_SRCDIR(README)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
-AM_INIT_AUTOMAKE([dist-zip foreign tar-ustar])
+AM_INIT_AUTOMAKE([dist-zip foreign tar-ustar nostdinc])
 AC_CONFIG_HEADERS([src/config.h])
 
 AM_MAINTAINER_MODE()
@@ -153,6 +153,7 @@ esac
 
 # Checks for programs.
 AC_PROG_CXX
+AC_PROG_CC
 AC_LANG([C++])
 AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
 
@@ -216,14 +217,9 @@ AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h, __GLIBC__ macros
 AC_CHECK_HEADERS(malloc.h)      # some systems define stuff there, others not
 AC_CHECK_HEADERS(glob.h)        # for heap-profile-table (cleaning up profiles)
-dnl TODO; FIXME
 AC_CHECK_HEADERS(execinfo.h)    # for stacktrace
-AC_CHECK_HEADERS(unwind.h)      # for stacktrace
 AC_CHECK_HEADERS(sched.h)       # for being nice in our spinlock code
 AC_CHECK_HEADERS(sys/syscall.h)
-AC_CHECK_HEADERS(sys/socket.h)  # optional; for forking out to symbolizer
-AC_CHECK_HEADERS(sys/wait.h)    # optional; for forking out to symbolizer
-AC_CHECK_HEADERS(poll.h)        # optional; for forking out to symbolizer
 AC_CHECK_HEADERS(fcntl.h)       # for tcmalloc_unittest
 AC_CHECK_HEADERS(sys/cdefs.h)   # Where glibc defines __THROW
 
@@ -231,9 +227,6 @@ AC_CHECK_HEADERS(sys/ucontext.h)
 AC_CHECK_HEADERS(ucontext.h)
 AC_CHECK_HEADERS(cygwin/signal.h)        # ucontext on cywgin
 AC_CHECK_HEADERS(asm/ptrace.h)           # get ptrace macros, e.g. PT_NIP
-
-# check for socketpair, some system, such as QNX, need link in an socket library to use it
-AC_SEARCH_LIBS([socketpair], [socket])
 
 REGEX_LIBS=
 # "sufficiently unix" systems need regexec for unit tests
@@ -404,6 +397,16 @@ AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],
                           [Define to 1 if compiler supports __environ])
                 AC_MSG_RESULT([yes])],
                [AC_MSG_RESULT([no])])
+
+AC_CACHE_CHECK([if target has functional __cxa_demangle],
+               [perftools_cv_have_cxa_demangle],
+               [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
+                    [[#include <cxxabi.h>]],
+                    [[&__cxxabiv1::__cxa_demangle]])],
+                  [perftools_cv_have_cxa_demangle=yes],
+                  [perftools_cv_have_cxa_demangle=no])])
+AS_IF([test "x$perftools_cv_have_cxa_demangle" = xyes],
+      [AC_DEFINE(HAVE_CXA_DEMANGLE, 1, [Whether <cxxabi.h> contains __cxxabiv1::__cxa_demangle])])
 
 # Nanosleep requires extra libraries on some architectures (solaris).
 # This sets NANOSLEEP_LIBS.  nanosleep doesn't exist on mingw, which

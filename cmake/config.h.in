@@ -83,9 +83,6 @@
 /* Define to 1 if you have a working `mmap' system call. */
 #cmakedefine HAVE_MMAP
 
-/* Define to 1 if you have the <poll.h> header file. */
-#cmakedefine HAVE_POLL_H
-
 /* define if libc has program_invocation_name */
 #cmakedefine HAVE_PROGRAM_INVOCATION_NAME
 
@@ -119,9 +116,6 @@
 /* Define to 1 if you have the <sys/ucontext.h> header file. */
 #cmakedefine01 HAVE_SYS_UCONTEXT_H
 
-/* Define to 1 if you have the <sys/wait.h> header file. */
-#cmakedefine HAVE_SYS_WAIT_H
-
 /* Define to 1 if you have the <ucontext.h> header file. */
 #cmakedefine01 HAVE_UCONTEXT_H
 
@@ -131,8 +125,8 @@
 /* Whether <unwind.h> contains _Unwind_Backtrace */
 #cmakedefine HAVE_UNWIND_BACKTRACE
 
-/* Define to 1 if you have the <unwind.h> header file. */
-#cmakedefine HAVE_UNWIND_H
+// __cxxabiv1::__cxa_demangle is available
+#cmakedefine01 HAVE_CXA_DEMANGLE
 
 /* define if your compiler has __attribute__ */
 #cmakedefine HAVE___ATTRIBUTE__

@@ -1,6 +1,35 @@
-googletest is vendored at release-1.8.0-3493-g0953a17a
 
-It was copied verbatim via git archive and added here.
+== googletest
+
+googletest is vendored at release-1.8.0-3493-g0953a17a. It was copied
+verbatim via git archive and added here.
+
+== libbacktrace
 
 libbacktrace was vendored from github.com/ianlancetaylor/libbacktrace
-at commit 86885d14049fab06ef8a33aac51664230ca09200.
+at commit 86885d14049fab06ef8a33aac51664230ca09200. We dont use its
+autotools build infrastructure and integrate it ourselves with mostly
+hardcoded config.h and our own Makefile.am bits. Those integration
+bits are in libbacktrace-integration in this subdirectory. Main
+motivation for such approach is that:
+
+*) we only need symbolization subset
+
+*) we want to avoid polluting global namespace of symbols. We arrange
+ for all backtrace symbols to be prefixed tcmalloc_. See
+ libbacktrace-integration/config.h.
+
+When updating libbacktrace check that all symbols are renamed by
+something like this:
+
+$ make libbacktrace.la
+$ objdump -t .libs/libbacktrace.a | grep ' g '
+
+Another notable thing is, we don't bother with mmap support for
+reading files metadata and debug info. We actually go to extra length
+to replace their alloc.c functions with our own. Our replacement
+improves performance some, but most notably it allows us to discard
+all the state allocated by libbacktrace. This enables us to not worry
+about any synchronization concerns or libbacktrace's lack of ability
+to "see" freshly dlopened modules if we did recommended path of doing
+thread-ful singleton backtrace state.

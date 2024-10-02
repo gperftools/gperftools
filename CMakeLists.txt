@@ -3,8 +3,6 @@ cmake_minimum_required(VERSION 3.12)
 # Please note that cmake support is very preliminary. Autotools-based
 # build is the only fully supported build for now.
 
-# Based on configure.ac
-
 set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the build type")
 
 project(gperftools VERSION 2.16 LANGUAGES C CXX
@@ -172,7 +170,7 @@ check_c_source_compiles("#include <stdlib.h>
                         void foo(void) __attribute__((aligned(128)));
                         void foo(void) { exit(1); }
                         int main() { return 0; }"
-        HAVE___ATTRIBUTE__ALIGNED_FN) 
+        HAVE___ATTRIBUTE__ALIGNED_FN)
 
 set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
 check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
@@ -183,12 +181,8 @@ check_include_file("features.h" HAVE_FEATURES_H) # for vdso_support.h, Where __G
 check_include_file("malloc.h" HAVE_MALLOC_H) # some systems define stuff there, others not
 check_include_file("glob.h" HAVE_GLOB_H) # for heap-profile-table (cleaning up profiles)
 check_include_file("execinfo.h" HAVE_EXECINFO_H) # for stacktrace
-check_include_file("unwind.h" HAVE_UNWIND_H) # for stacktrace
 check_include_file("sched.h" HAVE_SCHED_H) # for being nice in our spinlock code
 check_include_file("sys/syscall.h" HAVE_SYS_SYSCALL_H)
-check_include_file("sys/socket.h" HAVE_SYS_SOCKET_H) # optional; for forking out to symbolizer
-check_include_file("sys/wait.h" HAVE_SYS_WAIT_H) # optional; for forking out to symbolizer
-check_include_file("poll.h" HAVE_POLL_H) # optional; for forking out to symbolizer
 check_include_file("fcntl.h" HAVE_FCNTL_H) # for tcmalloc_unittest
 check_include_file("sys/cdefs.h" HAVE_SYS_CDEFS_H) # Where glibc defines __THROW
 
@@ -281,7 +275,7 @@ if(NOT MSVC)
   set(CMAKE_REQUIRED_FLAGS)
 endif()
 
-check_c_source_compiles("
+check_cxx_source_compiles("
   #include <unwind.h>
   int main()
   {
@@ -292,6 +286,13 @@ check_c_source_compiles("
     return 0;
   }"
   HAVE_UNWIND_BACKTRACE)
+
+check_cxx_source_compiles("
+#include <cxxabi.h>
+int main() {
+  &__cxxabiv1::__cxa_demangle;
+}"
+  HAVE_CXA_DEMANGLE)
 
 if(enable_backtrace)
   set(default_emergency_malloc ON)
@@ -374,9 +375,7 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER OR
   set(WITH_STACK_TRACE ON)
 endif()
 
-# Based on Makefile.am
-
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
+include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/>)
 # This is so we can #include <gperftools/foo>
 include_directories($<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>)
 
@@ -682,9 +681,31 @@ endif()
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
 
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
-  add_library(tcmalloc_minimal_debug src/debugallocation.cc src/symbolize.cc ${MINIMAL_MALLOC_SRC})
+  add_library(libbacktrace
+    STATIC
+    vendor/libbacktrace-integration/file-format.c
+    vendor/libbacktrace/dwarf.c
+    vendor/libbacktrace/fileline.c
+    vendor/libbacktrace/posix.c
+    vendor/libbacktrace/sort.c
+    vendor/libbacktrace/state.c
+    vendor/libbacktrace/read.c)
+  target_include_directories(libbacktrace BEFORE PRIVATE
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/libbacktrace-integration>
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/libbacktrace>)
+  add_library(symbolize
+    STATIC
+    src/symbolize.cc
+    vendor/libbacktrace-integration/backtrace-alloc.cc)
+  target_link_libraries(symbolize PRIVATE libbacktrace)
+  if(BUILD_SHARED_LIBS)
+    set_property(TARGET libbacktrace PROPERTY POSITION_INDEPENDENT_CODE ON)
+    set_property(TARGET symbolize PROPERTY POSITION_INDEPENDENT_CODE ON)
+  endif()
+
+  add_library(tcmalloc_minimal_debug src/debugallocation.cc ${MINIMAL_MALLOC_SRC})
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
-  target_link_libraries(tcmalloc_minimal_debug PRIVATE common)
+  target_link_libraries(tcmalloc_minimal_debug PRIVATE symbolize low_level_alloc common)
 
   ### Unittests
 
@@ -809,9 +830,9 @@ endif()
 ### ------- tcmalloc with debugallocation
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
   if(GPERFTOOLS_BUILD_HEAP_PROFILER)
-    add_library(tcmalloc_debug src/debugallocation.cc src/symbolize.cc ${FULL_MALLOC_SRC})
+    add_library(tcmalloc_debug src/debugallocation.cc ${FULL_MALLOC_SRC})
     target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
-    target_link_libraries(tcmalloc_debug PRIVATE stacktrace low_level_alloc common)
+    target_link_libraries(tcmalloc_debug PRIVATE symbolize low_level_alloc stacktrace common)
 
     ### Unittests
     if(BUILD_TESTING)

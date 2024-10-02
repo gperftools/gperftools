@@ -308,3 +308,16 @@ TEST(DebugAllocationTest, ReallocAfterMemalign) {
   int rv = memcmp(stuff, p, sizeof(stuff));
   EXPECT_EQ(rv, 0);
 }
+
+int main(int argc, char** argv) {
+#if __APPLE__
+  // OSX needs dsymutil crap
+  std::string cmd = "dsymutil ";
+  cmd += argv[0];
+  int result = system(cmd.c_str());
+  printf("OSX-specific '%s' -> %d\n", cmd.c_str(), result);
+#endif
+
+  testing::InitGoogleTest(&argc, argv);
+  return RUN_ALL_TESTS();
+}
