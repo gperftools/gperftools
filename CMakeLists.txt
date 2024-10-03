@@ -423,8 +423,14 @@ add_library(common
   src/base/spinlock.cc
   src/base/spinlock_internal.cc)
 
+add_library(low_level_alloc
+  STATIC
+  src/base/low_level_alloc.cc)
+
 if(BUILD_SHARED_LIBS)
   set_property(TARGET common
+               PROPERTY POSITION_INDEPENDENT_CODE ON)
+  set_property(TARGET low_level_alloc
                PROPERTY POSITION_INDEPENDENT_CODE ON)
 else()
   # windows needs this. Doesn't hurt others.
@@ -474,10 +480,10 @@ if(BUILD_TESTING)
   target_include_directories(gtest INTERFACE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/googletest/googletest/include>)
 
-  add_executable(low_level_alloc_unittest src/base/low_level_alloc.cc
+  add_executable(low_level_alloc_unittest
           src/tests/low_level_alloc_unittest.cc)
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES PERFTOOLS_DLL_DECL= )
-  target_link_libraries(low_level_alloc_unittest common gtest)
+  target_link_libraries(low_level_alloc_unittest low_level_alloc common gtest)
   add_test(low_level_alloc_unittest low_level_alloc_unittest)
 endif()
 
@@ -743,7 +749,6 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
 
   set(FULL_MALLOC_SRC
     ${MINIMAL_MALLOC_SRC}
-    src/base/low_level_alloc.cc
     src/heap-profile-table.cc
     src/heap-profiler.cc
     ${EMERGENCY_MALLOC_CC}
@@ -751,7 +756,7 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     src/heap-checker-stub.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})
   target_compile_definitions(tcmalloc PRIVATE ${EMERGENCY_MALLOC_DEFINE})
-  target_link_libraries(tcmalloc PRIVATE stacktrace common)
+  target_link_libraries(tcmalloc PRIVATE stacktrace low_level_alloc common)
   target_link_options(tcmalloc INTERFACE ${TCMALLOC_FLAGS})
 
   ### Unittests
@@ -806,7 +811,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
   if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_library(tcmalloc_debug src/debugallocation.cc src/symbolize.cc ${FULL_MALLOC_SRC})
     target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
-    target_link_libraries(tcmalloc_debug PRIVATE stacktrace common)
+    target_link_libraries(tcmalloc_debug PRIVATE stacktrace low_level_alloc common)
 
     ### Unittests
     if(BUILD_TESTING)
