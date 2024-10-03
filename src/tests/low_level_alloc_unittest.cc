@@ -62,6 +62,38 @@ static void RandomizeBlockDesc(BlockDesc *d) {
   }
 }
 
+class TestPagesAllocator : public LowLevelAlloc::PagesAllocator {
+public:
+  struct TestHeader {
+    static inline constexpr uint32_t kMagic = 0x74e5ca8;
+
+    const uint32_t magic = kMagic;
+    const size_t size;
+    TestHeader(size_t size) : size(size) {}
+  };
+
+  uint64_t uses_count{};
+  uint64_t in_use{};
+
+  ~TestPagesAllocator() override = default;
+
+  std::pair<void *, size_t> MapPages(size_t size) override {
+    auto memory = (::operator new)(size + sizeof(TestHeader));
+    TestHeader* hdr = new (memory) TestHeader(size);
+    uses_count++;
+    in_use += size;
+    return {hdr + 1, size};
+  }
+
+  void UnMapPages(void *addr, size_t size) {
+    TestHeader* hdr = reinterpret_cast<TestHeader*>(addr) - 1;
+    ASSERT_TRUE(hdr->size == size);
+    ASSERT_TRUE(hdr->magic == TestHeader::kMagic);
+    in_use -= size;
+    (::operator delete)(hdr, size + sizeof(TestHeader));
+  }
+};
+
 // n times, toss a coin, and based on the outcome
 // either allocate a new block or deallocate an old block.
 // New blocks are placed in a map with a random key
@@ -78,8 +110,11 @@ static void ExerciseAllocator(bool use_new_arena, int n) {
   BlockDesc block_desc;
   int rnd;
   LowLevelAlloc::Arena *arena = 0;
+
+  TestPagesAllocator test_allocator;
+
   if (use_new_arena) {
-    arena = LowLevelAlloc::NewArena(nullptr);
+    arena = LowLevelAlloc::NewArenaWithCustomAlloc(&test_allocator);
   }
   for (int i = 0; i != n; i++) {
     if (i != 0 && i % 10000 == 0) {
@@ -123,7 +158,10 @@ static void ExerciseAllocator(bool use_new_arena, int n) {
     allocated.erase(it);
   }
   if (use_new_arena) {
+    ASSERT_GT(test_allocator.uses_count, 0);
+    ASSERT_GT(test_allocator.in_use, 0);
     ASSERT_TRUE(LowLevelAlloc::DeleteArena(arena));
+    ASSERT_EQ(test_allocator.in_use, 0);
   }
 }
 

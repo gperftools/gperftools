@@ -325,7 +325,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
   // call new, and we want that to be accounted for correctly.
   MallocExtension::Initialize();
 
-  heap_profiler_memory = LowLevelAlloc::NewArena(nullptr);
+  heap_profiler_memory = LowLevelAlloc::NewArena();
 
   heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
       HeapProfileTable(ProfilerMalloc, ProfilerFree);
