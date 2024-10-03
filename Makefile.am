@@ -187,7 +187,6 @@ proc_maps_iterator_test_LDADD = libcommon.la libgtest.la
 if WITH_HEAP_PROFILER_OR_CHECKER
 TESTS += low_level_alloc_unittest
 low_level_alloc_unittest_SOURCES = src/base/low_level_alloc.cc \
-                                   src/malloc_hook.cc \
                                    src/tests/low_level_alloc_unittest.cc
 # By default, MallocHook takes stack traces for use by the heap-checker.
 # We don't need that functionality here, so we turn it off to reduce deps.

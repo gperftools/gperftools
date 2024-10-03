@@ -36,7 +36,6 @@
 #include <stdio.h>
 #include <map>
 
-#include <gperftools/malloc_hook.h>
 #include "gtest/gtest.h"
 
 // a block of memory obtained from the allocator

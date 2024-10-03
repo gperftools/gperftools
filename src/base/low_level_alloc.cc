@@ -42,10 +42,6 @@
 #include "base/spinlock.h"
 #include "base/static_storage.h"
 
-// FIXME (need hooks?)
-#include "malloc_hook-inl.h"
-#include <gperftools/malloc_hook.h>
-
 #include "memmap.h"
 
 // A first-fit allocator with amortized logarithmic free() time.

@@ -475,7 +475,6 @@ if(BUILD_TESTING)
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/googletest/googletest/include>)
 
   add_executable(low_level_alloc_unittest src/base/low_level_alloc.cc
-          src/malloc_hook.cc
           src/tests/low_level_alloc_unittest.cc)
   target_compile_definitions(low_level_alloc_unittest PRIVATE NO_TCMALLOC_SAMPLES PERFTOOLS_DLL_DECL= )
   target_link_libraries(low_level_alloc_unittest common gtest)
