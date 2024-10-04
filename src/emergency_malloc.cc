@@ -119,14 +119,13 @@ ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {
 
 ATTRIBUTE_HIDDEN void EmergencyFree(void *p) {
   SpinLockHolder l(&emergency_malloc_lock);
-  if (emergency_arena_start == nullptr) {
-    InitEmergencyMalloc();
-    CHECK_CONDITION(emergency_arena_start != nullptr);
-    free(p);
-    return;
-  }
   CHECK_CONDITION(emergency_arena_start);
   LowLevelAlloc::Free(p);
+}
+
+ATTRIBUTE_HIDDEN size_t EmergencyAllocatedSize(const void *p) {
+  CHECK_CONDITION(emergency_arena_start);
+  return LowLevelAlloc::UsableSize(p);
 }
 
 ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {

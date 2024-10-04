@@ -77,6 +77,7 @@ public:
   virtual int32_t& GetMaxFreeQueueSize() = 0;
 
   virtual bool HasEmergencyMalloc() = 0;
+  virtual bool IsEmergencyPtr(void* ptr) = 0;
   virtual void WithEmergencyMallocEnabled(FunctionRef<void()> body) = 0;
 
 protected:

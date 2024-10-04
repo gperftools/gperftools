@@ -376,6 +376,12 @@ void LowLevelAlloc::Free(void *v) {
   arena->allocation_count--;
 }
 
+size_t LowLevelAlloc::UsableSize(const void *p) {
+  const AllocList *f = reinterpret_cast<const AllocList *>(
+                        reinterpret_cast<const char *>(p) - sizeof (f->header));
+  return f->header.size - sizeof(f->header);
+}
+
 void *LowLevelAlloc::Alloc(size_t request) {
   return AllocWithArena(request, nullptr);
 }

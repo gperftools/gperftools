@@ -1116,6 +1116,9 @@ class DebugMallocImplementation : public TCMallocImplementation {
     if (p) {
       RAW_CHECK(GetOwnership(p) != MallocExtension::kNotOwned,
                 "ptr not allocated by tcmalloc");
+      if (tcmalloc::IsEmergencyPtr(p)) {
+        return tcmalloc::EmergencyAllocatedSize(p);
+      }
       return MallocBlock::FromRawPointer(p)->actual_data_size(p);
     }
     return 0;
@@ -1148,6 +1151,10 @@ class DebugMallocImplementation : public TCMallocImplementation {
     MallocExtension::Ownership rv = TCMallocImplementation::GetOwnership(p);
     if (rv != MallocExtension::kOwned) {
       return rv;
+    }
+
+    if (tcmalloc::IsEmergencyPtr(p)) {
+      return kOwned;
     }
 
     const MallocBlock* mb = MallocBlock::FromRawPointer(p);

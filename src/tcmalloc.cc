@@ -301,6 +301,9 @@ ATTRIBUTE_NOINLINE void InvalidFree(void* ptr) {
 }
 
 size_t InvalidGetAllocatedSize(const void* ptr) {
+  if (tcmalloc::IsEmergencyPtr(ptr)) {
+    return tcmalloc::EmergencyAllocatedSize(ptr);
+  }
   Log(kCrash, __FILE__, __LINE__,
       "Attempt to get the size of an invalid pointer", ptr);
   return 0;
@@ -577,6 +580,10 @@ public:
 
   bool HasEmergencyMalloc() override {
     return kUseEmergencyMalloc;
+  }
+
+  bool IsEmergencyPtr(void* ptr) override {
+    return tcmalloc::IsEmergencyPtr(ptr);
   }
 
   void WithEmergencyMallocEnabled(FunctionRef<void()> body) override {
@@ -963,7 +970,10 @@ class TCMallocImplementation : public MallocExtension {
       return kOwned;
     }
     const Span *span = Static::pageheap()->GetDescriptor(p);
-    return span ? kOwned : kNotOwned;
+    if (span) {
+      return kOwned;
+    }
+    return tcmalloc::IsEmergencyPtr(ptr) ? kOwned : kNotOwned;
   }
 
   virtual void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {

@@ -70,6 +70,8 @@ class LowLevelAlloc {
   // Equivalent to AllocWithArena(request, nullptr)
   static void *Alloc(size_t request);
 
+  static size_t UsableSize(const void *p);
+
   // Deallocates a region of memory that was previously allocated with
   // Alloc().   Does nothing if passed 0.   "s" must be either 0,
   // or must have been returned from a call to Alloc() and not yet passed to

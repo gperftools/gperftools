@@ -1581,16 +1581,19 @@ TEST(TCMallocTest, EmergencyMalloc) {
   // Emergency malloc doesn't call hook
   ASSERT_EQ(g_NewHook_calls, 0);
 
-  // Emergency malloc doesn't return pointers recognized by MallocExtension
+  // Emergency malloc pointers are recognized by MallocExtension::GetOwnership
   ASSERT_EQ(MallocExtension::instance()->GetOwnership(p1), MallocExtension::kOwned);
-  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p2), MallocExtension::kNotOwned);
+  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p2), MallocExtension::kOwned);
+
+  EXPECT_FALSE(portal->IsEmergencyPtr(p1));
+  EXPECT_TRUE(portal->IsEmergencyPtr(p2));
 
   // Emergency malloc automagically does the right thing for free()
   // calls and doesn't invoke hooks.
-  tc_free(p2);
+  free(p2);
   ASSERT_EQ(g_DeleteHook_calls, 0);
 
-  tc_free(p1);
+  free(p1);
   VerifyDeleteHookWasCalled();
 }
 
@@ -1619,11 +1622,16 @@ TEST(TCMallocTest, EmergencyMallocNoHook) {
   ASSERT_NE(p3, nullptr);
   ASSERT_NE(p4, nullptr);
 
-  // Emergency malloc doesn't return pointers recognized by MallocExtension
+  // Emergency malloc pointers are recognized by MallocExtension::GetOwnership
   ASSERT_EQ(MallocExtension::instance()->GetOwnership(p1), MallocExtension::kOwned);
-  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p2), MallocExtension::kNotOwned);
-  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p3), MallocExtension::kNotOwned);
-  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p4), MallocExtension::kNotOwned);
+  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p2), MallocExtension::kOwned);
+  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p3), MallocExtension::kOwned);
+  ASSERT_EQ(MallocExtension::instance()->GetOwnership(p4), MallocExtension::kOwned);
+
+  EXPECT_FALSE(portal->IsEmergencyPtr(p1));
+  EXPECT_TRUE(portal->IsEmergencyPtr(p2));
+  EXPECT_TRUE(portal->IsEmergencyPtr(p3));
+  EXPECT_TRUE(portal->IsEmergencyPtr(p4));
 
   SetNewHook();
   SetDeleteHook();
@@ -1634,12 +1642,12 @@ TEST(TCMallocTest, EmergencyMallocNoHook) {
 
   // Emergency malloc automagically does the right thing for free()
   // calls and doesn't invoke hooks.
-  tc_free(p4);
-  tc_free(p3);
-  tc_free(p2);
+  free(p4);
+  free(p3);
+  free(p2);
   ASSERT_EQ(g_DeleteHook_calls, 0);
 
-  tc_free(p1);
+  free(p1);
   VerifyDeleteHookWasCalled();
 }
 

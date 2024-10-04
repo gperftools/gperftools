@@ -49,6 +49,7 @@ ATTRIBUTE_HIDDEN extern uintptr_t emergency_arena_start_shifted;;
 ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size);
 ATTRIBUTE_HIDDEN void EmergencyFree(void *p);
 ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *old_ptr, size_t new_size);
+ATTRIBUTE_HIDDEN size_t EmergencyAllocatedSize(const void* p);
 
 static inline bool IsEmergencyPtr(const void *_ptr) {
   uintptr_t ptr = reinterpret_cast<uintptr_t>(_ptr);
