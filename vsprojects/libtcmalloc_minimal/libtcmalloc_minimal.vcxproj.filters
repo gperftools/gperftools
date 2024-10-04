@@ -17,9 +17,6 @@
     <ClCompile Include="..\..\src\base\dynamic_annotations.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\symbolize.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\windows\ia32_modrm_map.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

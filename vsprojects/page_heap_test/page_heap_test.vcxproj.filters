@@ -65,9 +65,6 @@
     <ClCompile Include="..\..\src\static_vars.cc">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\symbolize.cc">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="..\..\src\tests\page_heap_test.cc">
       <Filter>Source Files</Filter>
     </ClCompile>

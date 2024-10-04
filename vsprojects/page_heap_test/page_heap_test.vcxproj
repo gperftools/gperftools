@@ -215,7 +215,6 @@
     <ClCompile Include="..\..\src\stack_trace_table.cc" />
     <ClCompile Include="..\..\src\stacktrace.cc" />
     <ClCompile Include="..\..\src\static_vars.cc" />
-    <ClCompile Include="..\..\src\symbolize.cc" />
     <ClCompile Include="..\..\src\tests\page_heap_test.cc" />
     <ClCompile Include="..\..\src\thread_cache.cc" />
     <ClCompile Include="..\..\src\thread_cache_ptr.cc" />
