@@ -40,84 +40,131 @@
 #endif
 
 #include "libbacktrace_api.h"
-#include "base/function_ref.h"
 
 namespace tcmalloc {
+
+class SymbolizePrinter {
+public:
+  SymbolizePrinter(backtrace_state* state, std::string_view line_prefix)
+    : state_(state), line_prefix_(line_prefix) {}
+
+  void OnePC(uintptr_t pc) {
+    if (!state_) {
+      DemangleAndPrint(pc, nullptr, 0, nullptr, 0);
+      return;
+    }
+
+    pc_ = pc;
+    want_syminfo_ = false;
+    tcmalloc_backtrace_pcinfo(state_, pc,
+                              &pcinfo_success,
+                              &pcinfo_error,
+                              this);
+    if (want_syminfo_) {
+      tcmalloc_backtrace_syminfo(state_, pc,
+                                 &syminfo_success,
+                                 &syminfo_error,
+                                 this);
+    }
+  }
+
+  static int pcinfo_success(void* data, uintptr_t pc, const char* filename, int lineno, const char* function) {
+    auto printer = static_cast<SymbolizePrinter*>(data);
+    if (function == nullptr) {
+      printer->want_syminfo_ = true;
+      return 1;
+    }
+
+    printer->DemangleAndPrint(pc, filename, lineno, function, 0);
+
+    return 0;
+  }
+
+  static void pcinfo_error(void* data, const char* msg, int errnum) {
+    fprintf(stderr, "symbolization step failed (errnum=%d): %s\n", errnum, msg);
+
+    auto printer = static_cast<SymbolizePrinter*>(data);
+    printer->want_syminfo_ = true;
+  }
+
+  static void syminfo_success(void* data, uintptr_t pc, const char* symname, uintptr_t symval, uintptr_t symsize) {
+    static_cast<SymbolizePrinter*>(data)->DemangleAndPrint(pc, nullptr, 0, symname, symval);
+  }
+
+  static void syminfo_error(void* data, const char* msg, int errnum) {
+    fprintf(stderr, "symbolization syminfo step failed (errnum=%d): %s\n", errnum, msg);
+    auto printer = static_cast<SymbolizePrinter*>(data);
+    printer->DemangleAndPrint(printer->pc_, nullptr, 0, nullptr, 0);
+  }
+
+  void DemangleAndPrint(uintptr_t pc, const char* filename, int lineno, const char* function, uintptr_t symval) {
+    char* demangled = nullptr;
+
+#if HAVE_CXA_DEMANGLE
+    size_t length;
+    int status = -1;
+    if (function != nullptr) {
+      demangled = __cxxabiv1::__cxa_demangle(function, nullptr, &length, &status);
+      if (status != 0) {
+        free(demangled);
+        demangled = nullptr;
+      }
+    }
+    if (demangled) {
+      function = demangled;
+    }
+#endif
+
+    if (filename != nullptr) {
+      // We assume that function name is not blank in this case.
+      fprintf(stderr, "%.*s%p %s %s:%d\n",
+              (int)line_prefix_.size(), line_prefix_.data(),
+              reinterpret_cast<void*>(pc),
+              function,
+              filename, lineno);
+    } else if (function == nullptr) {
+      fprintf(stderr, "%.*s%p\n",
+              (int)line_prefix_.size(), line_prefix_.data(),
+              reinterpret_cast<void*>(pc));
+    } else if (symval != 0) {
+      fprintf(stderr, "%.*s%p %s + %zu\n",
+              (int)line_prefix_.size(), line_prefix_.data(),
+              reinterpret_cast<void*>(pc),
+              function, pc - symval);
+    } else {
+      fprintf(stderr, "%.*s%p %s\n",
+              (int)line_prefix_.size(), line_prefix_.data(),
+              reinterpret_cast<void*>(pc),
+              function);
+    }
+
+    free(demangled);
+  }
+
+private:
+  backtrace_state* const state_;
+  std::string_view const line_prefix_;
+
+  uintptr_t pc_{};
+  bool want_syminfo_;
+};
 
 void DumpStackTraceToStderr(void * const *stack, int stack_depth,
                             bool want_symbolize, std::string_view line_prefix) {
   backtrace_state* state = nullptr;
   if (want_symbolize) {
-    // note, create fresh un-threaded backtrace state which we then
+    // note, we create fresh un-threaded backtrace state which we
     // "dispose" at the end. This is contrary to libbacktrace's normal
     // recommendations.
     state = tcmalloc_backtrace_create_state(nullptr, /*threaded = */0, nullptr, nullptr);
   }
 
-  auto callback = [&] (uintptr_t pc, const char* filename, int lineno, const char* function) {
-    if (function == nullptr) {
-      fprintf(stderr, "%.*s%p\n",
-              (int)line_prefix.size(), line_prefix.data(),
-              reinterpret_cast<void*>(pc));
-      return;
-    }
-
-    char* demangled = nullptr;
-#if HAVE_CXA_DEMANGLE
-    size_t length;
-    int status = -1;
-    demangled = __cxxabiv1::__cxa_demangle(function, nullptr, &length, &status);
-    if (status != 0) {
-      free(demangled);
-      demangled = nullptr;
-    }
-#endif
-
-    if (filename != nullptr) {
-      fprintf(stderr, "%.*s%p %s %s:%d\n",
-              (int)line_prefix.size(), line_prefix.data(),
-              reinterpret_cast<void*>(pc),
-              demangled ? demangled : function,
-              filename, lineno);
-    } else {
-      fprintf(stderr, "%.*s%p %s\n",
-              (int)line_prefix.size(), line_prefix.data(),
-              reinterpret_cast<void*>(pc),
-              demangled ? demangled : function);
-    }
-
-    free(demangled);
-  };
-
+  SymbolizePrinter printer{state, line_prefix};
   for (int i = 0; i < stack_depth; i++) {
-    struct _call_data {
-      decltype(&callback) callback_ptr;
-      uintptr_t pc;
-    } call_data;
-    call_data.callback_ptr = &callback;
-    call_data.pc = reinterpret_cast<uintptr_t>(stack[i]) - 1;
-
-    backtrace_full_callback success = [] (void* data, uintptr_t pc, const char* filename, int lineno, const char* function) -> int {
-      (*static_cast<_call_data*>(data)->callback_ptr)(pc, filename, lineno, function);
-      return 0;
-    };
-    backtrace_error_callback error = [] (void* data, const char* msg, int errnum) {
-      fprintf(stderr, "symbolization step failed (errnum=%d): %s\n", errnum, msg);
-      auto real_data = static_cast<_call_data*>(data);
-      (*real_data->callback_ptr)(real_data->pc, nullptr, 0, nullptr);
-    };
-
-    if (!want_symbolize) {
-      success(&call_data, call_data.pc, nullptr, 0, nullptr);
-    } else {
-      tcmalloc_backtrace_pcinfo(state, call_data.pc,
-                                success,
-                                error,
-                                &call_data);
-    }
+    printer.OnePC(reinterpret_cast<uintptr_t>(stack[i]) - 1);
   }
 
-  if (want_symbolize) {
+  if (state) {
     tcmalloc_backtrace_dispose_state(state);
   }
 }

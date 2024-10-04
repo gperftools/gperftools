@@ -33,6 +33,7 @@
 #include "config.h"
 
 #include "base/basictypes.h"
+#include "base/function_ref.h"
 #include "base/spinlock.h"
 #include "base/threading.h"
 #include "thread_cache.h"
@@ -110,6 +111,10 @@ public:
   // stacktrace_allowed argument of `fn'. See malloc_backtrace.cc for
   // it's usage.
   static void WithStacktraceScope(void (*fn)(bool stacktrace_allowed, void* arg), void* arg);
+
+  static void WithStacktraceScope(tcmalloc::FunctionRef<void(bool)> body) {
+    WithStacktraceScope(body.fn, body.data);
+  }
 
 private:
   friend class SlowTLS;

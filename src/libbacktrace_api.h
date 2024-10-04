@@ -57,6 +57,16 @@ int tcmalloc_backtrace_pcinfo(
   backtrace_error_callback error_callback,
   void *data);
 
+typedef void (*backtrace_syminfo_callback) (void *data, uintptr_t pc,
+					    const char *symname,
+					    uintptr_t symval,
+					    uintptr_t symsize);
+
+int tcmalloc_backtrace_syminfo(struct backtrace_state *state, uintptr_t addr,
+                               backtrace_syminfo_callback callback,
+                               backtrace_error_callback error_callback,
+                               void *data);
+
 // backtrace-alloc.cc
 
 // This is part of our "special sauce" that lets is release all memory

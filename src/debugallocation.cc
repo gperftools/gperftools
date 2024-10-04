@@ -696,10 +696,11 @@ class MallocBlock {
       TracePrintf(STDERR_FILENO, "Deleted by thread %zx\n",
                   queue_entry.deleter_threadid);
 
-      tcmalloc::DumpStackTraceToStderr(queue_entry.deleter_pcs, queue_entry.num_deleter_pcs,
-                                       FLAGS_symbolize_stacktrace,
-                                       "    @ ");
-
+      ThreadCachePtr::WithStacktraceScope([&] (bool stacktrace_allowed) {
+        tcmalloc::DumpStackTraceToStderr(queue_entry.deleter_pcs, queue_entry.num_deleter_pcs,
+                                         FLAGS_symbolize_stacktrace,
+                                         "    @ ");
+      });
     } else {
       RAW_LOG(ERROR,
               "Skipping the printing of the deleter's stack!  Its stack was "
