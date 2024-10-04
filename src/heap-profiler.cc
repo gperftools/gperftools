@@ -77,6 +77,8 @@
 #endif
 #endif
 
+using tcmalloc::LowLevelAlloc;
+
 //----------------------------------------------------------------------
 // Flags that control heap-profiling
 //

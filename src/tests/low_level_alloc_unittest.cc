@@ -38,6 +38,8 @@
 
 #include "gtest/gtest.h"
 
+using tcmalloc::LowLevelAlloc;
+
 // a block of memory obtained from the allocator
 struct BlockDesc {
   char *ptr;      // pointer to memory

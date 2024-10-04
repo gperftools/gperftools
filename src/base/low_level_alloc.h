@@ -45,6 +45,8 @@
 
 #include "base/basictypes.h"
 
+namespace tcmalloc {
+
 class LowLevelAlloc {
  public:
   class PagesAllocator {
@@ -94,5 +96,7 @@ class LowLevelAlloc {
 
   LowLevelAlloc();      // no instances
 };
+
+}  // namespace tcmalloc
 
 #endif

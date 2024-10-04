@@ -48,14 +48,14 @@
 
 // A first-fit allocator with amortized logarithmic free() time.
 
+namespace tcmalloc {
+
 LowLevelAlloc::PagesAllocator::~PagesAllocator() {
 }
 
 // ---------------------------------------------------------------------------
 static constexpr int kMaxLevel = 30;
 static constexpr size_t kMinimalRegion = 1 << 20;
-
-namespace {
 
 // This struct describes one allocated block, or one free block.
 struct AllocList {
@@ -86,8 +86,6 @@ public:
   std::pair<void *,size_t> MapPages(size_t size) override;
   void UnMapPages(void *addr, size_t size) override;
 };
-
-}  // namespace
 
 // ---------------------------------------------------------------------------
 // A trivial skiplist implementation.  This is used to keep the freelist
@@ -511,3 +509,5 @@ void DefaultPagesAllocator::UnMapPages(void *region, size_t size) {
   RAW_CHECK(munmap_result == 0,
             "LowLevelAlloc::DeleteArena: munmap failed address");
 }
+
+}  // namespace tcmalloc
