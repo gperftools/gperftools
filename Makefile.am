@@ -972,4 +972,7 @@ EXTRA_DIST = $(SCRIPTS) \
 dist-hook: $(top_distdir)/ChangeLog
 	test -e "$(distdir)/vsprojects" \
 	   && chmod -R u+w $(distdir)/*.sln $(distdir)/vsprojects/
+	rm -rf $(distdir)/vendor/googletest/googletest/src/.deps
+	rm -rf $(distdir)/vendor/libbacktrace/.deps
+	rm -rf $(distdir)/vendor/libbacktrace-integration/.deps
 	rm -f $(distdir)/src/config.h $(distdir)/src/gperftools/tcmalloc.h
