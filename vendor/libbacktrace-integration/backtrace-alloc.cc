@@ -103,7 +103,7 @@ public:
     LowLevelAlloc::PagesAllocator* parent_allocator = LowLevelAlloc::GetDefaultPagesAllocator();
     Header* hdr = head_;
 
-    BTPagesAllocator::~BTPagesAllocator();
+    this->~BTPagesAllocator();
 
     while (hdr) {
       Header* next = hdr->next;
