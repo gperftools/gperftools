@@ -45,8 +45,8 @@ namespace tcmalloc {
 
 class SymbolizePrinter {
 public:
-  SymbolizePrinter(backtrace_state* state, std::string_view line_prefix)
-    : state_(state), line_prefix_(line_prefix) {}
+  SymbolizePrinter(backtrace_state* state, FunctionRef<void(const SymbolizeOutcome& outcome)> outcome_callback)
+    : state_(state), outcome_callback_{outcome_callback} {}
 
   void OnePC(uintptr_t pc) {
     if (!state_) {
@@ -110,63 +110,85 @@ public:
         demangled = nullptr;
       }
     }
-    if (demangled) {
-      function = demangled;
-    }
 #endif
 
-    if (filename != nullptr) {
-      // We assume that function name is not blank in this case.
-      fprintf(stderr, "%.*s%p %s %s:%d\n",
-              (int)line_prefix_.size(), line_prefix_.data(),
-              reinterpret_cast<void*>(pc),
-              function,
-              filename, lineno);
-    } else if (function == nullptr) {
-      fprintf(stderr, "%.*s%p\n",
-              (int)line_prefix_.size(), line_prefix_.data(),
-              reinterpret_cast<void*>(pc));
-    } else if (symval != 0) {
-      fprintf(stderr, "%.*s%p %s + %zu\n",
-              (int)line_prefix_.size(), line_prefix_.data(),
-              reinterpret_cast<void*>(pc),
-              function, pc - symval);
-    } else {
-      fprintf(stderr, "%.*s%p %s\n",
-              (int)line_prefix_.size(), line_prefix_.data(),
-              reinterpret_cast<void*>(pc),
-              function);
-    }
+    SymbolizeOutcome outcome;
+    outcome.pc = pc;
+    outcome.function = demangled ? demangled : function;
+    outcome.original_function = function;
+    outcome.filename = filename;
+    outcome.lineno = lineno;
+    outcome.symval = symval;
+
+    outcome_callback_(outcome);
 
     free(demangled);
   }
 
 private:
   backtrace_state* const state_;
-  std::string_view const line_prefix_;
+  FunctionRef<void(const SymbolizeOutcome&)> const outcome_callback_;
 
   uintptr_t pc_{};
   bool want_syminfo_;
 };
 
-void DumpStackTraceToStderr(void * const *stack, int stack_depth,
-                            bool want_symbolize, std::string_view line_prefix) {
-  backtrace_state* state = nullptr;
-  if (want_symbolize) {
+SymbolizerAPI::SymbolizerAPI(FunctionRef<void(const SymbolizeOutcome& outcome)> *callback)
+  : callback_(callback),
     // note, we create fresh un-threaded backtrace state which we
     // "dispose" at the end. This is contrary to libbacktrace's normal
     // recommendations.
-    state = tcmalloc_backtrace_create_state(nullptr, /*threaded = */0, nullptr, nullptr);
+    state_(tcmalloc_backtrace_create_state(nullptr, /*threaded = */0, nullptr, nullptr)) {}
+
+void SymbolizerAPI::Add(uintptr_t addr) const {
+  SymbolizePrinter{state_, *callback_}.OnePC(addr);
+}
+
+SymbolizerAPI::~SymbolizerAPI() {
+  tcmalloc_backtrace_dispose_state(state_);
+}
+
+void DumpStackTraceToStderr(void * const *stack, int stack_depth,
+                            bool want_symbolize, std::string_view line_prefix) {
+  if (!want_symbolize) {
+    for (int i = 0; i < stack_depth; i++) {
+      fprintf(stderr,"%.*s%p\n",
+              (int)line_prefix.size(), line_prefix.data(),
+              stack[i]);
+    }
+    return;
   }
 
-  SymbolizePrinter printer{state, line_prefix};
-  for (int i = 0; i < stack_depth; i++) {
-    printer.OnePC(reinterpret_cast<uintptr_t>(stack[i]) - 1);
-  }
-
-  if (state) {
-    tcmalloc_backtrace_dispose_state(state);
-  }
+  SymbolizerAPI::With(
+    [&] (const SymbolizerAPI& api) {
+      for (int i = 0; i < stack_depth; i++) {
+        api.Add(reinterpret_cast<uintptr_t>(stack[i]) - 1);
+      }
+    },
+    [&] (const SymbolizeOutcome& o) {
+      if (o.filename != nullptr) {
+        // We assume that function name is not blank in this case.
+        fprintf(stderr, "%.*s%p %s %s:%d\n",
+                (int)line_prefix.size(), line_prefix.data(),
+                reinterpret_cast<void*>(o.pc),
+                o.function,
+                o.filename, o.lineno);
+      } else if (o.function == nullptr) {
+        fprintf(stderr, "%.*s%p\n",
+                (int)line_prefix.size(), line_prefix.data(),
+                reinterpret_cast<void*>(o.pc));
+      } else if (o.symval != 0) {
+        fprintf(stderr, "%.*s%p %s + %zu\n",
+                (int)line_prefix.size(), line_prefix.data(),
+                reinterpret_cast<void*>(o.pc),
+                o.function, o.pc - o.symval);
+      } else {
+        fprintf(stderr, "%.*s%p %s\n",
+                (int)line_prefix.size(), line_prefix.data(),
+                reinterpret_cast<void*>(o.pc),
+                o.function);
+      }
+    });
 }
 
 }  // namespace tcmalloc

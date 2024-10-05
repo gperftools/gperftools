@@ -37,12 +37,45 @@
 
 #include <string_view>
 
+#include "base/basictypes.h"
+#include "base/function_ref.h"
+
+extern "C" {
+  struct backtrace_state;
+}
+
 namespace tcmalloc {
 
-// ATTRIBUTE_VISIBILITY_HIDDEN
+ATTRIBUTE_VISIBILITY_HIDDEN
 void DumpStackTraceToStderr(
   void * const *stack, int stack_depth, bool want_symbolize,
   std::string_view line_prefix);
+
+struct SymbolizeOutcome {
+  uintptr_t pc;
+  const char* function;
+  const char* filename;
+  int lineno;
+  uintptr_t symval;
+  const char* original_function;
+};
+
+class ATTRIBUTE_VISIBILITY_HIDDEN SymbolizerAPI {
+public:
+  explicit SymbolizerAPI(FunctionRef<void(const SymbolizeOutcome& outcome)> *callback);
+  ~SymbolizerAPI();
+
+  static void With(FunctionRef<void(const SymbolizerAPI& api)> body,
+                   FunctionRef<void(const SymbolizeOutcome&)> callback) {
+    body(SymbolizerAPI{&callback});
+  }
+
+  void Add(uintptr_t addr) const;
+private:
+  FunctionRef<void(const SymbolizeOutcome&)> *callback_;
+  backtrace_state* state_;
+};
+
 }  // namespace tcmalloc
 
 #endif  // TCMALLOC_SYMBOLIZE_H_
