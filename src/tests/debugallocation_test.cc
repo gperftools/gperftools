@@ -203,10 +203,14 @@ TEST(DebugAllocationTest, StackTraceWithDanglingWriteAtExitTest) {
   FooBar::StackTraceMarker(x);
   int old_x_value = *x;
   *x = 1;
-  // verify that we also get a stack trace when we have a dangling write.
-  // The " @ " is part of the stack trace output.
-  EXPECT_DEATH(exit(0), " @ .*FooBar::StackTraceMarker");
-  *x = old_x_value;  // restore x so that the test can exit successfully.
+  if (!getenv("TCM_DEBUG_BT_SYMBOLIZATION_TEST")) {
+    // verify that we also get a stack trace when we have a dangling write.
+    // The " @ " is part of the stack trace output.
+    EXPECT_DEATH(exit(0), " @ .*FooBar::StackTraceMarker");
+    *x = old_x_value;  // restore x so that the test can exit successfully.
+  } else {
+    exit(0);
+  }
 }
 
 static size_t CurrentlyAllocatedBytes() {
