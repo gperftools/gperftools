@@ -87,7 +87,7 @@ public:
     return {hdr + 1, size};
   }
 
-  void UnMapPages(void *addr, size_t size) {
+  void UnMapPages(void *addr, size_t size) override {
     TestHeader* hdr = reinterpret_cast<TestHeader*>(addr) - 1;
     ASSERT_TRUE(hdr->size == size);
     ASSERT_TRUE(hdr->magic == TestHeader::kMagic);
