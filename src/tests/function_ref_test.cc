@@ -79,3 +79,46 @@ TEST(FunctionRef, Basic) {
   ASSERT_EQ(fn_result, 16);
   ASSERT_EQ(fn_ref_invoked, 4);
 }
+
+TEST(FunctionRef, BasicFirstDataArg) {
+  int fn_ref_invoked = 0;
+  int fn_result = -1;
+  int fn_arg = 42;
+
+  auto fn = [&] (tcmalloc::FunctionRefFirstDataArg<int(int)> ref) {
+    fn_result = ref(fn_arg);
+    fn_ref_invoked++;
+  };
+
+  fn([] (int arg) -> int {
+    return arg;
+  });
+
+  ASSERT_EQ(fn_result, 42);
+  ASSERT_EQ(fn_ref_invoked, 1);
+
+  fn_arg = 13;
+
+  fn([fn_ref_invoked, no_copy = std::make_unique<int>(1)] (int arg) {
+    return fn_ref_invoked + arg;
+  });
+
+  ASSERT_EQ(fn_result, 14);
+  ASSERT_EQ(fn_ref_invoked, 2);
+
+  auto body = [fn_ref_invoked, no_copy = std::make_unique<int>(1)] (int arg) {
+    return fn_ref_invoked + arg;
+  };
+
+  fn(body);
+
+  ASSERT_EQ(fn_result, 15);
+  ASSERT_EQ(fn_ref_invoked, 3);
+
+  std::function<int(int)> f = [&] (int arg) { return fn_ref_invoked + arg; };
+
+  fn(f);
+
+  ASSERT_EQ(fn_result, 16);
+  ASSERT_EQ(fn_ref_invoked, 4);
+}

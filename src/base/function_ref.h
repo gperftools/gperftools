@@ -100,7 +100,7 @@ struct FunctionRefFirstDataArg<R(Args...)> {
     }), data(const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
 
   R operator()(Args... args) const {
-    return fn(std::forward<Args>(args)..., data);
+    return fn(data, std::forward<Args>(args)...);
   }
 
   R (*const fn)(void* data, Args... args);
