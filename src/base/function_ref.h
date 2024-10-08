@@ -64,12 +64,16 @@ struct FunctionRef<R(Args...)> {
       typename std::enable_if<std::is_void<R>::value ||
                               std::is_convertible<FR, R>::value>::type;
 
+  explicit FunctionRef(R (*fn)(Args..., void*), void* data)
+    : fn(fn), data(data) {}
+
   template <typename Body, typename = EnableIfCompatible<const Body&>>
-  FunctionRef(const Body& body)
-    : fn([] (Args... args, void* data) {
+  FunctionRef(const Body& body) : FunctionRef(
+    [] (Args... args, void* data) {
       const Body& b = *(reinterpret_cast<const Body*>(data));
       return b(std::forward<Args>(args)...);
-    }), data(const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
+    },
+    const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
 
   R operator()(Args... args) const {
     return fn(std::forward<Args>(args)..., data);
@@ -92,12 +96,16 @@ struct FunctionRefFirstDataArg<R(Args...)> {
       typename std::enable_if<std::is_void<R>::value ||
                               std::is_convertible<FR, R>::value>::type;
 
+  explicit FunctionRefFirstDataArg(R (*fn)(void*, Args...), void* data)
+    : fn(fn), data(data) {}
+
   template <typename Body>
-  FunctionRefFirstDataArg(const Body& body)
-    : fn([] (void* data, Args... args) {
+  FunctionRefFirstDataArg(const Body& body) : FunctionRefFirstDataArg(
+    [] (void* data, Args... args) {
       const Body& b = *(reinterpret_cast<const Body*>(data));
       return b(std::forward<Args>(args)...);
-    }), data(const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
+    },
+    const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
 
   R operator()(Args... args) const {
     return fn(data, std::forward<Args>(args)...);
