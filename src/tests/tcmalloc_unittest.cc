@@ -73,11 +73,26 @@
 #include <assert.h>
 
 #include <algorithm>
+#include <functional>
 #include <mutex>
 #include <new>
 #include <string>
 #include <thread>
 #include <vector>
+
+#if __linux__ && __x86_64__
+// for fork testing
+#include <dlfcn.h>
+#include <errno.h>
+#include <sched.h>
+#include <semaphore.h>
+#include <signal.h>
+#include <sys/wait.h>
+#include <ucontext.h>
+#include <unistd.h>
+
+#define HAVE_FORK_TESTING_SUPPORT
+#endif // __linux__ && __x86_64__
 
 #include "gperftools/malloc_hook.h"
 #include "gperftools/malloc_extension.h"
@@ -96,6 +111,8 @@
 
 #include "base/logging.h"
 
+
+static bool running_fork_testing;
 
 using tcmalloc::TestingPortal;
 
@@ -584,6 +601,8 @@ class TesterThread {
 };
 
 TEST(TCMallocTest, ManyThreads) {
+  if (running_fork_testing) return;
+
   printf("Testing threaded allocation/deallocation (%d threads)\n",
           FLAGS_numthreads);
 
@@ -1206,6 +1225,8 @@ static void test_new_handler() {
 }
 
 TEST(TCMallocTest, NewHandler) {
+  if (running_fork_testing) return;
+
   // debug allocator does internal allocations and crashes when such
   // internal allocation fails. So don't test it.
   if (TestingPortal::Get()->IsDebuggingMalloc()) {
@@ -1872,6 +1893,208 @@ std::function<void()> SetupExec(int argc, char** argv) {
   };
 }
 
+#ifdef HAVE_FORK_TESTING_SUPPORT
+// Fork torture testing.
+//
+// Basic idea is to enable x86 single-stepping mode. And have signal
+// handler for SIGTRAP wake up a helper thread. That helper thread
+// forks and runs some malloc activities in the child.
+//
+// We also setup cpu mask with exactly one cpu and have helper thread
+// on real-time scheduling policy. This ensures that whenever helper
+// thread runs forking, we can unblock main thread, but main thread
+// will only run when helper thread is blocked on some lock.
+//
+// Intended outcome is to exercise fork in multithreaded programs on
+// roughly every possible opportunity.
+//
+// We also add a small optimization of only really stopping on
+// instructions immediately after instruction with LOCK
+// prefix. I.e. after some locking operation is complete.
+//
+// This is Linux- and x86-64-specific for simplicity.
+
+// single_step_req is waited by the helper thread and posted by main
+// thread from single-step signal handler.
+sem_t single_step_req;
+// single_step_ack is waited by the main thread and posted by the
+// helper thread.
+sem_t single_step_ack;
+
+// in_fork is a flag set iff helper thread is running the forking activity.
+bool in_fork;
+
+// These 2 flags are helping us make sure we're actually done forking
+// at the end of test runner.
+bool stepping_stop_requested;
+bool stepping_stop_acked;
+
+uint64_t num_forks;
+
+void xsem_wait(sem_t* sem) {
+  while (sem_wait(sem) < 0) {
+    CHECK(errno == EINTR);
+  }
+}
+
+void step_handler(int signo, siginfo_t* si, void* _uc) {
+  constexpr uintptr_t TF_FLAG = 0x100;
+  ucontext_t* uc = static_cast<ucontext_t*>(_uc);
+
+  if (stepping_stop_requested) {
+    uc->uc_mcontext.gregs[REG_EFL] &= ~TF_FLAG;
+    while (in_fork) {
+      (void)*const_cast<volatile bool*>(&in_fork);
+    }
+    stepping_stop_acked = true;
+    return;
+  }
+
+  if (in_fork) {
+    return;
+  }
+
+  // Add TF to flags and request SIGTRAP on every instruction in this
+  // thread. We could do it only once, but it is harmless to do it
+  // always.
+  uc->uc_mcontext.gregs[REG_EFL] |= TF_FLAG;
+
+  static bool last_was_lock;
+
+  if (!last_was_lock) {
+    auto at_rip = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_RIP]);
+    if (*at_rip == 0xf0) { // lock prefix.
+      last_was_lock = true;
+    }
+    return;
+  }
+
+  last_was_lock = false;
+
+  int errno_save = errno;
+
+  (void)sem_post(&single_step_req);
+  xsem_wait(&single_step_ack);
+
+  errno = errno_save;
+}
+
+tcmalloc::Cleanup<std::function<void()>> setup_fork_testing(int* argc, char *** argv) {
+  if (*argc < 2 || (*argv)[1] != std::string("--with-fork-torture")) {
+    printf("Not enabling fork torture\n");
+    return tcmalloc::Cleanup(std::function<void()>([] () {}));
+  }
+  printf("Enabling fork torturing!!!!\n");
+
+  CHECK(sem_init(&single_step_req, 0, 0) == 0);
+  CHECK(sem_init(&single_step_ack, 0, 0) == 0);
+
+  // First, we set cpu affinity mask to only core 0. It helps
+  // performance, but mostly it is required so that main thread never
+  // runs when real-time helper thread is runnable.
+  {
+    cpu_set_t mask;
+    memset(&mask, 0, sizeof(mask));
+    CPU_SET(0, &mask);
+    CHECK(sched_setaffinity(0, sizeof(mask), &mask) == 0);
+  }
+
+  // Then we prepare SIGTRAP signal handler.
+  {
+    struct sigaction sa;
+    memset(&sa, 0, sizeof(sa));
+    sa.sa_sigaction = step_handler;
+    sa.sa_flags = SA_RESTART | SA_SIGINFO;
+    CHECK(sigaction(SIGTRAP, &sa, nullptr) == 0);
+  }
+
+  std::thread* t = new std::thread([] () {
+    // Helper thread first makes itself real-time.
+    struct sched_param p;
+    memset(&p, 0, sizeof(p));
+    p.sched_priority = 1;
+    CHECK(sched_setscheduler(0, SCHED_FIFO, &p) == 0);
+
+    // And then signals its readiness.
+    sem_post(&single_step_ack);
+
+    MallocExtension::instance()->MarkThreadIdle();
+
+    constexpr int kPeriod = 1 << 10;
+    int cnt = kPeriod;
+
+    while (true) {
+      xsem_wait(&single_step_req);
+      // Lets print something every few iterations to help us see if
+      // progress is being made.
+      if (--cnt <= 0) {
+        write(2, "$", 1);
+        cnt = kPeriod;
+      }
+
+      // Once we're about to fork, we need to flag "in_fork" mode and
+      // unblock main thread.
+      in_fork = true;
+      sem_post(&single_step_ack);
+
+      int child = fork();
+      CHECK(child >= 0);
+      if (child == 0) {
+        // Child runs some mallocs and exits.
+        (::operator delete)((::operator new)(32));
+        (::operator delete)((::operator new)(1024));
+        (::operator delete)((::operator new)(2 << 20));
+        _exit(0);
+      }
+
+      // Parent asserts that child exited cleanly.
+      int status = 0;
+      int ret = waitpid(child, &status, 0);
+      CHECK(ret == child);
+      CHECK(status == 0);
+
+      // And we un-mark in_fork mode, so that main thread continues to
+      // cooperation via sem_{post/wait} on single_step_{req,ack}
+      // semaphores.
+      num_forks++;
+      in_fork = false;
+    }
+  });
+  (void)t; // leak
+  xsem_wait(&single_step_ack);
+
+  MallocExtension::instance()->MarkThreadIdle();
+
+  // First SIGTRAP runs the signal handler and signal handler sets up
+  // EFLAGS to single-step.
+  raise(SIGTRAP);
+
+  // This is a flag for a couple of tests that are not compatible with
+  // single-stepping. a) ManyThreads tests doesn't work because
+  // pthread creation code blocks all signals at some point and which
+  // crashes the process, because kernel has no way of delivering
+  // synchronous SIGRAP b) NewHandler test doesn't work because it
+  // enables oom simulation at some point which, naturally, crashes
+  // the forked child.
+  running_fork_testing = true;
+
+  return tcmalloc::Cleanup(std::function<void()>([] () {
+    stepping_stop_requested = true;
+    while (!*const_cast<volatile bool*>(&stepping_stop_acked)) {
+      // no-op
+    }
+    // In the clean up, we're ensuring that in_fork turns to false, so
+    // that fork/waitpid isn't stuck.
+    printf("Done with fork torturing!\n");
+  }));
+}
+
+#else  // HAVE_FORK_TESTING_SUPPORT
+
+int setup_fork_testing(int* argc, char *** argv) {return 0;}
+
+#endif  // !HAVE_FORK_TESTING_SUPPORT
+
 int main(int argc, char** argv) {
   std::function<void()> exec_fn = SetupExec(argc, argv);
 
@@ -1890,9 +2113,14 @@ int main(int argc, char** argv) {
 
   testing::InitGoogleTest(&argc, argv);
 
-  int err_code = RUN_ALL_TESTS();
-  if (err_code || !exec_fn) {
-    return err_code;
+  {
+    auto fork_cleanup = setup_fork_testing(&argc, &argv);
+    (void)fork_cleanup;
+
+    int err_code = RUN_ALL_TESTS();
+    if (err_code || !exec_fn) {
+      return err_code;
+    }
   }
 
   // if exec_fn is not empty and we've passed tests so far, lets try
