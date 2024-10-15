@@ -468,3 +468,7 @@ void TCMalloc_SystemCommit(void* start, size_t length) {
   // application.
 #endif
 }
+
+SpinLock* GetSysAllocLock() {
+  return &spinlock;
+}

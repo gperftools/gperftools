@@ -198,6 +198,8 @@ public:
     entry->DebugDirty();
   }
 
+  static SpinLock* GetLock() { return &lock_; }
+
 private:
   static constexpr inline int kTableSize = 257;
   static inline Entry* hash_table_[kTableSize];
@@ -348,6 +350,10 @@ void ThreadCachePtr::InitThreadCachePtrLate() {
     ThreadCache::DeleteCache(static_cast<ThreadCache*>(ptr));
   });
   CHECK(err == 0);
+}
+
+SpinLock* ThreadCachePtr::GetSlowTLSLock() {
+  return SlowTLS::GetLock();
 }
 
 #if defined(ENABLE_EMERGENCY_MALLOC)

@@ -44,6 +44,9 @@
 #include "getenv_safe.h"       // TCMallocGetenvSafe
 #include "base/googleinit.h"
 
+#include "thread_cache_ptr.h"
+#include "system-alloc.h"
+
 namespace tcmalloc {
 
 bool Static::inited_;
@@ -97,10 +100,14 @@ void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS
   Static::pageheap_lock()->Lock();
   for (int i = 0; i < Static::num_size_classes(); ++i)
     Static::central_cache()[i].Lock();
+  ThreadCachePtr::GetSlowTLSLock()->Lock();
+  GetSysAllocLock()->Lock();
 }
 
 void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS
 {
+  GetSysAllocLock()->Unlock();
+  ThreadCachePtr::GetSlowTLSLock()->Unlock();
   for (int i = 0; i < Static::num_size_classes(); ++i)
     Static::central_cache()[i].Unlock();
   Static::pageheap_lock()->Unlock();

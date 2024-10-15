@@ -116,6 +116,9 @@ public:
     WithStacktraceScope(body.fn, body.data);
   }
 
+  // For pthread_atfork handler
+  static SpinLock* GetSlowTLSLock();
+
 private:
   friend class SlowTLS;
 

@@ -203,3 +203,5 @@ bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
 void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {
   // We don't dump stats on windows, right now
 }
+
+SpinLock* GetSysAllocLock() { return &spinlock; }
