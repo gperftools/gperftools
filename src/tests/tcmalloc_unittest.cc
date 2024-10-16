@@ -2115,13 +2115,10 @@ tcmalloc::Cleanup<std::function<void()>> setup_fork_testing(int* argc, char *** 
   // EFLAGS to single-step.
   raise(SIGTRAP);
 
-  // This is a flag for a couple of tests that are not compatible with
-  // single-stepping. a) ManyThreads tests doesn't work because
-  // pthread creation code blocks all signals at some point and which
-  // crashes the process, because kernel has no way of delivering
-  // synchronous SIGRAP b) NewHandler test doesn't work because it
-  // enables oom simulation at some point which, naturally, crashes
-  // the forked child.
+  // This is a flag for a test that is not compatible with
+  // single-stepping. NewHandler test doesn't work because it enables
+  // oom simulation at some point which, naturally, crashes the forked
+  // child.
   running_fork_testing = true;
 
   return tcmalloc::Cleanup(std::function<void()>([] () {
