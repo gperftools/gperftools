@@ -2131,7 +2131,7 @@ tcmalloc::Cleanup<std::function<void()>> setup_fork_testing(int* argc, char *** 
     }
     // In the clean up, we're ensuring that in_fork turns to false, so
     // that fork/waitpid isn't stuck.
-    printf("Done with fork torturing!\n");
+    printf("Done with fork torturing! Number of forks performed: %lld\n", (long long)num_forks);
   }));
 }
 }  // namespace fork_torture
