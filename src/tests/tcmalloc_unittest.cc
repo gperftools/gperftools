@@ -82,11 +82,11 @@
 
 #if __linux__ && __x86_64__
 // for fork testing
-#include <dlfcn.h>
 #include <errno.h>
 #include <sched.h>
 #include <semaphore.h>
 #include <signal.h>
+#include <sys/syscall.h>
 #include <sys/wait.h>
 #include <ucontext.h>
 #include <unistd.h>
@@ -601,8 +601,6 @@ class TesterThread {
 };
 
 TEST(TCMallocTest, ManyThreads) {
-  if (running_fork_testing) return;
-
   printf("Testing threaded allocation/deallocation (%d threads)\n",
           FLAGS_numthreads);
 
@@ -1894,6 +1892,8 @@ std::function<void()> SetupExec(int argc, char** argv) {
 }
 
 #ifdef HAVE_FORK_TESTING_SUPPORT
+namespace fork_torture {
+
 // Fork torture testing.
 //
 // Basic idea is to enable x86 single-stepping mode. And have signal
@@ -1937,16 +1937,24 @@ void xsem_wait(sem_t* sem) {
   }
 }
 
+constexpr uintptr_t kTF = 0x100; // Trace flag in x86 FLAGS register.
+
+bool try_handle_sigtrap_blocking(uint8_t* at_rip, ucontext_t* uc);
+
 void step_handler(int signo, siginfo_t* si, void* _uc) {
-  constexpr uintptr_t TF_FLAG = 0x100;
   ucontext_t* uc = static_cast<ucontext_t*>(_uc);
+  auto at_rip = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_RIP]);
 
   if (stepping_stop_requested) {
-    uc->uc_mcontext.gregs[REG_EFL] &= ~TF_FLAG;
+    uc->uc_mcontext.gregs[REG_EFL] &= ~kTF;
     while (in_fork) {
       (void)*const_cast<volatile bool*>(&in_fork);
     }
     stepping_stop_acked = true;
+    return;
+  }
+
+  if (try_handle_sigtrap_blocking(at_rip, uc)) {
     return;
   }
 
@@ -1957,12 +1965,11 @@ void step_handler(int signo, siginfo_t* si, void* _uc) {
   // Add TF to flags and request SIGTRAP on every instruction in this
   // thread. We could do it only once, but it is harmless to do it
   // always.
-  uc->uc_mcontext.gregs[REG_EFL] |= TF_FLAG;
+  uc->uc_mcontext.gregs[REG_EFL] |= kTF;
 
   static bool last_was_lock;
 
   if (!last_was_lock) {
-    auto at_rip = reinterpret_cast<uint8_t*>(uc->uc_mcontext.gregs[REG_RIP]);
     if (*at_rip == 0xf0) { // lock prefix.
       last_was_lock = true;
     }
@@ -1977,6 +1984,45 @@ void step_handler(int signo, siginfo_t* si, void* _uc) {
   xsem_wait(&single_step_ack);
 
   errno = errno_save;
+}
+
+bool try_handle_sigtrap_blocking(uint8_t* at_rip, ucontext_t* uc) {
+  if (at_rip[0] != 0x0f || at_rip[1] != 0x05) {
+    return false;
+  }
+
+  // syscall instruction. Lets check if someone is about to block
+  // SIGTRAP. If so we must turn off single-stepping, because
+  // otherwise blocked SIGTRAP and pending single-stepping will kill
+  // the process.
+
+  auto& regs = uc->uc_mcontext.gregs;
+  if (regs[REG_RAX] != SYS_rt_sigprocmask) {
+    return false;
+  }
+  if (regs[REG_RDI] != SIG_SETMASK && regs[REG_RDI] != SIG_BLOCK) {
+    return false;
+  }
+  sigset_t* newmask = reinterpret_cast<sigset_t*>(regs[REG_RSI]);
+  if (!newmask || !sigismember(newmask, SIGTRAP)) {
+    return false;
+  }
+
+  // okay, once we detected this case, we drop single-stepping
+  // flag, block SIGTRAP and raise it. So that when SIGTRAP is
+  // eventually unblocked, we'll get back to signal hander and
+  // re-set single-stepping back.
+  regs[REG_EFL] &= ~kTF;
+  raise(SIGTRAP);
+  sigset_t* oldmask = reinterpret_cast<sigset_t*>(regs[REG_RDX]);
+  if (oldmask) {
+    *oldmask = uc->uc_sigmask;
+    regs[REG_RDX] = 0; // handle "get old mask" part, so we can block
+                       // our signal
+  }
+  sigaddset(&uc->uc_sigmask, SIGTRAP);
+
+  return true;
 }
 
 tcmalloc::Cleanup<std::function<void()>> setup_fork_testing(int* argc, char *** argv) {
@@ -2088,6 +2134,9 @@ tcmalloc::Cleanup<std::function<void()>> setup_fork_testing(int* argc, char *** 
     printf("Done with fork torturing!\n");
   }));
 }
+}  // namespace fork_torture
+
+using fork_torture::setup_fork_testing;
 
 #else  // HAVE_FORK_TESTING_SUPPORT
 
