@@ -44,7 +44,6 @@
 
 namespace tcmalloc {
 
-struct SpanBestFitLess;
 struct Span;
 
 // Store a pointer to a span along with a cached copy of its length.
@@ -58,12 +57,13 @@ struct SpanPtrWithLength {
   Span* span;
   Length length;
 };
-typedef std::set<SpanPtrWithLength, SpanBestFitLess, STLPageHeapAllocator<SpanPtrWithLength, void> > SpanSet;
-
 // Comparator for best-fit search, with address order as a tie-breaker.
 struct SpanBestFitLess {
   bool operator()(SpanPtrWithLength a, SpanPtrWithLength b) const;
 };
+
+using SpanSet = std::set<SpanPtrWithLength, SpanBestFitLess, STLPageHeapAllocator<SpanPtrWithLength, void>>;
+using SpanSetIter = SpanSet::iterator;
 
 // Information kept for a span (a contiguous run of pages).
 struct Span {
@@ -78,7 +78,7 @@ struct Span {
     // this span into set of large spans. It is used to quickly delete
     // spans from those sets. span_iter_space is space for such
     // iterator which lifetime is controlled explicitly.
-    char span_iter_space[sizeof(SpanSet::iterator)];
+    alignas(SpanSetIter) char span_iter_space[sizeof(SpanSetIter)];
   };
   unsigned int  refcount : 16;  // Number of non-free objects
   unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
@@ -92,9 +92,9 @@ struct Span {
 
   // Sets iterator stored in span_iter_space.
   // Requires has_span_iter == 0.
-  void SetSpanSetIterator(const SpanSet::iterator& iter);
+  void SetSpanSetIterator(const SpanSetIter& iter);
   // Copies out and destroys iterator stored in span_iter_space.
-  SpanSet::iterator ExtractSpanSetIterator();
+  SpanSetIter ExtractSpanSetIterator();
 
   // What freelist the span is on: IN_USE if on none, or normal or returned
   enum { IN_USE, ON_NORMAL_FREELIST, ON_RETURNED_FREELIST };
@@ -113,23 +113,21 @@ inline bool SpanBestFitLess::operator()(SpanPtrWithLength a, SpanPtrWithLength b
   return a.span->start < b.span->start;
 }
 
-inline void Span::SetSpanSetIterator(const SpanSet::iterator& iter) {
+inline void Span::SetSpanSetIterator(const SpanSetIter& iter) {
   ASSERT(!has_span_iter);
   has_span_iter = 1;
 
-  new (span_iter_space) SpanSet::iterator(iter);
+  new (span_iter_space) SpanSetIter(iter);
 }
 
-inline SpanSet::iterator Span::ExtractSpanSetIterator() {
-  typedef SpanSet::iterator iterator_type;
-
+inline SpanSetIter Span::ExtractSpanSetIterator() {
   ASSERT(has_span_iter);
   has_span_iter = 0;
 
-  iterator_type* this_iter =
-    reinterpret_cast<iterator_type*>(span_iter_space);
-  iterator_type retval = *this_iter;
-  this_iter->~iterator_type();
+  SpanSetIter* this_iter =
+    reinterpret_cast<SpanSetIter*>(span_iter_space);
+  SpanSetIter retval = *this_iter;
+  this_iter->~SpanSetIter();
   return retval;
 }
 

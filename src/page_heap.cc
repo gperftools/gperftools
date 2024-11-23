@@ -279,7 +279,7 @@ Span* PageHeap::AllocLarge(Length n) {
   bound.length = n;
 
   // First search the NORMAL spans..
-  SpanSet::iterator place = large_normal_.upper_bound(SpanPtrWithLength(&bound));
+  SpanSetIter place = large_normal_.upper_bound(SpanPtrWithLength(&bound));
   if (place != large_normal_.end()) {
     best = place->span;
     best_normal = best;
@@ -512,7 +512,7 @@ void PageHeap::PrependToFreeList(Span* span) {
     SpanSet *set = &large_normal_;
     if (span->location == Span::ON_RETURNED_FREELIST)
       set = &large_returned_;
-    std::pair<SpanSet::iterator, bool> p =
+    std::pair<SpanSetIter, bool> p =
         set->insert(SpanPtrWithLength(span));
     ASSERT(p.second); // We never have duplicates since span->start is unique.
     span->SetSpanSetIterator(p.first);
@@ -539,7 +539,7 @@ void PageHeap::RemoveFromFreeList(Span* span) {
     SpanSet *set = &large_normal_;
     if (span->location == Span::ON_RETURNED_FREELIST)
       set = &large_returned_;
-    SpanSet::iterator iter = span->ExtractSpanSetIterator();
+    SpanSetIter iter = span->ExtractSpanSetIterator();
     ASSERT(iter->span == span);
     ASSERT(set->find(SpanPtrWithLength(span)) == iter);
     set->erase(iter);
@@ -682,11 +682,11 @@ void PageHeap::GetLargeSpanStatsLocked(LargeSpanStats* result) {
   result->spans = 0;
   result->normal_pages = 0;
   result->returned_pages = 0;
-  for (SpanSet::iterator it = large_normal_.begin(); it != large_normal_.end(); ++it) {
+  for (SpanSetIter it = large_normal_.begin(); it != large_normal_.end(); ++it) {
     result->normal_pages += it->length;
     result->spans++;
   }
-  for (SpanSet::iterator it = large_returned_.begin(); it != large_returned_.end(); ++it) {
+  for (SpanSetIter it = large_returned_.begin(); it != large_returned_.end(); ++it) {
     result->returned_pages += it->length;
     result->spans++;
   }
@@ -817,7 +817,7 @@ bool PageHeap::CheckList(Span* list, Length min_pages, Length max_pages,
 }
 
 bool PageHeap::CheckSet(SpanSet* spanset, Length min_pages,int freelist) {
-  for (SpanSet::iterator it = spanset->begin(); it != spanset->end(); ++it) {
+  for (SpanSetIter it = spanset->begin(); it != spanset->end(); ++it) {
     Span* s = it->span;
     CHECK_CONDITION(s->length == it->length);
     CHECK_CONDITION(s->location == freelist);  // NORMAL or RETURNED
