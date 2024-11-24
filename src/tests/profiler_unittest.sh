@@ -104,8 +104,8 @@ VerifySimilar() {
   # We are careful not to put exec1 and exec2 in quotes, because if
   # they are the empty string, it means we want to use the 1-arg
   # version of pprof.
-  mthread1=`"$PPROF" $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
-  mthread2=`"$PPROF" $exec2 "$prof2" | grep test_main_thread | awk '{print $1}'`
+  mthread1=`"$PPROF" --text $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
+  mthread2=`"$PPROF" --text $exec2 "$prof2" | grep test_main_thread | awk '{print $1}'`
   mthread1_plus=`expr $mthread1 + 5`
   mthread2_plus=`expr $mthread2 + 5`
   if [ -z "$mthread1" ] || [ -z "$mthread2" ] || \
@@ -137,8 +137,8 @@ VerifyAcrossThreads() {
 
   # We are careful not to put exec1 in quotes, because if it is the
   # empty string, it means we want to use the 1-arg version of pprof.
-  mthread=`$PPROF $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
-  othread=`$PPROF $exec1 "$prof1" | grep test_other_thread | awk '{print $1}'`
+  mthread=`$PPROF --text $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
+  othread=`$PPROF --text $exec1 "$prof1" | grep test_other_thread | awk '{print $1}'`
   if [ -z "$mthread" ] || [ -z "$othread" ] || \
      [ "$mthread" -le 0 -o "$othread" -le 0 ]
 #    || [ `expr $mthread \* $mult \* 3` -gt `expr $othread \* 10` -o \

@@ -76,10 +76,10 @@ VerifyMemFunction() {
   if [ $# = 2 ]; then
     [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
     [ -f "$2" ] || { echo "Profile not found: $2"; exit 1; }
-    $PPROF --base="$1" $exec "$2" >"$TEST_TMPDIR/output.pprof" 2>&1
+    $PPROF --text --base="$1" $exec "$2" >"$TEST_TMPDIR/output.pprof" 2>&1
   else
     [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
-    $PPROF $exec "$1" >"$TEST_TMPDIR/output.pprof" 2>&1
+    $PPROF --text $exec "$1" >"$TEST_TMPDIR/output.pprof" 2>&1
   fi
 
   cat "$TEST_TMPDIR/output.pprof" \
