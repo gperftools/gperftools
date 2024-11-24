@@ -74,7 +74,7 @@ void* AllocateAllocate() {
 }
 
 #ifndef PPROF_PATH
-#error compiling this file requires PPROF_PATH to be set correctly
+#define PPROF_PATH pprof
 #endif
 
 #define XSTR(x) #x
