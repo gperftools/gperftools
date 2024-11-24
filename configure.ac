@@ -308,16 +308,6 @@ AC_ARG_ENABLE(frame_pointers,
 	      , enable_frame_pointers=no)
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 
-AC_ARG_ENABLE([deprecated-pprof],
-              [AS_HELP_STRING([--disable-deprecated-pprof],
-                [do not install old deprecated and unmaintained bundled pprof
-(see github.com/google/pprof for supported version)])],
-              [enable_pprof="$enableval"],
-              [enable_pprof=yes])
-
-AM_CONDITIONAL(INSTALL_PPROF,
-               [test "x$enable_pprof" = xyes])
-
 AC_ARG_ENABLE([dynamic-sized-delete-support],
               [AS_HELP_STRING([--enable-dynamic-sized-delete-support],
                 [try to build run-time switch for sized delete operator])],

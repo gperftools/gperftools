@@ -231,30 +231,8 @@ dist_doc_DATA +=
 
 endif WITH_STACK_TRACE
 
-### ------- pprof
-
-# If we are not compiling with stacktrace support, pprof is worthless
-if WITH_STACK_TRACE
-
-bin_SCRIPTS = pprof-symbolize
-
-pprof-symbolize : $(top_srcdir)/src/pprof
-	cp -p $(top_srcdir)/src/pprof $@
-
-### Unittests
-
 # Let unittests find pprof if they need to run it
 TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
-
-if INSTALL_PPROF
-bin_SCRIPTS += src/pprof
-dist_man_MANS = docs/pprof.1
-dist_doc_DATA += docs/pprof_remote_servers.html
-endif INSTALL_PPROF
-
-### Documentation
-
-endif WITH_STACK_TRACE
 
 ### ------- tcmalloc_minimal (thread-caching malloc)
 
