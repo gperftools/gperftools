@@ -14,7 +14,7 @@ occurs or to gather detailed profiling information.
 In general the functions provided by this library are async-signal-safe,
 meaning that they may be safely called from a signal handler.
 That said, on systems that use `dl_iterate_phdr`, such as GNU/Linux,
-gitthe first call to a libbacktrace function will call `dl_iterate_phdr`,
+the first call to a libbacktrace function will call `dl_iterate_phdr`,
 which is not in general async-signal-safe.  Therefore, programs
 that call libbacktrace from a signal handler should ensure that they
 make an initial call from outside of a signal handler.
