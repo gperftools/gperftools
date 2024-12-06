@@ -99,9 +99,6 @@ EXTRA_INSTALL =
 
 ## vvvv RULES TO MAKE THE LIBRARIES, BINARIES, AND UNITTESTS
 
-dist_doc_DATA += docs/index.html docs/designstyle.css
-
-
 ### ------- various support library routines
 
 # Having set of common helpers helps with unit testing various "guts"
@@ -222,9 +219,6 @@ TESTS += check_address_test
 check_address_test_SOURCES = src/tests/check_address_test.cc
 check_address_test_CPPFLAGS = $(gtest_CPPFLAGS)
 check_address_test_LDADD = libcommon.la libgtest.la
-
-### Documentation
-dist_doc_DATA +=
 
 endif WITH_STACK_TRACE
 
@@ -436,43 +430,19 @@ min_per_thread_cache_size_test_CPPFLAGS = $(gtest_CPPFLAGS)
 min_per_thread_cache_size_test_LDADD = libtcmalloc_minimal.la libgtest.la
 
 ### Documentation
-dist_doc_DATA += docs/tcmalloc.html \
-                 docs/overview.gif \
-                 docs/pageheap.gif \
-                 docs/spanmap.gif \
-                 docs/threadheap.gif \
-                 docs/t-test1.times.txt \
-                 docs/tcmalloc-opspercpusec.vs.threads.1024.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.128.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.131072.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.16384.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.2048.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.256.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.32768.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.4096.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.512.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.64.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.65536.bytes.png 	\
-                 docs/tcmalloc-opspercpusec.vs.threads.8192.bytes.png 	\
-                 docs/tcmalloc-opspersec.vs.size.1.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.12.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.16.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.2.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.20.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.3.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.4.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.5.threads.png 		\
-                 docs/tcmalloc-opspersec.vs.size.8.threads.png
+dist_doc_DATA += $(top_srcdir)/docs/*adoc $(top_srcdir)/docs/*gif $(top_srcdir)/docs/*png $(top_srcdir)/docs/dots/*dot
 
-# I don't know how to say "distribute the .dot files but don't install them";
-# noinst doesn't seem to work with data.  I separate them out anyway, in case
-# one day we figure it out.  Regardless, installing the dot files isn't the
-# end of the world.
-dist_doc_DATA += docs/overview.dot \
-                 docs/pageheap.dot \
-                 docs/spanmap.dot \
-                 docs/threadheap.dot
+gperftools_HTMLDOCS = docs/tcmalloc.html docs/heapprofile.html \
+       docs/cpuprofile.html docs/cpuprofile-fileformat.html \
+       docs/pprof_integration.html
 
+if !MISSING_ASCIIDOCTOR
+doc_DATA = $(gperftools_HTMLDOCS)
+MOSTLYCLEANFILES = $(gperftools_HTMLDOCS)
+
+.adoc.html:
+	$(ASCIIDOCTOR) $(ASCIIDOCTOR_FLAGS) -o $@ $<
+endif !MISSING_ASCIIDOCTOR
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
 
@@ -715,11 +685,6 @@ endif !SKIP_PPROF_TESTS
 
 endif WITH_HEAP_PROFILER
 
-### Documentation (above and beyond tcmalloc_minimal documentation)
-if WITH_HEAP_PROFILER
-dist_doc_DATA += docs/heapprofile.html docs/heap-example1.png
-endif WITH_HEAP_PROFILER
-
 ### ------- tcmalloc with debugallocation
 
 if WITH_DEBUGALLOC
@@ -837,14 +802,6 @@ profiler4_unittest_LDADD = -lstacktrace -lprofiler
 profiler4_unittest_DEPENDENCIES = libprofiler.la
 endif !SKIP_PPROF_TESTS
 
-### Documentation
-dist_doc_DATA += docs/cpuprofile.html \
-                 docs/cpuprofile-fileformat.html \
-                 docs/pprof-test-big.gif \
-                 docs/pprof-test.gif \
-                 docs/pprof-vsnprintf-big.gif \
-                 docs/pprof-vsnprintf.gif
-
 endif WITH_CPU_PROFILER
 
 
@@ -954,7 +911,7 @@ $(top_distdir)/ChangeLog:
 EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              src/windows/CMakeLists.txt \
-             docs/pprof.see_also $(WINDOWS_EXTRA) \
+             $(WINDOWS_EXTRA) \
              gperftools.sln vsprojects vendor \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \
              $(top_srcdir)/benchmark/*h \

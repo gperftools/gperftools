@@ -1,0 +1,161 @@
+= Gperftools CPU Profiler Binary Data File Format
+:reproducible:
+
+[.normal]
+This file documents the binary data file format produced by the
+gperftools CPU Profiler. It is one of "legacy" formats supported by
+the pprof tool. For information about using the CPU Profiler, see
+link:cpuprofile.html[its user guide].
+
+The profiler source code, which generates files using this format, is at
+`src/profiler.cc`.
+
+== CPU Profile Data File Structure
+
+CPU profile data files each consist of four parts, in order:
+
+* Binary header
+* Binary profile records
+* Binary trailer
+* Text list of mapped objects
+
+The binary data is expressed in terms of "slots." These are words large
+enough to hold the program's pointer type, i.e., for 32-bit programs
+they are 4 bytes in size, and for 64-bit programs they are 8 bytes. They
+are stored in the profile data file in the native byte order (i.e.,
+little-endian for x86 and x86_64).
+
+== Binary Header
+
+The binary header format is show below. Values written by the profiler,
+along with requirements currently enforced by the analysis tools, are
+shown in parentheses.
+
+[cols=",",options="header",]
+|===
+|slot |data
+|0 |header count (0; must be 0)
+|1 |header slots after this one (3; must be >= 3)
+|2 |format version (0; must be 0)
+|3 |sampling period, in microseconds
+|4 |padding (0)
+|===
+
+The headers currently generated for 32-bit and 64-bit little-endian (x86
+and x86_64) profiles are shown below, for comparison.
+
+[cols=",,,,,",options="header",]
+|===
+| |hdr count |hdr words |version |sampling period |pad
+|32-bit or 64-bit (slots) |0 |3 |0 |10000 |0
+
+|32-bit (4-byte words in file) |`0x00000` |`0x00003` |`0x00000`
+|`0x02710` |`0x00000`
+
+|64-bit LE (4-byte words in file) |`0x00000 0x00000`
+|`0x00003 0x00000` |`0x00000 0x00000` |`0x02710 0x00000`
+|`0x00000 0x00000`
+|===
+
+The contents are shown in terms of slots, and in terms of 4-byte words
+in the profile data file. The slot contents for 32-bit and 64-bit
+headers are identical. For 32-bit profiles, the 4-byte word view matches
+the slot view. For 64-bit profiles, each (8-byte) slot is shown as two
+4-byte words, ordered as they would appear in the file.
+
+The profiling tools examine the contents of the file and use the
+expected locations and values of the header words field to detect
+whether the file is 32-bit or 64-bit.
+
+== Binary Profile Records
+
+The binary profile record format is shown below.
+
+[cols=2*]
+|===
+|slot
+|data
+
+|0
+|sample count, must be >= 1
+
+|1
+|number of call chain PCs (num_pcs), must be >= 1
+
+|2 .. (num_pcs + 1)
+|call chain PCs, most-recently-called function first.
+|===
+
+The total length of a given record is 2 + num_pcs.
+
+Note that multiple profile records can be emitted by the profiler having
+an identical call chain. In that case, analysis tools should sum the
+counts of all records having identical call chains.
+
+*Note:* Some profile analysis tools terminate if they see _any_ profile
+record with a call chain with its first entry having the address 0.
+(This is similar to the binary trailer.)
+
+=== Example
+
+This example shows the slots contained in a sample profile record.
+
+[cols=",,,,",]
+|===
+|5 |3 |0xa0000 |0xc0000 |0xe0000
+|===
+
+In this example, 5 ticks were received at PC 0xa0000, whose function had
+been called by the function containing 0xc0000, which had been called
+from the function containing 0xe0000.
+
+== Binary Trailer
+
+The binary trailer consists of three slots of data with fixed values,
+shown below.
+
+[cols=",",options="header",]
+|===
+|slot |value
+|0 |0
+|1 |1
+|2 |0
+|===
+
+Note that this is the same data that would contained in a profile record
+with sample count = 0, num_pcs = 1, and a one-element call chain
+containing the address 0.
+
+== Text List of Mapped Objects
+
+The binary data in the file is followed immediately by a list of mapped
+objects. This list consists of lines of text separated by newline
+characters.
+
+Each line describes one mapping as produced by SaveProcSelfMaps. For
+example:
+
+....
+  40000000-40015000 r-xp 00000000 03:01 12845071   /lib/ld-2.3.2.so
+....
+
+The first address must start at the beginning of the line. This is
+essentially the same format as Linux's `/proc/<pid>/maps` file.
+Recent Linux systems have this format documented in
+link:https://man7.org/linux/man-pages/man5/proc_pid_maps.5.html[`man 5
+proc_pid_maps`]. Less recent systems document it under `man 5 proc`.
+
+Tools ignore minor:major number and inode number. And only executable
+mappings really need to be present. See
+`src/base/proc_maps_iterator.{h,cc}` for how it is produced.
+
+Unrecognized lines should be ignored by analysis tools.
+
+Note, original pprof tool also supported processing `$build`
+"variable" when processing mappings, but we never produced such
+mappings. So we don't document this anymore.
+
+'''''
+
+Original authror: Chris Demetriou (cgd) +
+Last update by: Aliaksei Kandratsenka +

@@ -519,6 +519,12 @@ AM_CONDITIONAL(SKIP_PPROF_TESTS, [test "x$PPROF_PATH" = "x"])
 AS_IF([test "x$PPROF_PATH" = "x"],
       [AC_MSG_WARN([pprof tool not found. Will skip several unit tests that need it. Install via go install github.com/google/pprof@latest then add \$HOME/go/bin to PATH])])
 
+AC_PATH_PROG([ASCIIDOCTOR], [asciidoctor])
+AM_CONDITIONAL([MISSING_ASCIIDOCTOR], [test "x$ASCIIDOCTOR" = "x"])
+AS_IF([test "x$ASCIIDOCTOR" = "x"],
+      [AC_MSG_WARN([asciidoctor tool not found. Will skip building .html documentation from .adoc])])
+AC_ARG_VAR(ASCIIDOCTOR_FLAGS, [flags to pass to asciidoctor])
+
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

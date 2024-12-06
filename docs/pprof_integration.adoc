@@ -1,0 +1,119 @@
+== pprof integration
+
+:reproducible:
+
+gperftools was the original home for the pprof program. This program
+is used to visualize and analyze profiles (CPU profiles, heap
+profiles, heap samples, set of thread stacks, etc.). The original
+pprof was written in Perl. As of this writing, the Linux distros are
+shipping this version of pprof. Meanwhile, pprof was completely
+modernized and rewritten in Go. The Go version is a much better
+one. We've been recommending people to switch to the Go version for a
+number of years and starting gperftools 2.17 we no longer have the
+original pprof.
+
+You can get the Go pprof binary by running:
+
+  % go install github.com/google/pprof@latest
+
+The binary will normally appear in `$HOME/go/bin`. So you may want to
+add it to your `$PATH`.
+
+The main documentation of pprof can be found at
+https://github.com/google/pprof/blob/main/doc/README.md
+
+On this page, I'll point out some helpful integration aspects.
+
+Here are the kinds of "profiles" that gperfools can feed into pprof.
+
+=== CPU profiling
+
+CPU profiler is provided in a distinct library: libprofiler. It's C++
+API is in `gperftools/profiler.h`. You can invoke
+`ProfilerStart()`/`ProfilerStop()` to control it. Or you can have
+libprofiler automagically profile the full run of your program by setting
+`CPUPROFILE` environment variable.
+
+See link:cpuprofile.html[documentation of CPU profiler] for full
+details.
+
+A general description of how statistical sampling profilers work can be
+found in this nice blog post: https://research.swtch.com/pprof.
+
+We produce a "legacy" CPU profile format. The format is described
+here: link:cpuprofile-fileformat.html[].
+
+=== Heap sample
+
+libtcmalloc supports very low overhead sampling of allocations. If this feature is enabled, you can call:
+
+  std::string sample_profile;
+  MallocExtension::instance()->GetHeapSample(&sample_profile);
+
+And you'll get a statistical estimate of all currently in-use memory
+allocations with backtraces of allocations. It will show you where
+currently in-use memory was allocated. Heap sample can be saved and
+fed to the pprof program for visualization and analysis.
+
+At Google, this feature is enabled fleet-wide (and by default), but in
+gperftools, our default is off. You can turn it on by setting the
+environment variable `TCMALLOC_SAMPLE_PARAMETER`. However, please note
+that libtcmalloc_minimal doesn't have this feature. In order to use
+heap sampling, you need to link to "full" libtcmalloc.
+
+The reasonable value of the sample parameter is from 524288 (512kb;
+original default) to a few megs (current default at Google). A lower
+value gives you more samples, so higher statistical precision. But a
+lower value also causes higher overhead and lock contention.
+
+Our sibling project, "abseil" tcmalloc, also supports heap
+sampling. Implementation has evolved a bit, but this is fundamentally
+the same logic. In addition to sampling, they also have allocation and
+deallocation profiling powered by the same sampling facility. Their
+docs are at:
+https://github.com/google/tcmalloc/blob/master/docs/sampling.md.
+
+Go has similar feature called heap profiling. Go's heap profiles
+combine information about in-use memory and all the allocations ever
+made. It is similar to gperftools' link:heapprofile.html[heap profiler] but works
+via sampling, so it is low overhead and runs by default. You can read
+about it here: https://pkg.go.dev/runtime/pprof. Approximately every
+512k bytes (value of runtime.MemProfileRate) of memory allocated, Go's
+runtime triggers heap sampling. Heap sampling grabs backtrace, and
+then updates per-call-site allocation counters. The heap profile is a
+collection of call sites (identified by the backtrace chain) and
+relevant statistics.
+
+=== Heap Growth stacks
+
+Every time tcmalloc extends its heap, it grabs stack trace. A
+collection of those stacks can be obtained by:
+
+  MallocExtension::instance()->GetHeapGrowthStacks(&string);
+
+and fed to pprof for visualization and analysis. This kind of profile
+gives you locations in your code that extended heap (either due to
+regular usage, leaks, or fragmentation).
+
+Heap growth tracking is always enabled in full libtcmalloc and is cut
+off from libtcmalloc_minimal.
+
+=== Heap Profiler
+
+See link:heapprofile.html[Heap Profiler documentation]. Note that the
+heap profiler intercepts every allocation and deallocation call, so it
+runs with a much higher overhead than normal malloc and is not
+suitable for production.
+
+=== HTTP interfaces
+
+The more commonly used pprof integration point used at Google is via
+HTTP endpoints. Go standard library provides a great example of how it
+is done and how to use it. https://pkg.go.dev/net/http/pprof documents
+it.
+
+gperftools doesn't provide any HTTP handlers, but we do give you raw
+profiling data, which you can serve by whatever HTTP-serving APIs you
+like. Each profile kind (with the partial exception of heap profiler)
+has an API to obtain profile data, which can be returned from an HTTP
+handler.

@@ -38,6 +38,7 @@
 /debugallocation_test
 /debugallocation_test.sh
 /depcomp
+/docs/*.html
 /frag_unittest
 /frag_unittest.exe
 /function_ref_test
