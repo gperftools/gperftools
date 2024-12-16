@@ -440,6 +440,8 @@ else()
   add_compile_definitions(PERFTOOLS_DLL_DECL= )
 endif()
 
+install(TARGETS common DESTINATION lib)
+
 set(SYSTEM_ALLOC_CC src/system-alloc.cc)
 set(TCMALLOC_CC src/tcmalloc.cc)
 
@@ -542,6 +544,8 @@ add_library(tcmalloc_minimal ${TCMALLOC_CC} ${MINIMAL_MALLOC_SRC})
 target_compile_definitions(tcmalloc_minimal PRIVATE NO_TCMALLOC_SAMPLES)
 target_link_options(tcmalloc_minimal INTERFACE ${TCMALLOC_FLAGS})
 target_link_libraries(tcmalloc_minimal PRIVATE common)
+
+install(TARGETS tcmalloc_minimal DESTINATION lib)
 
 if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_unittest
@@ -707,6 +711,9 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE symbolize low_level_alloc common)
 
+
+  install(TARGETS tcmalloc_minimal_debug DESTINATION lib)
+
   ### Unittests
 
   if(BUILD_TESTING)
@@ -780,6 +787,8 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
   target_link_libraries(tcmalloc PRIVATE stacktrace low_level_alloc common)
   target_link_options(tcmalloc INTERFACE ${TCMALLOC_FLAGS})
 
+  install(TARGETS tcmalloc DESTINATION lib)
+
   ### Unittests
   if(BUILD_TESTING)
     add_executable(tcmalloc_unittest src/tests/tcmalloc_unittest.cc src/tests/testutil.cc)
@@ -834,6 +843,9 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
     target_link_libraries(tcmalloc_debug PRIVATE symbolize low_level_alloc stacktrace common)
 
+
+    install(TARGETS tcmalloc_debug DESTINATION lib)
+
     ### Unittests
     if(BUILD_TESTING)
       add_executable(tcmalloc_debug_unittest src/tests/tcmalloc_unittest.cc src/tests/testutil.cc)
@@ -862,6 +874,8 @@ add_library(profiler
     src/profile-handler.cc
     src/profiledata.cc)
   target_link_libraries(profiler PRIVATE stacktrace common)
+
+install(TARGETS profiler DESTINATION lib)
 
   if(BUILD_TESTING)
     add_executable(getpc_test src/tests/getpc_test.cc)
@@ -908,5 +922,20 @@ endif()
 if(MSVC)
     add_subdirectory(src/windows)
 endif()
+
+set(HEADER_FILES
+  ${PROJECT_SOURCE_DIR}/src/gperftools/heap-checker.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/heap-profiler.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/malloc_extension_c.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/malloc_extension.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/malloc_hook_c.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/malloc_hook.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/nallocx.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/profiler.h
+  ${PROJECT_SOURCE_DIR}/src/gperftools/stacktrace.h
+  ${PROJECT_BINARY_DIR}/gperftools/tcmalloc.h
+  )
+
+install(FILES ${HEADER_FILES} DESTINATION include)
 
 message(WARNING "note: gperftools' cmake support is incomplete and is best-effort only")
