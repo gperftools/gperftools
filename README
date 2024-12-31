@@ -3,8 +3,7 @@ gperftools
 (originally Google Performance Tools)
 
 The fastest malloc we’ve seen; works particularly well with threads
-and STL. Also: thread-friendly heap-checker, heap-profiler, and
-cpu-profiler.
+and STL. Also: heap-profiler, and cpu-profiler.
 
 
 OVERVIEW
@@ -65,38 +64,6 @@ below.
 
 The heap profiler is available on all unix-based systems we've tested;
 see INSTALL for more details.  It is not currently available on Windows.
-
-
-HEAP CHECKER
-------------
-
-Please note that as of gperftools-2.11 this is deprecated. You should
-consider asan and other sanitizers instead.
-
-See docs/heap_checker.html for information about how to use tcmalloc's
-heap checker.
-
-In order to catch all heap leaks, tcmalloc must be linked *last* into
-your executable.  The heap checker may mischaracterize some memory
-accesses in libraries listed after it on the link line.  For instance,
-it may report these libraries as leaking memory when they're not.
-(See the source code for more details.)
-
-Here's a quick-start for how to use:
-
-As a quick-start, do the following after installing this package:
-
-1) Link your executable with -ltcmalloc
-2) Run your executable with the HEAPCHECK environment var set:
-     $ HEAPCHECK=1 <path/to/binary> [binary args]
-
-Other values for HEAPCHECK: normal (equivalent to "1"), strict, draconian
-
-You can also use LD_PRELOAD to heap-check an executable that you
-didn't compile.
-
-The heap checker is only available on Linux at this time; see INSTALL
-for more details.
 
 
 CPU PROFILER
