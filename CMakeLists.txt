@@ -539,6 +539,7 @@ set(MINIMAL_MALLOC_SRC
   src/malloc_extension.cc)
 
 add_library(tcmalloc_minimal ${TCMALLOC_CC} ${MINIMAL_MALLOC_SRC})
+install(TARGETS tcmalloc_minimal)
 target_compile_definitions(tcmalloc_minimal PRIVATE NO_TCMALLOC_SAMPLES)
 target_link_options(tcmalloc_minimal INTERFACE ${TCMALLOC_FLAGS})
 target_link_libraries(tcmalloc_minimal PRIVATE common)
@@ -704,6 +705,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
   endif()
 
   add_library(tcmalloc_minimal_debug src/debugallocation.cc ${MINIMAL_MALLOC_SRC})
+  install(TARGETS tcmalloc_minimal_debug)
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE symbolize low_level_alloc common)
 
@@ -776,6 +778,7 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     src/malloc_backtrace.cc
     src/heap-checker-stub.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})
+  install(TARGETS tcmalloc)
   target_compile_definitions(tcmalloc PRIVATE ${EMERGENCY_MALLOC_DEFINE})
   target_link_libraries(tcmalloc PRIVATE stacktrace low_level_alloc common)
   target_link_options(tcmalloc INTERFACE ${TCMALLOC_FLAGS})
@@ -831,6 +834,7 @@ endif()
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
   if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_library(tcmalloc_debug src/debugallocation.cc ${FULL_MALLOC_SRC})
+    install(TARGETS tcmalloc_debug)
     target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
     target_link_libraries(tcmalloc_debug PRIVATE symbolize low_level_alloc stacktrace common)
 
@@ -857,10 +861,11 @@ endif()
 ### ------- CPU profiler
 if(GPERFTOOLS_BUILD_CPU_PROFILER)
 
-add_library(profiler
-    src/profiler.cc
-    src/profile-handler.cc
-    src/profiledata.cc)
+  add_library(profiler
+      src/profiler.cc
+      src/profile-handler.cc
+      src/profiledata.cc)
+  install(TARGETS profiler)
   target_link_libraries(profiler PRIVATE stacktrace common)
 
   if(BUILD_TESTING)
