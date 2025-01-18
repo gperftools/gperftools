@@ -132,6 +132,13 @@ SideStepError PreamblePatcher::RawPatchWithStub(
     }
   }
 
+  // skip endbr{32,64} if it is at the
+  // target. https://www.felixcloutier.com/x86/endbr32 and
+  // https://www.felixcloutier.com/x86/endbr64
+  if (target[0] == 0xf3 && target[1] == 0x0f && target[2] == 0x1e && (target[3] == 0xfb || target[3] == 0xfa)) {
+    target += 4;
+  }
+
   // Let's disassemble the preamble of the target function to see if we can
   // patch, and to see how much of the preamble we need to take.  We need 5
   // bytes for our jmp instruction, so let's find the minimum number of
