@@ -18,6 +18,8 @@ jobs:
           sudo apt install automake autoconf libtool build-essential patch perl libc-bin libunwind-dev
       - name: Install Go
         uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
       - name: Install pprof
         run: |
           go install github.com/google/pprof@latest
@@ -49,6 +51,8 @@ jobs:
           sudo apt install automake autoconf libtool build-essential patch perl libc-bin g++-multilib
       - name: Install Go
         uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
       - name: Install pprof
         run: |
           go install github.com/google/pprof@latest
@@ -95,6 +99,8 @@ jobs:
         run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
       - name: Install Go
         uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
       - name: Install pprof
         run: |
           go install github.com/google/pprof@latest
