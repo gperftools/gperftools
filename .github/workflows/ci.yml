@@ -16,6 +16,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt install automake autoconf libtool build-essential patch perl libc-bin libunwind-dev
+      - name: Install Go
+        uses: actions/setup-go@v5
+      - name: Install pprof
+        run: |
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
       - name: Build and test
         run: |
           ./autogen.sh
@@ -41,6 +47,12 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt install automake autoconf libtool build-essential patch perl libc-bin g++-multilib
+      - name: Install Go
+        uses: actions/setup-go@v5
+      - name: Install pprof
+        run: |
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
       - name: Configure ccache action
         uses: hendrikmuhs/ccache-action@v1.2
         with:
@@ -81,6 +93,13 @@ jobs:
           key: ${{ github.job }}-${{ matrix.os }}-${{ matrix.build_type }}
       - name: Add ccache to PATH
         run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      - name: Install Go
+        uses: actions/setup-go@v5
+      - name: Install pprof
+        run: |
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+          PATH=$HOME/go/bin:$PATH which -a pprof
       - name: cmake setup
         run: cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja -S . -B build
       - name: cmake build
