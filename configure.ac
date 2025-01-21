@@ -526,11 +526,6 @@ AS_IF([test "x$enable_aggressive_decommit_by_default" = xyes],
                  1,
                  [enable aggressive decommit by default])])
 
-AC_PATH_PROG(PPROF_PATH, pprof)
-AM_CONDITIONAL(SKIP_PPROF_TESTS, [test "x$PPROF_PATH" = "x"])
-AS_IF([test "x$PPROF_PATH" = "x"],
-      [AC_MSG_WARN([pprof tool not found. Will skip several unit tests that need it. Install via go install github.com/google/pprof@latest then add \$HOME/go/bin to PATH])])
-
 # Write generated configuration file
 # NOTE: vsprojects/gperftools/tcmalloc.h is checked in
 AC_CONFIG_FILES([Makefile

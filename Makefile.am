@@ -688,19 +688,16 @@ heap_checker_stub_test_SOURCES = src/tests/heap-checker-stub-test.cc
 heap_checker_stub_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 heap_checker_stub_test_LDADD = libtcmalloc.la
 
-if !SKIP_PPROF_TESTS
 TESTS += sampling_test
 sampling_test_SOURCES = src/tests/sampling_test.cc
 sampling_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 sampling_test_CPPFLAGS = $(gtest_CPPFLAGS)
 sampling_test_LDADD = libtcmalloc.la $(REGEX_LIBS)
-endif !SKIP_PPROF_TESTS
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
 if WITH_HEAP_PROFILER
 
-if !SKIP_PPROF_TESTS
 TESTS += heap-profiler_unittest.sh$(EXEEXT)
 heap_profiler_unittest_sh_SOURCES = src/tests/heap-profiler_unittest.sh
 noinst_SCRIPTS += $(heap_profiler_unittest_sh_SOURCES)
@@ -714,7 +711,6 @@ noinst_PROGRAMS += heap-profiler_unittest
 heap_profiler_unittest_SOURCES = src/tests/heap-profiler_unittest.cc
 heap_profiler_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 heap_profiler_unittest_LDADD = libtcmalloc.la
-endif !SKIP_PPROF_TESTS
 
 endif WITH_HEAP_PROFILER
 
@@ -742,20 +738,17 @@ tcmalloc_debug_unittest_LDFLAGS = $(tcmalloc_unittest_LDFLAGS)
 tcmalloc_debug_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 tcmalloc_debug_unittest_LDADD = libtcmalloc_debug.la libgtest.la
 
-if !SKIP_PPROF_TESTS
 TESTS += sampling_debug_test
 sampling_debug_test_SOURCES = $(sampling_test_SOURCES)
 sampling_debug_test_CXXFLAGS = $(sampling_test_CXXFLAGS)
 sampling_debug_test_CPPFLAGS = $(sampling_test_CPPFLAGS)
 sampling_debug_test_LDFLAGS = $(sampling_test_LDFLAGS)
 sampling_debug_test_LDADD = libtcmalloc_debug.la $(REGEX_LIBS)
-endif !SKIP_PPROF_TESTS
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
 
 if WITH_HEAP_PROFILER
 
-if !SKIP_PPROF_TESTS
 TESTS += heap-profiler_debug_unittest.sh$(EXEEXT)
 heap_profiler_debug_unittest_sh_SOURCES = src/tests/heap-profiler_unittest.sh
 heap-profiler_debug_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) \
@@ -769,7 +762,6 @@ heap_profiler_debug_unittest_SOURCES = $(heap_profiler_unittest_SOURCES)
 heap_profiler_debug_unittest_CXXFLAGS = $(heap_profiler_unittest_CXXFLAGS)
 heap_profiler_debug_unittest_LDFLAGS = $(heap_profiler_unittest_LDFLAGS)
 heap_profiler_debug_unittest_LDADD = libtcmalloc_debug.la
-endif !SKIP_PPROF_TESTS
 
 endif WITH_HEAP_PROFILER
 
@@ -807,7 +799,6 @@ profile_handler_unittest_SOURCES = src/tests/profile-handler_unittest.cc src/pro
 profile_handler_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 profile_handler_unittest_LDADD = libstacktrace.la libcommon.la libgtest.la
 
-if !SKIP_PPROF_TESTS
 TESTS += profiler_unittest.sh$(EXEEXT)
 profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
 noinst_SCRIPTS += $(profiler_unittest_sh_SOURCES)
@@ -838,7 +829,7 @@ profiler4_unittest_CXXFLAGS = -g $(AM_CXXFLAGS)
 profiler4_unittest_LDADD = -lstacktrace -lprofiler
 # We depend on -lprofiler but haven't yet said how to build it.  Do so now.
 profiler4_unittest_DEPENDENCIES = libprofiler.la
-endif !SKIP_PPROF_TESTS
+
 
 ### Documentation
 dist_doc_DATA += docs/cpuprofile.html \
