@@ -794,6 +794,8 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     target_link_libraries(tcmalloc_large_heap_fragmentation_unittest tcmalloc gtest)
     add_test(tcmalloc_large_heap_fragmentation_unittest tcmalloc_large_heap_fragmentation_unittest)
 
+    list(APPEND TESTS_ENVIRONMENT PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
+
     add_executable(heap_checker_stub_test src/tests/heap-checker-stub-test.cc)
     target_link_libraries(heap_checker_stub_test tcmalloc)
     add_test(heap_checker_stub_test heap_checker_stub_test)
@@ -811,6 +813,7 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     list(APPEND TESTS_ENVIRONMENT BINDIR=. TMPDIR=/tmp/perftools)
     set(sampling_test_SOURCES src/tests/sampling_test.cc)
     add_executable(sampling_test src/tests/sampling_test.cc)
+    target_compile_definitions(sampling_test PRIVATE PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
     target_link_libraries(sampling_test tcmalloc)
     add_test(sampling_test sampling_test)
 
@@ -838,6 +841,7 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
       add_test(tcmalloc_debug_unittest tcmalloc_debug_unittest)
 
       add_executable(sampling_debug_test src/tests/sampling_test.cc)
+          target_compile_definitions(sampling_debug_test PRIVATE PPROF_PATH=${CMAKE_CURRENT_SOURCE_DIR}/src/pprof)
       target_link_libraries(sampling_debug_test tcmalloc_debug)
       add_test(sampling_debug_test sampling_debug_test)
 
