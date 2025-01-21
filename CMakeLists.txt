@@ -112,6 +112,10 @@ option(gperftools_enable_libgcc_unwinder_by_default
        OFF)
 set(PREFER_LIBGCC_UNWINDER ${gperftools_enable_libgcc_unwinder_by_default})
 
+option(gperftools_enable_broken_install_targets
+       "Install .so/.a libraries produced by this project"
+       OFF)
+
 set(gperftools_tcmalloc_pagesize ${default_tcmalloc_pagesize}
   CACHE STRING "Set the tcmalloc internal page size")
 set(allowed_page_sizes LIST "4;8;16;32;64;128;256")
@@ -539,7 +543,9 @@ set(MINIMAL_MALLOC_SRC
   src/malloc_extension.cc)
 
 add_library(tcmalloc_minimal ${TCMALLOC_CC} ${MINIMAL_MALLOC_SRC})
-install(TARGETS tcmalloc_minimal)
+if(gperftools_enable_broken_install_targets)
+  install(TARGETS tcmalloc_minimal)
+endif()
 target_compile_definitions(tcmalloc_minimal PRIVATE NO_TCMALLOC_SAMPLES)
 target_link_options(tcmalloc_minimal INTERFACE ${TCMALLOC_FLAGS})
 target_link_libraries(tcmalloc_minimal PRIVATE common)
@@ -705,7 +711,9 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
   endif()
 
   add_library(tcmalloc_minimal_debug src/debugallocation.cc ${MINIMAL_MALLOC_SRC})
-  install(TARGETS tcmalloc_minimal_debug)
+  if(gperftools_enable_broken_install_targets)
+    install(TARGETS tcmalloc_minimal_debug)
+  endif()
   target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE symbolize low_level_alloc common)
 
@@ -778,7 +786,9 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     src/malloc_backtrace.cc
     src/heap-checker-stub.cc)
   add_library(tcmalloc ${TCMALLOC_CC} ${FULL_MALLOC_SRC})
-  install(TARGETS tcmalloc)
+  if(gperftools_enable_broken_install_targets)
+    install(TARGETS tcmalloc)
+  endif()
   target_compile_definitions(tcmalloc PRIVATE ${EMERGENCY_MALLOC_DEFINE})
   target_link_libraries(tcmalloc PRIVATE stacktrace low_level_alloc common)
   target_link_options(tcmalloc INTERFACE ${TCMALLOC_FLAGS})
@@ -834,7 +844,9 @@ endif()
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
   if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_library(tcmalloc_debug src/debugallocation.cc ${FULL_MALLOC_SRC})
-    install(TARGETS tcmalloc_debug)
+    if(gperftools_enable_broken_install_targets)
+      install(TARGETS tcmalloc_debug)
+    endif()
     target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
     target_link_libraries(tcmalloc_debug PRIVATE symbolize low_level_alloc stacktrace common)
 
@@ -865,7 +877,9 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
       src/profiler.cc
       src/profile-handler.cc
       src/profiledata.cc)
-  install(TARGETS profiler)
+  if(gperftools_enable_broken_install_targets)
+    install(TARGETS profiler)
+  endif()
   target_link_libraries(profiler PRIVATE stacktrace common)
 
   if(BUILD_TESTING)
