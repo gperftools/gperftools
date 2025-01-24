@@ -76,6 +76,7 @@
 #include <functional>
 #include <mutex>
 #include <new>
+#include <sstream>
 #include <string>
 #include <thread>
 #include <vector>
@@ -599,6 +600,32 @@ class TesterThread {
     }
   }
 };
+
+TEST(TCMallocTest, Versions) {
+  auto build_version_string = [] (int major, int minor, const char* patch) -> std::string {
+    CHECK(patch[0] == 0 || patch[0] == '.'); // patch version needs to start with dot
+    std::stringstream ss;
+    ss << "gperftools " << major << "." << minor << patch;
+    return ss.str();
+  };
+
+  // We make sure that TC_VERSION_STRING define matches
+  // TC_VERSION_MAJOR, TC_VERSION_MAJOR and TC_VERSION_PATCH (see
+  // tcmalloc.h)
+  std::string expected_version_string = build_version_string(TC_VERSION_MAJOR, TC_VERSION_MINOR, TC_VERSION_PATCH);
+  ASSERT_EQ(expected_version_string, std::string(TC_VERSION_STRING));
+
+  // autoconf's config.h has PACKAGE_VERSION that is taken from configure.ac
+#if defined(PACKAGE_VERSION)
+  // And we make sure that autoconf's idea of version matches what
+  // we've manually put into tcmalloc.h
+  ASSERT_EQ(expected_version_string, std::string("gperftools ") + PACKAGE_VERSION);
+#else
+  // Make sure we're able to exercise line above (we set this
+  // environment variable in test runner)
+  CHECK_EQ(getenv("GPERFTOOLS_ENSURE_PACKAGE_VERSION"), nullptr);
+#endif
+}
 
 TEST(TCMallocTest, ManyThreads) {
   printf("Testing threaded allocation/deallocation (%d threads)\n",

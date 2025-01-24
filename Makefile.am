@@ -63,10 +63,7 @@ perftoolsincludedir = $(includedir)/gperftools
 # The .h files you want to install (that is, .h files that people
 # who install this package can include in their own applications.)
 # We'll add to this later, on a library-by-library basis
-perftoolsinclude_HEADERS =
-# tcmalloc.h is a special case, because it's a .h.in file
-nodist_perftoolsinclude_HEADERS = src/gperftools/tcmalloc.h
-noinst_HEADERS = src/gperftools/tcmalloc.h.in
+perftoolsinclude_HEADERS = src/gperftools/tcmalloc.h
 
 # This is for HTML and other documentation you want to install.  Add
 # your documentation files (in doc/) in addition to these top-level
@@ -959,4 +956,4 @@ dist-hook: $(top_distdir)/ChangeLog
 	rm -rf $(distdir)/vendor/googletest/googletest/src/.deps
 	rm -rf $(distdir)/vendor/libbacktrace/.deps
 	rm -rf $(distdir)/vendor/libbacktrace-integration/.deps
-	rm -f $(distdir)/src/config.h $(distdir)/src/gperftools/tcmalloc.h
+	rm -f $(distdir)/src/config.h

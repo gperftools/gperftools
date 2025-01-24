@@ -42,16 +42,36 @@
 #endif
 
 /* Define the version number so folks can check against it */
-#define TC_VERSION_MAJOR  @TC_VERSION_MAJOR@
-#define TC_VERSION_MINOR  @TC_VERSION_MINOR@
-#define TC_VERSION_PATCH  "@TC_VERSION_PATCH@"
-#define TC_VERSION_STRING "gperftools @TC_VERSION_MAJOR@.@TC_VERSION_MINOR@@TC_VERSION_PATCH@"
+/* Note, maintainers are expected to update this to match configure.ac for each release */
+#define TC_VERSION_MAJOR  2
+#define TC_VERSION_MINOR  16
+#define TC_VERSION_PATCH  ""
+#define TC_VERSION_STRING "gperftools 2.16"
 
-#ifndef _WIN32
-/* For struct mallinfo, if it's defined. */
-#if @ac_cv_have_struct_mallinfo@ || @ac_cv_have_struct_mallinfo2@ 
-# include <malloc.h>
+#if __GLIBC__ * 1000 + __GLIBC_MINOR__ >= 2033
+/* glibc 2.33 has mallinfo2 */
+#define GPERFTOOLS_HAS_MALLINFO2 1
+#define GPERFTOOLS_HAS_MALLINFO 1
+#elif defined(__GLIBC__)
+/* earlier glibc-s have mallinfo */
+#define GPERFTOOLS_HAS_MALLINFO 1
+#elif defined(__sun__)
+/* Some version of Solaris actually introduced mallinfo. It is still
+ * there with current opensolaris. */
+#define GPERFTOOLS_HAS_MALLINFO 1
+#elif defined(__ANDROID__) && __ANDROID_API__ >= 34
+/* ndk 24 has mallinfo2 */
+#define GPERFTOOLS_HAS_MALLINFO2 1
+#define GPERFTOOLS_HAS_MALLINFO 1
+#elif defined(__ANDROID__)
+#define GPERFTOOLS_HAS_MALLINFO 1
 #endif
+// musl doesn't do mallinfo
+// uclibc does in a subset of configs, but given mallinfo is rare API we keep it simple.
+
+/* For struct mallinfo, if it's defined. */
+#if GPERFTOOLS_HAS_MALLINFO || GPERFTOOLS_HAS_MALLINFO2
+# include <malloc.h>
 #endif
 
 #ifndef PERFTOOLS_NOTHROW
@@ -105,13 +125,12 @@ extern "C" {
   PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
   PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
 
-#ifndef _WIN32
-#if @ac_cv_have_struct_mallinfo@
+
+#if GPERFTOOLS_HAS_MALLINFO
   PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW;
 #endif
-#if @ac_cv_have_struct_mallinfo2@
+#if GPERFTOOLS_HAS_MALLINFO2
   PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW;
-#endif
 #endif
 
   /*

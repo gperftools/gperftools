@@ -210,8 +210,6 @@ AC_MSG_RESULT($ac_cv___attribute__aligned_fn)
 
 
 # TODO(csilvers): we could remove a lot when WITH_CPU_PROFILER etc is "no".
-AC_CHECK_TYPES([struct mallinfo],,, [#include <malloc.h>])
-AC_CHECK_TYPES([struct mallinfo2],,, [#include <malloc.h>])
 AC_CHECK_FUNCS(sbrk)            # for tcmalloc to get memory
 AC_CHECK_FUNCS(geteuid)         # for turning off services when run as root
 AC_CHECK_HEADERS(features.h)    # for vdso_support.h, __GLIBC__ macros
@@ -251,18 +249,6 @@ AC_CHECK_DECLS([cfree,
                 #define _QNX_SOURCE 1
                 #include <stdlib.h>
                 #include <malloc.h>])
-
-if test "$ac_cv_type_struct_mallinfo" = yes; then
-  AC_SUBST(ac_cv_have_struct_mallinfo, 1)   # gperftools/tcmalloc.h needs this
-else
-  AC_SUBST(ac_cv_have_struct_mallinfo, 0)
-fi
-
-if test "$ac_cv_type_struct_mallinfo2" = yes; then
-  AC_SUBST(ac_cv_have_struct_mallinfo2, 1)   # gperftools/tcmalloc.h needs this
-else
-  AC_SUBST(ac_cv_have_struct_mallinfo2, 0)
-fi
 
 # We hardcode HAVE_MMAP to 1. There are no interesting systems anymore
 # without functional mmap. And our windows (except mingw) builds
@@ -532,9 +518,5 @@ AS_IF([test "x$PPROF_PATH" = "x"],
       [AC_MSG_WARN([pprof tool not found. Will skip several unit tests that need it. Install via go install github.com/google/pprof@latest then add \$HOME/go/bin to PATH])])
 
 # Write generated configuration file
-# NOTE: vsprojects/gperftools/tcmalloc.h is checked in
-AC_CONFIG_FILES([Makefile
-                 src/gperftools/tcmalloc.h
-                 vsprojects/include/gperftools/tcmalloc.h:src/gperftools/tcmalloc.h.in
-                 ])
+AC_CONFIG_FILES([Makefile])
 AC_OUTPUT

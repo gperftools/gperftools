@@ -177,8 +177,6 @@ check_c_source_compiles("#include <stdlib.h>
         HAVE___ATTRIBUTE__ALIGNED_FN)
 
 set(CMAKE_EXTRA_INCLUDE_FILES "malloc.h")
-check_type_size("struct mallinfo" STRUCT_MALLINFO LANGUAGE CXX)
-check_type_size("struct mallinfo2" STRUCT_MALLINFO2 LANGUAGE CXX)
 check_function_exists("sbrk" HAVE_SBRK) # for tcmalloc to get memory
 check_function_exists("geteuid" HAVE_GETEUID) # for turning off services when run as root
 check_include_file("features.h" HAVE_FEATURES_H) # for vdso_support.h, Where __GLIBC__ is defined
@@ -208,18 +206,6 @@ check_symbol_exists("memalign" "stdlib.h;malloc.h" HAVE_DECL_MEMALIGN)
 check_symbol_exists("valloc" "stdlib.h;malloc.h" HAVE_DECL_VALLOC)
 check_symbol_exists("pvalloc" "stdlib.h;malloc.h" HAVE_DECL_PVALLOC)
 set(CMAKE_REQUIRED_DEFINITIONS)
-
-if(HAVE_STRUCT_MALLINFO)
-    set(HAVE_STRUCT_MALLINFO 1)
-else()
-    set(HAVE_STRUCT_MALLINFO 0)
-endif()
-
-if(HAVE_STRUCT_MALLINFO2)
-    set(HAVE_STRUCT_MALLINFO2 1)
-else()
-    set(HAVE_STRUCT_MALLINFO2 0)
-endif()
 
 # We hardcode HAVE_MMAP to 1. There are no interesting systems anymore
 # without functional mmap. And our windows (except mingw) builds
@@ -370,9 +356,6 @@ set(ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT ${gperftools_enable_aggressive_decommi
 
 
 configure_file(cmake/config.h.in ${CMAKE_CURRENT_BINARY_DIR}/config.h @ONLY)
-configure_file(cmake/tcmalloc.h.in
-               ${CMAKE_CURRENT_BINARY_DIR}/gperftools/tcmalloc.h
-               @ONLY)
 
 if(GPERFTOOLS_BUILD_CPU_PROFILER OR
    GPERFTOOLS_BUILD_HEAP_PROFILER)

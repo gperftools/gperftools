@@ -79,7 +79,6 @@
 //         or allocated.  If free, it is in one of pageheap's freelist.
 //
 // TODO: Bias reclamation to larger addresses
-// TODO: implement mallinfo/mallopt
 // TODO: Better testing
 //
 // 9/28/2003 (new page-level allocator replaces ptmalloc2):
@@ -213,11 +212,11 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
-#ifdef HAVE_STRUCT_MALLINFO
+#if GPERFTOOLS_HAS_MALLINFO
   struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
 #endif
-#ifdef HAVE_STRUCT_MALLINFO2
+#ifdef GPERFTOOLS_HAS_MALLINFO2
   struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
 #endif
@@ -1732,7 +1731,7 @@ inline int do_mallopt(int cmd, int value) {
   return 1;     // Indicates error
 }
 
-#if defined(HAVE_STRUCT_MALLINFO) || defined(HAVE_STRUCT_MALLINFO2)
+#if GPERFTOOLS_HAS_MALLINFO2 || GPERFTOOLS_HAS_MALLINFO
 template <typename Mallinfo>
 inline Mallinfo do_mallinfo() {
   TCMallocStats stats;
@@ -1762,7 +1761,7 @@ inline Mallinfo do_mallinfo() {
 
   return info;
 }
-#endif  // HAVE_STRUCT_MALLINFO || HAVE_STRUCT_MALLINFO2
+#endif  // GPERFTOOLS_HAS_MALLINFO{,2}
 
 }  // end unnamed namespace
 
@@ -2276,13 +2275,13 @@ extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHR
   return do_mallopt(cmd, value);
 }
 
-#ifdef HAVE_STRUCT_MALLINFO
+#if GPERFTOOLS_HAS_MALLINFO
 extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW {
   return do_mallinfo<struct mallinfo>();
 }
 #endif
 
-#ifdef HAVE_STRUCT_MALLINFO2
+#if GPERFTOOLS_HAS_MALLINFO2
 extern "C" PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW {
   return do_mallinfo<struct mallinfo2>();
 }

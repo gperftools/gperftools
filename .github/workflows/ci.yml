@@ -24,6 +24,7 @@ jobs:
         run: |
           go install github.com/google/pprof@latest
           echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+      - run: echo GPERFTOOLS_ENSURE_PACKAGE_VERSION=1 >> $GITHUB_ENV
       - name: Build and test
         run: |
           ./autogen.sh
@@ -63,6 +64,8 @@ jobs:
           key: ${{ github.job }}-${{ matrix.os }}
       - name: Add ccache to PATH
         run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      # when testing autotools-based build ensure that we check PACKAGE_VERSION matches versions in tcmalloc.h
+      - run: echo GPERFTOOLS_ENSURE_PACKAGE_VERSION=1 >> $GITHUB_ENV
       - name: Build and test
         # GNU/Linux i386 currently fails with libgcc backtracer due to wrong unwind info in memcpy-ia32.S. So we force frame pointers.
         run: |
