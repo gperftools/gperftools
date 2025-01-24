@@ -141,7 +141,7 @@ inline void bit_store(Dest *dest, const Source *source) {
 #define ATTRIBUTE_NOINLINE __declspec(noinline)
 #endif
 
-#if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
+#if defined(HAVE___ATTRIBUTE__) && defined(__ELF__) && !defined(TCMALLOC_DISABLE_HIDDEN_VISIBILITY)
 # define ATTRIBUTE_VISIBILITY_HIDDEN __attribute__((visibility("hidden")))
 #else
 # define ATTRIBUTE_VISIBILITY_HIDDEN
