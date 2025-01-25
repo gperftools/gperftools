@@ -231,9 +231,6 @@ dist_doc_DATA +=
 
 endif WITH_STACK_TRACE
 
-# Let unittests find pprof if they need to run it
-TESTS_ENVIRONMENT += PPROF_PATH=$(top_srcdir)/src/pprof
-
 ### ------- tcmalloc_minimal (thread-caching malloc)
 
 perftoolsinclude_HEADERS += src/gperftools/malloc_hook.h \
@@ -694,7 +691,7 @@ heap_checker_stub_test_LDADD = libtcmalloc.la
 TESTS += sampling_test
 sampling_test_SOURCES = src/tests/sampling_test.cc
 sampling_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-sampling_test_CPPFLAGS = $(AM_CPPFLAGS) "-DPPROF_PATH=$(top_srcdir)/src/pprof"
+sampling_test_CPPFLAGS = $(gtest_CPPFLAGS)
 sampling_test_LDADD = libtcmalloc.la $(REGEX_LIBS)
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
