@@ -947,7 +947,8 @@ EXTRA_DIST = $(SCRIPTS) \
              $(top_srcdir)/benchmark/*h \
              $(top_srcdir)/src/tests/*h \
              $(top_srcdir)/src/windows/*h $(top_srcdir)/src/gperftools/*h \
-             CMakeLists.txt cmake
+             CMakeLists.txt cmake \
+             generic-config/config.h
 
 # Windows wants write permission to .vcxproj files and maybe even sln files.
 dist-hook: $(top_distdir)/ChangeLog
