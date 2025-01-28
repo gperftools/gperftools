@@ -548,7 +548,6 @@ endif WITH_STACK_TRACE
 
 endif WITH_DEBUGALLOC
 
-if !MINGW
 noinst_LTLIBRARIES += librun_benchmark.la
 librun_benchmark_la_SOURCES = \
 	benchmark/run_benchmark.cc
@@ -567,6 +566,18 @@ malloc_bench_shared_SOURCES = benchmark/malloc_bench.cc
 malloc_bench_shared_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 malloc_bench_shared_LDADD = librun_benchmark.la libtcmalloc_minimal.la
 
+binary_trees_SOURCES = benchmark/binary_trees.cc
+binary_trees_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
+if ENABLE_STATIC
+binary_trees_LDFLAGS += -static
+endif ENABLE_STATIC
+binary_trees_LDADD = libtcmalloc_minimal.la
+
+binary_trees_shared_SOURCES = benchmark/binary_trees.cc
+binary_trees_shared_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
+binary_trees_shared_LDADD = libtcmalloc_minimal.la
+
+if !MINGW
 if WITH_HEAP_PROFILER_OR_CHECKER
 
 noinst_PROGRAMS += malloc_bench_shared_full
@@ -580,17 +591,6 @@ unwind_bench_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 unwind_bench_LDADD = librun_benchmark.la libtcmalloc.la
 
 endif WITH_HEAP_PROFILER_OR_CHECKER
-
-binary_trees_SOURCES = benchmark/binary_trees.cc
-binary_trees_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-if ENABLE_STATIC
-binary_trees_LDFLAGS += -static
-endif ENABLE_STATIC
-binary_trees_LDADD = libtcmalloc_minimal.la
-
-binary_trees_shared_SOURCES = benchmark/binary_trees.cc
-binary_trees_shared_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-binary_trees_shared_LDADD = libtcmalloc_minimal.la
 endif !MINGW
 
 ### ------- tcmalloc (thread-caching malloc + heap profiler)

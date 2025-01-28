@@ -24,6 +24,7 @@
 // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+#include "config.h"
 
 #include "run_benchmark.h"
 
@@ -38,7 +39,10 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifndef _WIN32
 #include <sys/time.h>
+#endif
 
 static constexpr double kTrialNSec = 0.3e9;
 
@@ -142,6 +146,28 @@ static void run_body(struct internal_bench *b, long iterations)
   b->body(iterations, b->param);
 }
 
+#ifdef _WIN32
+static uint64_t get_fs_time_ticks()
+{
+  FILETIME ft;
+  GetSystemTimePreciseAsFileTime(&ft);
+  return (uint64_t{ft.dwHighDateTime} << 32) + ft.dwLowDateTime;
+}
+
+static double measure_once(struct internal_bench *b, long iterations)
+{
+  uint64_t ticks_before, ticks_after;
+
+  ticks_before = get_fs_time_ticks();
+
+  run_body(b, iterations);
+
+  ticks_after = get_fs_time_ticks();
+
+  // Windows FILETIME ticks are 100 nanos per tick.
+  return (ticks_after - ticks_before) * 100e0;
+}
+#else
 static double measure_once(struct internal_bench *b, long iterations)
 {
   struct timeval tv_before, tv_after;
@@ -167,6 +193,7 @@ static double measure_once(struct internal_bench *b, long iterations)
   time *= 1000;
   return time;
 }
+#endif
 
 static double run_benchmark(struct internal_bench *b)
 {
@@ -210,7 +237,9 @@ void report_benchmark(const char *name, bench_body body, uintptr_t param)
     return;
   }
 
-  struct internal_bench b = {.body = body, .param = param};
+  internal_bench b;
+  b.body = body;
+  b.param = param;
   for (int i = 0; i < benchmark_repetitions; i++) {
     int slen = printf("Benchmark: %s", full_name.c_str());
     fflush(stdout);

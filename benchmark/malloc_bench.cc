@@ -62,7 +62,7 @@ static void bench_fastpath_dependent(long iterations,
 
     // this makes next iteration depend on current iteration. But this
     // iteration's free may still overlap with next iteration's malloc
-    sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
+    sz = ((sz | static_cast<size_t>(p)) & 511) + 16;
   }
 }
 
