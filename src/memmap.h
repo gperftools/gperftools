@@ -33,7 +33,7 @@
 
 #include "config.h"
 
-#ifdef WIN32
+#ifdef _WIN32
 // Windows has mmap bits defined in it's port.h header
 #else
 // Everything we assume is sufficiently POSIX-compatible. Also we

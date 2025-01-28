@@ -456,7 +456,7 @@ AH_TOP([
 # Also, manually mark systems where we have to be careful how early
 # we run pthreads.  TODO(csilvers): turn this into an autoconf check.
 AH_BOTTOM([
-#ifdef WIN32
+#ifdef _WIN32
 // TODO(csilvers): include windows/port.h in every relevant source file instead?
 #include "windows/port.h"
 #endif
