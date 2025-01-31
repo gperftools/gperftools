@@ -109,12 +109,17 @@ jobs:
           go install github.com/google/pprof@latest
           echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
           PATH=$HOME/go/bin:$PATH which -a pprof
+      - name: mkdir build/
+        run: cmake -E make_directory ${{runner.workspace}}/build
       - name: cmake setup
-        run: cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja -S . -B build
+        working-directory: ${{runner.workspace}}/build
+        run: cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja $GITHUB_WORKSPACE
       - name: cmake build
-        run: ninja -C build -v
+        working-directory: ${{runner.workspace}}/build
+        run: ninja -v
       - name: test
-        run: ctest -j12 --test-dir build || ctest -j12 --test-dir build --rerun-failed
+        working-directory: ${{runner.workspace}}/build
+        run: ctest -j12 --test-dir . || ctest -j12 --test-dir . --rerun-failed
       - name: Upload Test Logs
         uses: actions/upload-artifact@v4
         if: ${{ always() }}
@@ -133,15 +138,22 @@ jobs:
       - name: Clone
         uses: actions/checkout@v4
       - uses: seanmiddleditch/gha-setup-ninja@v5
+      - name: mkdir build/
+        run: cmake -E make_directory ${{runner.workspace}}/build
       - name: cmake setup
+        working-directory: ${{runner.workspace}}/build
+        shell: bash
         run: |
-          ruby .github/workflows/scripts/msvc-env.rb cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja -DGPERFTOOLS_BUILD_HEAP_PROFILER=OFF -Dgperftools_build_minimal=ON -S . -B build
+          ruby $GITHUB_WORKSPACE/.github/workflows/scripts/msvc-env.rb cmake -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} -G Ninja -DGPERFTOOLS_BUILD_HEAP_PROFILER=OFF -Dgperftools_build_minimal=ON $GITHUB_WORKSPACE
       - name: cmake build
-        run: ruby .github/workflows/scripts/msvc-env.rb ninja -C build -v
+        working-directory: ${{runner.workspace}}/build
+        shell: bash
+        run: ruby $GITHUB_WORKSPACE/.github/workflows/scripts/msvc-env.rb ninja -v
       - name: test
+        working-directory: ${{runner.workspace}}/build
         env:
           CTEST_PARALLEL_LEVEL: 12
-        run: ninja -C build -v test
+        run: ninja -v test
       - name: Upload Test Logs
         uses: actions/upload-artifact@v4
         if: ${{ always() }}
