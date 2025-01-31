@@ -1,0 +1,3 @@
+# for some reason bazel puts 10.11 as target osx sdk which fails to do
+# even basic c++17 things. So we have to fix it here :(
+build --macos_sdk_version=13.2

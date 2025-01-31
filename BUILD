@@ -16,27 +16,28 @@ config_setting(
     flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc"},
 )
 
-config_setting(
-    name = "is_windows",
-    values = {"cpu": "x64_windows"},
-)
-
 CFLAGS_FOR_GCC = ["-Wall", "-Wwrite-strings", "-Wno-sign-compare", "-DTCMALLOC_DISABLE_HIDDEN_VISIBILITY"]
 CXXFLAGS_FOR_GCC = CFLAGS_FOR_GCC + ["-Woverloaded-virtual", "-std=gnu++17", "-fsized-deallocation"]
 
 CXXFLAGS = select({
     ":is_msvc": ["/std:c++17 /D_WIN32_WINNT=0x0602"],
-    "//conditions:default": ["/std:c++17 /D_WIN32_WINNT=0x0602"],
+    "//conditions:default": ["/std:c++17 /D_WIN32_WINNT=0x0602"], # the above doesn't work!
     ":is_gcc": CXXFLAGS_FOR_GCC,
     ":is_clang": CXXFLAGS_FOR_GCC + ["-Wthread-safety"]
-    })
+})
 
 CFLAGS = select({
     ":is_msvc": ["/D_WIN32_WINNT=0x0602"],
     "//conditions:default": ["/D_WIN32_WINNT=0x0602"],
     ":is_gcc": CFLAGS_FOR_GCC,
     ":is_clang": CFLAGS_FOR_GCC + ["-Wthread-safety"]
-    })
+})
+
+NON_WINDOWS = select({
+    "@platforms//os:osx": [],
+    "@platforms//os:linux": [],
+    "//conditions:default": ["@platforms//:incompatible"],
+})
 
 cc_library(
     name = "trivialre",
@@ -48,7 +49,7 @@ cc_library(
     name = "all_headers",
     hdrs = glob(["src/*h", "src/base/*h", "generic-config/*h", "src/gperftools/*h"]),
     copts = CXXFLAGS,
-    )
+)
 
 cc_library(
     name = "run_benchmark",
@@ -80,15 +81,15 @@ cc_library(
         "src/base/generic_writer.cc",
         "src/base/proc_maps_iterator.cc",
     ] +
-    select({":is_windows": ["src/windows/port.cc",
-                            "src/windows/ia32_modrm_map.cc",
-                            "src/windows/ia32_opcode_map.cc",
-                            "src/windows/mini_disassembler.cc",
-                            "src/windows/preamble_patcher.cc",
-                            "src/windows/preamble_patcher_with_stub.cc"],
+    select({"@platforms//os:windows": ["src/windows/port.cc",
+                                       "src/windows/ia32_modrm_map.cc",
+                                       "src/windows/ia32_opcode_map.cc",
+                                       "src/windows/mini_disassembler.cc",
+                                       "src/windows/preamble_patcher.cc",
+                                       "src/windows/preamble_patcher_with_stub.cc"],
             "//conditions:default": []}),
-    linkopts = select({":is_windows": ["psapi.lib", "synchronization.lib", "shlwapi.lib"],
-                      "//conditions:default": []}),
+    linkopts = select({"@platforms//os:windows": ["psapi.lib", "synchronization.lib", "shlwapi.lib"],
+                       "//conditions:default": []}),
     deps = [":all_headers"],
 )
 
@@ -102,7 +103,7 @@ cc_library(
         "src/gperftools/malloc_hook_c.h",
         "src/gperftools/nallocx.h",
         "src/gperftools/tcmalloc.h",
-        ],
+    ],
     # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
     local_defines = ["NO_TCMALLOC_SAMPLES"],
     includes = ["generic-config", "src", "src/base"],
@@ -121,7 +122,7 @@ cc_library(
         "src/thread_cache_ptr.cc",
         "src/malloc_hook.cc",
         "src/malloc_extension.cc"] +
-    select({":is_windows": ["src/windows/patch_functions.cc", "src/windows/system-alloc.cc"],
+    select({"@platforms//os:windows": ["src/windows/patch_functions.cc", "src/windows/system-alloc.cc"],
             "//conditions:default": ["src/tcmalloc.cc", "src/system-alloc.cc"]}),
     alwayslink = 1,
     deps = [":all_headers", ":common"],
@@ -131,7 +132,7 @@ cc_library(
     name = "libbacktrace",
     copts = CFLAGS,
     includes = ["vendor/libbacktrace-integration", "vendor/libbacktrace"],
-    hdrs = ["vendor/libbacktrace/elf.c"], # yes, elf.c is included by file-format.c below and bazel makes us do this
+    hdrs = ["vendor/libbacktrace/elf.c", "vendor/libbacktrace/macho.c"], # yes, elf.c is included by file-format.c below and bazel makes us do this
     srcs = [
         "vendor/libbacktrace-integration/file-format.c",
         "vendor/libbacktrace/dwarf.c",
@@ -140,7 +141,8 @@ cc_library(
         "vendor/libbacktrace/sort.c",
         "vendor/libbacktrace/state.c",
         "vendor/libbacktrace/read.c"] +
-      glob(["vendor/libbacktrace-integration/*.h", "vendor/libbacktrace/*.h"]),
+    glob(["vendor/libbacktrace-integration/*.h", "vendor/libbacktrace/*.h"]),
+    target_compatible_with = NON_WINDOWS,
 )
 
 cc_library(
@@ -150,6 +152,7 @@ cc_library(
     srcs = ["src/symbolize.cc",
             "vendor/libbacktrace-integration/backtrace-alloc.cc"],
     deps = [":all_headers", ":libbacktrace"],
+    target_compatible_with = NON_WINDOWS,
 )
 
 cc_library(
@@ -192,6 +195,7 @@ cc_library(
         "src/debugallocation.cc", "src/system-alloc.cc"],
     alwayslink = 1,
     deps = [":all_headers", ":common", ":symbolize", ":low_level_alloc"],
+    target_compatible_with = NON_WINDOWS,
 )
 
 cc_library(
@@ -202,7 +206,7 @@ cc_library(
     copts = CXXFLAGS,
     srcs = ["src/stacktrace.cc", "src/base/elf_mem_image.cc", "src/base/vdso_support.cc"],
     deps = [":all_headers", ":common"],
-    )
+)
 
 cc_binary(
     name = "tcmalloc_bench",
@@ -220,13 +224,13 @@ cc_library(
     name = "tcmalloc",
     visibility = ["//visibility:public"],
     hdrs = [
-            "src/gperftools/heap-profiler.h",
-            "src/gperftools/malloc_extension.h",
-            "src/gperftools/malloc_extension_c.h",
-            "src/gperftools/malloc_hook.h",
-            "src/gperftools/malloc_hook_c.h",
-            "src/gperftools/nallocx.h",
-            "src/gperftools/tcmalloc.h",
+        "src/gperftools/heap-profiler.h",
+        "src/gperftools/malloc_extension.h",
+        "src/gperftools/malloc_extension_c.h",
+        "src/gperftools/malloc_hook.h",
+        "src/gperftools/malloc_hook_c.h",
+        "src/gperftools/nallocx.h",
+        "src/gperftools/tcmalloc.h",
     ],
     # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
     local_defines = ["ENABLE_EMERGENCY_MALLOC"],
@@ -256,6 +260,7 @@ cc_library(
     ],
     alwayslink = 1,
     deps = [":all_headers", ":common", ":low_level_alloc", ":stacktrace"],
+    target_compatible_with = NON_WINDOWS,
 )
 
 cc_binary(
@@ -304,6 +309,7 @@ cc_library(
     ],
     alwayslink = 1,
     deps = [":all_headers", ":common", ":low_level_alloc", ":symbolize", ":stacktrace"],
+    target_compatible_with = NON_WINDOWS,
 )
 
 cc_binary(
@@ -351,13 +357,14 @@ cc_library(
         "src/profiler.cc",
         "src/profile-handler.cc",
         "src/profiledata.cc",
-        ],
+    ],
     alwayslink = 1,
-    deps = [":all_headers", ":stacktrace", ":common"])
+    deps = [":all_headers", ":stacktrace", ":common"],
+    target_compatible_with = NON_WINDOWS,
+)
 
 cc_binary(
     name = "tcmalloc_full_bench_with_profiler",
     copts = CXXFLAGS,
     srcs = ["benchmark/malloc_bench.cc"],
     deps = [":run_benchmark", ":tcmalloc", ":cpu_profiler"])
-
