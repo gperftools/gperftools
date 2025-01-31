@@ -127,7 +127,7 @@ jobs:
           name: test-logs-${{ github.job }}-${{ matrix.os }}-${{ matrix.build_type }}
           retention-days: 7
           path: |
-            build/Testing/Temporary/LastTest.log
+            ${{runner.workspace}}/build/Testing/Temporary/LastTest.log
   test-cmake-windows:
     strategy:
       matrix:
@@ -161,4 +161,4 @@ jobs:
           name: test-logs-${{ github.job }}-${{ matrix.os }}-${{ matrix.build_type }}
           retention-days: 7
           path: |
-            build/Testing/Temporary/LastTest.log
+            ${{runner.workspace}}/build/Testing/Temporary/LastTest.log
