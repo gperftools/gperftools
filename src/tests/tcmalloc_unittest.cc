@@ -1841,16 +1841,66 @@ static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
 // Windows spawning codes
 static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
   std::vector<const char*> env = EnvProperty::DuplicateAndUpdateEnv(env_override);
-  const char* args[2] = {argv0, nullptr};
-  intptr_t rv =  _spawnve(_P_WAIT, argv0, args, env.data());
-  if (rv < 0) {
-    perror("_spawnve");
+
+  // For windows CreateProcessA environment needs to be converted to
+  // environment block. Which is just a successive ASCIIZ strings
+  // terminated by \0 (blank string). So we convert our vector
+  // environment entries to this format.
+  env.pop_back(); // last element is nullptr
+
+  std::vector<std::string_view> env_views;
+  env_views.reserve(env.size());
+  size_t total_size = 0;
+  for (const char* s : env) {
+    env_views.push_back(s);
+    total_size += env_views.rbegin()->size() + 1;
+  }
+  total_size++; // account for final empty string
+
+  std::unique_ptr<char[]> env_block = std::make_unique<char[]>(total_size);
+  char* env_block_p = env_block.get();
+  for (std::string_view s : env_views) {
+    env_block_p = std::copy(s.begin(), s.end(), env_block_p);
+    *env_block_p++ = '\0';
+  }
+  *env_block_p++ = '\0';
+  CHECK_EQ(env_block_p, &(env_block[total_size]));
+
+  fflush(stdout);
+  fflush(stderr);
+
+  STARTUPINFOA si;
+  PROCESS_INFORMATION pi;
+
+  memset(&si, 0, sizeof(si));
+  si.cb = sizeof(si);
+  memset(&pi, 0, sizeof(pi));
+
+  if (!CreateProcessA(argv0,
+                      nullptr, // command line. nullptr implies just argv0
+                      nullptr, // process attributes
+                      nullptr, // thread attributes
+                      TRUE,    // InheritHandles
+                      0,       // creation flags
+                      env_block.get(),
+                      nullptr, // current directory
+                      &si,
+                      &pi)) {
+    printf("CreateProcessA failed with error code: %x\n", (unsigned)GetLastError());
     abort();
   }
-  if (rv != 0) {
-    int status = static_cast<int>(rv);
-    printf("sub-process run failed with status = %d.\n", status);
-    exit(status);
+
+  WaitForSingleObject(pi.hProcess, INFINITE);
+
+  DWORD exit_code;
+  GetExitCodeProcess(pi.hProcess, &exit_code);
+
+  CloseHandle(pi.hProcess);
+  CloseHandle(pi.hThread);
+
+  if (exit_code != 0) {
+    printf("sub-process run failed with status = %d\n", (int)exit_code);
+    exit((int)exit_code);
   }
 }
 #endif // _WIN32
