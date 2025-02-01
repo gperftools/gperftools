@@ -72,6 +72,10 @@
 #endif
 #include <assert.h>
 
+#ifndef _WIN32
+#include <spawn.h> // for posix_spawn
+#endif
+
 #include <algorithm>
 #include <functional>
 #include <mutex>
@@ -1713,23 +1717,6 @@ TEST(TCMallocTest, Version) {
 #undef environ
 #undef execle
 #define environ _environ
-#define execle tcmalloc_windows_execle
-
-static intptr_t tcmalloc_windows_execle(const char* pathname, const char* argv0, const char* nl, const char* envp[]) {
-  CHECK_EQ(nl, nullptr);
-  const char* args[2] = {argv0, nullptr};
-  MallocExtension::instance()->MarkThreadIdle();
-  MallocExtension::instance()->ReleaseFreeMemory();
-  // MS's CRT _execle while kinda "similar" to real thing, is totally
-  // wrong (!!!). So we simulate it by doing spawn with _P_WAIT and
-  // exiting with status that we got.
-  intptr_t rv =  _spawnve(_P_WAIT, pathname, args, envp);
-  if (rv < 0) {
-    perror("_spawnve");
-    abort();
-  }
-  _exit(static_cast<int>(rv));
-}
 #endif  // _WIN32
 
 // POSIX standard oddly requires users to define environ variable
@@ -1762,12 +1749,10 @@ struct EnvProperty {
   using override_set = std::vector<std::pair<std::string, std::string>>;
   using env_override_fn = std::function<void(override_set*)>;
 
-  static std::function<std::vector<const char*>()> DuplicateAndUpdateEnv(env_override_fn fn) {
-    return [fn] () {
-      override_set overrides;
-      fn(&overrides);
-      return DoDuplicateAndUpdateEnv(std::move(overrides));
-    };
+  static std::vector<const char*> DuplicateAndUpdateEnv(env_override_fn fn) {
+    override_set overrides;
+    fn(&overrides);
+    return DoDuplicateAndUpdateEnv(std::move(overrides));
   }
 
   static std::vector<const char*> DoDuplicateAndUpdateEnv(override_set overrides) {
@@ -1819,6 +1804,57 @@ struct EnvProperty {
   }
 };
 
+static const char* argv0; // set in HandleVariableRuns
+
+#ifndef _WIN32
+// Everything non-windows we assume sufficiently POSIX-ish
+static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
+  std::vector<const char*> env = EnvProperty::DuplicateAndUpdateEnv(env_override);
+  char * const child_argv[] = {const_cast<char*>(argv0), nullptr};
+  pid_t pid;
+  int rv = posix_spawn(&pid, argv0, nullptr, nullptr, child_argv, const_cast<char**>(env.data()));
+  if (rv != 0) {
+    errno = rv;
+    perror("posix_spawn");
+    abort();
+  }
+
+  // parent
+  int status = -1;
+  pid_t wait_rv;
+  do {
+    wait_rv = waitpid(pid, &status, 0);
+  } while (wait_rv < 0 && errno == EINTR);
+
+  if (wait_rv < 0) {
+    perror("waitpid");
+    abort();
+  }
+
+  CHECK_EQ(wait_rv, pid);
+  if (status != 0) {
+    printf("sub-process run failed with status = %d.\n", status);
+    exit(status);
+  }
+}
+#else
+// Windows spawning codes
+static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
+  std::vector<const char*> env = EnvProperty::DuplicateAndUpdateEnv(env_override);
+  const char* args[2] = {argv0, nullptr};
+  intptr_t rv =  _spawnve(_P_WAIT, argv0, args, env.data());
+  if (rv < 0) {
+    perror("_spawnve");
+    abort();
+  }
+  if (rv != 0) {
+    int status = static_cast<int>(rv);
+    printf("sub-process run failed with status = %d.\n", status);
+    exit(status);
+  }
+}
+#endif // _WIN32
+
 // We want to run tests with several runtime configuration tweaks. For
 // improved test coverage. Previously we had shell script driving
 // this, now we handle this by exec-ing just at the end of all tests.
@@ -1840,82 +1876,58 @@ struct EnvProperty {
 //
 // * TCMALLOC_ENABLE_SIZED_DELETE = t (note, this one is no-op in most
 //     common builds)
-std::function<std::vector<const char*>()> PrepareEnv() {
-  static constexpr EnvProperty kUpdateNoEnv{"TCMALLOC_UNITTEST_ENV_UPDATE_NO"};
+void HandleVariableRuns(int argc, char** argv) {
+  if (argc != 1) {
+    return;
+  }
+
+  argv0 = argv[0];
+
+  static constexpr EnvProperty kMarker{"TCMALLOC_UNITTEST_MARKER"};
   static constexpr EnvProperty kTransferNumObjEnv{"TCMALLOC_TRANSFER_NUM_OBJ"};
   static constexpr EnvProperty kAggressiveDecommitEnv{"TCMALLOC_AGGRESSIVE_DECOMMIT"};
   static constexpr EnvProperty kHeapLimitEnv{"TCMALLOC_HEAP_LIMIT_MB"};
   static constexpr EnvProperty kEnableSizedDeleteEnv{"TCMALLOC_ENABLE_SIZED_DELETE"};
 
-  std::string_view testno = kUpdateNoEnv.Get();
+  if (!kMarker.Get().empty()) {
+    return; // We're unitttest child
+  }
+
   using override_set = EnvProperty::override_set;
 
-  if (testno == "") {
-    return EnvProperty::DuplicateAndUpdateEnv([] (override_set* overrides) {
-      kTransferNumObjEnv.SetAndPrint(overrides, "40");
-      kUpdateNoEnv.Set(overrides, "1");
-    });
-  }
-  if (testno == "1") {
-    return EnvProperty::DuplicateAndUpdateEnv([] (override_set* overrides) {
-      kTransferNumObjEnv.SetAndPrint(overrides, "4096");
-      kUpdateNoEnv.Set(overrides, "2");
-    });
-  }
-  if (testno == "2") {
-    return EnvProperty::DuplicateAndUpdateEnv([] (override_set* overrides) {
-      kTransferNumObjEnv.Set(overrides, "");
-      kAggressiveDecommitEnv.SetAndPrint(overrides, "t");
-      kUpdateNoEnv.Set(overrides, "3");
-    });
-  }
-  if (testno == "3") {
-    return EnvProperty::DuplicateAndUpdateEnv([] (override_set* overrides) {
-      kAggressiveDecommitEnv.Set(overrides, "");
-      kHeapLimitEnv.SetAndPrint(overrides, "512");
-      kUpdateNoEnv.Set(overrides, "4");
-    });
-  }
-  if (testno == "4") {
-    return EnvProperty::DuplicateAndUpdateEnv([] (override_set* overrides) {
-      kHeapLimitEnv.Set(overrides, "");
-      kEnableSizedDeleteEnv.SetAndPrint(overrides, "t");
-      kUpdateNoEnv.Set(overrides, "5");
-    });
-  }
-  if (testno == "5") {
-    return {};
-  }
-  printf("Unknown %s: %.*s\n", kUpdateNoEnv.name, static_cast<int>(testno.size()), testno.data());
-  abort();
-}
+  ReSpawnWithEnv([] (override_set* overrides) {
+    kMarker.Set(overrides, "_");
+  });
 
-std::function<void()> SetupExec(int argc, char** argv) {
-  if (argc != 1) {
-    return {};
-  }
+  ReSpawnWithEnv([] (override_set* overrides) {
+    kTransferNumObjEnv.SetAndPrint(overrides, "40");
+    kMarker.Set(overrides, "_");
+  });
 
-  std::function<std::vector<const char*>()> env_fn = PrepareEnv();
-  if (!env_fn) {
-    return env_fn;
-  }
+  ReSpawnWithEnv([] (override_set* overrides) {
+    kTransferNumObjEnv.SetAndPrint(overrides, "4096");
+    kMarker.Set(overrides, "_");
+  });
 
-  const char* program_name = strdup(argv[0]);
-  // printf("program_name = %s\n", program_name);
+  ReSpawnWithEnv([] (override_set* overrides) {
+    kTransferNumObjEnv.Set(overrides, "");
+    kAggressiveDecommitEnv.SetAndPrint(overrides, "t");
+    kMarker.Set(overrides, "_");
+  });
 
-  return [program_name, env_fn] () {
-    std::vector<const char*> vec = env_fn();
+  ReSpawnWithEnv([] (override_set* overrides) {
+    kAggressiveDecommitEnv.Set(overrides, "");
+    kHeapLimitEnv.SetAndPrint(overrides, "512");
+    kMarker.Set(overrides, "_");
+  });
 
-    // printf("pre-exec:\n");
-    // for (const char* k_and_v : vec) {
-    //   if (k_and_v) {
-    //     printf("%s\n", k_and_v);
-    //   }
-    // }
-    // printf("\n");
+  ReSpawnWithEnv([] (override_set* overrides) {
+    kHeapLimitEnv.Set(overrides, "");
+    kEnableSizedDeleteEnv.SetAndPrint(overrides, "t");
+    kMarker.Set(overrides, "_");
+  });
 
-    CHECK_EQ(execle(program_name, program_name, nullptr, vec.data()), 0);
-  };
+  exit(0);
 }
 
 #ifdef HAVE_FORK_TESTING_SUPPORT
@@ -2169,7 +2181,7 @@ int setup_fork_testing(int* argc, char *** argv) {return 0;}
 #endif  // !HAVE_FORK_TESTING_SUPPORT
 
 int main(int argc, char** argv) {
-  std::function<void()> exec_fn = SetupExec(argc, argv);
+  HandleVariableRuns(argc, argv);
 
   if (TestingPortal::Get()->IsDebuggingMalloc()) {
     // return freed blocks to tcmalloc immediately
@@ -2186,19 +2198,11 @@ int main(int argc, char** argv) {
 
   testing::InitGoogleTest(&argc, argv);
 
-  {
-    auto fork_cleanup = setup_fork_testing(&argc, &argv);
-    (void)fork_cleanup;
+  auto fork_cleanup = setup_fork_testing(&argc, &argv);
+  (void)fork_cleanup;
 
-    int err_code = RUN_ALL_TESTS();
-    if (err_code || !exec_fn) {
-      return err_code;
-    }
+  int err_code = RUN_ALL_TESTS();
+  if (err_code) {
+    return err_code;
   }
-
-  // if exec_fn is not empty and we've passed tests so far, lets try
-  // to continue testing by updating environment variables and
-  // self-execing.
-  exec_fn();
-  printf("Shouldn't be reachable\n");
 }
