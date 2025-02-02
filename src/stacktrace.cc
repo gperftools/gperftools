@@ -122,6 +122,17 @@ struct GetStackImplementation {
 #undef GST_SUFFIX
 #undef STACKTRACE_INL_HEADER
 #define HAVE_GST_libunwind
+
+// libunwind_fast depends on libunwind
+#if defined(USE_LIBUNWIND_FAST)
+#define STACKTRACE_INL_HEADER "stacktrace_libunwind-fast-inl.h"
+#define GST_SUFFIX libunwind_fast
+#include "stacktrace_impl_setup-inl.h"
+#undef GST_SUFFIX
+#undef STACKTRACE_INL_HEADER
+#define HAVE_GST_libunwind_fast
+#endif // USE_LIBUNWIND_FAST
+
 #endif // USE_LIBUNWIND
 
 #if defined(__GNUC__) && (defined(__x86_64__) || defined(__i386__) || defined(__aarch64__) || defined(__riscv) || defined(__arm__))
@@ -257,6 +268,9 @@ static GetStackImplementation *all_impls[] = {
 #ifdef HAVE_GST_libunwind
   &impl__libunwind,
 #endif
+#ifdef HAVE_GST_libunwind_fast
+  &impl__libunwind_fast,
+#endif
 #if defined(HAVE_GST_libgcc) && !defined(PREFER_LIBGCC_UNWINDER)
   &impl__libgcc,
 #endif
@@ -279,13 +293,16 @@ static GetStackImplementation *get_stack_impl;
 #if 0
 // This is for the benefit of code analysis tools that may have
 // trouble with the computed #include above.
-# include "stacktrace_libunwind-inl.h"
 # include "stacktrace_generic-inl.h"
+# include "stacktrace_libgcc-inl.h"
+# include "stacktrace_libunwind-inl.h"
+# include "stacktrace_libunwind-fast-inl.h"
 # include "stacktrace_generic_fp-inl.h"
 # include "stacktrace_powerpc-linux-inl.h"
-# include "stacktrace_win32-inl.h"
+# include "stacktrace_powerpc-darwin-inl.h"
 # include "stacktrace_arm-inl.h"
 # include "stacktrace_instrument-inl.h"
+# include "stacktrace_win32-inl.h"
 #endif
 
 static void init_default_stack_impl_inner(void);
@@ -403,9 +420,15 @@ const char* TEST_bump_stacktrace_implementation(const char* suggestion) {
 ATTRIBUTE_NOINLINE
 static void maybe_convert_libunwind_to_generic_fp() {
 #if defined(HAVE_GST_libunwind) && defined(HAVE_GST_generic_fp)
+#if defined(HAVE_GST_libunwind_fast)
+  if (get_stack_impl != &impl__libunwind_fast && get_stack_impl != &impl__libunwind) {
+    return;
+  }
+#else
   if (get_stack_impl != &impl__libunwind) {
     return;
   }
+#endif
 
   bool want_to_replace = false;
 
