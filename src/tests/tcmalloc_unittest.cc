@@ -161,7 +161,6 @@ constexpr NumericProperty kAggressiveDecommit{"tcmalloc.aggressive_memory_decomm
 // Windows doesn't define pvalloc and a few other obsolete unix
 // functions; nor does it define posix_memalign (which is not obsolete).
 #if defined(_WIN32)
-# define cfree free         // don't bother to try to test these obsolete fns
 # define valloc malloc
 # define pvalloc malloc
 // I'd like to map posix_memalign to _aligned_malloc, but _aligned_malloc
@@ -1387,7 +1386,7 @@ TEST(TCMallocTest, AllTests) {
     ASSERT_NE(p1, nullptr);
     VerifyNewHookWasCalled();
     VerifyDeleteHookWasCalled();
-    cfree(p1);  // synonym for free
+    free(p1);
     VerifyDeleteHookWasCalled();
 
     if (kOSSupportsMemalign) {
