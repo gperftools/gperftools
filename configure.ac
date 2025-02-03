@@ -240,8 +240,7 @@ AC_SUBST(REGEX_LIBS)
 
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
-AC_CHECK_DECLS([cfree,
-                posix_memalign,
+AC_CHECK_DECLS([posix_memalign,
                 memalign,
                 valloc,
                 pvalloc],,,

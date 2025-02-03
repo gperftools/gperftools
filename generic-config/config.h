@@ -69,10 +69,6 @@
    you don't. */
 // #undef HAVE_DECL_BACKTRACE_SYMBOLS 1
 
-/* Define to 1 if you have the declaration of 'cfree', and to 0 if you don't.
-   */
-#define HAVE_DECL_CFREE 0
-
 /* Define to 1 if you have the declaration of 'memalign', and to 0 if you
    don't. */
 // memalign is legacy API. BSDs have already removed it.

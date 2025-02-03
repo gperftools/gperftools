@@ -34,10 +34,6 @@
    don't. */
 /* #undef HAVE_DECL_BACKTRACE */
 
-/* Define to 1 if you have the declaration of `cfree', and to 0 if you don't.
-   */
-#define HAVE_DECL_CFREE 0
-
 /* Define to 1 if you have the declaration of `memalign', and to 0 if you
    don't. */
 #define HAVE_DECL_MEMALIGN 0

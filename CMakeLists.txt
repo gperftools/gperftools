@@ -200,7 +200,6 @@ check_include_file("unistd.h" HAVE_UNISTD_H)
 # We override a lot of memory allocation routines, not all of which are
 # standard.  For those the system doesn't declare, we'll declare ourselves.
 set(CMAKE_REQUIRED_DEFINITIONS -D_XOPEN_SOURCE=600)
-check_symbol_exists("cfree" "stdlib.h;malloc.h" HAVE_DECL_CFREE)
 check_symbol_exists("posix_memalign" "stdlib.h;malloc.h" HAVE_DECL_POSIX_MEMALIGN)
 check_symbol_exists("memalign" "stdlib.h;malloc.h" HAVE_DECL_MEMALIGN)
 check_symbol_exists("valloc" "stdlib.h;malloc.h" HAVE_DECL_VALLOC)
