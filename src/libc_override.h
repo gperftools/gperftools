@@ -66,6 +66,25 @@
 #define CPP_BADALLOC throw(std::bad_alloc)
 #endif
 
+#if defined(__has_feature)
+#  if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer) || __has_feature(thread_sanitizer)
+#    define TCMALLOC_UNDER_SANITIZER
+#  endif
+#elif defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
+#  define TCMALLOC_UNDER_SANITIZER
+#endif
+
+// A number of sanitizers are incompatible with tcmalloc. So lets
+// disable normal memory allocation overrides under those sanitizers.
+#if defined(TCMALLOC_UNDER_SANITIZER) && !defined(TCMALLOC_SKIP_OVERRIDE)
+#define TCMALLOC_SKIP_OVERRIDE
+#endif
+
+#ifdef TCMALLOC_SKIP_OVERRIDE
+static void ReplaceSystemAlloc() {}
+
+#else // !TCMALLOC_SKIP_OVERRIDE
+
 static void ReplaceSystemAlloc();  // defined in the .h files below
 
 // For windows, there are two ways to get tcmalloc.  If we're
@@ -95,5 +114,7 @@ static void ReplaceSystemAlloc() { PatchWindowsFunctions(); }
 #error Need to add support for your libc/OS here
 
 #endif
+
+#endif  // !TCMALLOC_SKIP_OVERRIDE
 
 #endif  // TCMALLOC_LIBC_OVERRIDE_INL_H_
