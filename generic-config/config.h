@@ -130,7 +130,7 @@
 /* Define to 1 if you have the <features.h> header file. */
 #if defined __has_include
 #  if __has_include(<features.h>)
-#    define HAVE_FEATURES_H 1
+#    include <features.h> // for __GLIBC__ define below and elsewhere
 #  endif
 #endif
 
