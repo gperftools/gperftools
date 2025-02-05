@@ -844,6 +844,11 @@ class TCMallocImplementation : public MallocExtension {
       return true;
     }
 
+    if (strcmp(name, "tcmalloc.sample_parameter") == 0) {
+      *value = FLAGS_tcmalloc_sample_parameter;
+      return true;
+    }
+
     if (TestingPortal** portal = TestingPortal::CheckGetPortal(name, value); portal) {
       *portal = TestingPortalImpl::Get();
       *value = 1;
@@ -876,6 +881,15 @@ class TCMallocImplementation : public MallocExtension {
     if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
       SpinLockHolder l(Static::pageheap_lock());
       FLAGS_tcmalloc_heap_limit_mb = value;
+      return true;
+    }
+
+    if (strcmp(name, "tcmalloc.sample_parameter") == 0) {
+      FLAGS_tcmalloc_sample_parameter = value;
+      // By clearing current thread's cache we force next allocations
+      // to read freshly updated sample parameter. This is only going
+      // to affect current thread, but this is better than nothing.
+      MallocExtension::instance()->MarkThreadIdle();
       return true;
     }
 
