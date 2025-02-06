@@ -247,7 +247,11 @@
 #endif
 
 /* Whether <unwind.h> contains _Unwind_Backtrace */
-#if defined(__GNUC__) && !defined(__clang__)
+// Apparently both clang (even with -stdlib=libc++) and gcc have
+// Unwind_Backtrace. But we seem to be avoiding it on OSX and FreeBSD,
+// reportedly due to recursing back into malloc (see matching comment
+// in configure.ac)
+#if defined(__GNUC__) && !defined(__APPLE__) && !defined(__FreeBSD__)
 #define HAVE_UNWIND_BACKTRACE 1
 #endif
 
