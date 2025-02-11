@@ -913,20 +913,33 @@ libtcmalloc.pc: Makefile
 	echo 'Version: $(VERSION)' >> "$@".tmp
 	echo 'Description: Performance tools for C++' >> "$@".tmp
 	echo 'URL: https://github.com/gperftools/gperftools' >> "$@".tmp
-	echo 'Requires:' >> "$@".tmp
+	echo 'Requires: $(UNWIND_PC_DEP)' >> "$@".tmp
 	echo 'Libs: -L$${libdir} -ltcmalloc' >> "$@".tmp
 	echo 'Libs.private: $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)' >> "$@".tmp
 	echo 'Cflags: -I$${includedir}' >> "$@".tmp
 	mv -f "$@".tmp "$@"
 
 libtcmalloc_minimal.pc: libtcmalloc.pc
-	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal/ > "$@"
+	echo 'prefix=$(prefix)' > "$@".tmp
+	echo 'exec_prefix='`echo '$(exec_prefix)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
+	echo 'libdir='`echo '$(libdir)' | sed 's@^$(exec_prefix)@$${exec_prefix}@'` >> "$@".tmp
+	echo 'includedir='`echo '$(includedir)' | sed 's@^$(prefix)@$${prefix}@'` >> "$@".tmp
+	echo '' >> "$@".tmp
+	echo 'Name: $(PACKAGE)' >> "$@".tmp
+	echo 'Version: $(VERSION)' >> "$@".tmp
+	echo 'Description: Performance tools for C++' >> "$@".tmp
+	echo 'URL: https://github.com/gperftools/gperftools' >> "$@".tmp
+	echo 'Requires:' >> "$@".tmp
+	echo 'Libs: -L$${libdir} -ltcmalloc_minimal' >> "$@".tmp
+	echo 'Libs.private: $(PTHREAD_CFLAGS) $(PTHREAD_LIBS)' >> "$@".tmp
+	echo 'Cflags: -I$${includedir}' >> "$@".tmp
+	mv -f "$@".tmp "$@"
 
 libtcmalloc_debug.pc: libtcmalloc.pc
 	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_debug/ > "$@"
 
-libtcmalloc_minimal_debug.pc: libtcmalloc.pc
-	cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_minimal_debug/ > "$@"
+libtcmalloc_minimal_debug.pc: libtcmalloc_minimal.pc
+	cat libtcmalloc_minimal.pc | sed s/-ltcmalloc_minimal/-ltcmalloc_minimal_debug/ > "$@"
 
 libprofiler.pc: libtcmalloc.pc
 	cat libtcmalloc.pc | sed s/-ltcmalloc/-lprofiler/ > "$@"

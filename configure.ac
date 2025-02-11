@@ -278,14 +278,17 @@ AM_CONDITIONAL(ENABLE_STATIC, test "$enable_static" = yes)
 
 # We want to link in libunwind if it is enabled and exists.
 UNWIND_LIBS=
+UNWIND_PC_DEP=
 if test "$enable_libunwind" = yes; then
   AC_CHECK_HEADERS([libunwind.h],
                    [AC_CHECK_LIB(unwind, backtrace,
                      [UNWIND_LIBS=-lunwind
+                      UNWIND_PC_DEP=libunwind
                       AC_DEFINE([USE_LIBUNWIND], [1], [libunwind.h was found and is working])
                       will_use_libunwind=yes])])
 fi
 AC_SUBST(UNWIND_LIBS)
+AC_SUBST(UNWIND_PC_DEP)
 
 AC_ARG_ENABLE(frame_pointers,
               AS_HELP_STRING([--enable-frame-pointers],
