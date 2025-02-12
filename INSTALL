@@ -34,65 +34,6 @@ dist (or, preferably, make distcheck) and it'll produce .tar.gz or
 build our software without having autotools.
 
 
-*** Stacktrace capturing details
-
-A number of gperftools facilities capture stack traces. And
-occasionally this happens in 'tricky' locations, like in SIGPROF
-handler. So some platforms and library versions occasionally cause
-troubles (crashes or hangs, or truncated stack traces).
-
-So we do provide several implementations that our users are able to
-select at runtime. Pass TCMALLOC_STACKTRACE_METHOD_VERBOSE=t as
-environment variable to ./stacktrace_unittest to see options.
-
-* frame-pointer-based stacktracing is fully supported on x86 (all 3
-  kinds: i386, x32 and x86-64 are suppored), aarch64 and riscv. But
-  all modern architectures and ABIs by default build code without
-  frame pointers (even on i386). So in order to get anything useful
-  out of this option, you need to build your code with frame
-  pointers. It adds some performance overhead (usually people quote
-  order of 2%-3%, but it can really vary based on workloads). Also it
-  is worth mentioning, that it is fairly common for various asm
-  routines not to have frame pointers, so you'll have somewhat
-  imperfect profiles out of typical asm bits like memcpy. This stack
-  trace capuring method is also fastest (like 2-3 orders of magnitude
-  faster), which will matter when stacktrace capturing is done a lot
-  (e.g. heap profiler).
-
-* libgcc-based stacktracing works particularly great on modern
-  GNU/Linux systems with glibc 2.34 or later and libgcc from gcc 12 or
-  later. Thanks to usage of dl_find_object API introduced in recent
-  glibc-s this implementation seems to be truly async-signal safe and
-  it is reasonably fast too. On Linux and other ELF platforms it uses
-  eh_frame facility (which is very similar to dwarf unwind info). It
-  was originally introduced for exception handling. On most modern
-  platforms this unwind info is automatically added by compilers. On
-  others you might need to add -fexceptions and/or
-  -fasynchrnous-unwind-tables to your compiler flags. To make this
-  option default, pass --enable-libgcc-unwinder-by-default to
-  configure. When used without dl_find_object it will occasionally
-  deadlock especially when used in cpuprofiler.
-
-* libunwind is another supported mechanism and is default when
-  available. It also depends on eh_frame stuff (or dwarf or some
-  arm-specific thingy when available). When using it, be sure to use
-  latest available libunwind version. As with libgcc some people
-  occasionally had trouble with it on codes with broken or missing
-  unwind info. If you encounter something like that, first make sure
-  to file tickets against your compiler vender. Second, libunwind has
-  configure option to check accesses more thoroughly, so consider
-  that.
-
-* many systems provide backtrace() function either as part of their
-  libc or in -lexecinfo. On most systems, including GNU/Linux, it is
-  not built by default, so pass --enable-stacktrace-via-backtrace to
-  configure to enable it. Occasionally this implementation will call
-  malloc when capturing backtrace, but we should automagically handle
-  it via our "emergency malloc" facility which is now built by default
-  on most systems (but it currently doesn't handle being used by
-  cpuprofiler).
-
-
 *** TCMALLOC LARGE PAGES: TRADING TIME FOR SPACE
 
 You can set a compiler directive that makes tcmalloc faster, at the
@@ -154,46 +95,29 @@ aarch64 and riscv machines. Other machine types may fail some tests,
 but you should expect at least malloc to be fully functional.
 
 Perftools has been tested on the following non-Linux systems:
-   Various recent versions of FreeBSD (x86-64 mostly)
+   Recent versions of FreeBSD (x86-64 mostly)
    Recent version of NetBSD (x86-64)
    Recent versions of OSX (aarch64, x86 and ppc hasn't been tested for some time)
-   Solaris 10 (x86_64), but not recently
-   Windows using both MSVC (starting from MSVC 2015 and later) and mingw toolchains
-     Windows XP and other obsolete versions have not been tested recently
-   Windows XP, Cygwin 5.1 (x86), but not recently
+   Recent OpenSolaris (x86_64)
+   Recent QNX
+   Windows using both MSVC (starting from MSVC 2019 and later) and mingw toolchains
 
 Portions of gperftools work on those other systems.  The basic
 memory-allocation library, tcmalloc_minimal, works on all systems.
-The cpu-profiler also works fairly widely.  However, the heap-profiler
-and heap-checker are not yet as widely supported.  Heap checker is now
-deprecated. In general, the 'configure' script will detect what OS you
+The cpu-profiler also works fairly widely (with notable exception of
+Windows, of course).  However, the heap-profiler is not yet as widely
+supported.  In general, the 'configure' script will detect what OS you
 are building for, and only build the components that work on that OS.
 
 Note that tcmalloc_minimal is perfectly usable as a malloc/new
 replacement, so it is possible to use tcmalloc on all the systems
 above, by linking in libtcmalloc_minimal.
 
-** Solaris 10 x86: (note, this is fairly old)
-
-   I've only tested using the GNU C++ compiler, not the Sun C++
-   compiler.  Using g++ requires setting the PATH appropriately when
-   configuring.
-
-   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin ./configure
-   % PATH=${PATH}:/usr/sfw/bin/:/usr/ccs/bin make [...]
-
-   Again, the binaries and libraries that successfully build are
-   exactly the same as for FreeBSD.  (However, while libprofiler.so can
-   be used to generate profiles, pprof is not very successful at
-   reading them -- necessary helper programs like nm don't seem
-   to be installed by default on Solaris, or perhaps are only
-   installed as part of the Sun C++ compiler package.)  See that
-   section for a list of binaries, and instructions on building them.
-
-** Windows  (MSVC, Cygwin, and MinGW):
+** Windows  (MSVC and MinGW):
 
    Work on Windows is rather preliminary: only tcmalloc_minimal is
-   supported.
+   supported. Note, our code base requires APIs available starting
+   from Windows 8 and later.
 
    This Windows functionality is also available using MinGW and Msys,
    In this case, you can use the regular './configure && make'

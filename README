@@ -13,9 +13,13 @@ gperftools is distributed under the terms of the BSD License. Join our
 mailing list at gperftools@googlegroups.com for updates:
 https://groups.google.com/forum/#!forum/gperftools
 
-gperftools was original home for pprof program. The original pprof But
-do note that original pprof is now removed in favor of Go version at
-https://github.com/google/pprof
+gperftools was original home for pprof program. The original pprof was
+a Perl script and there is not that many Perl experts
+nowadays. Thankfully, pprof has been rewritten in Go around 2016 and
+that version of pprof has gotten a lot more feature-ful. So the
+original pprof is now removed in favor of Go version at
+https://github.com/google/pprof. Go's own profiling facilities are
+based on that pprof version as well.
 
 
 TCMALLOC
@@ -28,18 +32,10 @@ tcmalloc functionality is available on all systems we've tested; see
 INSTALL for more details.  See README_windows.txt for instructions on
 using tcmalloc on Windows.
 
-when compiling.  gcc makes some optimizations assuming it is using its
-own, built-in malloc; that assumption obviously isn't true with
-tcmalloc.  In practice, we haven't seen any problems with this, but
-the expected risk is highest for users who register their own malloc
-hooks with tcmalloc (using gperftools/malloc_hook.h).  The risk is
-lowest for folks who use tcmalloc_minimal (or, of course, who pass in
-the above flags :-) ).
-
 
 HEAP PROFILER
 -------------
-See docs/heapprofile.html for information about how to use tcmalloc's
+See docs/heapprofile.adoc for information about how to use tcmalloc's
 heap profiler and analyze its output.
 
 As a quick-start, do the following after installing this package:
@@ -64,7 +60,7 @@ see INSTALL for more details.  It is not currently available on Windows.
 
 CPU PROFILER
 ------------
-See docs/cpuprofile.html for information about how to use the CPU
+See docs/cpuprofile.adoc for information about how to use the CPU
 profiler and analyze its output.
 
 As a quick-start, do the following after installing this package:
@@ -88,21 +84,6 @@ NOTE: CPU profiling doesn't work after fork (unless you immediately
       data.  You can use _exit() to work around this.  We hope to have
       a fix for both problems in the next release of perftools
       (hopefully perftools 1.2).
-
-
-EVERYTHING IN ONE
------------------
-If you want the CPU profiler, heap profiler, and heap leak-checker to
-all be available for your application, you can do:
-   gcc -o myapp ... -lprofiler -ltcmalloc
-
-However, if you have a reason to use the static versions of the
-library, this two-library linking won't work:
-   gcc -o myapp ... /usr/lib/libprofiler.a /usr/lib/libtcmalloc.a  # errors!
-
-Instead, use the special libtcmalloc_and_profiler library, which we
-make for just this purpose:
-   gcc -o myapp ... /usr/lib/libtcmalloc_and_profiler.a
 
 
 CONFIGURATION OPTIONS
@@ -137,9 +118,8 @@ PERFTOOLS_VERBOSE=<level> -- the higher level, the more messages malloc emits
 MALLOCSTATS=<level>    -- prints memory-use stats at program-exit
 
 For a full list of variables, see the documentation pages:
-   docs/cpuprofile.html
-   docs/heapprofile.html
-   docs/heap_checker.html
+   docs/cpuprofile.adoc
+   docs/heapprofile.adoc
 
 See also TCMALLOC_STACKTRACE_METHOD_VERBOSE and
 TCMALLOC_STACKTRACE_METHOD environment variables briefly documented in
