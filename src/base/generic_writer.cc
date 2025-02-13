@@ -73,7 +73,15 @@ void GenericWriter::AppendMem(const char* str, size_t sz) {
     int amount = static_cast<int>(std::min<size_t>(std::numeric_limits<int>::max(), sz));
     amount = std::min<int>(amount, buf_end_ - buf_fill_);
 
-    memcpy(buf_fill_, str, amount);
+    // So this is silly but ultimately harmless. Glibc defines memcpy
+    // args to be non-null (so, even for the amount == 0 case). And
+    // while in practice it works (and has to), ubsan kinda complains.
+    //
+    // Thankfully in this place we can afford slight perf hit of doing
+    // "stupid" thing.
+    if (PREDICT_TRUE(amount != 0)) {
+      memcpy(buf_fill_, str, amount);
+    }
 
     str += amount;
     buf_fill_ += amount;
