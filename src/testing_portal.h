@@ -42,7 +42,7 @@
 
 namespace tcmalloc {
 
-class ATTRIBUTE_HIDDEN TestingPortal {
+class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortal {
 public:
   static inline constexpr char kMagic[] = "tcmalloc.impl.testing-portal";
   static TestingPortal* Get() {

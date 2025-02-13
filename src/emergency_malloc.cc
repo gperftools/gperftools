@@ -49,8 +49,8 @@
 
 namespace tcmalloc {
 
-ATTRIBUTE_HIDDEN char *emergency_arena_start;
-ATTRIBUTE_HIDDEN uintptr_t emergency_arena_start_shifted;
+ATTRIBUTE_VISIBILITY_HIDDEN char *emergency_arena_start;
+ATTRIBUTE_VISIBILITY_HIDDEN uintptr_t emergency_arena_start_shifted;
 
 static CACHELINE_ALIGNED SpinLock emergency_malloc_lock;
 static char *emergency_arena_end;
@@ -102,7 +102,7 @@ static void InitEmergencyMalloc(void) {
   (void)munmap(tail_start, tail_unmap_size);
 }
 
-ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {
+ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyMalloc(size_t size) {
   SpinLockHolder l(&emergency_malloc_lock);
 
   if (emergency_arena_start == nullptr) {
@@ -117,18 +117,18 @@ ATTRIBUTE_HIDDEN void *EmergencyMalloc(size_t size) {
   return rv;
 }
 
-ATTRIBUTE_HIDDEN void EmergencyFree(void *p) {
+ATTRIBUTE_VISIBILITY_HIDDEN void EmergencyFree(void *p) {
   SpinLockHolder l(&emergency_malloc_lock);
   CHECK_CONDITION(emergency_arena_start);
   LowLevelAlloc::Free(p);
 }
 
-ATTRIBUTE_HIDDEN size_t EmergencyAllocatedSize(const void *p) {
+ATTRIBUTE_VISIBILITY_HIDDEN size_t EmergencyAllocatedSize(const void *p) {
   CHECK_CONDITION(emergency_arena_start);
   return LowLevelAlloc::UsableSize(p);
 }
 
-ATTRIBUTE_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {
+ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {
   if (_old_ptr == nullptr) {
     return EmergencyMalloc(new_size);
   }

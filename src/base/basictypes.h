@@ -236,12 +236,6 @@ union MemoryAligner {
   size_t s;
 } CACHELINE_ALIGNED;
 
-#if defined(HAVE___ATTRIBUTE__) && defined(__ELF__)
-#define ATTRIBUTE_HIDDEN __attribute__((visibility("hidden")))
-#else
-#define ATTRIBUTE_HIDDEN
-#endif
-
 #if defined(__GNUC__)
 #define ALWAYS_INLINE inline __attribute__((always_inline))
 #elif defined(_MSC_VER)

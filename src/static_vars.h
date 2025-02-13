@@ -101,26 +101,26 @@ class Static {
   static bool IsInited() { return inited_; }
 
  private:
-  ATTRIBUTE_HIDDEN static bool inited_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static bool inited_;
 
   // These static variables require explicit initialization.  We cannot
   // count on their constructors to do any initialization because other
   // static variables may try to allocate memory before these variables
   // can run their constructors.
 
-  ATTRIBUTE_HIDDEN static SizeMap sizemap_;
-  ATTRIBUTE_HIDDEN static CentralFreeList central_cache_[kClassSizesMax];
-  ATTRIBUTE_HIDDEN static PageHeapAllocator<Span> span_allocator_;
-  ATTRIBUTE_HIDDEN static PageHeapAllocator<StackTrace> stacktrace_allocator_;
-  ATTRIBUTE_HIDDEN static Span sampled_objects_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static SizeMap sizemap_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static CentralFreeList central_cache_[kClassSizesMax];
+  ATTRIBUTE_VISIBILITY_HIDDEN static PageHeapAllocator<Span> span_allocator_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static PageHeapAllocator<StackTrace> stacktrace_allocator_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static Span sampled_objects_;
 
   // Linked list of stack traces recorded every time we allocated memory
   // from the system.  Useful for finding allocation sites that cause
   // increase in the footprint of the system.  The linked list pointer
   // is stored in trace->stack[kMaxStackDepth-1].
-  ATTRIBUTE_HIDDEN static std::atomic<StackTrace*> growth_stacks_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static std::atomic<StackTrace*> growth_stacks_;
 
-  ATTRIBUTE_HIDDEN static StaticStorage<PageHeap> pageheap_;
+  ATTRIBUTE_VISIBILITY_HIDDEN static StaticStorage<PageHeap> pageheap_;
 };
 
 }  // namespace tcmalloc

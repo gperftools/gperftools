@@ -1050,7 +1050,7 @@ static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
   if (ptr)  MallocBlock::FromRawPointer(ptr)->Deallocate(type, given_size);
 }
 
-class ATTRIBUTE_HIDDEN DebugTestingPortal : public TestingPortalImpl {
+class ATTRIBUTE_VISIBILITY_HIDDEN DebugTestingPortal : public TestingPortalImpl {
 public:
   ~DebugTestingPortal() override = default;
   bool IsDebuggingMalloc() override { return true; }

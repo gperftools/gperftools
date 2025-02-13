@@ -92,7 +92,7 @@ extern PERFTOOLS_DLL_DECL SysAllocator* tcmalloc_sys_alloc;
 // Number of bytes taken from system.
 extern PERFTOOLS_DLL_DECL size_t TCMalloc_SystemTaken;
 
-ATTRIBUTE_HIDDEN
+ATTRIBUTE_VISIBILITY_HIDDEN
 SpinLock* GetSysAllocLock();
 
 #endif /* TCMALLOC_SYSTEM_ALLOC_H_ */

@@ -543,7 +543,7 @@ namespace tcmalloc {
 
 TestingPortal::~TestingPortal() = default;
 
-class ATTRIBUTE_HIDDEN TestingPortalImpl : public TestingPortal {
+class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortalImpl : public TestingPortal {
 public:
   ~TestingPortalImpl() override = default;
 

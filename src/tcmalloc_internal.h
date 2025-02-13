@@ -71,4 +71,4 @@ extern "C" void* pvalloc(size_t __size) __THROW;
 #endif
 
 // Implemented in tcmalloc.cc or debugallocation.cc
-ATTRIBUTE_HIDDEN void SetupMallocExtension();
+ATTRIBUTE_VISIBILITY_HIDDEN void SetupMallocExtension();
