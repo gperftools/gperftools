@@ -1370,6 +1370,20 @@ TEST(TCMallocTest, AllTests) {
     free(p1);
     VerifyDeleteHookWasCalled();
 
+    p1 = noopt(malloc)(10);
+    ASSERT_NE(p1, nullptr);
+    VerifyNewHookWasCalled();
+    tc_free_sized(p1, 10);
+    VerifyDeleteHookWasCalled();
+
+    // sadly windows stuff lacks aligned_alloc
+    // (https://learn.microsoft.com/en-us/cpp/standard-library/cstdlib?view=msvc-170#remarks-6)
+    p1 = noopt(tc_memalign)(1, 10);
+    ASSERT_NE(p1, nullptr);
+    VerifyNewHookWasCalled();
+    tc_free_aligned_sized(p1, 1, 10);
+    VerifyDeleteHookWasCalled();
+
     p1 = tc_malloc_skip_new_handler(10);
     ASSERT_NE(p1, nullptr);
     VerifyNewHookWasCalled();

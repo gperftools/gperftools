@@ -192,6 +192,8 @@ extern "C" {
       ATTRIBUTE_SECTION(google_malloc);
   void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
+  void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW
+      ATTRIBUTE_SECTION(google_malloc);
   void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW
       ATTRIBUTE_SECTION(google_malloc);
   void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_NOTHROW
@@ -2214,6 +2216,11 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size,
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t, const std::nothrow_t&) PERFTOOLS_NOTHROW
 {
   free_fast_path(p);
+}
+
+extern "C" PERFTOOLS_DLL_DECL
+void tc_free_aligned_sized(void *ptr, size_t, size_t) PERFTOOLS_NOTHROW {
+  free_fast_path(ptr);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align)

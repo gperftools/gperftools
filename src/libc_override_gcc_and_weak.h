@@ -241,6 +241,10 @@ extern "C" {
 #else
   size_t malloc_usable_size(void* p) __THROW      ALIAS(tc_malloc_size);
 #endif
+
+  // C23
+  void free_sized(void* p, size_t size) __THROW ALIAS(tc_free_sized);
+  void free_aligned_sized(void* p, size_t align, size_t size) __THROW ALIAS(tc_free_aligned_sized);
 }   // extern "C"
 
 /* AIX User-defined malloc replacement interface overrides */

@@ -123,6 +123,10 @@ extern "C" {
 #endif
   size_t malloc_size(void* p)                    { return tc_malloc_size(p); }
   size_t malloc_usable_size(void* p)             { return tc_malloc_size(p); }
+
+  // C23
+  void free_sized(void* p, size_t size)          { return tc_free_sized(p, size); }
+  void free_aligned_sized(void* p, size_t align, size_t size) {return tc_free_aligned_sized(p, align, size); }
 }  // extern "C"
 
 // No need to do anything at tcmalloc-registration time: we do it all

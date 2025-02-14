@@ -1265,6 +1265,12 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOO
   force_frame();
 }
 
+extern "C" PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
+  tcmalloc::InvokeDeleteHook(ptr);
+  DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
+  force_frame();
+}
+
 extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOOLS_NOTHROW {
   // Overflow check
   const size_t total_size = count * size;
