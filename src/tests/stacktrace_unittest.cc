@@ -271,8 +271,8 @@ int ATTRIBUTE_NOINLINE CaptureLeafWSkip(void **stack, int stack_len) {
 
 void ATTRIBUTE_NOINLINE CheckStackTrace(int);
 
-int (*leaf_capture_fn)(void**, int) = CaptureLeafPlain;
-int leaf_capture_len = 20;
+int (*leaf_capture_fn)(void**, int);
+int leaf_capture_len;
 
 void ATTRIBUTE_NOINLINE CheckStackTraceLeaf(int i) {
   std::vector<void*> stack(leaf_capture_len + 1);
@@ -355,20 +355,23 @@ void ATTRIBUTE_NOINLINE CheckStackTrace(int i) {
 
 }  // extern "C"
 
-//-----------------------------------------------------------------------//
-
-void RunTest() {
+static void RunStackTraceCheck(int (*bt_capture_fn)(void**, int)) {
+  leaf_capture_fn = bt_capture_fn;
   CheckStackTrace(0);
+}
+
+void RunTest(int capture_depth) {
+  leaf_capture_len = capture_depth;
+
+  RunStackTraceCheck(CaptureLeafPlain);
   printf("PASS\n");
 
   printf("Will test capturing stack trace with nullptr ucontext\n");
-  leaf_capture_fn = CaptureLeafPlainEmptyUCP;
-  CheckStackTrace(0);
+  RunStackTraceCheck(CaptureLeafPlainEmptyUCP);
   printf("PASS\n");
 
   printf("Will test capturing stack trace with skipped frames\n");
-  leaf_capture_fn = CaptureLeafWSkip;
-  CheckStackTrace(0);
+  RunStackTraceCheck(CaptureLeafWSkip);
   printf("PASS\n");
 
 #if TEST_UCONTEXT_BITS
@@ -385,8 +388,7 @@ void RunTest() {
   want_to_test = want_to_test && (name == "generic_fp" || name == "generic_fp_unsafe");
 #endif  // !__linux__
   if (want_to_test) {
-    leaf_capture_fn = CaptureLeafUContext;
-    CheckStackTrace(0);
+    RunStackTraceCheck(CaptureLeafUContext);
     printf("PASS\n");
   }
 #endif  // TEST_UCONTEXT_BITS
@@ -411,12 +413,10 @@ int main(int argc, char** argv) {
     }
     printf("\n-----\nTesting stacktrace implementation: %s\n", tested_implementation_name);
 
-    leaf_capture_len = 20;
-    RunTest();
+    RunTest(20);
 
     printf("\nSet max capture length to 3:\n");
-    leaf_capture_len = 3;  // less than stack depth
-    RunTest();
+    RunTest(3); // depth of 3 is less than space we have for stacktrace
   }
 
   return 0;
