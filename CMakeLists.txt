@@ -5,14 +5,9 @@ cmake_minimum_required(VERSION 3.12)
 
 set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the build type")
 
-project(gperftools VERSION 2.16 LANGUAGES C CXX
+project(gperftools VERSION 2.16.90 LANGUAGES C CXX
         DESCRIPTION "Performance tools for C++"
         HOMEPAGE_URL https://github.com/gperftools/gperftools)
-
-# Update this value for every release!
-set(TCMALLOC_SO_VERSION 9.18.5)
-set(PROFILER_SO_VERSION 5.13.5)
-set(TCMALLOC_AND_PROFILER_SO_VERSION 10.13.6)
 
 # The user can choose not to compile in the heap-profiler, or the
 # cpu-profiler.  There's also the possibility for a 'fully minimal'

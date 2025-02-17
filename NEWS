@@ -1,3 +1,46 @@
+== 6 March 2025
+
+gperftools 2.17rc is out!
+
+2.17 headline changes are removal of heap leak checker and removal of
+legacy Perl pprof implementation. People should install and use much,
+much improved pprof implementation from github.com/google/pprof.
+
+Here is a complete list of reasonably notable changes:
+
+* [headline] heap leak checker has been amputated, as promised earlier
+
+* [headline] we don't ship pprof anymore. People need to get modern
+  and awesome pprof implementation from github.com/google/pprof
+
+* we now have some basic CI infrastructure via Github Actions
+
+* we now have basic Bazel support
+
+* our docs have been slightly updated and converted to AsciiDoc format
+
+* we now implement C23 free{,_aligned}_sized functions (but no libc-s
+  offer those yet anyway)
+
+* FreeBSD bits don't depend on procfs anymore (proc maps iterator was
+  broken anyway; now it works)
+
+* we don't offer mmap profiling anymore. It wasn't entirely complete
+  for some years now, and killing it has eliminated a lot of
+  complexity. MMap hooks are still part of ABI, but they do nothing.
+
+Please find the list of tickets explicitly closed by this release
+here:
+https://github.com/gperftools/gperftools/issues?q=label%3A%22fixed-in-2.17%22%20
+
+Many thanks for the following contributions:
+
+* Alex Faxa has contributed (partial) make install support for cmake
+  bits
+
+* Andrey Semashev contributed one build fix and another fix for the test
+  failure
+
 == 25 September 2024
 
 gperftools 2.16 is out!
