@@ -229,45 +229,6 @@ void InvokeDeleteHookSlow(const void* p) {
 
 }  // namespace tcmalloc
 
-#if !defined(NO_TCMALLOC_SAMPLES) && HAVE_ATTRIBUTE_SECTION_START
-
-DEFINE_ATTRIBUTE_SECTION_VARS(google_malloc);
-DECLARE_ATTRIBUTE_SECTION_VARS(google_malloc);
-  // actual functions are in debugallocation.cc or tcmalloc.cc
-
-#define ADDR_IN_ATTRIBUTE_SECTION(addr, name) \
-  (reinterpret_cast<uintptr_t>(ATTRIBUTE_SECTION_START(name)) <= \
-     reinterpret_cast<uintptr_t>(addr) && \
-   reinterpret_cast<uintptr_t>(addr) < \
-     reinterpret_cast<uintptr_t>(ATTRIBUTE_SECTION_STOP(name)))
-
-// Return true iff 'caller' is a return address within a function
-// that calls one of our hooks via MallocHook:Invoke*.
-// A helper for GetCallerStackTrace.
-static inline bool InHookCaller(const void* caller) {
-  return ADDR_IN_ATTRIBUTE_SECTION(caller, google_malloc);
-  // We can use one section for everything except tcmalloc_or_debug
-  // due to its special linkage mode, which prevents merging of the sections.
-}
-
-#undef ADDR_IN_ATTRIBUTE_SECTION
-
-static bool checked_sections = false;
-
-static inline void CheckInHookCaller() {
-  if (!checked_sections) {
-    INIT_ATTRIBUTE_SECTION_VARS(google_malloc);
-    if (ATTRIBUTE_SECTION_START(google_malloc) ==
-        ATTRIBUTE_SECTION_STOP(google_malloc)) {
-      RAW_LOG(ERROR, "google_malloc section is missing, "
-                     "thus InHookCaller is broken!");
-    }
-    checked_sections = true;
-  }
-}
-
-#endif // !NO_TCMALLOC_SAMPLES
-
 // We can improve behavior/compactness of this function
 // if we pass a generic test function (with a generic arg)
 // into the implementations for GetStackTrace instead of the skip_count.
@@ -275,58 +236,18 @@ extern "C" int MallocHook_GetCallerStackTrace(void** result, int max_depth,
                                               int skip_count) {
 #if defined(NO_TCMALLOC_SAMPLES)
   return 0;
-#elif !defined(HAVE_ATTRIBUTE_SECTION_START)
+#else
+  if (max_depth < 1) {
+    return 0;
+  }
   // Fall back to GetStackTrace and good old but fragile frame skip counts.
   // Note: this path is inaccurate when a hook is not called directly by an
   // allocation function but is daisy-chained through another hook,
   // search for MallocHook::(Get|Set|Invoke)* to find such cases.
-  return tcmalloc::GrabBacktrace(result, max_depth, skip_count + int(DEBUG_MODE));
-  // due to -foptimize-sibling-calls in opt mode
-  // there's no need for extra frame skip here then
-#else
-  CheckInHookCaller();
-  // MallocHook caller determination via InHookCaller works, use it:
-  static const int kMaxSkip = 32 + 6 + 3;
-    // Constant tuned to do just one GetStackTrace call below in practice
-    // and not get many frames that we don't actually need:
-    // currently max passsed max_depth is 32,
-    // max passed/needed skip_count is 6
-    // and 3 is to account for some hook daisy chaining.
-  static const int kStackSize = kMaxSkip + 1;
-  void* stack[kStackSize];
-  int depth = tcmalloc::GrabBacktrace(stack, kStackSize, 1);  // skip this function frame
-  if (depth == 0)   // silenty propagate cases when GetStackTrace does not work
-    return 0;
-  for (int i = 0; i < depth; ++i) {  // stack[0] is our immediate caller
-    if (InHookCaller(stack[i])) {
-      // fast-path to slow-path calls may be implemented by compiler
-      // as non-tail calls. Causing two functions on stack trace to be
-      // inside google_malloc. In such case we're skipping to
-      // outermost such frame since this is where malloc stack frames
-      // really start.
-      while (i + 1 < depth && InHookCaller(stack[i+1])) {
-        i++;
-      }
-      RAW_VLOG(10, "Found hooked allocator at %d: %p <- %p",
-                   i, stack[i], stack[i+1]);
-      i += 1;  // skip hook caller frame
-      depth -= i;  // correct depth
-      if (depth > max_depth) depth = max_depth;
-      std::copy(stack + i, stack + i + depth, result);
-      if (depth < max_depth  &&  depth + i == kStackSize) {
-        // get frames for the missing depth
-        depth +=
-          tcmalloc::GrabBacktrace(result + depth, max_depth - depth, 1 + kStackSize);
-      }
-      return depth;
-    }
-  }
-  RAW_LOG(WARNING, "Hooked allocator frame not found, returning empty trace");
-    // If this happens try increasing kMaxSkip
-    // or else something must be wrong with InHookCaller,
-    // e.g. for every section used in InHookCaller
-    // all functions in that section must be inside the same library.
-  return 0;
+  int retval = tcmalloc::GrabBacktrace(result, max_depth, skip_count);
+  // prevent tail-call above
+  *(void* volatile *)result;
+  return retval;
 #endif
 }
 

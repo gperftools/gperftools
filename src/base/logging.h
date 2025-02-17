@@ -94,10 +94,8 @@ DECLARE_int32(verbose);
 
 // This is like RAW_CHECK, but only in debug-mode
 #ifdef NDEBUG
-enum { DEBUG_MODE = 0 };
 #define RAW_DCHECK(condition, message)
 #else
-enum { DEBUG_MODE = 1 };
 #define RAW_DCHECK(condition, message)  RAW_CHECK(condition, message)
 #endif
 
