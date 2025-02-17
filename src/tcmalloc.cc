@@ -180,91 +180,56 @@ DECLARE_int64(tcmalloc_heap_limit_mb);
 #endif
 
 extern "C" {
-  void* tc_malloc(size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_free(void* ptr) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_cfree(void* ptr) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void* tc_malloc(size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_free(void* ptr) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_cfree(void* ptr) PERFTOOLS_NOTHROW;
 
-  void* tc_memalign(size_t __alignment, size_t __size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  int tc_posix_memalign(void** ptr, size_t align, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_valloc(size_t __size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_pvalloc(size_t __size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void* tc_memalign(size_t __alignment, size_t __size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE int tc_posix_memalign(void** ptr, size_t align, size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_valloc(size_t __size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_pvalloc(size_t __size) PERFTOOLS_NOTHROW;
 
-  void tc_malloc_stats(void) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
 #if GPERFTOOLS_HAS_MALLINFO
-  struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW;
 #endif
 #ifdef GPERFTOOLS_HAS_MALLINFO2
-  struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW;
 #endif
 
-  void* tc_new(size_t size)
-      ATTRIBUTE_NOINLINE;
-  void tc_delete(void* p) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_newarray(size_t size)
-      ATTRIBUTE_NOINLINE;
-  void tc_deletearray(void* p) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void* tc_new(size_t size);
+  ATTRIBUTE_NOINLINE void tc_delete(void* p) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_newarray(size_t size);
+  ATTRIBUTE_NOINLINE void tc_deletearray(void* p) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
 
   // And the nothrow variants of these:
-  void* tc_new_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void* tc_new_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW;
   // Surprisingly, standard C++ library implementations use a
   // nothrow-delete internally.  See, eg:
   // http://www.dinkumware.com/manuals/?manual=compleat&page=new.html
-  void tc_delete_nothrow(void* ptr, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void tc_delete_nothrow(void* ptr, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_deletearray_nothrow(void* ptr, const std::nothrow_t&) PERFTOOLS_NOTHROW;
 
-  void* tc_new_aligned(size_t size, std::align_val_t al)
-      ATTRIBUTE_NOINLINE;
-  void tc_delete_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_newarray_aligned(size_t size, std::align_val_t al)
-      ATTRIBUTE_NOINLINE;
-  void tc_deletearray_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void* tc_new_aligned(size_t size, std::align_val_t al);
+  ATTRIBUTE_NOINLINE void tc_delete_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_newarray_aligned(size_t size, std::align_val_t al);
+  ATTRIBUTE_NOINLINE void tc_deletearray_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
 
   // And the nothrow variants of these:
-  void* tc_new_aligned_nothrow(size_t size, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_delete_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
-  void tc_deletearray_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE void* tc_new_aligned_nothrow(size_t size, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_delete_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+  ATTRIBUTE_NOINLINE void tc_deletearray_aligned_nothrow(void* ptr, std::align_val_t al, const std::nothrow_t&) PERFTOOLS_NOTHROW;
 
   // Some non-standard extensions that we support.
 
@@ -272,8 +237,7 @@ extern "C" {
   //    OS X: malloc_size()
   //    glibc: malloc_usable_size()
   //    Windows: _msize()
-  size_t tc_malloc_size(void* p) PERFTOOLS_NOTHROW
-      ATTRIBUTE_NOINLINE;
+  ATTRIBUTE_NOINLINE size_t tc_malloc_size(void* p) PERFTOOLS_NOTHROW;
 }  // extern "C"
 
 // ----------------------- IMPLEMENTATION -------------------------------
