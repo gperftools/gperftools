@@ -285,6 +285,7 @@ if test "$enable_libunwind" = yes; then
                      [UNWIND_LIBS=-lunwind
                       UNWIND_PC_DEP=libunwind
                       AC_DEFINE([USE_LIBUNWIND], [1], [libunwind.h was found and is working])
+                      AC_DEFINE([USE_LIBUNWIND_FAST], [1], [libunwind.h was found and is working])
                       will_use_libunwind=yes])])
 fi
 AC_SUBST(UNWIND_LIBS)
