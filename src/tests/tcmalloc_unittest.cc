@@ -74,6 +74,7 @@
 
 #ifndef _WIN32
 #include <spawn.h> // for posix_spawn
+#include <sys/wait.h> // for waitpid
 #endif
 
 #include <algorithm>
@@ -92,7 +93,6 @@
 #include <semaphore.h>
 #include <signal.h>
 #include <sys/syscall.h>
-#include <sys/wait.h>
 #include <ucontext.h>
 #include <unistd.h>
 
