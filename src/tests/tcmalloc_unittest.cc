@@ -1845,9 +1845,13 @@ static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
   }
 
   CHECK_EQ(wait_rv, pid);
-  if (status != 0) {
+  int exit_status = WEXITSTATUS(status);
+  if (!WIFEXITED(status) || exit_status != 0) {
     printf("sub-process run failed with status = %d.\n", status);
-    exit(status);
+    if (WIFEXITED(status)) {
+      exit(exit_status);
+    }
+    exit(1);
   }
 }
 #else
