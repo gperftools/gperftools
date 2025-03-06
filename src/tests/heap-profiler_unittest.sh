@@ -2,11 +2,11 @@
 
 # Copyright (c) 2005, Google Inc.
 # All rights reserved.
-# 
+#
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are
 # met:
-# 
+#
 #     * Redistributions of source code must retain the above copyright
 # notice, this list of conditions and the following disclaimer.
 #     * Redistributions in binary form must reproduce the above
@@ -16,7 +16,7 @@
 #     * Neither the name of Google Inc. nor the names of its
 # contributors may be used to endorse or promote products derived from
 # this software without specific prior written permission.
-# 
+#
 # THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
 # "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
 # LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR
@@ -34,26 +34,13 @@
 #
 # Runs the heap-profiler unittest and makes sure the profile looks appropriate.
 #
-# We run under the assumption that if $HEAP_PROFILER is run with --help,
-# it prints a usage line of the form
-#   USAGE: <actual executable being run> [...]
-#
-# This is because libtool sometimes turns the 'executable' into a
-# shell script which runs an actual binary somewhere else.
 
-# We expect BINDIR and PPROF_PATH to be set in the environment.
-# If not, we set them to some reasonable values
-BINDIR="${BINDIR:-.}"
-PPROF_PATH="${PPROF_PATH:-pprof}"
-
-if [ "x$1" = "x-h" -o "x$1" = "x--help" ]; then
-  echo "USAGE: $0 [unittest dir] [path to pprof]"
-  echo "       By default, unittest_dir=$BINDIR, pprof_path=$PPROF_PATH"
-  exit 1
-fi
-
-HEAP_PROFILER="${1:-$BINDIR/heap-profiler_unittest}"
-PPROF="${2:-$PPROF_PATH}"
+# This script runs either as heap-profiler_unittest.sh or as
+# heap-profiler_debug_unittest.sh. And we want to run matching C
+# program (i.e. linked to "normal" libtcmalloc or debug version).
+DEFAULT_HEAP_PROFILER=`echo $0 | sed 's/.sh//'`
+HEAP_PROFILER="${1:-$DEFAULT_HEAP_PROFILER}"
+PPROF=pprof
 TEST_TMPDIR=`mktemp -d /tmp/heap-profiler_unittest.XXXXXX`
 
 # It's meaningful to the profiler, so make sure we know its state
@@ -69,17 +56,13 @@ VerifyMemFunction() {
   function="$1"
   shift
 
-  # get program name.  Note we have to unset HEAPPROFILE so running
-  # help doesn't overwrite existing profiles.
-  exec=`unset HEAPPROFILE; $HEAP_PROFILER --help | awk '{print $2; exit;}'`
-
   if [ $# = 2 ]; then
     [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
     [ -f "$2" ] || { echo "Profile not found: $2"; exit 1; }
-    $PPROF --text --base="$1" $exec "$2" >"$TEST_TMPDIR/output.pprof" 2>&1
+    $PPROF --text --base="$1" "$2" >"$TEST_TMPDIR/output.pprof" 2>&1
   else
     [ -f "$1" ] || { echo "Profile not found: $1"; exit 1; }
-    $PPROF --text $exec "$1" >"$TEST_TMPDIR/output.pprof" 2>&1
+    $PPROF --text "$1" >"$TEST_TMPDIR/output.pprof" 2>&1
   fi
 
   cat "$TEST_TMPDIR/output.pprof" \
