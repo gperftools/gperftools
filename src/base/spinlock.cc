@@ -37,6 +37,15 @@
 #include "base/spinlock_internal.h"
 #include "base/sysinfo.h"   /* for GetSystemCPUsCount() */
 
+#if defined(__linux__) && defined(__GNUC__) && (defined(__aarch64__) || defined(__arm64__))
+#include <sys/auxv.h>
+
+#ifndef HWCAP_SB
+#define HWCAP_SB  (1 << 29)
+#endif  // HWCAP_SB
+
+#endif
+
 // NOTE on the Lock-state values:
 //
 // kSpinLockFree represents the unlocked state
@@ -46,6 +55,11 @@
 static int adaptive_spin_count = 0;
 
 namespace {
+
+#if defined(__GNUC__) && (defined(__aarch64__) || defined(__arm64__))
+bool arm_use_spin_delay_sb;
+#endif
+
 struct SpinLock_InitHelper {
   SpinLock_InitHelper() {
     // On multi-cpu machines, spin for longer before yielding
@@ -53,6 +67,12 @@ struct SpinLock_InitHelper {
     if (GetSystemCPUsCount() > 1) {
       adaptive_spin_count = 1000;
     }
+
+#if defined(__linux__) && defined(__GNUC__) && (defined(__aarch64__) || defined(__arm64__))
+    // Set arm_use_spin_delay_sb variable to "true" to use `sb` if supported
+    if ((getauxval(AT_HWCAP) & HWCAP_SB) != 0)
+      arm_use_spin_delay_sb = true;
+#endif
   }
 };
 
@@ -64,8 +84,13 @@ static SpinLock_InitHelper init_helper;
 inline void SpinlockPause(void) {
 #if defined(__GNUC__) && (defined(__i386__) || defined(__x86_64__))
   __asm__ __volatile__("rep; nop" : : );
-#elif defined(__GNUC__) && defined(__aarch64__)
-  __asm__ __volatile__("isb" : : );
+#elif defined(__GNUC__) && (defined(__aarch64__) || defined(__arm64__))
+  // Use SB instruction if available otherwise ISB
+  if (PREDICT_TRUE(arm_use_spin_delay_sb)) {
+    __asm__ __volatile__(".inst 0xd50330ff" : : ); // SB instruction encoding
+  } else {
+    __asm__ __volatile__("isb" : : );
+  }
 #endif
 }
 
