@@ -40,7 +40,7 @@
 # program (i.e. linked to "normal" libtcmalloc or debug version).
 DEFAULT_HEAP_PROFILER=`echo $0 | sed 's/.sh//'`
 HEAP_PROFILER="${1:-$DEFAULT_HEAP_PROFILER}"
-PPROF=pprof
+PPROF="pprof --hide=_tc_newarray"
 TEST_TMPDIR=`mktemp -d /tmp/heap-profiler_unittest.XXXXXX`
 
 # It's meaningful to the profiler, so make sure we know its state
