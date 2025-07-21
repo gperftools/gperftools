@@ -144,6 +144,7 @@ struct GetStackImplementation {
 #define HAVE_GST_generic_fp_unsafe
 #endif
 
+#if !defined(TCMALLOC_DISABLE_PPC_FRAME_POINTER_BACKTRACER)
 #if defined(__ppc__) || defined(__PPC__)
 #if defined(__linux__)
 #define STACKTRACE_INL_HEADER "stacktrace_powerpc-linux-inl.h"
@@ -156,6 +157,7 @@ struct GetStackImplementation {
 #undef STACKTRACE_INL_HEADER
 #define HAVE_GST_ppc
 #endif
+#endif  // !TCMALLOC_DISABLE_PPC_FRAME_POINTER_BACKTRACER
 
 #if defined(__arm__)
 #define STACKTRACE_INL_HEADER "stacktrace_arm-inl.h"
