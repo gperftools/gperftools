@@ -80,6 +80,7 @@
 #endif
 
 #include <string>
+#include <type_traits> // for std::is_same_v
 
 #include "base/function_ref.h"
 #include "base/logging.h"
@@ -143,23 +144,15 @@ void SkipWhileWhitespace(char **text_pointer, int c) {
 
 template<class T>
 T StringToInteger(char *text, char **endptr, int base) {
-  assert(false);
-  return T();
-}
-
-template<>
-inline int StringToInteger<int>(char *text, char **endptr, int base) {
-  return strtol(text, endptr, base);
-}
-
-template<>
-inline int64_t StringToInteger<int64_t>(char *text, char **endptr, int base) {
-  return strtoll(text, endptr, base);
-}
-
-template<>
-inline uint64_t StringToInteger<uint64_t>(char *text, char **endptr, int base) {
-  return strtoull(text, endptr, base);
+  if constexpr (std::is_same_v<T, int>) {
+    return strtol(text, endptr, base);
+  } else if constexpr (std::is_same_v<T, int64_t>) {
+    return strtoll(text, endptr, base);
+  } else if constexpr (std::is_same_v<T, uint64_t>) {
+    return strtoull(text, endptr, base);
+  } else {
+    static_assert(false, "StringToInteger to integer only handles specific subset of types");
+  }
 }
 
 template<typename T>
