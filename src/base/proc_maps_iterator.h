@@ -47,7 +47,7 @@ struct ProcMapping {
   uint64_t end;
   const char* flags;
   uint64_t offset;
-  int64_t inode;
+  uint64_t inode;
   const char* filename;
 };
 
