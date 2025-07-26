@@ -78,6 +78,7 @@
 #endif
 
 #include <algorithm>
+#include <array>
 #include <functional>
 #include <mutex>
 #include <new>
@@ -1040,6 +1041,37 @@ TEST(TCMallocTest, ReleaseToSystem) {
   // Releasing less than a page should still trigger a release.
   MallocExtension::instance()->ReleaseToSystem(1);
   EXPECT_EQ(starting_bytes + 2*MB, GetUnmappedBytes());
+
+  constexpr size_t kNumPtrs = 10;
+  constexpr size_t kBigAllocBytes = MB * 3;
+
+  std::array<void*, kNumPtrs> used_ptrs;
+  std::array<void*, kNumPtrs> free_ptrs;
+
+  starting_bytes = GetUnmappedBytes();
+
+  for (size_t i = 0; i < kNumPtrs; ++i) {
+    // interleave used_ptrs and free_ptrs to prevent free_ptrs from coalescing
+    used_ptrs[i] = noopt(malloc(kBigAllocBytes));
+    free_ptrs[i] = noopt(malloc(kBigAllocBytes));
+  }
+
+  for (auto ptr : free_ptrs) {
+    free(ptr);
+  }
+  EXPECT_EQ(starting_bytes, GetUnmappedBytes());
+
+  for (size_t i = 0; i < 2 * kNumPtrs; ++i) {
+    MallocExtension::instance()->ReleaseToSystem(kBigAllocBytes);
+    a = noopt(malloc(kBigAllocBytes));
+    free(a);
+  }
+  MallocExtension::instance()->ReleaseToSystem(kBigAllocBytes);
+  EXPECT_EQ(starting_bytes + kNumPtrs * kBigAllocBytes, GetUnmappedBytes());
+
+  for (auto ptr : used_ptrs) {
+    free(ptr);
+  }
 }
 
 TEST(TCMallocTest, AggressiveDecommit) {
