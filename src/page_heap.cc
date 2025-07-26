@@ -292,8 +292,7 @@ Span* PageHeap::AllocLarge(Length n) {
     Span *c = place->span;
     ASSERT(c->location == Span::ON_RETURNED_FREELIST);
     if (best_normal == nullptr
-        || c->length < best->length
-        || (c->length == best->length && c->start < best->start))
+        || c->length < best->length)
       best = place->span;
   }
 
