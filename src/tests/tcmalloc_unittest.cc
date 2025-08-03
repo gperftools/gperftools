@@ -992,6 +992,16 @@ TEST(TCMallocTest, ReleaseToSystem) {
 
   if(!TestingPortal::Get()->HaveSystemRelease()) return;
 
+  tcmalloc::Cleanup restore_release_rate = ([] () {
+    auto ex = MallocExtension::instance();
+    double old = ex->GetMemoryReleaseRate();
+    ex->SetMemoryReleaseRate(0); // disable implicit release to OS
+    CHECK(ex->GetMemoryReleaseRate() == 0);
+    return tcmalloc::Cleanup{[ex, old] () {
+      ex->SetMemoryReleaseRate(old);
+    }};
+  })();
+
   tcmalloc::Cleanup release_rate_cleanup = SetFlag(&TestingPortal::Get()->GetReleaseRate(), 0);
   tcmalloc::Cleanup decommit_cleanup = kAggressiveDecommit.Override(0);
 
