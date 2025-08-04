@@ -1,3 +1,30 @@
+== 4 August 2025
+
+gperftools 2.17 is out!
+
+We have had a few relatively simple updates since the RC release.
+
+* Salvatore Dipietro has contributed SB instruction support for
+  spinlock delay loops on newer ARMs.
+
+* libgcc backtrace capturing method now handles deep backtraces
+  better.
+
+* PPC+musl users can now workaround some issues building PPC-specific
+  backtrace code by adding
+  TCMALLOC_DISABLE_PPC_FRAME_POINTER_BACKTRACER preprocessor
+  define. Much thanks to Josef Schlehofer for reporting the
+  problem. See details in
+  https://github.com/gperftools/gperftools/issues/1602.
+
+* Jackie Cui has contributed a small change to the page heap span
+  selection logic that makes a big difference in reducing the amount
+  of used memory in some workloads. See
+  https://github.com/gperftools/gperftools/pull/1604 for further
+  details.
+
+Much thanks to all the contributors.
+
 == 6 March 2025
 
 gperftools 2.17rc is out!
