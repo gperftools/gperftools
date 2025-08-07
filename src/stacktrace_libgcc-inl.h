@@ -66,7 +66,7 @@ static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context *ctx,
   }
 
   if (data->pos >= data->limit) {
-    return _URC_NORMAL_STOP;
+    return _URC_END_OF_STACK;
   }
 
   void *ip = reinterpret_cast<void *>(_Unwind_GetIP(ctx));;
