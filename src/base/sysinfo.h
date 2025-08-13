@@ -42,32 +42,37 @@
 #include <limits.h>    // for PATH_MAX
 #include "base/basictypes.h"
 
-// This getenv function is safe to call before the C runtime is initialized.
-// On Windows, it utilizes GetEnvironmentVariable() and on unix it uses
-// /proc/self/environ instead calling getenv().  It's intended to be used in
-// routines that run before main(), when the state required for getenv() may
-// not be set up yet.  In particular, errno isn't set up until relatively late
-// (after the pthreads library has a chance to make it threadsafe), and
-// getenv() doesn't work until then.
-// On some platforms, this call will utilize the same, static buffer for
-// repeated GetenvBeforeMain() calls. Callers should not expect pointers from
-// this routine to be long lived.
-// Note that on unix, /proc only has the environment at the time the
-// application was started, so this routine ignores setenv() calls/etc.  Also
-// note it only reads the first 16K of the environment.
-extern const char* GetenvBeforeMain(const char* name);
+// This getenv function is safe to call before the C runtime is
+// initialized.  On Windows, it utilizes GetEnvironmentVariableW()
+// (and the we handle some trivial naive utf16-to-ascii
+// conversion). On rest platforms it actually just uses getenv which
+// appears to be safe to use from malloc-related contexts.
+const char* GetenvBeforeMain(const char* name);
 
 // This takes as an argument an environment-variable name (like
 // CPUPROFILE) whose value is supposed to be a file-path, and sets
 // path to that path, and returns true.  Non-trivial for surprising
 // reasons, as documented in sysinfo.cc.  path must have space PATH_MAX.
-extern bool GetUniquePathFromEnv(const char* env_name, char* path);
+bool GetUniquePathFromEnv(const char* env_name, char* path);
 
-extern int GetSystemCPUsCount();
+int GetSystemCPUsCount();
 
 
 namespace tcmalloc {
 ATTRIBUTE_VISIBILITY_HIDDEN const char* GetProgramInvocationName();
+
+// SafeSetEnv is like setenv, but avoiding malloc or any locks. Only
+// works on UNIXy systems. Few things to note:
+//
+// * just like setenv, it is totally thread-hostile. We use it in some
+//   very early initialization (via GetUniquePathFromEnv), where it is
+//   okay-ish to assume single thread.
+//
+// * it sorta leaks memory. It works by mmap-ing memory for the new
+//   environ and name=value pair and overwriting environ
+//   variable. Successive SafeSetEnv will leak environ memory
+//   allocated by the previous invokations. So shouldn't be big deal.
+ATTRIBUTE_VISIBILITY_HIDDEN void SafeSetEnv(const char* name, const char* value);
 }  // namespace tcmalloc
 
 #endif   /* #ifndef _SYSINFO_H_ */

@@ -37,31 +37,53 @@
 
 #include "base/sysinfo.h"
 
-#include "base/logging.h"
-#include "base/commandlineflags.h"
-
+#include <limits.h>   // for PATH_MAX
 #include <stdlib.h>   // for environment primitives
 #include <unistd.h>   // for getpid()
-#include <limits.h>   // for PATH_MAX
-#include <string>
 
-#include "base/logging.h"
-#include "base/commandlineflags.h"
+#include <string>
+#include <vector>
+
 #include "gtest/gtest.h"
 
+#include "base/commandlineflags.h"
+#include "base/environ.h"
+#include "base/logging.h"
+#include "base/logging.h"
+#include "base/commandlineflags.h"
+
 struct WithEnv {
-  const std::string var;
-  const std::string val;
-  WithEnv(const std::string& var, const std::string& val) : var{var}, val{val} {
+  char** const orig_environ = environ;
+
+  struct EnvUpdate {
+    std::vector<const char*> new_environ;
+    std::string var_val;
+    EnvUpdate(const std::string& var, const std::string& val) {
+      var_val = var;
+      var_val.append(1, '=');
+      var_val.append(val);
+      new_environ.push_back(var_val.c_str());
+
+      for (char** p = environ; *p != nullptr; p++) {
+        new_environ.push_back(*p);
+      }
+      new_environ.push_back(nullptr);
+    }
+  };
+
+  const EnvUpdate env_update;
+
+  WithEnv(const std::string& var, const std::string& val) : env_update(var, val) {
     Reset();
   }
   ~WithEnv() {
-    unsetenv(var.c_str());
+    environ = orig_environ;
   }
-  // GetUniquePathFromEnv "updates" environment variable, so this
-  // re-sets environment to original value.
+
+  // GetUniquePathFromEnv updates environment variables, so this
+  // re-sets environment to the values set by this WithEnv block.
   void Reset() {
-    setenv(var.c_str(), val.c_str(), 1);
+    environ = const_cast<char**>(&(env_update.new_environ[0]));
   }
 };
 
@@ -151,7 +173,7 @@ TEST(GetUniquePathTest, Slurm) {
   // Test child case
   EXPECT_EQ(expectedSlurmChild, GetTestPath());
 
-  withTestVar.Reset();
+  withRank.Reset();
   WithEnv withForced(TEST_VAR "_USE_PID", "1");
 
   // Now that pid is forced we expect both pid and proc-id appended.
