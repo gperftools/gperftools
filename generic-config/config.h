@@ -262,11 +262,6 @@
 #define HAVE___ATTRIBUTE__ALIGNED_FN 1
 #endif
 
-/* Define to 1 if compiler supports __environ */
-#if __GLIBC__
-#define HAVE___ENVIRON 1
-#endif
-
 /* dllexport or attribute visibility */
 #define PERFTOOLS_DLL_DECL /**/
 

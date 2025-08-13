@@ -359,15 +359,6 @@ AH_VERBATIM([__STDC_FORMAT_MACROS],
 # define __STDC_FORMAT_MACROS 1
 #endif])
 
-# Check if __environ is available (for GetenvBeforeMain)
-AC_MSG_CHECKING([for __environ])
-AC_LINK_IFELSE([AC_LANG_PROGRAM([#include <unistd.h>],
-                                [char **env = __environ])],
-               [AC_DEFINE(HAVE___ENVIRON, 1,
-                          [Define to 1 if compiler supports __environ])
-                AC_MSG_RESULT([yes])],
-               [AC_MSG_RESULT([no])])
-
 AC_CACHE_CHECK([if target has functional __cxa_demangle],
                [perftools_cv_have_cxa_demangle],
                [AC_COMPILE_IFELSE([AC_LANG_PROGRAM(

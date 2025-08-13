@@ -296,15 +296,6 @@ check_c_source_compiles(
   "int main() { return __builtin_expect(main != 0, 1); }"
   HAVE_BUILTIN_EXPECT)
 
-check_c_source_compiles("
-  #include <unistd.h>
-  int main()
-  {
-    char** env = __environ;
-    return 0;
-  }"
-  HAVE___ENVIRON)
-
 if(enable_backtrace)
   check_symbol_exists("backtrace" "execinfo.h" HAVE_DECL_BACKTRACE)
   check_function_exists("backtrace" backtrace_exists)

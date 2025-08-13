@@ -47,6 +47,7 @@
 #include <fcntl.h>    // for open()
 #include <errno.h>    // for errno
 #ifdef HAVE_UNISTD_H
+#include <limits.h>        // for PATH_MAX
 #include <unistd.h>   // for read()
 #endif
 
@@ -56,28 +57,6 @@
 
 #ifdef __MACH__
 #include <mach-o/dyld.h>   // for GetProgramInvocationName()
-#include <limits.h>        // for PATH_MAX
-#endif
-
-// open/read/close can set errno, which may be illegal at this
-// time, so prefer making the syscalls directly if we can.
-#if HAVE_SYS_SYSCALL_H
-# include <sys/syscall.h>
-#endif
-#ifdef SYS_open   // solaris 11, at least sometimes, only defines SYS_openat
-# define safeopen(filename, mode)  syscall(SYS_open, filename, mode)
-#else
-# define safeopen(filename, mode)  open(filename, mode)
-#endif
-#ifdef SYS_read
-# define saferead(fd, buffer, size)  syscall(SYS_read, fd, buffer, size)
-#else
-# define saferead(fd, buffer, size)  read(fd, buffer, size)
-#endif
-#ifdef SYS_close
-# define safeclose(fd)  syscall(SYS_close, fd)
-#else
-# define safeclose(fd)  close(fd)
 #endif
 
 // ----------------------------------------------------------------------
@@ -121,53 +100,12 @@ static size_t slow_strlen(const char *s) {
   return s2 - s;
 }
 
-// It's not safe to call getenv() in the malloc hooks, because they
-// might be called extremely early, before libc is done setting up
-// correctly.  In particular, the thread library may not be done
-// setting up errno.  So instead, we use the built-in __environ array
-// if it exists, and otherwise read /proc/self/environ directly, using
-// system calls to read the file, and thus avoid setting errno.
-// /proc/self/environ has a limit of how much data it exports (around
-// 8K), so it's not an ideal solution.
+// NOTE, we used to have very special code for accessing environment
+// (potentially) early, but in practice it is safe to access even very
+// early (with notable exception of windows, as usual).
 #ifndef PLATFORM_WINDOWS
 const char* GetenvBeforeMain(const char* name) {
-  const int namelen = slow_strlen(name);
-#if defined(HAVE___ENVIRON)   // if we have it, it's declared in unistd.h
-  if (__environ) {            // can exist but be nullptr, if statically linked
-    for (char** p = __environ; *p; p++) {
-      if (!slow_memcmp(*p, name, namelen) && (*p)[namelen] == '=')
-        return *p + namelen+1;
-    }
-    return nullptr;
-  }
-#endif
-  // static is ok because this function should only be called before
-  // main(), when we're single-threaded.
-  static char envbuf[16<<10];
-  if (*envbuf == '\0') {    // haven't read the environ yet
-    int fd = safeopen("/proc/self/environ", O_RDONLY);
-    // The -2 below guarantees the last two bytes of the buffer will be \0\0
-    if (fd == -1 ||           // unable to open the file, fall back onto libc
-        saferead(fd, envbuf, sizeof(envbuf) - 2) < 0) { // error reading file
-      RAW_VLOG(1, "Unable to open /proc/self/environ, falling back "
-               "on getenv(\"%s\"), which may not work", name);
-      if (fd != -1) safeclose(fd);
-      return getenv(name);
-    }
-    safeclose(fd);
-  }
-  const char* p = envbuf;
-  while (*p != '\0') {    // will happen at the \0\0 that terminates the buffer
-    // proc file has the format NAME=value\0NAME=value\0NAME=value\0...
-    const char* endp = (char*)slow_memchr(p, '\0',
-                                          sizeof(envbuf) - (p - envbuf));
-    if (endp == nullptr)            // this entry isn't NUL terminated
-      return nullptr;
-    else if (!slow_memcmp(p, name, namelen) && p[namelen] == '=')    // it's a match
-      return p + namelen+1;      // point after =
-    p = endp + 1;
-  }
-  return nullptr;                   // env var never found
+  return getenv(name);
 }
 #else  // PLATFORM_WINDOWS
 
