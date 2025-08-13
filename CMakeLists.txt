@@ -5,7 +5,7 @@ cmake_minimum_required(VERSION 3.12)
 
 set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Choose the build type")
 
-project(gperftools VERSION 2.17 LANGUAGES C CXX
+project(gperftools VERSION 2.17.1 LANGUAGES C CXX
         DESCRIPTION "Performance tools for C++"
         HOMEPAGE_URL https://github.com/gperftools/gperftools)
 

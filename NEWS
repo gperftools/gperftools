@@ -1,3 +1,10 @@
+== 13 August 2025
+
+gperftools 2.17.1 is out!
+
+There was just one fix submitted since 2.17. graysky has contributed
+build fix for (legacy, 32-bit) ARMs. Huge thanks!
+
 == 4 August 2025
 
 gperftools 2.17 is out!
