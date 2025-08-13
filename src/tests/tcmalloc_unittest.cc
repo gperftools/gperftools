@@ -106,8 +106,10 @@
 #include "gperftools/nallocx.h"
 #include "gperftools/tcmalloc.h"
 
-#include "base/function_ref.h"
+#include "base/environ.h"
 #include "base/cleanup.h"
+#include "base/function_ref.h"
+#include "base/logging.h"
 #include "base/static_storage.h"
 
 #include "tests/testutil.h"
@@ -116,7 +118,6 @@
 
 #include "gtest/gtest.h"
 
-#include "base/logging.h"
 
 
 static bool running_fork_testing;
@@ -1829,27 +1830,6 @@ TEST(TCMallocTest, Version) {
   ASSERT_LT(used, sizeof(mmp));
   ASSERT_EQ(strcmp(TC_VERSION_STRING, human_version), 0);
 }
-
-#ifdef _WIN32
-#undef environ
-#undef execle
-#define environ _environ
-#endif  // _WIN32
-
-// POSIX standard oddly requires users to define environ variable
-// themselves. 3 of 3 bsd-derived systems I tested on actually
-// don't bother having environ in their headers. Relevant ticket has
-// been closed as "won't fix" in FreeBSD ticket tracker:
-// https://bugs.freebsd.org/bugzilla/show_bug.cgi?id=238672
-//
-// Just in case, we wrap this declaration with ifdef, so that if
-// anyone has environ as macro (see windows case above), we won't be
-// breaking anything.
-#if !defined(environ)
-extern "C" {
-extern char** environ;
-}
-#endif
 
 struct EnvProperty {
   const char* const name;

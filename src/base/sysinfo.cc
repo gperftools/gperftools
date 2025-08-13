@@ -33,6 +33,7 @@
 # define PLATFORM_WINDOWS 1
 #endif
 
+#include "base/environ.h"
 #include "base/sysinfo.h"
 #include "base/commandlineflags.h"
 #include "base/logging.h"
