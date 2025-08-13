@@ -41,10 +41,9 @@
 
 #include "base/dynamic_annotations.h"
 #include "base/logging.h"
+#include "base/memmap.h"
 #include "base/spinlock.h"
 #include "base/static_storage.h"
-
-#include "memmap.h"
 
 // A first-fit allocator with amortized logarithmic free() time.
 

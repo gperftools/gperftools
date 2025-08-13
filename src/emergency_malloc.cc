@@ -41,10 +41,10 @@
 #include "base/basictypes.h"
 #include "base/logging.h"
 #include "base/low_level_alloc.h"
+#include "base/memmap.h"
 #include "base/spinlock.h"
 #include "base/static_storage.h"
 #include "internal_logging.h"
-#include "memmap.h"
 #include "thread_cache_ptr.h"
 
 namespace tcmalloc {
