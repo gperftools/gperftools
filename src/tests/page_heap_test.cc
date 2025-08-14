@@ -93,6 +93,13 @@ TEST(PageHeapTest, Decommit) {
   constexpr size_t kNumPtrs = 10;
   constexpr size_t kBigAllocPages = kMaxPages * 2;
 
+  // Ensure we have a chunk of sequential memory useful for the test below.
+  {
+    tcmalloc::Span* s = ph->New(kBigAllocPages * kNumPtrs * 2);
+    ASSERT_NE(s, nullptr);
+    ph->Delete(s);
+  }
+
   std::vector<tcmalloc::Span*> used_spans;
   std::vector<tcmalloc::Span*> free_spans;
   for (size_t i = 0; i < kNumPtrs; ++i) {

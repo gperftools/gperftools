@@ -80,6 +80,7 @@
 #include <algorithm>
 #include <array>
 #include <functional>
+#include <iterator>
 #include <mutex>
 #include <new>
 #include <sstream>
@@ -986,22 +987,12 @@ static size_t GetUnmappedBytes() {
 TEST(TCMallocTest, ReleaseToSystem) {
   // Debug allocation mode adds overhead to each allocation which
   // messes up all the equality tests here.  I just disable the
-  // teset in this mode.
+  // test in this mode.
   if (TestingPortal::Get()->IsDebuggingMalloc()) {
     return;
   }
 
   if(!TestingPortal::Get()->HaveSystemRelease()) return;
-
-  tcmalloc::Cleanup restore_release_rate = ([] () {
-    auto ex = MallocExtension::instance();
-    double old = ex->GetMemoryReleaseRate();
-    ex->SetMemoryReleaseRate(0); // disable implicit release to OS
-    CHECK(ex->GetMemoryReleaseRate() == 0);
-    return tcmalloc::Cleanup{[ex, old] () {
-      ex->SetMemoryReleaseRate(old);
-    }};
-  })();
 
   tcmalloc::Cleanup release_rate_cleanup = SetFlag(&TestingPortal::Get()->GetReleaseRate(), 0);
   tcmalloc::Cleanup decommit_cleanup = kAggressiveDecommit.Override(0);
@@ -1051,37 +1042,108 @@ TEST(TCMallocTest, ReleaseToSystem) {
   // Releasing less than a page should still trigger a release.
   MallocExtension::instance()->ReleaseToSystem(1);
   EXPECT_EQ(starting_bytes + 2*MB, GetUnmappedBytes());
+}
+
+TEST(TCMallocTest, LargeAllocsRelease) {
+  // Debug allocation mode adds overhead to each allocation which
+  // messes up all the equality tests here.  I just disable the
+  // test in this mode.
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    return;
+  }
+
+  if(!TestingPortal::Get()->HaveSystemRelease()) return;
+
+  tcmalloc::Cleanup release_rate_cleanup = SetFlag(&TestingPortal::Get()->GetReleaseRate(), 0);
+  tcmalloc::Cleanup decommit_cleanup = kAggressiveDecommit.Override(0);
+
+  // This test verifies special logic where page heap prefers reusing
+  // normal spans over touching returned spans for large allocations
+  // where spans are of the same size.
+  //
+  // We have the same logic for non-large spans.
+  //
+  // See github pull request
+  // https://github.com/gperftools/gperftools/pull/1604 and commit
+  // 32f11cb4b777880f7ecff3edcb5bc04fd6f1dff1 for motivation.
 
   constexpr size_t kNumPtrs = 10;
-  constexpr size_t kBigAllocBytes = MB * 3;
+  constexpr size_t kBigAllocBytes = 3 << 20;
 
-  std::array<void*, kNumPtrs> used_ptrs;
-  std::array<void*, kNumPtrs> free_ptrs;
+  std::vector<std::unique_ptr<char[]>> cleanup;
+  std::vector<std::unique_ptr<char[]>> chunks;
+
+  auto alloc_big = [&] () -> std::unique_ptr<char[]> {
+    return std::unique_ptr<char[]>{noopt<char*>(new char[kBigAllocBytes])};
+  };
+
+  for (;;) {
+    // Ensure there is big large chunk of memory that is available. We
+    // want kNumPtrs * 2 successive chunks to be allocated in this
+    // space. This test is explicitly very picky in what behavior it
+    // triggers.
+    free(noopt(malloc(kNumPtrs * 2 * kBigAllocBytes)));
+
+    size_t i;
+    for (i = 0; i < kNumPtrs * 2; i++) {
+      chunks.emplace_back(alloc_big());
+      if (i > 0) {
+        if (chunks.rbegin()->get() != (chunks.rbegin()+1)->get() + kBigAllocBytes) {
+          static int num_fail;
+          printf("successive allocation failure %d. Will retry\n", ++num_fail);
+          ASSERT_LE(num_fail, 32);
+          break;
+        }
+      }
+    }
+    if (i == kNumPtrs * 2) {
+      break; // success
+    }
+
+    // Whatever we've got so far, lets ensure it is cleaned up. But after the test.
+    std::move(chunks.begin(), chunks.end(), std::back_inserter(cleanup));
+    chunks.clear();
+  }
+
+  std::array<std::unique_ptr<char[]>, kNumPtrs> used_ptrs;
+  std::array<std::unique_ptr<char[]>, kNumPtrs> free_ptrs;
 
   for (size_t i = 0; i < kNumPtrs; ++i) {
     // interleave used_ptrs and free_ptrs to prevent free_ptrs from coalescing
-    used_ptrs[i] = noopt(malloc(kBigAllocBytes));
-    free_ptrs[i] = noopt(malloc(kBigAllocBytes));
+    used_ptrs[i] = std::move(chunks[i * 2]);
+    free_ptrs[i] = std::move(chunks[i * 2 + 1]);
   }
 
-  starting_bytes = GetUnmappedBytes();
+  MallocExtension::instance()->ReleaseFreeMemory();
 
-  for (auto ptr : free_ptrs) {
-    free(ptr);
+  size_t starting_bytes = GetUnmappedBytes();
+
+  for (auto& ptr : free_ptrs) {
+    ptr.reset();
   }
+  // Ensure that free-s just above did not cause any returns of memory
+  // to the kernel.
   EXPECT_EQ(starting_bytes, GetUnmappedBytes());
 
+  // Here is the logic. So we're at the stage where only normal spans
+  // are from free-s (unique_ptr resets) just above. And there is some
+  // number of returned spans. As we call ReleaseToSystem with the
+  // exact span size, we will return one of those to the kernel and
+  // move the span to returned list.
   for (size_t i = 0; i < 2 * kNumPtrs; ++i) {
     MallocExtension::instance()->ReleaseToSystem(kBigAllocBytes);
-    a = noopt(malloc(kBigAllocBytes));
-    free(a);
+    // Then we expect the following allocation to take one of those
+    // normal spans (despite just returned span to have lower address).
+    //
+    // I.e. we want to avoid allocating the memory we just returned to
+    // the kernel. Which would grow RSS unnecessarily.
+    auto a = alloc_big();
+    a.reset();
   }
   MallocExtension::instance()->ReleaseToSystem(kBigAllocBytes);
+  // And finally we ensure that, indeed, we've returned all the chunks
+  // we've freed.
   EXPECT_EQ(starting_bytes + kNumPtrs * kBigAllocBytes, GetUnmappedBytes());
-
-  for (auto ptr : used_ptrs) {
-    free(ptr);
-  }
 }
 
 TEST(TCMallocTest, AggressiveDecommit) {
