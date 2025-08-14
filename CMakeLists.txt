@@ -639,6 +639,10 @@ if(BUILD_TESTING)
   target_link_libraries(proc_maps_iterator_test common gtest)
   add_test(proc_maps_iterator_test proc_maps_iterator_test)
 
+  add_executable(for_each_line_test src/tests/for_each_line_test.cc)
+  target_link_libraries(for_each_line_test common gtest)
+  add_test(for_each_line_test for_each_line_test)
+
   add_executable(realloc_unittest src/tests/realloc_unittest.cc)
   target_link_libraries(realloc_unittest tcmalloc_minimal gtest)
   add_test(realloc_unittest realloc_unittest)

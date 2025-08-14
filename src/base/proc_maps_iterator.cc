@@ -85,6 +85,7 @@
 #include "base/logging.h"
 #include "base/sysinfo.h"
 
+#include "base/for_each_line.h"
 
 #ifdef PLATFORM_WINDOWS
 #ifdef MODULEENTRY32
@@ -113,83 +114,23 @@ namespace tcmalloc {
 namespace {
 
 template <typename Body>
-bool ForEachLine(const char* path, const Body& body) {
-  static constexpr size_t kBufSize = PATH_MAX + 1024;
-  char buf[kBufSize];
-  char* const buf_end = buf + sizeof(buf) - 1;
-
+bool DoForEachLine(const char* path, const Body& body) {
   int fd;
   NO_INTR(fd = open(path, O_RDONLY));
   if (fd < 0) {
     return false;
   }
 
-  char* sbuf = buf; // note, initial value could be nullptr, but
-                    // memmove actually insists to get non-null
-                    // arguments (even when count is 0)
-  char* ebuf = sbuf;
-
-  bool eof = false;
-
-  for (;;) {
-    char* nextline = static_cast<char*>(memchr(sbuf, '\n', ebuf - sbuf));
-
-    if (nextline != nullptr) {
-      RAW_CHECK(nextline < ebuf, "BUG");
-
-      *nextline = 0; // Turn newline into '\0'.
-
-      if (!body(sbuf, nextline)) {
-        break;
-      }
-
-      sbuf = nextline + 1;
-      continue;
-    }
-
-    int count = ebuf - sbuf;
-
-    if (eof) {
-      if (count == 0) {
-        break; // done
-      }
-
-      // Last read ended up without trailing newline. Lets add
-      // it. Note, we left one byte margin above, so we're able to
-      // write this and not get past end of buf.
-      *ebuf++ = '\n';
-      continue;
-    }
-
-    if (ebuf == buf_end) {
-      // Line somehow ended up too long for our buffer. Bail out.
-      return false;
-    }
-
-    // Move the current text to the start of the buffer
-    memmove(buf, sbuf, count);
-    sbuf = buf;
-    ebuf = sbuf + count;
-
+  auto reader = [fd] (void* buf, int sz) -> int {
     int nread;
-    NO_INTR(nread = read(fd, ebuf, buf_end - ebuf));
+    NO_INTR(nread = read(fd, buf, sz));
+    return nread;
+  };
 
-    // Read failures are not expected, but lets not crash if this
-    // happens in non-debug mode.
-    DCHECK_GE(nread, 0);
-    if (nread < 0) {
-      nread = 0;
-    }
+  bool ok = ForEachLine<1024>(reader, body);
 
-    if (nread == 0) {
-      eof = true;
-    }
-    ebuf += nread;
-    // Retry memchr above.
-  }
-
-  close(fd);
-  return true;
+  (void)close(fd);
+  return ok;
 }
 
 // Finds |c| in |text|, and assign '\0' at the found position.
@@ -307,7 +248,7 @@ bool ParseProcMapsLine(char *text, uint64_t *start, uint64_t *end,
 }
 
 bool DoIterateLinux(const char* path, void (*body)(const ProcMapping& mapping, void* arg), void* arg) {
-  return ForEachLine(
+  return DoForEachLine(
     path,
     [&] (char* line_start, char* line_end) {
       unsigned filename_offset;
@@ -332,7 +273,7 @@ bool DoIterateLinux(const char* path, void (*body)(const ProcMapping& mapping, v
 
 #if defined(__QNXNTO__)
 bool DoIterateQNX(void (*body)(const ProcMapping& mapping, void* arg), void* arg) {
-  return ForEachLine(
+  return DoForEachLine(
     "/proc/self/pmap",
     [&] (char* line_start, char* line_end) {
       ProcMapping mapping;

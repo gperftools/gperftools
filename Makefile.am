@@ -181,6 +181,11 @@ proc_maps_iterator_test_SOURCES = src/tests/proc_maps_iterator_test.cc
 proc_maps_iterator_test_CPPFLAGS = $(gtest_CPPFLAGS)
 proc_maps_iterator_test_LDADD = libcommon.la libgtest.la
 
+TESTS += for_each_line_test
+for_each_line_test_SOURCES = src/tests/for_each_line_test.cc
+for_each_line_test_CPPFLAGS = $(gtest_CPPFLAGS)
+for_each_line_test_LDADD = libcommon.la libgtest.la
+
 if WITH_HEAP_PROFILER_OR_CHECKER
 TESTS += low_level_alloc_unittest
 low_level_alloc_unittest_SOURCES = src/tests/low_level_alloc_unittest.cc
