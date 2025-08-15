@@ -44,10 +44,10 @@
 #define PRINT_DL_PHDRS
 #endif
 
-int variable;
+int variable = 42; // initializing this puts this into .data section
 
 // There is not much we can thoroughly test. But it is easy to test
-// that we're seeing at least .bss bits. We can also check that we saw
+// that we're seeing at least .data bits. We can also check that we saw
 // at least one executable mapping.
 TEST(ProcMapsIteratorTest, ForEachMapping) {
   bool seen_variable = false;
