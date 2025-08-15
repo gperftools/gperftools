@@ -1,3 +1,10 @@
+== 15 August 2025
+
+gperftools 2.17.2 is out!
+
+Couple bugs were found in the recently introduced changes. So this is
+another point release with some fixes.
+
 == 13 August 2025
 
 gperftools 2.17.1 is out!
