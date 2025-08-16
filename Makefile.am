@@ -779,32 +779,16 @@ TESTS += profiler_unittest.sh$(EXEEXT)
 profiler_unittest_sh_SOURCES = src/tests/profiler_unittest.sh
 noinst_SCRIPTS += $(profiler_unittest_sh_SOURCES)
 profiler_unittest.sh$(EXEEXT): $(top_srcdir)/$(profiler_unittest_sh_SOURCES) \
-                               profiler1_unittest profiler2_unittest \
-                               profiler3_unittest profiler4_unittest
+                               profiler_unittest
 	rm -f $@
 	cp -p $(top_srcdir)/$(profiler_unittest_sh_SOURCES) $@
 
 # These are sub-programs used by profiler_unittest.sh
-noinst_PROGRAMS += profiler1_unittest profiler2_unittest profiler3_unittest \
-                   profiler4_unittest
-PROFILER_UNITTEST_SRCS = src/tests/profiler_unittest.cc \
-                         src/tests/testutil.cc
-profiler1_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
-profiler1_unittest_CXXFLAGS = -g -DNO_THREADS $(AM_CXXFLAGS)
-profiler1_unittest_LDADD = libprofiler.la
-profiler2_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
-profiler2_unittest_CXXFLAGS = -g -DNO_THREADS $(AM_CXXFLAGS)
-profiler2_unittest_LDADD = -lstacktrace -lprofiler
-# We depend on -lprofiler but haven't yet said how to build it.  Do so now.
-profiler2_unittest_DEPENDENCIES = libprofiler.la
-profiler3_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
-profiler3_unittest_CXXFLAGS = -g $(AM_CXXFLAGS)
-profiler3_unittest_LDADD = libprofiler.la
-profiler4_unittest_SOURCES = $(PROFILER_UNITTEST_SRCS)
-profiler4_unittest_CXXFLAGS = -g $(AM_CXXFLAGS)
-profiler4_unittest_LDADD = -lstacktrace -lprofiler
-# We depend on -lprofiler but haven't yet said how to build it.  Do so now.
-profiler4_unittest_DEPENDENCIES = libprofiler.la
+noinst_PROGRAMS += profiler_unittest
+
+profiler_unittest_SOURCES = src/tests/profiler_unittest.cc \
+                             src/tests/testutil.cc
+profiler_unittest_LDADD = libprofiler.la
 endif !SKIP_PPROF_TESTS
 
 endif WITH_CPU_PROFILER

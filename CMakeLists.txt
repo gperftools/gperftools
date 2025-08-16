@@ -866,19 +866,10 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
 
     add_test(NAME profiler_unittest.sh
             COMMAND "${CMAKE_CURRENT_SOURCE_DIR}/src/tests/profiler_unittest.sh")
-    set(PROFILER_UNITTEST_SRCS src/tests/profiler_unittest.cc
+
+    add_executable(profiler_unittest src/tests/profiler_unittest.cc
             src/tests/testutil.h src/tests/testutil.cc)
-    # TODO: get rid of the {1,2,3,4} multiplicity
-    add_executable(profiler1_unittest ${PROFILER_UNITTEST_SRCS})
-    target_compile_definitions(profiler1_unittest PRIVATE NO_THREADS)
-    target_link_libraries(profiler1_unittest PRIVATE profiler)
-    add_executable(profiler2_unittest ${PROFILER_UNITTEST_SRCS})
-    target_compile_definitions(profiler2_unittest PRIVATE NO_THREADS)
-    target_link_libraries(profiler2_unittest PRIVATE profiler)
-    add_executable(profiler3_unittest ${PROFILER_UNITTEST_SRCS})
-    target_link_libraries(profiler3_unittest PRIVATE profiler)
-    add_executable(profiler4_unittest ${PROFILER_UNITTEST_SRCS})
-    target_link_libraries(profiler4_unittest PRIVATE stacktrace profiler)
+    target_link_libraries(profiler_unittest PRIVATE profiler)
   endif()
 endif()
 

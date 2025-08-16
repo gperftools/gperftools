@@ -59,25 +59,7 @@ TMPDIR=`mktemp -d`
 UNITTEST_DIR=${1:-$BINDIR}
 PPROF=${2:-$PPROF_PATH}
 
-PROFILER1="$UNITTEST_DIR/profiler1_unittest"
-PROFILER2="$UNITTEST_DIR/profiler2_unittest"
-PROFILER3="$UNITTEST_DIR/profiler3_unittest"
-PROFILER4="$UNITTEST_DIR/profiler4_unittest"
-
-# Unfortunately, for us, libtool can replace executables with a shell
-# script that does some work before calling the 'real' executable
-# under a different name.  We need the 'real' executable name to run
-# pprof on it.  We've constructed all the binaries used in this
-# unittest so when they are called with no arguments, they report
-# their argv[0], which is the real binary name.
-Realname() {
-  "$1" 2>&1 | awk '{print $2; exit;}'
-}
-
-PROFILER1_REALNAME=`Realname "$PROFILER1"`
-PROFILER2_REALNAME=`Realname "$PROFILER2"`
-PROFILER3_REALNAME=`Realname "$PROFILER3"`
-PROFILER4_REALNAME=`Realname "$PROFILER4"`
+PROFILER="$UNITTEST_DIR/profiler_unittest"
 
 # It's meaningful to the profiler, so make sure we know its state
 unset CPUPROFILE
@@ -96,16 +78,11 @@ RegisterFailure() {
 # "both non-zero". We're pretty forgiving.
 VerifySimilar() {
   prof1="$TMPDIR/$1"
-  exec1="$2"
-  prof2="$TMPDIR/$3"
-  exec2="$4"
-  mult="$5"
+  prof2="$TMPDIR/$2"
+  mult="$3"
 
-  # We are careful not to put exec1 and exec2 in quotes, because if
-  # they are the empty string, it means we want to use the 1-arg
-  # version of pprof.
-  mthread1=`"$PPROF" --text $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
-  mthread2=`"$PPROF" --text $exec2 "$prof2" | grep test_main_thread | awk '{print $1}'`
+  mthread1=`"$PPROF" --unit=ms --text "$prof1" | grep test_main_thread | awk '{print $1}' | sed 's/ms//g'`
+  mthread2=`"$PPROF" --unit=ms --text "$prof2" | grep test_main_thread | awk '{print $1}' | sed 's/ms//g'`
   mthread1_plus=`expr $mthread1 + 5`
   mthread2_plus=`expr $mthread2 + 5`
   if [ -z "$mthread1" ] || [ -z "$mthread2" ] || \
@@ -114,7 +91,7 @@ VerifySimilar() {
 #         `expr $mthread1_plus \* $mult \* 2` -lt `expr $mthread2_plus` ]
   then
     echo
-    echo ">>> profile on $exec1 vs $exec2 with multiplier $mult failed:"
+    echo ">>> profile on profiler_unittest with multiplier $mult failed:"
     echo "Actual times (in profiling units) were '$mthread1' vs. '$mthread2'"
     echo
     RegisterFailure
@@ -132,20 +109,17 @@ VerifySimilar() {
 VerifyAcrossThreads() {
   prof1="$TMPDIR/$1"
   # We need to run the script with no args to get the actual exe name
-  exec1="$2"
-  mult="$3"
+  mult="$2"
 
-  # We are careful not to put exec1 in quotes, because if it is the
-  # empty string, it means we want to use the 1-arg version of pprof.
-  mthread=`$PPROF --text $exec1 "$prof1" | grep test_main_thread | awk '{print $1}'`
-  othread=`$PPROF --text $exec1 "$prof1" | grep test_other_thread | awk '{print $1}'`
+  mthread=`$PPROF --unit=ms --text "$prof1" | grep test_main_thread | awk '{print $1}' | sed 's/ms//g'`
+  othread=`$PPROF --unit=ms --text "$prof1" | grep test_other_thread | awk '{print $1}' | sed 's/ms//g'`
   if [ -z "$mthread" ] || [ -z "$othread" ] || \
      [ "$mthread" -le 0 -o "$othread" -le 0 ]
 #    || [ `expr $mthread \* $mult \* 3` -gt `expr $othread \* 10` -o \
 #         `expr $mthread \* $mult \* 10` -lt `expr $othread \* 3` ]
   then
     echo
-    echo ">>> profile on $exec1 (main vs thread) with multiplier $mult failed:"
+    echo ">>> profile on profiler_unittest (main vs thread) with multiplier $mult failed:"
     echo "Actual times (in profiling units) were '$mthread' vs. '$othread'"
     echo
     RegisterFailure
@@ -153,52 +127,43 @@ VerifyAcrossThreads() {
 }
 
 # profiler1 is a non-threaded version
-"$PROFILER1" 50 1 "$TMPDIR/p1" || RegisterFailure
-"$PROFILER1" 100 1 "$TMPDIR/p2" || RegisterFailure
-VerifySimilar p1 "$PROFILER1_REALNAME" p2 "$PROFILER1_REALNAME" 2
-
-# Verify the same thing works if we statically link
-"$PROFILER2" 50 1 "$TMPDIR/p3" || RegisterFailure
-"$PROFILER2" 100 1 "$TMPDIR/p4" || RegisterFailure
-VerifySimilar p3 "$PROFILER2_REALNAME" p4 "$PROFILER2_REALNAME" 2
+"$PROFILER" 50 1 "$TMPDIR/p1" || RegisterFailure
+"$PROFILER" 100 1 "$TMPDIR/p2" || RegisterFailure
+VerifySimilar p1 p2 2
 
 # Verify the same thing works if we specify via CPUPROFILE
-CPUPROFILE="$TMPDIR/p5" "$PROFILER2" 50 || RegisterFailure
-CPUPROFILE="$TMPDIR/p6" "$PROFILER2" 100 || RegisterFailure
-VerifySimilar p5 "$PROFILER2_REALNAME" p6 "$PROFILER2_REALNAME" 2
+CPUPROFILE="$TMPDIR/p5" "$PROFILER" 50 || RegisterFailure
+CPUPROFILE="$TMPDIR/p6" "$PROFILER" 100 || RegisterFailure
+VerifySimilar p5 p6 2
 
-CPUPROFILE="$TMPDIR/p5b" "$PROFILER3" 30 || RegisterFailure
-CPUPROFILE="$TMPDIR/p5c" "$PROFILER3" 60 || RegisterFailure
-VerifySimilar p5b "$PROFILER3_REALNAME" p5c "$PROFILER3_REALNAME" 2
+CPUPROFILE="$TMPDIR/p5b" "$PROFILER" 30 || RegisterFailure
+CPUPROFILE="$TMPDIR/p5c" "$PROFILER" 60 || RegisterFailure
+VerifySimilar p5b p5c 2
 
 # Now try what happens when we use threads
-"$PROFILER3" 30 2 "$TMPDIR/p7" || RegisterFailure
-"$PROFILER3" 60 2 "$TMPDIR/p8" || RegisterFailure
-VerifySimilar p7 "$PROFILER3_REALNAME" p8 "$PROFILER3_REALNAME" 2
-
-"$PROFILER4" 30 2 "$TMPDIR/p9" || RegisterFailure
-"$PROFILER4" 60 2 "$TMPDIR/p10" || RegisterFailure
-VerifySimilar p9 "$PROFILER4_REALNAME" p10 "$PROFILER4_REALNAME" 2
+"$PROFILER" 30 2 "$TMPDIR/p7" || RegisterFailure
+"$PROFILER" 60 2 "$TMPDIR/p8" || RegisterFailure
+VerifySimilar p7 p8 2
 
 # More threads!
-"$PROFILER4" 25 3 "$TMPDIR/p9" || RegisterFailure
-"$PROFILER4" 50 3 "$TMPDIR/p10" || RegisterFailure
-VerifySimilar p9 "$PROFILER4_REALNAME" p10 "$PROFILER4_REALNAME" 2
+"$PROFILER" 25 3 "$TMPDIR/p9" || RegisterFailure
+"$PROFILER" 50 3 "$TMPDIR/p10" || RegisterFailure
+VerifySimilar p9 p10 2
 
 # Compare how much time the main thread takes compared to the other threads
 # Recall the main thread runs twice as long as the other threads, by design.
-"$PROFILER4" 20 4 "$TMPDIR/p11" || RegisterFailure
-VerifyAcrossThreads p11 "$PROFILER4_REALNAME" 2
+"$PROFILER" 20 4 "$TMPDIR/p11" || RegisterFailure
+VerifyAcrossThreads p11 2
 
 # Test using ITIMER_REAL instead of ITIMER_PROF.
-env CPUPROFILE_REALTIME=1 "$PROFILER3" 30 2 "$TMPDIR/p16" || RegisterFailure
-env CPUPROFILE_REALTIME=1 "$PROFILER3" 60 2 "$TMPDIR/p17" || RegisterFailure
-VerifySimilar p16 "$PROFILER3_REALNAME" p17 "$PROFILER3_REALNAME" 2
+env CPUPROFILE_REALTIME=1 "$PROFILER" 30 2 "$TMPDIR/p16" || RegisterFailure
+env CPUPROFILE_REALTIME=1 "$PROFILER" 60 2 "$TMPDIR/p17" || RegisterFailure
+VerifySimilar p16 p17 2
 
 
 # Make sure that when we have a process with a fork, the profiles don't
 # clobber each other
-CPUPROFILE="$TMPDIR/pfork" "$PROFILER1" 1 -2 || RegisterFailure
+CPUPROFILE="$TMPDIR/pfork" "$PROFILER" 1 -2 || RegisterFailure
 n=`ls $TMPDIR/pfork* | wc -l | tr -d '[:space:]'`
 if [ $n != 3 ]; then
   echo "FORK test FAILED: expected 3 profiles (for main + 2 children), found $n"

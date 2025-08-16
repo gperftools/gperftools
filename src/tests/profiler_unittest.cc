@@ -73,7 +73,6 @@ static int volatile *g_ticks_count = ([] () {
 std::mutex mutex;
 
 static void test_other_thread() {
-#ifndef NO_THREADS
   ProfilerRegisterThread();
 
   int result = 0;
@@ -91,7 +90,6 @@ static void test_other_thread() {
     (void)noopt(b); // 'consume' b. Ensure that smart compiler doesn't
                     // remove snprintf call
   }
-#endif
 }
 
 static void test_main_thread() {

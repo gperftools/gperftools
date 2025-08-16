@@ -43,30 +43,6 @@
 #include <thread>
 #include <vector>
 
-struct FunctionAndId {
-  void (*ptr_to_function)(int);
-  int id;
-};
-
-#if defined(NO_THREADS)
-
-extern "C" void RunThread(void (*fn)()) {
-  (*fn)();
-}
-
-extern "C" void RunManyThreads(void (*fn)(), int count) {
-  // I guess the best we can do is run fn sequentially, 'count' times
-  for (int i = 0; i < count; i++)
-    (*fn)();
-}
-
-extern "C" void RunManyThreadsWithId(void (*fn)(int), int count) {
-  for (int i = 0; i < count; i++)
-    (*fn)(i);    // stacksize doesn't make sense in a non-threaded context
-}
-
-#else
-
 extern "C" {
   void RunThread(void (*fn)()) {
     std::thread{fn}.join();
@@ -93,5 +69,3 @@ extern "C" {
     RunMany(fn, count);
   }
 }
-
-#endif
