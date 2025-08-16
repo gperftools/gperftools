@@ -36,6 +36,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+#if defined __has_include
+#if __has_include(<valgrind/valgrind.h>)
+#include <valgrind/valgrind.h>
+#endif  // __has_include
+#endif // defined __has_include
+
 #include "base/dynamic_annotations.h"
 #include "getenv_safe.h" // for TCMallocGetenvSafe
 
