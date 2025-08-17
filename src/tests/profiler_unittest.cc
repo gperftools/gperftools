@@ -77,10 +77,11 @@ static void test_other_thread() {
 
   int result = 0;
   char b[128];
-  // Get at least 30 ticks
-  int limit = *g_ticks_count + 30;
 
   std::lock_guard ml(mutex);
+
+  // Get at least 30 ticks
+  int limit = *g_ticks_count + 30;
 
   while (*g_ticks_count < limit) {
     for (int i = 0; i < g_iters * 10; ++i ) {
@@ -95,10 +96,11 @@ static void test_other_thread() {
 static void test_main_thread() {
   int result = 0;
   char b[128];
-  // Get at least 30 ticks
-  int limit = *g_ticks_count + 30;
 
   std::lock_guard ml(mutex);
+
+  // Get at least 30 ticks
+  int limit = *g_ticks_count + 30;
 
   while (*g_ticks_count < limit) {
     for (int i = 0; i < g_iters * 10; ++i ) {
