@@ -161,6 +161,14 @@ env CPUPROFILE_REALTIME=1 "$PROFILER" 60 2 "$TMPDIR/p17" || RegisterFailure
 VerifySimilar p16 p17 2
 
 
+# NetBSD has slightly borked environ access when we're updating it
+# early. See
+# https://gnats.netbsd.org/cgi-bin/query-pr-single.pl?number=59599
+if [ `uname` = NetBSD ]
+then
+  export CPUPROFILE_USE_PID=1
+fi
+
 # Make sure that when we have a process with a fork, the profiles don't
 # clobber each other
 CPUPROFILE="$TMPDIR/pfork" "$PROFILER" 1 -2 || RegisterFailure
