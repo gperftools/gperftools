@@ -31,6 +31,9 @@
 
 set -euox pipefail
 
+# Use Xcode 16.0
+sudo xcode-select -s /Applications/Xcode_16.0.app/Contents/Developer
+
 if [[ -z ${GTEST_ROOT:-} ]]; then
   GTEST_ROOT="$(realpath $(dirname ${0})/..)"
 fi
@@ -40,25 +43,31 @@ for cmake_off_on in OFF ON; do
   BUILD_DIR=$(mktemp -d build_dir.XXXXXXXX)
   cd ${BUILD_DIR}
   time cmake ${GTEST_ROOT} \
-    -DCMAKE_CXX_STANDARD=14 \
+    -DCMAKE_CXX_STANDARD=17 \
     -Dgtest_build_samples=ON \
     -Dgtest_build_tests=ON \
     -Dgmock_build_tests=ON \
     -Dcxx_no_exception=${cmake_off_on} \
     -Dcxx_no_rtti=${cmake_off_on}
-  time make
+  time make -j$(nproc)
   time ctest -j$(nproc) --output-on-failure
 done
 
 # Test the Bazel build
 
 # If we are running on Kokoro, check for a versioned Bazel binary.
-KOKORO_GFILE_BAZEL_BIN="bazel-7.0.0-darwin-x86_64"
+KOKORO_GFILE_BAZEL_BIN="bazel-8.2.1-darwin-x86_64"
 if [[ ${KOKORO_GFILE_DIR:-} ]] && [[ -f ${KOKORO_GFILE_DIR}/${KOKORO_GFILE_BAZEL_BIN} ]]; then
   BAZEL_BIN="${KOKORO_GFILE_DIR}/${KOKORO_GFILE_BAZEL_BIN}"
   chmod +x ${BAZEL_BIN}
 else
   BAZEL_BIN="bazel"
+fi
+
+# Use Bazel Vendor mode to reduce reliance on external dependencies.
+if [[ ${KOKORO_GFILE_DIR:-} ]] && [[ -f "${KOKORO_GFILE_DIR}/distdir/googletest_vendor.tar.gz" ]]; then
+  tar -xf "${KOKORO_GFILE_DIR}/distdir/googletest_vendor.tar.gz" -C "${TMP}/"
+  BAZEL_EXTRA_ARGS="--vendor_dir=\"${TMP}/googletest_vendor\" ${BAZEL_EXTRA_ARGS:-}"
 fi
 
 cd ${GTEST_ROOT}
@@ -67,11 +76,12 @@ for absl in 0 1; do
     --copt="-Wall" \
     --copt="-Werror" \
     --copt="-Wundef" \
-    --cxxopt="-std=c++14" \
+    --cxxopt="-std=c++17" \
     --define="absl=${absl}" \
     --enable_bzlmod=true \
     --features=external_include_paths \
     --keep_going \
     --show_timestamps \
-    --test_output=errors
+    --test_output=errors \
+    ${BAZEL_EXTRA_ARGS:-}
 done

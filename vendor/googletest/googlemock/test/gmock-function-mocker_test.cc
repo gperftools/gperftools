@@ -91,7 +91,7 @@ class FooInterface {
 
   virtual bool TakesNonConstReference(int& n) = 0;  // NOLINT
   virtual std::string TakesConstReference(const int& n) = 0;
-  virtual bool TakesConst(const int x) = 0;
+  virtual bool TakesConst(int x) = 0;
 
   virtual int OverloadedOnArgumentNumber() = 0;
   virtual int OverloadedOnArgumentNumber(int n) = 0;
@@ -325,8 +325,8 @@ TYPED_TEST(FunctionMockerTest, MocksBinaryFunction) {
 
 // Tests mocking a decimal function.
 TYPED_TEST(FunctionMockerTest, MocksDecimalFunction) {
-  EXPECT_CALL(this->mock_foo_,
-              Decimal(true, 'a', 0, 0, 1L, A<float>(), Lt(100), 5U, NULL, "hi"))
+  EXPECT_CALL(this->mock_foo_, Decimal(true, 'a', 0, 0, 1L, A<float>(), Lt(100),
+                                       5U, nullptr, "hi"))
       .WillOnce(Return(5));
 
   EXPECT_EQ(5, this->foo_->Decimal(true, 'a', 0, 0, 1, 0, 0, 5, nullptr, "hi"));

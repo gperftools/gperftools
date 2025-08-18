@@ -24,7 +24,8 @@ provided by GoogleTest. All actions are defined in the `::testing` namespace.
 | :--------------------------------- | :-------------------------------------- |
 | `Assign(&variable, value)` | Assign `value` to variable. |
 | `DeleteArg<N>()` | Delete the `N`-th (0-based) argument, which must be a pointer. |
-| `SaveArg<N>(pointer)` | Save the `N`-th (0-based) argument to `*pointer`. |
+| `SaveArg<N>(pointer)` | Save the `N`-th (0-based) argument to `*pointer` by copy-assignment. |
+| `SaveArgByMove<N>(pointer)` | Save the `N`-th (0-based) argument to `*pointer` by move-assignment. |
 | `SaveArgPointee<N>(pointer)` | Save the value pointed to by the `N`-th (0-based) argument to `*pointer`. |
 | `SetArgReferee<N>(value)` | Assign `value` to the variable referenced by the `N`-th (0-based) argument. |
 | `SetArgPointee<N>(value)` | Assign `value` to the variable pointed by the `N`-th (0-based) argument. |
@@ -47,8 +48,8 @@ functor, or lambda.
 | `InvokeWithoutArgs(object_pointer, &class::method)` | Invoke the method on the object, which takes no arguments. |
 | `InvokeArgument<N>(arg1, arg2, ..., argk)` | Invoke the mock function's `N`-th (0-based) argument, which must be a function or a functor, with the `k` arguments. |
 
-The return value of the invoked function is used as the return value of the
-action.
+The return value of the invoked function (except `InvokeArgument`) is used as
+the return value of the action.
 
 When defining a callable to be used with `Invoke*()`, you can declare any unused
 parameters as `Unused`:
