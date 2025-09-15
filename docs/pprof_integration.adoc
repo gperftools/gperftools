@@ -34,14 +34,14 @@ API is in `gperftools/profiler.h`. You can invoke
 libprofiler automagically profile the full run of your program by setting
 `CPUPROFILE` environment variable.
 
-See link:cpuprofile.html[documentation of CPU profiler] for full
+See link:cpuprofile.adoc[documentation of CPU profiler] for full
 details.
 
 A general description of how statistical sampling profilers work can be
 found in this nice blog post: https://research.swtch.com/pprof.
 
 We produce a "legacy" CPU profile format. The format is described
-here: link:cpuprofile-fileformat.html[].
+here: link:cpuprofile-fileformat.adoc[].
 
 === Heap sample
 
@@ -75,7 +75,7 @@ https://github.com/google/tcmalloc/blob/master/docs/sampling.md.
 
 Go has similar feature called heap profiling. Go's heap profiles
 combine information about in-use memory and all the allocations ever
-made. It is similar to gperftools' link:heapprofile.html[heap profiler] but works
+made. It is similar to gperftools' link:heapprofile.adoc[heap profiler] but works
 via sampling, so it is low overhead and runs by default. You can read
 about it here: https://pkg.go.dev/runtime/pprof. Approximately every
 512k bytes (value of runtime.MemProfileRate) of memory allocated, Go's
@@ -100,7 +100,7 @@ off from libtcmalloc_minimal.
 
 === Heap Profiler
 
-See link:heapprofile.html[Heap Profiler documentation]. Note that the
+See link:heapprofile.adoc[Heap Profiler documentation]. Note that the
 heap profiler intercepts every allocation and deallocation call, so it
 runs with a much higher overhead than normal malloc and is not
 suitable for production.
