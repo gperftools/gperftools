@@ -48,6 +48,9 @@
 #include <gperftools/stacktrace.h>
 #include <base/vdso_support.h>
 
+#ifdef HAVE_ASM_PTRACE_H
+#include <asm/ptrace.h>
+#endif
 #if HAVE_SYS_UCONTEXT_H
 #include <sys/ucontext.h>
 #elif HAVE_UCONTEXT_H
