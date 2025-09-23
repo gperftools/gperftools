@@ -207,7 +207,11 @@ static int GET_STACK_TRACE_OR_FRAMES {
           ucontext_t uc;
           // We don't care about the rest, since IP value is at 'uc' field.A
         } *sigframe = reinterpret_cast<rt_signal_frame_32*>(current);
+        #if defined(__GLIBC__)
         result[n] = (void*) sigframe->uc.uc_mcontext.uc_regs->gregs[PT_NIP];
+        #else
+        result[n] = (void*) sigframe->uc.uc_mcontext.gregs[PT_NIP];
+        #endif
       }
 #endif
 
