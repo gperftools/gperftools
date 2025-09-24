@@ -87,7 +87,7 @@ class ElfClass<64> {
   static int ElfType(const ElfW(Sym) * symbol) { return ELF64_ST_TYPE(symbol->st_info); }
 };
 
-typedef ElfClass<__WORDSIZE> CurrentElfClass;
+typedef ElfClass<sizeof(void*) * 8> CurrentElfClass;
 
 // Extract an element from one of the ELF tables, cast it to desired type.
 // This is just a simple arithmetic and a glorified cast.
