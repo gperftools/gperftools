@@ -174,16 +174,8 @@ MallocExtension* MallocExtension::instance() {
   // if MallocExtension isn't set up yet, it could be we're called
   // super-early. Trigger tcmalloc initialization and assume it will
   // set up instance().
-  if (!RunningOnValgrind()) {
-    tc_free(tc_malloc(32));
-  } else {
-    // Valgrind intercepts tc_{malloc,free}, so we do more direct
-    // "initialize the guts" procedure. We only do that for "valgrind
-    // path" because we want normal case to exercise
-    // "tc_malloc/tc_free can be called from here" behavior.
-    CHECK_CONDITION(!tcmalloc::Static::IsInited());
-    tcmalloc::ThreadCache::InitModule();
-  }
+  tcmalloc::ThreadCache::EnsureMallocInitialized();
+
   return instance();
 }
 

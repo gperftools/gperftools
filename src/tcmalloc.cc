@@ -1075,7 +1075,7 @@ static bool size_class_with_alignment(size_t size, size_t align, uint32_t* cl) {
 // ThreadCache::InitModule is not inlined which would cause nallocx to
 // become non-leaf function with stack frame and stack spills.
 static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
-  if (PREDICT_FALSE(!Static::IsInited())) ThreadCache::InitModule();
+  ThreadCache::EnsureMallocInitialized();
 
   size_t align = static_cast<size_t>(1ull << (flags & 0x3f));
   uint32_t cl;

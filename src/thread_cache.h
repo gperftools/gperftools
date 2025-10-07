@@ -90,7 +90,13 @@ class ThreadCache {
 
   bool TryRecordAllocationFast(size_t k);
 
-  static void         InitModule();
+  static void InitModule();
+  static void EnsureMallocInitialized() {
+    if (Static::IsInited()) {
+      return;
+    }
+    InitModule();
+  }
 
   // Return the number of thread heaps in use.
   static inline int HeapsInUse();
