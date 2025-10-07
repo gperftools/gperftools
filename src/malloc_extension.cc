@@ -52,6 +52,10 @@
 
 #include "gperftools/tcmalloc.h"
 
+#include "internal_logging.h"
+#include "static_vars.h"
+#include "thread_cache.h"
+
 static void DumpAddressMap(std::string* result) {
   tcmalloc::StringGenericWriter writer(result);
   writer.AppendStr("\nMAPPED_LIBRARIES:\n");
@@ -170,7 +174,16 @@ MallocExtension* MallocExtension::instance() {
   // if MallocExtension isn't set up yet, it could be we're called
   // super-early. Trigger tcmalloc initialization and assume it will
   // set up instance().
-  tc_free(tc_malloc(32));
+  if (!RunningOnValgrind()) {
+    tc_free(tc_malloc(32));
+  } else {
+    // Valgrind intercepts tc_{malloc,free}, so we do more direct
+    // "initialize the guts" procedure. We only do that for "valgrind
+    // path" because we want normal case to exercise
+    // "tc_malloc/tc_free can be called from here" behavior.
+    CHECK_CONDITION(!tcmalloc::Static::IsInited());
+    tcmalloc::ThreadCache::InitModule();
+  }
   return instance();
 }
 
