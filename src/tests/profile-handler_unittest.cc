@@ -53,17 +53,17 @@ void do_free(void* p) {
 
 void* operator new(size_t sz) { return do_allocate(sz); }
 void* operator new[](size_t sz) { return do_allocate(sz); }
-void operator delete(void* p) { do_free(p); }
-void operator delete[](void* p) { do_free(p); }
+void operator delete(void* p) noexcept { do_free(p); }
+void operator delete[](void* p) noexcept { do_free(p); }
 
-void operator delete(void* p, size_t sz) { do_free(p); }
-void operator delete[](void* p, size_t sz) { do_free(p); }
+void operator delete(void* p, size_t sz) noexcept { do_free(p); }
+void operator delete[](void* p, size_t sz) noexcept { do_free(p); }
 
-void* operator new(size_t sz, const std::nothrow_t& nt) { return do_allocate(sz); }
-void* operator new[](size_t sz, const std::nothrow_t& nt) { return do_allocate(sz); };
+void* operator new(size_t sz, const std::nothrow_t& nt) noexcept { return do_allocate(sz); }
+void* operator new[](size_t sz, const std::nothrow_t& nt) noexcept { return do_allocate(sz); };
 
-void operator delete(void* p, const std::nothrow_t& nt) { do_free(p); }
-void operator delete[](void* p, const std::nothrow_t& nt) { do_free(p); }
+void operator delete(void* p, const std::nothrow_t& nt) noexcept { do_free(p); }
+void operator delete[](void* p, const std::nothrow_t& nt) noexcept { do_free(p); }
 
 namespace {
 
