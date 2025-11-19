@@ -17,6 +17,7 @@
 /addressmap_unittest
 /addressmap_unittest.exe
 /autom4te.cache/
+/bazel-*
 /benchmark/.deps
 /benchmark/.dirstamp
 /binary_trees
@@ -95,6 +96,7 @@
 /min_per_thread_cache_size_test
 /min_per_thread_cache_size_test.exe
 /missing
+/MODULE.bazel.lock
 /packed_cache_test
 /packed_cache_test.exe
 /page_heap_test
