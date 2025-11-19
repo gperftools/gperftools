@@ -11,12 +11,14 @@
 /GSYMS
 /GTAGS
 /ID
+/MODULE.bazel.lock
 /Makefile
 /Makefile.in
 /aclocal.m4
 /addressmap_unittest
 /addressmap_unittest.exe
 /autom4te.cache/
+/bazel-*
 /benchmark/.deps
 /benchmark/.dirstamp
 /binary_trees

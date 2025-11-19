@@ -1,6 +1,8 @@
 # NOTE: as of this writing Bazel support is highly experimental. It is
 # also not entirely complete. It lacks most tests, for example.
 
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
 config_setting(
     name = "is_gcc",
     flag_values = {"@bazel_tools//tools/cpp:compiler": "gcc"},
