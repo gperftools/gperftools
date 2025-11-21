@@ -1,0 +1,6 @@
+[submodule "vendor/googletest"]
+	path = vendor/googletest
+	url = https://github.com/google/googletest.git
+[submodule "vendor/libbacktrace"]
+	path = vendor/libbacktrace
+	url = https://github.com/ianlancetaylor/libbacktrace.git

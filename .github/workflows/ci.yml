@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Clone
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install dependencies
         run: |
           sudo apt update
@@ -48,6 +50,8 @@ jobs:
     steps:
       - name: Clone
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install dependencies
         run: |
           sudo apt update
@@ -95,6 +99,8 @@ jobs:
     steps:
       - name: Clone
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: seanmiddleditch/gha-setup-ninja@v5
       - name: Configure ccache action
         uses: hendrikmuhs/ccache-action@v1.2
@@ -139,6 +145,8 @@ jobs:
     steps:
       - name: Clone
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: seanmiddleditch/gha-setup-ninja@v5
       - name: mkdir build/
         run: cmake -E make_directory ${{runner.workspace}}/build

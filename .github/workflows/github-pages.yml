@@ -24,6 +24,8 @@ jobs:
       - run: sudo apt update && sudo apt install asciidoctor
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - run: mkdir _site && cp -v docs/*gif docs/*png docs/*adoc docs/*html _site/
       - run: cd _site; for i in *adoc; do echo $i; asciidoctor $i; done
       - run: ls -lR _site

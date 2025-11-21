@@ -9,6 +9,22 @@ gperftools is a collection of a high-performance multi-threaded
 malloc() implementation, plus some pretty nifty performance analysis
 tools.
 
+Submodules
+----------
+
+This repository uses git submodules for some vendored dependencies
+(for example `googletest` and `libbacktrace`). For a ready-to-build
+checkout prefer cloning with submodules:
+
+     git clone --recurse-submodules <repo-url>
+
+If you already cloned without submodules, initialize them with:
+
+     git submodule update --init --recursive
+
+See `vendor/README.vendor` and `INSTALL` for more details and
+troubleshooting tips.
+
 gperftools is distributed under the terms of the BSD License. Join our
 mailing list at gperftools@googlegroups.com for updates:
 https://groups.google.com/forum/#!forum/gperftools

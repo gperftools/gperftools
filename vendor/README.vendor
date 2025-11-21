@@ -1,17 +1,90 @@
+This directory contains git submodules for vendored dependencies.
+
+IMPORTANT: After cloning this repository or pulling updates that modify
+the submodule commits, you must initialize/update the submodules:
+
+    git submodule update --init --recursive
+
+Quickstart (recommended)
+
+- To clone the repository with submodules in a single command:
+    git clone --recurse-submodules <repo-url>
+
+- If you already cloned without submodules:
+    git submodule update --init --recursive
+
+- To update submodules to the commits recorded in the superproject:
+    git fetch --all --recurse-submodules
+    git submodule update --remote --recursive
+
+Check submodule status:
+
+   git submodule status --recursive
+
+Common troubleshooting
+
+- Checkout failures due to local changes:
+    git submodule foreach --recursive 'git reset --hard; git clean -fdx'
+
+- Submodule not at the expected commit after a pull:
+    git submodule update --init --recursive
+
+- If your Git client is old and does not support `--recurse-submodules`
+  properly, update Git or use the explicit commands above.
+
+CI / Runners
+
+- Ensure CI jobs run one of the commands above before building. Alternatively,
+  configure the runner to clone with `--recurse-submodules` or add a step that runs:
+
+    git submodule update --init --recursive
+
+libbacktrace — quick verification after update
+
+When updating `vendor/libbacktrace`, verify that the integration (symbol
+prefixing) remains correct:
+
+   make libbacktrace.la
+   objdump -t .libs/libbacktrace.a | grep ' g ' || echo "Check symbol prefixing"
+
+Notes for contributors
+
+- When changing a submodule commit/tag, also commit the change in the
+  superproject (e.g. `git add vendor/<name> MODULE.bazel`).
+- Document in `MODULE.bazel` (or equivalent) any version synchronization
+  required for tooling (e.g. googletest).
 
 == googletest
 
-googletest is vendored at release-1.8.0-3576-ga05c0915. It was copied
-verbatim via git archive and added here.
+googletest is vendored as a git submodule from
+https://github.com/google/googletest.git at tag v1.15.2 (commit
+b514bdc898e2951020cbdca1304b75f5950d1f59). This version is synchronized
+with the version specified in MODULE.bazel.
+
+To update googletest:
+1. cd vendor/googletest
+2. git fetch origin
+3. git checkout <new-version-tag>
+4. Update MODULE.bazel to match the new version
+5. cd ../.. && git add vendor/googletest MODULE.bazel
 
 == libbacktrace
 
-libbacktrace was vendored from github.com/ianlancetaylor/libbacktrace
-at commit 793921876c981ce49759114d7bb89bb89b2d3a2d. We dont use its
-autotools build infrastructure and integrate it ourselves with mostly
-hardcoded config.h and our own Makefile.am bits. Those integration
-bits are in libbacktrace-integration in this subdirectory. Main
-motivation for such approach is that:
+libbacktrace is vendored as a git submodule from
+https://github.com/ianlancetaylor/libbacktrace.git at commit
+793921876c981ce49759114d7bb89bb89b2d3a2d.
+
+To update libbacktrace:
+1. cd vendor/libbacktrace
+2. git fetch origin
+3. git checkout <new-commit-or-tag>
+4. Verify symbol renaming (see below)
+5. cd ../.. && git add vendor/libbacktrace
+
+We don't use its autotools build infrastructure and integrate it ourselves
+with mostly hardcoded config.h and our own Makefile.am bits. Those
+integration bits are in libbacktrace-integration in this subdirectory.
+Main motivation for such approach is that:
 
 *) we only need symbolization subset
 
