@@ -1,0 +1,18 @@
+matrix:
+  platform:
+  - debian10
+  - ubuntu2004
+  - macos
+  - macos_arm64
+  bazel:
+  - 7.x
+  - 8.x
+  - 9.*
+tasks:
+  verify_targets:
+    name: Verify build targets
+    platform: ${{ platform }}
+    bazel: ${{ bazel }}
+    build_targets:
+    - '@gperftools//:cpu_profiler'
+    - '@gperftools//:tcmalloc'

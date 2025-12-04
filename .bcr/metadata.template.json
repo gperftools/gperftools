@@ -1,0 +1,15 @@
+{
+  "homepage": "https://github.com/gperftools/gperftools",
+  "maintainers": [
+    {
+      "github": "alk",
+      "github_user_id": 14850,
+      "name": "Aliaksiej Kandracienka (aka Aliaksei Kandratsenka)"
+    }
+  ],
+  "repository": [
+    "github:gperftools/gperftools"
+  ],
+  "versions": [],
+  "yanked_versions": {}
+}
