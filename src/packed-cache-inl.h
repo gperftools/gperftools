@@ -137,15 +137,19 @@ class PackedCache {
   typedef uintptr_t T;
   typedef uintptr_t K;
   typedef uint32_t V;
+
 #ifdef TCMALLOC_SMALL_BUT_SLOW
-  // Decrease the size map cache if running in the small memory mode.
-  static const int kHashbits = 12;
-#else
-  static const int kHashbits = 16;
+  static constexpr int kWantHashBits = 12;
+#else // !TCMALLOC_SMALL_BUT_SLOW
+  static constexpr int kWantHashBits = 16;
 #endif
-  static const int kValuebits = 7;
+
+  static constexpr int kHashbits
+    = (kKeybits < kWantHashBits) ? kKeybits : kWantHashBits;
+
+  static constexpr int kValuebits = 7;
   // one bit after value bits
-  static const int kInvalidMask = 0x80;
+  static constexpr int kInvalidMask = 0x80;
 
   explicit PackedCache() {
     static_assert(kKeybits + kValuebits + 1 <= 8 * sizeof(T));
