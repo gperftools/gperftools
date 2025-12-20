@@ -1,0 +1,34 @@
+name: Publish to BCR
+
+on:
+  # Trigger on tag creation
+  push:
+    tags:
+      - 'gperftools-*'
+  # Allow manual dispatch for troubleshooting
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name to publish (e.g., gperftools-2.17.3)'
+        required: true
+        type: string
+
+jobs:
+  publish:
+    uses: bazel-contrib/publish-to-bcr/.github/workflows/publish.yaml@v6
+    with:
+      tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag_name || github.ref_name }}
+      # The official Bazel Central Registry
+      registry: bazelbuild/bazel-central-registry
+      # Tag prefix to strip for version calculation
+      tag_prefix: "gperftools-"
+      # Enable attestations for release artifacts
+      attest: false
+      # Open PR as draft (recommended for BCR auto-approval workflow)
+      draft: true
+    permissions:
+      contents: write
+    secrets:
+      # This token must be created as a Classic PAT with 'repo' and 'workflow' permissions
+      # and stored as a repository secret named BCR_PUBLISH_TOKEN
+      publish_token: ${{ secrets.BCR_PUBLISH_TOKEN }}
