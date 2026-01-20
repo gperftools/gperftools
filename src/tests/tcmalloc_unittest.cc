@@ -716,22 +716,38 @@ TEST(TCMallocTest, Realloc) {
   // turn off sampling
   tcmalloc::Cleanup cleanup = SetFlag(&TestingPortal::Get()->GetSampleParameter(), 0);
 
-  int start_sizes[] = { 100, 1000, 10000, 100000 };
-  int deltas[] = { 1, -2, 4, -8, 16, -32, 64, -128 };
+  std::vector<size_t> start_sizes = {100, 1000, 10000, 100000 };
 
-  for (int s = 0; s < sizeof(start_sizes)/sizeof(*start_sizes); ++s) {
-    void* p = noopt(malloc(start_sizes[s]));
+  for (size_t original_size : start_sizes) {
+    void* p = noopt(malloc(original_size));
     ASSERT_NE(p, nullptr);
-    // The larger the start-size, the larger the non-reallocing delta.
-    for (int d = 0; d < (s+1) * 2; ++d) {
-      void* new_p = noopt(realloc)(p, start_sizes[s] + deltas[d]);
-      ASSERT_EQ(p, new_p);  // realloc should not allocate new memory
+
+    size_t usable_size = nallocx(original_size, 0);
+    // Validate out expectation
+    ASSERT_EQ(MallocExtension::instance()->GetAllocatedSize(p), usable_size);
+
+    // Lets find range of request sizes that round up to the same
+    // usable size by using nallocx.
+    size_t minimal_size = original_size;
+    while (nallocx(minimal_size - 1, 0) == usable_size) {
+      minimal_size--;
+      ASSERT_NE(minimal_size, 0);
     }
-    // Test again, but this time reallocing smaller first.
-    for (int d = 0; d < s*2; ++d) {
-      void* new_p = noopt(realloc)(p, start_sizes[s] - deltas[d]);
-      ASSERT_EQ(p, new_p);  // realloc should not allocate new memory
-    }
+
+    void* new_p;
+
+    // Check growing up to usable size then shrinking
+    new_p = noopt(realloc)(p, usable_size);
+    ASSERT_EQ(new_p, p);
+    new_p = noopt(realloc)(p, minimal_size);
+    ASSERT_EQ(new_p, p);
+
+    // Checking shrinking then growing
+    new_p = noopt(realloc)(p, minimal_size);
+    ASSERT_EQ(new_p, p);
+    new_p = noopt(realloc)(p, usable_size);
+    ASSERT_EQ(new_p, p);
+
     free(p);
   }
 }
