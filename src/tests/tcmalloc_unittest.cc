@@ -1836,6 +1836,69 @@ TEST(TCMallocTest, EmergencyMallocNoHook) {
   VerifyDeleteHookWasCalled();
 }
 
+TEST(TCMallocTest, ReallocVsFreeSized) {
+  constexpr size_t kLargerSize = 256;
+  constexpr size_t kSmallerSize = 160;
+
+  void* p = noopt(realloc)(nullptr, kLargerSize);
+  ASSERT_NE(p, nullptr);
+  p = noopt(realloc)(p, kSmallerSize);
+  ASSERT_NE(p, nullptr);
+
+  // what we want to test is this: tc_free_sized(p, 80);
+  // But how do we detect it's failure. So lets check explicitly
+
+  void* p2 = noopt(malloc)(kSmallerSize);
+  uint32_t small_size_class = TestingPortal::Get()->GetSizeClass(p2);
+  free(p2);
+
+  uint32_t realloced_size_class = TestingPortal::Get()->GetSizeClass(p);
+
+  ASSERT_EQ(realloced_size_class, small_size_class);
+
+  free(p);
+}
+
+TEST(TCMallocTest, ReallocOnInvalidPointer) {
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    return;
+  }
+
+  static uint64_t mock_object[2] = {0x3955fe9622eede93, 0x42};
+  static bool invalid_free_called;
+  static bool invalid_get_size_called;
+
+  auto invalid_free = +[] (void* ptr) {
+    EXPECT_EQ(ptr, mock_object);
+    invalid_free_called = true;
+  };
+
+  auto invalid_get_size = +[] (const void* ptr) -> size_t {
+    EXPECT_EQ(ptr, mock_object);
+    invalid_get_size_called = true;
+    return sizeof(mock_object[0]);
+  };
+
+  invalid_free_called = false;
+  invalid_get_size_called = false;
+
+  void* p = TestingPortal::Get()->RunReallocWithCallback(
+      mock_object, 128, invalid_free, invalid_get_size);
+
+  ASSERT_NE(p, nullptr);
+  ASSERT_EQ(MallocExtension::instance()->GetAllocatedSize(p), 128);
+  ASSERT_NE(p, mock_object);
+  ASSERT_TRUE(invalid_free_called);
+  ASSERT_TRUE(invalid_get_size_called);
+
+  // Verify that the contents of the object are preserved
+  ASSERT_EQ(memcmp(p, &mock_object[0], sizeof(mock_object[0])), 0);
+  // And that the second word of mock_object is not touched when copying
+  ASSERT_NE(memcmp(p, &mock_object[1], sizeof(mock_object[1])), 0);
+
+  free(p);
+}
+
 TEST(TCMallocTest, Version) {
   // Test tc_version()
   int major;

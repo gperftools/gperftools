@@ -553,6 +553,17 @@ public:
     ThreadCachePtr::WithStacktraceScope(ref.fn, ref.data);
   }
 
+  uint32_t GetSizeClass(void* p) override {
+    PageID pageid = reinterpret_cast<uintptr_t>(p) >> kPageShift;
+    Span* span = Static::pageheap()->GetDescriptor(pageid);
+    return span->sizeclass;
+  }
+
+  void* RunReallocWithCallback(
+    void* old_ptr, size_t new_size,
+    void (*invalid_free_fn)(void*),
+    size_t (*invalid_get_size_fn)(const void*)) override;
+
   static TestingPortalImpl* Get() {
     static TestingPortalImpl* ptr = ([] () {
       static StaticStorage<TestingPortalImpl> storage;
@@ -1629,47 +1640,50 @@ ALWAYS_INLINE void* do_realloc_with_callback(
     void* old_ptr, size_t new_size,
     void (*invalid_free_fn)(void*),
     size_t (*invalid_get_size_fn)(const void*)) {
-  // Get the size of the old entry
-  const size_t old_size = GetSizeWithCallback(old_ptr, invalid_get_size_fn);
 
-  // Reallocate if the new size is larger than the old size,
-  // or if the new size is significantly smaller than the old size.
-  // We do hysteresis to avoid resizing ping-pongs:
-  //    . If we need to grow, grow to max(new_size, old_size * 1.X)
-  //    . Don't shrink unless new_size < old_size * 0.Y
-  // X and Y trade-off time for wasted space.  For now we do 1.25 and 0.5.
-  const size_t min_growth = std::min(old_size / 4,
-      (std::numeric_limits<size_t>::max)() - old_size);  // Avoid overflow.
-  const size_t lower_bound_to_grow = old_size + min_growth;
-  const size_t upper_bound_to_shrink = old_size / 2ul;
-  if ((new_size > old_size) || (new_size < upper_bound_to_shrink)) {
-    // Need to reallocate.
-    void* new_ptr = nullptr;
+  size_t currently_usable = GetSizeWithCallback(
+    old_ptr,
+    +[] (const void* invalid_ptr) -> size_t {
+      // If we're passed "invalid" object, have free step handle
+      // either falling back to "pre-patch" msvc runtime, or reporting
+      // invalid free. Returning 0 makes us bypass "keep in place"
+      // option.
+      return 0;
+    });
 
-    if (new_size > old_size && new_size < lower_bound_to_grow) {
-      new_ptr = do_malloc_or_cpp_alloc(lower_bound_to_grow);
-    }
-    if (new_ptr == nullptr) {
-      // Either new_size is not a tiny increment, or last do_malloc failed.
-      new_ptr = do_malloc_or_cpp_alloc(new_size);
-    }
-    if (PREDICT_FALSE(new_ptr == nullptr)) {
-      return nullptr;
-    }
-    tcmalloc::InvokeNewHook(new_ptr, new_size);
-    memcpy(new_ptr, old_ptr, ((old_size < new_size) ? old_size : new_size));
-    tcmalloc::InvokeDeleteHook(old_ptr);
-    // We could use a variant of do_free() that leverages the fact
-    // that we already know the sizeclass of old_ptr.  The benefit
-    // would be small, so don't bother.
-    do_free_with_callback(old_ptr, invalid_free_fn, false, 0);
-    return new_ptr;
-  } else {
-    // We still need to call hooks to report the updated size:
+  if (tc_nallocx(new_size, 0) == currently_usable) {
+    // stay in place. Communicate new logical size to the hooks.
+    //
+    // Note: we're skipping sampling updates because we consider this
+    // "allocation" 0-cost.
     tcmalloc::InvokeDeleteHook(old_ptr);
     tcmalloc::InvokeNewHook(old_ptr, new_size);
     return old_ptr;
   }
+
+  void* new_ptr = do_malloc_or_cpp_alloc(new_size);
+  if (new_ptr == nullptr) {
+    // NOTE: Setting ENOMEM or any other kind of OOM handling has been
+    // done in the do_malloc_or_cpp_alloc thingy.
+    return nullptr;
+  }
+
+  if (currently_usable == 0) {
+    // We had the "not our chunk of memory" case when fetching
+    // currently_usable size. So lets get real old size so that memcpy
+    // below is handled correctly.
+    currently_usable = invalid_get_size_fn(old_ptr);
+  }
+
+  tcmalloc::InvokeNewHook(new_ptr, new_size);
+  memcpy(new_ptr, old_ptr, std::min(currently_usable, new_size));
+  tcmalloc::InvokeDeleteHook(old_ptr);
+
+  // We could use a variant of do_free() that leverages the fact that
+  // we already know the sizeclass of old_ptr.  The benefit would be
+  // small, so don't bother.
+  do_free_with_callback(old_ptr, invalid_free_fn, false, 0);
+  return new_ptr;
 }
 
 static ALWAYS_INLINE
@@ -1779,6 +1793,16 @@ extern "C" PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_NOTHROW {
 extern "C" PERFTOOLS_DLL_DECL int tc_query_new_mode() PERFTOOLS_NOTHROW {
   return tc_new_mode;
 }
+
+namespace tcmalloc {
+void* TestingPortalImpl::RunReallocWithCallback(
+    void* old_ptr, size_t new_size,
+    void (*invalid_free_fn)(void*),
+    size_t (*invalid_get_size_fn)(const void*)) {
+  return do_realloc_with_callback(old_ptr, new_size, invalid_free_fn, invalid_get_size_fn);
+}
+}
+
 
 #ifndef TCMALLOC_USING_DEBUGALLOCATION  // debugallocation.cc defines its own
 

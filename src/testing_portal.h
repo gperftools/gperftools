@@ -80,6 +80,13 @@ public:
   virtual bool IsEmergencyPtr(void* ptr) = 0;
   virtual void WithEmergencyMallocEnabled(FunctionRef<void()> body) = 0;
 
+  virtual uint32_t GetSizeClass(void* ptr) = 0;
+
+  virtual void* RunReallocWithCallback(
+    void* old_ptr, size_t new_size,
+    void (*invalid_free_fn)(void*),
+    size_t (*invalid_get_size_fn)(const void*)) = 0;
+
 protected:
   virtual ~TestingPortal();
 };
