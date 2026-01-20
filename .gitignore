@@ -4,6 +4,7 @@
 *~
 /*.log
 /*.trs
+/.cache
 /.deps
 /.libs
 /GPATH
