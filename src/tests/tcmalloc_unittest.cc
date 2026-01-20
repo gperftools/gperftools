@@ -703,7 +703,9 @@ static void TestCalloc(size_t n, size_t s, bool ok) {
 
 // This makes sure that reallocing a small number of bytes in either
 // direction doesn't cause us to allocate new memory.
-TEST(TCMallocTest, Realloc) {
+class ReallocTest : public ::testing::TestWithParam<size_t> {};
+
+TEST_P(ReallocTest, Realloc) {
   if (TestingPortal::Get()->IsDebuggingMalloc()) {
     // debug alloc doesn't try to minimize reallocs
     return;
@@ -716,41 +718,40 @@ TEST(TCMallocTest, Realloc) {
   // turn off sampling
   tcmalloc::Cleanup cleanup = SetFlag(&TestingPortal::Get()->GetSampleParameter(), 0);
 
-  std::vector<size_t> start_sizes = {100, 1000, 10000, 100000 };
+  size_t original_size = GetParam();
+  void* p = noopt(malloc(original_size));
+  ASSERT_NE(p, nullptr);
 
-  for (size_t original_size : start_sizes) {
-    void* p = noopt(malloc(original_size));
-    ASSERT_NE(p, nullptr);
+  size_t usable_size = nallocx(original_size, 0);
+  // Validate out expectation
+  ASSERT_EQ(MallocExtension::instance()->GetAllocatedSize(p), usable_size);
 
-    size_t usable_size = nallocx(original_size, 0);
-    // Validate out expectation
-    ASSERT_EQ(MallocExtension::instance()->GetAllocatedSize(p), usable_size);
-
-    // Lets find range of request sizes that round up to the same
-    // usable size by using nallocx.
-    size_t minimal_size = original_size;
-    while (nallocx(minimal_size - 1, 0) == usable_size) {
-      minimal_size--;
-      ASSERT_NE(minimal_size, 0);
-    }
-
-    void* new_p;
-
-    // Check growing up to usable size then shrinking
-    new_p = noopt(realloc)(p, usable_size);
-    ASSERT_EQ(new_p, p);
-    new_p = noopt(realloc)(p, minimal_size);
-    ASSERT_EQ(new_p, p);
-
-    // Checking shrinking then growing
-    new_p = noopt(realloc)(p, minimal_size);
-    ASSERT_EQ(new_p, p);
-    new_p = noopt(realloc)(p, usable_size);
-    ASSERT_EQ(new_p, p);
-
-    free(p);
+  // Lets find range of request sizes that round up to the same
+  // usable size by using nallocx.
+  size_t minimal_size = original_size;
+  while (nallocx(minimal_size - 1, 0) == usable_size) {
+    minimal_size--;
+    ASSERT_NE(minimal_size, 0);
   }
+
+  void* new_p;
+
+  // Check growing up to usable size then shrinking
+  new_p = noopt(realloc)(p, usable_size);
+  ASSERT_EQ(new_p, p);
+  new_p = noopt(realloc)(p, minimal_size);
+  ASSERT_EQ(new_p, p);
+
+  // Checking shrinking then growing
+  new_p = noopt(realloc)(p, minimal_size);
+  ASSERT_EQ(new_p, p);
+  new_p = noopt(realloc)(p, usable_size);
+  ASSERT_EQ(new_p, p);
+
+  free(p);
 }
+
+INSTANTIATE_TEST_SUITE_P(AllSizes, ReallocTest, ::testing::Values(100, 1000, 10000, 100000));
 
 #if __cpp_exceptions
 static int news_handled = 0;
