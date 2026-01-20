@@ -508,6 +508,55 @@ AS_IF([test "x$ASCIIDOCTOR" = "x"],
       [AC_MSG_WARN([asciidoctor tool not found. Will skip building .html documentation from .adoc])])
 AC_ARG_VAR(ASCIIDOCTOR_FLAGS, [flags to pass to asciidoctor])
 
-# Write generated configuration file
+# Generate pkgconfig files to inform others how to compile/link with
+# us.
+AC_CONFIG_COMMANDS([pkgconfig-generator], [
+  cat > libtcmalloc.pc <<EOF
+prefix=$prefix
+exec_prefix=`echo "$exec_prefix" | sed "s@^$prefix@\\\${prefix}@"`
+libdir=`echo "$libdir" | sed "s@^$exec_prefix@\\\${exec_prefix}@"`
+includedir=`echo "$includedir" | sed "s@^$prefix@\\\${prefix}@"`
+
+Name: $PACKAGE
+Version: $VERSION
+Description: Performance tools for C++
+URL: https://github.com/gperftools/gperftools
+Requires: $UNWIND_PC_DEP
+Libs: -L\${libdir} -ltcmalloc
+Libs.private: $PTHREAD_CFLAGS $PTHREAD_LIBS
+Cflags: -I\${includedir}
+EOF
+
+  cat > libtcmalloc_minimal.pc <<EOF
+prefix=$prefix
+exec_prefix=`echo "$exec_prefix" | sed "s@^$prefix@\\\${prefix}@"`
+libdir=`echo "$libdir" | sed "s@^$exec_prefix@\\\${exec_prefix}@"`
+includedir=`echo "$includedir" | sed "s@^$prefix@\\\${prefix}@"`
+
+Name: $PACKAGE
+Version: $VERSION
+Description: Performance tools for C++
+URL: https://github.com/gperftools/gperftools
+Requires:
+Libs: -L\${libdir} -ltcmalloc_minimal
+Libs.private: $PTHREAD_CFLAGS $PTHREAD_LIBS
+Cflags: -I\${includedir}
+EOF
+
+  cat libtcmalloc.pc | sed s/-ltcmalloc/-ltcmalloc_debug/ > libtcmalloc_debug.pc
+  cat libtcmalloc_minimal.pc | sed s/-ltcmalloc_minimal/-ltcmalloc_minimal_debug/ > libtcmalloc_minimal_debug.pc
+  cat libtcmalloc.pc | sed s/-ltcmalloc/-lprofiler/ > libprofiler.pc
+], [
+  PACKAGE="$PACKAGE_NAME"
+  VERSION="$PACKAGE_VERSION"
+  UNWIND_PC_DEP="$UNWIND_PC_DEP"
+  PTHREAD_CFLAGS="$PTHREAD_CFLAGS"
+  PTHREAD_LIBS="$PTHREAD_LIBS"
+  prefix="$prefix"
+  exec_prefix="$exec_prefix"
+  libdir="$libdir"
+  includedir="$includedir"
+])
+
 AC_CONFIG_FILES([Makefile])
 AC_OUTPUT
