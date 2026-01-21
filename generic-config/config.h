@@ -263,7 +263,9 @@
 #endif
 
 /* dllexport or attribute visibility */
+#ifndef PERFTOOLS_DLL_DECL
 #define PERFTOOLS_DLL_DECL /**/
+#endif
 
 /* if libgcc stacktrace method should be default */
 /* #undef PREFER_LIBGCC_UNWINDER */

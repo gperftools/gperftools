@@ -164,6 +164,7 @@ cc_library(
         "src/gperftools/nallocx.h",
         "src/gperftools/tcmalloc.h",
     ],
+    defines = ["PERFTOOLS_DLL_DECL="],
     copts = CXXFLAGS,
     includes = [
         "generic-config",
