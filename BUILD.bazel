@@ -49,7 +49,7 @@ cc_library(
 
 cc_library(
     name = "all_headers",
-    hdrs = glob(["src/*h", "src/base/*h", "generic-config/*h", "src/gperftools/*h"]),
+    hdrs = glob(["src/*h", "src/base/*h", "generic-config/*h", "src/gperftools/*h", "src/windows/*h"]),
     copts = CXXFLAGS,
 )
 
@@ -109,6 +109,7 @@ cc_library(
     # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
     local_defines = ["NO_TCMALLOC_SAMPLES"],
     includes = ["generic-config", "src", "src/base"],
+    textual_hdrs = select({"@platforms//os:windows": ["src/tcmalloc.cc"], "//conditions:default": []}),
     copts = CXXFLAGS,
     srcs = [
         "src/common.cc",
