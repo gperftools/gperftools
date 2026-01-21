@@ -66,7 +66,6 @@
 #include <sys/malloc.h>
 #endif
 
-#include "base/basictypes.h"
 #include "base/logging.h"
 
 #include "tests/testutil.h"

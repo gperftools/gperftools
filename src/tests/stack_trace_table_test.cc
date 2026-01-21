@@ -10,10 +10,6 @@
 
 #include "stack_trace_table.h"
 
-#include <stdio.h>
-
-#include <vector>
-
 #include "gtest/gtest.h"
 
 class StackTraceTableTestHelper {

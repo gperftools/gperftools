@@ -50,7 +50,6 @@
 
 #include "base/logging.h"
 #include "base/proc_maps_iterator.h"
-#include "base/sysinfo.h"
 
 // All of these are initialized in profiledata.h.
 const int ProfileData::kMaxStackDepth;

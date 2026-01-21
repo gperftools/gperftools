@@ -34,8 +34,6 @@
 #include <config.h>
 #include "span.h"
 
-#include <string.h>            // for memset
-
 #include "internal_logging.h"  // for ASSERT
 #include "page_heap_allocator.h"  // for PageHeapAllocator
 #include "static_vars.h"       // for Static

@@ -32,17 +32,17 @@
 // Author: Ken Ashcraft <opensource@google.com>
 
 #include <config.h>
+
 #include "static_vars.h"
+
 #include <stddef.h>
 #include <new>                          // for operator new
 #ifndef _WIN32
 #include <pthread.h>                    // for pthread_atfork
 #endif
-#include "internal_logging.h"  // for CHECK_CONDITION
+
 #include "common.h"
-#include "sampler.h"           // for Sampler
 #include "getenv_safe.h"       // TCMallocGetenvSafe
-#include "base/googleinit.h"
 
 #include "thread_cache_ptr.h"
 #include "system-alloc.h"

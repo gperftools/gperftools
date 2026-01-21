@@ -50,14 +50,11 @@
 #include <sys/mman.h>                   // for mmap, MAP_FAILED, etc
 #include <sys/statfs.h>                 // for fstatfs, statfs
 #include <unistd.h>                     // for ftruncate, off_t, unlink
-#include <new>                          // for operator new
 #include <string>
 
 #include <gperftools/malloc_extension.h>
-#include "base/basictypes.h"
 #include "base/googleinit.h"
 #include "base/static_storage.h"
-#include "base/sysinfo.h"
 #include "internal_logging.h"
 #include "safe_strerror.h"
 

@@ -36,7 +36,6 @@
 #include <inttypes.h>                   // for PRIuPTR
 #include <errno.h>                      // for ENOMEM, errno
 
-#include <algorithm>
 #include <limits>
 
 #include "base/basictypes.h"

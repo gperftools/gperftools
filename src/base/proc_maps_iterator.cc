@@ -34,7 +34,7 @@
 
 #include <ctype.h>    // for isspace()
 #include <stdlib.h>   // for getenv()
-#include <stdio.h>    // for snprintf(), sscanf()
+#include <stdio.h>    // IWYU pragma: keep
 #include <string.h>   // for memmove(), memchr(), etc.
 #include <fcntl.h>    // for open()
 #include <errno.h>    // for errno

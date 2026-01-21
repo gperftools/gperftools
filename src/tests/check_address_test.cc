@@ -32,7 +32,7 @@
 #include "config_for_unittests.h"
 
 #include "base/logging.h"
-#include "base/spinlock.h"
+#include "base/spinlock.h" // IWYU pragma: keep
 
 #include "check_address-inl.h"
 

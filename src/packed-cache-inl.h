@@ -113,10 +113,11 @@
 #define TCMALLOC_PACKED_CACHE_INL_H_
 
 #include "config.h"
+
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uintptr_t
+
 #include "base/basictypes.h"
-#include "common.h"
 #include "internal_logging.h"
 
 // A safe way of doing "(1 << n) - 1" -- without worrying about overflow

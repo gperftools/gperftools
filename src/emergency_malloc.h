@@ -35,8 +35,6 @@
 #include <stddef.h>
 
 #include "base/basictypes.h"
-#include "common.h"
-#include "thread_cache_ptr.h"
 
 namespace tcmalloc {
 

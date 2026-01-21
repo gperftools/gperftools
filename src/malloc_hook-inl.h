@@ -46,8 +46,6 @@
 #include "base/basictypes.h"
 #include <gperftools/malloc_hook.h>
 
-#include "common.h" // for UNLIKELY
-
 namespace base { namespace internal {
 
 // Capacity of 8 means that HookList is 9 words.

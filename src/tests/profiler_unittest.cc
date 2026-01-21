@@ -45,7 +45,6 @@
 #include <sys/wait.h>               // for wait()
 #endif
 
-#include <atomic>
 #include <mutex>
 
 #include "gperftools/profiler.h"

@@ -43,8 +43,6 @@
 
 #include <utility>
 
-#include "base/basictypes.h"
-
 namespace tcmalloc {
 
 class LowLevelAlloc {

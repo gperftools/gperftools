@@ -39,7 +39,6 @@
 #include "addressmap-inl.h"
 #include "base/basictypes.h"
 #include "base/generic_writer.h"
-#include "base/logging.h"   // for RawFD
 #include "heap-profile-stats.h"
 
 // Table to maintain a heap profile data inside,

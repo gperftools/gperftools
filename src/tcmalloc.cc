@@ -128,7 +128,7 @@
 #include "thread_cache_ptr.h"
 
 #include "malloc_backtrace.h"
-#include "maybe_emergency_malloc.h"
+#include "maybe_emergency_malloc.h" // IWYU pragma: keep
 #include "testing_portal.h"
 
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
@@ -140,12 +140,9 @@
 
 #include "libc_override.h"
 
-using tcmalloc::kLog;
 using tcmalloc::kCrash;
 using tcmalloc::Log;
 using tcmalloc::PageHeap;
-using tcmalloc::PageHeapAllocator;
-using tcmalloc::SizeMap;
 using tcmalloc::Span;
 using tcmalloc::StackTrace;
 using tcmalloc::Static;

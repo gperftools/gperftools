@@ -39,7 +39,6 @@
 #include "config.h"
 
 #include <atomic>
-#include <cstddef>
 
 #include "base/basictypes.h"
 #include "base/spinlock.h"
@@ -49,7 +48,6 @@
 #include "page_heap.h"
 #include "page_heap_allocator.h"
 #include "span.h"
-#include "stack_trace_table.h"
 
 namespace tcmalloc {
 

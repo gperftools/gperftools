@@ -44,7 +44,6 @@
 #include <stdlib.h>
 #include <stddef.h>   /* for size_t */
 
-#include "base/basictypes.h"
 #include "gtest/gtest.h"
 
 static int g_new_hook_calls = 0;

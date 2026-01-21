@@ -30,14 +30,7 @@
  */
 #include "thread_cache_ptr.h"
 
-#include <type_traits>
-#include <cstddef>
-
-#include <errno.h>
-
 #include "common.h"
-#include "malloc_backtrace.h"
-#include "static_vars.h"
 
 namespace tcmalloc {
 

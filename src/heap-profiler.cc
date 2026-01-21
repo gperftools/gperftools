@@ -33,33 +33,29 @@
 //
 // TODO: Log large allocations
 
+#include <assert.h>
 #include <config.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
-#ifdef HAVE_UNISTD_H
-#include <unistd.h>
-#endif
-#include <inttypes.h>
+#include <sys/types.h>
+#include <time.h>
+
 #ifdef HAVE_FCNTL_H
 #include <fcntl.h>    // for open()
 #endif
-#include <errno.h>
-#include <assert.h>
-#include <sys/types.h>
-#include <signal.h>
-
-#include <algorithm>
-#include <memory>
-#include <string>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 
 #include <gperftools/heap-profiler.h>
 
 #include "base/logging.h"
-#include "base/basictypes.h"   // for PRId64, among other things
 #include "base/googleinit.h"
 #include "base/commandlineflags.h"
-#include "malloc_hook-inl.h"
 #include "tcmalloc_guard.h"
 #include <gperftools/malloc_hook.h>
 #include <gperftools/malloc_extension.h>

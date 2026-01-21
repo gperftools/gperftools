@@ -39,7 +39,6 @@
 #include <stdint.h>
 #include "base/spinlock.h"
 #include "base/thread_annotations.h"
-#include "common.h"
 #include "span.h"
 
 namespace tcmalloc {

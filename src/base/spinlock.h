@@ -45,7 +45,6 @@
 #include <type_traits>
 
 #include "base/basictypes.h"
-#include "base/dynamic_annotations.h"
 #include "base/static_storage.h"
 #include "base/thread_annotations.h"
 

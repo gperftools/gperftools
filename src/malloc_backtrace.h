@@ -33,8 +33,7 @@
 
 #include "config.h"
 
-#include "base/basictypes.h"
-#include "gperftools/stacktrace.h"
+#include "gperftools/stacktrace.h" // IWYU pragma: keep
 
 namespace tcmalloc {
 

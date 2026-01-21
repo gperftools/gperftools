@@ -46,11 +46,10 @@
 #include <sys/mman.h>
 #endif
 
-#include <algorithm>
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "malloc_backtrace.h"
-#include "maybe_emergency_malloc.h"
+#include "maybe_emergency_malloc.h" // IWYU pragma: keep
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional

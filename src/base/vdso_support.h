@@ -58,8 +58,7 @@
 
 #include <config.h>
 
-#include "base/basictypes.h"
-#include "base/elf_mem_image.h"
+#include "base/elf_mem_image.h" // IWYU pragma: keep
 
 #ifdef HAVE_ELF_MEM_IMAGE
 

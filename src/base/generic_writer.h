@@ -35,7 +35,6 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <memory>
 #include <utility>
 #include <string>
 

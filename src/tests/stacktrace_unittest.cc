@@ -54,10 +54,8 @@
 
 #include <vector>
 
-#include "base/commandlineflags.h"
 #include "base/logging.h"
 #include <gperftools/stacktrace.h>
-#include "tests/testutil.h"
 
 // Obtain a backtrace, verify that the expected callers are present in the
 // backtrace, and maybe print the backtrace to stdout.

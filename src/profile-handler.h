@@ -49,8 +49,9 @@
 #define BASE_PROFILE_HANDLER_H_
 
 #include "config.h"
-#include <signal.h>
-#include "base/basictypes.h"
+
+#include <signal.h> // IWYU pragma: keep
+#include <stdint.h>
 
 /* Forward declaration. */
 struct ProfileHandlerToken;

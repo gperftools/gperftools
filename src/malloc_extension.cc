@@ -42,18 +42,12 @@
 #include <stdint.h>
 #include <string>
 
-#include <algorithm>
 #include <atomic>
 
-#include "base/dynamic_annotations.h"
-#include "base/googleinit.h"
 #include "base/proc_maps_iterator.h"
 #include "tcmalloc_internal.h"
 
-#include "gperftools/tcmalloc.h"
 
-#include "internal_logging.h"
-#include "static_vars.h"
 #include "thread_cache.h"
 
 static void DumpAddressMap(std::string* result) {

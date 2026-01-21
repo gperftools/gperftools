@@ -40,7 +40,6 @@
 
 #include <stdio.h>
 #include <sys/types.h>
-#include "base/logging.h"
 
 #include "gtest/gtest.h"
 

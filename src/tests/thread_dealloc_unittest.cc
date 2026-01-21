@@ -39,7 +39,6 @@
 #include <stdio.h>
 #include <memory>
 #include <thread>
-#include <vector>
 
 #include "base/logging.h"
 

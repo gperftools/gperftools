@@ -37,9 +37,10 @@
 #define TCMALLOC_SPAN_H_
 
 #include <config.h>
+
 #include <set>
+
 #include "common.h"
-#include "base/logging.h"
 #include "page_heap_allocator.h"
 
 namespace tcmalloc {

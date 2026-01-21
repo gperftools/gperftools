@@ -44,7 +44,6 @@
 #include <sys/time.h>
 
 #include <list>
-#include <string>
 
 #if HAVE_LINUX_SIGEV_THREAD_ID
 #include <pthread.h>
@@ -56,7 +55,6 @@
 #include <sys/syscall.h>
 #endif
 
-#include "base/dynamic_annotations.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"

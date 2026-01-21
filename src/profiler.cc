@@ -55,12 +55,9 @@ typedef ucontext ucontext_t;
 typedef int ucontext_t;   // just to quiet the compiler, mostly
 #endif
 #include <sys/time.h>
-#include <string>
 #include <gperftools/profiler.h>
 #include <gperftools/stacktrace.h>
-#include "base/commandlineflags.h"
 #include "base/logging.h"
-#include "base/googleinit.h"
 #include "base/spinlock.h"
 #include "base/sysinfo.h"             /* for GetUniquePathFromEnv, etc */
 #include "profiledata.h"

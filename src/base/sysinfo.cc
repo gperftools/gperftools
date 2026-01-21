@@ -41,12 +41,10 @@
 
 #include <tuple>
 
-#include <ctype.h>    // for isspace()
 #include <stdlib.h>   // for getenv()
 #include <stdio.h>    // for snprintf(), sscanf()
 #include <string.h>   // for memmove(), memchr(), etc.
 #include <fcntl.h>    // for open()
-#include <errno.h>    // for errno
 #ifdef HAVE_UNISTD_H
 #include <limits.h>        // for PATH_MAX
 #include <unistd.h>   // for read()

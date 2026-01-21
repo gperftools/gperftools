@@ -75,7 +75,7 @@
 #include "base/threading.h"
 #include "malloc_backtrace.h"
 #include "malloc_hook-inl.h"
-#include "maybe_emergency_malloc.h"
+#include "maybe_emergency_malloc.h" // IWYU pragma: keep
 #include "safe_strerror.h"
 #include "symbolize.h"
 

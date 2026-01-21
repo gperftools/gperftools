@@ -16,7 +16,7 @@
 #include "page_heap.h"
 
 #include "base/cleanup.h"
-#include "common.h"
+#include "base/commandlineflags.h"
 #include "system-alloc.h"
 
 #include "gtest/gtest.h"

@@ -49,12 +49,9 @@
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
-#include <errno.h>
 #include <stdarg.h>
 
 #include <algorithm>  // for sort(), equal(), and copy()
-#include <map>
-#include <memory>
 #include <string>
 
 #include "heap-profile-table.h"
@@ -62,8 +59,6 @@
 #include "base/commandlineflags.h"
 #include "base/logging.h"
 #include "base/proc_maps_iterator.h"
-#include "gperftools/malloc_hook.h"
-#include "gperftools/stacktrace.h"
 
 //----------------------------------------------------------------------
 

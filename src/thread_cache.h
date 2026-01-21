@@ -39,8 +39,8 @@
 #include <stddef.h>                     // for size_t
 #include <stdint.h>                     // for uint32_t, uint64_t
 #include <sys/types.h>                  // for ssize_t
+
 #include "base/commandlineflags.h"
-#include "base/threading.h"
 #include "common.h"
 #include "linked_list.h"
 #include "page_heap_allocator.h"

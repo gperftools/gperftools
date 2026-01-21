@@ -35,7 +35,7 @@
 
 #ifdef ENABLE_EMERGENCY_MALLOC
 
-#include "emergency_malloc.h"
+#include "emergency_malloc.h" // IWYU pragma: keep
 
 #else
 

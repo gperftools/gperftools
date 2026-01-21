@@ -32,18 +32,21 @@
 // Author: Sanjay Ghemawat
 
 #include <config.h>
+
 #include <errno.h>                      // for EAGAIN, errno
 #include <fcntl.h>                      // for open, O_RDWR
 #include <stddef.h>                     // for size_t, ptrdiff_t
 #include <stdint.h>                     // for uintptr_t, intptr_t
+
 #ifdef HAVE_MMAP
 #include <sys/mman.h>                   // for munmap, mmap, MADV_DONTNEED, etc
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>                     // for sbrk, getpagesize, off_t
 #endif
-#include <new>                          // for operator new
+
 #include <gperftools/malloc_extension.h>
+
 #include "base/basictypes.h"
 #include "base/commandlineflags.h"
 #include "base/spinlock.h"              // for SpinLockHolder, SpinLock, etc
@@ -79,10 +82,6 @@ static const bool kDebugMode = false;
 #else
 static const bool kDebugMode = true;
 #endif
-
-// TODO(sanjay): Move the code below into the tcmalloc namespace
-using tcmalloc::kLog;
-using tcmalloc::Log;
 
 // Check that no bit is set at position ADDRESS_BITS or higher.
 static bool CheckAddressBits(uintptr_t ptr) {

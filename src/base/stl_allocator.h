@@ -39,7 +39,6 @@
 #include <config.h>
 
 #include <stddef.h>   // for ptrdiff_t
-#include <limits>
 
 #include "base/logging.h"
 

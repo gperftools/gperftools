@@ -43,7 +43,6 @@
 
 #include <gperftools/malloc_extension.h>
 #include "base/logging.h"
-#include "base/spinlock.h"              // for SpinLockHolder, SpinLock
 
 namespace tcmalloc {
 

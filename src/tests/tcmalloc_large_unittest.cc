@@ -42,7 +42,6 @@
 #include <set>                          // for set, etc
 
 #include "base/logging.h"               // for operator<<, CHECK, etc
-#include "gperftools/tcmalloc.h"
 #include "tests/testutil.h"
 
 using std::set;

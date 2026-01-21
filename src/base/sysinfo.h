@@ -36,10 +36,10 @@
 
 #include <config.h>
 
-#include <time.h>
 #include <stddef.h>    // for size_t
 #include <stdint.h>
 #include <limits.h>    // for PATH_MAX
+
 #include "base/basictypes.h"
 
 // This getenv function is safe to call before the C runtime is

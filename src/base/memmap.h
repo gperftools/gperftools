@@ -50,8 +50,6 @@
 
 #endif
 
-#include "base/basictypes.h"
-
 namespace tcmalloc {
 
 struct MMapResult {

@@ -33,8 +33,6 @@
 
 #include "emergency_malloc.h"
 
-#include <tuple>
-
 #include <errno.h>                      // for ENOMEM, errno
 #include <string.h>                     // for memset
 
@@ -45,7 +43,6 @@
 #include "base/spinlock.h"
 #include "base/static_storage.h"
 #include "internal_logging.h"
-#include "thread_cache_ptr.h"
 
 namespace tcmalloc {
 

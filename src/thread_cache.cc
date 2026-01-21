@@ -37,15 +37,12 @@
 
 #include <algorithm>                    // for max, min
 
-#include <errno.h>
 #include <string.h>                     // for memcpy
 
-#include "base/commandlineflags.h"      // for SpinLockHolder
 #include "base/spinlock.h"              // for SpinLockHolder
 #include "central_freelist.h"
 #include "getenv_safe.h"                // for TCMallocGetenvSafe
 #include "tcmalloc_internal.h"
-#include "thread_cache_ptr.h"
 
 // Note: this is initialized manually in InitModule to ensure that
 // it's configured at right time
