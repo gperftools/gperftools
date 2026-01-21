@@ -31,6 +31,7 @@
 /cleanup_test
 /cleanup_test.exe
 /compile
+/compile_commands.json
 /config.guess
 /config.log
 /config.status

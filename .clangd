@@ -1,0 +1,15 @@
+---
+If:
+  PathMatch: .*stacktrace.*-inl\.h
+Diagnostics:
+  Suppress: '*'
+---
+If:
+  PathMatch: .*spinlock.*-inl\.h
+Diagnostics:
+  Suppress: '*'
+---
+Diagnostics:
+  Includes:
+    IgnoreHeader:
+      - config\.h
