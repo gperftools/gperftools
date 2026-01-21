@@ -51,6 +51,8 @@
 #ifndef HEAP_PROFILE_STATS_H_
 #define HEAP_PROFILE_STATS_H_
 
+#include <stdint.h>
+
 struct HeapProfileStats {
   // Returns true if the two HeapProfileStats are semantically equal.
   bool Equivalent(const HeapProfileStats& other) const {

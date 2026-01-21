@@ -32,6 +32,7 @@
 #define LIBBACKTRACE_API_H_
 
 #include <stddef.h>
+#include <stdint.h>
 
 extern "C" {
 

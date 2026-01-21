@@ -32,15 +32,21 @@
 // stacktrace_generic_fp-inl.h module. We only split this into
 // separate header to enable unit test coverage.
 
+#include "config.h"
+
 // This is only used on OS-es with mmap support.
+#include <errno.h>
 #include <fcntl.h>
 #include <signal.h>
+#include <stdint.h>
 #include <sys/mman.h>
 #include <unistd.h>
 
 #if HAVE_SYS_SYSCALL_H && !__APPLE__
 #include <sys/syscall.h>
 #endif
+
+#include "base/logging.h"
 
 namespace {
 

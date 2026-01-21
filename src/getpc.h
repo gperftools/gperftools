@@ -49,6 +49,8 @@
 // REG_EIP).  Note this #define must come first!
 #define _GNU_SOURCE 1
 
+#include "config.h"
+
 #ifdef HAVE_ASM_PTRACE_H
 #include <asm/ptrace.h>
 #endif
