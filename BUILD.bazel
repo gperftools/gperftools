@@ -86,7 +86,10 @@ cc_binary(
 
 selects.config_setting_group(
     name = "windows_and_msvc",
-    match_all = ["@platforms//os:windows", ":is_msvc"],
+    match_all = [
+        "@platforms//os:windows",
+        ":is_msvc",
+    ],
 )
 
 cc_library(
@@ -118,8 +121,16 @@ cc_library(
         "src/base",
     ],
     linkopts = select({
-        ":windows_and_msvc": ["psapi.lib", "synchronization.lib", "shlwapi.lib"],
-        "@platforms//os:windows": ["-lpsapi", "-lsynchronization", "-lshlwapi"],
+        ":windows_and_msvc": [
+            "psapi.lib",
+            "synchronization.lib",
+            "shlwapi.lib",
+        ],
+        "@platforms//os:windows": [
+            "-lpsapi",
+            "-lsynchronization",
+            "-lshlwapi",
+        ],
         "//conditions:default": [],
     }),
     deps = [":all_headers"],
@@ -159,8 +170,8 @@ cc_library(
         "src/gperftools/nallocx.h",
         "src/gperftools/tcmalloc.h",
     ],
-    defines = ["PERFTOOLS_DLL_DECL="],
     copts = CXXFLAGS,
+    defines = ["PERFTOOLS_DLL_DECL="],
     includes = [
         "generic-config",
         "src",
