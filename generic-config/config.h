@@ -95,9 +95,11 @@
 #define HAVE_DECL_PVALLOC 1
 #endif
 
-/* Define to 1 if you have the declaration of 'sleep', and to 0 if you don't.
-   */
-/* #undef HAVE_DECL_SLEEP */
+// Nothing else is using it
+#if defined(__MINGW32__)
+#define HAVE_DECL_SLEEP 1
+#define HAVE_DECL_NANOSLEEP 1
+#endif
 
 /* Define to 1 if you have the declaration of 'valloc', and to 0 if you don't.
    */
@@ -241,7 +243,7 @@
 
 /* Define to 1 if you have the <unistd.h> header file. */
 #if defined __has_include
-#  if __has_include(<unistd.h>)
+#  if __has_include(<unistd.h>) && !defined(_WIN32)
 #    define HAVE_UNISTD_H 1
 #  endif
 #endif

@@ -2,11 +2,7 @@
 # also not entirely complete. It lacks most tests, for example.
 
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
-
-config_setting(
-    name = "is_gcc",
-    flag_values = {"@bazel_tools//tools/cpp:compiler": "gcc"},
-)
+load("@bazel_skylib//lib:selects.bzl", "selects")
 
 config_setting(
     name = "is_clang",
@@ -15,7 +11,7 @@ config_setting(
 
 config_setting(
     name = "is_msvc",
-    flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc"},
+    flag_values = {"@bazel_tools//tools/cpp:compiler": "msvc-cl"},
 )
 
 CFLAGS_FOR_GCC = [
@@ -33,22 +29,19 @@ CXXFLAGS_FOR_GCC = CFLAGS_FOR_GCC + [
 
 CXXFLAGS = select({
     ":is_msvc": ["/std:c++17 /D_WIN32_WINNT=0x0602"],
-    "//conditions:default": ["/std:c++17 /D_WIN32_WINNT=0x0602"],  # the above doesn't work!
-    ":is_gcc": CXXFLAGS_FOR_GCC,
+    "//conditions:default": CXXFLAGS_FOR_GCC,
     ":is_clang": CXXFLAGS_FOR_GCC + ["-Wthread-safety"],
 })
 
 CFLAGS = select({
     ":is_msvc": ["/D_WIN32_WINNT=0x0602"],
-    "//conditions:default": ["/D_WIN32_WINNT=0x0602"],
-    ":is_gcc": CFLAGS_FOR_GCC,
+    "//conditions:default": CFLAGS_FOR_GCC,
     ":is_clang": CFLAGS_FOR_GCC + ["-Wthread-safety"],
 })
 
 NON_WINDOWS = select({
-    "@platforms//os:osx": [],
-    "@platforms//os:linux": [],
-    "//conditions:default": ["@platforms//:incompatible"],
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
 })
 
 cc_library(
@@ -91,6 +84,11 @@ cc_binary(
     deps = [":run_benchmark"],
 )
 
+selects.config_setting_group(
+    name = "windows_and_msvc",
+    match_all = ["@platforms//os:windows", ":is_msvc"],
+)
+
 cc_library(
     name = "common",
     srcs = [
@@ -120,11 +118,8 @@ cc_library(
         "src/base",
     ],
     linkopts = select({
-        "@platforms//os:windows": [
-            "psapi.lib",
-            "synchronization.lib",
-            "shlwapi.lib",
-        ],
+        ":windows_and_msvc": ["psapi.lib", "synchronization.lib", "shlwapi.lib"],
+        "@platforms//os:windows": ["-lpsapi", "-lsynchronization", "-lshlwapi"],
         "//conditions:default": [],
     }),
     deps = [":all_headers"],

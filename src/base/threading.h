@@ -33,7 +33,6 @@
 
 #include <config.h>
 #include "base/basictypes.h"
-#include <thread>
 
 #ifdef _WIN32 // Should cover both toolchains on Windows - MSVC & MINGW
 
