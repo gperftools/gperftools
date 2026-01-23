@@ -100,6 +100,8 @@ void operator delete[](void* p, size_t s, std::align_val_t al) CPP_NOTHROW {
 }
 #endif
 
+#ifndef TCMALLOC_OVERRIDE_ONLY_CXX
+
 extern "C" {
   void* malloc(size_t s)                         { return tc_malloc(s);       }
   void  free(void* p)                            { tc_free(p);                }
@@ -128,6 +130,8 @@ extern "C" {
   void free_sized(void* p, size_t size)          { return tc_free_sized(p, size); }
   void free_aligned_sized(void* p, size_t align, size_t size) {return tc_free_aligned_sized(p, align, size); }
 }  // extern "C"
+
+#endif // !TCMALOC_OVERRIDE_ONLY_CXX
 
 // No need to do anything at tcmalloc-registration time: we do it all
 // via overriding weak symbols (at link time).

@@ -192,6 +192,65 @@ cc_library(
 )
 
 cc_library(
+    name = "tcmalloc_minimal_nopatch",
+    srcs = [
+        "src/central_freelist.cc",
+        "src/common.cc",
+        "src/internal_logging.cc",
+        "src/malloc_extension.cc",
+        "src/malloc_hook.cc",
+        "src/memfs_malloc.cc",
+        "src/page_heap.cc",
+        "src/sampler.cc",
+        "src/span.cc",
+        "src/stack_trace_table.cc",
+        "src/static_vars.cc",
+        "src/thread_cache.cc",
+        "src/thread_cache_ptr.cc",
+    ] + select({
+        "@platforms//os:windows": [
+            "src/tcmalloc.cc",
+            "src/windows/system-alloc.cc",
+        ],
+        "//conditions:default": [
+            "src/system-alloc.cc",
+            "src/tcmalloc.cc",
+        ],
+    }),
+    hdrs = [
+        "src/gperftools/malloc_extension.h",
+        "src/gperftools/malloc_extension_c.h",
+        "src/gperftools/malloc_hook.h",
+        "src/gperftools/malloc_hook_c.h",
+        "src/gperftools/nallocx.h",
+        "src/gperftools/tcmalloc.h",
+    ],
+    copts = CXXFLAGS,
+    defines = ["PERFTOOLS_DLL_DECL="],
+    includes = [
+        "generic-config",
+        "src",
+        "src/base",
+    ],
+    # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
+    local_defines = [
+        "NO_TCMALLOC_SAMPLES",
+        "TCMALLOC_OVERRIDE_ONLY_CXX",
+        "WIN32_OVERRIDE_ALLOCATORS",
+    ],
+    textual_hdrs = select({
+        "@platforms//os:windows": ["src/tcmalloc.cc"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+    deps = [
+        ":all_headers",
+        ":common",
+    ],
+    alwayslink = 1,
+)
+
+cc_library(
     name = "libbacktrace",
     srcs = [
         "vendor/libbacktrace-integration/file-format.c",
@@ -323,6 +382,16 @@ cc_binary(
     deps = [
         ":run_benchmark",
         ":tcmalloc_minimal",
+    ],
+)
+
+cc_binary(
+    name = "tcmalloc_bench_nopatch",
+    srcs = ["benchmark/malloc_bench.cc"],
+    copts = CXXFLAGS,
+    deps = [
+        ":run_benchmark",
+        ":tcmalloc_minimal_nopatch",
     ],
 )
 
