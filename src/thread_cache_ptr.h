@@ -47,7 +47,15 @@ namespace tcmalloc {
 // Those platforms are known to do emutls or similar for TLS
 // implementation. And so, we have to be more careful especially early
 // in process lifetime.
-#if __QNXNTO__ || __APPLE__ || __MINGW32__ || _AIX || TCMALLOC_FORCE_BAD_TLS
+#if __MINGW32__
+// There is no better test sadly, but clang mingw builds that use
+// libc++ (and target ucrt) end up with proper support for tls (and
+// don't depend on windpthreads too). Other mingws we assume to be emutls
+#if !defined(_LIBCPP_VERSION)
+#define MINGW_WITH_BAD_TLS 1
+#endif
+#endif
+#if __QNXNTO__ || __APPLE__ || MINGW_WITH_BAD_TLS || _AIX || TCMALLOC_FORCE_BAD_TLS
 inline constexpr bool kHaveGoodTLS = false;
 #else
 // All other platforms are assumed to be great. Known great are
