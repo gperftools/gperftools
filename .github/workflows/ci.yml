@@ -35,6 +35,10 @@ jobs:
           printf "NUMCPUS=%d MORECPUS=%d\n" "$NUMCPUS" "$MORECPUS"
           make "-j${NUMCPUS}"
           make "-j${MORECPUS}" check || make "-j${MORECPUS}" recheck
+          # Ensure that libprofiler is built and works.
+          # This serves as a proxy to verify that libprofiler is configured and built,
+          # which can be skipped if dependencies (like getpc.h check) fail.
+          ./getpc_test
       - name: Upload Test Logs
         uses: actions/upload-artifact@v4
         if: ${{ always() }}
@@ -78,6 +82,10 @@ jobs:
           printf "NUMCPUS=%d MORECPUS=%d\n" "$NUMCPUS" "$MORECPUS"
           make "-j${NUMCPUS}"
           make "-j${MORECPUS}" check || make "-j${MORECPUS}" recheck
+          # Ensure that libprofiler is built and works.
+          # This serves as a proxy to verify that libprofiler is configured and built,
+          # which can be skipped if dependencies (like getpc.h check) fail.
+          ./getpc_test
       - name: Upload Test Logs
         uses: actions/upload-artifact@v4
         if: ${{ always() }}
