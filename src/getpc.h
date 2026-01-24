@@ -44,12 +44,13 @@
 #ifndef BASE_GETPC_H_
 #define BASE_GETPC_H_
 
+// Note, this file is used as part of ./configure so it cannot include
+// "config.h" despite actually using HAVE_XYZ defines just below.
+
 // On many linux systems, we may need _GNU_SOURCE to get access to
 // the defined constants that define the register we want to see (eg
 // REG_EIP).  Note this #define must come first!
 #define _GNU_SOURCE 1
-
-#include "config.h"
 
 #ifdef HAVE_ASM_PTRACE_H
 #include <asm/ptrace.h>

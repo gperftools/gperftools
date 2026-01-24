@@ -51,10 +51,19 @@ entries = all_files.map do |filename|
                                  else
                                    []
                                  end
+           # Note, getpc.h cannot include "config.h" because it is
+           # being used by ./configure script. So we need to "help" it
+           # for the clangd case.
+           maybe_generic_config = if File.basename(filename) == "getpc.h"
+                                    %w[-include generic-config/config.h]
+                                  else
+                                    []
+                                  end
            ["clang++", "-x", "c++", "-std=c++17",
             "-DENABLE_EMERGENCY_MALLOC",
             *NORMAL_INCLUDES,
             *maybe_libc_override,
+            *maybe_generic_config,
             "--", filename]
          when :libbacktrace
            ["clang",
