@@ -1,3 +1,54 @@
+== 23 January 2026
+
+gperftools 2.18 is out!
+
+This release contains a number of improvements for the bazel build
+system, in particular for Windows. Plus a number of correctness fixes.
+
+Notable changes:
+
+* Correctness of C23 sized deallocation (free_sized) vs realloc has
+  been fixed. Previously, free_sized could crash the process when used
+  on reallocated objects. This also significantly changes the behavior
+  of realloc. Previously, we had heuristics to avoid shrinking if the
+  new size was at least 50% of the old size, and to pad small growths
+  to at least 1.25x the original size. These heuristics have been
+  removed to ensure compatibility with free_sized.
+
+* Bazel build support for Windows has been significantly improved, now
+  working with MinGW and MSVC.
+
+* We now have an experimental :tcmalloc_minimal_nopatch Bazel target
+  for Windows.
+
+* Fast TLS is now enabled for clang-mingw builds on Windows.
+
+* Building with 256k logical pages on 32-bit targets is fixed. Thanks
+  to GitHub user LeyviRose for reporting the issue.
+
+* Several fixes to Valgrind integration were made. Thanks to
+  GitHub user stefvanvlierberghe for reporting and advocating for these
+  changes.
+
+* CPU profiler now uses a different mechanism to force child processes
+  to use the pid in the cpu profile file name. Previously, we used a
+  kludge that crashed certain software that insisted on valid UTF-8 in
+  environment variables. See GitHub issues
+  https://github.com/gperftools/gperftools/issues/1044 and
+  https://github.com/gperftools/gperftools/issues/1603.
+
+* We now properly recognize SPARCv9 cache line length. Thanks to Nia
+  Alarie for the patch.
+
+* Basic support for compile_commands.json generation was added,
+  enabling nicer integration with modern IDEs.
+
+* Matthieu MOREL contributed a Bazel 9 compatibility fix.
+
+Please find the list of tickets explicitly closed by this release
+here:
+https://github.com/gperftools/gperftools/issues?q=label%3A%22fixed-in-2.18%22%20
+
 == 15 August 2025
 
 gperftools 2.17.2 is out!

@@ -1,6 +1,6 @@
 module(
     name = "gperftools",
-    version = "2.17.2",
+    version = "2.18",
     compatibility_level = 2,
 )
 
