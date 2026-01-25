@@ -96,5 +96,4 @@
 #define backtrace_vector_finish tcmalloc_backtrace_vector_finish
 #define backtrace_syminfo tcmalloc_backtrace_syminfo
 
-
 #endif  // LIBBACKTRACE_INTEGRATION_CONFIG_H_

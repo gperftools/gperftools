@@ -56,7 +56,7 @@ namespace tcmalloc {
 // but we're able to take advantage of our memory allocation
 // integration. And lack of usage of mmapio.c.
 class BTPagesAllocator : public LowLevelAlloc::PagesAllocator {
-private:
+ private:
   struct Header {
     const size_t size;
     Header* next{};
@@ -64,7 +64,7 @@ private:
     explicit Header(size_t size) : size(size) {}
   };
 
-public:
+ public:
   // Allocate() mmap-s a chunk of memory then constructs
   // BTPagesAllocator instance inside and returns it. Rest of the
   // chunk's memory is initial_chunk_ that we're giving out with first
@@ -81,7 +81,7 @@ public:
     return result;
   }
 
-  std::pair<void *,size_t> MapPages(size_t size) override {
+  std::pair<void*, size_t> MapPages(size_t size) override {
     if (initial_chunk_.second >= size) {
       std::pair<void*, size_t> replacement{};
       std::swap(replacement, initial_chunk_);
@@ -96,9 +96,7 @@ public:
     return {hdr + 1, hdr->size - sizeof(Header)};
   }
 
-  void UnMapPages(void *addr, size_t size) override {
-    abort();
-  }
+  void UnMapPages(void* addr, size_t size) override { abort(); }
 
   void Destroy() {
     LowLevelAlloc::PagesAllocator* parent_allocator = LowLevelAlloc::GetDefaultPagesAllocator();
@@ -113,7 +111,7 @@ public:
     }
   }
 
-private:
+ private:
   explicit BTPagesAllocator(std::pair<void*, size_t> initial_chunk) : initial_chunk_(initial_chunk) {}
   ~BTPagesAllocator() override = default;
 
@@ -139,19 +137,17 @@ struct StatePrefix {
   BTPagesAllocator* const allocator;
   LowLevelAlloc::Arena* const arena;
 
-  explicit StatePrefix(BTPagesAllocator* allocator, LowLevelAlloc::Arena* arena)
-    : allocator(allocator), arena(arena) {}
+  explicit StatePrefix(BTPagesAllocator* allocator, LowLevelAlloc::Arena* arena) : allocator(allocator), arena(arena) {}
 };
 
 }  // namespace tcmalloc
 
 using tcmalloc::BTPagesAllocator;
-using tcmalloc::StatePrefix;
 using tcmalloc::LowLevelAlloc;
+using tcmalloc::StatePrefix;
 
-void *tcmalloc_backtrace_alloc(struct backtrace_state *state,
-                               size_t size, backtrace_error_callback error_callback,
-                               void *data) {
+void* tcmalloc_backtrace_alloc(struct backtrace_state* state, size_t size, backtrace_error_callback error_callback,
+                               void* data) {
   static std::atomic<backtrace_state*> initial_state_ptr;
 
   backtrace_state* initial_state = initial_state_ptr.load(std::memory_order_relaxed);
@@ -175,18 +171,16 @@ void *tcmalloc_backtrace_alloc(struct backtrace_state *state,
   return LowLevelAlloc::AllocWithArena(size, prefix->arena);
 }
 
-void tcmalloc_backtrace_free(struct backtrace_state *state,
-                             void *p, size_t size,
-                             backtrace_error_callback error_callback,
-                             void *data) {
-  if (p == nullptr) { return; }
+void tcmalloc_backtrace_free(struct backtrace_state* state, void* p, size_t size,
+                             backtrace_error_callback error_callback, void* data) {
+  if (p == nullptr) {
+    return;
+  }
   LowLevelAlloc::Free(p);
 }
 
-static void resize_to(struct backtrace_state *state,
-                      size_t new_size,
-                      struct backtrace_vector *vec) {
-  void *base = tcmalloc_backtrace_alloc(state, new_size, nullptr, nullptr);
+static void resize_to(struct backtrace_state* state, size_t new_size, struct backtrace_vector* vec) {
+  void* base = tcmalloc_backtrace_alloc(state, new_size, nullptr, nullptr);
   memcpy(base, vec->base, vec->size);
   tcmalloc_backtrace_free(state, vec->base, vec->alc, nullptr, nullptr);
 
@@ -194,11 +188,10 @@ static void resize_to(struct backtrace_state *state,
   vec->alc = new_size - vec->size;
 }
 
-void *tcmalloc_backtrace_vector_grow(struct backtrace_state *state,
-                                     size_t size, backtrace_error_callback error_callback,
-                                     void *data, struct backtrace_vector *vec)
-{
-  void *ret;
+void* tcmalloc_backtrace_vector_grow(struct backtrace_state* state, size_t size,
+                                     backtrace_error_callback error_callback, void* data,
+                                     struct backtrace_vector* vec) {
+  void* ret;
 
   if (size > vec->alc) {
     size_t new_size = std::max(size * 32, vec->size * 2);
@@ -207,32 +200,28 @@ void *tcmalloc_backtrace_vector_grow(struct backtrace_state *state,
     resize_to(state, new_size, vec);
   }
 
-  ret = static_cast<char *>(vec->base) + vec->size;
+  ret = static_cast<char*>(vec->base) + vec->size;
   vec->size += size;
   vec->alc -= size;
   return ret;
 }
 
-void *tcmalloc_backtrace_vector_finish(struct backtrace_state *state,
-                                       struct backtrace_vector *vec,
-                                       backtrace_error_callback error_callback,
-                                       void *data) {
-  void *ret = vec->base;
+void* tcmalloc_backtrace_vector_finish(struct backtrace_state* state, struct backtrace_vector* vec,
+                                       backtrace_error_callback error_callback, void* data) {
+  void* ret = vec->base;
   vec->base = nullptr;
   vec->size = 0;
   vec->alc = 0;
   return ret;
 }
 
-int tcmalloc_backtrace_vector_release(struct backtrace_state *state,
-                                      struct backtrace_vector *vec,
-                                      backtrace_error_callback error_callback,
-                                      void *data) {
+int tcmalloc_backtrace_vector_release(struct backtrace_state* state, struct backtrace_vector* vec,
+                                      backtrace_error_callback error_callback, void* data) {
   resize_to(state, vec->size, vec);
   return 1;
 }
 
 void tcmalloc_backtrace_dispose_state(struct backtrace_state* state) {
   StatePrefix* prefix = reinterpret_cast<StatePrefix*>(state) - 1;
-  prefix->allocator->Destroy(); // frees all memory
+  prefix->allocator->Destroy();  // frees all memory
 }
