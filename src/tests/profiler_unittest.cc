@@ -41,8 +41,8 @@
 #include <string.h>
 
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>                 // for fork()
-#include <sys/wait.h>               // for wait()
+#include <unistd.h>    // for fork()
+#include <sys/wait.h>  // for wait()
 #endif
 
 #include <mutex>
@@ -50,12 +50,12 @@
 #include "gperftools/profiler.h"
 #include "tests/testutil.h"
 
-static int g_iters;   // argv[1]
+static int g_iters;  // argv[1]
 
 // g_ticks_count points to internal profiler's tick count that
 // increments each profiling tick. Makes it possible for this test
 // loops to run long enough to get enough ticks.
-static int volatile *g_ticks_count = ([] () {
+static int volatile* g_ticks_count = ([]() {
   ProfilerState state;
   memset(&state, 0, sizeof(state));
   ProfilerGetCurrentState(&state);
@@ -83,12 +83,12 @@ static void test_other_thread() {
   int limit = *g_ticks_count + 30;
 
   while (*g_ticks_count < limit) {
-    for (int i = 0; i < g_iters * 10; ++i ) {
+    for (int i = 0; i < g_iters * 10; ++i) {
       *const_cast<volatile int*>(&result) ^= i;
     }
     snprintf(b, sizeof(b), "other: %d", result);  // get some libc action
-    (void)noopt(b); // 'consume' b. Ensure that smart compiler doesn't
-                    // remove snprintf call
+    (void)noopt(b);                               // 'consume' b. Ensure that smart compiler doesn't
+                                                  // remove snprintf call
   }
 }
 
@@ -102,18 +102,16 @@ static void test_main_thread() {
   int limit = *g_ticks_count + 30;
 
   while (*g_ticks_count < limit) {
-    for (int i = 0; i < g_iters * 10; ++i ) {
+    for (int i = 0; i < g_iters * 10; ++i) {
       *const_cast<volatile int*>(&result) ^= i;
     }
     snprintf(b, sizeof(b), "same: %d", result);  // get some libc action
-    (void)noopt(b); // 'consume' b
+    (void)noopt(b);                              // 'consume' b
   }
 }
 
-
-
 int main(int argc, char** argv) {
-  if ( argc <= 1 ) {
+  if (argc <= 1) {
     fprintf(stderr, "USAGE: %s <iters> [num_threads] [filename]\n", argv[0]);
     fprintf(stderr, "   iters: How many million times to run the XOR test.\n");
     fprintf(stderr, "   num_threads: how many concurrent threads.\n");
@@ -141,16 +139,16 @@ int main(int argc, char** argv) {
 
   test_main_thread();
 
-  ProfilerFlush();                           // just because we can
+  ProfilerFlush();  // just because we can
 
   // The other threads, if any, will run only half as long as the main thread
-  if(num_threads > 0) {
+  if (num_threads > 0) {
     RunManyThreads(test_other_thread, num_threads);
   } else {
-  // Or maybe they asked to fork.  The fork test is only interesting
-  // when we use CPUPROFILE to name, so check for that
+    // Or maybe they asked to fork.  The fork test is only interesting
+    // when we use CPUPROFILE to name, so check for that
 #ifdef HAVE_UNISTD_H
-    for (; num_threads < 0; ++num_threads) {   // -<num_threads> to fork
+    for (; num_threads < 0; ++num_threads) {  // -<num_threads> to fork
       if (filename) {
         printf("FORK test only makes sense when no filename is specified.\n");
         return 2;
@@ -159,10 +157,10 @@ int main(int argc, char** argv) {
         case -1:
           printf("FORK failed!\n");
           return 1;
-        case 0:             // child
+        case 0:  // child
           return execl(argv[0], argv[0], argv[1], nullptr);
         default:
-          wait(nullptr);       // we'll let the kids run one at a time
+          wait(nullptr);  // we'll let the kids run one at a time
       }
     }
 #else

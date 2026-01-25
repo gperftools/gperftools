@@ -37,26 +37,26 @@
 #define TCMALLOC_LIBC_OVERRIDE_AIX_INL_H_
 
 #ifndef _AIX
-# error libc_override_aix.h is for AIX systems only.
+#error libc_override_aix.h is for AIX systems only.
 #endif
 
 extern "C" {
-  // AIX user-defined malloc replacement routines
-  void* __malloc__(size_t size) __THROW               ALIAS(tc_malloc);
-  void __free__(void* ptr) __THROW                    ALIAS(tc_free);
-  void* __realloc__(void* ptr, size_t size) __THROW   ALIAS(tc_realloc);
-  void* __calloc__(size_t n, size_t size) __THROW     ALIAS(tc_calloc);
-  int __posix_memalign__(void** r, size_t a, size_t s) __THROW ALIAS(tc_posix_memalign);
-  int __mallopt__(int cmd, int value) __THROW         ALIAS(tc_mallopt);
+// AIX user-defined malloc replacement routines
+void* __malloc__(size_t size) __THROW ALIAS(tc_malloc);
+void __free__(void* ptr) __THROW ALIAS(tc_free);
+void* __realloc__(void* ptr, size_t size) __THROW ALIAS(tc_realloc);
+void* __calloc__(size_t n, size_t size) __THROW ALIAS(tc_calloc);
+int __posix_memalign__(void** r, size_t a, size_t s) __THROW ALIAS(tc_posix_memalign);
+int __mallopt__(int cmd, int value) __THROW ALIAS(tc_mallopt);
 #ifdef HAVE_STRUCT_MALLINFO
-  struct mallinfo __mallinfo__(void) __THROW          ALIAS(tc_mallinfo);
+struct mallinfo __mallinfo__(void) __THROW ALIAS(tc_mallinfo);
 #endif
 #ifdef HAVE_STRUCT_MALLINFO2
-  struct mallinfo2 __mallinfo2__(void) __THROW        ALIAS(tc_mallinfo2);
+struct mallinfo2 __mallinfo2__(void) __THROW ALIAS(tc_mallinfo2);
 #endif
-  void __malloc_init__(void)               { tc_free(tc_malloc(1));}
-  void* __malloc_prefork_lock__(void)      { /* nothing to lock */ }
-  void* __malloc_postfork_unlock__(void)   { /* nothing to unlock */}
-}   // extern "C"
+void __malloc_init__(void) { tc_free(tc_malloc(1)); }
+void* __malloc_prefork_lock__(void) { /* nothing to lock */ }
+void* __malloc_postfork_unlock__(void) { /* nothing to unlock */ }
+}  // extern "C"
 
 #endif  // TCMALLOC_LIBC_OVERRIDE_AIX_INL_H_

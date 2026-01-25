@@ -159,8 +159,8 @@ HERE
 
 // #{comment}
 template <class U, class P, class = void>
-struct get_#{fingerprint} : public P {
-};#{maybe_open_ifdef}
+struct get_#{fingerprint} : public P {};
+#{maybe_open_ifdef}
 template <class U, class P>
 struct get_#{fingerprint}<U, P, void_t<decltype(#{tmpl["((U*){})"]})>> : public P {
   static void* Get(const U* uc) {

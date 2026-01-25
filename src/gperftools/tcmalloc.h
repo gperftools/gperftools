@@ -36,16 +36,16 @@
 #ifndef TCMALLOC_TCMALLOC_H_
 #define TCMALLOC_TCMALLOC_H_
 
-#include <stddef.h>                     /* for size_t */
+#include <stddef.h> /* for size_t */
 #ifdef __cplusplus
-#include <new>                          /* for std::nothrow_t, std::align_val_t */
+#include <new> /* for std::nothrow_t, std::align_val_t */
 #endif
 
 /* Define the version number so folks can check against it */
 /* Note, maintainers are expected to update this to match configure.ac for each release */
-#define TC_VERSION_MAJOR  2
-#define TC_VERSION_MINOR  18
-#define TC_VERSION_PATCH  ""
+#define TC_VERSION_MAJOR 2
+#define TC_VERSION_MINOR 18
+#define TC_VERSION_PATCH ""
 #define TC_VERSION_STRING "gperftools 2.18"
 
 #if __GLIBC__ * 1000 + __GLIBC_MINOR__ >= 2033
@@ -71,7 +71,7 @@
 
 /* For struct mallinfo, if it's defined. */
 #if GPERFTOOLS_HAS_MALLINFO || GPERFTOOLS_HAS_MALLINFO2
-# include <malloc.h>
+#include <malloc.h>
 #endif
 
 #ifndef PERFTOOLS_NOTHROW
@@ -79,109 +79,99 @@
 #ifdef __cplusplus
 #define PERFTOOLS_NOTHROW noexcept
 #else
-# ifdef __GNUC__
-#  define PERFTOOLS_NOTHROW __attribute__((__nothrow__))
-# else
-#  define PERFTOOLS_NOTHROW
-# endif
+#ifdef __GNUC__
+#define PERFTOOLS_NOTHROW __attribute__((__nothrow__))
+#else
+#define PERFTOOLS_NOTHROW
+#endif
 #endif
 
 #endif
 
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-  /*
-   * Returns a human-readable version string.  If major, minor,
-   * and/or patch are not nullptr, they are set to the major version,
-   * minor version, and patch-code (a string, usually "").
-   */
-  PERFTOOLS_DLL_DECL const char* tc_version(int* major, int* minor,
-                                            const char** patch) PERFTOOLS_NOTHROW;
+/*
+ * Returns a human-readable version string.  If major, minor,
+ * and/or patch are not nullptr, they are set to the major version,
+ * minor version, and patch-code (a string, usually "").
+ */
+PERFTOOLS_DLL_DECL const char* tc_version(int* major, int* minor, const char** patch) PERFTOOLS_NOTHROW;
 
-  PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_NOTHROW;
 
-  // Versions of C23 sized free stuff
-  PERFTOOLS_DLL_DECL void tc_free_sized(void *ptr, size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW;
+// Versions of C23 sized free stuff
+PERFTOOLS_DLL_DECL void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW;
 
-  PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_calloc(size_t nmemb, size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW;
 
-  PERFTOOLS_DLL_DECL void* tc_memalign(size_t __alignment,
-                                       size_t __size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL int tc_posix_memalign(void** ptr,
-                                           size_t align, size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_valloc(size_t __size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t __size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_memalign(size_t __alignment, size_t __size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL int tc_posix_memalign(void** ptr, size_t align, size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_valloc(size_t __size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t __size) PERFTOOLS_NOTHROW;
 
-  PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
-
+PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW;
 
 #if GPERFTOOLS_HAS_MALLINFO
-  PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW;
 #endif
 #if GPERFTOOLS_HAS_MALLINFO2
-  PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW;
 #endif
 
-  /*
-   * This is an alias for MallocExtension::instance()->GetAllocatedSize().
-   * It is equivalent to
-   *    OS X: malloc_size()
-   *    glibc: malloc_usable_size()
-   *    Windows: _msize()
-   */
-  PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_NOTHROW;
+/*
+ * This is an alias for MallocExtension::instance()->GetAllocatedSize().
+ * It is equivalent to
+ *    OS X: malloc_size()
+ *    glibc: malloc_usable_size()
+ *    Windows: _msize()
+ */
+PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_NOTHROW;
 
 #ifdef __cplusplus
-  PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_new(size_t size);
-  PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size,
-                                          const std::nothrow_t&) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p,
-                                            const std::nothrow_t&) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
-  PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size,
-                                               const std::nothrow_t&) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p,
-                                                 const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL int tc_set_new_mode(int flag) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_new(size_t size);
+PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_newarray(size_t size);
+PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW;
 
-#if defined(__cpp_aligned_new) || \
-    (defined(__cplusplus) && __cplusplus >= 201703L) || \
+#if defined(__cpp_aligned_new) || (defined(__cplusplus) && __cplusplus >= 201703L) || \
     (defined(_MSVC_LANG) && _MSVC_LANG >= 201703L)
-  PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t al);
-  PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t al,
-                                          const std::nothrow_t&) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t al,
-                                            const std::nothrow_t&) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t al);
-  PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t al,
-                                               const std::nothrow_t&) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
-  PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t al,
-                                                 const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t al);
+PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t al,
+                                                const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t al,
+                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t al);
+PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t al,
+                                                     const std::nothrow_t&) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t al) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size, std::align_val_t al) PERFTOOLS_NOTHROW;
+PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t al,
+                                                       const std::nothrow_t&) PERFTOOLS_NOTHROW;
 #endif
-
 }
 #endif
 
@@ -192,4 +182,4 @@ extern "C" {
 
 #endif /* GPERFTOOLS_CONFIG_H_ */
 
-#endif  /* #ifndef TCMALLOC_TCMALLOC_H_ */
+#endif /* #ifndef TCMALLOC_TCMALLOC_H_ */

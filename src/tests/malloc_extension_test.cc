@@ -47,39 +47,33 @@ TEST(MallocExtensionTest, Basics) {
   void* a = malloc(1000);
 
   size_t cxx_bytes_used, c_bytes_used;
-  ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty(
-      "generic.current_allocated_bytes", &cxx_bytes_used));
-  ASSERT_TRUE(MallocExtension_GetNumericProperty(
-      "generic.current_allocated_bytes", &c_bytes_used));
+  ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &cxx_bytes_used));
+  ASSERT_TRUE(MallocExtension_GetNumericProperty("generic.current_allocated_bytes", &c_bytes_used));
   ASSERT_GT(cxx_bytes_used, 1000);
   ASSERT_EQ(cxx_bytes_used, c_bytes_used);
 
   ASSERT_TRUE(MallocExtension::instance()->VerifyAllMemory());
   ASSERT_TRUE(MallocExtension_VerifyAllMemory());
 
-  ASSERT_EQ(MallocExtension::kOwned,
-            MallocExtension::instance()->GetOwnership(a));
+  ASSERT_EQ(MallocExtension::kOwned, MallocExtension::instance()->GetOwnership(a));
 
-  ASSERT_EQ(MallocExtension::kNotOwned,
-            MallocExtension::instance()->GetOwnership(&cxx_bytes_used));
-  ASSERT_EQ(MallocExtension::kNotOwned,
-            MallocExtension::instance()->GetOwnership(nullptr));
+  ASSERT_EQ(MallocExtension::kNotOwned, MallocExtension::instance()->GetOwnership(&cxx_bytes_used));
+  ASSERT_EQ(MallocExtension::kNotOwned, MallocExtension::instance()->GetOwnership(nullptr));
   ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(a), 1000);
   // This is just a sanity check.  If we allocated too much, tcmalloc is broken
   ASSERT_LE(MallocExtension::instance()->GetAllocatedSize(a), 5000);
   ASSERT_GE(MallocExtension::instance()->GetEstimatedAllocatedSize(1000), 1000);
 
   for (int i = 0; i < 10; ++i) {
-    void *p = malloc(i);
+    void* p = malloc(i);
     ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(p),
-             MallocExtension::instance()->GetEstimatedAllocatedSize(i));
+              MallocExtension::instance()->GetEstimatedAllocatedSize(i));
     free(p);
   }
 
   // Check the c-shim version too.
   ASSERT_EQ(MallocExtension_kOwned, MallocExtension_GetOwnership(a));
-  ASSERT_EQ(MallocExtension_kNotOwned,
-            MallocExtension_GetOwnership(&cxx_bytes_used));
+  ASSERT_EQ(MallocExtension_kNotOwned, MallocExtension_GetOwnership(&cxx_bytes_used));
   ASSERT_EQ(MallocExtension_kNotOwned, MallocExtension_GetOwnership(nullptr));
   ASSERT_GE(MallocExtension_GetAllocatedSize(a), 1000);
   ASSERT_LE(MallocExtension_GetAllocatedSize(a), 5000);
@@ -88,10 +82,7 @@ TEST(MallocExtensionTest, Basics) {
   free(a);
 
   // Verify that the .cc file and .h file have the same enum values.
-  ASSERT_EQ(static_cast<int>(MallocExtension::kUnknownOwnership),
-            static_cast<int>(MallocExtension_kUnknownOwnership));
-  ASSERT_EQ(static_cast<int>(MallocExtension::kOwned),
-            static_cast<int>(MallocExtension_kOwned));
-  ASSERT_EQ(static_cast<int>(MallocExtension::kNotOwned),
-            static_cast<int>(MallocExtension_kNotOwned));
+  ASSERT_EQ(static_cast<int>(MallocExtension::kUnknownOwnership), static_cast<int>(MallocExtension_kUnknownOwnership));
+  ASSERT_EQ(static_cast<int>(MallocExtension::kOwned), static_cast<int>(MallocExtension_kOwned));
+  ASSERT_EQ(static_cast<int>(MallocExtension::kNotOwned), static_cast<int>(MallocExtension_kNotOwned));
 }

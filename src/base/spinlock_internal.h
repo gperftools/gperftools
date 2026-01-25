@@ -45,9 +45,9 @@
 namespace base {
 namespace internal {
 
-void SpinLockWake(std::atomic<int> *w, bool all);
-void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop);
+void SpinLockWake(std::atomic<int>* w, bool all);
+void SpinLockDelay(std::atomic<int>* w, int32_t value, int loop);
 
-} // namespace internal
-} // namespace base
+}  // namespace internal
+}  // namespace base
 #endif

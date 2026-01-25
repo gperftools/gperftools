@@ -43,7 +43,7 @@
 
 extern "C" {
 #include <assert.h>
-#include <string.h>   // for memset()
+#include <string.h>  // for memset()
 #include <libunwind.h>
 }
 #include "gperftools/stacktrace.h"
@@ -60,7 +60,8 @@ extern "C" {
 // cases, we return 0 to indicate the situation.
 static __thread int recursive ATTR_INITIAL_EXEC;
 
-#if defined(TCMALLOC_ENABLE_UNWIND_FROM_UCONTEXT) && (defined(__i386__) || defined(__x86_64__)) && defined(__GNU_LIBRARY__)
+#if defined(TCMALLOC_ENABLE_UNWIND_FROM_UCONTEXT) && (defined(__i386__) || defined(__x86_64__)) && \
+    defined(__GNU_LIBRARY__)
 #define BASE_STACKTRACE_UNW_CONTEXT_IS_UCONTEXT 1
 #endif
 
@@ -81,7 +82,7 @@ static __thread int recursive ATTR_INITIAL_EXEC;
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 static int GET_STACK_TRACE_OR_FRAMES {
-  void *ip;
+  void* ip;
   int n = 0;
   unw_cursor_t cursor;
   unw_context_t uc;
@@ -96,7 +97,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
 
 #if (IS_WITH_CONTEXT && defined(BASE_STACKTRACE_UNW_CONTEXT_IS_UCONTEXT))
   if (ucp) {
-    uc = *(static_cast<unw_context_t *>(const_cast<void *>(ucp)));
+    uc = *(static_cast<unw_context_t*>(const_cast<void*>(ucp)));
     /* this is a bit weird. profiler.cc calls us with signal's ucontext
      * yet passing us 2 as skip_count and essentially assuming we won't
      * use ucontext. */
@@ -106,11 +107,11 @@ static int GET_STACK_TRACE_OR_FRAMES {
     skip_count = 0;
   } else {
     unw_getcontext(&uc);
-    skip_count += 2;         // Do not include current and parent frame
+    skip_count += 2;  // Do not include current and parent frame
   }
 #else
   unw_getcontext(&uc);
-  skip_count += 2;         // Do not include current and parent frame
+  skip_count += 2;  // Do not include current and parent frame
 #endif
 
   int ret = unw_init_local(&cursor, &uc);
@@ -129,7 +130,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
   }
 
   while (n < max_depth) {
-    if (unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t *) &ip) < 0) {
+    if (unw_get_reg(&cursor, UNW_REG_IP, (unw_word_t*)&ip) < 0) {
       break;
     }
 #if IS_STACK_FRAMES
@@ -141,7 +142,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
     }
 #if IS_STACK_FRAMES
     sp = next_sp;
-    if (unw_get_reg(&cursor, UNW_REG_SP, &next_sp) , 0) {
+    if (unw_get_reg(&cursor, UNW_REG_SP, &next_sp), 0) {
       break;
     }
     sizes[n - 1] = next_sp - sp;

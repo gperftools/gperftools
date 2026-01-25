@@ -51,37 +51,37 @@ template <class Type>
 void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
   printf("Running test with %d iterations...\n", limit);
 
-  { // Test sequential ensure/assignment
+  {  // Test sequential ensure/assignment
     Type map(malloc);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
       map.Ensure(i, 1);
-      map.set(i, (void*)(i+1));
-      ASSERT_EQ(map.get(i), (void*)(i+1));
+      map.set(i, (void*)(i + 1));
+      ASSERT_EQ(map.get(i), (void*)(i + 1));
     }
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      ASSERT_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i + 1));
     }
   }
 
-  { // Test bulk Ensure
+  {  // Test bulk Ensure
     Type map(malloc);
     map.Ensure(0, limit);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      map.set(i, (void*)(i+1));
-      ASSERT_EQ(map.get(i), (void*)(i+1));
+      map.set(i, (void*)(i + 1));
+      ASSERT_EQ(map.get(i), (void*)(i + 1));
     }
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      ASSERT_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i + 1));
     }
   }
 
   // Test that we correctly notice overflow
   {
     Type map(malloc);
-    ASSERT_EQ(map.Ensure(limit, limit+1), limit_is_below_the_overflow_boundary);
+    ASSERT_EQ(map.Ensure(limit, limit + 1), limit_is_below_the_overflow_boundary);
   }
 
-  { // Test randomized accesses
+  {  // Test randomized accesses
     std::vector<intptr_t> elements;
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) elements.push_back(i);
     std::shuffle(elements.begin(), elements.end(), std::mt19937(42));
@@ -89,11 +89,11 @@ void TestMap(int limit, bool limit_is_below_the_overflow_boundary) {
     Type map(malloc);
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
       map.Ensure(elements[i], 1);
-      map.set(elements[i], (void*)(elements[i]+1));
-      ASSERT_EQ(map.get(elements[i]), (void*)(elements[i]+1));
+      map.set(elements[i], (void*)(elements[i] + 1));
+      ASSERT_EQ(map.get(elements[i]), (void*)(elements[i] + 1));
     }
     for (intptr_t i = 0; i < static_cast<intptr_t>(limit); i++) {
-      ASSERT_EQ(map.get(i), (void*)(i+1));
+      ASSERT_EQ(map.get(i), (void*)(i + 1));
     }
   }
 }
@@ -112,7 +112,7 @@ void TestNext(const char* name) {
   // When map is empty
   ASSERT_EQ(map.Next(0), nullptr);
   ASSERT_EQ(map.Next(5), nullptr);
-  ASSERT_EQ(map.Next(1<<30), nullptr);
+  ASSERT_EQ(map.Next(1 << 30), nullptr);
 
   // Add a single value
   map.Ensure(40, 1);
@@ -121,7 +121,7 @@ void TestNext(const char* name) {
   ASSERT_EQ(map.Next(39), &a);
   ASSERT_EQ(map.Next(40), &a);
   ASSERT_EQ(map.Next(41), nullptr);
-  ASSERT_EQ(map.Next(1<<30), nullptr);
+  ASSERT_EQ(map.Next(1 << 30), nullptr);
 
   // Add a few values
   map.Ensure(41, 1);

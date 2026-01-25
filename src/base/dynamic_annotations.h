@@ -83,4 +83,4 @@ int RunningOnValgrind(void);
 }
 #endif
 
-#endif  /* BASE_DYNAMIC_ANNOTATIONS_H_ */
+#endif /* BASE_DYNAMIC_ANNOTATIONS_H_ */

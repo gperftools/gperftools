@@ -42,7 +42,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <stddef.h>   /* for size_t */
+#include <stddef.h> /* for size_t */
 
 #include "gtest/gtest.h"
 
@@ -52,22 +52,15 @@ static int g_delete_hook_calls = 0;
 void TestNewHook(const void* ptr, size_t size) {
   void* result[5];
 
-  ASSERT_LE(MallocHook_GetCallerStackTrace(
-              result,
-              sizeof(result)/sizeof(*result), 0),
-            2);
+  ASSERT_LE(MallocHook_GetCallerStackTrace(result, sizeof(result) / sizeof(*result), 0), 2);
 
   g_new_hook_calls++;
 }
 
-void TestDeleteHook(const void* ptr) {
-  g_delete_hook_calls++;
-}
+void TestDeleteHook(const void* ptr) { g_delete_hook_calls++; }
 
-static
-void *forced_malloc(size_t size)
-{
-  void *rv = tc_malloc(size);
+static void* forced_malloc(size_t size) {
+  void* rv = tc_malloc(size);
   if (!rv) {
     abort();
   }
@@ -113,10 +106,7 @@ TEST(TestMalloc, Extension) {
   MallocExtension_MallocMemoryStats(&blocks, &total, hist);
   MallocExtension_GetStats(buffer, sizeof(buffer));
 
-  ASSERT_TRUE(
-    MallocExtension_GetNumericProperty(
-      "generic.current_allocated_bytes",
-      &total));
+  ASSERT_TRUE(MallocExtension_GetNumericProperty("generic.current_allocated_bytes", &total));
 
   ASSERT_GE(total, 10) << "GetNumericProperty had bad return for generic.current_allocated_bytes";
 

@@ -51,125 +51,110 @@
 
 #include <config.h>
 #include <string>
-#include <string.h>               // for memchr
-#include <stdlib.h>               // for getenv
+#include <string.h>  // for memchr
+#include <stdlib.h>  // for getenv
 #include "base/basictypes.h"
 
-#define DECLARE_VARIABLE(type, name)                                          \
-  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead {  \
-  extern type FLAGS_##name;                                \
-  }                                                                           \
+#define DECLARE_VARIABLE(type, name)                                           \
+  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead { \
+    extern type FLAGS_##name;                                                  \
+  }                                                                            \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead::FLAGS_##name
 
-#define DEFINE_VARIABLE(type, name, value, meaning) \
-  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead {  \
-  type FLAGS_##name(value);                                \
-  char FLAGS_no##name;                                                        \
-  }                                                                           \
+#define DEFINE_VARIABLE(type, name, value, meaning)                            \
+  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead { \
+    type FLAGS_##name(value);                                                  \
+    char FLAGS_no##name;                                                       \
+  }                                                                            \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_##type##_instead::FLAGS_##name
 
 // bool specialization
-#define DECLARE_bool(name) \
-  DECLARE_VARIABLE(bool, name)
-#define DEFINE_bool(name, value, meaning) \
-  DEFINE_VARIABLE(bool, name, value, meaning)
+#define DECLARE_bool(name) DECLARE_VARIABLE(bool, name)
+#define DEFINE_bool(name, value, meaning) DEFINE_VARIABLE(bool, name, value, meaning)
 
 // int32_t specialization
-#define DECLARE_int32(name) \
-  DECLARE_VARIABLE(int32_t, name)
-#define DEFINE_int32(name, value, meaning) \
-  DEFINE_VARIABLE(int32_t, name, value, meaning)
+#define DECLARE_int32(name) DECLARE_VARIABLE(int32_t, name)
+#define DEFINE_int32(name, value, meaning) DEFINE_VARIABLE(int32_t, name, value, meaning)
 
 // int64_t specialization
-#define DECLARE_int64(name) \
-  DECLARE_VARIABLE(int64_t, name)
-#define DEFINE_int64(name, value, meaning) \
-  DEFINE_VARIABLE(int64_t, name, value, meaning)
+#define DECLARE_int64(name) DECLARE_VARIABLE(int64_t, name)
+#define DEFINE_int64(name, value, meaning) DEFINE_VARIABLE(int64_t, name, value, meaning)
 
-#define DECLARE_uint64(name) \
-  DECLARE_VARIABLE(uint64_t, name)
-#define DEFINE_uint64(name, value, meaning) \
-  DEFINE_VARIABLE(uint64_t, name, value, meaning)
+#define DECLARE_uint64(name) DECLARE_VARIABLE(uint64_t, name)
+#define DEFINE_uint64(name, value, meaning) DEFINE_VARIABLE(uint64_t, name, value, meaning)
 
 // double specialization
-#define DECLARE_double(name) \
-  DECLARE_VARIABLE(double, name)
-#define DEFINE_double(name, value, meaning) \
-  DEFINE_VARIABLE(double, name, value, meaning)
+#define DECLARE_double(name) DECLARE_VARIABLE(double, name)
+#define DEFINE_double(name, value, meaning) DEFINE_VARIABLE(double, name, value, meaning)
 
 // Special case for string, because we have to specify the namespace
 // std::string, which doesn't play nicely with our FLAG__namespace hackery.
-#define DECLARE_string(name)                                          \
-  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead {  \
-  extern std::string FLAGS_##name;                                                   \
-  }                                                                           \
+#define DECLARE_string(name)                                                 \
+  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead { \
+  extern std::string FLAGS_##name;                                           \
+  }                                                                          \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead::FLAGS_##name
-#define DEFINE_string(name, value, meaning) \
-  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead {  \
-  std::string FLAGS_##name(value);                                                   \
-  char FLAGS_no##name;                                                        \
-  }                                                                           \
+#define DEFINE_string(name, value, meaning)                                  \
+  namespace FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead { \
+  std::string FLAGS_##name(value);                                           \
+  char FLAGS_no##name;                                                       \
+  }                                                                          \
   using FLAG__namespace_do_not_use_directly_use_DECLARE_string_instead::FLAGS_##name
 
 // implemented in sysinfo.cc
 namespace tcmalloc {
-  namespace commandlineflags {
+namespace commandlineflags {
 
-    inline bool StringToBool(const char *value, bool def) {
-      if (!value) {
-        return def;
-      }
-      switch (value[0]) {
-      case 't':
-      case 'T':
-      case 'y':
-      case 'Y':
-      case '1':
-      case '\0':
-        return true;
-      }
-      return false;
-    }
-
-    inline int StringToInt(const char *value, int def) {
-      if (!value) {
-        return def;
-      }
-      return strtol(value, nullptr, 10);
-    }
-
-    inline long long StringToLongLong(const char *value, long long def) {
-      if (!value) {
-        return def;
-      }
-      return strtoll(value, nullptr, 10);
-    }
-
-    inline double StringToDouble(const char *value, double def) {
-      if (!value) {
-        return def;
-      }
-      return strtod(value, nullptr);
-    }
+inline bool StringToBool(const char* value, bool def) {
+  if (!value) {
+    return def;
   }
+  switch (value[0]) {
+    case 't':
+    case 'T':
+    case 'y':
+    case 'Y':
+    case '1':
+    case '\0':
+      return true;
+  }
+  return false;
 }
+
+inline int StringToInt(const char* value, int def) {
+  if (!value) {
+    return def;
+  }
+  return strtol(value, nullptr, 10);
+}
+
+inline long long StringToLongLong(const char* value, long long def) {
+  if (!value) {
+    return def;
+  }
+  return strtoll(value, nullptr, 10);
+}
+
+inline double StringToDouble(const char* value, double def) {
+  if (!value) {
+    return def;
+  }
+  return strtod(value, nullptr);
+}
+}  // namespace commandlineflags
+}  // namespace tcmalloc
 
 // These macros (could be functions, but I don't want to bother with a .cc
 // file), make it easier to initialize flags from the environment.
 
-#define EnvToString(envname, dflt)   \
-  (!getenv(envname) ? (dflt) : getenv(envname))
+#define EnvToString(envname, dflt) (!getenv(envname) ? (dflt) : getenv(envname))
 
-#define EnvToBool(envname, dflt)   \
-  tcmalloc::commandlineflags::StringToBool(getenv(envname), dflt)
+#define EnvToBool(envname, dflt) tcmalloc::commandlineflags::StringToBool(getenv(envname), dflt)
 
-#define EnvToInt(envname, dflt)  \
-  tcmalloc::commandlineflags::StringToInt(getenv(envname), dflt)
+#define EnvToInt(envname, dflt) tcmalloc::commandlineflags::StringToInt(getenv(envname), dflt)
 
-#define EnvToInt64(envname, dflt)  \
-  tcmalloc::commandlineflags::StringToLongLong(getenv(envname), dflt)
+#define EnvToInt64(envname, dflt) tcmalloc::commandlineflags::StringToLongLong(getenv(envname), dflt)
 
-#define EnvToDouble(envname, dflt)  \
-  tcmalloc::commandlineflags::StringToDouble(getenv(envname), dflt)
+#define EnvToDouble(envname, dflt) tcmalloc::commandlineflags::StringToDouble(getenv(envname), dflt)
 
 #endif  // BASE_COMMANDLINEFLAGS_H_

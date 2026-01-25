@@ -41,15 +41,13 @@
 #include "base/function_ref.h"
 
 extern "C" {
-  struct backtrace_state;
+struct backtrace_state;
 }
 
 namespace tcmalloc {
 
 ATTRIBUTE_VISIBILITY_HIDDEN
-void DumpStackTraceToStderr(
-  void * const *stack, int stack_depth, bool want_symbolize,
-  std::string_view line_prefix);
+void DumpStackTraceToStderr(void* const* stack, int stack_depth, bool want_symbolize, std::string_view line_prefix);
 
 struct SymbolizeOutcome {
   uintptr_t pc;
@@ -61,8 +59,8 @@ struct SymbolizeOutcome {
 };
 
 class ATTRIBUTE_VISIBILITY_HIDDEN SymbolizerAPI {
-public:
-  explicit SymbolizerAPI(FunctionRef<void(const SymbolizeOutcome& outcome)> *callback);
+ public:
+  explicit SymbolizerAPI(FunctionRef<void(const SymbolizeOutcome& outcome)>* callback);
   ~SymbolizerAPI();
 
   static void With(FunctionRef<void(const SymbolizerAPI& api)> body,
@@ -71,8 +69,9 @@ public:
   }
 
   void Add(uintptr_t addr) const;
-private:
-  FunctionRef<void(const SymbolizeOutcome&)> *callback_;
+
+ private:
+  FunctionRef<void(const SymbolizeOutcome&)>* callback_;
   backtrace_state* state_;
 };
 

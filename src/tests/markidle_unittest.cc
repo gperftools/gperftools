@@ -47,7 +47,7 @@
 static void TestAllocation() {
   static const int kNum = 100;
   void* ptr[kNum];
-  for (int size = 8; size <= 65536; size*=2) {
+  for (int size = 8; size <= 65536; size *= 2) {
     for (int i = 0; i < kNum; i++) {
       ptr[i] = ::operator new(size);
     }
@@ -60,7 +60,7 @@ static void TestAllocation() {
 // Routine that does a bunch of MarkThreadIdle() calls in sequence
 // without any intervening allocations
 TEST(MarkIdleTest, MultipleIdleCalls) {
-  std::thread t([] () {
+  std::thread t([]() {
     for (int i = 0; i < 4; i++) {
       MallocExtension::instance()->MarkThreadIdle();
     }
@@ -72,7 +72,7 @@ TEST(MarkIdleTest, MultipleIdleCalls) {
 // Routine that does a bunch of MarkThreadIdle() calls in sequence
 // with intervening allocations
 TEST(MarkIdleTest, MultipleIdleNonIdlePhases) {
-  std::thread t([] () {
+  std::thread t([]() {
     for (int i = 0; i < 4; i++) {
       TestAllocation();
       MallocExtension::instance()->MarkThreadIdle();
@@ -85,16 +85,14 @@ TEST(MarkIdleTest, MultipleIdleNonIdlePhases) {
 // Get current thread cache usage
 static size_t GetTotalThreadCacheSize() {
   size_t result;
-  EXPECT_TRUE(MallocExtension::instance()->GetNumericProperty(
-                "tcmalloc.current_total_thread_cache_bytes",
-                &result));
+  EXPECT_TRUE(MallocExtension::instance()->GetNumericProperty("tcmalloc.current_total_thread_cache_bytes", &result));
   return result;
 }
 
 // Check that MarkThreadIdle() actually reduces the amount
 // of per-thread memory.
 TEST(MarkIdleTest, TestIdleUsage) {
-  std::thread t([] () {
+  std::thread t([]() {
     const size_t original = GetTotalThreadCacheSize();
 
     TestAllocation();

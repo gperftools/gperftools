@@ -55,16 +55,9 @@ using base::internal::kHookListMaxValues;
 // values as integers for testing.
 typedef base::internal::HookList<MallocHook::NewHook> TestHookList;
 
-
-const MallocHook::NewHook kTestValue = [] (const void* ptr, size_t size) {
-  printf("kTestValue\n");
-};
-const MallocHook::NewHook kAnotherTestValue = [] (const void* ptr, size_t size) {
-  printf("kAnotherTestValue\n");
-};
-const MallocHook::NewHook kThirdTestValue = [] (const void* ptr, size_t size) {
-  printf("kThirdTestValue\n");
-};
+const MallocHook::NewHook kTestValue = [](const void* ptr, size_t size) { printf("kTestValue\n"); };
+const MallocHook::NewHook kAnotherTestValue = [](const void* ptr, size_t size) { printf("kAnotherTestValue\n"); };
+const MallocHook::NewHook kThirdTestValue = [](const void* ptr, size_t size) { printf("kThirdTestValue\n"); };
 
 TEST(HookListTest, InitialValueExists) {
   TestHookList list{kTestValue};
@@ -146,16 +139,14 @@ TEST(HookListTest, FillUpTheList) {
   EXPECT_EQ(kHookListMaxValues, list.priv_end);
 
   MallocHook::NewHook values[kHookListMaxValues + 1];
-  EXPECT_EQ(kHookListMaxValues, list.Traverse(values,
-                                              kHookListMaxValues));
+  EXPECT_EQ(kHookListMaxValues, list.Traverse(values, kHookListMaxValues));
   EXPECT_EQ(kTestValue, values[0]);
   for (intptr_t i = 1; i < kHookListMaxValues; ++i) {
     EXPECT_EQ(reinterpret_cast<MallocHook::NewHook>(i), values[i]);
   }
 }
 
-void MultithreadedTestThread(TestHookList* list, int shift,
-                             int thread_num) {
+void MultithreadedTestThread(TestHookList* list, int shift, int thread_num) {
   std::string message;
   char buf[64];
   for (intptr_t i = 1; i < 1000; ++i) {
@@ -174,9 +165,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     EXPECT_LT(0, num_values);
 
     int value_index;
-    for (value_index = 0;
-         value_index < num_values && values[value_index] != value;
-         ++value_index) {
+    for (value_index = 0; value_index < num_values && values[value_index] != value; ++value_index) {
       // empty
     }
 
@@ -191,9 +180,7 @@ void MultithreadedTestThread(TestHookList* list, int shift,
     std::this_thread::yield();
 
     num_values = list->Traverse(values, kHookListMaxValues);
-    for (value_index = 0;
-         value_index < num_values && values[value_index] != value;
-         ++value_index) {
+    for (value_index = 0; value_index < num_values && values[value_index] != value; ++value_index) {
       // empty
     }
 
@@ -219,7 +206,7 @@ void MultithreadedTestThreadRunner(int thread_num) {
     assert(num_threads_remaining > 0);
     --num_threads_remaining;
 
-    threadcount_ready.wait(ml, [&] () { return num_threads_remaining == 0; });
+    threadcount_ready.wait(ml, [&]() { return num_threads_remaining == 0; });
     // the last thread to decrement to 0 will wake everyone
     threadcount_ready.notify_all();
   }
@@ -233,14 +220,13 @@ void MultithreadedTestThreadRunner(int thread_num) {
   MultithreadedTestThread(&list, shift, thread_num);
 }
 
-
 TEST(HookListTest, MultithreadedTest) {
   ASSERT_TRUE(list.Remove(kTestValue));
   ASSERT_EQ(0, list.priv_end);
 
   // Run kHookListMaxValues thread, each running MultithreadedTestThread.
   // First, we need to set up the rest of the globals.
-  num_threads_remaining = kHookListMaxValues;   // a global var
+  num_threads_remaining = kHookListMaxValues;  // a global var
   RunManyThreadsWithId(&MultithreadedTestThreadRunner, num_threads_remaining);
 
   MallocHook::NewHook values[kHookListMaxValues + 1];

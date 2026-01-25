@@ -56,7 +56,7 @@ TlsKey ThreadCachePtr::tls_key_ = kInvalidTLSKey;
 // The implementation uses small fixed-size hash table keyed by
 // SelfThreadId into Entry structs which contain pointer and bool.
 class SlowTLS {
-public:
+ public:
   struct Entry {
     ThreadCache* const cache;
     bool emergency_malloc{};
@@ -73,7 +73,7 @@ public:
 #endif
     }
 
-  private:
+   private:
     friend class SlowTLS;
     uintptr_t thread_id;
     Entry* next;
@@ -81,22 +81,15 @@ public:
   };
 
   class Result {
-  public:
-    bool Found() const {
-      return entry_ != nullptr;
-    }
-    bool IsEmergencyMalloc() const {
-      return entry_->emergency_malloc;
-    }
-    ThreadCache* GetCache() const {
-      return entry_->cache;
-    }
-    Entry* GetEntry() const {
-      return entry_;
-    }
-  private:
+   public:
+    bool Found() const { return entry_ != nullptr; }
+    bool IsEmergencyMalloc() const { return entry_->emergency_malloc; }
+    ThreadCache* GetCache() const { return entry_->cache; }
+    Entry* GetEntry() const { return entry_; }
+
+   private:
     Result(uintptr_t thread_id, Entry** ht_place, Entry* entry)
-      : thread_id_(thread_id), ht_place_(ht_place), entry_(entry) {}
+        : thread_id_(thread_id), ht_place_(ht_place), entry_(entry) {}
 
     friend class SlowTLS;
 
@@ -193,7 +186,7 @@ public:
 
   static SpinLock* GetLock() { return &lock_; }
 
-private:
+ private:
   static constexpr inline int kTableSize = 257;
   static inline Entry* hash_table_[kTableSize];
   static inline SpinLock lock_;
@@ -332,22 +325,21 @@ void ThreadCachePtr::InitThreadCachePtrLate() {
       CreateTlsKey(&leaked, nullptr);
     }
   }
-#endif // !NDEBUG
+#endif  // !NDEBUG
 
   // NOTE: creating tls key is likely to recurse into malloc. So this
   // is "late" initialization. And we must not mark tls initialized
   // until this is complete.
-  int err = CreateTlsKey(&tls_key_, +[] (void *ptr) -> void {
-    ClearCacheTLS();
+  int err = CreateTlsKey(
+      &tls_key_, +[](void* ptr) -> void {
+        ClearCacheTLS();
 
-    ThreadCache::DeleteCache(static_cast<ThreadCache*>(ptr));
-  });
+        ThreadCache::DeleteCache(static_cast<ThreadCache*>(ptr));
+      });
   CHECK(err == 0);
 }
 
-SpinLock* ThreadCachePtr::GetSlowTLSLock() {
-  return SlowTLS::GetLock();
-}
+SpinLock* ThreadCachePtr::GetSlowTLSLock() { return SlowTLS::GetLock(); }
 
 #if defined(ENABLE_EMERGENCY_MALLOC)
 

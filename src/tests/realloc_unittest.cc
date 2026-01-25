@@ -64,7 +64,7 @@ static bool Valid(unsigned char* buffer, int n) {
 // Return the next interesting size/delta to check.  Returns -1 if no more.
 static int NextSize(int size) {
   if (size < 100) {
-    return size+1;
+    return size + 1;
   } else if (size < 100000) {
     // Find next power of two
     int power = 1;
@@ -73,13 +73,13 @@ static int NextSize(int size) {
     }
 
     // Yield (power-1, power, power+1)
-    if (size < power-1) {
-      return power-1;
-    } else if (size == power-1) {
+    if (size < power - 1) {
+      return power - 1;
+    } else if (size == power - 1) {
       return power;
     } else {
       assert(size == power);
-      return power+1;
+      return power + 1;
     }
   } else {
     return -1;
@@ -89,9 +89,9 @@ static int NextSize(int size) {
 TEST(ReallocUnittest, Basics) {
   for (int src_size = 0; src_size >= 0; src_size = NextSize(src_size)) {
     for (int dst_size = 0; dst_size >= 0; dst_size = NextSize(dst_size)) {
-      unsigned char* src = (unsigned char*) malloc(src_size);
+      unsigned char* src = (unsigned char*)malloc(src_size);
       Fill(src, src_size);
-      unsigned char* dst = (unsigned char*) realloc(src, dst_size);
+      unsigned char* dst = (unsigned char*)realloc(src, dst_size);
       ASSERT_TRUE(Valid(dst, std::min(src_size, dst_size)));
       Fill(dst, dst_size);
       ASSERT_TRUE(Valid(dst, dst_size));
@@ -106,8 +106,8 @@ TEST(ReallocUnittest, Basics) {
   int** p = (int**)noopt(malloc(sizeof(*p) * kNumEntries));
   int sum = 0;
   for (int i = 0; i < kNumEntries; i++) {
-    p[i] = (int*)malloc(8192);   // no page size is likely to be bigger
-    p[i][1000] = i;              // use memory deep in the heart of p
+    p[i] = (int*)malloc(8192);  // no page size is likely to be bigger
+    p[i][1000] = i;             // use memory deep in the heart of p
   }
   for (int i = 0; i < kNumEntries; i++) {
     p[i] = (int*)noopt(realloc(p[i], 9000));
@@ -116,6 +116,6 @@ TEST(ReallocUnittest, Basics) {
     sum += p[i][1000];
     free(p[i]);
   }
-  ASSERT_EQ(kNumEntries/2 * (kNumEntries - 1), sum);  // assume kNE is even
+  ASSERT_EQ(kNumEntries / 2 * (kNumEntries - 1), sum);  // assume kNE is even
   free(p);
 }

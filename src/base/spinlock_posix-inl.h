@@ -35,14 +35,14 @@
 #include <config.h>
 #include <errno.h>
 #ifdef HAVE_SCHED_H
-#include <sched.h>      /* For sched_yield() */
+#include <sched.h> /* For sched_yield() */
 #endif
-#include <time.h>       /* For nanosleep() */
+#include <time.h> /* For nanosleep() */
 
 namespace base {
 namespace internal {
 
-void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
+void SpinLockDelay(std::atomic<int>* w, int32_t value, int loop) {
   int save_errno = errno;
   if (loop == 0) {
   } else if (loop == 1) {
@@ -56,8 +56,7 @@ void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
   errno = save_errno;
 }
 
-void SpinLockWake(std::atomic<int>  *w, bool all) {
-}
+void SpinLockWake(std::atomic<int>* w, bool all) {}
 
-} // namespace internal
-} // namespace base
+}  // namespace internal
+}  // namespace base

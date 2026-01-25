@@ -36,8 +36,8 @@
 #include "base/logging.h"
 #include "preamble_patcher.h"
 
-#define SIDESTEP_CHK(x)  CHECK(x)
-#define SIDESTEP_EXPECT_TRUE(x)  SIDESTEP_CHK(x)
+#define SIDESTEP_CHK(x) CHECK(x)
+#define SIDESTEP_EXPECT_TRUE(x) SIDESTEP_CHK(x)
 
 namespace sidestep {
 
@@ -67,6 +67,7 @@ class AutoTestingHookHolder {
  public:
   explicit AutoTestingHookHolder(AutoTestingHookBase* hook) : hook_(hook) {}
   ~AutoTestingHookHolder() { delete hook_; }
+
  private:
   AutoTestingHookHolder() {}  // disallow
   AutoTestingHookBase* hook_;
@@ -86,33 +87,25 @@ class AutoTestingHookHolder {
 template <typename T>
 class AutoTestingHookImpl : public AutoTestingHookBase {
  public:
-  static AutoTestingHookImpl<T> MakeTestingHook(T target_function,
-                                                T replacement_function,
-                                                bool do_it) {
+  static AutoTestingHookImpl<T> MakeTestingHook(T target_function, T replacement_function, bool do_it) {
     return AutoTestingHookImpl<T>(target_function, replacement_function, do_it);
   }
 
-  static AutoTestingHookImpl<T>* MakeTestingHookHolder(T target_function,
-                                                       T replacement_function,
-                                                       bool do_it) {
-    return new AutoTestingHookImpl<T>(target_function,
-                                      replacement_function, do_it);
+  static AutoTestingHookImpl<T>* MakeTestingHookHolder(T target_function, T replacement_function, bool do_it) {
+    return new AutoTestingHookImpl<T>(target_function, replacement_function, do_it);
   }
 
   ~AutoTestingHookImpl() {
     if (did_it_) {
-      SIDESTEP_CHK(SIDESTEP_SUCCESS == PreamblePatcher::Unpatch(
-          (void*)target_function_, (void*)replacement_function_,
-          (void*)original_function_));
+      SIDESTEP_CHK(SIDESTEP_SUCCESS == PreamblePatcher::Unpatch((void*)target_function_, (void*)replacement_function_,
+                                                                (void*)original_function_));
     }
   }
 
   // Returns a pointer to the original function.  To use this method you will
   // have to explicitly create an AutoTestingHookImpl of the specific
   // function pointer type (i.e. not use the AutoTestingHook typedef).
-  T original_function() {
-    return original_function_;
-  }
+  T original_function() { return original_function_; }
 
  private:
   AutoTestingHookImpl(T target_function, T replacement_function, bool do_it)
@@ -121,22 +114,19 @@ class AutoTestingHookImpl : public AutoTestingHookBase {
         replacement_function_(replacement_function),
         did_it_(do_it) {
     if (do_it) {
-      SIDESTEP_CHK(SIDESTEP_SUCCESS == PreamblePatcher::Patch(target_function,
-                                                     replacement_function,
-                                                     &original_function_));
+      SIDESTEP_CHK(SIDESTEP_SUCCESS ==
+                   PreamblePatcher::Patch(target_function, replacement_function, &original_function_));
     }
   }
 
-  T target_function_;  // always valid
-  T original_function_;  // always valid
+  T target_function_;       // always valid
+  T original_function_;     // always valid
   T replacement_function_;  // always valid
-  bool did_it_;  // Remember if we did it or not...
+  bool did_it_;             // Remember if we did it or not...
 };
 
 template <typename T>
-inline AutoTestingHookImpl<T> MakeTestingHook(T target,
-                                              T replacement,
-                                              bool do_it) {
+inline AutoTestingHookImpl<T> MakeTestingHook(T target, T replacement, bool do_it) {
   return AutoTestingHookImpl<T>::MakeTestingHook(target, replacement, do_it);
 }
 
@@ -147,8 +137,7 @@ inline AutoTestingHookImpl<T> MakeTestingHook(T target, T replacement) {
 
 template <typename T>
 inline AutoTestingHookImpl<T>* MakeTestingHookHolder(T target, T replacement) {
-  return AutoTestingHookImpl<T>::MakeTestingHookHolder(target, replacement,
-                                                       true);
+  return AutoTestingHookImpl<T>::MakeTestingHookHolder(target, replacement, true);
 }
 
 };  // namespace sidestep

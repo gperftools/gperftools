@@ -36,8 +36,8 @@
 #include "thread_cache_ptr.h"
 
 extern "C" {
-  void* tc_new(size_t);
-  void tc_delete(void*);
+void* tc_new(size_t);
+void tc_delete(void*);
 }
 
 namespace tcmalloc {
@@ -47,8 +47,7 @@ namespace tcmalloc {
 // integration for occasional case where stacktrace capturing method
 // calls back to malloc (so we divert those calls to emergency malloc
 // facility).
-ATTRIBUTE_VISIBILITY_HIDDEN ATTRIBUTE_NOINLINE
-int GrabBacktrace(void** result, int max_depth, int skip_count) {
+ATTRIBUTE_VISIBILITY_HIDDEN ATTRIBUTE_NOINLINE int GrabBacktrace(void** result, int max_depth, int skip_count) {
   struct Args {
     void** result;
     int max_depth;
@@ -62,8 +61,7 @@ int GrabBacktrace(void** result, int max_depth, int skip_count) {
   args.result_depth = 0;
 
   struct Body {
-    static ATTRIBUTE_NOINLINE
-    void Run(bool stacktrace_allowed, void* _args) {
+    static ATTRIBUTE_NOINLINE void Run(bool stacktrace_allowed, void* _args) {
       Args* args = static_cast<Args*>(_args);
       if (!stacktrace_allowed) {
         return;

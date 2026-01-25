@@ -54,7 +54,7 @@
 
 #include <config.h>
 #ifdef HAVE_FEATURES_H
-#include <features.h>   // for __GLIBC__
+#include <features.h>  // for __GLIBC__
 #endif
 #include <gperftools/tcmalloc.h>
 
@@ -67,11 +67,11 @@
 #endif
 
 #if defined(__has_feature)
-#  if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer) || __has_feature(thread_sanitizer)
-#    define TCMALLOC_UNDER_SANITIZER
-#  endif
+#if __has_feature(address_sanitizer) || __has_feature(memory_sanitizer) || __has_feature(thread_sanitizer)
+#define TCMALLOC_UNDER_SANITIZER
+#endif
 #elif defined(__SANITIZE_ADDRESS__) || defined(__SANITIZE_THREAD__)
-#  define TCMALLOC_UNDER_SANITIZER
+#define TCMALLOC_UNDER_SANITIZER
 #endif
 
 // A number of sanitizers are incompatible with tcmalloc. So lets
@@ -83,7 +83,7 @@
 #ifdef TCMALLOC_SKIP_OVERRIDE
 static void ReplaceSystemAlloc() {}
 
-#else // !TCMALLOC_SKIP_OVERRIDE
+#else  // !TCMALLOC_SKIP_OVERRIDE
 
 static void ReplaceSystemAlloc();  // defined in the .h files below
 
@@ -93,7 +93,7 @@ static void ReplaceSystemAlloc();  // defined in the .h files below
 // we remove malloc/new/etc from mscvcrt.dll, and just need to define
 // them now.
 #if defined(_WIN32) && defined(WIN32_DO_PATCHING)
-void PatchWindowsFunctions();   // in src/windows/patch_function.cc
+void PatchWindowsFunctions();  // in src/windows/patch_function.cc
 static void ReplaceSystemAlloc() { PatchWindowsFunctions(); }
 
 #elif defined(_WIN32) && !defined(WIN32_DO_PATCHING)

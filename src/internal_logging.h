@@ -37,7 +37,7 @@
 #define TCMALLOC_INTERNAL_LOGGING_H_
 
 #include <config.h>
-#include <stddef.h>                     // for size_t
+#include <stddef.h>  // for size_t
 #include <stdint.h>
 
 //-------------------------------------------------------------------
@@ -53,8 +53,8 @@
 
 namespace tcmalloc {
 enum LogMode {
-  kLog,                       // Just print the message
-  kCrash,                     // Print the message and crash
+  kLog,    // Just print the message
+  kCrash,  // Print the message and crash
 };
 
 class Logger;
@@ -62,24 +62,19 @@ class Logger;
 // A LogItem holds any of the argument types that can be passed to Log()
 class LogItem {
  public:
-  LogItem()                     : tag_(kEnd)      { }
-  LogItem(const char* v)        : tag_(kStr)      { u_.str = v; }
-  LogItem(int v)                : tag_(kSigned)   { u_.snum = v; }
-  LogItem(long v)               : tag_(kSigned)   { u_.snum = v; }
-  LogItem(long long v)          : tag_(kSigned)   { u_.snum = v; }
-  LogItem(unsigned int v)       : tag_(kUnsigned) { u_.unum = v; }
-  LogItem(unsigned long v)      : tag_(kUnsigned) { u_.unum = v; }
+  LogItem() : tag_(kEnd) {}
+  LogItem(const char* v) : tag_(kStr) { u_.str = v; }
+  LogItem(int v) : tag_(kSigned) { u_.snum = v; }
+  LogItem(long v) : tag_(kSigned) { u_.snum = v; }
+  LogItem(long long v) : tag_(kSigned) { u_.snum = v; }
+  LogItem(unsigned int v) : tag_(kUnsigned) { u_.unum = v; }
+  LogItem(unsigned long v) : tag_(kUnsigned) { u_.unum = v; }
   LogItem(unsigned long long v) : tag_(kUnsigned) { u_.unum = v; }
-  LogItem(const void* v)        : tag_(kPtr)      { u_.ptr = v; }
+  LogItem(const void* v) : tag_(kPtr) { u_.ptr = v; }
+
  private:
   friend class Logger;
-  enum Tag {
-    kStr,
-    kSigned,
-    kUnsigned,
-    kPtr,
-    kEnd
-  };
+  enum Tag { kStr, kSigned, kUnsigned, kPtr, kEnd };
   Tag tag_;
   union {
     const char* str;
@@ -89,21 +84,21 @@ class LogItem {
   } u_;
 };
 
-extern void Log(LogMode mode, const char* filename, int line,
-                LogItem a, LogItem b = LogItem(),
-                LogItem c = LogItem(), LogItem d = LogItem());
+extern void Log(LogMode mode, const char* filename, int line, LogItem a, LogItem b = LogItem(), LogItem c = LogItem(),
+                LogItem d = LogItem());
 
-}  // end tcmalloc namespace
+}  // namespace tcmalloc
 
 // Like assert(), but executed even in NDEBUG mode
 #undef CHECK_CONDITION
-#define CHECK_CONDITION(cond)                                            \
-do {                                                                     \
-  if (!(cond)) {                                                         \
-    ::tcmalloc::Log(::tcmalloc::kCrash, __FILE__, __LINE__, #cond);      \
-    for (;;) {} /* unreachable */                                        \
-  }                                                                      \
-} while (0)
+#define CHECK_CONDITION(cond)                                         \
+  do {                                                                \
+    if (!(cond)) {                                                    \
+      ::tcmalloc::Log(::tcmalloc::kCrash, __FILE__, __LINE__, #cond); \
+      for (;;) {                                                      \
+      } /* unreachable */                                             \
+    }                                                                 \
+  } while (0)
 
 #define CHECK_CONDITION_PRINT(cond, str)                            \
   do {                                                              \
@@ -118,27 +113,25 @@ do {                                                                     \
 #define ASSERT(cond) CHECK_CONDITION(cond)
 #define ASSERT_PRINT(cond, str) CHECK_CONDITION_PRINT(cond, str)
 #else
-#define ASSERT(cond) ((void) 0)
+#define ASSERT(cond) ((void)0)
 #define ASSERT_PRINT(cond, str) ((void)0)
 #endif
 
 // Print into buffer
 class TCMalloc_Printer {
  private:
-  char* buf_;           // Where should we write next
-  int   left_;          // Space left in buffer (including space for \0)
+  char* buf_;  // Where should we write next
+  int left_;   // Space left in buffer (including space for \0)
 
  public:
   // REQUIRES: "length > 0"
-  TCMalloc_Printer(char* buf, int length) : buf_(buf), left_(length) {
-    buf[0] = '\0';
-  }
+  TCMalloc_Printer(char* buf, int length) : buf_(buf), left_(length) { buf[0] = '\0'; }
 
   void printf(const char* format, ...)
 #ifdef HAVE___ATTRIBUTE__
-    __attribute__ ((__format__ (__printf__, 2, 3)))
+      __attribute__((__format__(__printf__, 2, 3)))
 #endif
-;
+      ;
 };
 
 #endif  // TCMALLOC_INTERNAL_LOGGING_H_

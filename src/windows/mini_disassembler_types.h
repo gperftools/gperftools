@@ -70,12 +70,12 @@ enum OperandSize {
   OS_DOUBLE_WORD = 4,
   OS_QUAD_WORD = 8,
   OS_DOUBLE_QUAD_WORD = 16,
-  OS_32_BIT_POINTER = 32/8,
-  OS_48_BIT_POINTER = 48/8,
-  OS_SINGLE_PRECISION_FLOATING = 32/8,
-  OS_DOUBLE_PRECISION_FLOATING = 64/8,
-  OS_DOUBLE_EXTENDED_PRECISION_FLOATING = 80/8,
-  OS_128_BIT_PACKED_SINGLE_PRECISION_FLOATING = 128/8,
+  OS_32_BIT_POINTER = 32 / 8,
+  OS_48_BIT_POINTER = 48 / 8,
+  OS_SINGLE_PRECISION_FLOATING = 32 / 8,
+  OS_DOUBLE_PRECISION_FLOATING = 64 / 8,
+  OS_DOUBLE_EXTENDED_PRECISION_FLOATING = 80 / 8,
+  OS_128_BIT_PACKED_SINGLE_PRECISION_FLOATING = 128 / 8,
   OS_PSEUDO_DESCRIPTOR = 6
 };
 
@@ -88,27 +88,27 @@ enum OperandSize {
 // these flags with the enOperandType to store the details
 // on the operand in a single integer.
 enum AddressingMethod {
-  AM_NOT_USED = 0,        // This operand is not used for this instruction
-  AM_MASK = 0x00FF0000,  // Mask for the rest of the values in this enumeration
-  AM_A = 0x00010000,    // A addressing type
-  AM_C = 0x00020000,    // C addressing type
-  AM_D = 0x00030000,    // D addressing type
-  AM_E = 0x00040000,    // E addressing type
-  AM_F = 0x00050000,    // F addressing type
-  AM_G = 0x00060000,    // G addressing type
-  AM_I = 0x00070000,    // I addressing type
-  AM_J = 0x00080000,    // J addressing type
-  AM_M = 0x00090000,    // M addressing type
-  AM_O = 0x000A0000,    // O addressing type
-  AM_P = 0x000B0000,    // P addressing type
-  AM_Q = 0x000C0000,    // Q addressing type
-  AM_R = 0x000D0000,    // R addressing type
-  AM_S = 0x000E0000,    // S addressing type
-  AM_T = 0x000F0000,    // T addressing type
-  AM_V = 0x00100000,    // V addressing type
-  AM_W = 0x00110000,    // W addressing type
-  AM_X = 0x00120000,    // X addressing type
-  AM_Y = 0x00130000,    // Y addressing type
+  AM_NOT_USED = 0,           // This operand is not used for this instruction
+  AM_MASK = 0x00FF0000,      // Mask for the rest of the values in this enumeration
+  AM_A = 0x00010000,         // A addressing type
+  AM_C = 0x00020000,         // C addressing type
+  AM_D = 0x00030000,         // D addressing type
+  AM_E = 0x00040000,         // E addressing type
+  AM_F = 0x00050000,         // F addressing type
+  AM_G = 0x00060000,         // G addressing type
+  AM_I = 0x00070000,         // I addressing type
+  AM_J = 0x00080000,         // J addressing type
+  AM_M = 0x00090000,         // M addressing type
+  AM_O = 0x000A0000,         // O addressing type
+  AM_P = 0x000B0000,         // P addressing type
+  AM_Q = 0x000C0000,         // Q addressing type
+  AM_R = 0x000D0000,         // R addressing type
+  AM_S = 0x000E0000,         // S addressing type
+  AM_T = 0x000F0000,         // T addressing type
+  AM_V = 0x00100000,         // V addressing type
+  AM_W = 0x00110000,         // W addressing type
+  AM_X = 0x00120000,         // X addressing type
+  AM_Y = 0x00130000,         // Y addressing type
   AM_REGISTER = 0x00140000,  // Specific register is always used as this op
   AM_IMPLICIT = 0x00150000,  // An implicit, fixed value is used
 };
@@ -148,11 +148,7 @@ enum OperandType : unsigned {
 //
 // The Intel 64 and IA-32 Architecture Software Developer's Manual currently
 // defines MOV as the only instruction supporting a 64-bit immediate operand.
-enum ImmediateOperandSize {
-  IOS_MASK = 0x0000F000,
-  IOS_DEFAULT = 0x0,
-  IOS_64 = 0x00001000
-};
+enum ImmediateOperandSize { IOS_MASK = 0x0000F000, IOS_DEFAULT = 0x0, IOS_64 = 0x00001000 };
 
 // Everything that's in an Opcode (see below) except the three
 // alternative opcode structs for different prefixes.

@@ -60,9 +60,7 @@ static double GetCPUTime() {
 
 static std::optional<size_t> GetSlackBytes() {
   size_t slack;
-  if (!MallocExtension::instance()->GetNumericProperty(
-        "tcmalloc.slack_bytes",
-        &slack)) {
+  if (!MallocExtension::instance()->GetNumericProperty("tcmalloc.slack_bytes", &slack)) {
     return {};
   }
   return slack;
@@ -100,11 +98,11 @@ TEST(FragTest, Slack) {
   ASSERT_GE(slack_after, slack_before);
   size_t slack = slack_after - slack_before;
 
-  ASSERT_GT(double(slack), 0.9*free_bytes);
-  ASSERT_LT(double(slack), 1.1*free_bytes);
+  ASSERT_GT(double(slack), 0.9 * free_bytes);
+  ASSERT_LT(double(slack), 1.1 * free_bytes);
 
   // Dump malloc stats
-  static const int kBufSize = 1<<20;
+  static const int kBufSize = 1 << 20;
   char* buffer = new char[kBufSize];
   MallocExtension::instance()->GetStats(buffer, kBufSize);
   puts(buffer);
@@ -121,7 +119,6 @@ TEST(FragTest, Slack) {
     }
 
     double end = GetCPUTime();
-    fprintf(stderr, "getproperty: %6.1f ns/call\n",
-            (end-start) * 1e9 / kIterations);
+    fprintf(stderr, "getproperty: %6.1f ns/call\n", (end - start) * 1e9 / kIterations);
   }
 }

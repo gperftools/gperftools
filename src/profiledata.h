@@ -37,12 +37,11 @@
 // The profile data file format is documented in
 // docs/cpuprofile-fileformat.html
 
-
 #ifndef BASE_PROFILEDATA_H_
 #define BASE_PROFILEDATA_H_
 
 #include <config.h>
-#include <time.h>   // for time_t
+#include <time.h>  // for time_t
 #include <stdint.h>
 #include "base/basictypes.h"
 
@@ -79,10 +78,10 @@
 class ProfileData {
  public:
   struct State {
-    bool     enabled;             // Is profiling currently enabled?
-    time_t   start_time;          // If enabled, when was profiling started?
-    char     profile_name[1024];  // Name of file being written, or '\0'
-    int      samples_gathered;    // Number of samples gathered to far (or 0)
+    bool enabled;             // Is profiling currently enabled?
+    time_t start_time;        // If enabled, when was profiling started?
+    char profile_name[1024];  // Name of file being written, or '\0'
+    int samples_gathered;     // Number of samples gathered to far (or 0)
   };
 
   class Options {
@@ -90,15 +89,11 @@ class ProfileData {
     Options();
 
     // Get and set the sample frequency.
-    int frequency() const {
-      return frequency_;
-    }
-    void set_frequency(int frequency) {
-      frequency_ = frequency;
-    }
+    int frequency() const { return frequency_; }
+    void set_frequency(int frequency) { frequency_ = frequency; }
 
    private:
-    int      frequency_;                  // Sample frequency.
+    int frequency_;  // Sample frequency.
   };
 
   static const int kMaxStackDepth = 254;  // Max stack depth stored in profile
@@ -113,7 +108,7 @@ class ProfileData {
   // Returns true if data collection could be started, otherwise (if an
   // error occurred or if data collection was already enabled) returns
   // false.
-  bool Start(const char *fname, const Options& options);
+  bool Start(const char* fname, const Options& options);
 
   // If data collection is enabled, stop data collection and write the
   // data to disk.
@@ -145,9 +140,9 @@ class ProfileData {
  private:
   friend class CpuProfiler;
 
-  static const int kAssociativity = 4;          // For hashtable
-  static const int kBuckets = 1 << 10;          // For hashtable
-  static const int kBufferLength = 1 << 18;     // For eviction buffer
+  static const int kAssociativity = 4;       // For hashtable
+  static const int kBuckets = 1 << 10;       // For hashtable
+  static const int kBufferLength = 1 << 18;  // For eviction buffer
 
   // Type of slots: each slot can be either a count, or a PC value
   typedef uintptr_t Slot;
@@ -164,15 +159,15 @@ class ProfileData {
     Entry entry[kAssociativity];
   };
 
-  Bucket*       hash_;          // hash table
-  Slot*         evict_;         // evicted entries
-  int           num_evicted_;   // how many evicted entries?
-  int           out_;           // fd for output file.
-  int           count_;         // How many samples recorded
-  int           evictions_;     // How many evictions
-  size_t        total_bytes_;   // How much output
-  char*         fname_;         // Profile file name
-  time_t        start_time_;    // Start time, or 0
+  Bucket* hash_;        // hash table
+  Slot* evict_;         // evicted entries
+  int num_evicted_;     // how many evicted entries?
+  int out_;             // fd for output file.
+  int count_;           // How many samples recorded
+  int evictions_;       // How many evictions
+  size_t total_bytes_;  // How much output
+  char* fname_;         // Profile file name
+  time_t start_time_;   // Start time, or 0
 
   // Move 'entry' to the eviction buffer.
   void Evict(const Entry& entry);

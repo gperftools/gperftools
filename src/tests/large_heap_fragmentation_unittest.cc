@@ -59,16 +59,14 @@ TEST(LargeHeapFragmentationTest, Basic) {
   MallocExtension::instance()->ReleaseFreeMemory();
 
   for (int pass = 1; pass <= 3; pass++) {
-    size_t size = 100*1024*1024;
-    while (size < 500*1024*1024) {
-      void *ptr = tc_malloc(size);
+    size_t size = 100 * 1024 * 1024;
+    while (size < 500 * 1024 * 1024) {
+      void* ptr = tc_malloc(size);
       free(ptr);
       size += 20000;
 
       size_t heap_size = static_cast<size_t>(-1);
-      ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty(
-                    "generic.heap_size",
-                    &heap_size));
+      ASSERT_TRUE(MallocExtension::instance()->GetNumericProperty("generic.heap_size", &heap_size));
 
       ASSERT_LT(heap_size, 1 << 30);
     }

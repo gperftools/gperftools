@@ -44,12 +44,12 @@
 
 #include <stdlib.h>
 #include <stdio.h>
-#include <fcntl.h>                  // for mkdir()
-#include <sys/stat.h>               // for mkdir() on freebsd and os x
+#include <fcntl.h>     // for mkdir()
+#include <sys/stat.h>  // for mkdir() on freebsd and os x
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>                 // for fork()
+#include <unistd.h>  // for fork()
 #endif
-#include <sys/wait.h>               // for wait()
+#include <sys/wait.h>  // for wait()
 #include <string>
 
 #include "base/basictypes.h"
@@ -57,7 +57,7 @@
 #include "testing_portal.h"
 
 static const int kMaxCount = 100000;
-int* g_array[kMaxCount];              // an array of int-vectors
+int* g_array[kMaxCount];  // an array of int-vectors
 
 static const char* volatile marker;
 
@@ -66,16 +66,14 @@ static ATTRIBUTE_NOINLINE void Allocate(int start, int end, int size) {
   // identical Allocate & Allocate2 functions.
   marker = "Allocate";
   for (int i = start; i < end; ++i) {
-    if (i < kMaxCount)
-      g_array[i] = new int[size];
+    if (i < kMaxCount) g_array[i] = new int[size];
   }
 }
 
 static ATTRIBUTE_NOINLINE void Allocate2(int start, int end, int size) {
   marker = "Allocate2";
   for (int i = start; i < end; ++i) {
-    if (i < kMaxCount)
-      g_array[i] = new int[size];
+    if (i < kMaxCount) g_array[i] = new int[size];
   }
 }
 
@@ -91,9 +89,8 @@ static void TestHeapProfilerStartStopIsRunning() {
   // IsHeapProfilerRunning should return true.
   if (!IsHeapProfilerRunning()) {
     const char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == nullptr)
-      tmpdir = "/tmp";
-    mkdir(tmpdir, 0755);     // if necessary
+    if (tmpdir == nullptr) tmpdir = "/tmp";
+    mkdir(tmpdir, 0755);  // if necessary
     HeapProfilerStart((std::string(tmpdir) + "/start_stop").c_str());
     CHECK(IsHeapProfilerRunning());
 
@@ -110,9 +107,8 @@ static void TestDumpHeapProfiler() {
   // IsHeapProfilerRunning should return true.
   if (!IsHeapProfilerRunning()) {
     const char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == nullptr)
-      tmpdir = "/tmp";
-    mkdir(tmpdir, 0755);     // if necessary
+    if (tmpdir == nullptr) tmpdir = "/tmp";
+    mkdir(tmpdir, 0755);  // if necessary
     HeapProfilerStart((std::string(tmpdir) + "/dump").c_str());
     CHECK(IsHeapProfilerRunning());
 
@@ -124,7 +120,6 @@ static void TestDumpHeapProfiler() {
     HeapProfilerStop();
   }
 }
-
 
 int main(int argc, char** argv) {
   tcmalloc::TestingPortal::Get()->GetSampleParameter() = 512 << 10;
@@ -161,10 +156,10 @@ int main(int argc, char** argv) {
       case -1:
         printf("FORK failed!\n");
         return 1;
-      case 0:             // child
-        return execl(argv[0], argv[0], nullptr);   // run child with no args
+      case 0:                                     // child
+        return execl(argv[0], argv[0], nullptr);  // run child with no args
       default:
-        wait(nullptr);       // we'll let the kids run one at a time
+        wait(nullptr);  // we'll let the kids run one at a time
     }
   }
 

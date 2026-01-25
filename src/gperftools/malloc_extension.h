@@ -55,11 +55,11 @@
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 static const int kMallocHistogramSize = 64;
@@ -74,14 +74,13 @@ struct MallocRange;
 // Interface to a pluggable system allocator.
 class PERFTOOLS_DLL_DECL SysAllocator {
  public:
-  SysAllocator() {
-  }
+  SysAllocator() {}
   virtual ~SysAllocator();
 
   // Allocates "size"-byte of memory from system aligned with "alignment".
   // Returns nullptr if failed. Otherwise, the returned pointer p up to and
   // including (p + actual_size -1) have been allocated.
-  virtual void* Alloc(size_t size, size_t *actual_size, size_t alignment) = 0;
+  virtual void* Alloc(size_t size, size_t* actual_size, size_t alignment) = 0;
 };
 
 // The default implementations of the following routines do nothing.
@@ -99,8 +98,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   virtual bool VerifyNewMemory(const void* p);
   virtual bool VerifyArrayNewMemory(const void* p);
   virtual bool VerifyMallocMemory(const void* p);
-  virtual bool MallocMemoryStats(int* blocks, size_t* total,
-                                 int histogram[kMallocHistogramSize]);
+  virtual bool MallocMemoryStats(int* blocks, size_t* total, int histogram[kMallocHistogramSize]);
 
   // Get a human readable description of the following malloc data structures.
   // - Total inuse memory by application.
@@ -143,7 +141,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   //
   // This is a best-effort interface useful only for performance
   // analysis.  The implementation may not call func at all.
-  typedef void (RangeFunction)(void*, const base::MallocRange*);
+  typedef void(RangeFunction)(void*, const base::MallocRange*);
   virtual void Ranges(void* arg, RangeFunction func);
 
   // -------------------------------------------------------------------
@@ -277,7 +275,7 @@ class PERFTOOLS_DLL_DECL MallocExtension {
   //
   // It's a no-op for malloc implementations that do not support pluggable
   // system allocators.
-  virtual void SetSystemAllocator(SysAllocator *a);
+  virtual void SetSystemAllocator(SysAllocator* a);
 
   // Try to release num_bytes of free memory back to the operating
   // system for reuse.  Use this extension with caution -- to get this
@@ -422,17 +420,17 @@ namespace base {
 // Information passed per range.  More fields may be added later.
 struct MallocRange {
   enum Type {
-    INUSE,                // Application is using this range
-    FREE,                 // Range is currently free
-    UNMAPPED,             // Backing physical memory has been returned to the OS
+    INUSE,     // Application is using this range
+    FREE,      // Range is currently free
+    UNMAPPED,  // Backing physical memory has been returned to the OS
     UNKNOWN
     // More enum values may be added in the future
   };
 
-  uintptr_t address;    // Address of range
-  size_t length;        // Byte length of range
-  Type type;            // Type of this range
-  double fraction;      // Fraction of range that is being used (0 if !INUSE)
+  uintptr_t address;  // Address of range
+  size_t length;      // Byte length of range
+  Type type;          // Type of this range
+  double fraction;    // Fraction of range that is being used (0 if !INUSE)
 
   // Perhaps add the following:
   // - stack trace if this range was sampled
@@ -440,6 +438,6 @@ struct MallocRange {
   // - age when allocated (for inuse) or freed (if not in use)
 };
 
-} // namespace base
+}  // namespace base
 
 #endif  // BASE_MALLOC_EXTENSION_H_

@@ -37,9 +37,9 @@
 
 #include "base/sysinfo.h"
 
-#include <limits.h>   // for PATH_MAX
-#include <stdlib.h>   // for environment primitives
-#include <unistd.h>   // for getpid()
+#include <limits.h>  // for PATH_MAX
+#include <stdlib.h>  // for environment primitives
+#include <unistd.h>  // for getpid()
 
 #include <string>
 #include <vector>
@@ -73,23 +73,15 @@ struct WithEnv {
 
   const EnvUpdate env_update;
 
-  WithEnv(const std::string& var, const std::string& val) : env_update(var, val) {
-    Reset();
-  }
-  ~WithEnv() {
-    environ = orig_environ;
-  }
+  WithEnv(const std::string& var, const std::string& val) : env_update(var, val) { Reset(); }
+  ~WithEnv() { environ = orig_environ; }
 
   // GetUniquePathFromEnv updates environment variables, so this
   // re-sets environment to the values set by this WithEnv block.
-  void Reset() {
-    environ = const_cast<char**>(&(env_update.new_environ[0]));
-  }
+  void Reset() { environ = const_cast<char**>(&(env_update.new_environ[0])); }
 };
 
-std::string AppendPID(const std::string &str) {
-  return str + "_" + std::to_string(getpid());
-}
+std::string AppendPID(const std::string& str) { return str + "_" + std::to_string(getpid()); }
 
 #define TEST_VAR "GPROF_TEST_PATH"
 #define TEST_VAL "/var/log/some_file_name"

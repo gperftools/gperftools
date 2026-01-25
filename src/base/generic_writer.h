@@ -46,19 +46,17 @@ namespace tcmalloc {
 // Generic Writer is abstract sink of usually text data. It can be
 // printf-ed into.
 class ATTRIBUTE_VISIBILITY_HIDDEN GenericWriter {
-public:
+ public:
 #if defined(HAVE___ATTRIBUTE__)
-  void AppendF(const char* fmt, ...) __attribute__ ((format(printf, 2, 3)));
+  void AppendF(const char* fmt, ...) __attribute__((format(printf, 2, 3)));
 #else
   void AppendF(const char* fmt, ...);
 #endif
 
   void AppendMem(const char* str, size_t sz);
-  void AppendStr(const char* str) {
-    AppendMem(str, strlen(str));
-  }
+  void AppendStr(const char* str) { AppendMem(str, strlen(str)); }
 
-protected:
+ protected:
   virtual ~GenericWriter();
 
   virtual std::pair<char*, char*> RecycleBuffer(char* buf_begin, char* buf_end, int want_at_least) = 0;
@@ -69,7 +67,7 @@ protected:
     buf_fill_ = buf_;
   }
 
-private:
+ private:
   char* buf_{};
   char* buf_fill_{};
   char* buf_end_{};
@@ -82,13 +80,11 @@ private:
 // avoids any memory allocation by holding it's buffer within itself.
 template <typename WriteFn, int kSize>
 class ATTRIBUTE_VISIBILITY_HIDDEN WriteFnWriter : public GenericWriter {
-public:
+ public:
   explicit WriteFnWriter(const WriteFn& write_fn) : write_fn_(write_fn) {}
-  ~WriteFnWriter() override {
-    FinalRecycle();
-  }
+  ~WriteFnWriter() override { FinalRecycle(); }
 
-private:
+ private:
   std::pair<char*, char*> RecycleBuffer(char* buf_begin, char* buf_end, int want_at_least) override {
     int actually_filled = buf_end - buf_begin;
     if (actually_filled > 0) {
@@ -105,9 +101,7 @@ private:
 struct ATTRIBUTE_VISIBILITY_HIDDEN RawFDWriteFn {
   const RawFD fd;
   explicit RawFDWriteFn(RawFD fd) : fd(fd) {}
-  void operator()(const char* buf, size_t amt) const {
-    RawWrite(fd, buf, amt);
-  }
+  void operator()(const char* buf, size_t amt) const { RawWrite(fd, buf, amt); }
 };
 
 // RawFDGenericWriter is implementation of GenericWriter that writes to
@@ -117,23 +111,24 @@ struct ATTRIBUTE_VISIBILITY_HIDDEN RawFDWriteFn {
 // it's buffer within itself.
 template <int kSize = 8192>
 class ATTRIBUTE_VISIBILITY_HIDDEN RawFDGenericWriter : private RawFDWriteFn, public WriteFnWriter<RawFDWriteFn, kSize> {
-public:
-  explicit RawFDGenericWriter(RawFD fd) : RawFDWriteFn(fd), WriteFnWriter<RawFDWriteFn, kSize>{*static_cast<RawFDWriteFn*>(this)} {}
+ public:
+  explicit RawFDGenericWriter(RawFD fd)
+      : RawFDWriteFn(fd), WriteFnWriter<RawFDWriteFn, kSize>{*static_cast<RawFDWriteFn*>(this)} {}
   ~RawFDGenericWriter() override = default;
 };
 
 // StringGenericWriter is GenericWriter implementation that appends to
 // given std::string instance.
 class ATTRIBUTE_VISIBILITY_HIDDEN StringGenericWriter : public GenericWriter {
-public:
+ public:
   explicit StringGenericWriter(std::string* s) : s_(s) {}
   ~StringGenericWriter() override;
 
-private:
+ private:
   std::pair<char*, char*> RecycleBuffer(char* buf_begin, char* buf_end, int want_at_least) override;
 
   std::string* s_;
-  int unused_size_{}; // suffix of s_'s contents available to be filled
+  int unused_size_{};  // suffix of s_'s contents available to be filled
 };
 
 // ChunkedWriterConfig config is used by WithWriterToStrDup. See below
@@ -148,12 +143,13 @@ struct ATTRIBUTE_VISIBILITY_HIDDEN ChunkedWriterConfig {
   int buffer_size;
 
   ChunkedWriterConfig(malloc_fn chunk_malloc, free_fn chunk_free, int buffer_size = 1 << 20)
-    : chunk_malloc(chunk_malloc), chunk_free(chunk_free), buffer_size(buffer_size) {}
+      : chunk_malloc(chunk_malloc), chunk_free(chunk_free), buffer_size(buffer_size) {}
 };
 
 // Internal. Same as WithWriterToStrDup below.
 ATTRIBUTE_VISIBILITY_HIDDEN
-char* DoWithWriterToStrDup(const ChunkedWriterConfig& config, void (*body)(GenericWriter* writer, void* arg), void* arg);
+char* DoWithWriterToStrDup(const ChunkedWriterConfig& config, void (*body)(GenericWriter* writer, void* arg),
+                           void* arg);
 
 // WithWriterToStrDup constructs GenericWriter instance that
 // accumulates data in linked list of memory chunks allocated via
@@ -166,10 +162,13 @@ char* DoWithWriterToStrDup(const ChunkedWriterConfig& config, void (*body)(Gener
 // returns malloc-ed asciiz string.
 template <typename Body>
 char* WithWriterToStrDup(const ChunkedWriterConfig& config, const Body& body) {
-  return DoWithWriterToStrDup(config, [] (GenericWriter* writer, void* arg) {
-    const Body& body = *const_cast<const Body*>(static_cast<Body*>(arg));
-    body(writer);
-  }, static_cast<void*>(const_cast<Body*>(&body)));
+  return DoWithWriterToStrDup(
+      config,
+      [](GenericWriter* writer, void* arg) {
+        const Body& body = *const_cast<const Body*>(static_cast<Body*>(arg));
+        body(writer);
+      },
+      static_cast<void*>(const_cast<Body*>(&body)));
 }
 
 }  // namespace tcmalloc

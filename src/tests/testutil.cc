@@ -44,28 +44,22 @@
 #include <vector>
 
 extern "C" {
-  void RunThread(void (*fn)()) {
-    std::thread{fn}.join();
-  }
+void RunThread(void (*fn)()) { std::thread{fn}.join(); }
 
-  static void RunMany(const std::function<void(int)>& fn, int count) {
-    std::vector<std::thread> threads;
-    threads.reserve(count);
-    for (int i = 0; i < count; i++) {
-      threads.emplace_back(fn, i);
-    }
-    for (auto& t : threads) {
-      t.join();
-    }
+static void RunMany(const std::function<void(int)>& fn, int count) {
+  std::vector<std::thread> threads;
+  threads.reserve(count);
+  for (int i = 0; i < count; i++) {
+    threads.emplace_back(fn, i);
   }
+  for (auto& t : threads) {
+    t.join();
+  }
+}
 
-  void RunManyThreads(void (*fn)(), int count) {
-    RunMany([fn] (int dummy) {
-      fn();
-    }, count);
-  }
+void RunManyThreads(void (*fn)(), int count) {
+  RunMany([fn](int dummy) { fn(); }, count);
+}
 
-  void RunManyThreadsWithId(void (*fn)(int), int count) {
-    RunMany(fn, count);
-  }
+void RunManyThreadsWithId(void (*fn)(int), int count) { RunMany(fn, count); }
 }

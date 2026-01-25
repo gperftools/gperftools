@@ -50,7 +50,6 @@
 // TODO(maxim): add a unittest for this class.
 class HeapProfileTable {
  public:
-
   // Extension to be used for heap pforile files.
   static const char kFileExt[];
 
@@ -61,16 +60,16 @@ class HeapProfileTable {
 
   // Info we can return about an allocation.
   struct AllocInfo {
-    size_t object_size;  // size of the allocation
+    size_t object_size;             // size of the allocation
     const void* const* call_stack;  // call stack that made the allocation call
-    int stack_depth;  // depth of call_stack
+    int stack_depth;                // depth of call_stack
     bool live;
     bool ignored;
   };
 
   // Memory (de)allocator interface we'll use.
   typedef void* (*Allocator)(size_t size);
-  typedef void  (*DeAllocator)(void* ptr);
+  typedef void (*DeAllocator)(void* ptr);
 
   // interface ---------------------------
 
@@ -80,8 +79,7 @@ class HeapProfileTable {
   // Record an allocation at 'ptr' of 'bytes' bytes.  'stack_depth'
   // and 'call_stack' identifying the function that requested the
   // allocation. They can be generated using GetCallerStackTrace() above.
-  void RecordAlloc(const void* ptr, size_t bytes,
-                   int stack_depth, const void* const call_stack[]);
+  void RecordAlloc(const void* ptr, size_t bytes, int stack_depth, const void* const call_stack[]);
 
   // Record the deallocation of memory at 'ptr'.
   void RecordFree(const void* ptr);
@@ -96,8 +94,7 @@ class HeapProfileTable {
   // If yes, fill *object_ptr with the actual allocation address
   // and *object_size with the allocation byte size.
   // max_size specifies largest currently possible allocation size.
-  bool FindInsideAlloc(const void* ptr, size_t max_size,
-                       const void** object_ptr, size_t* object_size) const;
+  bool FindInsideAlloc(const void* ptr, size_t max_size, const void** object_ptr, size_t* object_size) const;
 
   // If "ptr" points to a recorded allocation and it's not marked as live
   // mark it as live and return true. Else return false.
@@ -120,7 +117,7 @@ class HeapProfileTable {
   // Iterate over the allocation profile data calling "callback"
   // for every allocation.
   void IterateAllocs(AllocIterator callback) const {
-    address_map_->Iterate([callback] (const void* ptr, AllocValue* v) {
+    address_map_->Iterate([callback](const void* ptr, AllocValue* v) {
       AllocInfo info;
       info.object_size = v->bytes;
       info.call_stack = v->bucket()->stack;
@@ -146,24 +143,18 @@ class HeapProfileTable {
   // Info stored in the address map
   struct AllocValue {
     // Access to the stack-trace bucket
-    Bucket* bucket() const {
-      return reinterpret_cast<Bucket*>(bucket_rep & ~uintptr_t(kMask));
-    }
+    Bucket* bucket() const { return reinterpret_cast<Bucket*>(bucket_rep & ~uintptr_t(kMask)); }
     // This also does set_live(false).
     void set_bucket(Bucket* b) { bucket_rep = reinterpret_cast<uintptr_t>(b); }
-    size_t  bytes;   // Number of bytes in this allocation
+    size_t bytes;  // Number of bytes in this allocation
 
     // Access to the allocation liveness flag (for leak checking)
     bool live() const { return bucket_rep & kLive; }
-    void set_live(bool l) {
-      bucket_rep = (bucket_rep & ~uintptr_t(kLive)) | (l ? kLive : 0);
-    }
+    void set_live(bool l) { bucket_rep = (bucket_rep & ~uintptr_t(kLive)) | (l ? kLive : 0); }
 
     // Should this allocation be ignored if it looks like a leak?
     bool ignore() const { return bucket_rep & kIgnore; }
-    void set_ignore(bool r) {
-      bucket_rep = (bucket_rep & ~uintptr_t(kIgnore)) | (r ? kIgnore : 0);
-    }
+    void set_ignore(bool r) { bucket_rep = (bucket_rep & ~uintptr_t(kIgnore)) | (r ? kIgnore : 0); }
 
    private:
     // We store a few bits in the bottom bits of bucket_rep.
@@ -188,9 +179,7 @@ class HeapProfileTable {
   // "extra" is appended to the unparsed bucket.  Typically it is empty,
   // but may be set to something like " heapprofile" for the total
   // bucket to indicate the type of the profile.
-  static void UnparseBucket(const Bucket& b,
-                            tcmalloc::GenericWriter* writer,
-                            const char* extra);
+  static void UnparseBucket(const Bucket& b, tcmalloc::GenericWriter* writer, const char* extra);
 
   // Get the bucket for the caller stack trace 'key' of depth 'depth'
   // creating the bucket if needed.
@@ -199,9 +188,7 @@ class HeapProfileTable {
   // Write contents of "*allocations" as a heap profile to
   // "file_name".  "total" must contain the total of all entries in
   // "*allocations".
-  static bool WriteProfile(const char* file_name,
-                           const Bucket& total,
-                           AllocationMap* allocations);
+  static bool WriteProfile(const char* file_name, const Bucket& total, AllocationMap* allocations);
 
   // data ----------------------------
 

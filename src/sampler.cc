@@ -53,9 +53,7 @@ DEFINE_int64(tcmalloc_sample_parameter, 0, "");
 
 namespace tcmalloc {
 
-int Sampler::GetSamplePeriod() {
-  return FLAGS_tcmalloc_sample_parameter;
-}
+int Sampler::GetSamplePeriod() { return FLAGS_tcmalloc_sample_parameter; }
 
 // Run this before using your sampler
 void Sampler::Init(uint64_t seed) {
@@ -70,7 +68,7 @@ void Sampler::Init(uint64_t seed) {
 
 #ifndef NO_TCMALLOC_SAMPLES
   static TrivialOnce setup_parameter;
-  setup_parameter.RunOnce([] () {
+  setup_parameter.RunOnce([]() {
     const char* val = GetenvBeforeMain("TCMALLOC_SAMPLE_PARAMETER");
     FLAGS_tcmalloc_sample_parameter = tcmalloc::commandlineflags::StringToLongLong(val, 0);
   });
@@ -113,14 +111,12 @@ ssize_t Sampler::PickNextSamplingPoint() {
   // under piii debug for some binaries.
   double q = static_cast<uint32_t>(rnd_ >> (prng_mod_power - 26)) + 1.0;
   // Put the computed p-value through the CDF of a geometric.
-  double interval =
-      (log2(q) - 26) * (-log(2.0) * FLAGS_tcmalloc_sample_parameter);
+  double interval = (log2(q) - 26) * (-log(2.0) * FLAGS_tcmalloc_sample_parameter);
 
   // Very large values of interval overflow ssize_t. If we happen to
   // hit such improbable condition, we simply cheat and clamp interval
   // to largest supported value.
-  return static_cast<ssize_t>(
-    std::min<double>(interval, static_cast<double>(kMaxSSize)));
+  return static_cast<ssize_t>(std::min<double>(interval, static_cast<double>(kMaxSSize)));
 }
 
 bool Sampler::RecordAllocationSlow(size_t k) {

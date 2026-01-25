@@ -30,7 +30,7 @@
 
 #include <config.h>
 #if (defined(_WIN32) || defined(__MINGW32__)) && !defined(__CYGWIN__) && !defined(__CYGWIN32)
-# define PLATFORM_WINDOWS 1
+#define PLATFORM_WINDOWS 1
 #endif
 
 #include "base/commandlineflags.h"
@@ -41,13 +41,13 @@
 
 #include <tuple>
 
-#include <stdlib.h>   // for getenv()
-#include <stdio.h>    // for snprintf(), sscanf()
-#include <string.h>   // for memmove(), memchr(), etc.
-#include <fcntl.h>    // for open()
+#include <stdlib.h>  // for getenv()
+#include <stdio.h>   // for snprintf(), sscanf()
+#include <string.h>  // for memmove(), memchr(), etc.
+#include <fcntl.h>   // for open()
 #ifdef HAVE_UNISTD_H
-#include <limits.h>        // for PATH_MAX
-#include <unistd.h>   // for read()
+#include <limits.h>  // for PATH_MAX
+#include <unistd.h>  // for read()
 #endif
 
 #if defined(__FreeBSD__)
@@ -55,7 +55,7 @@
 #endif
 
 #ifdef __MACH__
-#include <mach-o/dyld.h>   // for GetProgramInvocationName()
+#include <mach-o/dyld.h>  // for GetProgramInvocationName()
 #endif
 
 // ----------------------------------------------------------------------
@@ -68,9 +68,7 @@
 // (potentially) early, but in practice it is safe to access even very
 // early (with notable exception of windows, as usual).
 #ifndef PLATFORM_WINDOWS
-const char* GetenvBeforeMain(const char* name) {
-  return getenv(name);
-}
+const char* GetenvBeforeMain(const char* name) { return getenv(name); }
 #else  // PLATFORM_WINDOWS
 
 // One windows we could use C runtime environment access or more
@@ -112,10 +110,10 @@ const char* GetenvBeforeMain(const char* name) {
   if (!(used_buf = GetEnvironmentVariableW(wname, wide_envvar_buf, kBufSize))) {
     return nullptr;
   }
-  used_buf++; // include terminating \0 character.
+  used_buf++;  // include terminating \0 character.
 
   // Then we convert variable value, if any, to 7-bit ascii.
-  for (size_t i = 0; i < used_buf ; i++) {
+  for (size_t i = 0; i < used_buf; i++) {
     auto wch = wide_envvar_buf[i];
     if ((wch >> 7)) {
       // If we see any non-ascii char, we silently assume no env
@@ -131,9 +129,7 @@ const char* GetenvBeforeMain(const char* name) {
 #endif  // !PLATFORM_WINDOWS
 
 extern "C" {
-  const char* TCMallocGetenvSafe(const char* name) {
-    return GetenvBeforeMain(name);
-  }
+const char* TCMallocGetenvSafe(const char* name) { return GetenvBeforeMain(name); }
 }
 
 // HPC environment auto-detection
@@ -149,7 +145,7 @@ extern "C" {
 // GetUniquePathFromEnv value. Second and third return values are
 // strings to be appended to path for extra identification.
 static std::tuple<bool, const char*, const char*> QueryHPCEnvironment() {
-  auto mk = [] (bool a, const char* b, const char* c) {
+  auto mk = [](bool a, const char* b, const char* c) {
     // We have to work around gcc 5 bug in tuple constructor. It
     // doesn't let us do {a, b, c}
     //
@@ -252,8 +248,7 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
 #endif
 
   if (pidIsForced) {
-    snprintf(path, PATH_MAX, "%s%s%s_%d",
-             envval, append1, append2, GetPID());
+    snprintf(path, PATH_MAX, "%s%s%s_%d", envval, append1, append2, GetPID());
   } else {
     snprintf(path, PATH_MAX, "%s%s%s", envval, append1, append2);
   }
@@ -261,13 +256,12 @@ bool GetUniquePathFromEnv(const char* env_name, char* path) {
   return true;
 }
 
-int GetSystemCPUsCount()
-{
+int GetSystemCPUsCount() {
 #if defined(PLATFORM_WINDOWS)
   // Get the number of processors.
   SYSTEM_INFO info;
   GetSystemInfo(&info);
-  return  info.dwNumberOfProcessors;
+  return info.dwNumberOfProcessors;
 #else
   long rv = sysconf(_SC_NPROCESSORS_ONLN);
   if (rv < 0) {
@@ -280,8 +274,8 @@ int GetSystemCPUsCount()
 namespace {
 
 #ifndef _WIN32
-inline // NOTE: inline makes us avoid unused function warning
-const char* readlink_strdup(const char* path) {
+// NOTE: inline makes us avoid unused function warning
+inline const char* readlink_strdup(const char* path) {
   int sz = 1024;
   char* retval = nullptr;
   for (;;) {
@@ -333,31 +327,29 @@ const char* GetProgramInvocationName() {
   static char program_invocation_name[PATH_MAX];
   if (program_invocation_name[0] == '\0') {  // first time calculating
     uint32_t length = sizeof(program_invocation_name);
-    if (_NSGetExecutablePath(program_invocation_name, &length))
-      return nullptr;
+    if (_NSGetExecutablePath(program_invocation_name, &length)) return nullptr;
   }
   return program_invocation_name;
 #elif defined(__FreeBSD__)
   static char program_invocation_name[PATH_MAX];
   size_t len = sizeof(program_invocation_name);
-  static const int name[4] = { CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1 };
-  if (!sysctl(name, 4, program_invocation_name, &len, nullptr, 0))
-    return program_invocation_name;
+  static const int name[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+  if (!sysctl(name, 4, program_invocation_name, &len, nullptr, 0)) return program_invocation_name;
   return nullptr;
 #else
-  return nullptr; // figure out a way to get argv[0]
+  return nullptr;  // figure out a way to get argv[0]
 #endif
 }
 
 void SafeSetEnv(const char* name, const char* value) {
-  size_t env_size = 1; // 1 for terminating nullptr entry
+  size_t env_size = 1;  // 1 for terminating nullptr entry
   for (char** p = environ; *p != nullptr; p++) {
     env_size++;
   }
 
   size_t name_size = strlen(name);
   size_t value_size = strlen(value);
-  size_t namevalue_size = name_size + value_size + 2; // +2 is for '=' and '\0'
+  size_t namevalue_size = name_size + value_size + 2;  // +2 is for '=' and '\0'
   size_t new_env_size_bytes = (env_size + 1) * sizeof(char*);
   MMapResult mres = tcmalloc::MapAnonymous(new_env_size_bytes + namevalue_size);
   CHECK(mres.success);

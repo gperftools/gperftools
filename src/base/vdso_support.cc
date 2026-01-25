@@ -38,10 +38,10 @@
 
 #include "base/vdso_support.h"
 
-#ifdef HAVE_VDSO_SUPPORT     // defined in vdso_support.h
+#ifdef HAVE_VDSO_SUPPORT  // defined in vdso_support.h
 
 #include <fcntl.h>
-#include <stddef.h>   // for ptrdiff_t
+#include <stddef.h>  // for ptrdiff_t
 
 #include "base/logging.h"
 #include "base/dynamic_annotations.h"
@@ -53,12 +53,11 @@
 
 namespace base {
 
-const void *VDSOSupport::vdso_base_ = ElfMemImage::kInvalidBase;
+const void* VDSOSupport::vdso_base_ = ElfMemImage::kInvalidBase;
 VDSOSupport::VDSOSupport()
     // If vdso_base_ is still set to kInvalidBase, we got here
     // before VDSOSupport::Init has been called. Call it now.
-    : image_(vdso_base_ == ElfMemImage::kInvalidBase ? Init() : vdso_base_) {
-}
+    : image_(vdso_base_ == ElfMemImage::kInvalidBase ? Init() : vdso_base_) {}
 
 // NOTE: we can't use GoogleOnceInit() below, because we can be
 // called by tcmalloc, and none of the *once* stuff may be functional yet.
@@ -69,7 +68,7 @@ VDSOSupport::VDSOSupport()
 //
 // Finally, even if there is a race here, it is harmless, because
 // the operation should be idempotent.
-const void *VDSOSupport::Init() {
+const void* VDSOSupport::Init() {
   if (vdso_base_ == ElfMemImage::kInvalidBase) {
     // Valgrind zaps AT_SYSINFO_EHDR and friends from the auxv[]
     // on stack, and so glibc works as if VDSO was not present.
@@ -88,9 +87,8 @@ const void *VDSOSupport::Init() {
     ElfW(auxv_t) aux;
     while (read(fd, &aux, sizeof(aux)) == sizeof(aux)) {
       if (aux.a_type == AT_SYSINFO_EHDR) {
-        static_assert(sizeof(vdso_base_) == sizeof(aux.a_un.a_val),
-                      "unexpected sizeof(pointer) != sizeof(a_val)");
-        vdso_base_ = reinterpret_cast<void *>(aux.a_un.a_val);
+        static_assert(sizeof(vdso_base_) == sizeof(aux.a_un.a_val), "unexpected sizeof(pointer) != sizeof(a_val)");
+        vdso_base_ = reinterpret_cast<void*>(aux.a_un.a_val);
         break;
       }
     }
@@ -103,23 +101,19 @@ const void *VDSOSupport::Init() {
   return vdso_base_;
 }
 
-const void *VDSOSupport::SetBase(const void *base) {
+const void* VDSOSupport::SetBase(const void* base) {
   CHECK(base != ElfMemImage::kInvalidBase);
-  const void *old_base = vdso_base_;
+  const void* old_base = vdso_base_;
   vdso_base_ = base;
   image_.Init(base);
   return old_base;
 }
 
-bool VDSOSupport::LookupSymbol(const char *name,
-                               const char *version,
-                               int type,
-                               SymbolInfo *info) const {
+bool VDSOSupport::LookupSymbol(const char* name, const char* version, int type, SymbolInfo* info) const {
   return image_.LookupSymbol(name, version, type, info);
 }
 
-bool VDSOSupport::LookupSymbolByAddress(const void *address,
-                                        SymbolInfo *info_out) const {
+bool VDSOSupport::LookupSymbolByAddress(const void* address, SymbolInfo* info_out) const {
   return image_.LookupSymbolByAddress(address, info_out);
 }
 
@@ -135,6 +129,6 @@ static class VDSOInitHelper {
  public:
   VDSOInitHelper() { VDSOSupport::Init(); }
 } vdso_init_helper;
-}
+}  // namespace base
 
 #endif  // HAVE_VDSO_SUPPORT

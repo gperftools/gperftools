@@ -33,8 +33,8 @@
 
 #include "emergency_malloc.h"
 
-#include <errno.h>                      // for ENOMEM, errno
-#include <string.h>                     // for memset
+#include <errno.h>   // for ENOMEM, errno
+#include <string.h>  // for memset
 
 #include "base/basictypes.h"
 #include "base/logging.h"
@@ -46,25 +46,25 @@
 
 namespace tcmalloc {
 
-ATTRIBUTE_VISIBILITY_HIDDEN char *emergency_arena_start;
+ATTRIBUTE_VISIBILITY_HIDDEN char* emergency_arena_start;
 ATTRIBUTE_VISIBILITY_HIDDEN uintptr_t emergency_arena_start_shifted;
 
 static CACHELINE_ALIGNED SpinLock emergency_malloc_lock;
-static char *emergency_arena_end;
-static LowLevelAlloc::Arena *emergency_arena;
+static char* emergency_arena_end;
+static LowLevelAlloc::Arena* emergency_arena;
 
 class EmergencyArenaPagesAllocator : public LowLevelAlloc::PagesAllocator {
   ~EmergencyArenaPagesAllocator() {}
-  std::pair<void *, size_t> MapPages(size_t size) override {
-    char *new_end = emergency_arena_end + size;
+  std::pair<void*, size_t> MapPages(size_t size) override {
+    char* new_end = emergency_arena_end + size;
     if (new_end > emergency_arena_start + kEmergencyArenaSize) {
       RAW_LOG(FATAL, "Unable to allocate %zu bytes in emergency zone.", size);
     }
-    char *rv = emergency_arena_end;
+    char* rv = emergency_arena_end;
     emergency_arena_end = emergency_arena_start + kEmergencyArenaSize;
-    return {static_cast<void *>(rv), emergency_arena_end - rv};
+    return {static_cast<void*>(rv), emergency_arena_end - rv};
   }
-  void UnMapPages(void *addr, size_t size) override {
+  void UnMapPages(void* addr, size_t size) override {
     RAW_LOG(FATAL, "UnMapPages is not implemented for emergency arena");
   }
 };
@@ -74,9 +74,9 @@ static void InitEmergencyMalloc(void) {
   CHECK_CONDITION(success);
 
   uintptr_t arena_ptr = reinterpret_cast<uintptr_t>(arena);
-  uintptr_t ptr = (arena_ptr + kEmergencyArenaSize - 1) & ~(kEmergencyArenaSize-1);
+  uintptr_t ptr = (arena_ptr + kEmergencyArenaSize - 1) & ~(kEmergencyArenaSize - 1);
 
-  emergency_arena_end = emergency_arena_start = reinterpret_cast<char *>(ptr);
+  emergency_arena_end = emergency_arena_start = reinterpret_cast<char*>(ptr);
 
   static StaticStorage<EmergencyArenaPagesAllocator> pages_allocator_place;
   EmergencyArenaPagesAllocator* allocator = pages_allocator_place.Construct();
@@ -94,12 +94,12 @@ static void InitEmergencyMalloc(void) {
   }
 
   uintptr_t tail_unmap_size = kEmergencyArenaSize - head_unmap_size;
-  void *tail_start = reinterpret_cast<void *>(arena_ptr + head_unmap_size + kEmergencyArenaSize);
+  void* tail_start = reinterpret_cast<void*>(arena_ptr + head_unmap_size + kEmergencyArenaSize);
   // Failures are ignored. See above.
   (void)munmap(tail_start, tail_unmap_size);
 }
 
-ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyMalloc(size_t size) {
+ATTRIBUTE_VISIBILITY_HIDDEN void* EmergencyMalloc(size_t size) {
   SpinLockHolder l(&emergency_malloc_lock);
 
   if (emergency_arena_start == nullptr) {
@@ -107,25 +107,25 @@ ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyMalloc(size_t size) {
     CHECK_CONDITION(emergency_arena_start != nullptr);
   }
 
-  void *rv = LowLevelAlloc::AllocWithArena(size, emergency_arena);
+  void* rv = LowLevelAlloc::AllocWithArena(size, emergency_arena);
   if (rv == nullptr) {
     errno = ENOMEM;
   }
   return rv;
 }
 
-ATTRIBUTE_VISIBILITY_HIDDEN void EmergencyFree(void *p) {
+ATTRIBUTE_VISIBILITY_HIDDEN void EmergencyFree(void* p) {
   SpinLockHolder l(&emergency_malloc_lock);
   CHECK_CONDITION(emergency_arena_start);
   LowLevelAlloc::Free(p);
 }
 
-ATTRIBUTE_VISIBILITY_HIDDEN size_t EmergencyAllocatedSize(const void *p) {
+ATTRIBUTE_VISIBILITY_HIDDEN size_t EmergencyAllocatedSize(const void* p) {
   CHECK_CONDITION(emergency_arena_start);
   return LowLevelAlloc::UsableSize(p);
 }
 
-ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_size) {
+ATTRIBUTE_VISIBILITY_HIDDEN void* EmergencyRealloc(void* _old_ptr, size_t new_size) {
   if (_old_ptr == nullptr) {
     return EmergencyMalloc(new_size);
   }
@@ -136,7 +136,7 @@ ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_si
   SpinLockHolder l(&emergency_malloc_lock);
   CHECK_CONDITION(emergency_arena_start);
 
-  char *old_ptr = static_cast<char *>(_old_ptr);
+  char* old_ptr = static_cast<char*>(_old_ptr);
   CHECK_CONDITION(old_ptr <= emergency_arena_end);
   CHECK_CONDITION(emergency_arena_start <= old_ptr);
 
@@ -146,7 +146,7 @@ ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyRealloc(void *_old_ptr, size_t new_si
   size_t old_ptr_size = emergency_arena_end - old_ptr;
   size_t copy_size = (new_size < old_ptr_size) ? new_size : old_ptr_size;
 
-  void *new_ptr = LowLevelAlloc::AllocWithArena(new_size, emergency_arena);
+  void* new_ptr = LowLevelAlloc::AllocWithArena(new_size, emergency_arena);
   if (new_ptr == nullptr) {
     errno = ENOMEM;
     return nullptr;

@@ -48,8 +48,7 @@
 
 namespace tcmalloc {
 
-LowLevelAlloc::PagesAllocator::~PagesAllocator() {
-}
+LowLevelAlloc::PagesAllocator::~PagesAllocator() {}
 
 // ---------------------------------------------------------------------------
 static constexpr int kMaxLevel = 30;
@@ -62,9 +61,9 @@ struct AllocList {
   struct Header {
     intptr_t size;  // size of entire region, including this field. Must be
     // first.  Valid in both allocated and unallocated blocks
-    intptr_t magic; // kMagicAllocated or kMagicUnallocated xor this
-    LowLevelAlloc::Arena *arena; // pointer to parent arena
-    void *dummy_for_alignment;   // aligns regions to 0 mod 2*sizeof(void*)
+    intptr_t magic;               // kMagicAllocated or kMagicUnallocated xor this
+    LowLevelAlloc::Arena* arena;  // pointer to parent arena
+    void* dummy_for_alignment;    // aligns regions to 0 mod 2*sizeof(void*)
   } header{};
 
   // Next two fields: in unallocated blocks: freelist skiplist data
@@ -75,14 +74,14 @@ struct AllocList {
   // actually has levels elements.  The AllocList node may not have
   // room for all kMaxLevel entries.  See max_fit in
   // LLA_SkiplistLevels()
-  AllocList *next[kMaxLevel]{};
+  AllocList* next[kMaxLevel]{};
 };
 
 class DefaultPagesAllocator : public LowLevelAlloc::PagesAllocator {
-public:
+ public:
   virtual ~DefaultPagesAllocator() {};
-  std::pair<void *,size_t> MapPages(size_t size) override;
-  void UnMapPages(void *addr, size_t size) override;
+  std::pair<void*, size_t> MapPages(size_t size) override;
+  void UnMapPages(void* addr, size_t size) override;
 };
 
 // ---------------------------------------------------------------------------
@@ -93,7 +92,7 @@ public:
 // Requires size >= base.
 static int IntLog2(size_t size, size_t base) {
   int result = 0;
-  for (size_t i = size; i > base; i >>= 1) { // i == floor(size/2**result)
+  for (size_t i = size; i > base; i >>= 1) {  // i == floor(size/2**result)
     result++;
   }
   //    floor(size / 2**result) <= base < floor(size / 2**(result-1))
@@ -104,9 +103,9 @@ static int IntLog2(size_t size, size_t base) {
 
 // Return a random integer n:  p(n)=1/(2**n) if 1 <= n; p(n)=0 if n < 1.
 static int Random() {
-  static uint32_t r = 1;         // no locking---it's not critical
+  static uint32_t r = 1;  // no locking---it's not critical
   int result = 1;
-  while ((((r = r*1103515245 + 12345) >> 30) & 1) == 0) {
+  while ((((r = r * 1103515245 + 12345) >> 30) & 1) == 0) {
     result++;
   }
   return result;
@@ -124,10 +123,10 @@ static int LLA_SkiplistLevels(size_t size, size_t base, bool random) {
   // max_fit is the maximum number of levels that will fit in a node for the
   // given size.   We can't return more than max_fit, no matter what the
   // random number generator says.
-  int max_fit = (size-OFFSETOF_MEMBER(AllocList, next)) / sizeof (AllocList *);
-  int level = IntLog2(size, base) + (random? Random() : 1);
-  if (level > max_fit)     level = max_fit;
-  if (level > kMaxLevel-1) level = kMaxLevel - 1;
+  int max_fit = (size - OFFSETOF_MEMBER(AllocList, next)) / sizeof(AllocList*);
+  int level = IntLog2(size, base) + (random ? Random() : 1);
+  if (level > max_fit) level = max_fit;
+  if (level > kMaxLevel - 1) level = kMaxLevel - 1;
   RAW_CHECK(level >= 1, "block not big enough for even one level");
   return level;
 }
@@ -136,27 +135,25 @@ static int LLA_SkiplistLevels(size_t size, size_t base, bool random) {
 // For 0 <= i < head->levels, set prev[i] to "no_greater", where no_greater
 // points to the last element at level i in the AllocList less than *e, or is
 // head if no such element exists.
-static AllocList *LLA_SkiplistSearch(AllocList *head,
-                                     AllocList *e, AllocList **prev) {
-  AllocList *p = head;
+static AllocList* LLA_SkiplistSearch(AllocList* head, AllocList* e, AllocList** prev) {
+  AllocList* p = head;
   for (int level = head->levels - 1; level >= 0; level--) {
-    for (AllocList *n; (n = p->next[level]) != 0 && n < e; p = n) {
+    for (AllocList* n; (n = p->next[level]) != 0 && n < e; p = n) {
     }
     prev[level] = p;
   }
-  return (head->levels == 0) ?  0 : prev[0]->next[0];
+  return (head->levels == 0) ? 0 : prev[0]->next[0];
 }
 
 // Insert element *e into AllocList *head.  Set prev[] as LLA_SkiplistSearch.
 // Requires that e->levels be previously set by the caller (using
 // LLA_SkiplistLevels())
-static void LLA_SkiplistInsert(AllocList *head, AllocList *e,
-                               AllocList **prev) {
+static void LLA_SkiplistInsert(AllocList* head, AllocList* e, AllocList** prev) {
   LLA_SkiplistSearch(head, e, prev);
-  for (; head->levels < e->levels; head->levels++) { // extend prev pointers
-    prev[head->levels] = head;                       // to all *e's levels
+  for (; head->levels < e->levels; head->levels++) {  // extend prev pointers
+    prev[head->levels] = head;                        // to all *e's levels
   }
-  for (int i = 0; i != e->levels; i++) { // add element to list
+  for (int i = 0; i != e->levels; i++) {  // add element to list
     e->next[i] = prev[i]->next[i];
     prev[i]->next[i] = e;
   }
@@ -165,15 +162,14 @@ static void LLA_SkiplistInsert(AllocList *head, AllocList *e,
 // Remove element *e from AllocList *head.  Set prev[] as LLA_SkiplistSearch().
 // Requires that e->levels be previous set by the caller (using
 // LLA_SkiplistLevels())
-static void LLA_SkiplistDelete(AllocList *head, AllocList *e,
-                               AllocList **prev) {
-  AllocList *found = LLA_SkiplistSearch(head, e, prev);
+static void LLA_SkiplistDelete(AllocList* head, AllocList* e, AllocList** prev) {
+  AllocList* found = LLA_SkiplistSearch(head, e, prev);
   RAW_CHECK(e == found, "element not in freelist");
   for (int i = 0; i != e->levels && prev[i]->next[i] == e; i++) {
     prev[i]->next[i] = e->next[i];
   }
   while (head->levels > 0 && head->next[head->levels - 1] == 0) {
-    head->levels--;   // reduce head->levels if level unused
+    head->levels--;  // reduce head->levels if level unused
   }
 }
 
@@ -183,18 +179,18 @@ static void LLA_SkiplistDelete(AllocList *head, AllocList *e,
 struct LowLevelAlloc::Arena {
   Arena();
 
-  SpinLock mu;                // protects freelist, allocation_count,
-                              // roundup, min_size
+  SpinLock mu;  // protects freelist, allocation_count,
+                // roundup, min_size
 
-  AllocList freelist;         // head of free list; sorted by addr (under mu)
-  int32_t allocation_count;   // count of allocated blocks (under mu)
-  size_t roundup;             // lowest power of 2 >= max(16,sizeof (AllocList))
-                              // (init under mu, then ro)
-  size_t min_size;            // smallest allocation block size
-                              // (init under mu, then ro)
-  PagesAllocator *allocator;
+  AllocList freelist;        // head of free list; sorted by addr (under mu)
+  int32_t allocation_count;  // count of allocated blocks (under mu)
+  size_t roundup;            // lowest power of 2 >= max(16,sizeof (AllocList))
+                             // (init under mu, then ro)
+  size_t min_size;           // smallest allocation block size
+                             // (init under mu, then ro)
+  PagesAllocator* allocator;
 
-  void InsertAllocatedMemoryLocked(void *new_pages, size_t new_pages_size);
+  void InsertAllocatedMemoryLocked(void* new_pages, size_t new_pages_size);
 };
 
 // magic numbers to identify allocated and unallocated blocks
@@ -203,40 +199,35 @@ static const intptr_t kMagicUnallocated = ~kMagicAllocated;
 
 // create an appropriate magic number for an object at "ptr"
 // "magic" should be kMagicAllocated or kMagicUnallocated
-static intptr_t Magic(intptr_t magic, AllocList::Header *ptr) {
-  return magic ^ reinterpret_cast<intptr_t>(ptr);
-}
+static intptr_t Magic(intptr_t magic, AllocList::Header* ptr) { return magic ^ reinterpret_cast<intptr_t>(ptr); }
 
 LowLevelAlloc::Arena::Arena() {
   // Round up block sizes to a power of two close to the header size.
   roundup = 16;
-  while (roundup < sizeof (freelist.header)) {
+  while (roundup < sizeof(freelist.header)) {
     roundup += roundup;
   }
   // Don't allocate blocks less than twice the roundup size to avoid tiny
   // free blocks.
   min_size = 2 * roundup;
   freelist.header.size = 0;
-  freelist.header.magic =
-    Magic(kMagicUnallocated, &freelist.header);
+  freelist.header.magic = Magic(kMagicUnallocated, &freelist.header);
   freelist.header.arena = this;
   freelist.levels = 0;
-  memset(freelist.next, 0, sizeof (freelist.next));
+  memset(freelist.next, 0, sizeof(freelist.next));
   allocation_count = 0;
   allocator = LowLevelAlloc::GetDefaultPagesAllocator();
 }
 
-LowLevelAlloc::Arena *LowLevelAlloc::NewArena() {
-  return NewArenaWithCustomAlloc(nullptr);
-}
+LowLevelAlloc::Arena* LowLevelAlloc::NewArena() { return NewArenaWithCustomAlloc(nullptr); }
 
-LowLevelAlloc::Arena *LowLevelAlloc::NewArenaWithCustomAlloc(PagesAllocator *allocator) {
+LowLevelAlloc::Arena* LowLevelAlloc::NewArenaWithCustomAlloc(PagesAllocator* allocator) {
   if (allocator) {
     void* memory;
     size_t got_amount;
     std::tie(memory, got_amount) = allocator->MapPages(kMinimalRegion);
 
-    Arena *result = new (memory) Arena();
+    Arena* result = new (memory) Arena();
     result->allocator = allocator;
     result->mu.Lock();
     result->InsertAllocatedMemoryLocked(result + 1, got_amount - sizeof(Arena));
@@ -248,7 +239,7 @@ LowLevelAlloc::Arena *LowLevelAlloc::NewArenaWithCustomAlloc(PagesAllocator *all
 }
 
 // L < arena->mu, L < arena->arena->mu
-bool LowLevelAlloc::DeleteArena(Arena *arena) {
+bool LowLevelAlloc::DeleteArena(Arena* arena) {
   {
     SpinLockHolder locker{&arena->mu};
     bool empty = (arena->allocation_count == 0);
@@ -261,7 +252,7 @@ bool LowLevelAlloc::DeleteArena(Arena *arena) {
   AllocList* first_region = reinterpret_cast<AllocList*>(arena + 1);
   bool seen_first_region = false;
   while (arena->freelist.next[0] != 0) {
-    AllocList *region = arena->freelist.next[0];
+    AllocList* region = arena->freelist.next[0];
     if (region == first_region) {
       RAW_CHECK(!seen_first_region, "");
       seen_first_region = true;
@@ -271,11 +262,8 @@ bool LowLevelAlloc::DeleteArena(Arena *arena) {
 
     size_t size = region->header.size;
     arena->freelist.next[0] = region->next[0];
-    RAW_CHECK(region->header.magic ==
-              Magic(kMagicUnallocated, &region->header),
-              "bad magic number in DeleteArena()");
-    RAW_CHECK(region->header.arena == arena,
-              "bad arena pointer in DeleteArena()");
+    RAW_CHECK(region->header.magic == Magic(kMagicUnallocated, &region->header), "bad magic number in DeleteArena()");
+    RAW_CHECK(region->header.arena == arena, "bad arena pointer in DeleteArena()");
     arena->allocator->UnMapPages(region, size);
   }
 
@@ -288,49 +276,44 @@ bool LowLevelAlloc::DeleteArena(Arena *arena) {
     Free(arena);
   }
 
-  return true; // empty
+  return true;  // empty
 }
 
 // ---------------------------------------------------------------------------
 
 // Return value rounded up to next multiple of align.
 // align must be a power of two.
-static intptr_t RoundUp(intptr_t addr, intptr_t align) {
-  return (addr + align - 1) & ~(align - 1);
-}
+static intptr_t RoundUp(intptr_t addr, intptr_t align) { return (addr + align - 1) & ~(align - 1); }
 
 // Equivalent to "return prev->next[i]" but with sanity checking
 // that the freelist is in the correct order, that it
 // consists of regions marked "unallocated", and that no two regions
 // are adjacent in memory (they should have been coalesced).
 // L < arena->mu
-static AllocList *Next(int i, AllocList *prev, LowLevelAlloc::Arena *arena) {
+static AllocList* Next(int i, AllocList* prev, LowLevelAlloc::Arena* arena) {
   RAW_CHECK(i < prev->levels, "too few levels in Next()");
-  AllocList *next = prev->next[i];
+  AllocList* next = prev->next[i];
   if (next != 0) {
-    RAW_CHECK(next->header.magic == Magic(kMagicUnallocated, &next->header),
-              "bad magic number in Next()");
-    RAW_CHECK(next->header.arena == arena,
-              "bad arena pointer in Next()");
+    RAW_CHECK(next->header.magic == Magic(kMagicUnallocated, &next->header), "bad magic number in Next()");
+    RAW_CHECK(next->header.arena == arena, "bad arena pointer in Next()");
     if (prev != &arena->freelist) {
       RAW_CHECK(prev < next, "unordered freelist");
-      RAW_CHECK(reinterpret_cast<char *>(prev) + prev->header.size <
-                reinterpret_cast<char *>(next), "malformed freelist");
+      RAW_CHECK(reinterpret_cast<char*>(prev) + prev->header.size < reinterpret_cast<char*>(next),
+                "malformed freelist");
     }
   }
   return next;
 }
 
 // Coalesce list item "a" with its successor if they are adjacent.
-static void Coalesce(AllocList *a) {
-  AllocList *n = a->next[0];
-  if (n != 0 && reinterpret_cast<char *>(a) + a->header.size ==
-                    reinterpret_cast<char *>(n)) {
-    LowLevelAlloc::Arena *arena = a->header.arena;
+static void Coalesce(AllocList* a) {
+  AllocList* n = a->next[0];
+  if (n != 0 && reinterpret_cast<char*>(a) + a->header.size == reinterpret_cast<char*>(n)) {
+    LowLevelAlloc::Arena* arena = a->header.arena;
     a->header.size += n->header.size;
     n->header.magic = 0;
     n->header.arena = 0;
-    AllocList *prev[kMaxLevel];
+    AllocList* prev[kMaxLevel];
     LLA_SkiplistDelete(&arena->freelist, n, prev);
     LLA_SkiplistDelete(&arena->freelist, a, prev);
     a->levels = LLA_SkiplistLevels(a->header.size, arena->min_size, true);
@@ -340,32 +323,27 @@ static void Coalesce(AllocList *a) {
 
 // Adds block at location "v" to the free list
 // L >= arena->mu
-static void AddToFreelist(void *v, LowLevelAlloc::Arena *arena) {
-  AllocList *f = reinterpret_cast<AllocList *>(
-                        reinterpret_cast<char *>(v) - sizeof (f->header));
-  RAW_CHECK(f->header.magic == Magic(kMagicAllocated, &f->header),
-            "bad magic number in AddToFreelist()");
-  RAW_CHECK(f->header.arena == arena,
-            "bad arena pointer in AddToFreelist()");
+static void AddToFreelist(void* v, LowLevelAlloc::Arena* arena) {
+  AllocList* f = reinterpret_cast<AllocList*>(reinterpret_cast<char*>(v) - sizeof(f->header));
+  RAW_CHECK(f->header.magic == Magic(kMagicAllocated, &f->header), "bad magic number in AddToFreelist()");
+  RAW_CHECK(f->header.arena == arena, "bad arena pointer in AddToFreelist()");
   f->levels = LLA_SkiplistLevels(f->header.size, arena->min_size, true);
-  AllocList *prev[kMaxLevel];
+  AllocList* prev[kMaxLevel];
   LLA_SkiplistInsert(&arena->freelist, f, prev);
   f->header.magic = Magic(kMagicUnallocated, &f->header);
-  Coalesce(f);                  // maybe coalesce with successor
-  Coalesce(prev[0]);            // maybe coalesce with predecessor
+  Coalesce(f);        // maybe coalesce with successor
+  Coalesce(prev[0]);  // maybe coalesce with predecessor
 }
 
 // Frees storage allocated by LowLevelAlloc::Alloc().
 // L < arena->mu
-void LowLevelAlloc::Free(void *v) {
+void LowLevelAlloc::Free(void* v) {
   if (!v) {
     return;
   }
-  AllocList *f = reinterpret_cast<AllocList *>(
-    reinterpret_cast<char *>(v) - sizeof (f->header));
-  RAW_CHECK(f->header.magic == Magic(kMagicAllocated, &f->header),
-            "bad magic number in Free()");
-  LowLevelAlloc::Arena *arena = f->header.arena;
+  AllocList* f = reinterpret_cast<AllocList*>(reinterpret_cast<char*>(v) - sizeof(f->header));
+  RAW_CHECK(f->header.magic == Magic(kMagicAllocated, &f->header), "bad magic number in Free()");
+  LowLevelAlloc::Arena* arena = f->header.arena;
 
   SpinLockHolder locker{&arena->mu};
 
@@ -374,19 +352,16 @@ void LowLevelAlloc::Free(void *v) {
   arena->allocation_count--;
 }
 
-size_t LowLevelAlloc::UsableSize(const void *p) {
-  const AllocList *f = reinterpret_cast<const AllocList *>(
-                        reinterpret_cast<const char *>(p) - sizeof (f->header));
+size_t LowLevelAlloc::UsableSize(const void* p) {
+  const AllocList* f = reinterpret_cast<const AllocList*>(reinterpret_cast<const char*>(p) - sizeof(f->header));
   return f->header.size - sizeof(f->header);
 }
 
-void *LowLevelAlloc::Alloc(size_t request) {
-  return AllocWithArena(request, nullptr);
-}
+void* LowLevelAlloc::Alloc(size_t request) { return AllocWithArena(request, nullptr); }
 
-void LowLevelAlloc::Arena::InsertAllocatedMemoryLocked(void *new_pages, size_t new_pages_size) {
-  AllocList *s;
-  s = reinterpret_cast<AllocList *>(new_pages);
+void LowLevelAlloc::Arena::InsertAllocatedMemoryLocked(void* new_pages, size_t new_pages_size) {
+  AllocList* s;
+  s = reinterpret_cast<AllocList*>(new_pages);
   s->header.size = new_pages_size;
   // Pretend the block is allocated; call AddToFreelist() to free it.
   s->header.magic = Magic(kMagicAllocated, &s->header);
@@ -396,7 +371,7 @@ void LowLevelAlloc::Arena::InsertAllocatedMemoryLocked(void *new_pages, size_t n
 
 // allocates and returns a block of size bytes, to be freed with Free()
 // L < arena->mu
-void *LowLevelAlloc::AllocWithArena(size_t request, Arena *arena) {
+void* LowLevelAlloc::AllocWithArena(size_t request, Arena* arena) {
   if (!request) {
     return nullptr;
   }
@@ -405,20 +380,20 @@ void *LowLevelAlloc::AllocWithArena(size_t request, Arena *arena) {
     arena = DefaultArena();
   }
 
-  AllocList *s;       // will point to region that satisfies request
+  AllocList* s;  // will point to region that satisfies request
   SpinLockHolder locker{&arena->mu};
 
   // round up with header
-  size_t req_rnd = RoundUp(request + sizeof (s->header), arena->roundup);
-  for (;;) {      // loop until we find a suitable region
+  size_t req_rnd = RoundUp(request + sizeof(s->header), arena->roundup);
+  for (;;) {  // loop until we find a suitable region
     // find the minimum levels that a block of this size must have
     int i = LLA_SkiplistLevels(req_rnd, arena->min_size, false) - 1;
-    if (i < arena->freelist.levels) {   // potential blocks exist
-      AllocList *before = &arena->freelist;  // predecessor of s
+    if (i < arena->freelist.levels) {        // potential blocks exist
+      AllocList* before = &arena->freelist;  // predecessor of s
       while ((s = Next(i, before, arena)) != 0 && s->header.size < req_rnd) {
         before = s;
       }
-      if (s != 0) {       // we found a region
+      if (s != 0) {  // we found a region
         break;
       }
     }
@@ -427,18 +402,17 @@ void *LowLevelAlloc::AllocWithArena(size_t request, Arena *arena) {
     arena->mu.Unlock();
 
     size_t new_pages_size = RoundUp(req_rnd, kMinimalRegion);
-    void *new_pages;
+    void* new_pages;
     std::tie(new_pages, new_pages_size) = arena->allocator->MapPages(new_pages_size);
 
     arena->mu.Lock();
     arena->InsertAllocatedMemoryLocked(new_pages, new_pages_size);
   }
-  AllocList *prev[kMaxLevel];
-  LLA_SkiplistDelete(&arena->freelist, s, prev);    // remove from free list
+  AllocList* prev[kMaxLevel];
+  LLA_SkiplistDelete(&arena->freelist, s, prev);  // remove from free list
   // s points to the first free region that's big enough
   if (req_rnd + arena->min_size <= s->header.size) {  // big enough to split
-    AllocList *n = reinterpret_cast<AllocList *>
-      (req_rnd + reinterpret_cast<char *>(s));
+    AllocList* n = reinterpret_cast<AllocList*>(req_rnd + reinterpret_cast<char*>(s));
     n->header.size = s->header.size - req_rnd;
     n->header.magic = Magic(kMagicAllocated, &n->header);
     n->header.arena = arena;
@@ -454,7 +428,7 @@ void *LowLevelAlloc::AllocWithArena(size_t request, Arena *arena) {
 
 static tcmalloc::StaticStorage<LowLevelAlloc::Arena> default_arena_storage;
 
-LowLevelAlloc::Arena *LowLevelAlloc::DefaultArena() {
+LowLevelAlloc::Arena* LowLevelAlloc::DefaultArena() {
   static Arena* arena;
   if (!arena) {
     // Note, we expect this to happen early enough in process
@@ -466,11 +440,9 @@ LowLevelAlloc::Arena *LowLevelAlloc::DefaultArena() {
 
 static tcmalloc::StaticStorage<DefaultPagesAllocator> default_pages_allocator;
 
-LowLevelAlloc::PagesAllocator *LowLevelAlloc::GetDefaultPagesAllocator(void) {
+LowLevelAlloc::PagesAllocator* LowLevelAlloc::GetDefaultPagesAllocator(void) {
   static tcmalloc::TrivialOnce once;
-  once.RunOnce(+[] () {
-    default_pages_allocator.Construct();
-  });
+  once.RunOnce(+[]() { default_pages_allocator.Construct(); });
   return default_pages_allocator.get();
 }
 
@@ -482,7 +454,7 @@ static size_t cached_pagesize() {
   return pagesize;
 }
 
-std::pair<void *, size_t> DefaultPagesAllocator::MapPages(size_t size) {
+std::pair<void*, size_t> DefaultPagesAllocator::MapPages(size_t size) {
   // roundup size
   size_t actual_size = size;
   size_t pagesize = cached_pagesize();
@@ -500,18 +472,15 @@ std::pair<void *, size_t> DefaultPagesAllocator::MapPages(size_t size) {
   return {result.addr, actual_size};
 }
 
-void DefaultPagesAllocator::UnMapPages(void *region, size_t size) {
+void DefaultPagesAllocator::UnMapPages(void* region, size_t size) {
   size_t pagesize = cached_pagesize();
   (void)pagesize;
 
-  RAW_CHECK(reinterpret_cast<intptr_t>(region) % pagesize == 0,
-            "empty arena has non-page-aligned block");
-  RAW_CHECK(size % pagesize == 0,
-            "empty arena has non-page-aligned size");
+  RAW_CHECK(reinterpret_cast<intptr_t>(region) % pagesize == 0, "empty arena has non-page-aligned block");
+  RAW_CHECK(size % pagesize == 0, "empty arena has non-page-aligned size");
 
   int munmap_result = munmap(region, size);
-  RAW_CHECK(munmap_result == 0,
-            "LowLevelAlloc::DeleteArena: munmap failed address");
+  RAW_CHECK(munmap_result == 0, "LowLevelAlloc::DeleteArena: munmap failed address");
 }
 
 }  // namespace tcmalloc

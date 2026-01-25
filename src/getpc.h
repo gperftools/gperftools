@@ -58,7 +58,7 @@
 #if HAVE_SYS_UCONTEXT_H
 #include <sys/ucontext.h>
 #elif HAVE_UCONTEXT_H
-#include <ucontext.h>       // for ucontext_t (and also mcontext_t)
+#include <ucontext.h>  // for ucontext_t (and also mcontext_t)
 #elif defined(HAVE_CYGWIN_SIGNAL_H)
 #include <cygwin/signal.h>
 typedef ucontext ucontext_t;
@@ -69,8 +69,10 @@ namespace getpc {
 
 // std::void_t is C++ 14. So we steal this from
 // https://en.cppreference.com/w/cpp/types/void_t
-template<typename... Ts>
-struct make_void { typedef void type; };
+template <typename... Ts>
+struct make_void {
+  typedef void type;
+};
 template <typename... Ts>
 using void_t = typename make_void<Ts...>::type;
 

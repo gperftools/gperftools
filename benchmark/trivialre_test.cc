@@ -73,7 +73,8 @@ struct StringTestingBuilder {
 
 TEST(TrivialRETest, ConstructedMatchers) {
   using B = trivialre::matchers::MatcherBuilder;
-  auto m = B::SeqMany({B::Lit("mismatch"), B::Star(B::Dot()), B::Lit("being dealloc"), B::Star(B::Dot()), B::Lit("free")});
+  auto m =
+      B::SeqMany({B::Lit("mismatch"), B::Star(B::Dot()), B::Lit("being dealloc"), B::Star(B::Dot()), B::Lit("free")});
 
   EXPECT_TRUE(MatchSubstring(m, "crap-mismatch-sd-being dealloc-sd-free-junk"));
   EXPECT_FALSE(MatchSubstring(m, "crap-mismatch-sd-being dealloc-sd-fee-junk"));
@@ -91,7 +92,8 @@ TEST(TrivialRETest, Compilations) {
       {"mis.*being deal.*free", "(seq 'mis' (star <dot>) 'being deal' (star <dot>) 'free')"},
       {"mis.*(being|deal).*free", "(seq 'mis' (star <dot>) (alt 'being' 'deal') (star <dot>) 'free')"},
       {"mis.*(being|deal)*fre*e", "(seq 'mis' (star <dot>) (star (alt 'being' 'deal')) 'fr' (star 'e') 'e')"},
-      {"mis.*(being|deal)+?free", "(seq 'mis' (star <dot>) (seq (alt 'being' 'deal') (star (alt 'being' 'deal'))) 'free')"},
+      {"mis.*(being|deal)+?free",
+       "(seq 'mis' (star <dot>) (seq (alt 'being' 'deal') (star (alt 'being' 'deal'))) 'free')"},
       {"mis.*(being|deal)?fre*e", "(seq 'mis' (star <dot>) (alt <any> 'being' 'deal') 'fr' (star 'e') 'e')"},
       {"mis.*being|deal.*free",
        "(alt (seq 'mis' (star <dot>) 'being') (seq 'deal' (star <dot>) "
@@ -161,8 +163,7 @@ TEST(TrivialRETest, Runnings) {
   for (const auto& vec : cases2) {
     Matcher m = CompileREOrDie(vec[0]);
     printf("testing /%s/ re: %s\n", std::string(vec[0]).c_str(),
-           trivialre::re_compiler::C<StringTestingBuilder>({}).CompileOrDie(vec[0])
-               .c_str());
+           trivialre::re_compiler::C<StringTestingBuilder>({}).CompileOrDie(vec[0]).c_str());
     for (size_t i = 1; i < vec.size(); i++) {
       std::string_view s = vec[i];
       printf("trying: %.*s\n", int(s.size()), s.data());

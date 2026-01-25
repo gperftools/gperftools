@@ -59,9 +59,9 @@
 
 #undef PERFTOOLS_DLL_DECL
 #ifdef PERFTOOLS_DLL_DECL_FOR_UNITTESTS
-# define PERFTOOLS_DLL_DECL  PERFTOOLS_DLL_DECL_FOR_UNITTESTS
+#define PERFTOOLS_DLL_DECL PERFTOOLS_DLL_DECL_FOR_UNITTESTS
 #else
-# define PERFTOOLS_DLL_DECL  // if DLL_DECL_FOR_UNITTESTS isn't defined, use ""
+#define PERFTOOLS_DLL_DECL  // if DLL_DECL_FOR_UNITTESTS isn't defined, use ""
 #endif
 
 #if defined(__clang__)
@@ -84,7 +84,7 @@
 #pragma clang diagnostic ignored "-Wunused-const-variable"
 #endif
 #elif defined(__GNUC__)
-#pragma GCC diagnostic ignored "-Wpragmas" // warning: unknown option after '#pragma GCC diagnostic' kind
+#pragma GCC diagnostic ignored "-Wpragmas"  // warning: unknown option after '#pragma GCC diagnostic' kind
 #pragma GCC diagnostic ignored "-Wuse-after-free"
 #pragma GCC diagnostic ignored "-Wunused-result"
 #endif

@@ -35,11 +35,11 @@
 
 #include "stack_trace_table.h"
 
-#include "base/spinlock.h"              // for SpinLockHolder
-#include "common.h"            // for StackTrace
-#include "internal_logging.h"  // for ASSERT, Log
+#include "base/spinlock.h"        // for SpinLockHolder
+#include "common.h"               // for StackTrace
+#include "internal_logging.h"     // for ASSERT, Log
 #include "page_heap_allocator.h"  // for PageHeapAllocator
-#include "static_vars.h"       // for Static
+#include "static_vars.h"          // for Static
 
 namespace tcmalloc {
 
@@ -59,8 +59,8 @@ std::unique_ptr<void*[]> ProduceStackTracesDump(const StackTrace* (*next_fn)(con
   int idx = 0;
   for (const void* entry = head; entry != nullptr;) {
     const StackTrace* trace = next_fn(&entry);
-    out[idx++] = reinterpret_cast<void*>(uintptr_t{1});   // count
-    out[idx++] = reinterpret_cast<void*>(trace->size);  // cumulative size
+    out[idx++] = reinterpret_cast<void*>(uintptr_t{1});  // count
+    out[idx++] = reinterpret_cast<void*>(trace->size);   // cumulative size
     out[idx++] = reinterpret_cast<void*>(trace->depth);
     for (int d = 0; d < trace->depth; ++d) {
       out[idx++] = trace->stack[d];
@@ -84,8 +84,7 @@ void StackTraceTable::AddTrace(const StackTrace& t) {
 
   Entry* entry = allocator_.allocate(1);
   if (entry == nullptr) {
-    Log(kLog, __FILE__, __LINE__,
-        "tcmalloc: could not allocate bucket", sizeof(*entry));
+    Log(kLog, __FILE__, __LINE__, "tcmalloc: could not allocate bucket", sizeof(*entry));
     error_ = true;
   } else {
     entry->trace = t;
@@ -96,11 +95,12 @@ void StackTraceTable::AddTrace(const StackTrace& t) {
 
 void** StackTraceTable::ReadStackTracesAndClear() {
   std::unique_ptr<void*[]> out = ProduceStackTracesDump(
-    +[] (const void** current_head) -> const StackTrace* {
-      const Entry* head = static_cast<const Entry*>(*current_head);
-      *current_head = head->next;
-      return &head->trace;
-    }, head_);
+      +[](const void** current_head) -> const StackTrace* {
+        const Entry* head = static_cast<const Entry*>(*current_head);
+        *current_head = head->next;
+        return &head->trace;
+      },
+      head_);
 
   // Clear state
   error_ = false;
@@ -117,6 +117,6 @@ void** StackTraceTable::ReadStackTracesAndClear() {
   return out.release();
 }
 
-#endif // STACK_TRACE_TABLE_IS_TESTED
+#endif  // STACK_TRACE_TABLE_IS_TESTED
 
 }  // namespace tcmalloc

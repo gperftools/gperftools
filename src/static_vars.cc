@@ -36,13 +36,13 @@
 #include "static_vars.h"
 
 #include <stddef.h>
-#include <new>                          // for operator new
+#include <new>  // for operator new
 #ifndef _WIN32
-#include <pthread.h>                    // for pthread_atfork
+#include <pthread.h>  // for pthread_atfork
 #endif
 
 #include "common.h"
-#include "getenv_safe.h"       // TCMallocGetenvSafe
+#include "getenv_safe.h"  // TCMallocGetenvSafe
 
 #include "thread_cache_ptr.h"
 #include "system-alloc.h"
@@ -61,8 +61,8 @@ StaticStorage<PageHeap> Static::pageheap_;
 void Static::InitStaticVars() {
   sizemap_.Init();
   span_allocator_.Init();
-  span_allocator_.New(); // Reduce cache conflicts
-  span_allocator_.New(); // Reduce cache conflicts
+  span_allocator_.New();  // Reduce cache conflicts
+  span_allocator_.New();  // Reduce cache conflicts
   stacktrace_allocator_.Init();
 
   for (int i = 0; i < num_size_classes(); ++i) {
@@ -77,11 +77,8 @@ void Static::InitStaticVars() {
   const bool kDefaultAggressiveDecommit = false;
 #endif
 
-
-  bool aggressive_decommit =
-    tcmalloc::commandlineflags::StringToBool(
-      TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"),
-                         kDefaultAggressiveDecommit);
+  bool aggressive_decommit = tcmalloc::commandlineflags::StringToBool(
+      TCMallocGetenvSafe("TCMALLOC_AGGRESSIVE_DECOMMIT"), kDefaultAggressiveDecommit);
 
   pageheap()->SetAggressiveDecommit(aggressive_decommit);
 
@@ -95,27 +92,22 @@ void Static::InitStaticVars() {
 // the forked version of the thread. Also our OSX integration uses it
 // for mi_force_lock.
 
-void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS
-{
+void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS {
   Static::pageheap_lock()->Lock();
-  for (int i = 0; i < Static::num_size_classes(); ++i)
-    Static::central_cache()[i].Lock();
+  for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Lock();
   ThreadCachePtr::GetSlowTLSLock()->Lock();
   GetSysAllocLock()->Lock();
 }
 
-void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS
-{
+void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS {
   GetSysAllocLock()->Unlock();
   ThreadCachePtr::GetSlowTLSLock()->Unlock();
-  for (int i = 0; i < Static::num_size_classes(); ++i)
-    Static::central_cache()[i].Unlock();
+  for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Unlock();
   Static::pageheap_lock()->Unlock();
 }
 
 void Static::InitLateMaybeRecursive() {
-#if !defined(__APPLE__) && !defined(_WIN32) && !defined(TCMALLOC_NO_ATFORK) \
-  && !defined(__FreeBSD__) && !defined(_AIX)
+#if !defined(__APPLE__) && !defined(_WIN32) && !defined(TCMALLOC_NO_ATFORK) && !defined(__FreeBSD__) && !defined(_AIX)
   // OSX has it's own way of handling atfork in malloc (see
   // libc_override_osx.h).
   //
@@ -144,10 +136,9 @@ void Static::InitLateMaybeRecursive() {
   // be less fortunate and allow some early app constructors to run
   // before malloc is ever called.
 
-  pthread_atfork(
-    CentralCacheLockAll,    // parent calls before fork
-    CentralCacheUnlockAll,  // parent calls after fork
-    CentralCacheUnlockAll); // child calls after fork
+  pthread_atfork(CentralCacheLockAll,     // parent calls before fork
+                 CentralCacheUnlockAll,   // parent calls after fork
+                 CentralCacheUnlockAll);  // child calls after fork
 #endif
 }
 

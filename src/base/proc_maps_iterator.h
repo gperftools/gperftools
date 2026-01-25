@@ -57,10 +57,12 @@ bool DoForEachProcMapping(void (*body)(const ProcMapping& mapping, void* arg), v
 // OS-es). Returns false if open() failed.
 template <typename Body>
 bool ForEachProcMapping(const Body& body) {
-  return DoForEachProcMapping([] (const ProcMapping& mapping, void* arg) {
-    const Body& body = *const_cast<const Body*>(static_cast<Body*>(arg));
-    body(mapping);
-  }, static_cast<void*>(const_cast<Body*>(&body)));
+  return DoForEachProcMapping(
+      [](const ProcMapping& mapping, void* arg) {
+        const Body& body = *const_cast<const Body*>(static_cast<Body*>(arg));
+        body(mapping);
+      },
+      static_cast<void*>(const_cast<Body*>(&body)));
 }
 
 // Helper to add the list of mapped shared libraries to a profile.

@@ -34,7 +34,7 @@
 #ifndef TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
 #define TCMALLOC_PAGE_HEAP_ALLOCATOR_H_
 
-#include <stddef.h>            // for size_t
+#include <stddef.h>  // for size_t
 
 #include "common.h"            // for MetaDataAlloc
 #include "internal_logging.h"  // for ASSERT
@@ -123,30 +123,32 @@ class PageHeapAllocator {
 template <typename T, class LockingTag>
 class STLPageHeapAllocator {
  public:
-  typedef size_t     size_type;
-  typedef ptrdiff_t  difference_type;
-  typedef T*         pointer;
-  typedef const T*   const_pointer;
-  typedef T&         reference;
-  typedef const T&   const_reference;
-  typedef T          value_type;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+  typedef T* pointer;
+  typedef const T* const_pointer;
+  typedef T& reference;
+  typedef const T& const_reference;
+  typedef T value_type;
 
-  template <class T1> struct rebind {
+  template <class T1>
+  struct rebind {
     typedef STLPageHeapAllocator<T1, LockingTag> other;
   };
 
-  STLPageHeapAllocator() { }
-  STLPageHeapAllocator(const STLPageHeapAllocator&) { }
-  template <class T1> STLPageHeapAllocator(const STLPageHeapAllocator<T1, LockingTag>&) { }
-  ~STLPageHeapAllocator() { }
+  STLPageHeapAllocator() {}
+  STLPageHeapAllocator(const STLPageHeapAllocator&) {}
+  template <class T1>
+  STLPageHeapAllocator(const STLPageHeapAllocator<T1, LockingTag>&) {}
+  ~STLPageHeapAllocator() {}
 
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
 
   size_type max_size() const { return size_t(-1) / sizeof(T); }
 
-  void construct(pointer p, const T& val) { ::new(p) T(val); }
-  void construct(pointer p) { ::new(p) T(); }
+  void construct(pointer p, const T& val) { ::new (p) T(val); }
+  void construct(pointer p) { ::new (p) T(); }
   void destroy(pointer p) { p->~T(); }
 
   // There's no state, so these allocators are always equal

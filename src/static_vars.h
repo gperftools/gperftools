@@ -77,19 +77,15 @@ class Static {
 
   static PageHeapAllocator<Span>* span_allocator() { return &span_allocator_; }
 
-  static PageHeapAllocator<StackTrace>* stacktrace_allocator() {
-    return &stacktrace_allocator_;
-  }
+  static PageHeapAllocator<StackTrace>* stacktrace_allocator() { return &stacktrace_allocator_; }
 
   static StackTrace* growth_stacks() { return growth_stacks_.load(std::memory_order_seq_cst); }
   static void push_growth_stack(StackTrace* s) {
     ASSERT(s->depth <= kMaxStackDepth - 1);
     StackTrace* old_top = growth_stacks_.load(std::memory_order_relaxed);
     do {
-      s->stack[kMaxStackDepth-1] = reinterpret_cast<void*>(old_top);
-    } while (!growth_stacks_.compare_exchange_strong(
-               old_top, s,
-               std::memory_order_seq_cst, std::memory_order_seq_cst));
+      s->stack[kMaxStackDepth - 1] = reinterpret_cast<void*>(old_top);
+    } while (!growth_stacks_.compare_exchange_strong(old_top, s, std::memory_order_seq_cst, std::memory_order_seq_cst));
   }
 
   // State kept for sampled allocations (/pprof/heap support)

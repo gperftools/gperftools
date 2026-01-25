@@ -58,26 +58,21 @@ struct FunctionRef;
 // features.
 template <typename R, typename... Args>
 struct FunctionRef<R(Args...)> {
-  template <typename F,
-            typename FR = std::invoke_result_t<F, Args&&...>>
-  using EnableIfCompatible =
-      typename std::enable_if<std::is_void<R>::value ||
-                              std::is_convertible<FR, R>::value>::type;
+  template <typename F, typename FR = std::invoke_result_t<F, Args&&...>>
+  using EnableIfCompatible = typename std::enable_if<std::is_void<R>::value || std::is_convertible<FR, R>::value>::type;
 
-  explicit FunctionRef(R (*fn)(Args..., void*), void* data)
-    : fn(fn), data(data) {}
+  explicit FunctionRef(R (*fn)(Args..., void*), void* data) : fn(fn), data(data) {}
 
   template <typename Body, typename = EnableIfCompatible<const Body&>>
-  FunctionRef(const Body& body) : FunctionRef(
-    [] (Args... args, void* data) {
-      const Body& b = *(reinterpret_cast<const Body*>(data));
-      return b(std::forward<Args>(args)...);
-    },
-    const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
+  FunctionRef(const Body& body)
+      : FunctionRef(
+            [](Args... args, void* data) {
+              const Body& b = *(reinterpret_cast<const Body*>(data));
+              return b(std::forward<Args>(args)...);
+            },
+            const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
 
-  R operator()(Args... args) const {
-    return fn(std::forward<Args>(args)..., data);
-  }
+  R operator()(Args... args) const { return fn(std::forward<Args>(args)..., data); }
 
   R (*const fn)(Args... args, void* data);
   void* const data;
@@ -90,26 +85,21 @@ struct FunctionRefFirstDataArg;
 // function type accepts data argument in first position.
 template <typename R, typename... Args>
 struct FunctionRefFirstDataArg<R(Args...)> {
-  template <typename F,
-            typename FR = std::invoke_result_t<F, Args&&...>>
-  using EnableIfCompatible =
-      typename std::enable_if<std::is_void<R>::value ||
-                              std::is_convertible<FR, R>::value>::type;
+  template <typename F, typename FR = std::invoke_result_t<F, Args&&...>>
+  using EnableIfCompatible = typename std::enable_if<std::is_void<R>::value || std::is_convertible<FR, R>::value>::type;
 
-  explicit FunctionRefFirstDataArg(R (*fn)(void*, Args...), void* data)
-    : fn(fn), data(data) {}
+  explicit FunctionRefFirstDataArg(R (*fn)(void*, Args...), void* data) : fn(fn), data(data) {}
 
   template <typename Body>
-  FunctionRefFirstDataArg(const Body& body) : FunctionRefFirstDataArg(
-    [] (void* data, Args... args) {
-      const Body& b = *(reinterpret_cast<const Body*>(data));
-      return b(std::forward<Args>(args)...);
-    },
-    const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
+  FunctionRefFirstDataArg(const Body& body)
+      : FunctionRefFirstDataArg(
+            [](void* data, Args... args) {
+              const Body& b = *(reinterpret_cast<const Body*>(data));
+              return b(std::forward<Args>(args)...);
+            },
+            const_cast<void*>(reinterpret_cast<const void*>(&body))) {}
 
-  R operator()(Args... args) const {
-    return fn(data, std::forward<Args>(args)...);
-  }
+  R operator()(Args... args) const { return fn(data, std::forward<Args>(args)...); }
 
   R (*const fn)(void* data, Args... args);
   void* const data;

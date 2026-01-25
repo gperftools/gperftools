@@ -37,8 +37,8 @@
 #define TCMALLOC_COMMON_H_
 
 #include "config.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uintptr_t, uint64_t
+#include <stddef.h>            // for size_t
+#include <stdint.h>            // for uintptr_t, uint64_t
 #include "internal_logging.h"  // for ASSERT, etc
 #include "base/basictypes.h"   // for LIKELY, etc
 
@@ -57,9 +57,9 @@ typedef uintptr_t Length;
 // at least 16 bytes to statisfy requirements for some SSE types.
 // Keep in mind when using the 16 bytes alignment you can have a space
 // waste due alignment of 25%. (eg malloc of 24 bytes will get 32 bytes)
-static const size_t kMinAlign   = 8;
+static const size_t kMinAlign = 8;
 #else
-static const size_t kMinAlign   = 16;
+static const size_t kMinAlign = 16;
 #endif
 
 // Using large pages speeds up the execution at a cost of larger memory use.
@@ -71,18 +71,18 @@ static const size_t kMinAlign   = 16;
 // central lists.  Also, larger pages are less likely to get freed.
 // These two factors cause a bounded increase in memory use.
 #if defined(TCMALLOC_PAGE_SIZE_SHIFT)
-static const size_t kPageShift  = TCMALLOC_PAGE_SIZE_SHIFT;
+static const size_t kPageShift = TCMALLOC_PAGE_SIZE_SHIFT;
 #else
-static const size_t kPageShift  = 13;
+static const size_t kPageShift = 13;
 #endif
 
 static const size_t kClassSizesMax = 128;
 
 static const size_t kMaxThreadCacheSize = 4 << 20;
 
-static const size_t kPageSize   = 1 << kPageShift;
-static const size_t kMaxSize    = 256 * 1024;
-static const size_t kAlignment  = 8;
+static const size_t kPageSize = 1 << kPageShift;
+static const size_t kMaxSize = 256 * 1024;
+static const size_t kAlignment = 8;
 // For all span-lengths <= kMaxPages we keep an exact-size list in PageHeap.
 static const size_t kMaxPages = 1 << (20 - kPageShift);
 
@@ -144,10 +144,7 @@ namespace tcmalloc {
 
 // Convert byte size into pages.  This won't overflow, but may return
 // an unreasonably large value if bytes is huge enough.
-inline Length pages(size_t bytes) {
-  return (bytes >> kPageShift) +
-      ((bytes & (kPageSize - 1)) > 0 ? 1 : 0);
-}
+inline Length pages(size_t bytes) { return (bytes >> kPageShift) + ((bytes & (kPageSize - 1)) > 0 ? 1 : 0); }
 
 // Size-class information + mapping
 class SizeMap {
@@ -175,23 +172,17 @@ class SizeMap {
   //   ...
   //   32768      (32768 + 127 + (120<<7)) / 128  376
   static const int kMaxSmallSize = 1024;
-  static const size_t kClassArraySize =
-      ((kMaxSize + 127 + (120 << 7)) >> 7) + 1;
+  static const size_t kClassArraySize = ((kMaxSize + 127 + (120 << 7)) >> 7) + 1;
   unsigned char class_array_[kClassArraySize];
 
-  static inline size_t SmallSizeClass(size_t s) {
-    return (static_cast<uint32_t>(s) + 7) >> 3;
-  }
+  static inline size_t SmallSizeClass(size_t s) { return (static_cast<uint32_t>(s) + 7) >> 3; }
 
-  static inline size_t LargeSizeClass(size_t s) {
-    return (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7;
-  }
+  static inline size_t LargeSizeClass(size_t s) { return (static_cast<uint32_t>(s) + 127 + (120 << 7)) >> 7; }
 
   // If size is no more than kMaxSize, compute index of the
   // class_array[] entry for it, putting the class index in output
   // parameter idx and returning true. Otherwise return false.
-  static ALWAYS_INLINE bool ClassIndexMaybe(size_t s,
-                                            uint32_t* idx) {
+  static ALWAYS_INLINE bool ClassIndexMaybe(size_t s, uint32_t* idx) {
     if (PREDICT_TRUE(s <= kMaxSmallSize)) {
       *idx = (static_cast<uint32_t>(s) + 7) >> 3;
       return true;
@@ -231,19 +222,17 @@ class SizeMap {
 
   size_t min_span_size_in_pages_;
 
-public:
+ public:
   size_t num_size_classes;
 
   // Constructor should do nothing since we rely on explicit Init()
   // call, which may or may not be called before the constructor runs.
-  SizeMap() { }
+  SizeMap() {}
 
   // Initialize the mapping arrays
   void Init();
 
-  inline int SizeClass(size_t size) {
-    return class_array_[ClassIndex(size)];
-  }
+  inline int SizeClass(size_t size) { return class_array_[ClassIndex(size)]; }
 
   // Check if size is small enough to be representable by a size
   // class, and if it is, put matching size class into *cl. Returns
@@ -258,34 +247,24 @@ public:
   }
 
   // Get the byte-size for a specified class
-  ALWAYS_INLINE int32_t ByteSizeForClass(uint32_t cl) {
-    return class_to_size_[cl];
-  }
+  ALWAYS_INLINE int32_t ByteSizeForClass(uint32_t cl) { return class_to_size_[cl]; }
 
   // Mapping from size class to max size storable in that class
-  int32_t class_to_size(uint32_t cl) {
-    return class_to_size_[cl];
-  }
+  int32_t class_to_size(uint32_t cl) { return class_to_size_[cl]; }
 
   // Mapping from size class to number of pages to allocate at a time
-  size_t class_to_pages(uint32_t cl) {
-    return class_to_pages_[cl];
-  }
+  size_t class_to_pages(uint32_t cl) { return class_to_pages_[cl]; }
 
   // Number of objects to move between a per-thread list and a central
   // list in one shot.  We want this to be not too small so we can
   // amortize the lock overhead for accessing the central list.  Making
   // it too big may temporarily cause unnecessary memory wastage in the
   // per-thread free list until the scavenger cleans up the list.
-  int num_objects_to_move(uint32_t cl) {
-    return num_objects_to_move_[cl];
-  }
+  int num_objects_to_move(uint32_t cl) { return num_objects_to_move_[cl]; }
 
   // Smallest Span size in bytes (max of system's page size and
   // kPageSize).
-  Length min_span_size_in_pages() {
-    return min_span_size_in_pages_;
-  }
+  Length min_span_size_in_pages() { return min_span_size_in_pages_; }
 };
 
 // Allocates "bytes" worth of memory and returns it.  Increments
@@ -301,9 +280,9 @@ uint64_t metadata_system_bytes();
 // code below can conveniently cast them back and forth to void*.
 static const int kMaxStackDepth = 31;
 struct StackTrace {
-  uintptr_t size;          // Size of object
-  uintptr_t depth;         // Number of PC values stored in array below
-  void*     stack[kMaxStackDepth];
+  uintptr_t size;   // Size of object
+  uintptr_t depth;  // Number of PC values stored in array below
+  void* stack[kMaxStackDepth];
 };
 
 }  // namespace tcmalloc

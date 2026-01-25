@@ -43,8 +43,8 @@
 
 // compatibility shim
 #include "base/logging.h"
-#define SIDESTEP_ASSERT(cond)  RAW_DCHECK(cond, #cond)
-#define SIDESTEP_LOG(msg)      RAW_VLOG(1, msg)
+#define SIDESTEP_ASSERT(cond) RAW_DCHECK(cond, #cond)
+#define SIDESTEP_LOG(msg) RAW_VLOG(1, msg)
 
 namespace sidestep {
 
@@ -78,15 +78,13 @@ namespace sidestep {
 // etc.
 class PERFTOOLS_DLL_DECL MiniDisassembler {
  public:
-
   // Creates a new instance and sets defaults.
   //
   // @param operand_default_32_bits If true, the default operand size is
   // set to 32 bits, which is the default under Win32. Otherwise it is 16 bits.
   // @param address_default_32_bits If true, the default address size is
   // set to 32 bits, which is the default under Win32. Otherwise it is 16 bits.
-  MiniDisassembler(bool operand_default_32_bits,
-                   bool address_default_32_bits);
+  MiniDisassembler(bool operand_default_32_bits, bool address_default_32_bits);
 
   // Equivalent to MiniDisassembler(true, true);
   MiniDisassembler();
@@ -107,7 +105,6 @@ class PERFTOOLS_DLL_DECL MiniDisassembler {
   InstructionType Disassemble(unsigned char* start, unsigned int& instruction_bytes);
 
  private:
-
   // Makes the disassembler ready for reuse.
   void Initialize();
 
@@ -118,9 +115,7 @@ class PERFTOOLS_DLL_DECL MiniDisassembler {
   // Sets the flag for whether we have ModR/M, and increments
   // operand_bytes_ if any are specifies by the opcode directly.
   // @return Number of opcode bytes.
-  InstructionType ProcessOpcode(unsigned char* start,
-                                unsigned int table,
-                                unsigned int& size);
+  InstructionType ProcessOpcode(unsigned char* start, unsigned int table, unsigned int& size);
 
   // Checks the type of the supplied operand.  Increments
   // operand_bytes_ if it directly indicates an immediate etc.

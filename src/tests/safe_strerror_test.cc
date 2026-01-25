@@ -43,4 +43,3 @@ TEST(SafeStrerrorTest, Basic) {
   ASSERT_EQ(std::string{tcmalloc::SafeStrError(ENOMEM).c_str()}, "ENOMEM");
   ASSERT_EQ(std::string{tcmalloc::SafeStrError(999999999).c_str()}, "errno 999999999");
 }
-

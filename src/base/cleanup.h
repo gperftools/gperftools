@@ -53,9 +53,8 @@ namespace tcmalloc {
 // tcmalloc::Cleanup cleanup([&] () { fclose(something); });
 template <typename Callback>
 class Cleanup {
-public:
-  static_assert(std::is_same<std::invoke_result_t<Callback>, void>::value,
-                "Cleanup callback must return void");
+ public:
+  static_assert(std::is_same<std::invoke_result_t<Callback>, void>::value, "Cleanup callback must return void");
 
   explicit Cleanup(Callback callback) : callback_(std::move(callback)) {}
 
@@ -63,11 +62,9 @@ public:
   Cleanup(const Cleanup& other) = delete;
   Cleanup& operator=(const Cleanup& other) = delete;
 
-  ~Cleanup() {
-    callback_();
-  }
+  ~Cleanup() { callback_(); }
 
-private:
+ private:
   Callback callback_;
 };
 

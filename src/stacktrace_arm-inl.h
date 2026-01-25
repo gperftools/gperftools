@@ -38,7 +38,7 @@
 // Note: this file is included into stacktrace.cc more than once.
 // Anything that should only be defined once should be here:
 
-#include <stdint.h>   // for uintptr_t
+#include <stdint.h>  // for uintptr_t
 
 #include "base/basictypes.h"
 #include <gperftools/stacktrace.h>
@@ -56,9 +56,9 @@
 // stackframe, or return nullptr if no stackframe can be found. Perform sanity
 // checks (the strictness of which is controlled by the boolean parameter
 // "STRICT_UNWINDING") to reduce the chance that a bad pointer is returned.
-template<bool STRICT_UNWINDING>
-static void **NextStackFrame(void **old_sp) {
-  void **new_sp = (void**) old_sp[-1];
+template <bool STRICT_UNWINDING>
+static void** NextStackFrame(void** old_sp) {
+  void** new_sp = (void**)old_sp[-1];
 
   // Check that the transition from frame pointer old_sp to frame
   // pointer new_sp isn't clearly bogus
@@ -73,10 +73,9 @@ static void **NextStackFrame(void **old_sp) {
     // (alternate-signal-stacks for example).
     if (new_sp == old_sp) return nullptr;
     // And allow frames upto about 1MB.
-    if ((new_sp > old_sp)
-        && ((uintptr_t)new_sp - (uintptr_t)old_sp > 1000000)) return nullptr;
+    if ((new_sp > old_sp) && ((uintptr_t)new_sp - (uintptr_t)old_sp > 1000000)) return nullptr;
   }
-  if ((uintptr_t)new_sp & (sizeof(void *) - 1)) return nullptr;
+  if ((uintptr_t)new_sp & (sizeof(void*) - 1)) return nullptr;
   return new_sp;
 }
 
@@ -85,7 +84,7 @@ static void **NextStackFrame(void **old_sp) {
 void StacktraceArmDummyFunction() __attribute__((noinline));
 void StacktraceArmDummyFunction() { __asm__ volatile(""); }
 #else
-# error StacktraceArmDummyFunction() needs to be ported to this platform.
+#error StacktraceArmDummyFunction() needs to be ported to this platform.
 #endif
 #endif  // BASE_STACKTRACE_ARM_INL_H_
 
@@ -105,9 +104,9 @@ void StacktraceArmDummyFunction() { __asm__ volatile(""); }
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 static int GET_STACK_TRACE_OR_FRAMES {
 #ifdef __GNUC__
-  void **sp = reinterpret_cast<void**>(__builtin_frame_address(0));
+  void** sp = reinterpret_cast<void**>(__builtin_frame_address(0));
 #else
-# error reading stack point not yet supported on this platform.
+#error reading stack point not yet supported on this platform.
 #endif
 
   // On ARM, the return address is stored in the link register (r14).
@@ -117,7 +116,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
   // stored in the stack frame.  This works at least for gcc.
   StacktraceArmDummyFunction();
 
-  skip_count++; // skip parent frame due to indirection in stacktrace.cc
+  skip_count++;  // skip parent frame due to indirection in stacktrace.cc
 
   int n = 0;
   while (sp && n < max_depth) {
@@ -126,7 +125,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
     // Use the non-strict unwinding rules to produce a stack trace
     // that is as complete as possible (even if it contains a few bogus
     // entries in some rare cases).
-    void **next_sp = NextStackFrame<IS_STACK_FRAMES == 0>(sp);
+    void** next_sp = NextStackFrame<IS_STACK_FRAMES == 0>(sp);
 
     if (skip_count > 0) {
       skip_count--;

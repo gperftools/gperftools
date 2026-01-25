@@ -46,26 +46,25 @@
 #include "gtest/gtest.h"
 
 class TestSysAllocator : public SysAllocator {
-public:
+ public:
   // Was this allocator invoked at least once?
   bool invoked_ = false;
 
   TestSysAllocator(SysAllocator* prev) : SysAllocator(), prev_(prev) {}
   ~TestSysAllocator() override {}
 
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment) override {
+  void* Alloc(size_t size, size_t* actual_size, size_t alignment) override {
     invoked_ = true;
     return prev_->Alloc(size, actual_size, alignment);
   }
-private:
+
+ private:
   SysAllocator* const prev_;
 };
 
 TEST(SystemAllocTest, GetsInvoked) {
   SysAllocator* prev = MallocExtension::instance()->GetSystemAllocator();
-  tcmalloc::Cleanup restore_sys_allocator([prev] () {
-    MallocExtension::instance()->SetSystemAllocator(prev);
-  });
+  tcmalloc::Cleanup restore_sys_allocator([prev]() { MallocExtension::instance()->SetSystemAllocator(prev); });
 
   // Note, normally SysAllocator instances cannot be destroyed, but
   // we're single-threaded isolated unit test. And we know what we're
@@ -74,8 +73,8 @@ TEST(SystemAllocTest, GetsInvoked) {
   MallocExtension::instance()->SetSystemAllocator(&test_allocator);
 
   // An allocation size that is likely to trigger the system allocator.
-  char *p =  noopt(new char[20 << 20]);
-  delete [] p;
+  char* p = noopt(new char[20 << 20]);
+  delete[] p;
 
   // Make sure that our allocator was invoked.
   ASSERT_TRUE(test_allocator.invoked_);
@@ -104,5 +103,5 @@ TEST(SystemAllocTest, RetryAfterFail) {
   free(p1);
 
   char* q = noopt(new char[1024]);
-  delete [] q;
+  delete[] q;
 }

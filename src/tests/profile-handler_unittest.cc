@@ -70,8 +70,8 @@ namespace {
 // TODO(csilvers): error-checking on the pthreads routines
 class Thread {
  public:
-  Thread() : joinable_(false) { }
-  virtual ~Thread() { }
+  Thread() : joinable_(false) {}
+  virtual ~Thread() {}
   void SetJoinable(bool value) { joinable_ = value; }
   void Start() {
     pthread_attr_t attr;
@@ -79,11 +79,12 @@ class Thread {
     pthread_create(&thread_, &attr, &DoRun, this);
     pthread_attr_destroy(&attr);
   }
-  void Join()  {
+  void Join() {
     assert(joinable_);
     pthread_join(thread_, nullptr);
   }
   virtual void Run() = 0;
+
  private:
   static void* DoRun(void* cls) {
     Thread* self = static_cast<Thread*>(cls);
@@ -118,7 +119,7 @@ static int timer_type_ = ITIMER_PROF;
 void Delay(int delay_ns) {
   static const int kNumNSecInSecond = 1000000000;
   EXPECT_LT(delay_ns, kNumNSecInSecond);
-  struct timespec delay = { 0, delay_ns };
+  struct timespec delay = {0, delay_ns};
   nanosleep(&delay, 0);
 }
 
@@ -126,15 +127,13 @@ void Delay(int delay_ns) {
 bool IsTimerEnabled() {
   itimerval current_timer;
   EXPECT_EQ(0, getitimer(timer_type_, &current_timer));
-  return (current_timer.it_interval.tv_sec != 0 ||
-          current_timer.it_interval.tv_usec != 0);
+  return (current_timer.it_interval.tv_sec != 0 || current_timer.it_interval.tv_usec != 0);
 }
 
 // Dummy worker thread to accumulate cpu time.
 class BusyThread : public Thread {
  public:
-  BusyThread() : stop_work_(false) {
-  }
+  BusyThread() : stop_work_(false) {}
 
   // Setter/Getters
   bool stop_work() {
@@ -171,13 +170,11 @@ class BusyThread : public Thread {
 
 class NullThread : public Thread {
  private:
-  void Run() {
-  }
+  void Run() {}
 };
 
 // Signal handler which tracks the profile timer ticks.
-static void TickCounter(int sig, siginfo_t* sig_info, void *vuc,
-                        void* tick_counter) {
+static void TickCounter(int sig, siginfo_t* sig_info, void* vuc, void* tick_counter) {
   int* counter = static_cast<int*>(tick_counter);
   ++(*counter);
 }
@@ -185,16 +182,15 @@ static void TickCounter(int sig, siginfo_t* sig_info, void *vuc,
 // This class tests the profile-handler.h interface.
 class ProfileHandlerTest : public ::testing::Test {
  protected:
-
   // Determines the timer type.
   static void SetUpTestCase() {
     timer_type_ = (getenv("CPUPROFILE_REALTIME") ? ITIMER_REAL : ITIMER_PROF);
 
 #if HAVE_LINUX_SIGEV_THREAD_ID
     linux_per_thread_timers_mode_ = (getenv("CPUPROFILE_PER_THREAD_TIMERS") != nullptr);
-    const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
+    const char* signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
     if (signal_number) {
-      //signal_number_ = strtol(signal_number, nullptr, 0);
+      // signal_number_ = strtol(signal_number, nullptr, 0);
       linux_per_thread_timers_mode_ = true;
       Delay(kTimerResetInterval);
     }
@@ -315,8 +311,7 @@ class ProfileHandlerTest : public ::testing::Test {
   // Registers a callback and waits for kTimerResetInterval for timers to get
   // reset.
   ProfileHandlerToken* RegisterCallback(void* callback_arg) {
-    ProfileHandlerToken* token = ProfileHandlerRegisterCallback(
-        TickCounter, callback_arg);
+    ProfileHandlerToken* token = ProfileHandlerRegisterCallback(TickCounter, callback_arg);
     Delay(kTimerResetInterval);
     return token;
   }

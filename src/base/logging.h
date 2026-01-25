@@ -41,11 +41,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>    // for write()
+#include <unistd.h>  // for write()
 #endif
-#include <string.h>    // for strlen(), strcmp()
+#include <string.h>  // for strlen(), strcmp()
 #include <assert.h>
-#include <errno.h>     // for errno
+#include <errno.h>  // for errno
 #include "base/commandlineflags.h"
 
 // On some systems (like freebsd), we can't call write() at all in a
@@ -73,44 +73,42 @@ DECLARE_int32(verbose);
 //    CHECK(fp->Write(x) == 4)
 // Note we use write instead of printf/puts to avoid the risk we'll
 // call malloc().
-#define CHECK(condition)                                                \
-  do {                                                                  \
-    if (!(condition)) {                                                 \
-      WRITE_TO_STDERR("Check failed: " #condition "\n",                 \
-                      sizeof("Check failed: " #condition "\n")-1);      \
-      abort();                                                          \
-    }                                                                   \
+#define CHECK(condition)                                                                               \
+  do {                                                                                                 \
+    if (!(condition)) {                                                                                \
+      WRITE_TO_STDERR("Check failed: " #condition "\n", sizeof("Check failed: " #condition "\n") - 1); \
+      abort();                                                                                         \
+    }                                                                                                  \
   } while (0)
 
 // This takes a message to print.  The name is historical.
-#define RAW_CHECK(condition, message)                                          \
-  do {                                                                         \
-    if (!(condition)) {                                                        \
-      WRITE_TO_STDERR("Check failed: " #condition ": " message "\n",           \
-                      sizeof("Check failed: " #condition ": " message "\n")-1);\
-      abort();                                                                 \
-    }                                                                          \
+#define RAW_CHECK(condition, message)                                             \
+  do {                                                                            \
+    if (!(condition)) {                                                           \
+      WRITE_TO_STDERR("Check failed: " #condition ": " message "\n",              \
+                      sizeof("Check failed: " #condition ": " message "\n") - 1); \
+      abort();                                                                    \
+    }                                                                             \
   } while (0)
 
 // This is like RAW_CHECK, but only in debug-mode
 #ifdef NDEBUG
 #define RAW_DCHECK(condition, message)
 #else
-#define RAW_DCHECK(condition, message)  RAW_CHECK(condition, message)
+#define RAW_DCHECK(condition, message) RAW_CHECK(condition, message)
 #endif
 
 // This prints errno as well.  Note we use write instead of printf/puts to
 // avoid the risk we'll call malloc().
-#define PCHECK(condition)                                               \
-  do {                                                                  \
-    if (!(condition)) {                                                 \
-      const int err_no = errno;                                         \
-      WRITE_TO_STDERR("Check failed: " #condition ": ",                 \
-                      sizeof("Check failed: " #condition ": ")-1);      \
-      WRITE_TO_STDERR(strerror(err_no), strlen(strerror(err_no)));      \
-      WRITE_TO_STDERR("\n", sizeof("\n")-1);                            \
-      abort();                                                          \
-    }                                                                   \
+#define PCHECK(condition)                                                                              \
+  do {                                                                                                 \
+    if (!(condition)) {                                                                                \
+      const int err_no = errno;                                                                        \
+      WRITE_TO_STDERR("Check failed: " #condition ": ", sizeof("Check failed: " #condition ": ") - 1); \
+      WRITE_TO_STDERR(strerror(err_no), strlen(strerror(err_no)));                                     \
+      WRITE_TO_STDERR("\n", sizeof("\n") - 1);                                                         \
+      abort();                                                                                         \
+    }                                                                                                  \
   } while (0)
 
 // Helper macro for binary operators; prints the two values on error
@@ -122,23 +120,23 @@ DECLARE_int32(verbose);
 
 // TODO(jandrews): Also print the values in case of failure.  Requires some
 // sort of type-sensitive ToString() function.
-#define CHECK_OP(op, val1, val2)                                        \
-  do {                                                                  \
-    if (!((val1) op (val2))) {                                          \
+#define CHECK_OP(op, val1, val2)                                                                \
+  do {                                                                                          \
+    if (!((val1)op(val2))) {                                                                    \
       fprintf(stderr, "%s:%d Check failed: %s %s %s\n", __FILE__, __LINE__, #val1, #op, #val2); \
-      abort();                                                          \
-    }                                                                   \
+      abort();                                                                                  \
+    }                                                                                           \
   } while (0)
 
 #define CHECK_EQ(val1, val2) CHECK_OP(==, val1, val2)
 #define CHECK_NE(val1, val2) CHECK_OP(!=, val1, val2)
 #define CHECK_LE(val1, val2) CHECK_OP(<=, val1, val2)
-#define CHECK_LT(val1, val2) CHECK_OP(< , val1, val2)
+#define CHECK_LT(val1, val2) CHECK_OP(<, val1, val2)
 #define CHECK_GE(val1, val2) CHECK_OP(>=, val1, val2)
-#define CHECK_GT(val1, val2) CHECK_OP(> , val1, val2)
+#define CHECK_GT(val1, val2) CHECK_OP(>, val1, val2)
 
 // Used for (libc) functions that return -1 and set errno
-#define CHECK_ERR(invocation)  PCHECK((invocation) != -1)
+#define CHECK_ERR(invocation) PCHECK((invocation) != -1)
 
 // A few more checks that only happen in debug mode
 #ifdef NDEBUG
@@ -149,33 +147,31 @@ DECLARE_int32(verbose);
 #define DCHECK_GE(val1, val2)
 #define DCHECK_GT(val1, val2)
 #else
-#define DCHECK_EQ(val1, val2)  CHECK_EQ(val1, val2)
-#define DCHECK_NE(val1, val2)  CHECK_NE(val1, val2)
-#define DCHECK_LE(val1, val2)  CHECK_LE(val1, val2)
-#define DCHECK_LT(val1, val2)  CHECK_LT(val1, val2)
-#define DCHECK_GE(val1, val2)  CHECK_GE(val1, val2)
-#define DCHECK_GT(val1, val2)  CHECK_GT(val1, val2)
+#define DCHECK_EQ(val1, val2) CHECK_EQ(val1, val2)
+#define DCHECK_NE(val1, val2) CHECK_NE(val1, val2)
+#define DCHECK_LE(val1, val2) CHECK_LE(val1, val2)
+#define DCHECK_LT(val1, val2) CHECK_LT(val1, val2)
+#define DCHECK_GE(val1, val2) CHECK_GE(val1, val2)
+#define DCHECK_GT(val1, val2) CHECK_GT(val1, val2)
 #endif
-
 
 #ifdef ERROR
-#undef ERROR      // may conflict with ERROR macro on windows
+#undef ERROR  // may conflict with ERROR macro on windows
 #endif
-enum LogSeverity {INFO = -1, WARNING = -2, ERROR = -3, FATAL = -4};
+enum LogSeverity { INFO = -1, WARNING = -2, ERROR = -3, FATAL = -4 };
 
 // NOTE: we add a newline to the end of the output if it's not there already
 inline void LogPrintf(int severity, const char* pat, va_list ap) {
   // We write directly to the stderr file descriptor and avoid FILE
   // buffering because that may invoke malloc()
   char buf[600];
-  vsnprintf(buf, sizeof(buf)-1, pat, ap);
-  if (buf[0] != '\0' && buf[strlen(buf)-1] != '\n') {
-    assert(strlen(buf)+1 < sizeof(buf));
+  vsnprintf(buf, sizeof(buf) - 1, pat, ap);
+  if (buf[0] != '\0' && buf[strlen(buf) - 1] != '\n') {
+    assert(strlen(buf) + 1 < sizeof(buf));
     strcat(buf, "\n");
   }
   WRITE_TO_STDERR(buf, strlen(buf));
-  if ((severity) == FATAL)
-    abort(); // LOG(FATAL) indicates a big problem, so don't run atexit() calls
+  if ((severity) == FATAL) abort();  // LOG(FATAL) indicates a big problem, so don't run atexit() calls
 }
 
 // Note that since the order of global constructors is unspecified,
@@ -184,22 +180,23 @@ inline void LogPrintf(int severity, const char* pat, va_list ap) {
 #define VLOG_IS_ON(severity) (FLAGS_verbose >= severity)
 
 // In a better world, we'd use __VA_ARGS__, but VC++ 7 doesn't support it.
-#define LOG_PRINTF(severity, pat) do {          \
-  if (VLOG_IS_ON(severity)) {                   \
-    va_list ap;                                 \
-    va_start(ap, pat);                          \
-    LogPrintf(severity, pat, ap);               \
-    va_end(ap);                                 \
-  }                                             \
-} while (0)
+#define LOG_PRINTF(severity, pat)   \
+  do {                              \
+    if (VLOG_IS_ON(severity)) {     \
+      va_list ap;                   \
+      va_start(ap, pat);            \
+      LogPrintf(severity, pat, ap); \
+      va_end(ap);                   \
+    }                               \
+  } while (0)
 
 // RAW_LOG is the main function; some synonyms are used in unittests.
-inline void RAW_LOG(int lvl, const char* pat, ...)  { LOG_PRINTF(lvl, pat); }
+inline void RAW_LOG(int lvl, const char* pat, ...) { LOG_PRINTF(lvl, pat); }
 inline void RAW_VLOG(int lvl, const char* pat, ...) { LOG_PRINTF(lvl, pat); }
-inline void LOG(int lvl, const char* pat, ...)      { LOG_PRINTF(lvl, pat); }
-inline void VLOG(int lvl, const char* pat, ...)     { LOG_PRINTF(lvl, pat); }
+inline void LOG(int lvl, const char* pat, ...) { LOG_PRINTF(lvl, pat); }
+inline void VLOG(int lvl, const char* pat, ...) { LOG_PRINTF(lvl, pat); }
 inline void LOG_IF(int lvl, bool cond, const char* pat, ...) {
-  if (cond)  LOG_PRINTF(lvl, pat);
+  if (cond) LOG_PRINTF(lvl, pat);
 }
 
 // This isn't technically logging, but it's also IO and also is an
@@ -211,18 +208,18 @@ inline void LOG_IF(int lvl, bool cond, const char* pat, ...) {
 // thus don't return error codes (except RawOpenForWriting()).
 #if defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 #ifndef NOMINMAX
-#define NOMINMAX     // @#!$& windows
+#define NOMINMAX  // @#!$& windows
 #endif
 #include <windows.h>
 typedef HANDLE RawFD;
 const RawFD kIllegalRawFD = INVALID_HANDLE_VALUE;
 #else
 typedef int RawFD;
-const RawFD kIllegalRawFD = -1;   // what open returns if it fails
+const RawFD kIllegalRawFD = -1;  // what open returns if it fails
 #endif  // defined(_WIN32) || defined(__CYGWIN__) || defined(__CYGWIN32__)
 
-RawFD RawOpenForWriting(const char* filename);   // uses default permissions
+RawFD RawOpenForWriting(const char* filename);  // uses default permissions
 void RawWrite(RawFD fd, const char* buf, size_t len);
 void RawClose(RawFD fd);
 
-#endif // _LOGGING_H_
+#endif  // _LOGGING_H_

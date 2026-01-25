@@ -46,7 +46,8 @@
 #include "base/basictypes.h"
 #include <gperftools/malloc_hook.h>
 
-namespace base { namespace internal {
+namespace base {
+namespace internal {
 
 // Capacity of 8 means that HookList is 9 words.
 static const int kHookListCapacity = 8;
@@ -82,14 +83,10 @@ struct HookList {
   int Traverse(T* output_array, int n) const;
 
   // Fast inline implementation for fast path of Invoke*Hook.
-  bool empty() const {
-    return priv_end.load(std::memory_order_relaxed) == 0;
-  }
+  bool empty() const { return priv_end.load(std::memory_order_relaxed) == 0; }
 
   // Used purely to handle deprecated singular hooks
-  T GetSingular() const {
-    return bit_cast<T>(cast_priv_data(kHookListSingularIdx)->load(std::memory_order_relaxed));
-  }
+  T GetSingular() const { return bit_cast<T>(cast_priv_data(kHookListSingularIdx)->load(std::memory_order_relaxed)); }
 
   T ExchangeSingular(T new_val);
 
@@ -108,18 +105,17 @@ struct HookList {
   // C++ 11 doesn't let us initialize array of atomics, so we made
   // priv_data regular array of T and cast when reading and writing
   // (which is portable in practice)
-  std::atomic<T>* cast_priv_data(int index) {
-    return reinterpret_cast<std::atomic<T>*>(priv_data + index);
-  }
-  std::atomic<T> const * cast_priv_data(int index) const {
-    return reinterpret_cast<std::atomic<T> const *>(priv_data + index);
+  std::atomic<T>* cast_priv_data(int index) { return reinterpret_cast<std::atomic<T>*>(priv_data + index); }
+  std::atomic<T> const* cast_priv_data(int index) const {
+    return reinterpret_cast<std::atomic<T> const*>(priv_data + index);
   }
 };
 
 ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::NewHook> new_hooks_;
 ATTRIBUTE_VISIBILITY_HIDDEN extern HookList<MallocHook::DeleteHook> delete_hooks_;
 
-} }  // namespace base::internal
+}  // namespace internal
+}  // namespace base
 
 // The following method is DEPRECATED
 

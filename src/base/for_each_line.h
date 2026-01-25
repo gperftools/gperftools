@@ -45,14 +45,14 @@ namespace tcmalloc {
 // that BufSize is large enough to hold largest line. If we see line
 // that is longer than the buffer, we fail and return false.
 template <size_t BufSize = PATH_MAX + 1024>
-ATTRIBUTE_VISIBILITY_HIDDEN
-bool ForEachLine(FunctionRef<int(void*, int)> reader, FunctionRef<bool(char*, char*)> body) {
+ATTRIBUTE_VISIBILITY_HIDDEN bool ForEachLine(FunctionRef<int(void*, int)> reader,
+                                             FunctionRef<bool(char*, char*)> body) {
   char buf[BufSize];
   char* const buf_end = buf + sizeof(buf) - 1;
 
-  char* sbuf = buf; // note, initial value could be nullptr, but
-                    // memmove actually insists to get non-null
-                    // arguments (even when count is 0)
+  char* sbuf = buf;  // note, initial value could be nullptr, but
+                     // memmove actually insists to get non-null
+                     // arguments (even when count is 0)
   char* ebuf = sbuf;
 
   bool eof = false;
@@ -63,7 +63,7 @@ bool ForEachLine(FunctionRef<int(void*, int)> reader, FunctionRef<bool(char*, ch
     if (nextline != nullptr) {
       RAW_CHECK(nextline < ebuf, "BUG");
 
-      *nextline = 0; // Turn newline into '\0'.
+      *nextline = 0;  // Turn newline into '\0'.
 
       if (!body(sbuf, nextline)) {
         break;
@@ -77,7 +77,7 @@ bool ForEachLine(FunctionRef<int(void*, int)> reader, FunctionRef<bool(char*, ch
 
     if (eof) {
       if (count == 0) {
-        break; // done
+        break;  // done
       }
 
       // Last read ended up without trailing newline. Lets add
@@ -119,4 +119,3 @@ bool ForEachLine(FunctionRef<int(void*, int)> reader, FunctionRef<bool(char*, ch
 }  // namespace tcmalloc
 
 #endif  // FOR_EACH_LINE_H_
-

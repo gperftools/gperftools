@@ -39,13 +39,12 @@
 
 // Annoying stuff for windows -- makes sure clients can import these functions
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
 #endif
-
+#endif
 
 // Skips the most recent "skip_count" stack frames (also skips the
 // frame generated for the "GetStackFrames" routine itself), and then
@@ -78,15 +77,14 @@
 //
 // This routine may return fewer stack frame entries than are
 // available. Also note that "result" and "sizes" must both be non-nullptr.
-extern PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth,
-                          int skip_count);
+extern PERFTOOLS_DLL_DECL int GetStackFrames(void** result, int* sizes, int max_depth, int skip_count);
 
 // Same as above, but to be used from a signal handler. The "uc" parameter
 // should be the pointer to ucontext_t which was passed as the 3rd parameter
 // to sa_sigaction signal handler. It may help the unwinder to get a
 // better stack trace under certain conditions. The "uc" may safely be nullptr.
-extern PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth,
-                                     int skip_count, const void *uc);
+extern PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* sizes, int max_depth, int skip_count,
+                                                        const void* uc);
 
 // This is similar to the GetStackFrames routine, except that it returns
 // the stack trace only, and not the stack frame sizes as well.
@@ -104,14 +102,12 @@ extern PERFTOOLS_DLL_DECL int GetStackFramesWithContext(void** result, int* size
 //           ....       ...
 //
 // "result" must not be nullptr.
-extern PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth,
-                                            int skip_count);
+extern PERFTOOLS_DLL_DECL int GetStackTrace(void** result, int max_depth, int skip_count);
 
 // Same as above, but to be used from a signal handler. The "uc" parameter
 // should be the pointer to ucontext_t which was passed as the 3rd parameter
 // to sa_sigaction signal handler. It may help the unwinder to get a
 // better stack trace under certain conditions. The "uc" may safely be nullptr.
-extern PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth,
-                                    int skip_count, const void *uc);
+extern PERFTOOLS_DLL_DECL int GetStackTraceWithContext(void** result, int max_depth, int skip_count, const void* uc);
 
 #endif /* GOOGLE_STACKTRACE_H_ */

@@ -38,12 +38,12 @@
 #include <config.h>
 
 #ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE 600  // for posix_memalign
+#define _XOPEN_SOURCE 600  // for posix_memalign
 #endif
-#include <stdlib.h>         // for posix_memalign
+#include <stdlib.h>  // for posix_memalign
 // FreeBSD has malloc.h, but complains if you use it
 #if defined(HAVE_MALLOC_H) && !defined(__FreeBSD__)
-#include <malloc.h>         // for memalign, valloc, pvalloc
+#include <malloc.h>  // for memalign, valloc, pvalloc
 #endif
 
 #include <gperftools/malloc_extension.h>
@@ -53,8 +53,8 @@
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
 // optimization tool, but we may need to use it to match glibc prototypes.
-#ifndef __THROW    // I guess we're not on a glibc system
-# define __THROW   // __THROW is just an optimization, so ok to make it ""
+#ifndef __THROW  // I guess we're not on a glibc system
+#define __THROW  // __THROW is just an optimization, so ok to make it ""
 #endif
 
 #if !HAVE_DECL_POSIX_MEMALIGN

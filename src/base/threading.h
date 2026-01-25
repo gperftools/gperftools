@@ -34,7 +34,7 @@
 #include <config.h>
 #include "base/basictypes.h"
 
-#ifdef _WIN32 // Should cover both toolchains on Windows - MSVC & MINGW
+#ifdef _WIN32  // Should cover both toolchains on Windows - MSVC & MINGW
 
 namespace tcmalloc {
 
@@ -42,9 +42,9 @@ using TlsKey = DWORD;
 
 constexpr inline TlsKey kInvalidTLSKey = TLS_OUT_OF_INDEXES;
 
-ATTRIBUTE_VISIBILITY_HIDDEN TlsKey WinTlsKeyCreate(void (*destr_fn)(void*));  /* windows/port.cc */
+ATTRIBUTE_VISIBILITY_HIDDEN TlsKey WinTlsKeyCreate(void (*destr_fn)(void*)); /* windows/port.cc */
 
-ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
+ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey* pkey, void (*destructor)(void*)) {
   TlsKey key = WinTlsKeyCreate(destructor);
 
   if (key == TLS_OUT_OF_INDEXES) {
@@ -55,9 +55,7 @@ ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destruc
   return 0;
 }
 
-ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
-  return TlsGetValue(key);
-}
+ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) { return TlsGetValue(key); }
 
 ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
   return !TlsSetValue(key, (LPVOID)value);
@@ -69,7 +67,7 @@ ATTRIBUTE_VISIBILITY_HIDDEN inline uintptr_t SelfThreadId() {
   return static_cast<uintptr_t>(GetCurrentThreadId());
 }
 
-} // namespace tcmalloc
+}  // namespace tcmalloc
 
 #else
 
@@ -101,7 +99,7 @@ using TlsKey = pthread_key_t;
 constexpr inline TlsKey kInvalidTLSKey = static_cast<TlsKey>(~uintptr_t{0});
 static_assert(sizeof(pthread_key_t) <= sizeof(uintptr_t));
 
-ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destructor)(void*)) {
+ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey* pkey, void (*destructor)(void*)) {
   int err = pthread_key_create(pkey, destructor);
   if (err != 0) {
     return err;
@@ -116,9 +114,7 @@ ATTRIBUTE_VISIBILITY_HIDDEN inline int CreateTlsKey(TlsKey *pkey, void (*destruc
   return CreateTlsKey(pkey, destructor);
 }
 
-ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) {
-  return pthread_getspecific(key);
-}
+ATTRIBUTE_VISIBILITY_HIDDEN inline void* GetTlsValue(TlsKey key) { return pthread_getspecific(key); }
 
 ATTRIBUTE_VISIBILITY_HIDDEN inline int SetTlsValue(TlsKey key, const void* value) {
   return pthread_setspecific(key, value);
@@ -131,8 +127,8 @@ ATTRIBUTE_VISIBILITY_HIDDEN inline uintptr_t SelfThreadId() {
   return reinterpret_cast<uintptr_t>(&errno);
 }
 
-} // namespace tcmalloc
+}  // namespace tcmalloc
 
 #endif
 
-#endif // THREADING_H_
+#endif  // THREADING_H_

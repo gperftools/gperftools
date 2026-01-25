@@ -36,12 +36,12 @@
 // For 32 bits, this means allocations near 2^32 bytes and 2^31 bytes.
 // For 64 bits, this means allocations near 2^64 bytes and 2^63 bytes.
 
-#include <stddef.h>                     // for size_t
-#include <stdlib.h>                     // for malloc, free, realloc
+#include <stddef.h>  // for size_t
+#include <stdlib.h>  // for malloc, free, realloc
 #include <stdio.h>
-#include <set>                          // for set, etc
+#include <set>  // for set, etc
 
-#include "base/logging.h"               // for operator<<, CHECK, etc
+#include "base/logging.h"  // for operator<<, CHECK, etc
 #include "tests/testutil.h"
 
 using std::set;
@@ -69,22 +69,22 @@ void TryAllocMightFail(size_t size) {
   if (p != nullptr) {
     static const size_t kPoints = 1024;
 
-    for ( size_t i = 0; i < kPoints; ++i ) {
+    for (size_t i = 0; i < kPoints; ++i) {
       p[i * (size / kPoints)] = static_cast<unsigned char>(i);
     }
 
-    for ( size_t i = 0; i < kPoints; ++i ) {
+    for (size_t i = 0; i < kPoints; ++i) {
       CHECK(p[i * (size / kPoints)] == static_cast<unsigned char>(i));
     }
 
-    p[size-1] = 'M';
-    CHECK(p[size-1] == 'M');
+    p[size - 1] = 'M';
+    CHECK(p[size - 1] == 'M');
   }
 
   free(noopt(p));
 }
 
-int main (int argc, char** argv) {
+int main(int argc, char** argv) {
   // Allocate some 0-byte objects.  They better be unique.
   // 0 bytes is not large but it exercises some paths related to
   // large-allocation code.
@@ -92,7 +92,7 @@ int main (int argc, char** argv) {
     static const int kZeroTimes = 1024;
     printf("Test malloc(0) x %d\n", kZeroTimes);
     set<char*> p_set;
-    for ( int i = 0; i < kZeroTimes; ++i ) {
+    for (int i = 0; i < kZeroTimes; ++i) {
       char* p = new char;
       CHECK(p != nullptr);
       CHECK(p_set.find(p) == p_set.end());
@@ -103,7 +103,7 @@ int main (int argc, char** argv) {
 
   // Grab some memory so that some later allocations are guaranteed to fail.
   printf("Test small malloc\n");
-  void* p_small = noopt(malloc(4*1048576));
+  void* p_small = noopt(malloc(4 * 1048576));
   CHECK(p_small != nullptr);
 
   // Test sizes up near the maximum size_t.
@@ -111,7 +111,7 @@ int main (int argc, char** argv) {
   printf("Test malloc(0 - N)\n");
   const size_t zero = 0;
   static const size_t kMinusNTimes = 16384;
-  for ( size_t i = 1; i < kMinusNTimes; ++i ) {
+  for (size_t i = 1; i < kMinusNTimes; ++i) {
     TryAllocExpectFail(zero - i);
   }
 
@@ -119,7 +119,7 @@ int main (int argc, char** argv) {
   // The small malloc above guarantees that all these return nullptr.
   printf("Test malloc(0 - 1048576 - N)\n");
   static const size_t kMinusMBMinusNTimes = 16384;
-  for ( size_t i = 0; i < kMinusMBMinusNTimes; ++i) {
+  for (size_t i = 0; i < kMinusMBMinusNTimes; ++i) {
     TryAllocExpectFail(zero - 1048576 - i);
   }
 
@@ -128,7 +128,7 @@ int main (int argc, char** argv) {
   printf("Test malloc(max/2 +- N)\n");
   static const size_t kHalfPlusMinusTimes = 64;
   const size_t half = (zero - 2) / 2 + 1;
-  for ( size_t i = 0; i < kHalfPlusMinusTimes; ++i) {
+  for (size_t i = 0; i < kHalfPlusMinusTimes; ++i) {
     TryAllocMightFail(half - i);
     TryAllocMightFail(half + i);
   }

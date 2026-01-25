@@ -37,11 +37,11 @@
 #define TCMALLOC_LIBC_OVERRIDE_GLIBC_INL_H_
 
 #include <config.h>
-#include <features.h>     // for __GLIBC__
+#include <features.h>  // for __GLIBC__
 #include <gperftools/tcmalloc.h>
 
 #ifndef __GLIBC__
-# error libc_override_glibc.h is for glibc distributions only.
+#error libc_override_glibc.h is for glibc distributions only.
 #endif
 
 // In glibc, the memory-allocation methods are weak symbols, so we can
@@ -52,14 +52,14 @@
 #if !defined(__GNUC__) || defined(__MACH__)
 
 // This also defines ReplaceSystemAlloc().
-# include "libc_override_redefine.h"  // defines functions malloc()/etc
+#include "libc_override_redefine.h"  // defines functions malloc()/etc
 
 #else  // #if !defined(__GNUC__) || defined(__MACH__)
 
 // If we get here, we're a gcc system, so do all the overriding we do
 // with gcc.  This does the overriding of all the 'normal' memory
 // allocation.  This also defines ReplaceSystemAlloc().
-# include "libc_override_gcc_and_weak.h"
+#include "libc_override_gcc_and_weak.h"
 
 // We also have to do some glibc-specific overriding.  Some library
 // routines on RedHat 9 allocate memory using malloc() and free it
@@ -70,18 +70,18 @@
 // do it inside the gcc #ifdef, since redhat uses gcc.
 // TODO(csilvers): only do this if we detect we're an old enough glibc?
 
-#define ALIAS(tc_fn)   __attribute__ ((alias (#tc_fn))) PERFTOOLS_DLL_DECL
+#define ALIAS(tc_fn) __attribute__((alias(#tc_fn))) PERFTOOLS_DLL_DECL
 extern "C" {
-  void* __libc_malloc(size_t size)                ALIAS(tc_malloc);
-  void __libc_free(void* ptr)                     ALIAS(tc_free);
-  void* __libc_realloc(void* ptr, size_t size)    ALIAS(tc_realloc);
-  void* __libc_calloc(size_t n, size_t size)      ALIAS(tc_calloc);
-  void __libc_cfree(void* ptr)                    ALIAS(tc_cfree);
-  void* __libc_memalign(size_t align, size_t s)   ALIAS(tc_memalign);
-  void* __libc_valloc(size_t size)                ALIAS(tc_valloc);
-  void* __libc_pvalloc(size_t size)               ALIAS(tc_pvalloc);
-  int __posix_memalign(void** r, size_t a, size_t s)  ALIAS(tc_posix_memalign);
-}   // extern "C"
+void* __libc_malloc(size_t size) ALIAS(tc_malloc);
+void __libc_free(void* ptr) ALIAS(tc_free);
+void* __libc_realloc(void* ptr, size_t size) ALIAS(tc_realloc);
+void* __libc_calloc(size_t n, size_t size) ALIAS(tc_calloc);
+void __libc_cfree(void* ptr) ALIAS(tc_cfree);
+void* __libc_memalign(size_t align, size_t s) ALIAS(tc_memalign);
+void* __libc_valloc(size_t size) ALIAS(tc_valloc);
+void* __libc_pvalloc(size_t size) ALIAS(tc_pvalloc);
+int __posix_memalign(void** r, size_t a, size_t s) ALIAS(tc_posix_memalign);
+}  // extern "C"
 #undef ALIAS
 
 #endif  // #if defined(__GNUC__) && !defined(__MACH__)

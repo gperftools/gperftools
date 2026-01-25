@@ -35,7 +35,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h> // for memcmp
+#include <string.h>  // for memcmp
 
 #include "gperftools/malloc_extension.h"
 #include "gperftools/tcmalloc.h"
@@ -64,7 +64,7 @@ TEST(DebugAllocationTest, DeallocMismatch) {
   {
     int* x = static_cast<int*>(noopt(malloc(sizeof(*x))));
     EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
-    EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    EXPECT_DEATH(delete[] x, "mismatch.*being dealloc.*delete *[[]");
     // Should work fine.
     free(x);
   }
@@ -74,7 +74,7 @@ TEST(DebugAllocationTest, DeallocMismatch) {
     int* x = noopt(new int);
     int* y = noopt(new int);
     EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
-    EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    EXPECT_DEATH(delete[] x, "mismatch.*being dealloc.*delete *[[]");
     delete x;
     ::operator delete(y, std::nothrow);
   }
@@ -85,7 +85,7 @@ TEST(DebugAllocationTest, DeallocMismatch) {
     int* y = noopt(new int[1]);
     EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
     EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
-    delete [] x;
+    delete[] x;
     ::operator delete[](y, std::nothrow);
   }
 
@@ -94,7 +94,7 @@ TEST(DebugAllocationTest, DeallocMismatch) {
     int* x = noopt(new (std::nothrow) int);
     int* y = noopt(new (std::nothrow) int);
     EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
-    EXPECT_DEATH(delete [] x, "mismatch.*being dealloc.*delete *[[]");
+    EXPECT_DEATH(delete[] x, "mismatch.*being dealloc.*delete *[[]");
     delete x;
     ::operator delete(y, std::nothrow);
   }
@@ -105,7 +105,7 @@ TEST(DebugAllocationTest, DeallocMismatch) {
     int* y = noopt(new (std::nothrow) int[1]);
     EXPECT_DEATH(free(x), "mismatch.*being dealloc.*free");
     EXPECT_DEATH(delete x, "mismatch.*being dealloc.*delete");
-    delete [] x;
+    delete[] x;
     ::operator delete[](y, std::nothrow);
   }
 }
@@ -137,18 +137,18 @@ TEST(DebugAllocationTest, FreeQueueTest) {
   int* old_x = x;
   delete x;
   x = noopt(new int);
-  #if 1
-    // This check should not be read as a universal guarantee of behavior.  If
-    // other threads are executing, it would be theoretically possible for this
-    // check to fail despite the efforts of debugallocation.cc to the contrary.
-    // It should always hold under the controlled conditions of this unittest,
-    // however.
-    EXPECT_NE(x, old_x);  // Allocator shouldn't return recently freed blocks
-  #else
-    // The below check passes, but since it isn't *required* to pass, I've left
-    // it commented out.
-    // EXPECT_EQ(x, old_x);
-  #endif
+#if 1
+  // This check should not be read as a universal guarantee of behavior.  If
+  // other threads are executing, it would be theoretically possible for this
+  // check to fail despite the efforts of debugallocation.cc to the contrary.
+  // It should always hold under the controlled conditions of this unittest,
+  // however.
+  EXPECT_NE(x, old_x);  // Allocator shouldn't return recently freed blocks
+#else
+  // The below check passes, but since it isn't *required* to pass, I've left
+  // it commented out.
+  // EXPECT_EQ(x, old_x);
+#endif
   old_x = nullptr;  // avoid breaking opt build with an unused variable warning.
   delete x;
 }
@@ -169,17 +169,17 @@ TEST(DebugAllocationTest, DanglingPointerWriteTest) {
   // When we delete s, we push the storage that was previously allocated to x
   // off the end of the free queue.  At that point, the write to that memory
   // will be detected.
-  EXPECT_DEATH(delete [] s, "Memory was written to after being freed.");
+  EXPECT_DEATH(delete[] s, "Memory was written to after being freed.");
 
   // restore the poisoned value of x so that we can delete s without causing a
   // crash.
   *x = poisoned_x_value;
-  delete [] s;
+  delete[] s;
 #endif
 }
 
 TEST(DebugAllocationTest, DanglingWriteAtExitTest) {
-  int *x = noopt(new int);
+  int* x = noopt(new int);
   delete x;
   int old_x_value = *x;
   *x = 1;
@@ -191,7 +191,7 @@ TEST(DebugAllocationTest, DanglingWriteAtExitTest) {
 
 namespace FooBar {
 ATTRIBUTE_NOINLINE
-void StackTraceMarker(int *x) {
+void StackTraceMarker(int* x) {
   (::operator delete)(x);
   // prevent tail-call above
   noopt(x);
@@ -199,7 +199,7 @@ void StackTraceMarker(int *x) {
 }  // namespace FooBar
 
 TEST(DebugAllocationTest, StackTraceWithDanglingWriteAtExitTest) {
-  int *x = noopt(new int);
+  int* x = noopt(new int);
   FooBar::StackTraceMarker(x);
   int old_x_value = *x;
   *x = 1;
@@ -215,8 +215,7 @@ TEST(DebugAllocationTest, StackTraceWithDanglingWriteAtExitTest) {
 
 static size_t CurrentlyAllocatedBytes() {
   size_t value;
-  CHECK(MallocExtension::instance()->GetNumericProperty(
-            "generic.current_allocated_bytes", &value));
+  CHECK(MallocExtension::instance()->GetNumericProperty("generic.current_allocated_bytes", &value));
   return value;
 }
 
@@ -247,7 +246,7 @@ TEST(DebugAllocationTest, GetAllocatedSizeTest) {
 #ifdef __APPLE__
     if (i == 0) continue;
 #endif
-    void *p = noopt(malloc(i));
+    void* p = noopt(malloc(i));
     EXPECT_EQ(i, MallocExtension::instance()->GetAllocatedSize(p));
     free(p);
 
@@ -302,7 +301,7 @@ TEST(DebugAllocationTest, HugeAlloc) {
 TEST(DebugAllocationTest, ReallocAfterMemalign) {
   char stuff[50];
   memset(stuff, 0x11, sizeof(stuff));
-  void *p = tc_memalign(16, sizeof(stuff));
+  void* p = tc_memalign(16, sizeof(stuff));
   EXPECT_NE(p, nullptr);
   memcpy(stuff, p, sizeof(stuff));
 

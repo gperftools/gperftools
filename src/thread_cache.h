@@ -36,9 +36,9 @@
 
 #include <config.h>
 #include <atomic>
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint32_t, uint64_t
-#include <sys/types.h>                  // for ssize_t
+#include <stddef.h>     // for size_t
+#include <stdint.h>     // for uint32_t, uint64_t
+#include <sys/types.h>  // for ssize_t
 
 #include "base/commandlineflags.h"
 #include "common.h"
@@ -47,12 +47,12 @@
 #include "sampler.h"
 #include "static_vars.h"
 
-#include "common.h"            // for SizeMap, kMaxSize, etc
-#include "internal_logging.h"  // for ASSERT, etc
-#include "linked_list.h"       // for SLL_Pop, SLL_PopRange, etc
+#include "common.h"               // for SizeMap, kMaxSize, etc
+#include "internal_logging.h"     // for ASSERT, etc
+#include "linked_list.h"          // for SLL_Pop, SLL_PopRange, etc
 #include "page_heap_allocator.h"  // for PageHeapAllocator
-#include "sampler.h"           // for Sampler
-#include "static_vars.h"       // for Static
+#include "sampler.h"              // for Sampler
+#include "static_vars.h"          // for Static
 
 DECLARE_int64(tcmalloc_sample_parameter);
 
@@ -77,7 +77,7 @@ class ThreadCache {
 
   // Allocate an object of the given size and class. The size given
   // must be the same as the size of the class in the size map.
-  void* Allocate(size_t size, uint32_t cl, void *(*oom_handler)(size_t size));
+  void* Allocate(size_t size, uint32_t cl, void* (*oom_handler)(size_t size));
   void Deallocate(void* ptr, uint32_t size_class);
 
   void Scavenge();
@@ -112,27 +112,21 @@ class ThreadCache {
   // individual thread cache sizes as necessary.
   // REQUIRES: Static::pageheap lock is held.
   static void set_overall_thread_cache_size(size_t new_size);
-  static size_t overall_thread_cache_size() {
-    return overall_thread_cache_size_;
-  }
+  static size_t overall_thread_cache_size() { return overall_thread_cache_size_; }
 
   // Sets the lower bound on per-thread cache size to new_size.
   static void set_min_per_thread_cache_size(size_t new_size) {
     min_per_thread_cache_size_.store(new_size, std::memory_order_relaxed);
   }
 
-  static size_t min_per_thread_cache_size() {
-    return min_per_thread_cache_size_.load(std::memory_order_relaxed);
-  }
+  static size_t min_per_thread_cache_size() { return min_per_thread_cache_size_.load(std::memory_order_relaxed); }
 
-  static int thread_heap_count() {
-    return thread_heap_count_;
-  }
+  static int thread_heap_count() { return thread_heap_count_; }
 
  private:
   class FreeList {
    private:
-    void*    list_;       // Linked list of nodes
+    void* list_;  // Linked list of nodes
 
 #ifdef _LP64
     // On 64-bit hardware, manipulating 16-bit values may be slightly slow.
@@ -164,38 +158,24 @@ class ThreadCache {
     }
 
     // Return current length of list
-    size_t length() const {
-      return length_;
-    }
+    size_t length() const { return length_; }
 
-    int32_t object_size() const {
-      return size_;
-    }
+    int32_t object_size() const { return size_; }
 
     // Return the maximum length of the list.
-    size_t max_length() const {
-      return max_length_;
-    }
+    size_t max_length() const { return max_length_; }
 
     // Set the maximum length of the list.  If 'new_max' > length(), the
     // client is responsible for removing objects from the list.
-    void set_max_length(size_t new_max) {
-      max_length_ = new_max;
-    }
+    void set_max_length(size_t new_max) { max_length_ = new_max; }
 
     // Return the number of times that length() has gone over max_length().
-    size_t length_overages() const {
-      return length_overages_;
-    }
+    size_t length_overages() const { return length_overages_; }
 
-    void set_length_overages(size_t new_count) {
-      length_overages_ = new_count;
-    }
+    void set_length_overages(size_t new_count) { length_overages_ = new_count; }
 
     // Is list empty?
-    bool empty() const {
-      return list_ == nullptr;
-    }
+    bool empty() const { return list_ == nullptr; }
 
     // Low-water mark management
     int lowwatermark() const { return lowater_; }
@@ -215,7 +195,7 @@ class ThreadCache {
       return SLL_Pop(&list_);
     }
 
-    bool TryPop(void **rv) {
+    bool TryPop(void** rv) {
       if (SLL_TryPop(&list_, rv)) {
         length_--;
         if (PREDICT_FALSE(length_ < lowater_)) lowater_ = length_;
@@ -224,16 +204,14 @@ class ThreadCache {
       return false;
     }
 
-    void* Next() {
-      return SLL_Next(&list_);
-    }
+    void* Next() { return SLL_Next(&list_); }
 
-    void PushRange(int N, void *start, void *end) {
+    void PushRange(int N, void* start, void* end) {
       SLL_PushRange(&list_, start, end);
       length_ += N;
     }
 
-    void PopRange(int N, void **start, void **end) {
+    void PopRange(int N, void** start, void** end) {
       SLL_PopRange(&list_, N, start, end);
       ASSERT(length_ >= N);
       length_ -= N;
@@ -248,8 +226,7 @@ class ThreadCache {
 
   // Gets and returns an object from the central cache, and, if possible,
   // also adds some objects of that size class to this thread cache.
-  void* FetchFromCentralCache(uint32_t cl, int32_t byte_size,
-                              void *(*oom_handler)(size_t size));
+  void* FetchFromCentralCache(uint32_t cl, int32_t byte_size, void* (*oom_handler)(size_t size));
 
   void ListTooLong(void* ptr, uint32_t cl);
 
@@ -279,7 +256,7 @@ class ThreadCache {
   // thread_heaps_.  Protected by Static::pageheap_lock.
   static ThreadCache* next_memory_steal_;
 
-  // Lower bound on per thread cache size. Default value is 512 KBs. 
+  // Lower bound on per thread cache size. Default value is 512 KBs.
   static std::atomic<size_t> min_per_thread_cache_size_;
 
   // Overall thread cache size.  Protected by Static::pageheap_lock.
@@ -298,13 +275,13 @@ class ThreadCache {
   // This class is laid out with the most frequently used fields
   // first so that hot elements are placed on the same cache line.
 
-  FreeList      list_[kClassSizesMax];     // Array indexed by size-class
+  FreeList list_[kClassSizesMax];  // Array indexed by size-class
 
-  int32_t       size_;                     // Combined size of data
-  int32_t       max_size_;                 // size_ > max_size_ --> Scavenge()
+  int32_t size_;      // Combined size of data
+  int32_t max_size_;  // size_ > max_size_ --> Scavenge()
 
   // We sample allocations, biased by the size of the allocation
-  Sampler       sampler_;               // A sampler
+  Sampler sampler_;  // A sampler
 
   static void RecomputePerThreadCacheSize();
 
@@ -323,12 +300,9 @@ class ThreadCache {
 // before the class is fully defined.  So we put it outside the class.
 extern PageHeapAllocator<ThreadCache> threadcache_allocator;
 
-inline int ThreadCache::HeapsInUse() {
-  return threadcache_allocator.inuse();
-}
+inline int ThreadCache::HeapsInUse() { return threadcache_allocator.inuse(); }
 
-ALWAYS_INLINE void* ThreadCache::Allocate(
-  size_t size, uint32_t cl, void *(*oom_handler)(size_t size)) {
+ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32_t cl, void* (*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
 
 #ifdef NO_TCMALLOC_SAMPLES
@@ -364,14 +338,12 @@ ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32_t cl) {
   }
 
   size_ += list->object_size();
-  if (PREDICT_FALSE(size_ > max_size_)){
+  if (PREDICT_FALSE(size_ > max_size_)) {
     Scavenge();
   }
 }
 
-inline void ThreadCache::SetMaxSize(int32_t new_max_size) {
-  max_size_ = new_max_size;
-}
+inline void ThreadCache::SetMaxSize(int32_t new_max_size) { max_size_ = new_max_size; }
 
 #ifndef NO_TCMALLOC_SAMPLES
 
@@ -387,13 +359,9 @@ inline bool ThreadCache::TryRecordAllocationFast(size_t k) {
 
 #else
 
-inline bool ThreadCache::SampleAllocation(size_t k) {
-  return false;
-}
+inline bool ThreadCache::SampleAllocation(size_t k) { return false; }
 
-inline bool ThreadCache::TryRecordAllocationFast(size_t k) {
-  return true;
-}
+inline bool ThreadCache::TryRecordAllocationFast(size_t k) { return true; }
 
 #endif
 

@@ -44,9 +44,9 @@
 
 // Someone still cares about those near-obsolete OSes that fail to
 // supply MAP_ANONYMOUS.
-# ifndef MAP_ANONYMOUS
-#  define MAP_ANONYMOUS MAP_ANON
-# endif
+#ifndef MAP_ANONYMOUS
+#define MAP_ANONYMOUS MAP_ANON
+#endif
 
 #endif
 
@@ -61,7 +61,7 @@ struct MMapResult {
 // some hassle of spreading (not 100% portable) flags.
 static inline MMapResult MapAnonymous(size_t length) {
   MMapResult result;
-  result.addr = mmap(nullptr, length, PROT_READ|PROT_WRITE, MAP_ANONYMOUS|MAP_PRIVATE, -1, 0);
+  result.addr = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
   result.success = (result.addr != MAP_FAILED);
   return result;
 }

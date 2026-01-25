@@ -48,13 +48,13 @@ namespace tcmalloc {
 class LowLevelAlloc {
  public:
   class PagesAllocator {
-  public:
+   public:
     virtual ~PagesAllocator();
-    virtual std::pair<void *,size_t> MapPages(size_t size) = 0;
-    virtual void UnMapPages(void *addr, size_t size) = 0;
+    virtual std::pair<void*, size_t> MapPages(size_t size) = 0;
+    virtual void UnMapPages(void* addr, size_t size) = 0;
   };
 
-  struct Arena;       // an arena from which memory may be allocated
+  struct Arena;  // an arena from which memory may be allocated
 
   // Returns a pointer to a block of at least "request" bytes
   // that have been newly allocated from the specific arena.
@@ -64,38 +64,38 @@ class LowLevelAlloc {
   // is not available.
   //
   // Passing nullptr arena implies use of DefaultArena
-  static void *AllocWithArena(size_t request, Arena *arena);
+  static void* AllocWithArena(size_t request, Arena* arena);
   // Equivalent to AllocWithArena(request, nullptr)
-  static void *Alloc(size_t request);
+  static void* Alloc(size_t request);
 
-  static size_t UsableSize(const void *p);
+  static size_t UsableSize(const void* p);
 
   // Deallocates a region of memory that was previously allocated with
   // Alloc().   Does nothing if passed 0.   "s" must be either 0,
   // or must have been returned from a call to Alloc() and not yet passed to
   // Free() since that call to Alloc().  The space is returned to the arena
   // from which it was allocated.
-  static void Free(void *s);
+  static void Free(void* s);
 
-  static Arena *NewArena();
+  static Arena* NewArena();
 
   // note: pages allocator will never be destroyed and allocated pages will never be freed
   // When allocator is nullptr, it's same as NewArena
-  static Arena *NewArenaWithCustomAlloc(PagesAllocator *allocator);
+  static Arena* NewArenaWithCustomAlloc(PagesAllocator* allocator);
 
   // Destroys an arena allocated by NewArena and returns true,
   // provided no allocated blocks remain in the arena.
   // If allocated blocks remain in the arena, does nothing and
   // returns false.
   // It is illegal to attempt to destroy the DefaultArena().
-  static bool DeleteArena(Arena *arena);
+  static bool DeleteArena(Arena* arena);
 
-  static PagesAllocator *GetDefaultPagesAllocator(void);
+  static PagesAllocator* GetDefaultPagesAllocator(void);
 
-private:
-  static Arena *DefaultArena();
+ private:
+  static Arena* DefaultArena();
 
-  LowLevelAlloc();      // no instances
+  LowLevelAlloc();  // no instances
 };
 
 }  // namespace tcmalloc

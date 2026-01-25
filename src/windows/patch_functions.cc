@@ -64,7 +64,7 @@
 //                 "Keeping track of all of this was a nightmare."
 
 #ifndef _WIN32
-# error You should only be including windows/patch_functions.cc in a windows environment!
+#error You should only be including windows/patch_functions.cc in a windows environment!
 #endif
 
 #include <config.h>
@@ -85,14 +85,14 @@
 
 #include <windows.h>
 #include <stdio.h>
-#include <malloc.h>       // for _msize and _expand
-#include <psapi.h>        // for EnumProcessModules, GetModuleInformation, etc.
+#include <malloc.h>  // for _msize and _expand
+#include <psapi.h>   // for EnumProcessModules, GetModuleInformation, etc.
 #include <set>
 #include <map>
 #include <vector>
 #include <base/logging.h>
 #include "base/spinlock.h"
-#include "getenv_safe.h" // for TCMallocGetenvSafe
+#include "getenv_safe.h"  // for TCMallocGetenvSafe
 #include "gperftools/malloc_hook.h"
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"
@@ -133,20 +133,20 @@ const char kMangledDeleteArrayNothrow[] = "??_V@YAXPAXABUnothrow_t@std@@@Z";
 // couldn't figure out how to get that to work.  This function exports
 // the symbol "__tcmalloc".)
 extern "C" PERFTOOLS_DLL_DECL void _tcmalloc();
-void _tcmalloc() { }
+void _tcmalloc() {}
 
 // This is the version needed for windows x64, which has a different
 // decoration scheme which doesn't auto-add a leading underscore.
 extern "C" PERFTOOLS_DLL_DECL void __tcmalloc();
-void __tcmalloc() { }
+void __tcmalloc() {}
 
-namespace {    // most everything here is in an unnamed namespace
+namespace {  // most everything here is in an unnamed namespace
 
 typedef void (*GenericFnPtr)();
 
 using sidestep::PreamblePatcher;
 
-struct ModuleEntryCopy;   // defined below
+struct ModuleEntryCopy;  // defined below
 
 // These functions are how we override the memory allocation
 // functions, just like tcmalloc.cc and malloc_hook.cc do.
@@ -168,9 +168,7 @@ class LibcInfo {
   // According to http://msdn.microsoft.com/en-us/library/ms684229(VS.85).aspx:
   // "The load address of a module (lpBaseOfDll) is the same as the HMODULE
   // value."
-  HMODULE hmodule() const {
-    return reinterpret_cast<HMODULE>(const_cast<void*>(module_base_address_));
-  }
+  HMODULE hmodule() const { return reinterpret_cast<HMODULE>(const_cast<void*>(module_base_address_)); }
 
   // Populates all the windows_fn_[] vars based on our module info.
   // Returns false if windows_fn_ is all nullptr's, because there's
@@ -180,8 +178,7 @@ class LibcInfo {
 
  protected:
   void CopyFrom(const LibcInfo& that) {
-    if (this == &that)
-      return;
+    if (this == &that) return;
     this->is_valid_ = that.is_valid_;
     memcpy(this->windows_fn_, that.windows_fn_, sizeof(windows_fn_));
     this->module_base_address_ = that.module_base_address_;
@@ -189,15 +186,26 @@ class LibcInfo {
   }
 
   enum {
-    kMalloc, kFree, kRealloc, kCalloc,
-    kNew, kNewArray, kDelete, kDeleteArray,
-    kNewNothrow, kNewArrayNothrow, kDeleteNothrow, kDeleteArrayNothrow,
+    kMalloc,
+    kFree,
+    kRealloc,
+    kCalloc,
+    kNew,
+    kNewArray,
+    kDelete,
+    kDeleteArray,
+    kNewNothrow,
+    kNewArrayNothrow,
+    kDeleteNothrow,
+    kDeleteArrayNothrow,
     // These are windows-only functions from malloc.h
-    k_Msize, k_Expand,
+    k_Msize,
+    k_Expand,
     // A MS CRT "internal" function, implemented using _calloc_impl
     k_CallocCrt,
     // Underlying deallocation functions called by CRT internal functions or operator delete
-    kFreeBase, kFreeDbg,
+    kFreeBase,
+    kFreeDbg,
     kNumFunctions
   };
 
@@ -227,7 +235,7 @@ class LibcInfo {
   // uninitialized (because we've freed that library).
   bool is_valid_;
 
-  const void *module_base_address_;
+  const void* module_base_address_;
   size_t module_base_size_;
 
  public:
@@ -236,17 +244,11 @@ class LibcInfo {
   // templates.  Shrug.  I hide them down here so users won't see
   // them. :-)  (OK, I also need to define ctrgProcAddress late.)
   bool is_valid() const { return is_valid_; }
-  GenericFnPtr windows_fn(int ifunction) const {
-    return windows_fn_[ifunction];
-  }
+  GenericFnPtr windows_fn(int ifunction) const { return windows_fn_[ifunction]; }
   // These three are needed by ModuleEntryCopy.
   static const int ctrgProcAddress = kNumFunctions;
-  static GenericFnPtr static_fn(int ifunction) {
-    return static_fn_[ifunction];
-  }
-  static const char* const function_name(int ifunction) {
-    return function_name_[ifunction];
-  }
+  static GenericFnPtr static_fn(int ifunction) { return static_fn_[ifunction]; }
+  static const char* const function_name(int ifunction) { return function_name_[ifunction]; }
 };
 
 // Template trickiness: logically, a LibcInfo would include
@@ -262,7 +264,8 @@ class LibcInfo {
 // of the struct, we say "struct<1> var1; struct<2> var2;".  The price
 // we pay is some code duplication, and more annoying, each instance
 // of this var is a separate type.
-template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
+template <int>
+class LibcInfoWithPatchFunctions : public LibcInfo {
  public:
   // me_info should have had PopulateWindowsFn() called on it, so the
   // module_* vars and windows_fn_ are set up.
@@ -286,18 +289,14 @@ template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
   static void* Perftools_calloc(size_t nmemb, size_t size) __THROW;
   static void* Perftools_new(size_t size);
   static void* Perftools_newarray(size_t size);
-  static void Perftools_delete(void *ptr);
-  static void Perftools_deletearray(void *ptr);
-  static void* Perftools_new_nothrow(size_t size,
-                                     const std::nothrow_t&) __THROW;
-  static void* Perftools_newarray_nothrow(size_t size,
-                                          const std::nothrow_t&) __THROW;
-  static void Perftools_delete_nothrow(void *ptr,
-                                       const std::nothrow_t&) __THROW;
-  static void Perftools_deletearray_nothrow(void *ptr,
-                                            const std::nothrow_t&) __THROW;
-  static size_t Perftools__msize(void *ptr) __THROW;
-  static void* Perftools__expand(void *ptr, size_t size) __THROW;
+  static void Perftools_delete(void* ptr);
+  static void Perftools_deletearray(void* ptr);
+  static void* Perftools_new_nothrow(size_t size, const std::nothrow_t&) __THROW;
+  static void* Perftools_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW;
+  static void Perftools_delete_nothrow(void* ptr, const std::nothrow_t&) __THROW;
+  static void Perftools_deletearray_nothrow(void* ptr, const std::nothrow_t&) __THROW;
+  static size_t Perftools__msize(void* ptr) __THROW;
+  static void* Perftools__expand(void* ptr, size_t size) __THROW;
   // malloc.h also defines these functions:
   //   _aligned_malloc, _aligned_free,
   //   _recalloc, _aligned_offset_malloc, _aligned_realloc, _aligned_recalloc
@@ -308,8 +307,8 @@ template<int> class LibcInfoWithPatchFunctions : public LibcInfo {
 
 // This is a subset of MODDULEENTRY32, that we need for patching.
 struct ModuleEntryCopy {
-  LPVOID  modBaseAddr;     // the same as hmodule
-  DWORD   modBaseSize;
+  LPVOID modBaseAddr;  // the same as hmodule
+  DWORD modBaseSize;
   // This is not part of MODDULEENTRY32, but is needed to avoid making
   // windows syscalls while we're holding patch_all_modules_lock (see
   // lock-inversion comments at patch_all_modules_lock definition, below).
@@ -318,17 +317,15 @@ struct ModuleEntryCopy {
   ModuleEntryCopy() {
     modBaseAddr = nullptr;
     modBaseSize = 0;
-    for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++)
+    for (int i = 0; i < sizeof(rgProcAddresses) / sizeof(*rgProcAddresses); i++)
       rgProcAddresses[i] = LibcInfo::static_fn(i);
   }
   ModuleEntryCopy(const MODULEINFO& mi) {
     this->modBaseAddr = mi.lpBaseOfDll;
     this->modBaseSize = mi.SizeOfImage;
     LPVOID modEndAddr = (char*)mi.lpBaseOfDll + mi.SizeOfImage;
-    for (int i = 0; i < sizeof(rgProcAddresses)/sizeof(*rgProcAddresses); i++) {
-      FARPROC target = ::GetProcAddress(
-          reinterpret_cast<const HMODULE>(mi.lpBaseOfDll),
-          LibcInfo::function_name(i));
+    for (int i = 0; i < sizeof(rgProcAddresses) / sizeof(*rgProcAddresses); i++) {
+      FARPROC target = ::GetProcAddress(reinterpret_cast<const HMODULE>(mi.lpBaseOfDll), LibcInfo::function_name(i));
       void* target_addr = reinterpret_cast<void*>(target);
       // Sometimes a DLL forwards a function to a function in another
       // DLL.  We don't want to patch those forwarded functions --
@@ -336,7 +333,7 @@ struct ModuleEntryCopy {
       if (modBaseAddr <= target_addr && target_addr < modEndAddr)
         rgProcAddresses[i] = (GenericFnPtr)target;
       else
-        rgProcAddresses[i] = (GenericFnPtr)nullptr;
+        rgProcAddresses[i] = (GenericFnPtr) nullptr;
     }
   }
 };
@@ -350,29 +347,22 @@ class WindowsInfo {
  private:
   // TODO(csilvers): should we be patching GlobalAlloc/LocalAlloc instead,
   //                 for pre-XP systems?
-  enum {
-    kHeapAlloc, kHeapFree, kLoadLibraryExW, kFreeLibrary,
-    kNumFunctions
-  };
+  enum { kHeapAlloc, kHeapFree, kLoadLibraryExW, kFreeLibrary, kNumFunctions };
 
   struct FunctionInfo {
-    const char* const name;          // name of fn in a module (eg "malloc")
-    GenericFnPtr windows_fn;         // the fn whose name we call (&malloc)
-    GenericFnPtr origstub_fn;        // original fn contents after we patch
-    const GenericFnPtr perftools_fn; // fn we want to patch in
+    const char* const name;           // name of fn in a module (eg "malloc")
+    GenericFnPtr windows_fn;          // the fn whose name we call (&malloc)
+    GenericFnPtr origstub_fn;         // original fn contents after we patch
+    const GenericFnPtr perftools_fn;  // fn we want to patch in
   };
 
   static FunctionInfo function_info_[kNumFunctions];
 
   // A Windows-API equivalent of malloc and free
-  static LPVOID WINAPI Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,
-                                           DWORD_PTR dwBytes);
-  static BOOL WINAPI Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags,
-                                        LPVOID lpMem);
+  static LPVOID WINAPI Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags, DWORD_PTR dwBytes);
+  static BOOL WINAPI Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem);
   // We don't need the other 3 variants because they all call this one. */
-  static HMODULE WINAPI Perftools_LoadLibraryExW(LPCWSTR lpFileName,
-                                                 HANDLE hFile,
-                                                 DWORD dwFlags);
+  static HMODULE WINAPI Perftools_LoadLibraryExW(LPCWSTR lpFileName, HANDLE hFile, DWORD dwFlags);
   static BOOL WINAPI Perftools_FreeLibrary(HMODULE hLibModule);
 };
 
@@ -393,94 +383,92 @@ static LibcInfoWithPatchFunctions<5> libc5;
 static LibcInfoWithPatchFunctions<6> libc6;
 static LibcInfoWithPatchFunctions<7> libc7;
 static LibcInfoWithPatchFunctions<8> libc8;
-static LibcInfo* g_module_libcs[] = {
-  &libc1, &libc2, &libc3, &libc4, &libc5, &libc6, &libc7, &libc8
-};
+static LibcInfo* g_module_libcs[] = {&libc1, &libc2, &libc3, &libc4, &libc5, &libc6, &libc7, &libc8};
 static WindowsInfo main_executable_windows;
 
-const char* const LibcInfo::function_name_[] = {
-  "malloc", "free", "realloc", "calloc",
-  kMangledNew, kMangledNewArray, kMangledDelete, kMangledDeleteArray,
-  // Ideally we should patch the nothrow versions of new/delete, but
-  // at least in msvcrt, nothrow-new machine-code is of a type we
-  // can't patch.  Since these are relatively rare, I'm hoping it's ok
-  // not to patch them.  (nullptr name turns off patching.)
-  nullptr,  // kMangledNewNothrow,
-  nullptr,  // kMangledNewArrayNothrow,
-  nullptr,  // kMangledDeleteNothrow,
-  nullptr,  // kMangledDeleteArrayNothrow,
-  "_msize", "_expand", "_calloc_crt", "_free_base", "_free_dbg"
-};
+const char* const LibcInfo::function_name_[] = {"malloc", "free", "realloc", "calloc", kMangledNew, kMangledNewArray,
+                                                kMangledDelete, kMangledDeleteArray,
+                                                // Ideally we should patch the nothrow versions of new/delete, but
+                                                // at least in msvcrt, nothrow-new machine-code is of a type we
+                                                // can't patch.  Since these are relatively rare, I'm hoping it's ok
+                                                // not to patch them.  (nullptr name turns off patching.)
+                                                nullptr,  // kMangledNewNothrow,
+                                                nullptr,  // kMangledNewArrayNothrow,
+                                                nullptr,  // kMangledDeleteNothrow,
+                                                nullptr,  // kMangledDeleteArrayNothrow,
+                                                "_msize", "_expand", "_calloc_crt", "_free_base", "_free_dbg"};
 
 // For mingw, I can't patch the new/delete here, because the
 // instructions are too small to patch.  Luckily, they're so small
 // because all they do is call into malloc/free, so they still end up
 // calling tcmalloc routines, and we don't actually lose anything
 // (except maybe some stacktrace goodness) by not patching.
-const GenericFnPtr LibcInfo::static_fn_[] = {
-  (GenericFnPtr)&::malloc,
-  (GenericFnPtr)&::free,
-  (GenericFnPtr)&::realloc,
-  (GenericFnPtr)&::calloc,
+const GenericFnPtr LibcInfo::static_fn_[] = {(GenericFnPtr) & ::malloc,
+                                             (GenericFnPtr) & ::free,
+                                             (GenericFnPtr) & ::realloc,
+                                             (GenericFnPtr) & ::calloc,
 #ifdef __MINGW32__
-  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
+                                             nullptr,
 #else
-  (GenericFnPtr)(void*(*)(size_t))&::operator new,
-  (GenericFnPtr)(void*(*)(size_t))&::operator new[],
-  (GenericFnPtr)(void(*)(void*))&::operator delete,
-  (GenericFnPtr)(void(*)(void*))&::operator delete[],
-  (GenericFnPtr)
-  (void*(*)(size_t, struct std::nothrow_t const &))&::operator new,
-  (GenericFnPtr)
-  (void*(*)(size_t, struct std::nothrow_t const &))&::operator new[],
-  (GenericFnPtr)
-  (void(*)(void*, struct std::nothrow_t const &))&::operator delete,
-  (GenericFnPtr)
-  (void(*)(void*, struct std::nothrow_t const &))&::operator delete[],
+                                             (GenericFnPtr)(void* (*)(size_t)) & ::operator new,
+                                             (GenericFnPtr)(void* (*)(size_t)) & ::operator new[],
+                                             (GenericFnPtr)(void (*)(void*)) & ::operator delete,
+                                             (GenericFnPtr)(void (*)(void*)) & ::operator delete[],
+                                             (GenericFnPtr)(void* (*)(size_t, struct std::nothrow_t const&)) &
+                                                 ::operator new,
+                                             (GenericFnPtr)(void* (*)(size_t, struct std::nothrow_t const&)) &
+                                                 ::operator new[],
+                                             (GenericFnPtr)(void (*)(void*, struct std::nothrow_t const&)) &
+                                                 ::operator delete,
+                                             (GenericFnPtr)(void (*)(void*, struct std::nothrow_t const&)) &
+                                                 ::operator delete[],
 #endif
-  (GenericFnPtr)&::_msize,
-  (GenericFnPtr)&::_expand,
-  (GenericFnPtr)&::calloc,
-  (GenericFnPtr)&::free,
-  (GenericFnPtr)&::free
-};
+                                             (GenericFnPtr) & ::_msize,
+                                             (GenericFnPtr) & ::_expand,
+                                             (GenericFnPtr) & ::calloc,
+                                             (GenericFnPtr) & ::free,
+                                             (GenericFnPtr) & ::free};
 
-template<int T> GenericFnPtr LibcInfoWithPatchFunctions<T>::origstub_fn_[] = {
-  // This will get filled in at run-time, as patching is done.
+template <int T>
+GenericFnPtr LibcInfoWithPatchFunctions<T>::origstub_fn_[] = {
+    // This will get filled in at run-time, as patching is done.
 };
 
 // _expand() is like realloc but doesn't move the
 // pointer.  We punt, which will cause callers to fall back on realloc.
-static void* empty__expand(void*, size_t) __THROW {
-  return nullptr;
-}
+static void* empty__expand(void*, size_t) __THROW { return nullptr; }
 
-template<int T>
-const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {
-  (GenericFnPtr)&Perftools_malloc,
-  (GenericFnPtr)&Perftools_free,
-  (GenericFnPtr)&Perftools_realloc,
-  (GenericFnPtr)&Perftools_calloc,
-  (GenericFnPtr)&Perftools_new,
-  (GenericFnPtr)&Perftools_newarray,
-  (GenericFnPtr)&Perftools_delete,
-  (GenericFnPtr)&Perftools_deletearray,
-  (GenericFnPtr)&Perftools_new_nothrow,
-  (GenericFnPtr)&Perftools_newarray_nothrow,
-  (GenericFnPtr)&Perftools_delete_nothrow,
-  (GenericFnPtr)&Perftools_deletearray_nothrow,
-  (GenericFnPtr)&Perftools__msize,
-  (GenericFnPtr)&empty__expand,
-  (GenericFnPtr)&Perftools_calloc,
-  (GenericFnPtr)&Perftools_free_base,
-  (GenericFnPtr)&Perftools_free_dbg
-};
+template <int T>
+const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {(GenericFnPtr)&Perftools_malloc,
+                                                                     (GenericFnPtr)&Perftools_free,
+                                                                     (GenericFnPtr)&Perftools_realloc,
+                                                                     (GenericFnPtr)&Perftools_calloc,
+                                                                     (GenericFnPtr)&Perftools_new,
+                                                                     (GenericFnPtr)&Perftools_newarray,
+                                                                     (GenericFnPtr)&Perftools_delete,
+                                                                     (GenericFnPtr)&Perftools_deletearray,
+                                                                     (GenericFnPtr)&Perftools_new_nothrow,
+                                                                     (GenericFnPtr)&Perftools_newarray_nothrow,
+                                                                     (GenericFnPtr)&Perftools_delete_nothrow,
+                                                                     (GenericFnPtr)&Perftools_deletearray_nothrow,
+                                                                     (GenericFnPtr)&Perftools__msize,
+                                                                     (GenericFnPtr)&empty__expand,
+                                                                     (GenericFnPtr)&Perftools_calloc,
+                                                                     (GenericFnPtr)&Perftools_free_base,
+                                                                     (GenericFnPtr)&Perftools_free_dbg};
 
 /*static*/ WindowsInfo::FunctionInfo WindowsInfo::function_info_[] = {
-  { "HeapAlloc", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapAlloc },
-  { "HeapFree", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapFree },
-  { "LoadLibraryExW", nullptr, nullptr, (GenericFnPtr)&Perftools_LoadLibraryExW },
-  { "FreeLibrary", nullptr, nullptr, (GenericFnPtr)&Perftools_FreeLibrary },
+    {"HeapAlloc", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapAlloc},
+    {"HeapFree", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapFree},
+    {"LoadLibraryExW", nullptr, nullptr, (GenericFnPtr)&Perftools_LoadLibraryExW},
+    {"FreeLibrary", nullptr, nullptr, (GenericFnPtr)&Perftools_FreeLibrary},
 };
 
 bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
@@ -488,7 +476,7 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   // patching it.  If none of these functions are found in the module,
   // then this module has no libc in it, and we just return false.
   for (int i = 0; i < kNumFunctions; i++) {
-    if (!function_name_[i])     // we can turn off patching by unsetting name
+    if (!function_name_[i])  // we can turn off patching by unsetting name
       continue;
     // The ::GetProcAddress calls were done in the ModuleEntryCopy
     // constructor, so we don't have to make any windows calls here.
@@ -504,7 +492,7 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   // and nothrow-new.  It's easiest just to check each fn-ptr against
   // every other.
   for (int i = 0; i < kNumFunctions; i++) {
-    for (int j = i+1; j < kNumFunctions; j++) {
+    for (int j = i + 1; j < kNumFunctions; j++) {
       if (windows_fn_[i] == windows_fn_[j]) {
         // We nullptr the later one (j), so as to minimize the chances we
         // nullptr kFree and kRealloc.  See comments below.  This is fragile!
@@ -517,10 +505,8 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   // as another module that we've already loaded.  In that case, we
   // need to set our windows_fn to nullptr, to avoid double-patching.
   for (int ifn = 0; ifn < kNumFunctions; ifn++) {
-    for (int imod = 0;
-         imod < sizeof(g_module_libcs)/sizeof(*g_module_libcs);  imod++) {
-      if (g_module_libcs[imod]->is_valid() &&
-          this->windows_fn(ifn) == g_module_libcs[imod]->windows_fn(ifn)) {
+    for (int imod = 0; imod < sizeof(g_module_libcs) / sizeof(*g_module_libcs); imod++) {
+      if (g_module_libcs[imod]->is_valid() && this->windows_fn(ifn) == g_module_libcs[imod]->windows_fn(ifn)) {
         windows_fn_[ifn] = nullptr;
       }
     }
@@ -528,11 +514,9 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
 
   bool found_non_null = false;
   for (int i = 0; i < kNumFunctions; i++) {
-    if (windows_fn_[i])
-      found_non_null = true;
+    if (windows_fn_[i]) found_non_null = true;
   }
-  if (!found_non_null)
-    return false;
+  if (!found_non_null) return false;
 
   // It's important we didn't nullptr out windows_fn_[kFree] or [kRealloc].
   // The reason is, if those are nullptr-ed out, we'll never patch them
@@ -550,9 +534,9 @@ bool LibcInfo::PopulateWindowsFn(const ModuleEntryCopy& module_entry) {
   return true;
 }
 
-template<int T>
+template <int T>
 bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
-  CopyFrom(me_info);   // copies the module_entry and the windows_fn_ array
+  CopyFrom(me_info);  // copies the module_entry and the windows_fn_ array
   for (int i = 0; i < kNumFunctions; i++) {
     if (windows_fn_[i] && windows_fn_[i] != perftools_fn_[i]) {
       // if origstub_fn_ is not nullptr, it's left around from a previous
@@ -561,26 +545,22 @@ bool LibcInfoWithPatchFunctions<T>::Patch(const LibcInfo& me_info) {
       // Note that origstub_fn_ was logically freed by
       // PreamblePatcher::Unpatch, so we don't have to do anything
       // about it.
-      origstub_fn_[i] = nullptr;   // Patch() will fill this in
-      CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-               PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i],
-                                      &origstub_fn_[i]));
+      origstub_fn_[i] = nullptr;  // Patch() will fill this in
+      CHECK_EQ(sidestep::SIDESTEP_SUCCESS, PreamblePatcher::Patch(windows_fn_[i], perftools_fn_[i], &origstub_fn_[i]));
     }
   }
   set_is_valid(true);
   return true;
 }
 
-template<int T>
+template <int T>
 void LibcInfoWithPatchFunctions<T>::Unpatch() {
   // We have to cast our GenericFnPtrs to void* for unpatch.  This is
   // contra the C++ spec; we use C-style casts to empahsize that.
   for (int i = 0; i < kNumFunctions; i++) {
     if (windows_fn_[i])
       CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-               PreamblePatcher::Unpatch((void*)windows_fn_[i],
-                                        (void*)perftools_fn_[i],
-                                        (void*)origstub_fn_[i]));
+               PreamblePatcher::Unpatch((void*)windows_fn_[i], (void*)perftools_fn_[i], (void*)origstub_fn_[i]));
   }
   set_is_valid(false);
 }
@@ -592,8 +572,7 @@ void WindowsInfo::Patch() {
   // Unlike for libc, we know these exist in our module, so we can get
   // and patch at the same time.
   for (int i = 0; i < kNumFunctions; i++) {
-    function_info_[i].windows_fn = (GenericFnPtr)
-        ::GetProcAddress(hkernel32, function_info_[i].name);
+    function_info_[i].windows_fn = (GenericFnPtr)::GetProcAddress(hkernel32, function_info_[i].name);
     // If origstub_fn is not nullptr, it's left around from a previous
     // patch.  We need to set it to nullptr for the new Patch call.
     // Since we've patched Unpatch() not to delete origstub_fn_ (it
@@ -605,8 +584,7 @@ void WindowsInfo::Patch() {
     delete[] (char*)(function_info_[i].origstub_fn);
     function_info_[i].origstub_fn = nullptr;  // Patch() will fill this in
     CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-             PreamblePatcher::Patch(function_info_[i].windows_fn,
-                                    function_info_[i].perftools_fn,
+             PreamblePatcher::Patch(function_info_[i].windows_fn, function_info_[i].perftools_fn,
                                     &function_info_[i].origstub_fn));
   }
 }
@@ -616,8 +594,7 @@ void WindowsInfo::Unpatch() {
   // contra the C++ spec; we use C-style casts to empahsize that.
   for (int i = 0; i < kNumFunctions; i++) {
     CHECK_EQ(sidestep::SIDESTEP_SUCCESS,
-             PreamblePatcher::Unpatch((void*)function_info_[i].windows_fn,
-                                      (void*)function_info_[i].perftools_fn,
+             PreamblePatcher::Unpatch((void*)function_info_[i].windows_fn, (void*)function_info_[i].perftools_fn,
                                       (void*)function_info_[i].origstub_fn));
   }
 }
@@ -628,17 +605,33 @@ void PatchOneModuleLocked(const LibcInfo& me_info) {
   // is where we're sad that each libcX has a different type, so we
   // can't use an array; instead, we have to use a switch statement.
   // Patch() returns false if there were no libc functions in the module.
-  for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
-    if (!g_module_libcs[i]->is_valid()) {   // found an empty spot to add!
+  for (int i = 0; i < sizeof(g_module_libcs) / sizeof(*g_module_libcs); i++) {
+    if (!g_module_libcs[i]->is_valid()) {  // found an empty spot to add!
       switch (i) {
-        case 0: libc1.Patch(me_info); return;
-        case 1: libc2.Patch(me_info); return;
-        case 2: libc3.Patch(me_info); return;
-        case 3: libc4.Patch(me_info); return;
-        case 4: libc5.Patch(me_info); return;
-        case 5: libc6.Patch(me_info); return;
-        case 6: libc7.Patch(me_info); return;
-        case 7: libc8.Patch(me_info); return;
+        case 0:
+          libc1.Patch(me_info);
+          return;
+        case 1:
+          libc2.Patch(me_info);
+          return;
+        case 2:
+          libc3.Patch(me_info);
+          return;
+        case 3:
+          libc4.Patch(me_info);
+          return;
+        case 4:
+          libc5.Patch(me_info);
+          return;
+        case 5:
+          libc6.Patch(me_info);
+          return;
+        case 6:
+          libc7.Patch(me_info);
+          return;
+        case 7:
+          libc8.Patch(me_info);
+          return;
       }
     }
   }
@@ -646,9 +639,8 @@ void PatchOneModuleLocked(const LibcInfo& me_info) {
 }
 
 void PatchMainExecutableLocked() {
-  if (main_executable.patched())
-    return;    // main executable has already been patched
-  ModuleEntryCopy fake_module_entry;   // make a fake one to pass into Patch()
+  if (main_executable.patched()) return;  // main executable has already been patched
+  ModuleEntryCopy fake_module_entry;      // make a fake one to pass into Patch()
   // No need to call PopulateModuleEntryProcAddresses on the main executable.
   main_executable.PopulateWindowsFn(fake_module_entry);
   main_executable.Patch(main_executable);
@@ -669,7 +661,7 @@ static SpinLock patch_all_modules_lock;
 // last_loaded: The set of modules that were loaded the last time
 // PatchAllModules was called.  This is an optimization for only
 // looking at modules that were added or removed from the last call.
-static std::set<HMODULE> *g_last_loaded;
+static std::set<HMODULE>* g_last_loaded;
 
 // Iterates over all the modules currently loaded by the executable,
 // according to windows, and makes sure they're all patched.  Most
@@ -689,17 +681,17 @@ bool PatchAllModules() {
   const HANDLE hCurrentProcess = GetCurrentProcess();
   DWORD num_modules = 0;
   HMODULE hModules[kMaxModules];  // max # of modules we support in one process
-  if (!::EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules),
-                            &num_modules)) {
+  if (!::EnumProcessModules(hCurrentProcess, hModules, sizeof(hModules), &num_modules)) {
     num_modules = 0;
   }
   // EnumProcessModules actually set the bytes written into hModules,
   // so we need to divide to make num_modules actually be a module-count.
   num_modules /= sizeof(*hModules);
   if (num_modules >= kMaxModules) {
-    printf("PERFTOOLS ERROR: Too many modules in this executable to try"
-           " to patch them all (if you need to, raise kMaxModules in"
-           " patch_functions.cc).\n");
+    printf(
+        "PERFTOOLS ERROR: Too many modules in this executable to try"
+        " to patch them all (if you need to, raise kMaxModules in"
+        " patch_functions.cc).\n");
     num_modules = kMaxModules;
   }
 
@@ -714,22 +706,21 @@ bool PatchAllModules() {
   std::set<HMODULE> currently_loaded_modules;
   {
     SpinLockHolder h(&patch_all_modules_lock);
-    if (!g_last_loaded)  g_last_loaded = new std::set<HMODULE>;
+    if (!g_last_loaded) g_last_loaded = new std::set<HMODULE>;
     // At the end of this loop, currently_loaded_modules contains the
     // full list of EnumProcessModules, and hModules just the ones we
     // haven't handled yet.
-    for (int i = 0; i < num_modules; ) {
+    for (int i = 0; i < num_modules;) {
       currently_loaded_modules.insert(hModules[i]);
       if (g_last_loaded->count(hModules[i]) > 0) {
         hModules[i] = hModules[--num_modules];  // replace element i with tail
       } else {
-        i++;                                    // keep element i
+        i++;  // keep element i
       }
     }
     // Now we do the unpatching/invalidation.
-    for (int i = 0; i < sizeof(g_module_libcs)/sizeof(*g_module_libcs); i++) {
-      if (g_module_libcs[i]->patched() &&
-          currently_loaded_modules.count(g_module_libcs[i]->hmodule()) == 0) {
+    for (int i = 0; i < sizeof(g_module_libcs) / sizeof(*g_module_libcs); i++) {
+      if (g_module_libcs[i]->patched() && currently_loaded_modules.count(g_module_libcs[i]->hmodule()) == 0) {
         // Means g_module_libcs[i] is no longer loaded (no me32 matched).
         // We could call Unpatch() here, but why bother?  The module
         // has gone away, so nobody is going to call into it anyway.
@@ -747,17 +738,15 @@ bool PatchAllModules() {
   // comments before the definition of patch_all_modules_lock).
   MODULEINFO mi;
   for (int i = 0; i < num_modules; i++) {
-    if (::GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi)))
-      modules.push_back(ModuleEntryCopy(mi));
+    if (::GetModuleInformation(hCurrentProcess, hModules[i], &mi, sizeof(mi))) modules.push_back(ModuleEntryCopy(mi));
   }
 
   // Now we can do the patching of new modules.
   {
     SpinLockHolder h(&patch_all_modules_lock);
-    for (std::vector<ModuleEntryCopy>::iterator it = modules.begin();
-         it != modules.end(); ++it) {
+    for (std::vector<ModuleEntryCopy>::iterator it = modules.begin(); it != modules.end(); ++it) {
       LibcInfo libc_info;
-      if (libc_info.PopulateWindowsFn(*it)) { // true==module has libc routines
+      if (libc_info.PopulateWindowsFn(*it)) {  // true==module has libc routines
         PatchOneModuleLocked(libc_info);
         made_changes = true;
       }
@@ -778,7 +767,6 @@ bool PatchAllModules() {
   return made_changes;
 }
 
-
 }  // end unnamed namespace
 
 // ---------------------------------------------------------------------
@@ -798,12 +786,12 @@ bool PatchAllModules() {
 // against the file with do_malloc, and ignore the one with malloc.
 #include "tcmalloc.cc"
 
-template<int T>
+template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
   return malloc_fast_path<tcmalloc::malloc_oom>(size);
 }
 
-template<int T>
+template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
   tcmalloc::InvokeDeleteHook(ptr);
   // This calls the windows free if do_free decides ptr was not
@@ -813,17 +801,17 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
   do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
-template<int T>
-void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW{
+template <int T>
+void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW {
   tcmalloc::InvokeDeleteHook(ptr);
   // This calls the windows free if do_free decides ptr was not
   // allocated by tcmalloc.  Note it calls the origstub_free from
   // *this* templatized instance of LibcInfo.  See "template
   // trickiness" above.
-  do_free_with_callback(ptr, (void(*)(void*))origstub_fn_[kFreeBase], false, 0);
+  do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFreeBase], false, 0);
 }
 
-template<int T>
+template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use) __THROW {
   tcmalloc::InvokeDeleteHook(ptr);
   // The windows _free_dbg is called if ptr isn't owned by tcmalloc.
@@ -834,9 +822,8 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use)
   }
 }
 
-template<int T>
-void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
-    void* old_ptr, size_t new_size) __THROW {
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(void* old_ptr, size_t new_size) __THROW {
   if (old_ptr == nullptr) {
     void* result = do_malloc_or_cpp_alloc(new_size);
     tcmalloc::InvokeNewHook(result, new_size);
@@ -844,72 +831,63 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(
   }
   if (new_size == 0) {
     tcmalloc::InvokeDeleteHook(old_ptr);
-    do_free_with_callback(old_ptr,
-                          (void (*)(void*))origstub_fn_[kFree], false, 0);
+    do_free_with_callback(old_ptr, (void (*)(void*))origstub_fn_[kFree], false, 0);
     return nullptr;
   }
-  return do_realloc_with_callback(
-      old_ptr, new_size,
-      (void (*)(void*))origstub_fn_[kFree],
-      (size_t (*)(const void*))origstub_fn_[k_Msize]);
+  return do_realloc_with_callback(old_ptr, new_size, (void (*)(void*))origstub_fn_[kFree],
+                                  (size_t (*)(const void*))origstub_fn_[k_Msize]);
 }
 
-template<int T>
-void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(
-    size_t n, size_t elem_size) __THROW {
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(size_t n, size_t elem_size) __THROW {
   void* result = do_calloc(n, elem_size);
   tcmalloc::InvokeNewHook(result, n * elem_size);
   return result;
 }
 
-template<int T>
+template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new(size_t size) {
   return malloc_fast_path<tcmalloc::cpp_throw_oom>(size);
 }
 
-template<int T>
+template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
   return malloc_fast_path<tcmalloc::cpp_throw_oom>(size);
 }
 
-template<int T>
-void LibcInfoWithPatchFunctions<T>::Perftools_delete(void *p) {
+template <int T>
+void LibcInfoWithPatchFunctions<T>::Perftools_delete(void* p) {
   tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
-template<int T>
-void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void *p) {
+template <int T>
+void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void* p) {
   tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
-template<int T>
-void* LibcInfoWithPatchFunctions<T>::Perftools_new_nothrow(
-    size_t size, const std::nothrow_t&) __THROW {
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_new_nothrow(size_t size, const std::nothrow_t&) __THROW {
   return malloc_fast_path<tcmalloc::cpp_nothrow_oom>(size);
 }
 
-template<int T>
-void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(
-    size_t size, const std::nothrow_t&) __THROW {
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW {
   return malloc_fast_path<tcmalloc::cpp_nothrow_oom>(size);
 }
 
-template<int T>
-void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(
-    void *p, const std::nothrow_t&) __THROW {
+template <int T>
+void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(void* p, const std::nothrow_t&) __THROW {
   tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
 
-template<int T>
-void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
-    void *p, const std::nothrow_t&) __THROW {
+template <int T>
+void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
   tcmalloc::InvokeDeleteHook(p);
   do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
 }
-
 
 // _msize() lets you figure out how much space is reserved for a
 // pointer, in Windows.  Even if applications don't call it, any DLL
@@ -919,22 +897,19 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(
 // can ensue if this is not hooked.  Other parts of libc may also call
 // this internally.
 
-template<int T>
+template <int T>
 size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
   return GetSizeWithCallback(ptr, (size_t (*)(const void*))origstub_fn_[k_Msize]);
 }
 
-LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags,
-                                               DWORD_PTR dwBytes) {
-  LPVOID result = ((LPVOID (WINAPI *)(HANDLE, DWORD, DWORD_PTR))
-                   function_info_[kHeapAlloc].origstub_fn)(
-                       hHeap, dwFlags, dwBytes);
+LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags, DWORD_PTR dwBytes) {
+  LPVOID result =
+      ((LPVOID(WINAPI*)(HANDLE, DWORD, DWORD_PTR))function_info_[kHeapAlloc].origstub_fn)(hHeap, dwFlags, dwBytes);
   tcmalloc::InvokeNewHook(result, dwBytes);
   return result;
 }
 
-BOOL WINAPI WindowsInfo::Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags,
-                                            LPVOID lpMem) {
+BOOL WINAPI WindowsInfo::Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem) {
   tcmalloc::InvokeDeleteHook(lpMem);
 
   // We perform this check to work around a malloc/HeapFree mismatch
@@ -944,18 +919,14 @@ BOOL WINAPI WindowsInfo::Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags,
   bool owned_by_tcmalloc = MallocExtension::instance()->GetOwnership(lpMem) == MallocExtension::kOwned;
 
   if (!owned_by_tcmalloc) {
-    return ((BOOL (WINAPI *)(HANDLE, DWORD, LPVOID))
-            function_info_[kHeapFree].origstub_fn)(
-                hHeap, dwFlags, lpMem);
+    return ((BOOL(WINAPI*)(HANDLE, DWORD, LPVOID))function_info_[kHeapFree].origstub_fn)(hHeap, dwFlags, lpMem);
   } else {
     do_free(lpMem);
     return true;
   }
 }
 
-HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName,
-                                                     HANDLE hFile,
-                                                     DWORD dwFlags) {
+HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName, HANDLE hFile, DWORD dwFlags) {
   HMODULE rv;
   // Check to see if the modules is already loaded, flag 0 gets a
   // reference if it was loaded.  If it was loaded no need to call
@@ -965,9 +936,8 @@ HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName,
     return rv;
   } else {
     // Not already loaded, so load it.
-    rv = ((HMODULE (WINAPI *)(LPCWSTR, HANDLE, DWORD))
-                  function_info_[kLoadLibraryExW].origstub_fn)(
-                      lpFileName, hFile, dwFlags);
+    rv = ((HMODULE(WINAPI*)(LPCWSTR, HANDLE, DWORD))function_info_[kLoadLibraryExW].origstub_fn)(lpFileName, hFile,
+                                                                                                 dwFlags);
     // This will patch any newly loaded libraries, if patching needs
     // to be done.
     PatchAllModules();
@@ -977,26 +947,21 @@ HMODULE WINAPI WindowsInfo::Perftools_LoadLibraryExW(LPCWSTR lpFileName,
 }
 
 BOOL WINAPI WindowsInfo::Perftools_FreeLibrary(HMODULE hLibModule) {
-  BOOL rv = ((BOOL (WINAPI *)(HMODULE))
-             function_info_[kFreeLibrary].origstub_fn)(hLibModule);
+  BOOL rv = ((BOOL(WINAPI*)(HMODULE))function_info_[kFreeLibrary].origstub_fn)(hLibModule);
 
   // Check to see if the module is still loaded by passing the base
   // address and seeing if it comes back with the same address.  If it
   // is the same address it's still loaded, so the FreeLibrary() call
   // was a noop, and there's no need to redo the patching.
   HMODULE owner = nullptr;
-  BOOL result = ::GetModuleHandleExW(
-      (GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-       GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT),
-      (LPCWSTR)hLibModule,
-      &owner);
-  if (result && owner == hLibModule)
-    return rv;
+  BOOL result =
+      ::GetModuleHandleExW((GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT),
+                           (LPCWSTR)hLibModule, &owner);
+  if (result && owner == hLibModule) return rv;
 
-  PatchAllModules();    // this will fix up the list of patched libraries
+  PatchAllModules();  // this will fix up the list of patched libraries
   return rv;
 }
-
 
 // ---------------------------------------------------------------------
 // PatchWindowsFunctions()
@@ -1007,9 +972,7 @@ BOOL WINAPI WindowsInfo::Perftools_FreeLibrary(HMODULE hLibModule) {
 
 void PatchWindowsFunctions() {
   const char* disable_env = TCMallocGetenvSafe("TCMALLOC_DISABLE_REPLACEMENT");
-  const bool should_skip = disable_env &&
-                           disable_env[0] == '1' &&
-                           disable_env[1] == '\0';
+  const bool should_skip = disable_env && disable_env[0] == '1' && disable_env[1] == '\0';
 
   if (!should_skip) {
     // This does the libc patching in every module, and the main executable.

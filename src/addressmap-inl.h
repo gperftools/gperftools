@@ -102,7 +102,7 @@ template <class Value>
 class AddressMap {
  public:
   typedef void* (*Allocator)(size_t size);
-  typedef void  (*DeAllocator)(void* ptr);
+  typedef void (*DeAllocator)(void* ptr);
   typedef const void* Key;
 
   // Create an AddressMap that uses the specified allocator/deallocator.
@@ -133,8 +133,7 @@ class AddressMap {
   // Else return nullptr.
   // max_size specifies largest range size possibly in existence now.
   typedef size_t (*ValueSizeFunc)(const Value& v);
-  const Value* FindInside(ValueSizeFunc size_func, size_t max_size,
-                          Key key, Key* res_key);
+  const Value* FindInside(ValueSizeFunc size_func, size_t max_size, Key key, Key* res_key);
 
   // Iterate over the address map calling 'callback'
   // for all stored key-value pairs and passing 'arg' to it.
@@ -157,8 +156,8 @@ class AddressMap {
   // Entry kept in per-block linked-list
   struct Entry {
     Entry* next;
-    Key    key;
-    Value  value;
+    Key key;
+    Value value;
   };
 
   // We further group a sequence of consecutive blocks into a cluster.
@@ -170,9 +169,9 @@ class AddressMap {
 
   // We use a simple chaining hash-table to represent the clusters.
   struct Cluster {
-    Cluster* next;                      // Next cluster in hash table chain
-    Number   id;                        // Cluster ID
-    Entry*   blocks[kClusterBlocks];    // Per-block linked-lists
+    Cluster* next;                  // Next cluster in hash table chain
+    Number id;                      // Cluster ID
+    Entry* blocks[kClusterBlocks];  // Per-block linked-lists
   };
 
   // Number of hash-table entries.  With the block-size/cluster-size
@@ -185,8 +184,8 @@ class AddressMap {
   // Number of entry objects allocated at a time
   static const int ALLOC_COUNT = 64;
 
-  Cluster**     hashtable_;              // The hash-table
-  Entry*        free_;                   // Free list of unused Entry objects
+  Cluster** hashtable_;  // The hash-table
+  Entry* free_;          // Free list of unused Entry objects
 
   // Multiplicative hash function:
   // The value "kHashMultiplier" is the bottom 32 bits of
@@ -228,9 +227,7 @@ class AddressMap {
   }
 
   // Return the block ID for an address within its cluster
-  static int BlockID(Number address) {
-    return (address >> kBlockBits) & (kClusterBlocks - 1);
-  }
+  static int BlockID(Number address) { return (address >> kBlockBits) & (kClusterBlocks - 1); }
 
   //--------------------------------------------------------------
   // Memory management -- we keep all objects we allocate linked
@@ -243,16 +240,17 @@ class AddressMap {
     // The real data starts here
   };
 
-  Allocator     alloc_;                 // The allocator
-  DeAllocator   dealloc_;               // The deallocator
-  Object*       allocated_;             // List of allocated objects
+  Allocator alloc_;      // The allocator
+  DeAllocator dealloc_;  // The deallocator
+  Object* allocated_;    // List of allocated objects
 
   // Allocates a zeroed array of T with length "num".  Also inserts
   // the allocated block into a linked list so it can be deallocated
   // when we are all done.
-  template <class T> T* New(int num) {
-    void* ptr = (*alloc_)(sizeof(Object) + num*sizeof(T));
-    memset(ptr, 0, sizeof(Object) + num*sizeof(T));
+  template <class T>
+  T* New(int num) {
+    void* ptr = (*alloc_)(sizeof(Object) + num * sizeof(T));
+    memset(ptr, 0, sizeof(Object) + num * sizeof(T));
     Object* obj = reinterpret_cast<Object*>(ptr);
     obj->next = allocated_;
     allocated_ = obj;
@@ -264,10 +262,7 @@ class AddressMap {
 
 template <class Value>
 AddressMap<Value>::AddressMap(Allocator alloc, DeAllocator dealloc)
-  : free_(nullptr),
-    alloc_(alloc),
-    dealloc_(dealloc),
-    allocated_(nullptr) {
+    : free_(nullptr), alloc_(alloc), dealloc_(dealloc), allocated_(nullptr) {
   hashtable_ = New<Cluster*>(kHashSize);
 }
 
@@ -289,7 +284,7 @@ inline const Value* AddressMap<Value>::Find(Key key) const {
 template <class Value>
 inline Value* AddressMap<Value>::FindMutable(Key key) {
   const Number num = reinterpret_cast<Number>(key);
-  const Cluster* const c = FindCluster(num, false/*do not create*/);
+  const Cluster* const c = FindCluster(num, false /*do not create*/);
   if (c != nullptr) {
     for (Entry* e = c->blocks[BlockID(num)]; e != nullptr; e = e->next) {
       if (e->key == key) {
@@ -303,7 +298,7 @@ inline Value* AddressMap<Value>::FindMutable(Key key) {
 template <class Value>
 void AddressMap<Value>::Insert(Key key, Value value) {
   const Number num = reinterpret_cast<Number>(key);
-  Cluster* const c = FindCluster(num, true/*create*/);
+  Cluster* const c = FindCluster(num, true /*create*/);
 
   // Look in linked-list for this block
   const int block = BlockID(num);
@@ -318,10 +313,10 @@ void AddressMap<Value>::Insert(Key key, Value value) {
   if (free_ == nullptr) {
     // Allocate a new batch of entries and add to free-list
     Entry* array = New<Entry>(ALLOC_COUNT);
-    for (int i = 0; i < ALLOC_COUNT-1; i++) {
-      array[i].next = &array[i+1];
+    for (int i = 0; i < ALLOC_COUNT - 1; i++) {
+      array[i].next = &array[i + 1];
     }
-    array[ALLOC_COUNT-1].next = free_;
+    array[ALLOC_COUNT - 1].next = free_;
     free_ = &array[0];
   }
   Entry* e = free_;
@@ -335,14 +330,14 @@ void AddressMap<Value>::Insert(Key key, Value value) {
 template <class Value>
 bool AddressMap<Value>::FindAndRemove(Key key, Value* removed_value) {
   const Number num = reinterpret_cast<Number>(key);
-  Cluster* const c = FindCluster(num, false/*do not create*/);
+  Cluster* const c = FindCluster(num, false /*do not create*/);
   if (c != nullptr) {
     for (Entry** p = &c->blocks[BlockID(num)]; *p != nullptr; p = &(*p)->next) {
       Entry* e = *p;
       if (e->key == key) {
         *removed_value = e->value;
-        *p = e->next;         // Remove e from linked-list
-        e->next = free_;      // Add e to free-list
+        *p = e->next;     // Remove e from linked-list
+        e->next = free_;  // Add e to free-list
         free_ = e;
         return true;
       }
@@ -352,14 +347,11 @@ bool AddressMap<Value>::FindAndRemove(Key key, Value* removed_value) {
 }
 
 template <class Value>
-const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
-                                           size_t max_size,
-                                           Key key,
-                                           Key* res_key) {
+const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func, size_t max_size, Key key, Key* res_key) {
   const Number key_num = reinterpret_cast<Number>(key);
   Number num = key_num;  // we'll move this to move back through the clusters
   while (1) {
-    const Cluster* c = FindCluster(num, false/*do not create*/);
+    const Cluster* c = FindCluster(num, false /*do not create*/);
     if (c != nullptr) {
       while (1) {
         const int block = BlockID(num);
@@ -367,7 +359,7 @@ const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
         for (const Entry* e = c->blocks[block]; e != nullptr; e = e->next) {
           const Number e_num = reinterpret_cast<Number>(e->key);
           if (e_num <= key_num) {
-            if (e_num == key_num  ||  // to handle 0-sized ranges
+            if (e_num == key_num ||  // to handle 0-sized ranges
                 key_num < e_num + (*size_func)(e->value)) {
               *res_key = e->key;
               return &e->value;
@@ -375,9 +367,10 @@ const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
             had_smaller_key = true;
           }
         }
-        if (had_smaller_key) return nullptr;  // got a range before
-                                              // 'key' and it did not
-                                              // contain 'key'
+        if (had_smaller_key)
+          return nullptr;  // got a range before
+                           // 'key' and it did not
+                           // contain 'key'
         if (block == 0) break;
         // try address-wise previous block
         num |= kBlockSize - 1;  // start at the last addr of prev block
@@ -390,11 +383,11 @@ const Value* AddressMap<Value>::FindInside(ValueSizeFunc size_func,
     num |= kClusterSize - 1;  // start at the last block of previous cluster
     num -= kClusterSize;
     if (key_num - num > max_size) return nullptr;
-      // Having max_size to limit the search is crucial: else
-      // we have to traverse a lot of empty clusters (or blocks).
-      // We can avoid needing max_size if we put clusters into
-      // a search tree, but performance suffers considerably
-      // if we use this approach by using stl::set.
+    // Having max_size to limit the search is crucial: else
+    // we have to traverse a lot of empty clusters (or blocks).
+    // We can avoid needing max_size if we put clusters into
+    // a search tree, but performance suffers considerably
+    // if we use this approach by using stl::set.
   }
 }
 

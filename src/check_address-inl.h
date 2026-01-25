@@ -98,7 +98,7 @@ bool CheckAccessTwoSyscalls(uintptr_t addr, int pagesize) {
 
   uintptr_t old[(kKernelSigSetSize + sizeof(uintptr_t) - 1) / sizeof(uintptr_t)];
   int rv = syscall(SYS_rt_sigprocmask, SIG_BLOCK, addr, old, kKernelSigSetSize);
-  if (rv  == 0) {
+  if (rv == 0) {
     syscall(SYS_rt_sigprocmask, SIG_SETMASK, old, nullptr, kKernelSigSetSize);
     return true;
   }
@@ -107,7 +107,7 @@ bool CheckAccessTwoSyscalls(uintptr_t addr, int pagesize) {
 
 bool CheckAddressFirstCall(uintptr_t addr, int pagesize);
 
-bool (* volatile CheckAddress)(uintptr_t addr, int pagesize) = CheckAddressFirstCall;
+bool (*volatile CheckAddress)(uintptr_t addr, int pagesize) = CheckAddressFirstCall;
 
 // And we choose between strategies by checking at runtime if
 // single-syscall approach actually works and switch to a proper
@@ -118,7 +118,7 @@ bool CheckAddressFirstCall(uintptr_t addr, int pagesize) {
   // first.
   CheckAddress = CheckAccessTwoSyscalls;
 
-  void* unreadable = mmap(0, pagesize, PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+  void* unreadable = mmap(0, pagesize, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   RAW_CHECK(unreadable != MAP_FAILED, "mmap of unreadable");
 
   if (!CheckAccessSingleSyscall(reinterpret_cast<uintptr_t>(unreadable), pagesize)) {
@@ -127,12 +127,8 @@ bool CheckAddressFirstCall(uintptr_t addr, int pagesize) {
 
   // Sanity check that our unreadable address is unreadable and that
   // our readable address (our own fn pointer variable) is readable.
-  RAW_CHECK(CheckAddress(reinterpret_cast<uintptr_t>(CheckAddress),
-                         pagesize),
-            "sanity check for readable addr");
-  RAW_CHECK(!CheckAddress(reinterpret_cast<uintptr_t>(unreadable),
-                          pagesize),
-            "sanity check for unreadable addr");
+  RAW_CHECK(CheckAddress(reinterpret_cast<uintptr_t>(CheckAddress), pagesize), "sanity check for readable addr");
+  RAW_CHECK(!CheckAddress(reinterpret_cast<uintptr_t>(unreadable), pagesize), "sanity check for unreadable addr");
 
   (void)munmap(unreadable, pagesize);
 
@@ -142,12 +138,8 @@ bool CheckAddressFirstCall(uintptr_t addr, int pagesize) {
 #else
 
 #if HAVE_SYS_SYSCALL_H && !__APPLE__
-static int raw_read(int fd, void* buf, size_t count) {
-  return syscall(SYS_read, fd, buf, count);
-}
-static int raw_write(int fd, void* buf, size_t count) {
-  return syscall(SYS_write, fd, buf, count);
-}
+static int raw_read(int fd, void* buf, size_t count) { return syscall(SYS_read, fd, buf, count); }
+static int raw_write(int fd, void* buf, size_t count) { return syscall(SYS_write, fd, buf, count); }
 #else
 #define raw_read read
 #define raw_write write
@@ -157,10 +149,10 @@ bool CheckAddress(uintptr_t addr, int pagesize) {
   static tcmalloc::TrivialOnce once;
   static int fds[2];
 
-  once.RunOnce([] () {
+  once.RunOnce([]() {
     RAW_CHECK(pipe(fds) == 0, "pipe(fds)");
 
-    auto add_flag = [] (int fd, int get, int set, int the_flag) {
+    auto add_flag = [](int fd, int get, int set, int the_flag) {
       int flags = fcntl(fd, get, 0);
       RAW_CHECK(flags >= 0, "fcntl get");
       flags |= the_flag;

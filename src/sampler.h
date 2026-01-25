@@ -37,9 +37,9 @@
 #define TCMALLOC_SAMPLER_H_
 
 #include "config.h"
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint64_t, uint32_t, int32_t
-#include <string.h>                     // for memcpy
+#include <stddef.h>  // for size_t
+#include <stdint.h>  // for uint64_t, uint32_t, int32_t
+#include <string.h>  // for memcpy
 
 #include "base/basictypes.h"  // ssize_t
 #include "base/logging.h"
@@ -191,8 +191,7 @@ inline bool Sampler::TryRecordAllocationFast(size_t k) {
     // is no need to keep previous value of bytes_until_sample_ in
     // register. This helps compiler generate slightly more efficient
     // sub <reg>, <mem> instruction for subtraction above.
-    volatile ssize_t *ptr =
-        const_cast<volatile ssize_t *>(&bytes_until_sample_);
+    volatile ssize_t* ptr = const_cast<volatile ssize_t*>(&bytes_until_sample_);
     *ptr += k;
     return false;
   }
@@ -208,8 +207,7 @@ inline uint64_t Sampler::NextRandom(uint64_t rnd) {
   const uint64_t prng_mult = 0x5DEECE66DULL;
   const uint64_t prng_add = 0xB;
   const uint64_t prng_mod_power = 48;
-  const uint64_t prng_mod_mask =
-      ~((~static_cast<uint64_t>(0)) << prng_mod_power);
+  const uint64_t prng_mod_mask = ~((~static_cast<uint64_t>(0)) << prng_mod_power);
   return (prng_mult * rnd + prng_add) & prng_mod_mask;
 }
 

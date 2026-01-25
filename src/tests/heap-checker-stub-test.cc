@@ -37,9 +37,9 @@
 #include <string>
 
 #if defined __has_attribute
-#  if __has_attribute(noinline)
-#    define ATTR_NOINLINE __attribute__ ((noinline))
-#  endif
+#if __has_attribute(noinline)
+#define ATTR_NOINLINE __attribute__((noinline))
+#endif
 #endif
 
 ATTR_NOINLINE void partial() {

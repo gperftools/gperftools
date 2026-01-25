@@ -79,7 +79,7 @@
 #include <gperftools/tcmalloc.h>
 
 #if !defined(__APPLE__)
-# error libc_override_glibc-osx.h is for OS X distributions only.
+#error libc_override_glibc-osx.h is for OS X distributions only.
 #endif
 
 #include <AvailabilityMacros.h>
@@ -88,20 +88,18 @@
 #include <new>
 
 namespace tcmalloc {
-  void CentralCacheLockAll();
-  void CentralCacheUnlockAll();
-}
+void CentralCacheLockAll();
+void CentralCacheUnlockAll();
+}  // namespace tcmalloc
 
 // from AvailabilityMacros.h
-#if defined(MAC_OS_X_VERSION_10_6) && \
-    MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+#if defined(MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
 extern "C" {
-  // This function is only available on 10.6 (and later) but the
-  // LibSystem headers do not use AvailabilityMacros.h to handle weak
-  // importing automatically.  This prototype is a copy of the one in
-  // <malloc/malloc.h> with the WEAK_IMPORT_ATTRBIUTE added.
-  extern malloc_zone_t *malloc_default_purgeable_zone(void)
-      WEAK_IMPORT_ATTRIBUTE;
+// This function is only available on 10.6 (and later) but the
+// LibSystem headers do not use AvailabilityMacros.h to handle weak
+// importing automatically.  This prototype is a copy of the one in
+// <malloc/malloc.h> with the WEAK_IMPORT_ATTRBIUTE added.
+extern malloc_zone_t* malloc_default_purgeable_zone(void) WEAK_IMPORT_ATTRIBUTE;
 }
 #endif
 
@@ -118,29 +116,19 @@ size_t mz_size(malloc_zone_t* zone, const void* ptr) {
   return MallocExtension::instance()->GetAllocatedSize(const_cast<void*>(ptr));
 }
 
-ATTRIBUTE_NOINLINE void* mz_malloc(malloc_zone_t* zone, size_t size) {
-  return tc_malloc(size);
-}
+ATTRIBUTE_NOINLINE void* mz_malloc(malloc_zone_t* zone, size_t size) { return tc_malloc(size); }
 
 ATTRIBUTE_NOINLINE void* mz_calloc(malloc_zone_t* zone, size_t num_items, size_t size) {
   return tc_calloc(num_items, size);
 }
 
-ATTRIBUTE_NOINLINE void* mz_valloc(malloc_zone_t* zone, size_t size) {
-  return tc_valloc(size);
-}
+ATTRIBUTE_NOINLINE void* mz_valloc(malloc_zone_t* zone, size_t size) { return tc_valloc(size); }
 
-ATTRIBUTE_NOINLINE void mz_free(malloc_zone_t* zone, void* ptr) {
-  return tc_free(ptr);
-}
+ATTRIBUTE_NOINLINE void mz_free(malloc_zone_t* zone, void* ptr) { return tc_free(ptr); }
 
-ATTRIBUTE_NOINLINE void mz_free_definite_size(malloc_zone_t* zone, void *ptr, size_t size) {
-  return tc_free(ptr);
-}
+ATTRIBUTE_NOINLINE void mz_free_definite_size(malloc_zone_t* zone, void* ptr, size_t size) { return tc_free(ptr); }
 
-ATTRIBUTE_NOINLINE void* mz_realloc(malloc_zone_t* zone, void* ptr, size_t size) {
-  return tc_realloc(ptr, size);
-}
+ATTRIBUTE_NOINLINE void* mz_realloc(malloc_zone_t* zone, void* ptr, size_t size) { return tc_realloc(ptr, size); }
 
 ATTRIBUTE_NOINLINE void* mz_memalign(malloc_zone_t* zone, size_t align, size_t size) {
   return tc_memalign(align, size);
@@ -151,46 +139,37 @@ void mz_destroy(malloc_zone_t* zone) {
 }
 
 // malloc_introspection callbacks.  I'm not clear on what all of these do.
-kern_return_t mi_enumerator(task_t task, void *,
-                            unsigned type_mask, vm_address_t zone_address,
-                            memory_reader_t reader,
+kern_return_t mi_enumerator(task_t task, void*, unsigned type_mask, vm_address_t zone_address, memory_reader_t reader,
                             vm_range_recorder_t recorder) {
   // Should enumerate all the pointers we have.  Seems like a lot of work.
   return KERN_FAILURE;
 }
 
-size_t mi_good_size(malloc_zone_t *zone, size_t size) {
+size_t mi_good_size(malloc_zone_t* zone, size_t size) {
   // I think it's always safe to return size, but we maybe could do better.
   return size;
 }
 
-boolean_t mi_check(malloc_zone_t *zone) {
-  return MallocExtension::instance()->VerifyAllMemory();
-}
+boolean_t mi_check(malloc_zone_t* zone) { return MallocExtension::instance()->VerifyAllMemory(); }
 
-void mi_print(malloc_zone_t *zone, boolean_t verbose) {
+void mi_print(malloc_zone_t* zone, boolean_t verbose) {
   int bufsize = 8192;
-  if (verbose)
-    bufsize = 102400;   // I picked this size arbitrarily
+  if (verbose) bufsize = 102400;  // I picked this size arbitrarily
   char* buffer = new char[bufsize];
   MallocExtension::instance()->GetStats(buffer, bufsize);
   fprintf(stdout, "%s", buffer);
   delete[] buffer;
 }
 
-void mi_log(malloc_zone_t *zone, void *address) {
+void mi_log(malloc_zone_t* zone, void* address) {
   // I don't think we support anything like this
 }
 
-void mi_force_lock(malloc_zone_t *zone) {
-  tcmalloc::CentralCacheLockAll();
-}
+void mi_force_lock(malloc_zone_t* zone) { tcmalloc::CentralCacheLockAll(); }
 
-void mi_force_unlock(malloc_zone_t *zone) {
-  tcmalloc::CentralCacheUnlockAll();
-}
+void mi_force_unlock(malloc_zone_t* zone) { tcmalloc::CentralCacheUnlockAll(); }
 
-void mi_statistics(malloc_zone_t *zone, malloc_statistics_t *stats) {
+void mi_statistics(malloc_zone_t* zone, malloc_statistics_t* stats) {
   // TODO(csilvers): figure out how to fill these out
   stats->blocks_in_use = 0;
   stats->size_in_use = 0;
@@ -198,7 +177,7 @@ void mi_statistics(malloc_zone_t *zone, malloc_statistics_t *stats) {
   stats->size_allocated = 0;
 }
 
-boolean_t mi_zone_locked(malloc_zone_t *zone) {
+boolean_t mi_zone_locked(malloc_zone_t* zone) {
   return false;  // Hopefully unneeded by us!
 }
 
@@ -211,41 +190,38 @@ boolean_t mi_zone_locked(malloc_zone_t *zone) {
 // support either memalign() or posix_memalign().  If you need them
 // and are willing to code to tcmalloc, you can use tc_posix_memalign().
 extern "C" {
-  void  cfree(void* p)                   { tc_cfree(p);               }
-  void* pvalloc(size_t s)                { return tc_pvalloc(s);      }
-  void malloc_stats(void)                { tc_malloc_stats();         }
-  int mallopt(int cmd, int v)            { return tc_mallopt(cmd, v); }
-  // No struct mallinfo on OS X, so don't define mallinfo().
-  // An alias for malloc_size(), which OS X defines.
-  size_t malloc_usable_size(void* p)     { return tc_malloc_size(p); }
+void cfree(void* p) { tc_cfree(p); }
+void* pvalloc(size_t s) { return tc_pvalloc(s); }
+void malloc_stats(void) { tc_malloc_stats(); }
+int mallopt(int cmd, int v) { return tc_mallopt(cmd, v); }
+// No struct mallinfo on OS X, so don't define mallinfo().
+// An alias for malloc_size(), which OS X defines.
+size_t malloc_usable_size(void* p) { return tc_malloc_size(p); }
 }  // extern "C"
 
-static malloc_zone_t *get_default_zone() {
-   malloc_zone_t **zones = nullptr;
-   unsigned int num_zones = 0;
+static malloc_zone_t* get_default_zone() {
+  malloc_zone_t** zones = nullptr;
+  unsigned int num_zones = 0;
 
-   /*
-    * On OSX 10.12, malloc_default_zone returns a special zone that is not
-    * present in the list of registered zones. That zone uses a "lite zone"
-    * if one is present (apparently enabled when malloc stack logging is
-    * enabled), or the first registered zone otherwise. In practice this
-    * means unless malloc stack logging is enabled, the first registered
-    * zone is the default.
-    * So get the list of zones to get the first one, instead of relying on
-    * malloc_default_zone.
-    */
-   if (KERN_SUCCESS != malloc_get_all_zones(0, nullptr, (vm_address_t**) &zones,
-                                            &num_zones)) {
-       /* Reset the value in case the failure happened after it was set. */
-       num_zones = 0;
-   }
+  /*
+   * On OSX 10.12, malloc_default_zone returns a special zone that is not
+   * present in the list of registered zones. That zone uses a "lite zone"
+   * if one is present (apparently enabled when malloc stack logging is
+   * enabled), or the first registered zone otherwise. In practice this
+   * means unless malloc stack logging is enabled, the first registered
+   * zone is the default.
+   * So get the list of zones to get the first one, instead of relying on
+   * malloc_default_zone.
+   */
+  if (KERN_SUCCESS != malloc_get_all_zones(0, nullptr, (vm_address_t**)&zones, &num_zones)) {
+    /* Reset the value in case the failure happened after it was set. */
+    num_zones = 0;
+  }
 
-   if (num_zones)
-     return zones[0];
+  if (num_zones) return zones[0];
 
-   return malloc_default_zone();
+  return malloc_default_zone();
 }
-
 
 static void ReplaceSystemAlloc() {
   static malloc_introspection_t tcmalloc_introspection;
@@ -277,8 +253,7 @@ static void ReplaceSystemAlloc() {
   tcmalloc_zone.introspect = &tcmalloc_introspection;
 
   // from AvailabilityMacros.h
-#if defined(MAC_OS_X_VERSION_10_6) && \
-    MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
+#if defined(MAC_OS_X_VERSION_10_6) && MAC_OS_X_VERSION_MAX_ALLOWED >= MAC_OS_X_VERSION_10_6
   // Switch to version 6 on OSX 10.6 to support memalign.
   tcmalloc_zone.version = 6;
   tcmalloc_zone.memalign = &mz_memalign;
@@ -311,7 +286,7 @@ static void ReplaceSystemAlloc() {
   // zone.  The default zone is then re-registered to ensure that
   // allocations made from it earlier will be handled correctly.
   // Things are not guaranteed to work that way, but it's how they work now.
-  malloc_zone_t *default_zone = get_default_zone();
+  malloc_zone_t* default_zone = get_default_zone();
   malloc_zone_unregister(default_zone);
   malloc_zone_register(default_zone);
 }
@@ -325,7 +300,9 @@ ATTRIBUTE_NOINLINE void operator delete(void* p, std::size_t sz) { tc_delete_siz
 ATTRIBUTE_NOINLINE void operator delete[](void* p, std::size_t sz) { tc_deletearray_sized(p, sz); }
 
 ATTRIBUTE_NOINLINE void* operator new(std::size_t sz, const std::nothrow_t& nt) { return tc_new_nothrow(sz, nt); }
-ATTRIBUTE_NOINLINE void* operator new[](std::size_t sz, const std::nothrow_t& nt) { return tc_newarray_nothrow(sz, nt); };
+ATTRIBUTE_NOINLINE void* operator new[](std::size_t sz, const std::nothrow_t& nt) {
+  return tc_newarray_nothrow(sz, nt);
+};
 
 ATTRIBUTE_NOINLINE void operator delete(void* p, const std::nothrow_t& nt) { tc_delete_nothrow(p, nt); }
 ATTRIBUTE_NOINLINE void operator delete[](void* p, const std::nothrow_t& nt) { tc_deletearray_nothrow(p, nt); }
@@ -333,20 +310,32 @@ ATTRIBUTE_NOINLINE void operator delete[](void* p, const std::nothrow_t& nt) { t
 #if __cplusplus >= 201703L
 
 ATTRIBUTE_NOINLINE void* operator new(std::size_t sz, std::align_val_t a) { return tc_new_aligned(sz, a); }
-ATTRIBUTE_NOINLINE void* operator new(std::size_t sz, std::align_val_t al, const std::nothrow_t& nt) { return tc_new_aligned_nothrow(sz, al, nt); }
+ATTRIBUTE_NOINLINE void* operator new(std::size_t sz, std::align_val_t al, const std::nothrow_t& nt) {
+  return tc_new_aligned_nothrow(sz, al, nt);
+}
 
 ATTRIBUTE_NOINLINE void operator delete(void* p, std::align_val_t al) { tc_delete_aligned(p, al); }
-ATTRIBUTE_NOINLINE void operator delete(void* p, std::align_val_t al, const std::nothrow_t& nt)  { tc_delete_aligned_nothrow(p, al, nt); }
+ATTRIBUTE_NOINLINE void operator delete(void* p, std::align_val_t al, const std::nothrow_t& nt) {
+  tc_delete_aligned_nothrow(p, al, nt);
+}
 
 ATTRIBUTE_NOINLINE void* operator new[](std::size_t sz, std::align_val_t al) { return tc_newarray_aligned(sz, al); }
-ATTRIBUTE_NOINLINE void* operator new[](std::size_t sz, std::align_val_t al, const std::nothrow_t& nt) { return tc_newarray_aligned_nothrow(sz, al, nt); }
+ATTRIBUTE_NOINLINE void* operator new[](std::size_t sz, std::align_val_t al, const std::nothrow_t& nt) {
+  return tc_newarray_aligned_nothrow(sz, al, nt);
+}
 
 ATTRIBUTE_NOINLINE void operator delete[](void* p, std::align_val_t al) { tc_deletearray_aligned(p, al); }
-ATTRIBUTE_NOINLINE void operator delete[](void* p, std::align_val_t al, const std::nothrow_t& nt) { tc_deletearray_aligned_nothrow(p, al, nt); }
+ATTRIBUTE_NOINLINE void operator delete[](void* p, std::align_val_t al, const std::nothrow_t& nt) {
+  tc_deletearray_aligned_nothrow(p, al, nt);
+}
 
-ATTRIBUTE_NOINLINE void operator delete(void* p, std::size_t sz, std::align_val_t al) { tc_delete_sized_aligned(p, sz, al); }
-ATTRIBUTE_NOINLINE void operator delete[](void* p, std::size_t sz, std::align_val_t al) { tc_deletearray_sized_aligned(p, sz, al); }
+ATTRIBUTE_NOINLINE void operator delete(void* p, std::size_t sz, std::align_val_t al) {
+  tc_delete_sized_aligned(p, sz, al);
+}
+ATTRIBUTE_NOINLINE void operator delete[](void* p, std::size_t sz, std::align_val_t al) {
+  tc_deletearray_sized_aligned(p, sz, al);
+}
 
-#endif // c++ 17
+#endif  // c++ 17
 
 #endif  // TCMALLOC_LIBC_OVERRIDE_OSX_INL_H_

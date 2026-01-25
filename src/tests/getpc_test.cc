@@ -36,30 +36,27 @@
 // O/Ses and CPUs and test that GetPC is working.
 
 #include "config.h"
-#include "getpc.h"        // should be first to get the _GNU_SOURCE dfn
+#include "getpc.h"  // should be first to get the _GNU_SOURCE dfn
 
 #include "base/basictypes.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <signal.h>
-#include <sys/time.h>     // for setitimer
+#include <sys/time.h>  // for setitimer
 
 // Needs to be volatile so compiler doesn't try to optimize it away
-static volatile void* getpc_retval;    // what GetPC returns
+static volatile void* getpc_retval;  // what GetPC returns
 static volatile bool prof_handler_called;
 
 extern "C" {
-  // This helps us inspect codegen of GetPC function, just in case.
-  ATTRIBUTE_NOINLINE
-  void* DoGetPC(const ucontext_t* uc) {
-    return GetPC(*uc);
-  }
+// This helps us inspect codegen of GetPC function, just in case.
+ATTRIBUTE_NOINLINE
+void* DoGetPC(const ucontext_t* uc) { return GetPC(*uc); }
 }
 
 static void prof_handler(int sig, siginfo_t*, void* signal_ucontext) {
-  if (!prof_handler_called)
-    getpc_retval = DoGetPC(reinterpret_cast<ucontext_t*>(signal_ucontext));
+  if (!prof_handler_called) getpc_retval = DoGetPC(reinterpret_cast<ucontext_t*>(signal_ucontext));
   prof_handler_called = true;  // only store the retval once
 }
 
@@ -101,7 +98,7 @@ static void RoutineCallingTheSignal() {
 // principled way to do this, but I don't know how portable it would be.
 // (The function is 372 bytes when compiled with -g on Mac OS X 10.4.
 // I can imagine it would be even bigger in 64-bit architectures.)
-const int kRoutineSize = 512 * sizeof(void*)/4;    // allow 1024 for 64-bit
+const int kRoutineSize = 512 * sizeof(void*) / 4;  // allow 1024 for 64-bit
 
 int main(int argc, char** argv) {
   RoutineCallingTheSignal();
@@ -119,9 +116,8 @@ int main(int argc, char** argv) {
   //   };
   // We want the code entry point.
   // NOTE: ppc64 ELFv2 (Little Endian) does not have function pointers
-#if defined(__ia64) || \
-    (defined(__powerpc64__) && _CALL_ELF != 2)
-  expected = ((char**)expected)[0];         // this is "ip"
+#if defined(__ia64) || (defined(__powerpc64__) && _CALL_ELF != 2)
+  expected = ((char**)expected)[0];  // this is "ip"
 #endif
 
   if (actual < expected || actual > expected + kRoutineSize) {

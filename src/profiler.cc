@@ -35,7 +35,7 @@
 // Profile current program by sampling stack-trace every so often
 
 #include "config.h"
-#include "getpc.h"      // should be first to get the _GNU_SOURCE dfn
+#include "getpc.h"  // should be first to get the _GNU_SOURCE dfn
 #include <signal.h>
 #include <assert.h>
 #include <stdio.h>
@@ -52,14 +52,14 @@
 #include <cygwin/signal.h>
 typedef ucontext ucontext_t;
 #else
-typedef int ucontext_t;   // just to quiet the compiler, mostly
+typedef int ucontext_t;  // just to quiet the compiler, mostly
 #endif
 #include <sys/time.h>
 #include <gperftools/profiler.h>
 #include <gperftools/stacktrace.h>
 #include "base/logging.h"
 #include "base/spinlock.h"
-#include "base/sysinfo.h"             /* for GetUniquePathFromEnv, etc */
+#include "base/sysinfo.h" /* for GetUniquePathFromEnv, etc */
 #include "profiledata.h"
 #include "profile-handler.h"
 
@@ -102,14 +102,14 @@ class CpuProfiler {
   // unregister the signal handler before calling any collector_ method.
   // 'Add' method in the collector is protected by a guarantee from
   // ProfileHandle that only one instance of prof_handler can run at a time.
-  SpinLock      lock_;
-  ProfileData   collector_;
+  SpinLock lock_;
+  ProfileData collector_;
 
   // Filter function and its argument, if any.  (nullptr means include all
   // samples).  Set at start, read-only while running.  Written while holding
   // lock_, read and executed in the context of SIGPROF interrupt.
-  int           (*filter_)(void*);
-  void*         filter_arg_;
+  int (*filter_)(void*);
+  void* filter_arg_;
 
   // Opaque token returned by the profile handler. To be used when calling
   // ProfileHandlerUnregisterCallback.
@@ -122,21 +122,19 @@ class CpuProfiler {
   void DisableHandler();
 
   // Signal handler that records the interrupted pc in the profile data.
-  static void prof_handler(int sig, siginfo_t*, void* signal_ucontext,
-                           void* cpu_profiler);
+  static void prof_handler(int sig, siginfo_t*, void* signal_ucontext, void* cpu_profiler);
 };
 
 // Signal handler that is registered when a user selectable signal
 // number is defined in the environment variable CPUPROFILESIGNAL.
-static void CpuProfilerSwitch(int signal_number)
-{
+static void CpuProfilerSwitch(int signal_number) {
   static unsigned profile_count;
   static char base_profile_name[PATH_MAX];
   static bool started = false;
 
   if (base_profile_name[0] == '\0') {
     if (!GetUniquePathFromEnv("CPUPROFILE", base_profile_name)) {
-      RAW_LOG(FATAL,"Cpu profiler switch is registered but no CPUPROFILE is defined");
+      RAW_LOG(FATAL, "Cpu profiler switch is registered but no CPUPROFILE is defined");
       return;
     }
   }
@@ -144,12 +142,10 @@ static void CpuProfilerSwitch(int signal_number)
   if (!started) {
     char full_profile_name[PATH_MAX + 16];
 
-    snprintf(full_profile_name, sizeof(full_profile_name), "%s.%u",
-             base_profile_name, profile_count++);
+    snprintf(full_profile_name, sizeof(full_profile_name), "%s.%u", base_profile_name, profile_count++);
 
-    if(!ProfilerStart(full_profile_name)) {
-      RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
-              full_profile_name, strerror(errno));
+    if (!ProfilerStart(full_profile_name)) {
+      RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n", full_profile_name, strerror(errno));
     }
   } else {
     ProfilerStop();
@@ -163,8 +159,7 @@ static void CpuProfilerSwitch(int signal_number)
 CpuProfiler CpuProfiler::instance_;
 
 // Initialize profiling: activated if getenv("CPUPROFILE") exists.
-CpuProfiler::CpuProfiler()
-    : prof_handler_token_(nullptr) {
+CpuProfiler::CpuProfiler() : prof_handler_token_(nullptr) {
   if (getenv("CPUPROFILE") == nullptr) {
     return;
   }
@@ -176,13 +171,13 @@ CpuProfiler::CpuProfiler()
   }
 #endif
 
-  char *signal_number_str = getenv("CPUPROFILESIGNAL");
+  char* signal_number_str = getenv("CPUPROFILESIGNAL");
   if (signal_number_str != nullptr) {
     long int signal_number = strtol(signal_number_str, nullptr, 10);
     if (signal_number >= 1 && signal_number <= 64) {
       intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, CpuProfilerSwitch));
       if (old_signal_handler == 0) {
-        RAW_LOG(INFO,"Using signal %d as cpu profiling switch", signal_number);
+        RAW_LOG(INFO, "Using signal %d as cpu profiling switch", signal_number);
       } else {
         RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
       }
@@ -196,8 +191,7 @@ CpuProfiler::CpuProfiler()
     }
 
     if (!Start(fname, nullptr)) {
-      RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n",
-              fname, strerror(errno));
+      RAW_LOG(FATAL, "Can't turn on cpu profiling for '%s': %s\n", fname, strerror(errno));
     }
   }
 }
@@ -230,9 +224,7 @@ bool CpuProfiler::Start(const char* fname, const ProfilerOptions* options) {
   return true;
 }
 
-CpuProfiler::~CpuProfiler() {
-  Stop();
-}
+CpuProfiler::~CpuProfiler() { Stop(); }
 
 // Stop profiling and write out any collected profile data
 void CpuProfiler::Stop() {
@@ -321,12 +313,10 @@ void CpuProfiler::DisableHandler() {
 // access the data touched by prof_handler() disable this signal handler before
 // accessing the data and therefore cannot execute concurrently with
 // prof_handler().
-void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
-                               void* cpu_profiler) {
+void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext, void* cpu_profiler) {
   CpuProfiler* instance = static_cast<CpuProfiler*>(cpu_profiler);
 
-  if (instance->filter_ == nullptr ||
-      (*instance->filter_)(instance->filter_arg_)) {
+  if (instance->filter_ == nullptr || (*instance->filter_)(instance->filter_arg_)) {
     void* stack[ProfileData::kMaxStackDepth];
 
     // Under frame-pointer-based unwinding at least on x86, the
@@ -341,10 +331,9 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
     // "pprof" at analysis time.  Instead of skipping the top frames,
     // we could skip nothing, but that would increase the profile size
     // unnecessarily.
-    int depth = GetStackTraceWithContext(stack + 1, arraysize(stack) - 1,
-                                         3, signal_ucontext);
+    int depth = GetStackTraceWithContext(stack + 1, arraysize(stack) - 1, 3, signal_ucontext);
 
-    void **used_stack;
+    void** used_stack;
     if (depth > 0 && stack[1] == stack[0]) {
       // in case of non-frame-pointer-based unwinding we will get
       // duplicate of PC in stack[1], which we don't want
@@ -360,38 +349,27 @@ void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext,
 
 #if !(defined(__CYGWIN__) || defined(__CYGWIN32__))
 
-extern "C" PERFTOOLS_DLL_DECL void ProfilerRegisterThread() {
-  ProfileHandlerRegisterThread();
-}
+extern "C" PERFTOOLS_DLL_DECL void ProfilerRegisterThread() { ProfileHandlerRegisterThread(); }
 
-extern "C" PERFTOOLS_DLL_DECL void ProfilerFlush() {
-  CpuProfiler::instance_.FlushTable();
-}
+extern "C" PERFTOOLS_DLL_DECL void ProfilerFlush() { CpuProfiler::instance_.FlushTable(); }
 
-extern "C" PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads() {
-  return CpuProfiler::instance_.Enabled();
-}
+extern "C" PERFTOOLS_DLL_DECL int ProfilingIsEnabledForAllThreads() { return CpuProfiler::instance_.Enabled(); }
 
 extern "C" PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname) {
   return CpuProfiler::instance_.Start(fname, nullptr);
 }
 
-extern "C" PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(
-    const char *fname, const ProfilerOptions *options) {
+extern "C" PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(const char* fname, const ProfilerOptions* options) {
   return CpuProfiler::instance_.Start(fname, options);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void ProfilerStop() {
-  CpuProfiler::instance_.Stop();
-}
+extern "C" PERFTOOLS_DLL_DECL void ProfilerStop() { CpuProfiler::instance_.Stop(); }
 
-extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(
-    ProfilerState* state) {
+extern "C" PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(ProfilerState* state) {
   CpuProfiler::instance_.GetCurrentState(state);
 }
 
-extern "C" PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(
-    void** result, int max_depth, int skip_count, const void *uc) {
+extern "C" PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(void** result, int max_depth, int skip_count, const void* uc) {
   return GetStackTraceWithContext(result, max_depth, skip_count, uc);
 }
 
@@ -401,25 +379,17 @@ extern "C" PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(
 // work as well for profiling, and also interferes with alarm().  Because of
 // these issues, unless a specific need is identified, profiler support is
 // disabled under Cygwin.
-extern "C" void ProfilerRegisterThread() { }
-extern "C" void ProfilerFlush() { }
+extern "C" void ProfilerRegisterThread() {}
+extern "C" void ProfilerFlush() {}
 extern "C" int ProfilingIsEnabledForAllThreads() { return 0; }
 extern "C" int ProfilerStart(const char* fname) { return 0; }
-extern "C" int ProfilerStartWithOptions(const char *fname,
-                                        const ProfilerOptions *options) {
-  return 0;
-}
-extern "C" void ProfilerStop() { }
-extern "C" void ProfilerGetCurrentState(ProfilerState* state) {
-  memset(state, 0, sizeof(*state));
-}
-extern "C" int ProfilerGetStackTrace(
-    void** result, int max_depth, int skip_count, const void *uc) {
-  return 0;
-}
+extern "C" int ProfilerStartWithOptions(const char* fname, const ProfilerOptions* options) { return 0; }
+extern "C" void ProfilerStop() {}
+extern "C" void ProfilerGetCurrentState(ProfilerState* state) { memset(state, 0, sizeof(*state)); }
+extern "C" int ProfilerGetStackTrace(void** result, int max_depth, int skip_count, const void* uc) { return 0; }
 
 #endif  // OS_CYGWIN
 
 // DEPRECATED routines
-extern "C" PERFTOOLS_DLL_DECL void ProfilerEnable() { }
-extern "C" PERFTOOLS_DLL_DECL void ProfilerDisable() { }
+extern "C" PERFTOOLS_DLL_DECL void ProfilerEnable() {}
+extern "C" PERFTOOLS_DLL_DECL void ProfilerDisable() {}

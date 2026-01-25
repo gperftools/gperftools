@@ -71,12 +71,9 @@ inline constexpr bool kUseEmergencyMalloc = true;
 inline constexpr bool kUseEmergencyMalloc = false;
 #endif
 
-
 class ThreadCachePtr {
-public:
-  static bool ThreadCacheKeyIsReady() {
-    return (tls_key_ != kInvalidTLSKey);
-  }
+ public:
+  static bool ThreadCacheKeyIsReady() { return (tls_key_ != kInvalidTLSKey); }
 
   static ThreadCache* GetIfPresent() {
     if constexpr (kHaveGoodTLS) {
@@ -100,9 +97,7 @@ public:
     return GetSlow();
   }
 
-  bool IsEmergencyMallocEnabled() const {
-    return kUseEmergencyMalloc && is_emergency_malloc_;
-  }
+  bool IsEmergencyMallocEnabled() const { return kUseEmergencyMalloc && is_emergency_malloc_; }
 
   ThreadCache* get() const { return ptr_; }
 
@@ -120,14 +115,12 @@ public:
   // it's usage.
   static void WithStacktraceScope(void (*fn)(bool stacktrace_allowed, void* arg), void* arg);
 
-  static void WithStacktraceScope(tcmalloc::FunctionRef<void(bool)> body) {
-    WithStacktraceScope(body.fn, body.data);
-  }
+  static void WithStacktraceScope(tcmalloc::FunctionRef<void(bool)> body) { WithStacktraceScope(body.fn, body.data); }
 
   // For pthread_atfork handler
   static SpinLock* GetSlowTLSLock();
 
-private:
+ private:
   friend class SlowTLS;
 
   static ThreadCachePtr GetSlow();
@@ -135,9 +128,7 @@ private:
 
   static void ClearCacheTLS();
 
-  ThreadCachePtr(ThreadCache* ptr, bool is_emergency_malloc)
-    : ptr_(ptr), is_emergency_malloc_(is_emergency_malloc) {
-  }
+  ThreadCachePtr(ThreadCache* ptr, bool is_emergency_malloc) : ptr_(ptr), is_emergency_malloc_(is_emergency_malloc) {}
 
   struct TLSData {
     ThreadCache* fast_path_cache;
@@ -150,16 +141,15 @@ private:
   const bool is_emergency_malloc_;
 };
 
-
 #if !defined(ENABLE_EMERGENCY_MALLOC)
 // Note, the "real" implementation for ENABLE_EMERGENCY_MALLOC case is in .cc
-inline ATTRIBUTE_NOINLINE
-void ThreadCachePtr::WithStacktraceScope(void (*fn)(bool stacktrace_allowed, void* arg), void* arg) {
+inline ATTRIBUTE_NOINLINE void ThreadCachePtr::WithStacktraceScope(void (*fn)(bool stacktrace_allowed, void* arg),
+                                                                   void* arg) {
   fn(true, arg);
   // prevent tail-calling fn.
-  (void)*const_cast<volatile char*>(reinterpret_cast<char *>(arg));
+  (void)*const_cast<volatile char*>(reinterpret_cast<char*>(arg));
 }
-#endif // !ENABLE_EMERGENCY_MALLOC
+#endif  // !ENABLE_EMERGENCY_MALLOC
 
 }  // namespace tcmalloc
 

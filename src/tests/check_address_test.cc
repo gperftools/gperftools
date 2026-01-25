@@ -32,7 +32,7 @@
 #include "config_for_unittests.h"
 
 #include "base/logging.h"
-#include "base/spinlock.h" // IWYU pragma: keep
+#include "base/spinlock.h"  // IWYU pragma: keep
 
 #include "check_address-inl.h"
 
@@ -45,22 +45,22 @@
 #endif
 
 #ifndef MAP_ANONYMOUS
-# define MAP_ANONYMOUS MAP_ANON
+#define MAP_ANONYMOUS MAP_ANON
 #endif
 
 #include "gtest/gtest.h"
 
 #include "tests/testutil.h"
 
-void* unreadable = ([] () {
-  void* rv = mmap(nullptr, getpagesize(), PROT_NONE, MAP_PRIVATE|MAP_ANONYMOUS, -1, 0);
+void* unreadable = ([]() {
+  void* rv = mmap(nullptr, getpagesize(), PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
   if (rv == MAP_FAILED) {
     abort();
   }
   return rv;
 })();
 
-void TestFn(bool (*access_check_fn)(uintptr_t,int)) {
+void TestFn(bool (*access_check_fn)(uintptr_t, int)) {
   int pagesize = getpagesize();
 
   ASSERT_FALSE(access_check_fn(0, pagesize));
@@ -75,7 +75,7 @@ void TestFn(bool (*access_check_fn)(uintptr_t,int)) {
 }
 
 TEST(CheckAddressTest, MainAccess) {
-  ASSERT_NO_FATAL_FAILURE(TestFn([] (uintptr_t a, int ps) {
+  ASSERT_NO_FATAL_FAILURE(TestFn([](uintptr_t a, int ps) {
     // note, this looks odd, but we do it so that each access_check_fn
     // call above reads CheckAddress freshly.
     return CheckAddress(a, ps);
@@ -87,10 +87,6 @@ TEST(CheckAddressTest, MainAccess) {
 }
 
 #ifdef CHECK_ADDRESS_USES_SIGPROCMASK
-TEST(CheckAddressTest, PipesAccess) {
-  ASSERT_NO_FATAL_FAILURE(TestFn(CheckAddressPipes));
-}
-TEST(CheckAddressPipes, TwoSyscalls) {
-  ASSERT_NO_FATAL_FAILURE(TestFn(CheckAccessTwoSyscalls));
-}
+TEST(CheckAddressTest, PipesAccess) { ASSERT_NO_FATAL_FAILURE(TestFn(CheckAddressPipes)); }
+TEST(CheckAddressPipes, TwoSyscalls) { ASSERT_NO_FATAL_FAILURE(TestFn(CheckAccessTwoSyscalls)); }
 #endif  // CHECK_ADDRESS_USES_SIGPROCMASK

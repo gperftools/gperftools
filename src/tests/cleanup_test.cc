@@ -37,9 +37,7 @@
 TEST(CleanupTest, Basic) {
   bool cleanup_ran = false;
   {
-    tcmalloc::Cleanup cleanup([&] () {
-      cleanup_ran = true;
-    });
+    tcmalloc::Cleanup cleanup([&]() { cleanup_ran = true; });
   }
 
   ASSERT_TRUE(cleanup_ran);
@@ -52,9 +50,7 @@ TEST(CleanupTest, CleanupReturn) {
   {
     tcmalloc::Cleanup cleanup = ([&] {
       armed++;
-      return tcmalloc::Cleanup([&] () {
-        cleanup_ran++;
-      });
+      return tcmalloc::Cleanup([&]() { cleanup_ran++; });
     })();
 
     ASSERT_EQ(cleanup_ran, 0);

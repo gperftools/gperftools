@@ -33,7 +33,7 @@
 
 #include "config.h"
 
-#include "gperftools/stacktrace.h" // IWYU pragma: keep
+#include "gperftools/stacktrace.h"  // IWYU pragma: keep
 
 namespace tcmalloc {
 
@@ -63,6 +63,6 @@ int GrabBacktrace(void** result, int max_depth, int skip_count);
 #define GetStackTraceWithContext(...) missing
 #define GetStackFrames(...) missing
 #define GetStackFramesWithContext(...) missing
-#endif // THIS_IS_MALLOC_BACKTRACE_CC
+#endif  // THIS_IS_MALLOC_BACKTRACE_CC
 
 #endif  // MALLOC_BACKTRACE_H

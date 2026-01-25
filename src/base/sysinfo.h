@@ -36,9 +36,9 @@
 
 #include <config.h>
 
-#include <stddef.h>    // for size_t
+#include <stddef.h>  // for size_t
 #include <stdint.h>
-#include <limits.h>    // for PATH_MAX
+#include <limits.h>  // for PATH_MAX
 
 #include "base/basictypes.h"
 
@@ -57,7 +57,6 @@ bool GetUniquePathFromEnv(const char* env_name, char* path);
 
 int GetSystemCPUsCount();
 
-
 namespace tcmalloc {
 ATTRIBUTE_VISIBILITY_HIDDEN const char* GetProgramInvocationName();
 
@@ -75,4 +74,4 @@ ATTRIBUTE_VISIBILITY_HIDDEN const char* GetProgramInvocationName();
 ATTRIBUTE_VISIBILITY_HIDDEN void SafeSetEnv(const char* name, const char* value);
 }  // namespace tcmalloc
 
-#endif   /* #ifndef _SYSINFO_H_ */
+#endif /* #ifndef _SYSINFO_H_ */

@@ -40,19 +40,16 @@ namespace tcmalloc {
 
 template <typename T>
 class StaticStorage {
-public:
-  T* get() {
-    return reinterpret_cast<T*>(bytes_);
-  }
-  const T* get() const {
-    return reinterpret_cast<const T*>(bytes_);
-  }
+ public:
+  T* get() { return reinterpret_cast<T*>(bytes_); }
+  const T* get() const { return reinterpret_cast<const T*>(bytes_); }
 
   template <class... U>
   T* Construct(U&&... u) {
     return new (bytes_) T(std::forward<U>(u)...);
   }
-private:
+
+ private:
   alignas(alignof(T)) uint8_t bytes_[sizeof(T)];
 };
 

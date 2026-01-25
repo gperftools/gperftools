@@ -44,7 +44,11 @@
 #include "base/spinlock_internal.h"
 
 // forward declaration for use by spinlock_*-inl.h
-namespace base { namespace internal { static int SuggestedDelayNS(int loop); }}
+namespace base {
+namespace internal {
+static int SuggestedDelayNS(int loop);
+}
+}  // namespace base
 
 #if defined(_WIN32)
 #include "base/spinlock_win32-inl.h"
@@ -63,11 +67,11 @@ static int SuggestedDelayNS(int loop) {
   // when many are spinning.
   static volatile uint64_t rand;
   uint64_t r = rand;
-  r = 0x5deece66dLL * r + 0xb;   // numbers from nrand48()
+  r = 0x5deece66dLL * r + 0xb;  // numbers from nrand48()
   rand = r;
 
-  r <<= 16;   // 48-bit random number now in top 48-bits.
-  if (loop < 0 || loop > 32) {   // limit loop to 0..32
+  r <<= 16;                     // 48-bit random number now in top 48-bits.
+  if (loop < 0 || loop > 32) {  // limit loop to 0..32
     loop = 32;
   }
   // loop>>3 cannot exceed 4 because loop cannot exceed 32.
@@ -79,5 +83,5 @@ static int SuggestedDelayNS(int loop) {
   return r >> (44 - (loop >> 3));
 }
 
-} // namespace internal
-} // namespace base
+}  // namespace internal
+}  // namespace base

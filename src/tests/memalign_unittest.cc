@@ -47,19 +47,19 @@
 // doesn't sub-include stdlib.h, so we'll still get posix_memalign
 // when we #include stdlib.h.  Blah.
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>            // for getpagesize()
+#include <unistd.h>  // for getpagesize()
 #endif
-#include "tcmalloc_internal.h" // must come early, to pick up posix_memalign
+#include "tcmalloc_internal.h"  // must come early, to pick up posix_memalign
 #include <assert.h>
-#include <stdlib.h>            // defines posix_memalign
-#include <stdio.h>             // for the printf at the end
-#include <stdint.h>            // for uintptr_t
+#include <stdlib.h>  // defines posix_memalign
+#include <stdio.h>   // for the printf at the end
+#include <stdint.h>  // for uintptr_t
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>            // for getpagesize()
+#include <unistd.h>  // for getpagesize()
 #endif
 // Malloc can be in several places on older versions of OS X.
 #if defined(HAVE_MALLOC_H)
-#include <malloc.h>            // for memalign() and valloc()
+#include <malloc.h>  // for memalign() and valloc()
 #elif defined(HAVE_MALLOC_MALLOC_H)
 #include <malloc/malloc.h>
 #elif defined(HAVE_SYS_MALLOC_H)
@@ -74,7 +74,7 @@
 // Return the next interesting size/delta to check.  Returns -1 if no more.
 static int NextSize(int size) {
   if (size < 100) {
-    return size+1;
+    return size + 1;
   } else if (size < 1048576) {
     // Find next power of two
     int power = 1;
@@ -83,13 +83,13 @@ static int NextSize(int size) {
     }
 
     // Yield (power-1, power, power+1)
-    if (size < power-1) {
-      return power-1;
-    } else if (size == power-1) {
+    if (size < power - 1) {
+      return power - 1;
+    } else if (size == power - 1) {
       return power;
     } else {
       assert(size == power);
-      return power+1;
+      return power + 1;
     }
   } else {
     return -1;
@@ -98,8 +98,8 @@ static int NextSize(int size) {
 
 static uintptr_t Misallignment(void* p, size_t mask) {
   CHECK_NE(mask, 0);
-  CHECK_EQ(mask & (mask-1), 0);
-  return  reinterpret_cast<uintptr_t>(p) & uintptr_t{mask - 1};
+  CHECK_EQ(mask & (mask - 1), 0);
+  return reinterpret_cast<uintptr_t>(p) & uintptr_t{mask - 1};
 }
 
 // Fill a buffer of the specified size with a predetermined pattern
@@ -133,7 +133,7 @@ TEST(MemalignTest, Basic) {
       CHECK(Valid(ptr, s, 'x'));
       free(ptr);
 
-      if ((a >= sizeof(void*)) && ((a & (a-1)) == 0)) {
+      if ((a >= sizeof(void*)) && ((a & (a - 1)) == 0)) {
         CHECK(posix_memalign(&ptr, a, s) == 0);
         ASSERT_EQ(Misallignment(ptr, a), 0);
         Fill(ptr, s, 'y');
@@ -145,18 +145,18 @@ TEST(MemalignTest, Basic) {
 
   {
     // Check various corner cases
-    void* p1 = memalign(1<<20, 1<<19);
-    void* p2 = memalign(1<<19, 1<<19);
-    void* p3 = memalign(1<<21, 1<<19);
-    ASSERT_EQ(Misallignment(p1, 1<<20), 0);
-    ASSERT_EQ(Misallignment(p2, 1<<19), 0);
-    ASSERT_EQ(Misallignment(p3, 1<<21), 0);
-    Fill(p1, 1<<19, 'a');
-    Fill(p2, 1<<19, 'b');
-    Fill(p3, 1<<19, 'c');
-    CHECK(Valid(p1, 1<<19, 'a'));
-    CHECK(Valid(p2, 1<<19, 'b'));
-    CHECK(Valid(p3, 1<<19, 'c'));
+    void* p1 = memalign(1 << 20, 1 << 19);
+    void* p2 = memalign(1 << 19, 1 << 19);
+    void* p3 = memalign(1 << 21, 1 << 19);
+    ASSERT_EQ(Misallignment(p1, 1 << 20), 0);
+    ASSERT_EQ(Misallignment(p2, 1 << 19), 0);
+    ASSERT_EQ(Misallignment(p3, 1 << 21), 0);
+    Fill(p1, 1 << 19, 'a');
+    Fill(p2, 1 << 19, 'b');
+    Fill(p3, 1 << 19, 'c');
+    CHECK(Valid(p1, 1 << 19, 'a'));
+    CHECK(Valid(p2, 1 << 19, 'b'));
+    CHECK(Valid(p3, 1 << 19, 'c'));
     free(p1);
     free(p2);
     free(p3);
@@ -166,18 +166,18 @@ TEST(MemalignTest, Basic) {
     // posix_memalign
     void* ptr;
     CHECK(posix_memalign(&ptr, 0, 1) == EINVAL);
-    CHECK(posix_memalign(&ptr, sizeof(void*)/2, 1) == EINVAL);
-    CHECK(posix_memalign(&ptr, sizeof(void*)+1, 1) == EINVAL);
+    CHECK(posix_memalign(&ptr, sizeof(void*) / 2, 1) == EINVAL);
+    CHECK(posix_memalign(&ptr, sizeof(void*) + 1, 1) == EINVAL);
     CHECK(posix_memalign(&ptr, 4097, 1) == EINVAL);
 
     // Grab some memory so that the big allocation below will definitely fail.
-    void* p_small = noopt(malloc)(4*1048576);
+    void* p_small = noopt(malloc)(4 * 1048576);
     CHECK_NE(p_small, nullptr);
 
     // Make sure overflow is returned as ENOMEM
     const size_t zero = 0;
     constexpr size_t kMinusNTimes = 10;
-    for ( size_t i = 1; i < kMinusNTimes; ++i ) {
+    for (size_t i = 1; i < kMinusNTimes; ++i) {
       int r = posix_memalign(&ptr, 1024, zero - i);
       CHECK(r == ENOMEM);
     }

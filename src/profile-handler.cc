@@ -76,10 +76,7 @@
 // ProfileHandlerUnregisterCallback as a handle to a registered callback.
 struct ProfileHandlerToken {
   // Sets the callback and associated arg.
-  ProfileHandlerToken(ProfileHandlerCallback cb, void* cb_arg)
-      : callback(cb),
-        callback_arg(cb_arg) {
-  }
+  ProfileHandlerToken(ProfileHandlerCallback cb, void* cb_arg) : callback(cb), callback_arg(cb_arg) {}
 
   // Callback function to be invoked on receiving a profile timer interrupt.
   ProfileHandlerCallback callback;
@@ -94,13 +91,9 @@ class ScopedSignalBlocker {
   ScopedSignalBlocker(int signo) {
     sigemptyset(&sig_set_);
     sigaddset(&sig_set_, signo);
-    RAW_CHECK(sigprocmask(SIG_BLOCK, &sig_set_, nullptr) == 0,
-              "sigprocmask (block)");
+    RAW_CHECK(sigprocmask(SIG_BLOCK, &sig_set_, nullptr) == 0, "sigprocmask (block)");
   }
-  ~ScopedSignalBlocker() {
-    RAW_CHECK(sigprocmask(SIG_UNBLOCK, &sig_set_, nullptr) == 0,
-              "sigprocmask (unblock)");
-  }
+  ~ScopedSignalBlocker() { RAW_CHECK(sigprocmask(SIG_UNBLOCK, &sig_set_, nullptr) == 0, "sigprocmask (unblock)"); }
 
  private:
   sigset_t sig_set_;
@@ -116,13 +109,11 @@ class ProfileHandler {
   // Registers a callback routine to receive profile timer ticks. The returned
   // token is to be used when unregistering this callback and must not be
   // deleted by the caller.
-  ProfileHandlerToken* RegisterCallback(ProfileHandlerCallback callback,
-                                        void* callback_arg);
+  ProfileHandlerToken* RegisterCallback(ProfileHandlerCallback callback, void* callback_arg);
 
   // Unregisters a previously registered callback. Expects the token returned
   // by the corresponding RegisterCallback routine.
-  void UnregisterCallback(ProfileHandlerToken* token)
-      NO_THREAD_SAFETY_ANALYSIS;
+  void UnregisterCallback(ProfileHandlerToken* token) NO_THREAD_SAFETY_ANALYSIS;
 
   // Unregisters all the callbacks and stops the timer(s).
   void Reset();
@@ -234,11 +225,9 @@ const int32_t ProfileHandler::kDefaultFrequency;
 // for nullptr or not in Instance.
 extern "C" {
 #if HAVE_LINUX_SIGEV_THREAD_ID
-int timer_create(clockid_t clockid, struct sigevent* evp,
-                 timer_t* timerid) ATTRIBUTE_WEAK;
+int timer_create(clockid_t clockid, struct sigevent* evp, timer_t* timerid) ATTRIBUTE_WEAK;
 int timer_delete(timer_t timerid) ATTRIBUTE_WEAK;
-int timer_settime(timer_t timerid, int flags, const struct itimerspec* value,
-                  struct itimerspec* ovalue) ATTRIBUTE_WEAK;
+int timer_settime(timer_t timerid, int flags, const struct itimerspec* value, struct itimerspec* ovalue) ATTRIBUTE_WEAK;
 #endif
 }
 
@@ -250,25 +239,24 @@ struct timer_id_holder {
 };
 
 extern "C" {
-  static void ThreadTimerDestructor(void *arg) {
-    if (!arg) {
-      return;
-    }
-    timer_id_holder *holder = static_cast<timer_id_holder *>(arg);
-    timer_delete(holder->timerid);
-    delete holder;
+static void ThreadTimerDestructor(void* arg) {
+  if (!arg) {
+    return;
   }
+  timer_id_holder* holder = static_cast<timer_id_holder*>(arg);
+  timer_delete(holder->timerid);
+  delete holder;
+}
 }
 
-static void CreateThreadTimerKey(tcmalloc::TlsKey *pkey) {
+static void CreateThreadTimerKey(tcmalloc::TlsKey* pkey) {
   int rv = tcmalloc::CreateTlsKey(pkey, ThreadTimerDestructor);
   if (rv) {
     RAW_LOG(FATAL, "aborting due to tcmalloc::CreateTlsKey error: %s", strerror(rv));
   }
 }
 
-static void StartLinuxThreadTimer(int timer_type, int signal_number,
-                                  int32_t frequency, tcmalloc::TlsKey timer_key) {
+static void StartLinuxThreadTimer(int timer_type, int signal_number, int32_t frequency, tcmalloc::TlsKey timer_key) {
   int rv;
   struct sigevent sevp;
   timer_t timerid;
@@ -286,7 +274,7 @@ static void StartLinuxThreadTimer(int timer_type, int signal_number,
     RAW_LOG(FATAL, "aborting due to timer_create error: %s", strerror(errno));
   }
 
-  timer_id_holder *holder = new timer_id_holder(timerid);
+  timer_id_holder* holder = new timer_id_holder(timerid);
   rv = tcmalloc::SetTlsValue(timer_key, holder);
   if (rv) {
     RAW_LOG(FATAL, "aborting due to tcmalloc::SetTlsValue error: %s", strerror(rv));
@@ -302,10 +290,7 @@ static void StartLinuxThreadTimer(int timer_type, int signal_number,
 }
 #endif
 
-void ProfileHandler::Init() {
-  instance_ = new ProfileHandler();
-}
-
+void ProfileHandler::Init() { instance_ = new ProfileHandler(); }
 
 ProfileHandler* ProfileHandler::Instance() {
   static tcmalloc::TrivialOnce once;
@@ -318,11 +303,7 @@ ProfileHandler* ProfileHandler::Instance() {
 }
 
 ProfileHandler::ProfileHandler()
-    : timer_running_(false),
-      interrupts_(0),
-      callback_count_(0),
-      allowed_(true),
-      per_thread_timer_enabled_(false) {
+    : timer_running_(false), interrupts_(0), callback_count_(0), allowed_(true), per_thread_timer_enabled_(false) {
   SpinLockHolder cl(&control_lock_);
 
   timer_type_ = (getenv("CPUPROFILE_REALTIME") ? ITIMER_REAL : ITIMER_PROF);
@@ -331,8 +312,7 @@ ProfileHandler::ProfileHandler()
   // Get frequency of interrupts (if specified)
   char junk;
   const char* fr = getenv("CPUPROFILE_FREQUENCY");
-  if (fr != nullptr && (sscanf(fr, "%u%c", &frequency_, &junk) == 1) &&
-      (frequency_ > 0)) {
+  if (fr != nullptr && (sscanf(fr, "%u%c", &frequency_, &junk) == 1) && (frequency_ > 0)) {
     // Limit to kMaxFrequency
     frequency_ = (frequency_ > kMaxFrequency) ? kMaxFrequency : frequency_;
   } else {
@@ -346,8 +326,8 @@ ProfileHandler::ProfileHandler()
 #if HAVE_LINUX_SIGEV_THREAD_ID
   // Do this early because we might be overriding signal number.
 
-  const char *per_thread = getenv("CPUPROFILE_PER_THREAD_TIMERS");
-  const char *signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
+  const char* per_thread = getenv("CPUPROFILE_PER_THREAD_TIMERS");
+  const char* signal_number = getenv("CPUPROFILE_TIMER_SIGNAL");
 
   if (per_thread || signal_number) {
     if (timer_create) {
@@ -369,8 +349,7 @@ ProfileHandler::ProfileHandler()
   // If something else is using the signal handler,
   // assume it has priority over us and stop.
   if (!IsSignalHandlerAvailable()) {
-    RAW_LOG(INFO, "Disabling profiler because signal %d handler is already in use.",
-            signal_number_);
+    RAW_LOG(INFO, "Disabling profiler because signal %d handler is already in use.", signal_number_);
     allowed_ = false;
     return;
   }
@@ -402,17 +381,14 @@ void ProfileHandler::RegisterThread() {
   // Record the thread identifier and start the timer if profiling is on.
 #if HAVE_LINUX_SIGEV_THREAD_ID
   if (per_thread_timer_enabled_) {
-    StartLinuxThreadTimer(timer_type_, signal_number_, frequency_,
-                          thread_timer_key);
+    StartLinuxThreadTimer(timer_type_, signal_number_, frequency_, thread_timer_key);
     return;
   }
 #endif
   UpdateTimer(callback_count_ > 0);
 }
 
-ProfileHandlerToken* ProfileHandler::RegisterCallback(
-    ProfileHandlerCallback callback, void* callback_arg) {
-
+ProfileHandlerToken* ProfileHandler::RegisterCallback(ProfileHandlerCallback callback, void* callback_arg) {
   ProfileHandlerToken* token = new ProfileHandlerToken(callback, callback_arg);
   CallbackList copy;
   copy.push_back(token);
@@ -540,9 +516,7 @@ void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {
   {
     SpinLockHolder sl(&instance->signal_lock_);
     ++instance->interrupts_;
-    for (CallbackIterator it = instance->callbacks_.begin();
-         it != instance->callbacks_.end();
-         ++it) {
+    for (CallbackIterator it = instance->callbacks_.begin(); it != instance->callbacks_.end(); ++it) {
       (*it)->callback(sig, sinfo, ucontext, (*it)->callback_arg);
     }
   }
@@ -553,12 +527,9 @@ void ProfileHandler::SignalHandler(int sig, siginfo_t* sinfo, void* ucontext) {
 // executed in the context of the main thread.
 REGISTER_MODULE_INITIALIZER(profile_main, ProfileHandlerRegisterThread());
 
-void ProfileHandlerRegisterThread() {
-  ProfileHandler::Instance()->RegisterThread();
-}
+void ProfileHandlerRegisterThread() { ProfileHandler::Instance()->RegisterThread(); }
 
-ProfileHandlerToken* ProfileHandlerRegisterCallback(
-    ProfileHandlerCallback callback, void* callback_arg) {
+ProfileHandlerToken* ProfileHandlerRegisterCallback(ProfileHandlerCallback callback, void* callback_arg) {
   return ProfileHandler::Instance()->RegisterCallback(callback, callback_arg);
 }
 
@@ -566,13 +537,9 @@ void ProfileHandlerUnregisterCallback(ProfileHandlerToken* token) {
   ProfileHandler::Instance()->UnregisterCallback(token);
 }
 
-void ProfileHandlerReset() {
-  return ProfileHandler::Instance()->Reset();
-}
+void ProfileHandlerReset() { return ProfileHandler::Instance()->Reset(); }
 
-void ProfileHandlerGetState(ProfileHandlerState* state) {
-  ProfileHandler::Instance()->GetState(state);
-}
+void ProfileHandlerGetState(ProfileHandlerState* state) { ProfileHandler::Instance()->GetState(state); }
 
 #else  // OS_CYGWIN
 
@@ -580,21 +547,16 @@ void ProfileHandlerGetState(ProfileHandlerState* state) {
 // work as well for profiling, and also interferes with alarm().  Because of
 // these issues, unless a specific need is identified, profiler support is
 // disabled under Cygwin.
-void ProfileHandlerRegisterThread() {
-}
+void ProfileHandlerRegisterThread() {}
 
-ProfileHandlerToken* ProfileHandlerRegisterCallback(
-    ProfileHandlerCallback callback, void* callback_arg) {
+ProfileHandlerToken* ProfileHandlerRegisterCallback(ProfileHandlerCallback callback, void* callback_arg) {
   return nullptr;
 }
 
-void ProfileHandlerUnregisterCallback(ProfileHandlerToken* token) {
-}
+void ProfileHandlerUnregisterCallback(ProfileHandlerToken* token) {}
 
-void ProfileHandlerReset() {
-}
+void ProfileHandlerReset() {}
 
-void ProfileHandlerGetState(ProfileHandlerState* state) {
-}
+void ProfileHandlerGetState(ProfileHandlerState* state) {}
 
 #endif  // OS_CYGWIN

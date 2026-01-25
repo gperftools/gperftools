@@ -42,31 +42,21 @@ extern "C" {
 // libbacktrace's definitions.
 
 struct backtrace_state;
-typedef int (*backtrace_full_callback) (void *data, uintptr_t pc,
-					const char *filename, int lineno,
-					const char *function);
-typedef void (*backtrace_error_callback) (void *data, const char *msg,
-					  int errnum);
+typedef int (*backtrace_full_callback)(void* data, uintptr_t pc, const char* filename, int lineno,
+                                       const char* function);
+typedef void (*backtrace_error_callback)(void* data, const char* msg, int errnum);
 
-struct backtrace_state *tcmalloc_backtrace_create_state(
-  const char *filename, int threaded,
-  backtrace_error_callback error_callback, void *data);
+struct backtrace_state* tcmalloc_backtrace_create_state(const char* filename, int threaded,
+                                                        backtrace_error_callback error_callback, void* data);
 
-int tcmalloc_backtrace_pcinfo(
-  struct backtrace_state *state, uintptr_t pc,
-  backtrace_full_callback callback,
-  backtrace_error_callback error_callback,
-  void *data);
+int tcmalloc_backtrace_pcinfo(struct backtrace_state* state, uintptr_t pc, backtrace_full_callback callback,
+                              backtrace_error_callback error_callback, void* data);
 
-typedef void (*backtrace_syminfo_callback) (void *data, uintptr_t pc,
-					    const char *symname,
-					    uintptr_t symval,
-					    uintptr_t symsize);
+typedef void (*backtrace_syminfo_callback)(void* data, uintptr_t pc, const char* symname, uintptr_t symval,
+                                           uintptr_t symsize);
 
-int tcmalloc_backtrace_syminfo(struct backtrace_state *state, uintptr_t addr,
-                               backtrace_syminfo_callback callback,
-                               backtrace_error_callback error_callback,
-                               void *data);
+int tcmalloc_backtrace_syminfo(struct backtrace_state* state, uintptr_t addr, backtrace_syminfo_callback callback,
+                               backtrace_error_callback error_callback, void* data);
 
 // backtrace-alloc.cc
 
@@ -81,46 +71,31 @@ void tcmalloc_backtrace_dispose_state(struct backtrace_state* state);
 // replace their implementation with ours (based on low_level_alloc
 // facility) and with extra feature of being able to mass-free all of
 // it.
-struct backtrace_vector
-{
+struct backtrace_vector {
   /* The base of the vector.  */
-  void *base;
+  void* base;
   /* The number of bytes in the vector.  */
   size_t size;
   /* The number of bytes available at the current allocation.  */
   size_t alc;
 };
 
-extern void *tcmalloc_backtrace_alloc(
-  struct backtrace_state *state, size_t size,
-  backtrace_error_callback error_callback,
-  void *data);
+extern void* tcmalloc_backtrace_alloc(struct backtrace_state* state, size_t size,
+                                      backtrace_error_callback error_callback, void* data);
 
-extern void tcmalloc_backtrace_free(
-  struct backtrace_state *state, void *mem,
-  size_t size,
-  backtrace_error_callback error_callback,
-  void *data);
+extern void tcmalloc_backtrace_free(struct backtrace_state* state, void* mem, size_t size,
+                                    backtrace_error_callback error_callback, void* data);
 
-extern void *tcmalloc_backtrace_vector_grow(
-  struct backtrace_state *state, size_t size,
-  backtrace_error_callback error_callback,
-  void *data,
-  struct backtrace_vector *vec);
+extern void* tcmalloc_backtrace_vector_grow(struct backtrace_state* state, size_t size,
+                                            backtrace_error_callback error_callback, void* data,
+                                            struct backtrace_vector* vec);
 
-extern void* tcmalloc_backtrace_vector_finish (
-  struct backtrace_state *state,
-  struct backtrace_vector *vec,
-  backtrace_error_callback error_callback,
-  void *data);
+extern void* tcmalloc_backtrace_vector_finish(struct backtrace_state* state, struct backtrace_vector* vec,
+                                              backtrace_error_callback error_callback, void* data);
 
-extern int tcmalloc_backtrace_vector_release (
-  struct backtrace_state *state,
-  struct backtrace_vector *vec,
-  backtrace_error_callback error_callback,
-  void *data);
+extern int tcmalloc_backtrace_vector_release(struct backtrace_state* state, struct backtrace_vector* vec,
+                                             backtrace_error_callback error_callback, void* data);
 
 }  // extern "C"
-
 
 #endif  // LIBBACKTRACE_API_H_

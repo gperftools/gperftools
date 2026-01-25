@@ -35,17 +35,17 @@
 
 #ifdef ENABLE_EMERGENCY_MALLOC
 
-#include "emergency_malloc.h" // IWYU pragma: keep
+#include "emergency_malloc.h"  // IWYU pragma: keep
 
 #else
 
 namespace tcmalloc {
 
-static inline void *EmergencyMalloc(size_t size) {return nullptr;}
-static inline void EmergencyFree(void *p) {}
-static inline void *EmergencyCalloc(size_t n, size_t elem_size) {return nullptr;}
-static inline void *EmergencyRealloc(void *old_ptr, size_t new_size) {return nullptr;}
-static inline bool IsEmergencyPtr(const void *_ptr) {return false;}
+static inline void* EmergencyMalloc(size_t size) { return nullptr; }
+static inline void EmergencyFree(void* p) {}
+static inline void* EmergencyCalloc(size_t n, size_t elem_size) { return nullptr; }
+static inline void* EmergencyRealloc(void* old_ptr, size_t new_size) { return nullptr; }
+static inline bool IsEmergencyPtr(const void* _ptr) { return false; }
 static inline size_t EmergencyAllocatedSize(const void* p) { return 0; }
 
 }  // namespace tcmalloc

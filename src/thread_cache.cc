@@ -35,13 +35,13 @@
 
 #include "thread_cache.h"
 
-#include <algorithm>                    // for max, min
+#include <algorithm>  // for max, min
 
-#include <string.h>                     // for memcpy
+#include <string.h>  // for memcpy
 
-#include "base/spinlock.h"              // for SpinLockHolder
+#include "base/spinlock.h"  // for SpinLockHolder
 #include "central_freelist.h"
-#include "getenv_safe.h"                // for TCMallocGetenvSafe
+#include "getenv_safe.h"  // for TCMallocGetenvSafe
 #include "tcmalloc_internal.h"
 
 // Note: this is initialized manually in InitModule to ensure that
@@ -54,7 +54,6 @@
 //              "thread caches. This bound is not strict, so it is possible "
 //              "for the cache to go over this bound in certain circumstances. "
 //              "Maximum value of this flag is capped to 1 GB.");
-
 
 namespace tcmalloc {
 
@@ -112,16 +111,14 @@ ThreadCache::~ThreadCache() {
 
 // Remove some objects of class "cl" from central cache and add to thread heap.
 // On success, return the first object for immediate use; otherwise return nullptr.
-void* ThreadCache::FetchFromCentralCache(uint32_t cl, int32_t byte_size,
-                                         void *(*oom_handler)(size_t size)) {
+void* ThreadCache::FetchFromCentralCache(uint32_t cl, int32_t byte_size, void* (*oom_handler)(size_t size)) {
   FreeList* list = &list_[cl];
   ASSERT(list->empty());
   const int batch_size = Static::sizemap()->num_objects_to_move(cl);
 
   const int num_to_move = std::min<int>(list->max_length(), batch_size);
   void *start, *end;
-  int fetch_count = Static::central_cache()[cl].RemoveRange(
-      &start, &end, num_to_move);
+  int fetch_count = Static::central_cache()[cl].RemoveRange(&start, &end, num_to_move);
 
   if (fetch_count == 0) {
     ASSERT(start == nullptr);
@@ -143,8 +140,7 @@ void* ThreadCache::FetchFromCentralCache(uint32_t cl, int32_t byte_size,
     // Don't let the list get too long.  In 32 bit builds, the length
     // is represented by a 16 bit int, so we need to watch out for
     // integer overflow.
-    int new_length = std::min<int>(list->max_length() + batch_size,
-                              kMaxDynamicFreeListLength);
+    int new_length = std::min<int>(list->max_length() + batch_size, kMaxDynamicFreeListLength);
     // The list's max_length must always be a multiple of batch_size,
     // and kMaxDynamicFreeListLength is not necessarily a multiple
     // of batch_size.
@@ -218,7 +214,7 @@ void ThreadCache::Scavenge() {
     FreeList* list = &list_[cl];
     const int lowmark = list->lowwatermark();
     if (lowmark > 0) {
-      const int drop = (lowmark > 1) ? lowmark/2 : 1;
+      const int drop = (lowmark > 1) ? lowmark / 2 : 1;
       ReleaseToCentralCache(list, cl, drop);
 
       // Shrink the max length if it isn't used.  Only shrink down to
@@ -230,8 +226,7 @@ void ThreadCache::Scavenge() {
       // lifetime.
       const int batch_size = Static::sizemap()->num_objects_to_move(cl);
       if (list->max_length() > batch_size) {
-        list->set_max_length(
-          std::max<int>(list->max_length() - batch_size, batch_size));
+        list->set_max_length(std::max<int>(list->max_length() - batch_size, batch_size));
       }
     }
     list->clear_lowwatermark();
@@ -256,16 +251,14 @@ void ThreadCache::IncreaseCacheLimitLocked() {
   // threads before giving up.  The i < 10 condition also prevents an
   // infinite loop in case none of the existing thread heaps are
   // suitable places to steal from.
-  for (int i = 0; i < 10;
-       ++i, next_memory_steal_ = next_memory_steal_->next_) {
+  for (int i = 0; i < 10; ++i, next_memory_steal_ = next_memory_steal_->next_) {
     // Reached the end of the linked list.  Start at the beginning.
     if (next_memory_steal_ == nullptr) {
       ASSERT(thread_heaps_ != nullptr);
       next_memory_steal_ = thread_heaps_;
     }
     if (next_memory_steal_ == this ||
-        next_memory_steal_->max_size_
-          <= min_per_thread_cache_size_.load(std::memory_order_relaxed)) {
+        next_memory_steal_->max_size_ <= min_per_thread_cache_size_.load(std::memory_order_relaxed)) {
       continue;
     }
     next_memory_steal_->SetMaxSize(next_memory_steal_->max_size_ - kStealAmount);
@@ -276,9 +269,7 @@ void ThreadCache::IncreaseCacheLimitLocked() {
   }
 }
 
-int ThreadCache::GetSamplePeriod() {
-  return Sampler::GetSamplePeriod();
-}
+int ThreadCache::GetSamplePeriod() { return Sampler::GetSamplePeriod(); }
 
 void ThreadCache::InitModule() {
   {
@@ -286,7 +277,7 @@ void ThreadCache::InitModule() {
     if (phinited) {
       return;
     }
-    const char *tcb = TCMallocGetenvSafe("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES");
+    const char* tcb = TCMallocGetenvSafe("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES");
     if (tcb) {
       set_overall_thread_cache_size(strtoll(tcb, nullptr, 10));
     }
@@ -311,7 +302,7 @@ ThreadCache* ThreadCache::NewHeap() {
   SpinLockHolder h(Static::pageheap_lock());
 
   // Create the heap and add it to the linked list
-  ThreadCache *heap = new (threadcache_allocator.New()) ThreadCache();
+  ThreadCache* heap = new (threadcache_allocator.New()) ThreadCache();
 
   heap->next_ = thread_heaps_;
   heap->prev_ = nullptr;
@@ -386,7 +377,7 @@ void ThreadCache::set_overall_thread_cache_size(size_t new_size) {
   if (new_size < min_size) {
     new_size = min_size;
   }
-  if (new_size > (1<<30)) new_size = (1<<30);     // Limit to 1GB
+  if (new_size > (1 << 30)) new_size = (1 << 30);  // Limit to 1GB
   overall_thread_cache_size_ = new_size;
 
   RecomputePerThreadCacheSize();

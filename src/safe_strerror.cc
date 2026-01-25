@@ -39,250 +39,250 @@ namespace tcmalloc {
 namespace {
 
 const char* TryMapErrno(int errnum) {
-
-#define C(v) if (errnum == v) return #v
+#define C(v) \
+  if (errnum == v) return #v
 #ifdef E2BIG
-C(E2BIG);
+  C(E2BIG);
 #endif
 #ifdef EACCES
-C(EACCES);
+  C(EACCES);
 #endif
 #ifdef EADDRINUSE
-C(EADDRINUSE);
+  C(EADDRINUSE);
 #endif
 #ifdef EADDRNOTAVAIL
-C(EADDRNOTAVAIL);
+  C(EADDRNOTAVAIL);
 #endif
 #ifdef EAFNOSUPPORT
-C(EAFNOSUPPORT);
+  C(EAFNOSUPPORT);
 #endif
 #ifdef EAGAIN
-C(EAGAIN);
+  C(EAGAIN);
 #endif
 #ifdef EALREADY
-C(EALREADY);
+  C(EALREADY);
 #endif
 #ifdef EBADF
-C(EBADF);
+  C(EBADF);
 #endif
 #ifdef EBADMSG
-C(EBADMSG);
+  C(EBADMSG);
 #endif
 #ifdef EBUSY
-C(EBUSY);
+  C(EBUSY);
 #endif
 #ifdef ECANCELED
-C(ECANCELED);
+  C(ECANCELED);
 #endif
 #ifdef ECHILD
-C(ECHILD);
+  C(ECHILD);
 #endif
 #ifdef ECONNABORTED
-C(ECONNABORTED);
+  C(ECONNABORTED);
 #endif
 #ifdef ECONNREFUSED
-C(ECONNREFUSED);
+  C(ECONNREFUSED);
 #endif
 #ifdef ECONNRESET
-C(ECONNRESET);
+  C(ECONNRESET);
 #endif
 #ifdef EDEADLK
-C(EDEADLK);
+  C(EDEADLK);
 #endif
 #ifdef EDESTADDRREQ
-C(EDESTADDRREQ);
+  C(EDESTADDRREQ);
 #endif
 #ifdef EDOM
-C(EDOM);
+  C(EDOM);
 #endif
 #ifdef EDQUOT
-C(EDQUOT);
+  C(EDQUOT);
 #endif
 #ifdef EEXIST
-C(EEXIST);
+  C(EEXIST);
 #endif
 #ifdef EFAULT
-C(EFAULT);
+  C(EFAULT);
 #endif
 #ifdef EFBIG
-C(EFBIG);
+  C(EFBIG);
 #endif
 #ifdef EHOSTUNREACH
-C(EHOSTUNREACH);
+  C(EHOSTUNREACH);
 #endif
 #ifdef EIDRM
-C(EIDRM);
+  C(EIDRM);
 #endif
 #ifdef EILSEQ
-C(EILSEQ);
+  C(EILSEQ);
 #endif
 #ifdef EINPROGRESS
-C(EINPROGRESS);
+  C(EINPROGRESS);
 #endif
 #ifdef EINTR
-C(EINTR);
+  C(EINTR);
 #endif
 #ifdef EINVAL
-C(EINVAL);
+  C(EINVAL);
 #endif
 #ifdef EIO
-C(EIO);
+  C(EIO);
 #endif
 #ifdef EISCONN
-C(EISCONN);
+  C(EISCONN);
 #endif
 #ifdef EISDIR
-C(EISDIR);
+  C(EISDIR);
 #endif
 #ifdef ELOOP
-C(ELOOP);
+  C(ELOOP);
 #endif
 #ifdef EMFILE
-C(EMFILE);
+  C(EMFILE);
 #endif
 #ifdef EMLINK
-C(EMLINK);
+  C(EMLINK);
 #endif
 #ifdef EMSGSIZE
-C(EMSGSIZE);
+  C(EMSGSIZE);
 #endif
 #ifdef EMULTIHOP
-C(EMULTIHOP);
+  C(EMULTIHOP);
 #endif
 #ifdef ENAMETOOLONG
-C(ENAMETOOLONG);
+  C(ENAMETOOLONG);
 #endif
 #ifdef ENETDOWN
-C(ENETDOWN);
+  C(ENETDOWN);
 #endif
 #ifdef ENETRESET
-C(ENETRESET);
+  C(ENETRESET);
 #endif
 #ifdef ENETUNREACH
-C(ENETUNREACH);
+  C(ENETUNREACH);
 #endif
 #ifdef ENFILE
-C(ENFILE);
+  C(ENFILE);
 #endif
 #ifdef ENOBUFS
-C(ENOBUFS);
+  C(ENOBUFS);
 #endif
 #ifdef ENODATA
-C(ENODATA);
+  C(ENODATA);
 #endif
 #ifdef ENODEV
-C(ENODEV);
+  C(ENODEV);
 #endif
 #ifdef ENOENT
-C(ENOENT);
+  C(ENOENT);
 #endif
 #ifdef ENOEXEC
-C(ENOEXEC);
+  C(ENOEXEC);
 #endif
 #ifdef ENOLCK
-C(ENOLCK);
+  C(ENOLCK);
 #endif
 #ifdef ENOLINK
-C(ENOLINK);
+  C(ENOLINK);
 #endif
 #ifdef ENOMEM
-C(ENOMEM);
+  C(ENOMEM);
 #endif
 #ifdef ENOMSG
-C(ENOMSG);
+  C(ENOMSG);
 #endif
 #ifdef ENOPROTOOPT
-C(ENOPROTOOPT);
+  C(ENOPROTOOPT);
 #endif
 #ifdef ENOSPC
-C(ENOSPC);
+  C(ENOSPC);
 #endif
 #ifdef ENOSR
-C(ENOSR);
+  C(ENOSR);
 #endif
 #ifdef ENOSTR
-C(ENOSTR);
+  C(ENOSTR);
 #endif
 #ifdef ENOSYS
-C(ENOSYS);
+  C(ENOSYS);
 #endif
 #ifdef ENOTCONN
-C(ENOTCONN);
+  C(ENOTCONN);
 #endif
 #ifdef ENOTDIR
-C(ENOTDIR);
+  C(ENOTDIR);
 #endif
 #ifdef ENOTEMPTY
-C(ENOTEMPTY);
+  C(ENOTEMPTY);
 #endif
 #ifdef ENOTRECOVERABLE
-C(ENOTRECOVERABLE);
+  C(ENOTRECOVERABLE);
 #endif
 #ifdef ENOTSOCK
-C(ENOTSOCK);
+  C(ENOTSOCK);
 #endif
 #ifdef ENOTSUP
-C(ENOTSUP);
+  C(ENOTSUP);
 #endif
 #ifdef ENOTTY
-C(ENOTTY);
+  C(ENOTTY);
 #endif
 #ifdef ENXIO
-C(ENXIO);
+  C(ENXIO);
 #endif
 #ifdef EOPNOTSUPP
-C(EOPNOTSUPP);
+  C(EOPNOTSUPP);
 #endif
 #ifdef EOVERFLOW
-C(EOVERFLOW);
+  C(EOVERFLOW);
 #endif
 #ifdef EOWNERDEAD
-C(EOWNERDEAD);
+  C(EOWNERDEAD);
 #endif
 #ifdef EPERM
-C(EPERM);
+  C(EPERM);
 #endif
 #ifdef EPIPE
-C(EPIPE);
+  C(EPIPE);
 #endif
 #ifdef EPROTO
-C(EPROTO);
+  C(EPROTO);
 #endif
 #ifdef EPROTONOSUPPORT
-C(EPROTONOSUPPORT);
+  C(EPROTONOSUPPORT);
 #endif
 #ifdef EPROTOTYPE
-C(EPROTOTYPE);
+  C(EPROTOTYPE);
 #endif
 #ifdef ERANGE
-C(ERANGE);
+  C(ERANGE);
 #endif
 #ifdef EROFS
-C(EROFS);
+  C(EROFS);
 #endif
 #ifdef ESPIPE
-C(ESPIPE);
+  C(ESPIPE);
 #endif
 #ifdef ESRCH
-C(ESRCH);
+  C(ESRCH);
 #endif
 #ifdef ESTALE
-C(ESTALE);
+  C(ESTALE);
 #endif
 #ifdef ETIME
-C(ETIME);
+  C(ETIME);
 #endif
 #ifdef ETIMEDOUT
-C(ETIMEDOUT);
+  C(ETIMEDOUT);
 #endif
 #ifdef ETXTBSY
-C(ETXTBSY);
+  C(ETXTBSY);
 #endif
 #ifdef EWOULDBLOCK
-C(EWOULDBLOCK);
+  C(EWOULDBLOCK);
 #endif
 #ifdef EXDEV
-C(EXDEV);
+  C(EXDEV);
 #endif
 #undef C
 

@@ -114,17 +114,16 @@
 
 #include "config.h"
 
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uintptr_t
+#include <stddef.h>  // for size_t
+#include <stdint.h>  // for uintptr_t
 
 #include "base/basictypes.h"
 #include "internal_logging.h"
 
 // A safe way of doing "(1 << n) - 1" -- without worrying about overflow
 // Note this will all be resolved to a constant expression at compile-time
-#define N_ONES_(IntType, N)                                     \
-  ( (N) == 0 ? 0 : ((static_cast<IntType>(1) << ((N)-1))-1 +    \
-                    (static_cast<IntType>(1) << ((N)-1))) )
+#define N_ONES_(IntType, N) \
+  ((N) == 0 ? 0 : ((static_cast<IntType>(1) << ((N) - 1)) - 1 + (static_cast<IntType>(1) << ((N) - 1))))
 
 // The types K and V provide upper bounds on the number of valid keys
 // and values, but we explicitly require the keys to be less than
@@ -141,12 +140,11 @@ class PackedCache {
 
 #ifdef TCMALLOC_SMALL_BUT_SLOW
   static constexpr int kWantHashBits = 12;
-#else // !TCMALLOC_SMALL_BUT_SLOW
+#else  // !TCMALLOC_SMALL_BUT_SLOW
   static constexpr int kWantHashBits = 16;
 #endif
 
-  static constexpr int kHashbits
-    = (kKeybits < kWantHashBits) ? kKeybits : kWantHashBits;
+  static constexpr int kHashbits = (kKeybits < kWantHashBits) ? kKeybits : kWantHashBits;
 
   static constexpr int kValuebits = 7;
   // one bit after value bits
@@ -178,7 +176,7 @@ class PackedCache {
 
   void Clear() {
     // sets 'invalid' bit in every byte, include value byte
-    memset(const_cast<T* >(array_), kInvalidMask, sizeof(array_));
+    memset(const_cast<T*>(array_), kInvalidMask, sizeof(array_));
   }
 
   void Put(K key, V value) {
@@ -195,13 +193,9 @@ class PackedCache {
  private:
   // we just wipe all hash bits out of key. I.e. clear lower
   // kHashbits. We rely on compiler knowing value of Hash(k).
-  static T KeyToUpper(K k) {
-    return static_cast<T>(k) ^ Hash(k);
-  }
+  static T KeyToUpper(K k) { return static_cast<T>(k) ^ Hash(k); }
 
-  static T Hash(K key) {
-    return static_cast<T>(key) & N_ONES_(size_t, kHashbits);
-  }
+  static T Hash(K key) { return static_cast<T>(key) & N_ONES_(size_t, kHashbits); }
 
   // For masking a K.
   static const K kKeyMask = N_ONES_(K, kKeybits);

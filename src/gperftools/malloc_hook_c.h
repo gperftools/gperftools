@@ -42,11 +42,11 @@
 
 /* Annoying stuff for windows; makes sure clients can import these functions */
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -60,8 +60,7 @@ extern "C" {
  * is not available.
  */
 PERFTOOLS_DLL_DECL
-int MallocHook_GetCallerStackTrace(void** result, int max_depth,
-                                   int skip_count);
+int MallocHook_GetCallerStackTrace(void** result, int max_depth, int skip_count);
 
 /* The MallocHook_{Add,Remove}*Hook functions return 1 on success and 0 on
  * failure.
@@ -79,36 +78,21 @@ int MallocHook_AddDeleteHook(MallocHook_DeleteHook hook);
 PERFTOOLS_DLL_DECL
 int MallocHook_RemoveDeleteHook(MallocHook_DeleteHook hook);
 
-typedef void (*MallocHook_PreMmapHook)(const void *start,
-                                       size_t size,
-                                       int protection,
-                                       int flags,
-                                       int fd,
-                                       off_t offset);
+typedef void (*MallocHook_PreMmapHook)(const void* start, size_t size, int protection, int flags, int fd, off_t offset);
 PERFTOOLS_DLL_DECL
 int MallocHook_AddPreMmapHook(MallocHook_PreMmapHook hook);
 PERFTOOLS_DLL_DECL
 int MallocHook_RemovePreMmapHook(MallocHook_PreMmapHook hook);
 
-typedef void (*MallocHook_MmapHook)(const void* result,
-                                    const void* start,
-                                    size_t size,
-                                    int protection,
-                                    int flags,
-                                    int fd,
-                                    off_t offset);
+typedef void (*MallocHook_MmapHook)(const void* result, const void* start, size_t size, int protection, int flags,
+                                    int fd, off_t offset);
 PERFTOOLS_DLL_DECL
 int MallocHook_AddMmapHook(MallocHook_MmapHook hook);
 PERFTOOLS_DLL_DECL
 int MallocHook_RemoveMmapHook(MallocHook_MmapHook hook);
 
-typedef int (*MallocHook_MmapReplacement)(const void* start,
-                                          size_t size,
-                                          int protection,
-                                          int flags,
-                                          int fd,
-                                          off_t offset,
-                                          void** result);
+typedef int (*MallocHook_MmapReplacement)(const void* start, size_t size, int protection, int flags, int fd,
+                                          off_t offset, void** result);
 int MallocHook_SetMmapReplacement(MallocHook_MmapReplacement hook);
 int MallocHook_RemoveMmapReplacement(MallocHook_MmapReplacement hook);
 
@@ -118,18 +102,12 @@ int MallocHook_AddMunmapHook(MallocHook_MunmapHook hook);
 PERFTOOLS_DLL_DECL
 int MallocHook_RemoveMunmapHook(MallocHook_MunmapHook hook);
 
-typedef int (*MallocHook_MunmapReplacement)(const void* ptr,
-                                            size_t size,
-                                            int* result);
+typedef int (*MallocHook_MunmapReplacement)(const void* ptr, size_t size, int* result);
 int MallocHook_SetMunmapReplacement(MallocHook_MunmapReplacement hook);
 int MallocHook_RemoveMunmapReplacement(MallocHook_MunmapReplacement hook);
 
-typedef void (*MallocHook_MremapHook)(const void* result,
-                                      const void* old_addr,
-                                      size_t old_size,
-                                      size_t new_size,
-                                      int flags,
-                                      const void* new_addr);
+typedef void (*MallocHook_MremapHook)(const void* result, const void* old_addr, size_t old_size, size_t new_size,
+                                      int flags, const void* new_addr);
 PERFTOOLS_DLL_DECL
 int MallocHook_AddMremapHook(MallocHook_MremapHook hook);
 PERFTOOLS_DLL_DECL
@@ -167,7 +145,7 @@ MallocHook_SbrkHook MallocHook_SetSbrkHook(MallocHook_SbrkHook hook);
 /* End of DEPRECATED functions. */
 
 #ifdef __cplusplus
-}   // extern "C"
+}  // extern "C"
 #endif
 
 #endif /* _MALLOC_HOOK_C_H_ */

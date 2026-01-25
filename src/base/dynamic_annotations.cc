@@ -40,16 +40,16 @@
 #if __has_include(<valgrind/valgrind.h>)
 #include <valgrind/valgrind.h>
 #endif  // __has_include
-#endif // defined __has_include
+#endif  // defined __has_include
 
 #include "base/dynamic_annotations.h"
-#include "getenv_safe.h" // for TCMallocGetenvSafe
+#include "getenv_safe.h"  // for TCMallocGetenvSafe
 
 static int GetRunningOnValgrind(void) {
 #ifdef RUNNING_ON_VALGRIND
   if (RUNNING_ON_VALGRIND) return 1;
 #endif
-  const char *running_on_valgrind_str = TCMallocGetenvSafe("RUNNING_ON_VALGRIND");
+  const char* running_on_valgrind_str = TCMallocGetenvSafe("RUNNING_ON_VALGRIND");
   if (running_on_valgrind_str) {
     return strcmp(running_on_valgrind_str, "0") != 0;
   }
@@ -60,7 +60,6 @@ static int GetRunningOnValgrind(void) {
 int RunningOnValgrind(void) {
   static volatile int running_on_valgrind = -1;
   int local_running_on_valgrind = running_on_valgrind;
-  if (local_running_on_valgrind == -1)
-    running_on_valgrind = local_running_on_valgrind = GetRunningOnValgrind();
+  if (local_running_on_valgrind == -1) running_on_valgrind = local_running_on_valgrind = GetRunningOnValgrind();
   return local_running_on_valgrind;
 }

@@ -55,11 +55,11 @@
 
 /* Annoying stuff for windows; makes sure clients can import these functions */
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 /* All this code should be usable from within C apps. */
@@ -89,7 +89,7 @@ PERFTOOLS_DLL_DECL void HeapProfilerStop();
  * quiescent state in your program, in order to more easily track down
  * memory leaks. Will include the reason in the logged message
  */
-PERFTOOLS_DLL_DECL void HeapProfilerDump(const char *reason);
+PERFTOOLS_DLL_DECL void HeapProfilerDump(const char* reason);
 
 /* Generate current heap profiling information.
  * Returns an empty string when heap profiling is not active.
@@ -102,4 +102,4 @@ PERFTOOLS_DLL_DECL char* GetHeapProfile();
 }  // extern "C"
 #endif
 
-#endif  /* BASE_HEAP_PROFILER_H_ */
+#endif /* BASE_HEAP_PROFILER_H_ */

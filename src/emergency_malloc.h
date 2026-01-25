@@ -38,23 +38,23 @@
 
 namespace tcmalloc {
 
-static constexpr uintptr_t kEmergencyArenaShift = 20+4; // 16 megs
+static constexpr uintptr_t kEmergencyArenaShift = 20 + 4;  // 16 megs
 static constexpr uintptr_t kEmergencyArenaSize = uintptr_t{1} << kEmergencyArenaShift;
 
-ATTRIBUTE_VISIBILITY_HIDDEN extern char *emergency_arena_start;
-ATTRIBUTE_VISIBILITY_HIDDEN extern uintptr_t emergency_arena_start_shifted;;
+ATTRIBUTE_VISIBILITY_HIDDEN extern char* emergency_arena_start;
+ATTRIBUTE_VISIBILITY_HIDDEN extern uintptr_t emergency_arena_start_shifted;
+;
 
-ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyMalloc(size_t size);
-ATTRIBUTE_VISIBILITY_HIDDEN void EmergencyFree(void *p);
-ATTRIBUTE_VISIBILITY_HIDDEN void *EmergencyRealloc(void *old_ptr, size_t new_size);
+ATTRIBUTE_VISIBILITY_HIDDEN void* EmergencyMalloc(size_t size);
+ATTRIBUTE_VISIBILITY_HIDDEN void EmergencyFree(void* p);
+ATTRIBUTE_VISIBILITY_HIDDEN void* EmergencyRealloc(void* old_ptr, size_t new_size);
 ATTRIBUTE_VISIBILITY_HIDDEN size_t EmergencyAllocatedSize(const void* p);
 
-static inline bool IsEmergencyPtr(const void *_ptr) {
+static inline bool IsEmergencyPtr(const void* _ptr) {
   uintptr_t ptr = reinterpret_cast<uintptr_t>(_ptr);
-  return PREDICT_FALSE((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted)
-    && emergency_arena_start_shifted;
+  return PREDICT_FALSE((ptr >> kEmergencyArenaShift) == emergency_arena_start_shifted) && emergency_arena_start_shifted;
 }
 
-} // namespace tcmalloc
+}  // namespace tcmalloc
 
 #endif

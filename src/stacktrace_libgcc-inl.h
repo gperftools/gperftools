@@ -41,7 +41,7 @@
 
 extern "C" {
 #include <assert.h>
-#include <string.h>   // for memset()
+#include <string.h>  // for memset()
 }
 
 #include <unwind.h>
@@ -49,16 +49,14 @@ extern "C" {
 #include "gperftools/stacktrace.h"
 
 struct libgcc_backtrace_data {
-  void **array;
+  void** array;
   int skip;
   int pos;
   int limit;
 };
 
-static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context *ctx,
-                                                   void *_data) {
-  libgcc_backtrace_data *data =
-    reinterpret_cast<libgcc_backtrace_data *>(_data);
+static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context* ctx, void* _data) {
+  libgcc_backtrace_data* data = reinterpret_cast<libgcc_backtrace_data*>(_data);
 
   if (data->skip > 0) {
     data->skip--;
@@ -69,7 +67,8 @@ static _Unwind_Reason_Code libgcc_backtrace_helper(struct _Unwind_Context *ctx,
     return _URC_END_OF_STACK;
   }
 
-  void *ip = reinterpret_cast<void *>(_Unwind_GetIP(ctx));;
+  void* ip = reinterpret_cast<void*>(_Unwind_GetIP(ctx));
+  ;
   data->array[data->pos++] = ip;
 
   return _URC_NO_REASON;
@@ -101,8 +100,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
 
   _Unwind_Backtrace(libgcc_backtrace_helper, &data);
 
-  if (data.pos > 1 && data.array[data.pos - 1] == nullptr)
-    --data.pos;
+  if (data.pos > 1 && data.array[data.pos - 1] == nullptr) --data.pos;
 
 #if IS_STACK_FRAMES
   // No implementation for finding out the stack frame sizes.

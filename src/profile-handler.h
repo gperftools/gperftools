@@ -50,7 +50,7 @@
 
 #include "config.h"
 
-#include <signal.h> // IWYU pragma: keep
+#include <signal.h>  // IWYU pragma: keep
 #include <stdint.h>
 
 /* Forward declaration. */
@@ -86,8 +86,7 @@ struct ProfileHandlerToken;
  *   - Release lock.
  *   and the callback code gets a lockless, read-write access to the data.
  */
-typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info,
-                                       void* ucontext, void* callback_arg);
+typedef void (*ProfileHandlerCallback)(int sig, siginfo_t* sig_info, void* ucontext, void* callback_arg);
 
 /*
  * Registers a new thread with profile handler and should be called only once
@@ -105,8 +104,7 @@ void ProfileHandlerRegisterThread();
  * the SIGPROF signal handler. Caller must not free the returned token. This
  * function is not async-signal-safe.
  */
-ProfileHandlerToken* ProfileHandlerRegisterCallback(
-    ProfileHandlerCallback callback, void* callback_arg);
+ProfileHandlerToken* ProfileHandlerRegisterCallback(ProfileHandlerCallback callback, void* callback_arg);
 
 /*
  * Unregisters a previously registered callback. Expects the token returned
@@ -130,11 +128,11 @@ void ProfileHandlerReset();
  * async-signal-safe.
  */
 struct ProfileHandlerState {
-  int32_t frequency;  /* Profiling frequency */
-  int32_t callback_count;  /* Number of callbacks registered */
-  int64_t interrupts;  /* Number of interrupts received */
-  bool allowed; /* Profiling is allowed */
+  int32_t frequency;      /* Profiling frequency */
+  int32_t callback_count; /* Number of callbacks registered */
+  int64_t interrupts;     /* Number of interrupts received */
+  bool allowed;           /* Profiling is allowed */
 };
 void ProfileHandlerGetState(struct ProfileHandlerState* state);
 
-#endif  /* BASE_PROFILE_HANDLER_H_ */
+#endif /* BASE_PROFILE_HANDLER_H_ */

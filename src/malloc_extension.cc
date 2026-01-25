@@ -47,7 +47,6 @@
 #include "base/proc_maps_iterator.h"
 #include "tcmalloc_internal.h"
 
-
 #include "thread_cache.h"
 
 static void DumpAddressMap(std::string* result) {
@@ -62,40 +61,31 @@ void MallocExtension::Initialize() {}
 SysAllocator::~SysAllocator() {}
 
 // Default implementation -- does nothing
-MallocExtension::~MallocExtension() { }
+MallocExtension::~MallocExtension() {}
 bool MallocExtension::VerifyAllMemory() { return true; }
 bool MallocExtension::VerifyNewMemory(const void* p) { return true; }
 bool MallocExtension::VerifyArrayNewMemory(const void* p) { return true; }
 bool MallocExtension::VerifyMallocMemory(const void* p) { return true; }
 
-bool MallocExtension::GetNumericProperty(const char* property, size_t* value) {
-  return false;
-}
+bool MallocExtension::GetNumericProperty(const char* property, size_t* value) { return false; }
 
-bool MallocExtension::SetNumericProperty(const char* property, size_t value) {
-  return false;
-}
+bool MallocExtension::SetNumericProperty(const char* property, size_t value) { return false; }
 
 void MallocExtension::GetStats(char* buffer, int length) {
   assert(length > 0);
   buffer[0] = '\0';
 }
 
-bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total,
-                                       int histogram[kMallocHistogramSize]) {
+bool MallocExtension::MallocMemoryStats(int* blocks, size_t* total, int histogram[kMallocHistogramSize]) {
   *blocks = 0;
   *total = 0;
   memset(histogram, 0, sizeof(*histogram) * kMallocHistogramSize);
   return true;
 }
 
-void** MallocExtension::ReadStackTraces(int* sample_period) {
-  return nullptr;
-}
+void** MallocExtension::ReadStackTraces(int* sample_period) { return nullptr; }
 
-void** MallocExtension::ReadHeapGrowthStackTraces() {
-  return nullptr;
-}
+void** MallocExtension::ReadHeapGrowthStackTraces() { return nullptr; }
 
 void MallocExtension::MarkThreadIdle() {
   // Default implementation does nothing
@@ -105,11 +95,9 @@ void MallocExtension::MarkThreadBusy() {
   // Default implementation does nothing
 }
 
-SysAllocator* MallocExtension::GetSystemAllocator() {
-  return nullptr;
-}
+SysAllocator* MallocExtension::GetSystemAllocator() { return nullptr; }
 
-void MallocExtension::SetSystemAllocator(SysAllocator *a) {
+void MallocExtension::SetSystemAllocator(SysAllocator* a) {
   // Default implementation does nothing
 }
 
@@ -118,38 +106,27 @@ void MallocExtension::ReleaseToSystem(size_t num_bytes) {
 }
 
 void MallocExtension::ReleaseFreeMemory() {
-  ReleaseToSystem(static_cast<size_t>(-1));   // SIZE_T_MAX
+  ReleaseToSystem(static_cast<size_t>(-1));  // SIZE_T_MAX
 }
 
 void MallocExtension::SetMemoryReleaseRate(double rate) {
   // Default implementation does nothing
 }
 
-double MallocExtension::GetMemoryReleaseRate() {
-  return -1.0;
-}
+double MallocExtension::GetMemoryReleaseRate() { return -1.0; }
 
-size_t MallocExtension::GetEstimatedAllocatedSize(size_t size) {
-  return size;
-}
+size_t MallocExtension::GetEstimatedAllocatedSize(size_t size) { return size; }
 
 size_t MallocExtension::GetAllocatedSize(const void* p) {
   assert(GetOwnership(p) != kNotOwned);
   return 0;
 }
 
-MallocExtension::Ownership MallocExtension::GetOwnership(const void* p) {
-  return kUnknownOwnership;
-}
+MallocExtension::Ownership MallocExtension::GetOwnership(const void* p) { return kUnknownOwnership; }
 
-void MallocExtension::GetFreeListSizes(
-  std::vector<MallocExtension::FreeListInfo>* v) {
-  v->clear();
-}
+void MallocExtension::GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) { v->clear(); }
 
-size_t MallocExtension::GetThreadCacheSize() {
-  return 0;
-}
+size_t MallocExtension::GetThreadCacheSize() { return 0; }
 
 void MallocExtension::MarkThreadTemporarilyIdle() {
   // Default implementation does nothing
@@ -173,9 +150,7 @@ MallocExtension* MallocExtension::instance() {
   return instance();
 }
 
-void MallocExtension::Register(MallocExtension* implementation) {
-  current_instance.store(implementation);
-}
+void MallocExtension::Register(MallocExtension* implementation) { current_instance.store(implementation); }
 
 // -----------------------------------------------------------------------
 // Heap sampling support
@@ -184,33 +159,19 @@ void MallocExtension::Register(MallocExtension* implementation) {
 namespace {
 
 // Accessors
-uintptr_t Count(void** entry) {
-  return reinterpret_cast<uintptr_t>(entry[0]);
-}
-uintptr_t Size(void** entry) {
-  return reinterpret_cast<uintptr_t>(entry[1]);
-}
-uintptr_t Depth(void** entry) {
-  return reinterpret_cast<uintptr_t>(entry[2]);
-}
-void* PC(void** entry, int i) {
-  return entry[3+i];
-}
+uintptr_t Count(void** entry) { return reinterpret_cast<uintptr_t>(entry[0]); }
+uintptr_t Size(void** entry) { return reinterpret_cast<uintptr_t>(entry[1]); }
+uintptr_t Depth(void** entry) { return reinterpret_cast<uintptr_t>(entry[2]); }
+void* PC(void** entry, int i) { return entry[3 + i]; }
 
-void PrintCountAndSize(MallocExtensionWriter* writer,
-                       uintptr_t count, uintptr_t size) {
+void PrintCountAndSize(MallocExtensionWriter* writer, uintptr_t count, uintptr_t size) {
   char buf[100];
-  snprintf(buf, sizeof(buf),
-           "%6" PRIu64 ": %8" PRIu64 " [%6" PRIu64 ": %8" PRIu64 "] @",
-           static_cast<uint64_t>(count),
-           static_cast<uint64_t>(size),
-           static_cast<uint64_t>(count),
-           static_cast<uint64_t>(size));
+  snprintf(buf, sizeof(buf), "%6" PRIu64 ": %8" PRIu64 " [%6" PRIu64 ": %8" PRIu64 "] @", static_cast<uint64_t>(count),
+           static_cast<uint64_t>(size), static_cast<uint64_t>(count), static_cast<uint64_t>(size));
   writer->append(buf, strlen(buf));
 }
 
-void PrintHeader(MallocExtensionWriter* writer,
-                 const char* label, void** entries) {
+void PrintHeader(MallocExtensionWriter* writer, const char* label, void** entries) {
   // Compute the total count and total size
   uintptr_t total_count = 0;
   uintptr_t total_size = 0;
@@ -238,7 +199,7 @@ void PrintStackEntry(MallocExtensionWriter* writer, void** entry) {
   writer->append("\n", 1);
 }
 
-}
+}  // namespace
 
 void MallocExtension::GetHeapSample(MallocExtensionWriter* writer) {
   int sample_period = 0;
@@ -294,25 +255,21 @@ void MallocExtension::Ranges(void* arg, RangeFunction func) {
 
 // These are C shims that work on the current instance.
 
-#define C_SHIM(fn, retval, paramlist, arglist)          \
-  extern "C" PERFTOOLS_DLL_DECL retval MallocExtension_##fn paramlist {    \
-    return MallocExtension::instance()->fn arglist;     \
+#define C_SHIM(fn, retval, paramlist, arglist)                          \
+  extern "C" PERFTOOLS_DLL_DECL retval MallocExtension_##fn paramlist { \
+    return MallocExtension::instance()->fn arglist;                     \
   }
 
 C_SHIM(VerifyAllMemory, int, (void), ());
 C_SHIM(VerifyNewMemory, int, (const void* p), (p));
 C_SHIM(VerifyArrayNewMemory, int, (const void* p), (p));
 C_SHIM(VerifyMallocMemory, int, (const void* p), (p));
-C_SHIM(MallocMemoryStats, int,
-       (int* blocks, size_t* total, int histogram[kMallocHistogramSize]),
+C_SHIM(MallocMemoryStats, int, (int* blocks, size_t* total, int histogram[kMallocHistogramSize]),
        (blocks, total, histogram));
 
-C_SHIM(GetStats, void,
-       (char* buffer, int buffer_length), (buffer, buffer_length));
-C_SHIM(GetNumericProperty, int,
-       (const char* property, size_t* value), (property, value));
-C_SHIM(SetNumericProperty, int,
-       (const char* property, size_t value), (property, value));
+C_SHIM(GetStats, void, (char* buffer, int buffer_length), (buffer, buffer_length));
+C_SHIM(GetNumericProperty, int, (const char* property, size_t* value), (property, value));
+C_SHIM(SetNumericProperty, int, (const char* property, size_t value), (property, value));
 
 C_SHIM(MarkThreadIdle, void, (void), ());
 C_SHIM(MarkThreadBusy, void, (void), ());
@@ -326,8 +283,6 @@ C_SHIM(GetThreadCacheSize, size_t, (void), ());
 C_SHIM(MarkThreadTemporarilyIdle, void, (void), ());
 
 // Can't use the shim here because of the need to translate the enums.
-extern "C"
-MallocExtension_Ownership MallocExtension_GetOwnership(const void* p) {
-  return static_cast<MallocExtension_Ownership>(
-      MallocExtension::instance()->GetOwnership(p));
+extern "C" MallocExtension_Ownership MallocExtension_GetOwnership(const void* p) {
+  return static_cast<MallocExtension_Ownership>(MallocExtension::instance()->GetOwnership(p));
 }

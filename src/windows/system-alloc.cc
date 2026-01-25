@@ -32,12 +32,12 @@
 // Author: Petr Hosek
 
 #ifndef _WIN32
-# error You should only be including windows/system-alloc.cc in a windows environment!
+#error You should only be including windows/system-alloc.cc in a windows environment!
 #endif
 
 #include <config.h>
 #include <windows.h>
-#include <algorithm> // std::min
+#include <algorithm>  // std::min
 #include <gperftools/malloc_extension.h>
 #include "base/logging.h"
 #include "base/spinlock.h"
@@ -52,17 +52,15 @@ SysAllocator* tcmalloc_sys_alloc;
 size_t TCMalloc_SystemTaken;
 
 class VirtualSysAllocator : public SysAllocator {
-public:
-  VirtualSysAllocator() : SysAllocator() {
-  }
-  void* Alloc(size_t size, size_t *actual_size, size_t alignment);
+ public:
+  VirtualSysAllocator() : SysAllocator() {}
+  void* Alloc(size_t size, size_t* actual_size, size_t alignment);
 };
 static tcmalloc::StaticStorage<VirtualSysAllocator> virtual_space;
 
 // This is mostly like MmapSysAllocator::Alloc, except it does these weird
 // munmap's in the middle of the page, which is forbidden in windows.
-void* VirtualSysAllocator::Alloc(size_t size, size_t *actual_size,
-                                 size_t alignment) {
+void* VirtualSysAllocator::Alloc(size_t size, size_t* actual_size, size_t alignment) {
   // Align on the pagesize boundary
   const int pagesize = getpagesize();
   if (alignment < pagesize) alignment = pagesize;
@@ -83,10 +81,8 @@ void* VirtualSysAllocator::Alloc(size_t size, size_t *actual_size,
   // the page size).
   assert(alignment <= pagesize);
 
-  void* result = VirtualAlloc(0, size,
-                              MEM_COMMIT|MEM_RESERVE, PAGE_READWRITE);
-  if (result == nullptr)
-    return nullptr;
+  void* result = VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+  if (result == nullptr) return nullptr;
 
   // If the result is not aligned memory fragmentation will result which can
   // lead to pathological memory use.
@@ -97,11 +93,8 @@ void* VirtualSysAllocator::Alloc(size_t size, size_t *actual_size,
 
 #ifdef _MSC_VER
 
-extern "C" SysAllocator* tc_get_sysalloc_override(SysAllocator *def);
-extern "C" SysAllocator* tc_get_sysalloc_default(SysAllocator *def)
-{
-  return def;
-}
+extern "C" SysAllocator* tc_get_sysalloc_override(SysAllocator* def);
+extern "C" SysAllocator* tc_get_sysalloc_default(SysAllocator* def) { return def; }
 
 #if defined(_M_IX86)
 #pragma comment(linker, "/alternatename:_tc_get_sysalloc_override=_tc_get_sysalloc_default")
@@ -109,25 +102,19 @@ extern "C" SysAllocator* tc_get_sysalloc_default(SysAllocator *def)
 #pragma comment(linker, "/alternatename:tc_get_sysalloc_override=tc_get_sysalloc_default")
 #endif
 
-#else // !_MSC_VER
+#else  // !_MSC_VER
 
-extern "C" ATTRIBUTE_NOINLINE
-SysAllocator* tc_get_sysalloc_override(SysAllocator *def)
-{
-  return def;
-}
+extern "C" ATTRIBUTE_NOINLINE SysAllocator* tc_get_sysalloc_override(SysAllocator* def) { return def; }
 
 #endif
 
 static bool system_alloc_inited = false;
 void InitSystemAllocators(void) {
-  VirtualSysAllocator *alloc = virtual_space.Construct();
+  VirtualSysAllocator* alloc = virtual_space.Construct();
   tcmalloc_sys_alloc = tc_get_sysalloc_override(alloc);
 }
 
-extern PERFTOOLS_DLL_DECL
-void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
-			   size_t alignment) {
+extern PERFTOOLS_DLL_DECL void* TCMalloc_SystemAlloc(size_t size, size_t* actual_size, size_t alignment) {
   SpinLockHolder lock_holder(&spinlock);
 
   if (!system_alloc_inited) {
@@ -146,10 +133,8 @@ void* TCMalloc_SystemAlloc(size_t size, size_t *actual_size,
   return result;
 }
 
-extern PERFTOOLS_DLL_DECL
-bool TCMalloc_SystemRelease(void* start, size_t length) {
-  if (VirtualFree(start, length, MEM_DECOMMIT))
-    return true;
+extern PERFTOOLS_DLL_DECL bool TCMalloc_SystemRelease(void* start, size_t length) {
+  if (VirtualFree(start, length, MEM_DECOMMIT)) return true;
 
   // The decommit may fail if the memory region consists of allocations
   // from more than one call to VirtualAlloc.  In this case, fall back to
@@ -171,10 +156,8 @@ bool TCMalloc_SystemRelease(void* start, size_t length) {
   return true;
 }
 
-extern PERFTOOLS_DLL_DECL
-void TCMalloc_SystemCommit(void* start, size_t length) {
-  if (VirtualAlloc(start, length, MEM_COMMIT, PAGE_READWRITE) == start)
-    return;
+extern PERFTOOLS_DLL_DECL void TCMalloc_SystemCommit(void* start, size_t length) {
+  if (VirtualAlloc(start, length, MEM_COMMIT, PAGE_READWRITE) == start) return;
 
   // The commit may fail if the memory region consists of allocations
   // from more than one call to VirtualAlloc.  In this case, fall back to
@@ -189,15 +172,14 @@ void TCMalloc_SystemCommit(void* start, size_t length) {
     assert(resultSize == sizeof(info));
 
     size_t commitSize = std::min<size_t>(info.RegionSize, end - ptr);
-    void* newAddress = VirtualAlloc(ptr, commitSize, MEM_COMMIT,
-                                    PAGE_READWRITE);
+    void* newAddress = VirtualAlloc(ptr, commitSize, MEM_COMMIT, PAGE_READWRITE);
     assert(newAddress == ptr);
     ptr += commitSize;
   }
 }
 
-bool RegisterSystemAllocator(SysAllocator *allocator, int priority) {
-  return false;   // we don't allow registration on windows, right now
+bool RegisterSystemAllocator(SysAllocator* allocator, int priority) {
+  return false;  // we don't allow registration on windows, right now
 }
 
 void DumpSystemAllocatorStats(TCMalloc_Printer* printer) {

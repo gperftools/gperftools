@@ -53,15 +53,10 @@
 
 namespace sidestep {
 
-SideStepError PreamblePatcher::RawPatchWithStub(
-    void* target_function,
-    void* replacement_function,
-    unsigned char* preamble_stub,
-    unsigned long stub_size,
-    unsigned long* bytes_needed) {
-  if ((nullptr == target_function) ||
-      (nullptr == replacement_function) ||
-      (nullptr == preamble_stub)) {
+SideStepError PreamblePatcher::RawPatchWithStub(void* target_function, void* replacement_function,
+                                                unsigned char* preamble_stub, unsigned long stub_size,
+                                                unsigned long* bytes_needed) {
+  if ((nullptr == target_function) || (nullptr == replacement_function) || (nullptr == preamble_stub)) {
     SIDESTEP_ASSERT(false &&
                     "Invalid parameters - either pTargetFunction or "
                     "pReplacementFunction or pPreambleStub were nullptr.");
@@ -114,18 +109,15 @@ SideStepError PreamblePatcher::RawPatchWithStub(
     //    mov rax, <replacement_function>
     //    jmp rax
     //
-    __int64 replacement_target_offset = reinterpret_cast<__int64>(
-        replacement_function) - reinterpret_cast<__int64>(target) - 5;
-    if (replacement_target_offset > INT_MAX
-        || replacement_target_offset < INT_MIN) {
+    __int64 replacement_target_offset =
+        reinterpret_cast<__int64>(replacement_function) - reinterpret_cast<__int64>(target) - 5;
+    if (replacement_target_offset > INT_MAX || replacement_target_offset < INT_MIN) {
       // The stub needs to be within 2GB of the target for the trampoline to
       // work!
-      __int64 trampoline_offset = reinterpret_cast<__int64>(preamble_stub)
-          - reinterpret_cast<__int64>(target) - 5;
+      __int64 trampoline_offset = reinterpret_cast<__int64>(preamble_stub) - reinterpret_cast<__int64>(target) - 5;
       if (trampoline_offset > INT_MAX || trampoline_offset < INT_MIN) {
         // We're screwed.
-        SIDESTEP_ASSERT(false
-                       && "Preamble stub is too far from target to patch.");
+        SIDESTEP_ASSERT(false && "Preamble stub is too far from target to patch.");
         return SIDESTEP_UNEXPECTED;
       }
       required_trampoline_bytes = 13;
@@ -148,28 +140,22 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   unsigned int stub_bytes = 0;
   while (preamble_bytes < kRequiredTargetPatchBytes) {
     unsigned int cur_bytes = 0;
-    InstructionType instruction_type =
-        disassembler.Disassemble(target + preamble_bytes, cur_bytes);
+    InstructionType instruction_type = disassembler.Disassemble(target + preamble_bytes, cur_bytes);
     if (IT_JUMP == instruction_type) {
       unsigned int jump_bytes = 0;
       SideStepError jump_ret = SIDESTEP_JUMP_INSTRUCTION;
       if (IsShortConditionalJump(target + preamble_bytes, cur_bytes)) {
-        jump_ret = PatchShortConditionalJump(target + preamble_bytes, cur_bytes,
-                                             preamble_stub + stub_bytes,
-                                             &jump_bytes,
-                                             stub_size - stub_bytes);
+        jump_ret = PatchShortConditionalJump(target + preamble_bytes, cur_bytes, preamble_stub + stub_bytes,
+                                             &jump_bytes, stub_size - stub_bytes);
       } else if (IsShortJump(target + preamble_bytes, cur_bytes)) {
-        jump_ret = PatchShortJump(target + preamble_bytes, cur_bytes,
-                                  preamble_stub + stub_bytes,
-                                  &jump_bytes,
+        jump_ret = PatchShortJump(target + preamble_bytes, cur_bytes, preamble_stub + stub_bytes, &jump_bytes,
                                   stub_size - stub_bytes);
       } else if (IsNearConditionalJump(target + preamble_bytes, cur_bytes) ||
                  IsNearRelativeJump(target + preamble_bytes, cur_bytes) ||
                  IsNearAbsoluteCall(target + preamble_bytes, cur_bytes) ||
                  IsNearRelativeCall(target + preamble_bytes, cur_bytes)) {
-         jump_ret = PatchNearJumpOrCall(target + preamble_bytes, cur_bytes,
-                                        preamble_stub + stub_bytes, &jump_bytes,
-                                        stub_size - stub_bytes);
+        jump_ret = PatchNearJumpOrCall(target + preamble_bytes, cur_bytes, preamble_stub + stub_bytes, &jump_bytes,
+                                       stub_size - stub_bytes);
       }
       if (jump_ret != SIDESTEP_SUCCESS) {
         SIDESTEP_ASSERT(false &&
@@ -179,22 +165,19 @@ SideStepError PreamblePatcher::RawPatchWithStub(
       }
       stub_bytes += jump_bytes;
     } else if (IT_RETURN == instruction_type) {
-      SIDESTEP_ASSERT(false &&
-                      "Unable to patch because function is too short");
+      SIDESTEP_ASSERT(false && "Unable to patch because function is too short");
       return SIDESTEP_FUNCTION_TOO_SMALL;
     } else if (IT_GENERIC == instruction_type) {
       if (IsMovWithDisplacement(target + preamble_bytes, cur_bytes)) {
         unsigned int mov_bytes = 0;
-        if (PatchMovWithDisplacement(target + preamble_bytes, cur_bytes,
-                                     preamble_stub + stub_bytes, &mov_bytes,
-                                     stub_size - stub_bytes)
-            != SIDESTEP_SUCCESS) {
+        if (PatchMovWithDisplacement(target + preamble_bytes, cur_bytes, preamble_stub + stub_bytes, &mov_bytes,
+                                     stub_size - stub_bytes) != SIDESTEP_SUCCESS) {
           return SIDESTEP_UNSUPPORTED_INSTRUCTION;
         }
         stub_bytes += mov_bytes;
       } else {
-        memcpy(reinterpret_cast<void*>(preamble_stub + stub_bytes),
-               reinterpret_cast<void*>(target + preamble_bytes), cur_bytes);
+        memcpy(reinterpret_cast<void*>(preamble_stub + stub_bytes), reinterpret_cast<void*>(target + preamble_bytes),
+               cur_bytes);
         stub_bytes += cur_bytes;
       }
     } else {
@@ -206,16 +189,13 @@ SideStepError PreamblePatcher::RawPatchWithStub(
     preamble_bytes += cur_bytes;
   }
 
-  if (nullptr != bytes_needed)
-    *bytes_needed = stub_bytes + kRequiredStubJumpBytes
-        + required_trampoline_bytes;
+  if (nullptr != bytes_needed) *bytes_needed = stub_bytes + kRequiredStubJumpBytes + required_trampoline_bytes;
 
   // Inv: cbPreamble is the number of bytes (at least 5) that we need to take
   // from the preamble to have whole instructions that are 5 bytes or more
   // in size total. The size of the stub required is cbPreamble +
   // kRequiredStubJumpBytes (5) + required_trampoline_bytes (0 or 13)
-  if (stub_bytes + kRequiredStubJumpBytes + required_trampoline_bytes
-      > stub_size) {
+  if (stub_bytes + kRequiredStubJumpBytes + required_trampoline_bytes > stub_size) {
     SIDESTEP_ASSERT(false);
     return SIDESTEP_INSUFFICIENT_BUFFER;
   }
@@ -225,11 +205,10 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // find address to jump to, relative to next address after jmp instruction
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable:4244)
+#pragma warning(disable : 4244)
 #endif
-  int relative_offset_to_target_rest
-      = ((reinterpret_cast<unsigned char*>(target) + preamble_bytes) -
-         (preamble_stub + stub_bytes + kRequiredStubJumpBytes));
+  int relative_offset_to_target_rest = ((reinterpret_cast<unsigned char*>(target) + preamble_bytes) -
+                                        (preamble_stub + stub_bytes + kRequiredStubJumpBytes));
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
@@ -245,9 +224,8 @@ SideStepError PreamblePatcher::RawPatchWithStub(
     preamble_stub[trampoline_pos] = ASM_NOP;
     preamble_stub[trampoline_pos + 1] = ASM_REXW;
     preamble_stub[trampoline_pos + 2] = ASM_MOVRAX_IMM;
-    memcpy(reinterpret_cast<void*>(preamble_stub + trampoline_pos + 3),
-           reinterpret_cast<void*>(&replacement_function),
-           sizeof(void *));
+    memcpy(reinterpret_cast<void*>(preamble_stub + trampoline_pos + 3), reinterpret_cast<void*>(&replacement_function),
+           sizeof(void*));
     preamble_stub[trampoline_pos + 11] = ASM_JMP;
     preamble_stub[trampoline_pos + 12] = ASM_JMP_RAX;
 
@@ -267,17 +245,15 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // Find offset from instruction after jmp, to the replacement function.
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable:4244)
+#pragma warning(disable : 4244)
 #endif
   int offset_to_replacement_function =
-      reinterpret_cast<unsigned char*>(replacement_function) -
-      reinterpret_cast<unsigned char*>(target) - 5;
+      reinterpret_cast<unsigned char*>(replacement_function) - reinterpret_cast<unsigned char*>(target) - 5;
 #ifdef _MSC_VER
 #pragma warning(pop)
 #endif
   // complete the jmp instruction
-  memcpy(reinterpret_cast<void*>(target + 1),
-         reinterpret_cast<void*>(&offset_to_replacement_function), 4);
+  memcpy(reinterpret_cast<void*>(target + 1), reinterpret_cast<void*>(&offset_to_replacement_function), 4);
 
   // Set any remaining bytes that were moved to the preamble-stub to INT3 so
   // as not to cause confusion (otherwise you might see some strange
@@ -287,8 +263,8 @@ SideStepError PreamblePatcher::RawPatchWithStub(
   // means that this function cannot be patched using this patcher without
   // further thought.
   if (preamble_bytes > kRequiredTargetPatchBytes) {
-    memset(reinterpret_cast<void*>(target + kRequiredTargetPatchBytes),
-           ASM_INT3, preamble_bytes - kRequiredTargetPatchBytes);
+    memset(reinterpret_cast<void*>(target + kRequiredTargetPatchBytes), ASM_INT3,
+           preamble_bytes - kRequiredTargetPatchBytes);
   }
 
   // Inv: The memory pointed to by target_function now points to a relative

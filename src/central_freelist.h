@@ -54,10 +54,10 @@ class CACHELINE_ALIGNED CentralFreeList {
 
   // Insert the specified range into the central freelist.  N is the number of
   // elements in the range.  RemoveRange() is the opposite operation.
-  void InsertRange(void *start, void *end, int N);
+  void InsertRange(void* start, void* end, int N);
 
   // Returns the actual number of fetched elements and sets *start and *end.
-  int RemoveRange(void **start, void **end, int N);
+  int RemoveRange(void** start, void** end, int N);
 
   // Returns the number of free objects in cache.
   int length() {
@@ -76,13 +76,9 @@ class CACHELINE_ALIGNED CentralFreeList {
 
   // Lock/Unlock the internal SpinLock. Used on the pthread_atfork call
   // to set the lock in a consistent state before the fork.
-  void Lock() EXCLUSIVE_LOCK_FUNCTION(lock_) {
-    lock_.Lock();
-  }
+  void Lock() EXCLUSIVE_LOCK_FUNCTION(lock_) { lock_.Lock(); }
 
-  void Unlock() UNLOCK_FUNCTION(lock_) {
-    lock_.Unlock();
-  }
+  void Unlock() UNLOCK_FUNCTION(lock_) { lock_.Unlock(); }
 
  private:
   // TransferCache is used to cache transfers of
@@ -90,8 +86,8 @@ class CACHELINE_ALIGNED CentralFreeList {
   // thread caches and the central cache for a given size class.
   struct TCEntry {
     constexpr TCEntry() {}
-    void *head{};  // Head of chain of objects.
-    void *tail{};  // Tail of chain of objects.
+    void* head{};  // Head of chain of objects.
+    void* tail{};  // Tail of chain of objects.
   };
 
   // A central cache freelist can have anywhere from 0 to kMaxNumTransferEntries
@@ -109,18 +105,18 @@ class CACHELINE_ALIGNED CentralFreeList {
   // REQUIRES: lock_ is held
   // Remove object from cache and return.
   // Return nullptr if no free entries in cache.
-  int FetchFromOneSpans(int N, void **start, void **end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  int FetchFromOneSpans(int N, void** start, void** end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: lock_ is held
   // Remove object from cache and return.  Fetches
   // from pageheap if cache is empty.  Only returns
   // nullptr on allocation failure.
-  int FetchFromOneSpansSafe(int N, void **start, void **end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  int FetchFromOneSpansSafe(int N, void** start, void** end) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: lock_ is held
   // Release a linked list of objects to spans.
   // May temporarily release lock_.
-  void ReleaseListToSpans(void *start) EXCLUSIVE_LOCKS_REQUIRED(lock_);
+  void ReleaseListToSpans(void* start) EXCLUSIVE_LOCKS_REQUIRED(lock_);
 
   // REQUIRES: lock_ is held
   // Release an object to spans.
@@ -159,11 +155,11 @@ class CACHELINE_ALIGNED CentralFreeList {
   SpinLock lock_;
 
   // We keep linked lists of empty and non-empty spans.
-  size_t   size_class_{};   // My size class
-  Span     empty_;          // Dummy header for list of empty spans
-  Span     nonempty_;       // Dummy header for list of non-empty spans
-  size_t   num_spans_{};    // Number of spans in empty_ plus nonempty_
-  size_t   counter_{};      // Number of free objects in cache entry
+  size_t size_class_{};  // My size class
+  Span empty_;           // Dummy header for list of empty spans
+  Span nonempty_;        // Dummy header for list of non-empty spans
+  size_t num_spans_{};   // Number of spans in empty_ plus nonempty_
+  size_t counter_{};     // Number of free objects in cache entry
 
   // Here we reserve space for TCEntry cache slots.  Space is preallocated
   // for the largest possible number of entries than any one size class may

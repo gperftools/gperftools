@@ -32,13 +32,12 @@
  * Author: Maxim Lifantsev
  */
 
-
 #ifndef BASE_STL_ALLOCATOR_H_
 #define BASE_STL_ALLOCATOR_H_
 
 #include <config.h>
 
-#include <stddef.h>   // for ptrdiff_t
+#include <stddef.h>  // for ptrdiff_t
 
 #include "base/logging.h"
 
@@ -58,22 +57,24 @@
 template <typename T, class Alloc>
 class STL_Allocator {
  public:
-  typedef size_t     size_type;
-  typedef ptrdiff_t  difference_type;
-  typedef T*         pointer;
-  typedef const T*   const_pointer;
-  typedef T&         reference;
-  typedef const T&   const_reference;
-  typedef T          value_type;
+  typedef size_t size_type;
+  typedef ptrdiff_t difference_type;
+  typedef T* pointer;
+  typedef const T* const_pointer;
+  typedef T& reference;
+  typedef const T& const_reference;
+  typedef T value_type;
 
-  template <class T1> struct rebind {
+  template <class T1>
+  struct rebind {
     typedef STL_Allocator<T1, Alloc> other;
   };
 
-  STL_Allocator() { }
-  STL_Allocator(const STL_Allocator&) { }
-  template <class T1> STL_Allocator(const STL_Allocator<T1, Alloc>&) { }
-  ~STL_Allocator() { }
+  STL_Allocator() {}
+  STL_Allocator(const STL_Allocator&) {}
+  template <class T1>
+  STL_Allocator(const STL_Allocator<T1, Alloc>&) {}
+  ~STL_Allocator() {}
 
   pointer address(reference x) const { return &x; }
   const_pointer address(const_reference x) const { return &x; }
@@ -86,8 +87,8 @@ class STL_Allocator {
 
   size_type max_size() const { return size_t(-1) / sizeof(T); }
 
-  void construct(pointer p, const T& val) { ::new(p) T(val); }
-  void construct(pointer p) { ::new(p) T(); }
+  void construct(pointer p, const T& val) { ::new (p) T(val); }
+  void construct(pointer p) { ::new (p) T(); }
   void destroy(pointer p) { p->~T(); }
 
   // There's no state, so these allocators are always equal

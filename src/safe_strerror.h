@@ -43,15 +43,15 @@ namespace tcmalloc {
 // recognized it will return "errno <number>" string (kept in internal
 // buf_ buffer).
 class SafeStrError {
-public:
+ public:
   explicit ATTRIBUTE_VISIBILITY_HIDDEN SafeStrError(int errnum);
   const char* c_str() { return result_; }
-private:
+
+ private:
   const char* result_;
   char buf_[32];
 };
 
 }  // namespace tcmalloc
-
 
 #endif  // SAFE_STRERROR_H

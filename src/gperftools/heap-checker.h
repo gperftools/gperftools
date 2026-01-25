@@ -43,11 +43,11 @@
 #include <vector>
 
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 // The class is thread-safe with respect to all the provided static methods,
@@ -59,15 +59,15 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
   static bool NoGlobalLeaks();
   static void CancelGlobalCheck();
 
-  explicit HeapLeakChecker(const char *name);
+  explicit HeapLeakChecker(const char* name);
 
   ~HeapLeakChecker();
 
   bool NoLeaks() { return DoNoLeaks(DO_NOT_SYMBOLIZE); }
 
-  bool QuickNoLeaks()  { return NoLeaks(); }
-  bool BriefNoLeaks()  { return NoLeaks(); }
-  bool SameHeap()      { return NoLeaks(); }
+  bool QuickNoLeaks() { return NoLeaks(); }
+  bool BriefNoLeaks() { return NoLeaks(); }
+  bool SameHeap() { return NoLeaks(); }
   bool QuickSameHeap() { return NoLeaks(); }
   bool BriefSameHeap() { return NoLeaks(); }
 
@@ -81,6 +81,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
    public:
     Disabler();
     ~Disabler();
+
    private:
     Disabler(const Disabler&);        // disallow copy
     void operator=(const Disabler&);  // and assign
@@ -94,7 +95,7 @@ class PERFTOOLS_DLL_DECL HeapLeakChecker {
 
   static void UnIgnoreObject(const void* ptr);
 
-private:
+ private:
   enum ShouldSymbolize { SYMBOLIZE, DO_NOT_SYMBOLIZE };
 
   bool DoNoLeaks(ShouldSymbolize should_symbolize);
@@ -108,13 +109,12 @@ private:
   bool has_checked_;
   ptrdiff_t inuse_bytes_increase_;
   ptrdiff_t inuse_allocs_increase_;
-                                   // for this checker
+  // for this checker
   bool keep_profiles_;
 
   HeapLeakChecker(const HeapLeakChecker&);
   void operator=(const HeapLeakChecker&);
 };
-
 
 // Holds a pointer that will not be traversed by the heap checker.
 // Contrast with HeapLeakChecker::IgnoreObject(o), in which o and
@@ -122,17 +122,14 @@ private:
 template <class T>
 class HiddenPointer {
  public:
-  explicit HiddenPointer(T* t)
-      : masked_t_(reinterpret_cast<uintptr_t>(t) ^ kHideMask) {
-  }
+  explicit HiddenPointer(T* t) : masked_t_(reinterpret_cast<uintptr_t>(t) ^ kHideMask) {}
   // Returns unhidden pointer.  Be careful where you save the result.
   T* get() const { return reinterpret_cast<T*>(masked_t_ ^ kHideMask); }
 
  private:
   // Arbitrary value, but not such that xor'ing with it is likely
   // to map one valid pointer to another valid pointer:
-  static const uintptr_t kHideMask =
-      static_cast<uintptr_t>(0xF03A5F7BF03A5F7Bll);
+  static const uintptr_t kHideMask = static_cast<uintptr_t>(0xF03A5F7BF03A5F7Bll);
   uintptr_t masked_t_;
 };
 
@@ -143,6 +140,7 @@ class PERFTOOLS_DLL_DECL HeapCleaner {
   typedef void (*void_function)(void);
   HeapCleaner(void_function f);
   static void RunHeapCleanups();
+
  private:
   static std::vector<void_function>* heap_cleanups_;
 };
@@ -151,9 +149,9 @@ class PERFTOOLS_DLL_DECL HeapCleaner {
 // (they run only if we are doing heap leak checking.)
 // 'body' should be the cleanup code to run.  'name' doesn't matter,
 // but must be unique amongst all REGISTER_HEAPCHECK_CLEANUP calls.
-#define REGISTER_HEAPCHECK_CLEANUP(name, body)  \
-  namespace { \
-  void heapcheck_cleanup_##name() { body; } \
+#define REGISTER_HEAPCHECK_CLEANUP(name, body)                            \
+  namespace {                                                             \
+  void heapcheck_cleanup_##name() { body; }                               \
   static HeapCleaner heapcheck_cleaner_##name(&heapcheck_cleanup_##name); \
   }
 

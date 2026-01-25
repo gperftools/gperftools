@@ -49,17 +49,17 @@
 // It will print out the mangled (and associated unmangled) names of
 // the 8 symbols you need to put at the top of patch_functions.cc
 
-#include <sys/types.h>   // for size_t
-#include <new>           // for nothrow_t
+#include <sys/types.h>  // for size_t
+#include <new>          // for nothrow_t
 
-static char m;   // some dummy memory so new doesn't return nullptr.
+static char m;  // some dummy memory so new doesn't return nullptr.
 
 void* operator new(size_t size) { return &m; }
-void operator delete(void* p) throw() { }
+void operator delete(void* p) throw() {}
 void* operator new[](size_t size) { return &m; }
-void operator delete[](void* p) throw() { }
+void operator delete[](void* p) throw() {}
 
 void* operator new(size_t size, const std::nothrow_t&) throw() { return &m; }
-void operator delete(void* p, const std::nothrow_t&) throw() { }
+void operator delete(void* p, const std::nothrow_t&) throw() {}
 void* operator new[](size_t size, const std::nothrow_t&) throw() { return &m; }
-void operator delete[](void* p, const std::nothrow_t&) throw() { }
+void operator delete[](void* p, const std::nothrow_t&) throw() {}

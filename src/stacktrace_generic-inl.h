@@ -62,18 +62,15 @@
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 static int GET_STACK_TRACE_OR_FRAMES {
   static const int kStackLength = 64;
-  void * stack[kStackLength];
+  void* stack[kStackLength];
   int size;
 
   size = backtrace(stack, kStackLength);
   skip_count += 2;  // we want to skip the current and it's parent frame as well
   int result_count = size - skip_count;
-  if (result_count < 0)
-    result_count = 0;
-  if (result_count > max_depth)
-    result_count = max_depth;
-  for (int i = 0; i < result_count; i++)
-    result[i] = stack[i + skip_count];
+  if (result_count < 0) result_count = 0;
+  if (result_count > max_depth) result_count = max_depth;
+  for (int i = 0; i < result_count; i++) result[i] = stack[i + skip_count];
 
 #if IS_STACK_FRAMES
   // No implementation for finding out the stack frame sizes yet.

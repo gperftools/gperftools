@@ -15,7 +15,7 @@ using tcmalloc::GenericWriter;
 
 constexpr int kLargeAmount = 128 << 10;
 
-std::string expected_output = ([] () {
+std::string expected_output = ([]() {
   std::string s = "Answer is 42\nPI is 3.141593\n";
   s = s + s;
   s.resize(kLargeAmount, 'X');
@@ -66,11 +66,8 @@ TEST(GenericWriterTest, File) {
 }
 
 TEST(GenericWriterTest, ChunkedWriting) {
-  char* str = tcmalloc::WithWriterToStrDup(
-    tcmalloc::ChunkedWriterConfig{malloc, free, 128},
-    [] (GenericWriter* writer) {
-      PrintLargeAmount(writer);
-    });
+  char* str = tcmalloc::WithWriterToStrDup(tcmalloc::ChunkedWriterConfig{malloc, free, 128},
+                                           [](GenericWriter* writer) { PrintLargeAmount(writer); });
   EXPECT_EQ(std::string(str), expected_output);
   free(str);
 }

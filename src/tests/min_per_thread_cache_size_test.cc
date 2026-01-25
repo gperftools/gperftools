@@ -56,9 +56,7 @@ static const int kNumPasses = 10;
 // Get current total thread-cache size.
 static size_t CurrentThreadCacheSize() {
   size_t result = 0;
-  EXPECT_TRUE(MallocExtension::instance()->GetNumericProperty(
-                "tcmalloc.current_total_thread_cache_bytes",
-                &result));
+  EXPECT_TRUE(MallocExtension::instance()->GetNumericProperty("tcmalloc.current_total_thread_cache_bytes", &result));
   return result;
 }
 
@@ -103,22 +101,21 @@ TEST(MinPerThreadCacheSizeTest, Basics) {
   threads.reserve(kNumThreads);
 
   // Set the lower bound on per cache size.
-  CHECK(MallocExtension::instance()->SetNumericProperty(
-        "tcmalloc.min_per_thread_cache_bytes", kPerThreadCacheSize));
+  CHECK(MallocExtension::instance()->SetNumericProperty("tcmalloc.min_per_thread_cache_bytes", kPerThreadCacheSize));
 
   // Setting the max total thread cache size to 0 to ensure that the
   // per thread cache size is set to the lower bound.
-  CHECK(MallocExtension::instance()->SetNumericProperty(
-        "tcmalloc.max_total_thread_cache_bytes", 0));
+  CHECK(MallocExtension::instance()->SetNumericProperty("tcmalloc.max_total_thread_cache_bytes", 0));
 
   for (int i = 0; i < kNumThreads; i++) {
     threads.emplace_back(Filler, i, kNumThreads);
   }
 
   // Wait for all threads to finish.
-  for (auto& t : threads) { t.join(); }
+  for (auto& t : threads) {
+    t.join();
+  }
 
   // Check that the maximum cache size does not exceed the limit set.
   ASSERT_LT(max_cache_size, kPerThreadCacheSize * kNumThreads);
 }
-

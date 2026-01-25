@@ -33,15 +33,15 @@
  */
 
 #ifndef _WIN32
-# error You should only be including windows/port.cc in a windows environment!
+#error You should only be including windows/port.cc in a windows environment!
 #endif
 
 #include "config.h"
 
-#include <string.h>    // for strlen(), memset(), memcmp()
+#include <string.h>  // for strlen(), memset(), memcmp()
 #include <assert.h>
-#include <stdarg.h>    // for va_list, va_start, va_end
-#include <algorithm>   // for std:{min,max}
+#include <stdarg.h>   // for va_list, va_start, va_end
+#include <algorithm>  // for std:{min,max}
 #include <windows.h>
 #include "port.h"
 #include "base/logging.h"
@@ -58,8 +58,7 @@ int getpagesize() {
   if (pagesize == 0) {
     SYSTEM_INFO system_info;
     GetSystemInfo(&system_info);
-    pagesize = std::max(system_info.dwPageSize,
-                        system_info.dwAllocationGranularity);
+    pagesize = std::max(system_info.dwPageSize, system_info.dwAllocationGranularity);
   }
   return pagesize;
 }
@@ -74,7 +73,6 @@ extern "C" PERFTOOLS_DLL_DECL void WriteToStderr(const char* buf, int len) {
     write(STDERR_FILENO, buf + i, std::min(80, len - i));
   }
 }
-
 
 // -----------------------------------------------------------------------
 // Threads code
@@ -119,11 +117,11 @@ struct DestrFnClosure {
   tcmalloc::TlsKey key_for_destr_fn_arg;
 };
 
-static DestrFnClosure destr_fn_info;   // initted to all nullptr/0.
+static DestrFnClosure destr_fn_info;  // initted to all nullptr/0.
 
 static int on_process_term(void) {
   if (destr_fn_info.destr_fn) {
-    void *ptr = TlsGetValue(destr_fn_info.key_for_destr_fn_arg);
+    void* ptr = TlsGetValue(destr_fn_info.key_for_destr_fn_arg);
     // This shouldn't be necessary, but in Release mode, Windows
     // sometimes trashes the pointer in the TLS slot, so we need to
     // remove the pointer from the TLS slot before the thread dies.
@@ -135,7 +133,7 @@ static int on_process_term(void) {
 }
 
 static void NTAPI on_tls_callback(HINSTANCE h, DWORD dwReason, PVOID pv) {
-  if (dwReason == DLL_THREAD_DETACH) {   // thread is being destroyed!
+  if (dwReason == DLL_THREAD_DETACH) {  // thread is being destroyed!
     on_process_term();
   }
 }
@@ -151,8 +149,7 @@ extern "C" {
 // In x86, the PE loader looks for callbacks in a data segment
 #pragma data_seg(push, old_seg)
 #pragma data_seg(".CRT$XLB")
-void (NTAPI *p_thread_callback_tcmalloc)(
-    HINSTANCE h, DWORD dwReason, PVOID pv) = on_tls_callback;
+void(NTAPI* p_thread_callback_tcmalloc)(HINSTANCE h, DWORD dwReason, PVOID pv) = on_tls_callback;
 #pragma data_seg(".CRT$XTU")
 int (*p_process_term_tcmalloc)(void) = on_process_term;
 #pragma data_seg(pop, old_seg)
@@ -161,10 +158,9 @@ int (*p_process_term_tcmalloc)(void) = on_process_term;
 // In x64, the PE loader looks for callbacks in a constant segment
 #pragma const_seg(push, oldseg)
 #pragma const_seg(".CRT$XLB")
-extern "C" void (NTAPI * const p_thread_callback_tcmalloc)(
-	HINSTANCE h, DWORD dwReason, PVOID pv) = on_tls_callback;
+extern "C" void(NTAPI* const p_thread_callback_tcmalloc)(HINSTANCE h, DWORD dwReason, PVOID pv) = on_tls_callback;
 #pragma const_seg(".CRT$XTU")
-extern "C" int (NTAPI * const p_process_term_tcmalloc)(void) = on_process_term;
+extern "C" int(NTAPI* const p_process_term_tcmalloc)(void) = on_process_term;
 #pragma const_seg(pop, oldseg)
 #endif
 
@@ -187,7 +183,7 @@ tcmalloc::TlsKey tcmalloc::WinTlsKeyCreate(void (*destr_fn)(void*)) {
   // destr_fn with TlsGetValue(key) when the thread is destroyed
   // (as long as TlsGetValue(key) is not nullptr).
   tcmalloc::TlsKey key = TlsAlloc();
-  if (destr_fn) {   // register it
+  if (destr_fn) {  // register it
     // If this assert fails, we'll need to support an array of destr_fn_infos
     assert(destr_fn_info.destr_fn == nullptr);
     destr_fn_info.destr_fn = destr_fn;
@@ -202,14 +198,13 @@ tcmalloc::TlsKey tcmalloc::WinTlsKeyCreate(void (*destr_fn)(void*)) {
 
 // A replacement for HeapProfiler::CleanupOldProfiles.
 void DeleteMatchingFiles(const char* prefix, const char* full_glob) {
-  WIN32_FIND_DATAA found;  // that final A is for Ansi (as opposed to Unicode)
-  HANDLE hFind = FindFirstFileA(full_glob, &found);   // A is for Ansi
+  WIN32_FIND_DATAA found;                            // that final A is for Ansi (as opposed to Unicode)
+  HANDLE hFind = FindFirstFileA(full_glob, &found);  // A is for Ansi
   if (hFind != INVALID_HANDLE_VALUE) {
     const int prefix_length = strlen(prefix);
     do {
-      const char *fname = found.cFileName;
-      if ((strlen(fname) >= prefix_length) &&
-          (memcmp(fname, prefix, prefix_length) == 0)) {
+      const char* fname = found.cFileName;
+      if ((strlen(fname) >= prefix_length) && (memcmp(fname, prefix, prefix_length) == 0)) {
         RAW_VLOG(0, "Removing old heap profile %s\n", fname);
         // TODO(csilvers): we really need to unlink dirname + fname
         _unlink(fname);

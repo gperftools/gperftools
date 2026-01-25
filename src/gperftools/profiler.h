@@ -60,15 +60,15 @@
 #ifndef BASE_PROFILER_H_
 #define BASE_PROFILER_H_
 
-#include <time.h>       /* For time_t */
+#include <time.h> /* For time_t */
 
 /* Annoying stuff for windows; makes sure clients can import these functions */
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 /* All this code should be usable from within C apps. */
@@ -105,8 +105,8 @@ struct ProfilerOptions {
    * using thread-specific data, or using a shared data structure that
    * supports async-signal-safe lookups.
    */
-  int (*filter_in_thread)(void *arg);
-  void *filter_in_thread_arg;
+  int (*filter_in_thread)(void* arg);
+  void* filter_in_thread_arg;
 };
 
 /* Start profiling and write profile info into fname, discarding any
@@ -126,8 +126,7 @@ PERFTOOLS_DLL_DECL int ProfilerStart(const char* fname);
  *
  * Returns nonzero if profiling was started successfully, or zero else.
  */
-PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(
-    const char *fname, const struct ProfilerOptions *options);
+PERFTOOLS_DLL_DECL int ProfilerStartWithOptions(const char* fname, const struct ProfilerOptions* options);
 
 /* Stop profiling. Can be started again with ProfilerStart(), but
  * the currently accumulated profiling data will be cleared.
@@ -138,7 +137,6 @@ PERFTOOLS_DLL_DECL void ProfilerStop(void);
  * Has no effect if the profiler has not been started.
  */
 PERFTOOLS_DLL_DECL void ProfilerFlush(void);
-
 
 /* DEPRECATED: these functions were used to enable/disable profiling
  * in the current thread, but no longer do anything.
@@ -155,19 +153,18 @@ PERFTOOLS_DLL_DECL void ProfilerRegisterThread(void);
 
 /* Stores state about profiler's current status into "*state". */
 struct ProfilerState {
-  int    enabled;             /* Is profiling currently enabled? */
-  time_t start_time;          /* If enabled, when was profiling started? */
-  char   profile_name[1024];  /* Name of profile file being written, or '\0' */
-  int    samples_gathered;    /* Number of samples gathered so far (or 0) */
+  int enabled;             /* Is profiling currently enabled? */
+  time_t start_time;       /* If enabled, when was profiling started? */
+  char profile_name[1024]; /* Name of profile file being written, or '\0' */
+  int samples_gathered;    /* Number of samples gathered so far (or 0) */
 };
 PERFTOOLS_DLL_DECL void ProfilerGetCurrentState(struct ProfilerState* state);
 
 /* Returns the current stack trace, to be called from a SIGPROF handler. */
-PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(
-    void** result, int max_depth, int skip_count, const void *uc);
+PERFTOOLS_DLL_DECL int ProfilerGetStackTrace(void** result, int max_depth, int skip_count, const void* uc);
 
 #ifdef __cplusplus
 }  // extern "C"
 #endif
 
-#endif  /* BASE_PROFILER_H_ */
+#endif /* BASE_PROFILER_H_ */

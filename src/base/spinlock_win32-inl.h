@@ -32,17 +32,16 @@
  * This file is a Win32-specific part of spinlock_internal.cc
  */
 
-
 #include <windows.h>
 
 #ifdef _MSC_VER
-#   pragma comment(lib, "Synchronization.lib")
+#pragma comment(lib, "Synchronization.lib")
 #endif
 
 namespace base {
 namespace internal {
 
-void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
+void SpinLockDelay(std::atomic<int>* w, int32_t value, int loop) {
   if (loop != 0) {
     auto wait_ns = static_cast<uint64_t>(base::internal::SuggestedDelayNS(loop)) * 16;
     auto wait_ms = wait_ns / 1000000;
@@ -51,7 +50,7 @@ void SpinLockDelay(std::atomic<int> *w, int32_t value, int loop) {
   }
 }
 
-void SpinLockWake(std::atomic<int> *w, bool all) {
+void SpinLockWake(std::atomic<int>* w, bool all) {
   if (all) {
     WakeByAddressAll((void*)w);
   } else {
@@ -59,5 +58,5 @@ void SpinLockWake(std::atomic<int> *w, bool all) {
   }
 }
 
-} // namespace internal
-} // namespace base
+}  // namespace internal
+}  // namespace base

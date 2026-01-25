@@ -95,8 +95,7 @@ size_t GetThreadHeapCount() {
 #if defined(TEST_HARD_THREAD_DEALLOC)
 static pthread_key_t early_tls_key;
 
-static __attribute__((constructor(101)))
-void early_stuff() {
+static __attribute__((constructor(101))) void early_stuff() {
   // When this is defined, the "leak" part is skipped. So both thread
   // cache and early_tls_key get low values, so we're passing the
   // test. See above for details.
@@ -110,15 +109,14 @@ void early_stuff() {
   }
 #endif
 
-  CHECK(pthread_key_create(&early_tls_key, +[] (void* arg) {
-    auto sz = reinterpret_cast<uintptr_t>(arg);
-    (operator delete)((operator new)(sz));
-  }) == 0);
+  CHECK(pthread_key_create(
+            &early_tls_key, +[](void* arg) {
+              auto sz = reinterpret_cast<uintptr_t>(arg);
+              (operator delete)((operator new)(sz));
+            }) == 0);
 }
 
-static void do_early_stuff() {
-  pthread_setspecific(early_tls_key, reinterpret_cast<void*>(uintptr_t{32}));
-}
+static void do_early_stuff() { pthread_setspecific(early_tls_key, reinterpret_cast<void*>(uintptr_t{32})); }
 #else
 static void do_early_stuff() {}
 #endif
@@ -149,8 +147,8 @@ int main(int argc, char** argv) {
   for (int i = 0; i < kNumThreads; i++) {
     std::thread{AllocStuff}.join();
 
-    if (((i+1) % 200) == 0) {
-      printf("Iteration: %d of %d\n", (i+1), kNumThreads);
+    if (((i + 1) % 200) == 0) {
+      printf("Iteration: %d of %d\n", (i + 1), kNumThreads);
       MallocExtension::instance()->GetStats(display.get(), kDisplaySize);
       printf("%s\n", display.get());
       printf("Thread count: %zu\n", GetThreadHeapCount());

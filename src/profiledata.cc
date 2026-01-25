@@ -57,15 +57,13 @@ const int ProfileData::kAssociativity;
 const int ProfileData::kBuckets;
 const int ProfileData::kBufferLength;
 
-ProfileData::Options::Options()
-    : frequency_(1) {
-}
+ProfileData::Options::Options() : frequency_(1) {}
 
 // This function is safe to call from asynchronous signals (but is not
 // re-entrant).  However, that's not part of its public interface.
 void ProfileData::Evict(const Entry& entry) {
   const int d = entry.depth;
-  const int nslots = d + 2;     // Number of slots needed in eviction buffer
+  const int nslots = d + 2;  // Number of slots needed in eviction buffer
   if (num_evicted_ + nslots > kBufferLength) {
     FlushEvicted();
     assert(num_evicted_ == 0);
@@ -86,11 +84,9 @@ ProfileData::ProfileData()
       evictions_(0),
       total_bytes_(0),
       fname_(0),
-      start_time_(0) {
-}
+      start_time_(0) {}
 
-bool ProfileData::Start(const char* fname,
-                        const ProfileData::Options& options) {
+bool ProfileData::Start(const char* fname, const ProfileData::Options& options) {
   if (enabled()) {
     return false;
   }
@@ -107,8 +103,8 @@ bool ProfileData::Start(const char* fname,
 
   // Reset counters
   num_evicted_ = 0;
-  count_       = 0;
-  evictions_   = 0;
+  count_ = 0;
+  evictions_ = 0;
   total_bytes_ = 0;
 
   hash_ = new Bucket[kBuckets];
@@ -116,25 +112,25 @@ bool ProfileData::Start(const char* fname,
   memset(hash_, 0, sizeof(hash_[0]) * kBuckets);
 
   // Record special entries
-  evict_[num_evicted_++] = 0;                     // count for header
-  evict_[num_evicted_++] = 3;                     // depth for header
-  evict_[num_evicted_++] = 0;                     // Version number
+  evict_[num_evicted_++] = 0;  // count for header
+  evict_[num_evicted_++] = 3;  // depth for header
+  evict_[num_evicted_++] = 0;  // Version number
   CHECK_NE(0, options.frequency());
   int period = 1000000 / options.frequency();
-  evict_[num_evicted_++] = period;                // Period (microseconds)
-  evict_[num_evicted_++] = 0;                     // Padding
+  evict_[num_evicted_++] = period;  // Period (microseconds)
+  evict_[num_evicted_++] = 0;       // Padding
 
   out_ = fd;
 
   return true;
 }
 
-ProfileData::~ProfileData() {
-  Stop();
-}
+ProfileData::~ProfileData() { Stop(); }
 
 // Dump /proc/maps data to fd.  Copied from heap-profile-table.cc.
-#define NO_INTR(fn)  do {} while ((fn) < 0 && errno == EINTR)
+#define NO_INTR(fn) \
+  do {              \
+  } while ((fn) < 0 && errno == EINTR)
 
 static void FDWrite(int fd, const char* buf, size_t len) {
   while (len > 0) {
@@ -167,17 +163,16 @@ void ProfileData::Stop() {
   }
 
   // Write end of data marker
-  evict_[num_evicted_++] = 0;         // count
-  evict_[num_evicted_++] = 1;         // depth
-  evict_[num_evicted_++] = 0;         // end of data marker
+  evict_[num_evicted_++] = 0;  // count
+  evict_[num_evicted_++] = 1;  // depth
+  evict_[num_evicted_++] = 0;  // end of data marker
   FlushEvicted();
 
   // Dump "/proc/self/maps" so we get list of mapped shared libraries
   tcmalloc::SaveProcSelfMapsToRawFD(static_cast<RawFD>(out_));
 
   Reset();
-  fprintf(stderr, "PROFILE: interrupts/evictions/bytes = %d/%d/%zu\n",
-          count_, evictions_, total_bytes_);
+  fprintf(stderr, "PROFILE: interrupts/evictions/bytes = %d/%d/%zu\n", count_, evictions_, total_bytes_);
 }
 
 void ProfileData::Reset() {
@@ -210,7 +205,7 @@ void ProfileData::GetCurrentState(State* state) const {
     state->samples_gathered = count_;
     int buf_size = sizeof(state->profile_name);
     strncpy(state->profile_name, fname_ ? fname_ : "", buf_size);
-    state->profile_name[buf_size-1] = '\0';
+    state->profile_name[buf_size - 1] = '\0';
   } else {
     state->enabled = false;
     state->start_time = 0;
@@ -254,7 +249,7 @@ void ProfileData::Add(int depth, const void* const* stack) {
   Slot h = 0;
   for (int i = 0; i < depth; i++) {
     Slot slot = reinterpret_cast<Slot>(stack[i]);
-    h = (h << 8) | (h >> (8*(sizeof(h)-1)));
+    h = (h << 8) | (h >> (8 * (sizeof(h) - 1)));
     h += (slot * 31) + (slot * 7) + (slot * 3);
   }
 

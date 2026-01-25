@@ -66,14 +66,12 @@ TEST(AddressMapUnittest, Basic) {
   std::mt19937 rng(0);
 
   // generates uniformly distributed size_t in range [0, n)
-  auto uniform = [&] (size_t n) -> size_t {
-    return std::uniform_int_distribution<size_t>{0, n-1}(rng);
-  };
+  auto uniform = [&](size_t n) -> size_t { return std::uniform_int_distribution<size_t>{0, n - 1}(rng); };
 
   std::vector<PtrAndSize> ptrs_and_sizes;
   ptrs_and_sizes.reserve(N);
   for (int i = 0; i < N; ++i) {
-    size_t s = uniform(kMaxRealSize-1) + 1;
+    size_t s = uniform(kMaxRealSize - 1) + 1;
     ptrs_and_sizes.emplace_back(new char[s], s);
   }
 
@@ -121,9 +119,9 @@ TEST(AddressMapUnittest, Basic) {
       ASSERT_TRUE(result = map.FindInside(&SizeFunc, kMaxRealSize, p + offs, &res_p));
       ASSERT_EQ(res_p, p);
       ASSERT_EQ(result->first, i + N);
-      map.Insert(p, std::make_pair(i + 2*N, ptrs_and_sizes[i].size));
+      map.Insert(p, std::make_pair(i + 2 * N, ptrs_and_sizes[i].size));
       ASSERT_TRUE(result = map.Find(p));
-      ASSERT_EQ(result->first, i + 2*N);
+      ASSERT_EQ(result->first, i + 2 * N);
     }
 
     // Insert even entries back
@@ -131,25 +129,23 @@ TEST(AddressMapUnittest, Basic) {
       char* p = ptrs_and_sizes[i].ptr.get();
       int offs = uniform(ptrs_and_sizes[i].size);
       ASSERT_TRUE(!map.FindInside(&SizeFunc, kMaxSize, p + offs, &res_p));
-      map.Insert(p, std::make_pair(i + 2*N, ptrs_and_sizes[i].size));
+      map.Insert(p, std::make_pair(i + 2 * N, ptrs_and_sizes[i].size));
       ASSERT_TRUE(result = map.Find(p));
-      ASSERT_EQ(result->first, i + 2*N);
+      ASSERT_EQ(result->first, i + 2 * N);
       ASSERT_TRUE(result = map.FindInside(&SizeFunc, kMaxRealSize, p + offs, &res_p));
       ASSERT_EQ(res_p, p);
-      ASSERT_EQ(result->first, i + 2*N);
+      ASSERT_EQ(result->first, i + 2 * N);
     }
 
     // Check all entries
     std::set<std::pair<const void*, int> > check_set;
-    map.Iterate([&] (const void* ptr, ValueT* val) {
-      check_set.insert(std::make_pair(ptr, val->first));
-    });
+    map.Iterate([&](const void* ptr, ValueT* val) { check_set.insert(std::make_pair(ptr, val->first)); });
     ASSERT_EQ(check_set.size(), N);
     for (int i = 0; i < N; ++i) {
       void* p = ptrs_and_sizes[i].ptr.get();
-      check_set.erase(std::make_pair(p, i + 2*N));
+      check_set.erase(std::make_pair(p, i + 2 * N));
       ASSERT_TRUE(result = map.Find(p));
-      ASSERT_EQ(result->first, i + 2*N);
+      ASSERT_EQ(result->first, i + 2 * N);
     }
     ASSERT_EQ(check_set.size(), 0);
   }

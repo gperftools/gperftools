@@ -56,8 +56,7 @@
 struct HeapProfileStats {
   // Returns true if the two HeapProfileStats are semantically equal.
   bool Equivalent(const HeapProfileStats& other) const {
-    return allocs - frees == other.allocs - other.frees &&
-        alloc_size - free_size == other.alloc_size - other.free_size;
+    return allocs - frees == other.allocs - other.frees && alloc_size - free_size == other.alloc_size - other.free_size;
   }
 
   int64_t allocs;      // Number of allocation calls.

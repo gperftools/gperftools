@@ -50,7 +50,7 @@
 
 class LOCKABLE SpinLock {
  public:
-  constexpr SpinLock() : lockword_(kSpinLockFree) { }
+  constexpr SpinLock() : lockword_(kSpinLockFree) {}
 
   // Acquire this SpinLock.
   void Lock() EXCLUSIVE_LOCK_FUNCTION() {
@@ -81,9 +81,7 @@ class LOCKABLE SpinLock {
   // Determine if the lock is held.  When the lock is held by the invoking
   // thread, true will always be returned. Intended to be used as
   // CHECK(lock.IsHeld()).
-  bool IsHeld() const {
-    return lockword_.load(std::memory_order_relaxed) != kSpinLockFree;
-  }
+  bool IsHeld() const { return lockword_.load(std::memory_order_relaxed) != kSpinLockFree; }
 
  private:
   enum { kSpinLockFree = 0 };
@@ -104,15 +102,11 @@ class LOCKABLE SpinLock {
 class SCOPED_LOCKABLE SpinLockHolder {
  private:
   SpinLock* lock_;
+
  public:
-  explicit SpinLockHolder(SpinLock* l) EXCLUSIVE_LOCK_FUNCTION(l)
-      : lock_(l) {
-    l->Lock();
-  }
+  explicit SpinLockHolder(SpinLock* l) EXCLUSIVE_LOCK_FUNCTION(l) : lock_(l) { l->Lock(); }
   SpinLockHolder(const SpinLockHolder&) = delete;
-  ~SpinLockHolder() UNLOCK_FUNCTION() {
-    lock_->Unlock();
-  }
+  ~SpinLockHolder() UNLOCK_FUNCTION() { lock_->Unlock(); }
 };
 // Catch bug where variable name is omitted, e.g. SpinLockHolder (&lock);
 #define SpinLockHolder(x) static_assert(0)
@@ -120,7 +114,7 @@ class SCOPED_LOCKABLE SpinLockHolder {
 namespace tcmalloc {
 
 class TrivialOnce {
-public:
+ public:
   template <typename Body>
   bool RunOnce(Body body) {
     auto done_atomic = reinterpret_cast<std::atomic<int>*>(&done_flag_);
@@ -139,7 +133,7 @@ public:
     return true;
   }
 
-private:
+ private:
   int done_flag_;
   StaticStorage<SpinLock> lock_storage_;
 };
@@ -147,6 +141,5 @@ private:
 static_assert(std::is_trivial<TrivialOnce>::value == true, "");
 
 }  // namespace tcmalloc
-
 
 #endif  // BASE_SPINLOCK_H_

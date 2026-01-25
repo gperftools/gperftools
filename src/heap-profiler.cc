@@ -45,7 +45,7 @@
 #include <time.h>
 
 #ifdef HAVE_FCNTL_H
-#include <fcntl.h>    // for open()
+#include <fcntl.h>  // for open()
 #endif
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -61,15 +61,15 @@
 #include <gperftools/malloc_extension.h>
 #include "base/spinlock.h"
 #include "base/low_level_alloc.h"
-#include "base/sysinfo.h"      // for GetUniquePathFromEnv()
+#include "base/sysinfo.h"  // for GetUniquePathFromEnv()
 #include "heap-profile-table.h"
 #include "malloc_backtrace.h"
 
-#ifndef	PATH_MAX
+#ifndef PATH_MAX
 #ifdef MAXPATHLEN
-#define	PATH_MAX	MAXPATHLEN
+#define PATH_MAX MAXPATHLEN
 #else
-#define	PATH_MAX	4096         // seems conservative for max filename len!
+#define PATH_MAX 4096  // seems conservative for max filename len!
 #endif
 #endif
 
@@ -82,28 +82,23 @@ using tcmalloc::LowLevelAlloc;
 // after main starts, so don't change them.
 //----------------------------------------------------------------------
 
-DEFINE_int64(heap_profile_allocation_interval,
-             EnvToInt64("HEAP_PROFILE_ALLOCATION_INTERVAL", 1 << 30 /*1GB*/),
+DEFINE_int64(heap_profile_allocation_interval, EnvToInt64("HEAP_PROFILE_ALLOCATION_INTERVAL", 1 << 30 /*1GB*/),
              "If non-zero, dump heap profiling information once every "
              "specified number of bytes allocated by the program since "
              "the last dump.");
-DEFINE_int64(heap_profile_deallocation_interval,
-             EnvToInt64("HEAP_PROFILE_DEALLOCATION_INTERVAL", 0),
+DEFINE_int64(heap_profile_deallocation_interval, EnvToInt64("HEAP_PROFILE_DEALLOCATION_INTERVAL", 0),
              "If non-zero, dump heap profiling information once every "
              "specified number of bytes deallocated by the program "
              "since the last dump.");
 // We could also add flags that report whenever inuse_bytes changes by
 // X or -X, but there hasn't been a need for that yet, so we haven't.
-DEFINE_int64(heap_profile_inuse_interval,
-             EnvToInt64("HEAP_PROFILE_INUSE_INTERVAL", 100 << 20 /*100MB*/),
+DEFINE_int64(heap_profile_inuse_interval, EnvToInt64("HEAP_PROFILE_INUSE_INTERVAL", 100 << 20 /*100MB*/),
              "If non-zero, dump heap profiling information whenever "
              "the high-water memory usage mark increases by the specified "
              "number of bytes.");
-DEFINE_int64(heap_profile_time_interval,
-             EnvToInt64("HEAP_PROFILE_TIME_INTERVAL", 0),
+DEFINE_int64(heap_profile_time_interval, EnvToInt64("HEAP_PROFILE_TIME_INTERVAL", 0),
              "If non-zero, dump heap profiling information once every "
              "specified number of seconds since the last dump.");
-
 
 //----------------------------------------------------------------------
 // Locking
@@ -121,28 +116,23 @@ static SpinLock heap_lock;
 // Simple allocator for heap profiler's internal memory
 //----------------------------------------------------------------------
 
-static LowLevelAlloc::Arena *heap_profiler_memory;
+static LowLevelAlloc::Arena* heap_profiler_memory;
 
-static void* ProfilerMalloc(size_t bytes) {
-  return LowLevelAlloc::AllocWithArena(bytes, heap_profiler_memory);
-}
-static void ProfilerFree(void* p) {
-  LowLevelAlloc::Free(p);
-}
+static void* ProfilerMalloc(size_t bytes) { return LowLevelAlloc::AllocWithArena(bytes, heap_profiler_memory); }
+static void ProfilerFree(void* p) { LowLevelAlloc::Free(p); }
 
 // We use buffers of this size in DoGetHeapProfile.
-
 
 //----------------------------------------------------------------------
 // Profiling control/state data
 //----------------------------------------------------------------------
 
 // Access to all of these is protected by heap_lock.
-static bool  is_on;           // If are on as a subsytem.
-static bool  dumping;         // Dumping status to prevent recursion
-static char* filename_prefix; // Prefix used for profile file names
-                              // (nullptr if no need for dumping yet)
-static int   dump_count;      // How many dumps so far
+static bool is_on;               // If are on as a subsytem.
+static bool dumping;             // Dumping status to prevent recursion
+static char* filename_prefix;    // Prefix used for profile file names
+                                 // (nullptr if no need for dumping yet)
+static int dump_count;           // How many dumps so far
 static int64_t last_dump_alloc;  // alloc_size when did we last dump
 static int64_t last_dump_free;   // free_size when did we last dump
 static int64_t high_water_mark;  // In-use-bytes at last high-water dump
@@ -165,7 +155,7 @@ static void DoDumpHeapProfileLocked(tcmalloc::GenericWriter* writer) {
 extern "C" char* GetHeapProfile() {
   tcmalloc::ChunkedWriterConfig config(ProfilerMalloc, ProfilerFree);
 
-  return tcmalloc::WithWriterToStrDup(config, [] (tcmalloc::GenericWriter* writer) {
+  return tcmalloc::WithWriterToStrDup(config, [](tcmalloc::GenericWriter* writer) {
     SpinLockHolder l(&heap_lock);
     DoDumpHeapProfileLocked(writer);
   });
@@ -188,8 +178,7 @@ static void DumpProfileLocked(const char* reason) {
   // Make file name
   char file_name[1000];
   dump_count++;
-  snprintf(file_name, sizeof(file_name), "%s.%04d%s",
-           filename_prefix, dump_count, HeapProfileTable::kFileExt);
+  snprintf(file_name, sizeof(file_name), "%s.%04d%s", filename_prefix, dump_count, HeapProfileTable::kFileExt);
 
   // Dump the profile
   RAW_VLOG(0, "Dumping heap profile to %s (%s)", file_name, reason);
@@ -230,31 +219,27 @@ static void MaybeDumpProfileLocked() {
     char buf[128];
 
     if (FLAGS_heap_profile_allocation_interval > 0 &&
-        total.alloc_size >=
-        last_dump_alloc + FLAGS_heap_profile_allocation_interval) {
-      snprintf(buf, sizeof(buf), ("%" PRId64 " MB allocated cumulatively, "
-                                  "%" PRId64 " MB currently in use"),
+        total.alloc_size >= last_dump_alloc + FLAGS_heap_profile_allocation_interval) {
+      snprintf(buf, sizeof(buf),
+               ("%" PRId64 " MB allocated cumulatively, "
+                "%" PRId64 " MB currently in use"),
                total.alloc_size >> 20, inuse_bytes >> 20);
       need_to_dump = true;
     } else if (FLAGS_heap_profile_deallocation_interval > 0 &&
-               total.free_size >=
-               last_dump_free + FLAGS_heap_profile_deallocation_interval) {
-      snprintf(buf, sizeof(buf), ("%" PRId64 " MB freed cumulatively, "
-                                  "%" PRId64 " MB currently in use"),
+               total.free_size >= last_dump_free + FLAGS_heap_profile_deallocation_interval) {
+      snprintf(buf, sizeof(buf),
+               ("%" PRId64 " MB freed cumulatively, "
+                "%" PRId64 " MB currently in use"),
                total.free_size >> 20, inuse_bytes >> 20);
       need_to_dump = true;
     } else if (FLAGS_heap_profile_inuse_interval > 0 &&
-               inuse_bytes >
-               high_water_mark + FLAGS_heap_profile_inuse_interval) {
-      snprintf(buf, sizeof(buf), "%" PRId64 " MB currently in use",
-               inuse_bytes >> 20);
+               inuse_bytes > high_water_mark + FLAGS_heap_profile_inuse_interval) {
+      snprintf(buf, sizeof(buf), "%" PRId64 " MB currently in use", inuse_bytes >> 20);
       need_to_dump = true;
-    } else if (FLAGS_heap_profile_time_interval > 0 ) {
+    } else if (FLAGS_heap_profile_time_interval > 0) {
       int64_t current_time = time(nullptr);
-      if (current_time - last_dump_time >=
-          FLAGS_heap_profile_time_interval) {
-        snprintf(buf, sizeof(buf), "%" PRId64 " sec since the last dump",
-                 current_time - last_dump_time);
+      if (current_time - last_dump_time >= FLAGS_heap_profile_time_interval) {
+        snprintf(buf, sizeof(buf), "%" PRId64 " sec since the last dump", current_time - last_dump_time);
         need_to_dump = true;
         last_dump_time = current_time;
       }
@@ -264,8 +249,7 @@ static void MaybeDumpProfileLocked() {
 
       last_dump_alloc = total.alloc_size;
       last_dump_free = total.free_size;
-      if (inuse_bytes > high_water_mark)
-        high_water_mark = inuse_bytes;
+      if (inuse_bytes > high_water_mark) high_water_mark = inuse_bytes;
     }
   }
 }
@@ -325,8 +309,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
 
   heap_profiler_memory = LowLevelAlloc::NewArena();
 
-  heap_profile = new(ProfilerMalloc(sizeof(HeapProfileTable)))
-      HeapProfileTable(ProfilerMalloc, ProfilerFree);
+  heap_profile = new (ProfilerMalloc(sizeof(HeapProfileTable))) HeapProfileTable(ProfilerMalloc, ProfilerFree);
 
   last_dump_alloc = 0;
   last_dump_free = 0;
@@ -351,7 +334,7 @@ extern "C" void HeapProfilerStart(const char* prefix) {
 
 extern "C" int IsHeapProfilerRunning() {
   SpinLockHolder l(&heap_lock);
-  return is_on ? 1 : 0;   // return an int, because C code doesn't have bool
+  return is_on ? 1 : 0;  // return an int, because C code doesn't have bool
 }
 
 extern "C" void HeapProfilerStop() {
@@ -379,7 +362,7 @@ extern "C" void HeapProfilerStop() {
   is_on = false;
 }
 
-extern "C" void HeapProfilerDump(const char *reason) {
+extern "C" void HeapProfilerDump(const char* reason) {
   SpinLockHolder l(&heap_lock);
   if (is_on && !dumping) {
     DumpProfileLocked(reason);
@@ -398,7 +381,6 @@ static void HeapProfilerDumpSignal(int signal_number) {
   }
   heap_lock.Unlock();
 }
-
 
 //----------------------------------------------------------------------
 // Initialization/finalization code
@@ -420,14 +402,14 @@ static void HeapProfilerInit() {
   }
 #endif
 
-  char *signal_number_str = getenv("HEAPPROFILESIGNAL");
+  char* signal_number_str = getenv("HEAPPROFILESIGNAL");
   if (signal_number_str != nullptr) {
     long int signal_number = strtol(signal_number_str, nullptr, 10);
     intptr_t old_signal_handler = reinterpret_cast<intptr_t>(signal(signal_number, HeapProfilerDumpSignal));
     if (old_signal_handler == reinterpret_cast<intptr_t>(SIG_ERR)) {
       RAW_LOG(FATAL, "Failed to set signal. Perhaps signal number %s is invalid\n", signal_number_str);
     } else if (old_signal_handler == 0) {
-      RAW_LOG(INFO,"Using signal %d as heap profiling switch", signal_number);
+      RAW_LOG(INFO, "Using signal %d as heap profiling switch", signal_number);
     } else {
       RAW_LOG(FATAL, "Signal %d already in use\n", signal_number);
     }
@@ -447,14 +429,11 @@ struct HeapProfileEndWriter {
       const int64_t inuse_bytes = total.alloc_size - total.free_size;
 
       if ((inuse_bytes >> 20) > 0) {
-        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " MB in use"),
-                 inuse_bytes >> 20);
+        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " MB in use"), inuse_bytes >> 20);
       } else if ((inuse_bytes >> 10) > 0) {
-        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " kB in use"),
-                 inuse_bytes >> 10);
+        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " kB in use"), inuse_bytes >> 10);
       } else {
-        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " bytes in use"),
-                 inuse_bytes);
+        snprintf(buf, sizeof(buf), ("Exiting, %" PRId64 " bytes in use"), inuse_bytes);
       }
     } else {
       snprintf(buf, sizeof(buf), ("Exiting"));

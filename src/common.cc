@@ -33,7 +33,7 @@
 
 #include "config.h"
 
-#include <stdlib.h> // for strtol
+#include <stdlib.h>  // for strtol
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
@@ -44,7 +44,7 @@
 #include "system-alloc.h"
 #include "base/spinlock.h"
 #include "base/commandlineflags.h"
-#include "getenv_safe.h" // TCMallocGetenvSafe
+#include "getenv_safe.h"  // TCMallocGetenvSafe
 
 namespace tcmalloc {
 
@@ -57,12 +57,10 @@ static constexpr int32_t kDefaultTransferNumObjecs = 32;
 // The init function is provided to explicit initialize the variable value
 // from the env. var to avoid C++ global construction that might defer its
 // initialization after a malloc/new call.
-static inline void InitTCMallocTransferNumObjects()
-{
+static inline void InitTCMallocTransferNumObjects() {
   if (FLAGS_tcmalloc_transfer_num_objects == 0) {
-    const char *envval = TCMallocGetenvSafe("TCMALLOC_TRANSFER_NUM_OBJ");
-    FLAGS_tcmalloc_transfer_num_objects = !envval ? kDefaultTransferNumObjecs :
-      strtol(envval, nullptr, 10);
+    const char* envval = TCMallocGetenvSafe("TCMALLOC_TRANSFER_NUM_OBJ");
+    FLAGS_tcmalloc_transfer_num_objects = !envval ? kDefaultTransferNumObjecs : strtol(envval, nullptr, 10);
   }
 }
 
@@ -120,8 +118,7 @@ int SizeMap::NumMoveSize(size_t size) {
   // - We go to the central freelist too often and we have to acquire
   //   its lock each time.
   // This value strikes a balance between the constraints above.
-  if (num > FLAGS_tcmalloc_transfer_num_objects)
-    num = FLAGS_tcmalloc_transfer_num_objects;
+  if (num > FLAGS_tcmalloc_transfer_num_objects) num = FLAGS_tcmalloc_transfer_num_objects;
 
   return num;
 }
@@ -131,8 +128,8 @@ void SizeMap::Init() {
   InitTCMallocTransferNumObjects();
 
 #if (!defined(_WIN32) || defined(TCMALLOC_BRAVE_EFFECTIVE_PAGE_SIZE)) && !defined(TCMALLOC_COWARD_EFFECTIVE_PAGE_SIZE)
-  size_t native_page_size = tcmalloc::commandlineflags::StringToLongLong(
-    TCMallocGetenvSafe("TCMALLOC_OVERRIDE_PAGESIZE"), getpagesize());
+  size_t native_page_size =
+      tcmalloc::commandlineflags::StringToLongLong(TCMallocGetenvSafe("TCMALLOC_OVERRIDE_PAGESIZE"), getpagesize());
 #else
   // So windows getpagesize() returns 64k. Because that is
   // "granularity size" w.r.t. their virtual memory facility. So kinda
@@ -146,10 +143,12 @@ void SizeMap::Init() {
 
   size_t min_span_size = std::max<size_t>(native_page_size, kPageSize);
   if (min_span_size > kPageSize && (min_span_size % kPageSize) != 0) {
-    Log(kLog, __FILE__, __LINE__, "This should never happen, but somehow "
+    Log(kLog, __FILE__, __LINE__,
+        "This should never happen, but somehow "
         "we got systems page size not power of 2 and not multiple of "
         "malloc's logical page size. Releasing memory back will mostly not happen. "
-        "system: ", native_page_size, ", malloc: ", kPageSize);
+        "system: ",
+        native_page_size, ", malloc: ", kPageSize);
     min_span_size = kPageSize;
   }
 
@@ -157,16 +156,14 @@ void SizeMap::Init() {
 
   // Do some sanity checking on add_amount[]/shift_amount[]/class_array[]
   if (ClassIndex(0) != 0) {
-    Log(kCrash, __FILE__, __LINE__,
-        "Invalid class index for size 0", ClassIndex(0));
+    Log(kCrash, __FILE__, __LINE__, "Invalid class index for size 0", ClassIndex(0));
   }
   if (ClassIndex(kMaxSize) >= sizeof(class_array_)) {
-    Log(kCrash, __FILE__, __LINE__,
-        "Invalid class index for kMaxSize", ClassIndex(kMaxSize));
+    Log(kCrash, __FILE__, __LINE__, "Invalid class index for kMaxSize", ClassIndex(kMaxSize));
   }
 
   // Compute the size classes we want to use
-  int sc = 1;   // Next size class to assign
+  int sc = 1;  // Next size class to assign
   int alignment = kAlignment;
   CHECK_CONDITION(kAlignment <= kMinAlign);
   for (size_t size = kAlignment; size <= kMaxSize; size += alignment) {
@@ -188,15 +185,14 @@ void SizeMap::Init() {
     } while ((psize / size) < (blocks_to_move));
     const size_t my_pages = psize >> kPageShift;
 
-    if (sc > 1 && my_pages == class_to_pages_[sc-1]) {
+    if (sc > 1 && my_pages == class_to_pages_[sc - 1]) {
       // See if we can merge this into the previous class without
       // increasing the fragmentation of the previous class.
       const size_t my_objects = (my_pages << kPageShift) / size;
-      const size_t prev_objects = (class_to_pages_[sc-1] << kPageShift)
-                                  / class_to_size_[sc-1];
+      const size_t prev_objects = (class_to_pages_[sc - 1] << kPageShift) / class_to_size_[sc - 1];
       if (my_objects == prev_objects) {
         // Adjust last class to include this size
-        class_to_size_[sc-1] = size;
+        class_to_size_[sc - 1] = size;
         continue;
       }
     }
@@ -208,8 +204,7 @@ void SizeMap::Init() {
   }
   num_size_classes = sc;
   if (sc > kClassSizesMax) {
-    Log(kCrash, __FILE__, __LINE__,
-        "too many size classes: (found vs. max)", sc, kClassSizesMax);
+    Log(kCrash, __FILE__, __LINE__, "too many size classes: (found vs. max)", sc, kClassSizesMax);
   }
 
   // Initialize the mapping arrays
@@ -226,17 +221,14 @@ void SizeMap::Init() {
   for (size_t size = 0; size <= kMaxSize;) {
     const int sc = SizeClass(size);
     if (sc <= 0 || sc >= num_size_classes) {
-      Log(kCrash, __FILE__, __LINE__,
-          "Bad size class (class, size)", sc, size);
+      Log(kCrash, __FILE__, __LINE__, "Bad size class (class, size)", sc, size);
     }
-    if (sc > 1 && size <= class_to_size_[sc-1]) {
-      Log(kCrash, __FILE__, __LINE__,
-          "Allocating unnecessarily large class (class, size)", sc, size);
+    if (sc > 1 && size <= class_to_size_[sc - 1]) {
+      Log(kCrash, __FILE__, __LINE__, "Allocating unnecessarily large class (class, size)", sc, size);
     }
     const size_t s = class_to_size_[sc];
     if (size > s || s == 0) {
-      Log(kCrash, __FILE__, __LINE__,
-          "Bad (class, size, requested)", sc, s, size);
+      Log(kCrash, __FILE__, __LINE__, "Bad (class, size, requested)", sc, s, size);
     }
     if (size <= kMaxSmallSize) {
       size += 8;
@@ -261,27 +253,26 @@ void SizeMap::Init() {
   }
 
   // Initialize the num_objects_to_move array.
-  for (size_t cl = 1; cl  < num_size_classes; ++cl) {
+  for (size_t cl = 1; cl < num_size_classes; ++cl) {
     num_objects_to_move_[cl] = NumMoveSize(ByteSizeForClass(cl));
   }
 }
 
 // Metadata allocator -- keeps stats about how many bytes allocated.
 static uint64_t metadata_system_bytes_ = 0;
-static const size_t kMetadataAllocChunkSize = 8*1024*1024;
+static const size_t kMetadataAllocChunkSize = 8 * 1024 * 1024;
 // As ThreadCache objects are allocated with MetaDataAlloc, and also
 // CACHELINE_ALIGNED, we must use the same alignment as TCMalloc_SystemAlloc.
 static const size_t kMetadataAllignment = sizeof(MemoryAligner);
 
-static char *metadata_chunk_alloc_;
+static char* metadata_chunk_alloc_;
 static size_t metadata_chunk_avail_;
 
 static SpinLock metadata_alloc_lock;
 
 void* MetaDataAlloc(size_t bytes) {
   if (bytes >= kMetadataAllocChunkSize) {
-    void *rv = TCMalloc_SystemAlloc(bytes,
-                                    nullptr, kMetadataAllignment);
+    void* rv = TCMalloc_SystemAlloc(bytes, nullptr, kMetadataAllignment);
     if (rv != nullptr) {
       metadata_system_bytes_ += bytes;
     }
@@ -295,23 +286,22 @@ void* MetaDataAlloc(size_t bytes) {
   // value + original value gets 0 and that's what we want modulo
   // kMetadataAllignment. Note, we negate before masking higher bits
   // off, otherwise we'd have to mask them off after negation anyways.
-  intptr_t alignment = -reinterpret_cast<intptr_t>(metadata_chunk_alloc_) & (kMetadataAllignment-1);
+  intptr_t alignment = -reinterpret_cast<intptr_t>(metadata_chunk_alloc_) & (kMetadataAllignment - 1);
 
   if (metadata_chunk_avail_ < bytes + alignment) {
     size_t real_size;
-    void *ptr = TCMalloc_SystemAlloc(kMetadataAllocChunkSize,
-                                     &real_size, kMetadataAllignment);
+    void* ptr = TCMalloc_SystemAlloc(kMetadataAllocChunkSize, &real_size, kMetadataAllignment);
     if (ptr == nullptr) {
       return nullptr;
     }
 
-    metadata_chunk_alloc_ = static_cast<char *>(ptr);
+    metadata_chunk_alloc_ = static_cast<char*>(ptr);
     metadata_chunk_avail_ = real_size;
 
     alignment = 0;
   }
 
-  void *rv = static_cast<void *>(metadata_chunk_alloc_ + alignment);
+  void* rv = static_cast<void*>(metadata_chunk_alloc_ + alignment);
   bytes += alignment;
   metadata_chunk_alloc_ += bytes;
   metadata_chunk_avail_ -= bytes;

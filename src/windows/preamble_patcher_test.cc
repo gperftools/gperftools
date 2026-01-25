@@ -39,7 +39,7 @@
 #include "preamble_patcher.h"
 #include "mini_disassembler.h"
 #pragma warning(push)
-#pragma warning(disable:4553)
+#pragma warning(disable : 4553)
 #include "auto_testing_hook.h"
 #pragma warning(pop)
 
@@ -56,13 +56,13 @@
 
 // A convenience macro to avoid a lot of casting in the tests.
 // I tried to make this a templated function, but windows complained:
-//     error C2782: 'sidestep::SideStepError `anonymous-namespace'::Unpatch(T,T,T *)' : template parameter 'T' is ambiguous
+//     error C2782: 'sidestep::SideStepError `anonymous-namespace'::Unpatch(T,T,T *)' : template parameter 'T' is
+//     ambiguous
 //        could be 'int (int)'
 //        or       'int (__cdecl *)(int)'
 // My life isn't long enough to try to figure out how to fix this.
-#define UNPATCH(target_function, replacement_function, original_function_stub) \
-  sidestep::PreamblePatcher::Unpatch((void*)(target_function),          \
-                                     (void*)(replacement_function),     \
+#define UNPATCH(target_function, replacement_function, original_function_stub)                \
+  sidestep::PreamblePatcher::Unpatch((void*)(target_function), (void*)(replacement_function), \
                                      (void*)(original_function))
 
 namespace {
@@ -76,9 +76,9 @@ namespace {
 int __declspec(noinline) IncrementNumber(int i) {
 #ifdef _M_X64
   __int64 i2 = i + 1;
-  return (int) i2;
+  return (int)i2;
 #else
-   return i + 1;
+  return i + 1;
 #endif
 }
 
@@ -105,108 +105,84 @@ int HookIncrementNumber(int i) {
 // all that is encapsulated.
 // This function "increments" by 10, just to set it apart from the other
 // functions.
-int __declspec(noinline) AutoHookIncrementNumber(int i) {
-  return i + 10;
-}
+int __declspec(noinline) AutoHookIncrementNumber(int i) { return i + 10; }
 
 };  // namespace
 
 namespace sidestep {
 
 bool TestDisassembler() {
-   unsigned int instruction_size = 0;
-   sidestep::MiniDisassembler disassembler;
-   void * target = reinterpret_cast<unsigned char *>(IncrementNumber);
-   void * new_target = PreamblePatcher::ResolveTarget(target);
-   if (target != new_target)
-      target = new_target;
+  unsigned int instruction_size = 0;
+  sidestep::MiniDisassembler disassembler;
+  void* target = reinterpret_cast<unsigned char*>(IncrementNumber);
+  void* new_target = PreamblePatcher::ResolveTarget(target);
+  if (target != new_target) target = new_target;
 
-   while (1) {
-      sidestep::InstructionType instructionType = disassembler.Disassemble(
-         reinterpret_cast<unsigned char *>(target) + instruction_size,
-         instruction_size);
-      if (sidestep::IT_RETURN == instructionType) {
-         return true;
-      }
-   }
+  while (1) {
+    sidestep::InstructionType instructionType =
+        disassembler.Disassemble(reinterpret_cast<unsigned char*>(target) + instruction_size, instruction_size);
+    if (sidestep::IT_RETURN == instructionType) {
+      return true;
+    }
+  }
 }
 
 bool TestPatchWithLongJump() {
   original_function = nullptr;
-  void *p = ::VirtualAlloc(reinterpret_cast<void *>(0x0000020000000000), 4096,
-                           MEM_RESERVE | MEM_COMMIT, PAGE_EXECUTE_READWRITE);
+  void* p = ::VirtualAlloc(reinterpret_cast<void*>(0x0000020000000000), 4096, MEM_RESERVE | MEM_COMMIT,
+                           PAGE_EXECUTE_READWRITE);
   SIDESTEP_EXPECT_TRUE(p != nullptr);
   memset(p, 0xcc, 4096);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(IncrementNumber,
-                                                        (IncrementingFunc) p,
-                                                        &original_function));
+                       sidestep::PreamblePatcher::Patch(IncrementNumber, (IncrementingFunc)p, &original_function));
   SIDESTEP_ASSERT((*original_function)(1) == 2);
-  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(IncrementNumber,
-                               (IncrementingFunc)p,
-                               original_function));
+  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS == UNPATCH(IncrementNumber, (IncrementingFunc)p, original_function));
   ::VirtualFree(p, 0, MEM_RELEASE);
   return true;
 }
 
 bool TestPatchWithPreambleShortCondJump() {
   original_function = nullptr;
-  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(JumpShortCondFunction,
-                                                        HookIncrementNumber,
-                                                        &original_function));
+  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS == sidestep::PreamblePatcher::Patch(JumpShortCondFunction,
+                                                                                      HookIncrementNumber,
+                                                                                      &original_function));
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(JumpShortCondFunction,
-                               (void*)HookIncrementNumber,
-                               original_function));
+                       UNPATCH(JumpShortCondFunction, (void*)HookIncrementNumber, original_function));
   return true;
 }
 
 bool TestPatchWithPreambleNearRelativeCondJump() {
   original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(JumpNearCondFunction,
-                                                        HookIncrementNumber,
-                                                        &original_function));
+                       sidestep::PreamblePatcher::Patch(JumpNearCondFunction, HookIncrementNumber, &original_function));
   (*original_function)(0);
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(JumpNearCondFunction,
-                               HookIncrementNumber,
-                               original_function));
+                       UNPATCH(JumpNearCondFunction, HookIncrementNumber, original_function));
   return true;
 }
 
 bool TestPatchWithPreambleAbsoluteJump() {
   original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(JumpAbsoluteFunction,
-                                                        HookIncrementNumber,
-                                                        &original_function));
+                       sidestep::PreamblePatcher::Patch(JumpAbsoluteFunction, HookIncrementNumber, &original_function));
   (*original_function)(0);
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(JumpAbsoluteFunction,
-                               HookIncrementNumber,
-                               original_function));
+                       UNPATCH(JumpAbsoluteFunction, HookIncrementNumber, original_function));
   return true;
 }
 
 bool TestPatchWithPreambleNearRelativeCall() {
   original_function = nullptr;
-  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(
-                                                    CallNearRelativeFunction,
-                                                    HookIncrementNumber,
-                                                    &original_function));
+  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS == sidestep::PreamblePatcher::Patch(CallNearRelativeFunction,
+                                                                                      HookIncrementNumber,
+                                                                                      &original_function));
   (*original_function)(0);
   (*original_function)(1);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(CallNearRelativeFunction,
-                               HookIncrementNumber,
-                               original_function));
+                       UNPATCH(CallNearRelativeFunction, HookIncrementNumber, original_function));
   return true;
 }
 
@@ -214,9 +190,7 @@ bool TestPatchUsingDynamicStub() {
   original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(IncrementNumber(1) == 2);
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(IncrementNumber,
-                                                        HookIncrementNumber,
-                                                        &original_function));
+                       sidestep::PreamblePatcher::Patch(IncrementNumber, HookIncrementNumber, &original_function));
   SIDESTEP_EXPECT_TRUE(original_function);
   SIDESTEP_EXPECT_TRUE(IncrementNumber(2) == 4);
   SIDESTEP_EXPECT_TRUE(original_function(3) == 4);
@@ -224,9 +198,8 @@ bool TestPatchUsingDynamicStub() {
   // Clearbox test to see that the function has been patched.
   sidestep::MiniDisassembler disassembler;
   unsigned int instruction_size = 0;
-  SIDESTEP_EXPECT_TRUE(sidestep::IT_JUMP == disassembler.Disassemble(
-                           reinterpret_cast<unsigned char*>(IncrementNumber),
-                           instruction_size));
+  SIDESTEP_EXPECT_TRUE(sidestep::IT_JUMP ==
+                       disassembler.Disassemble(reinterpret_cast<unsigned char*>(IncrementNumber), instruction_size));
 
   // Since we patched IncrementNumber, its first statement is a
   // jmp to the hook function.  So verify that we now can not patch
@@ -250,27 +223,19 @@ bool TestPatchUsingDynamicStub() {
                                                         &dummy));
 #endif
 
-  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(IncrementNumber,
-                               HookIncrementNumber,
-                               original_function));
+  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS == UNPATCH(IncrementNumber, HookIncrementNumber, original_function));
   return true;
 }
 
 bool PatchThenUnpatch() {
   original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       sidestep::PreamblePatcher::Patch(IncrementNumber,
-                                                        HookIncrementNumber,
-                                                        &original_function));
+                       sidestep::PreamblePatcher::Patch(IncrementNumber, HookIncrementNumber, &original_function));
   SIDESTEP_EXPECT_TRUE(original_function);
   SIDESTEP_EXPECT_TRUE(IncrementNumber(1) == 3);
   SIDESTEP_EXPECT_TRUE(original_function(2) == 3);
 
-  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS ==
-                       UNPATCH(IncrementNumber,
-                               HookIncrementNumber,
-                               original_function));
+  SIDESTEP_EXPECT_TRUE(sidestep::SIDESTEP_SUCCESS == UNPATCH(IncrementNumber, HookIncrementNumber, original_function));
   original_function = nullptr;
   SIDESTEP_EXPECT_TRUE(IncrementNumber(3) == 4);
 
@@ -283,9 +248,8 @@ bool AutoTestingHookTest() {
   // Inner scope, so we can test what happens when the AutoTestingHook
   // goes out of scope
   {
-    AutoTestingHook hook = MakeTestingHook(IncrementNumber,
-                                           AutoHookIncrementNumber);
-    (void) hook;
+    AutoTestingHook hook = MakeTestingHook(IncrementNumber, AutoHookIncrementNumber);
+    (void)hook;
     SIDESTEP_EXPECT_TRUE(IncrementNumber(2) == 12);
   }
   SIDESTEP_EXPECT_TRUE(IncrementNumber(3) == 4);
@@ -299,9 +263,8 @@ bool AutoTestingHookInContainerTest() {
   // Inner scope, so we can test what happens when the AutoTestingHook
   // goes out of scope
   {
-    AutoTestingHookHolder hook(MakeTestingHookHolder(IncrementNumber,
-                                                     AutoHookIncrementNumber));
-    (void) hook;
+    AutoTestingHookHolder hook(MakeTestingHookHolder(IncrementNumber, AutoHookIncrementNumber));
+    (void)hook;
     SIDESTEP_EXPECT_TRUE(IncrementNumber(2) == 12);
   }
   SIDESTEP_EXPECT_TRUE(IncrementNumber(3) == 4);
@@ -339,27 +302,22 @@ bool TestPreambleAllocation() {
 }
 
 bool UnitTests() {
-  return TestPatchWithPreambleNearRelativeCall() &&
-      TestPatchWithPreambleAbsoluteJump() &&
-      TestPatchWithPreambleNearRelativeCondJump() &&
-      TestPatchWithPreambleShortCondJump() &&
-      TestDisassembler() && TestPatchWithLongJump() &&
-      TestPatchUsingDynamicStub() && PatchThenUnpatch() &&
-      AutoTestingHookTest() && AutoTestingHookInContainerTest() &&
-      TestPreambleAllocation();
+  return TestPatchWithPreambleNearRelativeCall() && TestPatchWithPreambleAbsoluteJump() &&
+         TestPatchWithPreambleNearRelativeCondJump() && TestPatchWithPreambleShortCondJump() && TestDisassembler() &&
+         TestPatchWithLongJump() && TestPatchUsingDynamicStub() && PatchThenUnpatch() && AutoTestingHookTest() &&
+         AutoTestingHookInContainerTest() && TestPreambleAllocation();
 }
 
 };  // namespace sidestep
 
-int safe_vsnprintf(char *str, size_t size, const char *format, va_list ap) {
-  if (size == 0)        // not even room for a \0?
-    return -1;          // not what C99 says to do, but what windows does
-  str[size-1] = '\0';
-  return _vsnprintf(str, size-1, format, ap);
+int safe_vsnprintf(char* str, size_t size, const char* format, va_list ap) {
+  if (size == 0)  // not even room for a \0?
+    return -1;    // not what C99 says to do, but what windows does
+  str[size - 1] = '\0';
+  return _vsnprintf(str, size - 1, format, ap);
 }
 
-int _tmain(int argc, _TCHAR* argv[])
-{
+int _tmain(int argc, _TCHAR* argv[]) {
   bool ret = sidestep::UnitTests();
   printf("%s\n", ret ? "PASS" : "FAIL");
   return ret ? 0 : -1;

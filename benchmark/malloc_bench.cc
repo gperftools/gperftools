@@ -37,12 +37,10 @@
 
 #include "run_benchmark.h"
 
-static void bench_fastpath_throughput(long iterations,
-                                      uintptr_t param)
-{
+static void bench_fastpath_throughput(long iterations, uintptr_t param) {
   size_t sz = 32;
-  for (; iterations>0; iterations--) {
-    void *p = (operator new)(sz);
+  for (; iterations > 0; iterations--) {
+    void* p = (operator new)(sz);
     (operator delete)(p);
     // this makes next iteration use different free list. So
     // subsequent iterations may actually overlap in time.
@@ -50,11 +48,9 @@ static void bench_fastpath_throughput(long iterations,
   }
 }
 
-static void bench_fastpath_dependent(long iterations,
-                                     uintptr_t param)
-{
+static void bench_fastpath_dependent(long iterations, uintptr_t param) {
   size_t sz = 32;
-  for (; iterations>0; iterations--) {
+  for (; iterations > 0; iterations--) {
     uintptr_t p = reinterpret_cast<uintptr_t>((operator new)(sz));
     // casts are because gcc doesn't like us using p's value after it
     // is freed.
@@ -66,12 +62,10 @@ static void bench_fastpath_dependent(long iterations,
   }
 }
 
-static void bench_fastpath_simple(long iterations,
-                                  uintptr_t param)
-{
+static void bench_fastpath_simple(long iterations, uintptr_t param) {
   size_t sz = static_cast<size_t>(param);
-  for (; iterations>0; iterations--) {
-    void *p = (operator new)(sz);
+  for (; iterations > 0; iterations--) {
+    void* p = (operator new)(sz);
     (operator delete)(p);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
@@ -81,12 +75,10 @@ static void bench_fastpath_simple(long iterations,
 }
 
 #if __cpp_sized_deallocation
-static void bench_fastpath_simple_sized(long iterations,
-                                        uintptr_t param)
-{
+static void bench_fastpath_simple_sized(long iterations, uintptr_t param) {
   size_t sz = static_cast<size_t>(param);
-  for (; iterations>0; iterations--) {
-    void *p = (operator new)(sz);
+  for (; iterations > 0; iterations--) {
+    void* p = (operator new)(sz);
     (operator delete)(p, sz);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
@@ -97,13 +89,11 @@ static void bench_fastpath_simple_sized(long iterations,
 #endif  // __cpp_sized_deallocation
 
 #if __cpp_aligned_new
-static void bench_fastpath_memalign(long iterations,
-                                    uintptr_t param)
-{
+static void bench_fastpath_memalign(long iterations, uintptr_t param) {
   size_t sz = static_cast<size_t>(param);
-  for (; iterations>0; iterations--) {
+  for (; iterations > 0; iterations--) {
     static constexpr std::align_val_t kAlign{32};
-    void *p = (operator new)(sz, kAlign);
+    void* p = (operator new)(sz, kAlign);
     (operator delete)(p, sz, kAlign);
     // next iteration will use same free list as this iteration. So it
     // should be prevent next iterations malloc to go too far before
@@ -113,17 +103,14 @@ static void bench_fastpath_memalign(long iterations,
 }
 #endif  // __cpp_aligned_new
 
-static void bench_fastpath_stack(long iterations,
-                                 uintptr_t _param)
-{
-
+static void bench_fastpath_stack(long iterations, uintptr_t _param) {
   size_t sz = 64;
   long param = static_cast<long>(_param);
   param = std::max(1l, param);
   std::unique_ptr<void*[]> stack = std::make_unique<void*[]>(param);
-  for (; iterations>0; iterations -= param) {
-    for (long k = param-1; k >= 0; k--) {
-      void *p = (operator new)(sz);
+  for (; iterations > 0; iterations -= param) {
+    for (long k = param - 1; k >= 0; k--) {
+      void* p = (operator new)(sz);
       stack[k] = p;
       // this makes next iteration depend on result of this iteration
       sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
@@ -134,17 +121,14 @@ static void bench_fastpath_stack(long iterations,
   }
 }
 
-static void bench_fastpath_stack_simple(long iterations,
-                                        uintptr_t _param)
-{
-
+static void bench_fastpath_stack_simple(long iterations, uintptr_t _param) {
   size_t sz = 32;
   long param = static_cast<long>(_param);
   param = std::max(1l, param);
   std::unique_ptr<void*[]> stack = std::make_unique<void*[]>(param);
-  for (; iterations>0; iterations -= param) {
-    for (long k = param-1; k >= 0; k--) {
-      void *p = (operator new)(sz);
+  for (; iterations > 0; iterations -= param) {
+    for (long k = param - 1; k >= 0; k--) {
+      void* p = (operator new)(sz);
       stack[k] = p;
     }
     for (long k = 0; k < param; k++) {
@@ -157,9 +141,7 @@ static void bench_fastpath_stack_simple(long iterations,
   }
 }
 
-static void bench_fastpath_rnd_dependent(long iterations,
-                                         uintptr_t _param)
-{
+static void bench_fastpath_rnd_dependent(long iterations, uintptr_t _param) {
   static const uintptr_t rnd_c = 1013904223;
   static const uintptr_t rnd_a = 1664525;
 
@@ -172,9 +154,9 @@ static void bench_fastpath_rnd_dependent(long iterations,
   param = std::max(1l, param);
   std::unique_ptr<void*[]> ptrs = std::make_unique<void*[]>(param);
 
-  for (; iterations>0; iterations -= param) {
-    for (int k = param-1; k >= 0; k--) {
-      void *p = (operator new)(sz);
+  for (; iterations > 0; iterations -= param) {
+    for (int k = param - 1; k >= 0; k--) {
+      void* p = (operator new)(sz);
       ptrs[k] = p;
       sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
     }
@@ -191,9 +173,7 @@ static void bench_fastpath_rnd_dependent(long iterations,
   }
 }
 
-static void bench_fastpath_rnd_dependent_8cores(long iterations,
-                                                uintptr_t _param)
-{
+static void bench_fastpath_rnd_dependent_8cores(long iterations, uintptr_t _param) {
   static const uintptr_t rnd_c = 1013904223;
   static const uintptr_t rnd_a = 1664525;
 
@@ -204,13 +184,13 @@ static void bench_fastpath_rnd_dependent_8cores(long iterations,
   long param = static_cast<long>(_param);
   param = std::max(1l, param);
 
-  auto body = [iterations, param] () {
+  auto body = [iterations, param]() {
     size_t sz = 128;
     std::unique_ptr<void*[]> ptrs = std::make_unique<void*[]>(param);
 
-    for (long i = iterations; i>0; i -= param) {
-      for (int k = param-1; k >= 0; k--) {
-        void *p = (operator new)(sz);
+    for (long i = iterations; i > 0; i -= param) {
+      for (int k = param - 1; k >= 0; k--) {
+        void* p = (operator new)(sz);
         ptrs[k] = p;
         sz = ((sz | reinterpret_cast<size_t>(p)) & 511) + 16;
       }
@@ -227,16 +207,15 @@ static void bench_fastpath_rnd_dependent_8cores(long iterations,
     }
   };
 
-  std::thread ts[] = {
-    std::thread{body}, std::thread{body}, std::thread{body}, std::thread{body},
-    std::thread{body}, std::thread{body}, std::thread{body}, std::thread{body}};
-  for (auto &t : ts) {
+  std::thread ts[] = {std::thread{body}, std::thread{body}, std::thread{body}, std::thread{body},
+                      std::thread{body}, std::thread{body}, std::thread{body}, std::thread{body}};
+  for (auto& t : ts) {
     t.join();
   }
 }
 
 void randomize_one_size_class(size_t size) {
-  size_t count = (100<<20) / size;
+  size_t count = (100 << 20) / size;
   auto randomize_buffer = std::make_unique<void*[]>(count);
 
   for (size_t i = 0; i < count; i++) {
@@ -270,12 +249,12 @@ void randomize_size_classes() {
   }
 }
 
-int main(int argc, char **argv)
-{
+int main(int argc, char** argv) {
   init_benchmark(&argc, &argv);
 
   if (!benchmark_list_only) {
-    printf("Trying to randomize freelists..."); fflush(stdout);
+    printf("Trying to randomize freelists...");
+    fflush(stdout);
     randomize_size_classes();
     printf("done.\n");
   }

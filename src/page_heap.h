@@ -35,8 +35,8 @@
 #define TCMALLOC_PAGE_HEAP_H_
 
 #include <config.h>
-#include <stddef.h>                     // for size_t
-#include <stdint.h>                     // for uint64_t, int64_t, uint16_t
+#include <stddef.h>  // for size_t
+#include <stdint.h>  // for uint64_t, int64_t, uint16_t
 #include "base/basictypes.h"
 #include "base/spinlock.h"
 #include "base/thread_annotations.h"
@@ -50,7 +50,7 @@
 // test those, so I just suppress this warning.
 #ifdef _MSC_VER
 #pragma warning(push)
-#pragma warning(disable:4251)
+#pragma warning(disable : 4251)
 #endif
 
 namespace base {
@@ -68,9 +68,10 @@ namespace tcmalloc {
 // because sometimes the sizeclass is all the information we need.
 
 // Selector class -- general selector uses 3-level map
-template <int BITS> class MapSelector {
+template <int BITS>
+class MapSelector {
  public:
-  typedef TCMalloc_PageMap3<BITS-kPageShift> Type;
+  typedef TCMalloc_PageMap3<BITS - kPageShift> Type;
 };
 
 #ifndef TCMALLOC_SMALL_BUT_SLOW
@@ -78,17 +79,19 @@ template <int BITS> class MapSelector {
 // just two level map, but since initial ram consumption of this mode
 // is a bit on the higher side, we opt-out of it in
 // TCMALLOC_SMALL_BUT_SLOW mode.
-template <> class MapSelector<48> {
+template <>
+class MapSelector<48> {
  public:
-  typedef TCMalloc_PageMap2<48-kPageShift> Type;
+  typedef TCMalloc_PageMap2<48 - kPageShift> Type;
 };
 
-#endif // TCMALLOC_SMALL_BUT_SLOW
+#endif  // TCMALLOC_SMALL_BUT_SLOW
 
 // A two-level map for 32-bit machines
-template <> class MapSelector<32> {
+template <>
+class MapSelector<32> {
  public:
-  typedef TCMalloc_PageMap2<32-kPageShift> Type;
+  typedef TCMalloc_PageMap2<32 - kPageShift> Type;
 };
 
 // -------------------------------------------------------------------------
@@ -104,9 +107,7 @@ class PageHeap {
   PageHeap() : PageHeap(1) {}
   PageHeap(Length smallest_span_size);
 
-  SpinLock* pageheap_lock() {
-    return &lock_;
-  }
+  SpinLock* pageheap_lock() { return &lock_; }
 
   // Aligns given size up to be multiple of smallest_span_size.
   Length RoundUpSize(Length n);
@@ -114,9 +115,7 @@ class PageHeap {
   // Allocate a run of "n" pages.  Returns zero if out of memory.
   // Caller should not pass "n == 0" -- instead, n should have
   // been rounded up already.
-  Span* New(Length n) {
-    return NewWithSizeClass(n, 0);
-  }
+  Span* New(Length n) { return NewWithSizeClass(n, 0); }
 
   Span* NewWithSizeClass(Length n, uint32_t sizeclass);
 
@@ -150,9 +149,7 @@ class PageHeap {
   // Return the descriptor for the specified page.  Returns nullptr if
   // this PageID was not allocated previously.
   ALWAYS_INLINE
-  Span* GetDescriptor(PageID p) const {
-    return reinterpret_cast<Span*>(pagemap_.get(p));
-  }
+  Span* GetDescriptor(PageID p) const { return reinterpret_cast<Span*>(pagemap_.get(p)); }
 
   // If this page heap is managing a range with starting page # >= start,
   // store info about the range in *r and return true.  Else return false.
@@ -160,24 +157,32 @@ class PageHeap {
 
   // Page heap statistics
   struct Stats {
-    Stats() : system_bytes(0), free_bytes(0), unmapped_bytes(0), committed_bytes(0),
-        scavenge_count(0), commit_count(0), total_commit_bytes(0),
-        decommit_count(0), total_decommit_bytes(0),
-        reserve_count(0), total_reserve_bytes(0) {}
-    uint64_t system_bytes;    // Total bytes allocated from system
-    uint64_t free_bytes;      // Total bytes on normal freelists
-    uint64_t unmapped_bytes;  // Total bytes on returned freelists
+    Stats()
+        : system_bytes(0),
+          free_bytes(0),
+          unmapped_bytes(0),
+          committed_bytes(0),
+          scavenge_count(0),
+          commit_count(0),
+          total_commit_bytes(0),
+          decommit_count(0),
+          total_decommit_bytes(0),
+          reserve_count(0),
+          total_reserve_bytes(0) {}
+    uint64_t system_bytes;     // Total bytes allocated from system
+    uint64_t free_bytes;       // Total bytes on normal freelists
+    uint64_t unmapped_bytes;   // Total bytes on returned freelists
     uint64_t committed_bytes;  // Bytes committed, always <= system_bytes_.
 
-    uint64_t scavenge_count;   // Number of times scavagened flush pages
+    uint64_t scavenge_count;  // Number of times scavagened flush pages
 
     uint64_t commit_count;          // Number of virtual memory commits
     uint64_t total_commit_bytes;    // Bytes committed in lifetime of process
     uint64_t decommit_count;        // Number of virtual memory decommits
     uint64_t total_decommit_bytes;  // Bytes decommitted in lifetime of process
 
-    uint64_t reserve_count;         // Number of virtual memory reserves
-    uint64_t total_reserve_bytes;   // Bytes reserved in lifetime of process
+    uint64_t reserve_count;        // Number of virtual memory reserves
+    uint64_t total_reserve_bytes;  // Bytes reserved in lifetime of process
   };
   inline Stats StatsLocked() const { return stats_; }
 
@@ -204,7 +209,7 @@ class PageHeap {
   bool CheckExpensive();
   bool CheckList(Span* list, Length min_pages, Length max_pages,
                  int freelist);  // ON_NORMAL_FREELIST or ON_RETURNED_FREELIST
-  bool CheckSet(SpanSet *s, Length min_pages, int freelist);
+  bool CheckSet(SpanSet* s, Length min_pages, int freelist);
 
   // Try to release at least num_pages for reuse by the OS.  Returns
   // the actual number of pages released, which may be less than
@@ -215,9 +220,7 @@ class PageHeap {
   Length ReleaseAtLeastNPages(Length num_pages);
 
   // Reads and writes to pagemap_cache_ do not require locking.
-  bool TryGetSizeClass(PageID p, uint32_t* out) const {
-    return pagemap_cache_.TryGet(p, out);
-  }
+  bool TryGetSizeClass(PageID p, uint32_t* out) const { return pagemap_cache_.TryGet(p, out); }
   void SetCachedSizeClass(PageID p, uint32_t cl) {
     ASSERT(cl != 0);
     pagemap_cache_.Put(p, cl);
@@ -231,15 +234,13 @@ class PageHeap {
     return cached_value;
   }
 
-  bool GetAggressiveDecommit(void) {return aggressive_decommit_;}
-  void SetAggressiveDecommit(bool aggressive_decommit) {
-    aggressive_decommit_ = aggressive_decommit;
-  }
+  bool GetAggressiveDecommit(void) { return aggressive_decommit_; }
+  void SetAggressiveDecommit(bool aggressive_decommit) { aggressive_decommit_ = aggressive_decommit; }
 
  private:
   struct LockingContext;
 
-  void HandleUnlock(LockingContext* context) UNLOCK_FUNCTION(lock_) ;
+  void HandleUnlock(LockingContext* context) UNLOCK_FUNCTION(lock_);
 
   // Allocates a big block of memory for the pagemap once we reach more than
   // 128MB
@@ -277,8 +278,8 @@ class PageHeap {
   // lists: one for normal spans, and one for spans whose memory
   // has been returned to the system.
   struct SpanList {
-    Span        normal;
-    Span        returned;
+    Span normal;
+    Span returned;
   };
 
   // Sets of spans with length > kMaxPages.
@@ -358,14 +359,14 @@ class PageHeap {
   // Returns the length of the Span or zero if release failed.
   //
   // REQUIRES: 's' must be on the NORMAL freelist.
-  Length ReleaseSpan(Span *s);
+  Length ReleaseSpan(Span* s);
 
   // Checks if we are allowed to take more memory from the system.
   // If limit is reached and allowRelease is true, tries to release
   // some unused spans.
   bool EnsureLimit(Length n, bool allowRelease = true);
 
-  Span* CheckAndHandlePreMerge(Span *span, Span *other);
+  Span* CheckAndHandlePreMerge(Span* span, Span* other);
 
   // Number of pages to deallocate before doing more scavenging
   int64_t scavenge_counter_;

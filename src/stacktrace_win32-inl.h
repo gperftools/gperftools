@@ -56,29 +56,23 @@
 // Anything that should only be defined once should be here:
 
 #include "config.h"
-#include <windows.h>    // for GetProcAddress and GetModuleHandle
+#include <windows.h>  // for GetProcAddress and GetModuleHandle
 #include <assert.h>
 
-typedef USHORT NTAPI RtlCaptureStackBackTrace_Function(
-    IN ULONG frames_to_skip,
-    IN ULONG frames_to_capture,
-    OUT PVOID *backtrace,
-    OUT PULONG backtrace_hash);
+typedef USHORT NTAPI RtlCaptureStackBackTrace_Function(IN ULONG frames_to_skip, IN ULONG frames_to_capture,
+                                                       OUT PVOID* backtrace, OUT PULONG backtrace_hash);
 
 // Load the function we need at static init time, where we don't have
 // to worry about someone else holding the loader's lock.
 static RtlCaptureStackBackTrace_Function* const RtlCaptureStackBackTrace_fn =
-   (RtlCaptureStackBackTrace_Function*)
-   GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlCaptureStackBackTrace");
+    (RtlCaptureStackBackTrace_Function*)GetProcAddress(GetModuleHandleA("ntdll.dll"), "RtlCaptureStackBackTrace");
 
-static int GetStackTrace_win32(void** result, int max_depth,
-                               int skip_count) {
+static int GetStackTrace_win32(void** result, int max_depth, int skip_count) {
   if (!RtlCaptureStackBackTrace_fn) {
     // TODO(csilvers): should we log an error here?
-    return 0;     // can't find a stacktrace with no function to call
+    return 0;  // can't find a stacktrace with no function to call
   }
-  return (int)RtlCaptureStackBackTrace_fn(skip_count + 3, max_depth,
-                                          result, 0);
+  return (int)RtlCaptureStackBackTrace_fn(skip_count + 3, max_depth, result, 0);
 }
 
 static int not_implemented(void) {
@@ -86,22 +80,16 @@ static int not_implemented(void) {
   return 0;
 }
 
-static int GetStackFrames_win32(void** /* pcs */,
-                                int* /* sizes */,
-                                int /* max_depth */,
-                                int /* skip_count */) {
+static int GetStackFrames_win32(void** /* pcs */, int* /* sizes */, int /* max_depth */, int /* skip_count */) {
   return not_implemented();
 }
 
-static int GetStackFramesWithContext_win32(void** result, int* sizes, int max_depth,
-                                           int skip_count, const void *uc) {
+static int GetStackFramesWithContext_win32(void** result, int* sizes, int max_depth, int skip_count, const void* uc) {
   return not_implemented();
 }
 
-static int GetStackTraceWithContext_win32(void** result, int max_depth,
-                                          int skip_count, const void *uc) {
+static int GetStackTraceWithContext_win32(void** result, int max_depth, int skip_count, const void* uc) {
   return not_implemented();
 }
-
 
 #endif  // BASE_STACKTRACE_WIN32_INL_H_

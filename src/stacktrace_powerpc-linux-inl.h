@@ -42,7 +42,7 @@
 // Note: this file is included into stacktrace.cc more than once.
 // Anything that should only be defined once should be here:
 
-#include <stdint.h>   // for uintptr_t
+#include <stdint.h>  // for uintptr_t
 #include <stdlib.h>
 #include <signal.h>  // for siginfo_t
 #include <gperftools/stacktrace.h>
@@ -57,11 +57,11 @@
 // PowerPC64 Little Endian follows BE wrt. backchain, condition register,
 // and LR save area, so no need to adjust the reading struct.
 struct layout_ppc {
-  struct layout_ppc *next;
+  struct layout_ppc* next;
 #ifdef __PPC64__
   long condition_register;
 #endif
-  void *return_addr;
+  void* return_addr;
 };
 
 // Signal callbacks are handled by the vDSO symbol:
@@ -79,8 +79,8 @@ struct layout_ppc {
 // stackframe, or return nullptr if no stackframe can be found. Perform sanity
 // checks (the strictness of which is controlled by the boolean parameter
 // "STRICT_UNWINDING") to reduce the chance that a bad pointer is returned.
-template<bool STRICT_UNWINDING>
-static layout_ppc *NextStackFrame(layout_ppc *current) {
+template <bool STRICT_UNWINDING>
+static layout_ppc* NextStackFrame(layout_ppc* current) {
   uintptr_t old_sp = (uintptr_t)(current);
   uintptr_t new_sp = (uintptr_t)(current->next);
 
@@ -89,22 +89,17 @@ static layout_ppc *NextStackFrame(layout_ppc *current) {
   if (STRICT_UNWINDING) {
     // With the stack growing downwards, older stack frame must be
     // at a greater address that the current one.
-    if (new_sp <= old_sp)
-      return nullptr;
+    if (new_sp <= old_sp) return nullptr;
     // Assume stack frames larger than 100,000 bytes are bogus.
-    if (new_sp - old_sp > 100000)
-      return nullptr;
+    if (new_sp - old_sp > 100000) return nullptr;
   } else {
     // In the non-strict mode, allow discontiguous stack frames.
     // (alternate-signal-stacks for example).
-    if (new_sp == old_sp)
-      return nullptr;
+    if (new_sp == old_sp) return nullptr;
     // And allow frames upto about 1MB.
-    if ((new_sp > old_sp) && (new_sp - old_sp > 1000000))
-      return nullptr;
+    if ((new_sp > old_sp) && (new_sp - old_sp > 1000000)) return nullptr;
   }
-  if (new_sp & (sizeof(void *) - 1))
-    return nullptr;
+  if (new_sp & (sizeof(void*) - 1)) return nullptr;
   return current->next;
 }
 
@@ -118,9 +113,9 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 
 // Load instruction used on top-of-stack get.
 #if defined(__PPC64__) || defined(__LP64__)
-# define LOAD "ld"
+#define LOAD "ld"
 #else
-# define LOAD "lwz"
+#define LOAD "lwz"
 #endif
 
 // The following 4 functions are generated from the code below:
@@ -135,46 +130,42 @@ void StacktracePowerPCDummyFunction() { __asm__ volatile(""); }
 //   int skip_count: how many stack pointers to skip before storing in result
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 static int GET_STACK_TRACE_OR_FRAMES {
-  layout_ppc *current;
+  layout_ppc* current;
   int n;
 
   // Get the address on top-of-stack
-  current = reinterpret_cast<layout_ppc*> (__builtin_frame_address (0));
+  current = reinterpret_cast<layout_ppc*>(__builtin_frame_address(0));
   // And ignore the current symbol
   current = current->next;
 
   StacktracePowerPCDummyFunction();
 
   n = 0;
-  skip_count++; // skip parent's frame due to indirection in
-                // stacktrace.cc
+  skip_count++;  // skip parent's frame due to indirection in
+                 // stacktrace.cc
 
   base::VDSOSupport vdso;
   base::ElfMemImage::SymbolInfo rt_sigreturn_symbol_info;
 #ifdef __PPC64__
-  const void *sigtramp64_vdso = 0;
-  if (vdso.LookupSymbol("__kernel_sigtramp_rt64", "LINUX_2.6.15", STT_NOTYPE,
-                        &rt_sigreturn_symbol_info))
+  const void* sigtramp64_vdso = 0;
+  if (vdso.LookupSymbol("__kernel_sigtramp_rt64", "LINUX_2.6.15", STT_NOTYPE, &rt_sigreturn_symbol_info))
     sigtramp64_vdso = rt_sigreturn_symbol_info.address;
 #else
-  const void *sigtramp32_vdso = 0;
-  if (vdso.LookupSymbol("__kernel_sigtramp32", "LINUX_2.6.15", STT_NOTYPE,
-                        &rt_sigreturn_symbol_info))
+  const void* sigtramp32_vdso = 0;
+  if (vdso.LookupSymbol("__kernel_sigtramp32", "LINUX_2.6.15", STT_NOTYPE, &rt_sigreturn_symbol_info))
     sigtramp32_vdso = rt_sigreturn_symbol_info.address;
-  const void *sigtramp32_rt_vdso = 0;
-  if (vdso.LookupSymbol("__kernel_sigtramp_rt32", "LINUX_2.6.15", STT_NOTYPE,
-                        &rt_sigreturn_symbol_info))
+  const void* sigtramp32_rt_vdso = 0;
+  if (vdso.LookupSymbol("__kernel_sigtramp_rt32", "LINUX_2.6.15", STT_NOTYPE, &rt_sigreturn_symbol_info))
     sigtramp32_rt_vdso = rt_sigreturn_symbol_info.address;
 #endif
 
   while (current && n < max_depth) {
-
     // The GetStackFrames routine is called when we are in some
     // informational context (the failure signal handler for example).
     // Use the non-strict unwinding rules to produce a stack trace
     // that is as complete as possible (even if it contains a few
     // bogus entries in some rare cases).
-    layout_ppc *next = NextStackFrame<!IS_STACK_FRAMES>(current);
+    layout_ppc* next = NextStackFrame<!IS_STACK_FRAMES>(current);
     if (skip_count > 0) {
       skip_count--;
     } else {
@@ -184,9 +175,9 @@ static int GET_STACK_TRACE_OR_FRAMES {
         struct signal_frame_64 {
           char dummy[128];
           ucontext_t uc;
-        // We don't care about the rest, since the IP value is at 'uc' field.
-        } *sigframe = reinterpret_cast<signal_frame_64*>(current);
-        result[n] = (void*) sigframe->uc.uc_mcontext.gp_regs[PT_NIP];
+          // We don't care about the rest, since the IP value is at 'uc' field.
+        }* sigframe = reinterpret_cast<signal_frame_64*>(current);
+        result[n] = (void*)sigframe->uc.uc_mcontext.gp_regs[PT_NIP];
       }
 #else
       if (sigtramp32_vdso && (sigtramp32_vdso == current->return_addr)) {
@@ -195,16 +186,16 @@ static int GET_STACK_TRACE_OR_FRAMES {
           struct sigcontext sctx;
           mcontext_t mctx;
           // We don't care about the rest, since IP value is at 'mctx' field.
-        } *sigframe = reinterpret_cast<signal_frame_32*>(current);
-        result[n] = (void*) sigframe->mctx.gregs[PT_NIP];
+        }* sigframe = reinterpret_cast<signal_frame_32*>(current);
+        result[n] = (void*)sigframe->mctx.gregs[PT_NIP];
       } else if (sigtramp32_rt_vdso && (sigtramp32_rt_vdso == current->return_addr)) {
         struct rt_signal_frame_32 {
           char dummy[64 + 16];
           siginfo_t info;
           ucontext_t uc;
           // We don't care about the rest, since IP value is at 'uc' field.A
-        } *sigframe = reinterpret_cast<rt_signal_frame_32*>(current);
-        result[n] = (void*) sigframe->uc.uc_mcontext.uc_regs->gregs[PT_NIP];
+        }* sigframe = reinterpret_cast<rt_signal_frame_32*>(current);
+        result[n] = (void*)sigframe->uc.uc_mcontext.uc_regs->gregs[PT_NIP];
       }
 #endif
 
@@ -224,8 +215,7 @@ static int GET_STACK_TRACE_OR_FRAMES {
   // It's possible the second-last stack frame can't return
   // (that is, it's __libc_start_main), in which case
   // the CRT startup code will have set its LR to 'nullptr'.
-  if (n > 0 && result[n-1] == nullptr)
-    n--;
+  if (n > 0 && result[n - 1] == nullptr) n--;
 
   return n;
 }

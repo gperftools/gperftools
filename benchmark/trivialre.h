@@ -127,9 +127,10 @@ inline Matcher MatcherBuilder::Lit(std::string_view lit) {
 }
 
 inline Matcher MatcherBuilder::Seq(Matcher left, Matcher right) {
-  return [left = std::move(left), right = std::move(right)](std::string_view str, bool line_start, const CB& cb) -> bool {
-    return left(str, line_start, [=](std::string_view str, bool line_start) { return right(str, line_start, cb); });
-  };
+  return
+      [left = std::move(left), right = std::move(right)](std::string_view str, bool line_start, const CB& cb) -> bool {
+        return left(str, line_start, [=](std::string_view str, bool line_start) { return right(str, line_start, cb); });
+      };
 }
 
 inline Matcher MatcherBuilder::SeqMany(std::initializer_list<Matcher> list) {
@@ -145,12 +146,13 @@ inline Matcher MatcherBuilder::SeqMany(std::initializer_list<Matcher> list) {
 }
 
 inline Matcher MatcherBuilder::Alt(Matcher left, Matcher right) {
-  return [left = std::move(left), right = std::move(right)](std::string_view str, bool line_start, const CB& cb) -> bool {
-    if (left(str, line_start, cb)) {
-      return true;
-    }
-    return right(str, line_start, cb);
-  };
+  return
+      [left = std::move(left), right = std::move(right)](std::string_view str, bool line_start, const CB& cb) -> bool {
+        if (left(str, line_start, cb)) {
+          return true;
+        }
+        return right(str, line_start, cb);
+      };
 }
 
 inline Matcher MatcherBuilder::Star(Matcher nested) {
@@ -444,7 +446,9 @@ struct C : public ErrorPolicy {
 
 }  // namespace re_compiler
 
-inline Matcher CompileREOrDie(std::string_view str) { return re_compiler::C<matchers::MatcherBuilder>({}).CompileOrDie(str); }
+inline Matcher CompileREOrDie(std::string_view str) {
+  return re_compiler::C<matchers::MatcherBuilder>({}).CompileOrDie(str);
+}
 
 }  // namespace trivialre
 

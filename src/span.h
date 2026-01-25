@@ -68,12 +68,12 @@ using SpanSetIter = SpanSet::iterator;
 
 // Information kept for a span (a contiguous run of pages).
 struct Span {
-  PageID        start;          // Starting page number
-  Length        length;         // Number of pages in span
-  Span*         next;           // Used when in link list
-  Span*         prev;           // Used when in link list
+  PageID start;   // Starting page number
+  Length length;  // Number of pages in span
+  Span* next;     // Used when in link list
+  Span* prev;     // Used when in link list
   union {
-    void* objects;              // Linked list of free objects
+    void* objects;  // Linked list of free objects
 
     // Span may contain iterator pointing back at SpanSet entry of
     // this span into set of large spans. It is used to quickly delete
@@ -81,15 +81,15 @@ struct Span {
     // iterator which lifetime is controlled explicitly.
     alignas(SpanSetIter) char span_iter_space[sizeof(SpanSetIter)];
   };
-  unsigned int  refcount : 16;  // Number of non-free objects
-  unsigned int  sizeclass : 8;  // Size-class for small objects (or 0)
-  unsigned int  location : 2;   // Is the span on a freelist, and if so, which?
-  unsigned int  sample : 1;     // Sampled object?
-  bool          has_span_iter : 1; // Iff span_iter_space has valid
-                                   // iterator. Only for debug builds.
+  unsigned int refcount : 16;  // Number of non-free objects
+  unsigned int sizeclass : 8;  // Size-class for small objects (or 0)
+  unsigned int location : 2;   // Is the span on a freelist, and if so, which?
+  unsigned int sample : 1;     // Sampled object?
+  bool has_span_iter : 1;      // Iff span_iter_space has valid
+                               // iterator. Only for debug builds.
 
   constexpr Span()
-    : start{}, length{}, next{}, prev{}, objects{}, refcount{}, sizeclass{}, location{}, sample{}, has_span_iter{} {}
+      : start{}, length{}, next{}, prev{}, objects{}, refcount{}, sizeclass{}, location{}, sample{}, has_span_iter{} {}
 
   // Sets iterator stored in span_iter_space.
   // Requires has_span_iter == 0.
@@ -101,16 +101,11 @@ struct Span {
   enum { IN_USE, ON_NORMAL_FREELIST, ON_RETURNED_FREELIST };
 };
 
-inline SpanPtrWithLength::SpanPtrWithLength(Span* s)
-    : span(s),
-      length(s->length) {
-}
+inline SpanPtrWithLength::SpanPtrWithLength(Span* s) : span(s), length(s->length) {}
 
 inline bool SpanBestFitLess::operator()(SpanPtrWithLength a, SpanPtrWithLength b) const {
-  if (a.length < b.length)
-    return true;
-  if (a.length > b.length)
-    return false;
+  if (a.length < b.length) return true;
+  if (a.length > b.length) return false;
   return a.span->start < b.span->start;
 }
 
@@ -125,8 +120,7 @@ inline SpanSetIter Span::ExtractSpanSetIterator() {
   ASSERT(has_span_iter);
   has_span_iter = 0;
 
-  SpanSetIter* this_iter =
-    reinterpret_cast<SpanSetIter*>(span_iter_space);
+  SpanSetIter* this_iter = reinterpret_cast<SpanSetIter*>(span_iter_space);
   SpanSetIter retval = *this_iter;
   this_iter->~SpanSetIter();
   return retval;
@@ -149,9 +143,7 @@ void DLL_Init(Span* list);
 void DLL_Remove(Span* span);
 
 // Return true iff "list" is empty.
-inline bool DLL_IsEmpty(const Span* list) {
-  return list->next == list;
-}
+inline bool DLL_IsEmpty(const Span* list) { return list->next == list; }
 
 // Add span to the front of list.
 void DLL_Prepend(Span* list, Span* span);

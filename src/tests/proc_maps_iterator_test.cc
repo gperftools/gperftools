@@ -44,7 +44,7 @@
 #define PRINT_DL_PHDRS
 #endif
 
-int variable = 42; // initializing this puts this into .data section
+int variable = 42;  // initializing this puts this into .data section
 
 // There is not much we can thoroughly test. But it is easy to test
 // that we're seeing at least .data bits. We can also check that we saw
@@ -52,7 +52,7 @@ int variable = 42; // initializing this puts this into .data section
 TEST(ProcMapsIteratorTest, ForEachMapping) {
   bool seen_variable = false;
   bool seen_executable = false;
-  bool ok = tcmalloc::ForEachProcMapping([&] (const tcmalloc::ProcMapping& mapping) {
+  bool ok = tcmalloc::ForEachProcMapping([&](const tcmalloc::ProcMapping& mapping) {
     const uintptr_t variable_addr = reinterpret_cast<uintptr_t>(&variable);
     if (mapping.start <= variable_addr && variable_addr <= mapping.end) {
       seen_variable = true;
@@ -80,7 +80,10 @@ std::string MapFlags(uintptr_t flags) {
 }
 
 std::string MapType(uintptr_t p_type) {
-#define PT(c) do { if (p_type == c) return (#c); } while (false)
+#define PT(c)                     \
+  do {                            \
+    if (p_type == c) return (#c); \
+  } while (false)
 #ifdef PT_NULL
   PT(PT_NULL);
 #endif
@@ -153,24 +156,25 @@ std::string MapType(uintptr_t p_type) {
 
 void DoPrintPHDRs() {
   printf("iterating phdrs:\n");
-  int rv = dl_iterate_phdr([] (struct dl_phdr_info *info, size_t _size, void* _bogus) -> int {
-    printf("Got info. at = %p, path = '%s', num_phdrs = %d\n",
-           reinterpret_cast<void*>(static_cast<uintptr_t>(info->dlpi_addr)),
-           info->dlpi_name,
-           (int)info->dlpi_phnum);
-    for (int i = 0; i < info->dlpi_phnum; i++) {
-      printf(" phdr %d: type = 0x%zx (%s), offset = 0x%zx, vaddr = 0x%zx - 0x%zx, filesz = %zu, memsz = %zu, flags = 0x%zx (%s), align = 0x%zx\n",
-             i,
-             (uintptr_t)info->dlpi_phdr[i].p_type, MapType(info->dlpi_phdr[i].p_type).c_str(),
-             (uintptr_t)info->dlpi_phdr[i].p_offset,
-             (uintptr_t)info->dlpi_phdr[i].p_vaddr, (uintptr_t)info->dlpi_phdr[i].p_vaddr + info->dlpi_phdr[i].p_memsz,
-             (uintptr_t)info->dlpi_phdr[i].p_filesz,
-             (uintptr_t)info->dlpi_phdr[i].p_memsz,
-             (uintptr_t)info->dlpi_phdr[i].p_flags, MapFlags(info->dlpi_phdr[i].p_flags).c_str(),
-             (uintptr_t)info->dlpi_phdr[i].p_align);
-    }
-    return 0;
-  }, nullptr);
+  int rv = dl_iterate_phdr(
+      [](struct dl_phdr_info* info, size_t _size, void* _bogus) -> int {
+        printf("Got info. at = %p, path = '%s', num_phdrs = %d\n",
+               reinterpret_cast<void*>(static_cast<uintptr_t>(info->dlpi_addr)), info->dlpi_name,
+               (int)info->dlpi_phnum);
+        for (int i = 0; i < info->dlpi_phnum; i++) {
+          printf(
+              " phdr %d: type = 0x%zx (%s), offset = 0x%zx, vaddr = 0x%zx - 0x%zx, filesz = %zu, memsz = %zu, flags = "
+              "0x%zx (%s), align = 0x%zx\n",
+              i, (uintptr_t)info->dlpi_phdr[i].p_type, MapType(info->dlpi_phdr[i].p_type).c_str(),
+              (uintptr_t)info->dlpi_phdr[i].p_offset, (uintptr_t)info->dlpi_phdr[i].p_vaddr,
+              (uintptr_t)info->dlpi_phdr[i].p_vaddr + info->dlpi_phdr[i].p_memsz,
+              (uintptr_t)info->dlpi_phdr[i].p_filesz, (uintptr_t)info->dlpi_phdr[i].p_memsz,
+              (uintptr_t)info->dlpi_phdr[i].p_flags, MapFlags(info->dlpi_phdr[i].p_flags).c_str(),
+              (uintptr_t)info->dlpi_phdr[i].p_align);
+        }
+        return 0;
+      },
+      nullptr);
   printf("dl_iterate rv = %d\n", rv);
 }
 

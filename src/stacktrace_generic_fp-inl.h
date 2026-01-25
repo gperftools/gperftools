@@ -88,8 +88,8 @@ namespace stacktrace_generic_fp {
 // Aarch64 has pointer authentication and uses the upper 16bit of a stack
 // or return address to sign it. These bits needs to be strip in order for
 // stacktraces to work.
-void *strip_PAC(void* _ptr) {
-  void *ret;
+void* strip_PAC(void* _ptr) {
+  void* ret;
   asm volatile(
       "mov x30, %1\n\t"
       "hint #7\n\t"  // xpaclri, is NOP for < armv8.3-a
@@ -144,11 +144,9 @@ bool CheckPageIsReadable(void* ptr, void* checked_ptr) {
 }
 
 template <bool UnsafeAccesses, bool WithSizes>
-ATTRIBUTE_NOINLINE // forces architectures with link register to save it
-ENABLE_FP_ATTRIBUTE
-int capture(void **result, int max_depth, int skip_count,
-            void* initial_frame, void* const * initial_pc,
-            int *sizes) {
+ATTRIBUTE_NOINLINE  // forces architectures with link register to save it
+    ENABLE_FP_ATTRIBUTE int capture(void** result, int max_depth, int skip_count, void* initial_frame,
+                                    void* const* initial_pc, int* sizes) {
   int i = 0;
 
   if (initial_pc != nullptr) {
@@ -205,11 +203,10 @@ int capture(void **result, int max_depth, int skip_count,
   // bogus. Which is true if this code is built with
   // -fno-omit-frame-pointer.
   frame* prev_f = reinterpret_cast<frame*>(current_frame_addr);
-  frame *f = adjust_fp(reinterpret_cast<frame*>(initial_frame));
+  frame* f = adjust_fp(reinterpret_cast<frame*>(initial_frame));
 
   while (i < max_depth) {
-    if (!UnsafeAccesses
-        && !CheckPageIsReadable(&f->parent, prev_f)) {
+    if (!UnsafeAccesses && !CheckPageIsReadable(&f->parent, prev_f)) {
       break;
     }
 
@@ -298,13 +295,13 @@ static int GET_STACK_TRACE_OR_FRAMES {
   memset(sizes, 0, sizeof(*sizes) * max_depth);
 #else
   constexpr bool WithSizes = false;
-  int * const sizes = nullptr;
+  int* const sizes = nullptr;
 #endif
 
   // one for this function
   skip_count += 1;
 
-  void* const * initial_pc = nullptr;
+  void* const* initial_pc = nullptr;
   void* initial_frame = __builtin_frame_address(0);
   int n;
 
@@ -314,11 +311,11 @@ static int GET_STACK_TRACE_OR_FRAMES {
 
     // We have to resort to macro since different architectures have
     // different concrete types for those args.
-#define SETUP_FRAME(pc_ptr, frame_addr)         \
-    do { \
-      initial_pc = reinterpret_cast<void* const *>(pc_ptr); \
-      initial_frame = reinterpret_cast<void*>(frame_addr); \
-    } while (false)
+#define SETUP_FRAME(pc_ptr, frame_addr)                  \
+  do {                                                   \
+    initial_pc = reinterpret_cast<void* const*>(pc_ptr); \
+    initial_frame = reinterpret_cast<void*>(frame_addr); \
+  } while (false)
 
 #if __linux__ && __riscv
     SETUP_FRAME(&uc->uc_mcontext.__gregs[REG_PC], uc->uc_mcontext.__gregs[REG_S0]);
@@ -366,26 +363,24 @@ static int GET_STACK_TRACE_OR_FRAMES {
 #undef SETUP_FRAME
   }
 #elif !IS_WITH_CONTEXT
-  void * const ucp = nullptr;
+  void* const ucp = nullptr;
 #endif  // IS_WITH_CONTEXT
 
   constexpr bool UnsafeAccesses = (TCMALLOC_UNSAFE_GENERIC_FP_STACKTRACE != 0);
 
   if (ucp && !initial_pc) {
     // we're dealing with architecture that doesn't have proper ucontext integration
-    n = stacktrace_generic_fp::capture<UnsafeAccesses, WithSizes>(
-      result + 1, max_depth - 1, skip_count,
-      initial_frame, initial_pc, sizes);
+    n = stacktrace_generic_fp::capture<UnsafeAccesses, WithSizes>(result + 1, max_depth - 1, skip_count, initial_frame,
+                                                                  initial_pc, sizes);
     n++;
   } else {
-    n = stacktrace_generic_fp::capture<UnsafeAccesses, WithSizes>(
-      result, max_depth, skip_count,
-      initial_frame, initial_pc, sizes);
+    n = stacktrace_generic_fp::capture<UnsafeAccesses, WithSizes>(result, max_depth, skip_count, initial_frame,
+                                                                  initial_pc, sizes);
   }
 
   if (n > 0) {
     // make sure we don't tail-call capture
-    (void)*(const_cast<void * volatile *>(result));
+    (void)*(const_cast<void* volatile*>(result));
   }
 
   return n;

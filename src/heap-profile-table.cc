@@ -36,16 +36,16 @@
 #include <config.h>
 
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>   // for write()
+#include <unistd.h>  // for write()
 #endif
-#include <fcntl.h>    // for open()
+#include <fcntl.h>  // for open()
 #ifdef HAVE_GLOB_H
 #include <glob.h>
 #ifndef GLOB_NOMATCH  // true on some old cygwins
-# define GLOB_NOMATCH 0
+#define GLOB_NOMATCH 0
 #endif
 #endif
-#include <inttypes.h> // for PRIxPTR
+#include <inttypes.h>  // for PRIxPTR
 #ifdef HAVE_POLL_H
 #include <poll.h>
 #endif
@@ -62,12 +62,10 @@
 
 //----------------------------------------------------------------------
 
-DEFINE_bool(cleanup_old_heap_profiles,
-            EnvToBool("HEAP_PROFILE_CLEANUP", true),
+DEFINE_bool(cleanup_old_heap_profiles, EnvToBool("HEAP_PROFILE_CLEANUP", true),
             "At initialization time, delete old heap profiles.");
 
-DEFINE_int32(heap_check_max_leaks,
-             EnvToInt("HEAP_CHECK_MAX_LEAKS", 20),
+DEFINE_int32(heap_check_max_leaks, EnvToInt("HEAP_CHECK_MAX_LEAKS", 20),
              "The maximum number of leak reports to print.");
 
 //----------------------------------------------------------------------
@@ -82,25 +80,19 @@ const char HeapProfileTable::kFileExt[] = ".heap";
 
 //----------------------------------------------------------------------
 
-static constexpr int kHashTableSize = 179999;   // Size for bucket_table_.
+static constexpr int kHashTableSize = 179999;  // Size for bucket_table_.
 
 //----------------------------------------------------------------------
 
-HeapProfileTable::HeapProfileTable(Allocator alloc,
-                                   DeAllocator dealloc)
-    : alloc_(alloc),
-      dealloc_(dealloc),
-      bucket_table_(nullptr),
-      num_buckets_(0),
-      address_map_(nullptr) {
+HeapProfileTable::HeapProfileTable(Allocator alloc, DeAllocator dealloc)
+    : alloc_(alloc), dealloc_(dealloc), bucket_table_(nullptr), num_buckets_(0), address_map_(nullptr) {
   // Make a hash table for buckets.
   const int table_bytes = kHashTableSize * sizeof(*bucket_table_);
   bucket_table_ = static_cast<Bucket**>(alloc_(table_bytes));
   memset(bucket_table_, 0, table_bytes);
 
   // Make an allocation map.
-  address_map_ =
-      new(alloc_(sizeof(AllocationMap))) AllocationMap(alloc_, dealloc_);
+  address_map_ = new (alloc_(sizeof(AllocationMap))) AllocationMap(alloc_, dealloc_);
 
   // Initialize.
   memset(&total_, 0, sizeof(total_));
@@ -126,8 +118,7 @@ HeapProfileTable::~HeapProfileTable() {
   bucket_table_ = nullptr;
 }
 
-HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
-                                                      const void* const key[]) {
+HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth, const void* const key[]) {
   // Make hash-value
   uintptr_t h = 0;
   for (int i = 0; i < depth; i++) {
@@ -139,11 +130,9 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
   h ^= h >> 11;
 
   // Lookup stack trace in table
-  unsigned int buck = ((unsigned int) h) % kHashTableSize;
+  unsigned int buck = ((unsigned int)h) % kHashTableSize;
   for (Bucket* b = bucket_table_[buck]; b != 0; b = b->next) {
-    if ((b->hash == h) &&
-        (b->depth == depth) &&
-        std::equal(key, key + depth, b->stack)) {
+    if ((b->hash == h) && (b->depth == depth) && std::equal(key, key + depth, b->stack)) {
       return b;
     }
   }
@@ -154,18 +143,16 @@ HeapProfileTable::Bucket* HeapProfileTable::GetBucket(int depth,
   std::copy(key, key + depth, kcopy);
   Bucket* b = reinterpret_cast<Bucket*>(alloc_(sizeof(Bucket)));
   memset(b, 0, sizeof(*b));
-  b->hash  = h;
+  b->hash = h;
   b->depth = depth;
   b->stack = kcopy;
-  b->next  = bucket_table_[buck];
+  b->next = bucket_table_[buck];
   bucket_table_[buck] = b;
   num_buckets_++;
   return b;
 }
 
-void HeapProfileTable::RecordAlloc(
-    const void* ptr, size_t bytes, int stack_depth,
-    const void* const call_stack[]) {
+void HeapProfileTable::RecordAlloc(const void* ptr, size_t bytes, int stack_depth, const void* const call_stack[]) {
   Bucket* b = GetBucket(stack_depth, call_stack);
   b->allocs++;
   b->alloc_size += bytes;
@@ -195,8 +182,7 @@ bool HeapProfileTable::FindAlloc(const void* ptr, size_t* object_size) const {
   return alloc_value != nullptr;
 }
 
-bool HeapProfileTable::FindAllocDetails(const void* ptr,
-                                        AllocInfo* info) const {
+bool HeapProfileTable::FindAllocDetails(const void* ptr, AllocInfo* info) const {
   const AllocValue* alloc_value = address_map_->Find(ptr);
   if (alloc_value != nullptr) {
     info->object_size = alloc_value->bytes;
@@ -206,12 +192,9 @@ bool HeapProfileTable::FindAllocDetails(const void* ptr,
   return alloc_value != nullptr;
 }
 
-bool HeapProfileTable::FindInsideAlloc(const void* ptr,
-                                       size_t max_size,
-                                       const void** object_ptr,
+bool HeapProfileTable::FindInsideAlloc(const void* ptr, size_t max_size, const void** object_ptr,
                                        size_t* object_size) const {
-  const AllocValue* alloc_value =
-    address_map_->FindInside(&AllocValueSize, max_size, ptr, object_ptr);
+  const AllocValue* alloc_value = address_map_->FindInside(&AllocValueSize, max_size, ptr, object_ptr);
   if (alloc_value != nullptr) *object_size = alloc_value->bytes;
   return alloc_value != nullptr;
 }
@@ -232,19 +215,13 @@ void HeapProfileTable::MarkAsIgnored(const void* ptr) {
   }
 }
 
-void HeapProfileTable::UnparseBucket(const Bucket& b,
-                                     tcmalloc::GenericWriter* writer,
-                                     const char* extra) {
-  writer->AppendF("%6" PRId64 ": %8" PRId64 " [%6" PRId64 ": %8" PRId64 "] @",
-                  b.allocs - b.frees,
-                  b.alloc_size - b.free_size,
-                  b.allocs,
-                  b.alloc_size);
+void HeapProfileTable::UnparseBucket(const Bucket& b, tcmalloc::GenericWriter* writer, const char* extra) {
+  writer->AppendF("%6" PRId64 ": %8" PRId64 " [%6" PRId64 ": %8" PRId64 "] @", b.allocs - b.frees,
+                  b.alloc_size - b.free_size, b.allocs, b.alloc_size);
   writer->AppendStr(extra);
 
   for (int d = 0; d < b.depth; d++) {
-    writer->AppendF(" 0x%08" PRIxPTR,
-                    reinterpret_cast<uintptr_t>(b.stack[d]));
+    writer->AppendF(" 0x%08" PRIxPTR, reinterpret_cast<uintptr_t>(b.stack[d]));
   }
   writer->AppendStr("\n");
 }
@@ -267,9 +244,7 @@ void HeapProfileTable::SaveProfile(tcmalloc::GenericWriter* writer) const {
   tcmalloc::SaveProcSelfMaps(writer);
 }
 
-bool HeapProfileTable::WriteProfile(const char* file_name,
-                                    const Bucket& total,
-                                    AllocationMap* allocations) {
+bool HeapProfileTable::WriteProfile(const char* file_name, const Bucket& total, AllocationMap* allocations) {
   RAW_VLOG(1, "Dumping non-live heap profile to %s", file_name);
   RawFD fd = RawOpenForWriting(file_name);
   if (fd == kIllegalRawFD) {
@@ -283,7 +258,7 @@ bool HeapProfileTable::WriteProfile(const char* file_name,
 
   UnparseBucket(total, &writer, " heapprofile");
 
-  allocations->Iterate([&writer] (const void* ptr, AllocValue* v) {
+  allocations->Iterate([&writer](const void* ptr, AllocValue* v) {
     if (v->live()) {
       v->set_live(false);
       return;
@@ -308,8 +283,7 @@ bool HeapProfileTable::WriteProfile(const char* file_name,
 }
 
 void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
-  if (!FLAGS_cleanup_old_heap_profiles)
-    return;
+  if (!FLAGS_cleanup_old_heap_profiles) return;
   std::string pattern = std::string(prefix) + ".*" + kFileExt;
 #if defined(HAVE_GLOB_H)
   glob_t g;
@@ -318,15 +292,14 @@ void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
     const int prefix_length = strlen(prefix);
     for (int i = 0; i < g.gl_pathc; i++) {
       const char* fname = g.gl_pathv[i];
-      if ((strlen(fname) >= prefix_length) &&
-          (memcmp(fname, prefix, prefix_length) == 0)) {
+      if ((strlen(fname) >= prefix_length) && (memcmp(fname, prefix, prefix_length) == 0)) {
         RAW_VLOG(1, "Removing old heap profile %s", fname);
         unlink(fname);
       }
     }
   }
   globfree(&g);
-#else   /* HAVE_GLOB_H */
+#else /* HAVE_GLOB_H */
   RAW_LOG(WARNING, "Unable to remove old heap profiles (can't run glob())");
 #endif
 }

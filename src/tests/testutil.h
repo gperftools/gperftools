@@ -51,7 +51,7 @@ extern "C" void RunManyThreads(void (*fn)(), int count);
 // where idx is the index of the thread (which of the X threads this is).
 extern "C" void RunManyThreadsWithId(void (*fn)(int), int count);
 
-static void (* volatile noopt_helper)(void *) = [] (void* dummy) {};
+static void (*volatile noopt_helper)(void*) = [](void* dummy) {};
 
 // This function forces compiler to forget specific knowledge about
 // value of 'val'. This is useful to avoid compiler optimizing out

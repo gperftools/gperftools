@@ -33,12 +33,12 @@
 
 #include <config.h>
 #include "internal_logging.h"
-#include <stdarg.h>                     // for va_end, va_start
-#include <stdio.h>                      // for vsnprintf, va_list, etc
-#include <stdlib.h>                     // for abort
-#include <string.h>                     // for strlen, memcpy
+#include <stdarg.h>  // for va_end, va_start
+#include <stdio.h>   // for vsnprintf, va_list, etc
+#include <stdlib.h>  // for abort
+#include <string.h>  // for strlen, memcpy
 #ifdef HAVE_UNISTD_H
-#include <unistd.h>    // for write()
+#include <unistd.h>  // for write()
 #endif
 
 #include <gperftools/malloc_extension.h>
@@ -46,9 +46,7 @@
 
 namespace tcmalloc {
 
-static void WriteMessage(const char* msg, int length) {
-  WRITE_TO_STDERR(msg, length);
-}
+static void WriteMessage(const char* msg, int length) { WRITE_TO_STDERR(msg, length); }
 
 class Logger {
  public:
@@ -62,19 +60,12 @@ class Logger {
   char buf_[kBufSize];
 };
 
-void Log(LogMode mode, const char* filename, int line,
-         LogItem a, LogItem b, LogItem c, LogItem d) {
+void Log(LogMode mode, const char* filename, int line, LogItem a, LogItem b, LogItem c, LogItem d) {
   Logger state;
   state.p_ = state.buf_;
   state.end_ = state.buf_ + sizeof(state.buf_);
-  state.AddStr(filename, strlen(filename))
-      && state.AddStr(":", 1)
-      && state.AddNum(line, 10)
-      && state.AddStr("]", 1)
-      && state.Add(a)
-      && state.Add(b)
-      && state.Add(c)
-      && state.Add(d);
+  state.AddStr(filename, strlen(filename)) && state.AddStr(":", 1) && state.AddNum(line, 10) && state.AddStr("]", 1) &&
+      state.Add(a) && state.Add(b) && state.Add(c) && state.Add(d);
 
   // Teminate with newline
   if (state.p_ >= state.end_) {
@@ -116,14 +107,12 @@ bool Logger::Add(const LogItem& item) {
       if (item.u_.snum < 0) {
         // The cast to uint64_t is intentionally before the negation
         // so that we do not attempt to negate -2^63.
-        return AddStr("-", 1)
-            && AddNum(- static_cast<uint64_t>(item.u_.snum), 10);
+        return AddStr("-", 1) && AddNum(-static_cast<uint64_t>(item.u_.snum), 10);
       } else {
         return AddNum(static_cast<uint64_t>(item.u_.snum), 10);
       }
     case LogItem::kPtr:
-      return AddStr("0x", 2)
-          && AddNum(reinterpret_cast<uintptr_t>(item.u_.ptr), 16);
+      return AddStr("0x", 2) && AddNum(reinterpret_cast<uintptr_t>(item.u_.ptr), 16);
     default:
       return false;
   }
@@ -152,7 +141,7 @@ bool Logger::AddNum(uint64_t num, int base) {
   return AddStr(pos, end - pos);
 }
 
-}  // end tcmalloc namespace
+}  // namespace tcmalloc
 
 void TCMalloc_Printer::printf(const char* format, ...) {
   if (left_ > 0) {

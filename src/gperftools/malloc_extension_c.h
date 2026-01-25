@@ -44,11 +44,11 @@
 
 /* Annoying stuff for windows -- makes sure clients can import these fns */
 #ifndef PERFTOOLS_DLL_DECL
-# ifdef _WIN32
-#   define PERFTOOLS_DLL_DECL  __declspec(dllimport)
-# else
-#   define PERFTOOLS_DLL_DECL
-# endif
+#ifdef _WIN32
+#define PERFTOOLS_DLL_DECL __declspec(dllimport)
+#else
+#define PERFTOOLS_DLL_DECL
+#endif
 #endif
 
 #ifdef __cplusplus
@@ -62,7 +62,7 @@ PERFTOOLS_DLL_DECL int MallocExtension_VerifyNewMemory(const void* p);
 PERFTOOLS_DLL_DECL int MallocExtension_VerifyArrayNewMemory(const void* p);
 PERFTOOLS_DLL_DECL int MallocExtension_VerifyMallocMemory(const void* p);
 PERFTOOLS_DLL_DECL int MallocExtension_MallocMemoryStats(int* blocks, size_t* total,
-                                      int histogram[kMallocExtensionHistogramSize]);
+                                                         int histogram[kMallocExtensionHistogramSize]);
 PERFTOOLS_DLL_DECL void MallocExtension_GetStats(char* buffer, int buffer_length);
 
 /* TODO(csilvers): write a C version of these routines, that perhaps
@@ -97,7 +97,7 @@ typedef enum {
 PERFTOOLS_DLL_DECL MallocExtension_Ownership MallocExtension_GetOwnership(const void* p);
 
 #ifdef __cplusplus
-}   /* extern "C" */
+} /* extern "C" */
 #endif
 
 #endif /* _MALLOC_EXTENSION_C_H_ */

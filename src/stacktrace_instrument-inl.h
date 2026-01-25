@@ -59,62 +59,59 @@
 #else
 #define MAX_THREAD (65536)
 #endif
-#define MAX_DEPTH  (30)
-#define ATTRIBUTE_NOINSTRUMENT __attribute__ ((no_instrument_function))
+#define MAX_DEPTH (30)
+#define ATTRIBUTE_NOINSTRUMENT __attribute__((no_instrument_function))
 
 typedef struct {
-  int   stack_depth;
+  int stack_depth;
   void* frame[MAX_DEPTH];
-}BACK_TRACE;
+} BACK_TRACE;
 
 static BACK_TRACE thread_back_trace[MAX_THREAD];
 extern "C" {
-void __cyg_profile_func_enter(void *func_address,
-                              void *call_site) ATTRIBUTE_NOINSTRUMENT;
-void __cyg_profile_func_enter(void *func_address, void *call_site) {
+void __cyg_profile_func_enter(void* func_address, void* call_site) ATTRIBUTE_NOINSTRUMENT;
+void __cyg_profile_func_enter(void* func_address, void* call_site) {
   (void)func_address;
 
   BACK_TRACE* backtrace = thread_back_trace + gettid();
   int stack_depth = backtrace->stack_depth;
   backtrace->stack_depth = stack_depth + 1;
-  if ( stack_depth >= MAX_DEPTH ) {
+  if (stack_depth >= MAX_DEPTH) {
     return;
   }
   backtrace->frame[stack_depth] = call_site;
 }
 
-void __cyg_profile_func_exit(void *func_address,
-                             void *call_site) ATTRIBUTE_NOINSTRUMENT;
-void __cyg_profile_func_exit(void *func_address, void *call_site) {
+void __cyg_profile_func_exit(void* func_address, void* call_site) ATTRIBUTE_NOINSTRUMENT;
+void __cyg_profile_func_exit(void* func_address, void* call_site) {
   (void)func_address;
   (void)call_site;
 
   BACK_TRACE* backtrace = thread_back_trace + gettid();
   int stack_depth = backtrace->stack_depth;
   backtrace->stack_depth = stack_depth - 1;
-  if ( stack_depth >= MAX_DEPTH ) {
+  if (stack_depth >= MAX_DEPTH) {
     return;
   }
   backtrace->frame[stack_depth] = 0;
 }
 }  // extern "C"
 
-static int cyg_backtrace(void **buffer, int size) {
+static int cyg_backtrace(void** buffer, int size) {
   BACK_TRACE* backtrace = thread_back_trace + gettid();
   int stack_depth = backtrace->stack_depth;
-  if ( stack_depth >= MAX_DEPTH ) {
+  if (stack_depth >= MAX_DEPTH) {
     stack_depth = MAX_DEPTH;
   }
   int nSize = (size > stack_depth) ? stack_depth : size;
   for (int i = 0; i < nSize; i++) {
-  buffer[i] = backtrace->frame[nSize - i - 1];
+    buffer[i] = backtrace->frame[nSize - i - 1];
   }
 
   return nSize;
 }
 
 #endif  // BASE_STACKTRACE_INSTRUMENT_INL_H_
-
 
 // Note: this part of the file is included several times.
 // Do not put globals below.
@@ -132,19 +129,16 @@ static int cyg_backtrace(void **buffer, int size) {
 //   void* ucp: a ucontext_t* (GetStack{Trace,Frames}WithContext only)
 static int GET_STACK_TRACE_OR_FRAMES {
   static const int kStackLength = 64;
-  void * stack[kStackLength];
+  void* stack[kStackLength];
   int size;
   memset(stack, 0, sizeof(stack));
 
   size = cyg_backtrace(stack, kStackLength);
   skip_count += 2;  // we want to skip the current and parent frame as well
   int result_count = size - skip_count;
-  if (result_count < 0)
-    result_count = 0;
-  if (result_count > max_depth)
-    result_count = max_depth;
-  for (int i = 0; i < result_count; i++)
-    result[i] = stack[i + skip_count];
+  if (result_count < 0) result_count = 0;
+  if (result_count > max_depth) result_count = max_depth;
+  for (int i = 0; i < result_count; i++) result[i] = stack[i + skip_count];
 
 #if IS_STACK_FRAMES
   // No implementation for finding out the stack frame sizes yet.

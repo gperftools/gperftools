@@ -33,7 +33,7 @@
 //
 // This file contains the unit tests for the ProfileData class.
 
-#include <stdint.h>             // to get uintptr_t
+#include <stdint.h>  // to get uintptr_t
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
@@ -48,25 +48,29 @@
 
 namespace {
 
-template<typename T> class scoped_array {
+template <typename T>
+class scoped_array {
  public:
-  scoped_array(T* data) : data_(data) { }
+  scoped_array(T* data) : data_(data) {}
   ~scoped_array() { delete[] data_; }
   T* get() { return data_; }
   T& operator[](int i) { return data_[i]; }
+
  private:
   T* const data_;
 };
 
 // Re-runs fn until it doesn't cause EINTR.
-#define NO_INTR(fn)   do {} while ((fn) < 0 && errno == EINTR)
+#define NO_INTR(fn) \
+  do {              \
+  } while ((fn) < 0 && errno == EINTR)
 
 // Read up to "count" bytes from file descriptor "fd" into the buffer
 // starting at "buf" while handling short reads and EINTR.  On
 // success, return the number of bytes read.  Otherwise, return -1.
-static ssize_t ReadPersistent(const int fd, void *buf, const size_t count) {
+static ssize_t ReadPersistent(const int fd, void* buf, const size_t count) {
   CHECK_GE(fd, 0);
-  char *buf0 = reinterpret_cast<char *>(buf);
+  char* buf0 = reinterpret_cast<char*>(buf);
   ssize_t num_bytes = 0;
   while (num_bytes < count) {
     ssize_t len;
@@ -110,9 +114,8 @@ class ProfileDataChecker {
  public:
   ProfileDataChecker() {
     const char* tmpdir = getenv("TMPDIR");
-    if (tmpdir == nullptr)
-      tmpdir = "/tmp";
-    mkdir(tmpdir, 0755);     // if necessary
+    if (tmpdir == nullptr) tmpdir = "/tmp";
+    mkdir(tmpdir, 0755);  // if necessary
     filename_ = std::string(tmpdir) + "/profiledata_unittest.tmp";
   }
 
@@ -137,8 +140,7 @@ class ProfileDataChecker {
   //
   // Returns kNoError if the data matched, otherwise returns an
   // indication of the cause of the mismatch.
-  std::string CheckWithSkips(const ProfileDataSlot* slots, int num_slots,
-                             const int* skips, int num_skips);
+  std::string CheckWithSkips(const ProfileDataSlot* slots, int num_slots, const int* skips, int num_skips);
 
   // Validate that a profile is correctly formed.  The profile is
   // assumed to have been created by the same kind of binary (e.g.,
@@ -152,18 +154,15 @@ class ProfileDataChecker {
   std::string filename_;
 };
 
-std::string ProfileDataChecker::CheckWithSkips(const ProfileDataSlot* slots,
-                                               int num_slots, const int* skips,
+std::string ProfileDataChecker::CheckWithSkips(const ProfileDataSlot* slots, int num_slots, const int* skips,
                                                int num_skips) {
   FileDescriptor fd(open(filename_.c_str(), O_RDONLY));
-  if (fd.get() < 0)
-    return "file open error";
+  if (fd.get() < 0) return "file open error";
 
   scoped_array<ProfileDataSlot> filedata(new ProfileDataSlot[num_slots]);
   size_t expected_bytes = num_slots * sizeof filedata[0];
   ssize_t bytes_read = ReadPersistent(fd.get(), filedata.get(), expected_bytes);
-  if (expected_bytes != bytes_read)
-    return "file too small";
+  if (expected_bytes != bytes_read) return "file too small";
 
   for (int i = 0; i < num_slots; i++) {
     if (num_skips > 0 && *skips == i) {
@@ -171,67 +170,51 @@ std::string ProfileDataChecker::CheckWithSkips(const ProfileDataSlot* slots,
       skips++;
       continue;
     }
-    if (slots[i] != filedata[i])
-      return "data mismatch";
+    if (slots[i] != filedata[i]) return "data mismatch";
   }
   return kNoError;
 }
 
 std::string ProfileDataChecker::ValidateProfile() {
   FileDescriptor fd(open(filename_.c_str(), O_RDONLY));
-  if (fd.get() < 0)
-    return "file open error";
+  if (fd.get() < 0) return "file open error";
 
   struct stat statbuf;
-  if (fstat(fd.get(), &statbuf) != 0)
-    return "fstat error";
-  if (statbuf.st_size != static_cast<ssize_t>(statbuf.st_size))
-    return "file impossibly large";
+  if (fstat(fd.get(), &statbuf) != 0) return "fstat error";
+  if (statbuf.st_size != static_cast<ssize_t>(statbuf.st_size)) return "file impossibly large";
   ssize_t filesize = statbuf.st_size;
 
   scoped_array<char> filedata(new char[filesize]);
-  if (ReadPersistent(fd.get(), filedata.get(), filesize) != filesize)
-    return "read of whole file failed";
+  if (ReadPersistent(fd.get(), filedata.get(), filesize) != filesize) return "read of whole file failed";
 
   // Must have enough data for the header and the trailer.
-  if (filesize < (5 + 3) * sizeof(ProfileDataSlot))
-    return "not enough data in profile for header + trailer";
+  if (filesize < (5 + 3) * sizeof(ProfileDataSlot)) return "not enough data in profile for header + trailer";
 
   // Check the header
-  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[0] != 0)
-    return "error in header: non-zero count";
-  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[1] != 3)
-    return "error in header: num_slots != 3";
-  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[2] != 0)
-    return "error in header: non-zero format version";
+  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[0] != 0) return "error in header: non-zero count";
+  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[1] != 3) return "error in header: num_slots != 3";
+  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[2] != 0) return "error in header: non-zero format version";
   // Period (slot 3) can have any value.
-  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[4] != 0)
-    return "error in header: non-zero padding value";
+  if (reinterpret_cast<ProfileDataSlot*>(filedata.get())[4] != 0) return "error in header: non-zero padding value";
   ssize_t cur_offset = 5 * sizeof(ProfileDataSlot);
 
   // While there are samples, skip them.  Each sample consists of
   // at least three slots.
   bool seen_trailer = false;
   while (!seen_trailer) {
-    if (cur_offset > filesize - 3 * sizeof(ProfileDataSlot))
-      return "truncated sample header";
-    ProfileDataSlot* sample =
-        reinterpret_cast<ProfileDataSlot*>(filedata.get() + cur_offset);
+    if (cur_offset > filesize - 3 * sizeof(ProfileDataSlot)) return "truncated sample header";
+    ProfileDataSlot* sample = reinterpret_cast<ProfileDataSlot*>(filedata.get() + cur_offset);
     ProfileDataSlot slots_this_sample = 2 + sample[1];
     ssize_t size_this_sample = slots_this_sample * sizeof(ProfileDataSlot);
-    if (cur_offset > filesize - size_this_sample)
-      return "truncated sample";
+    if (cur_offset > filesize - size_this_sample) return "truncated sample";
 
     if (sample[0] == 0 && sample[1] == 1 && sample[2] == 0) {
       seen_trailer = true;
     } else {
-      if (sample[0] < 1)
-        return "error in sample: sample count < 1";
-      if (sample[1] < 1)
-        return "error in sample: num_pcs < 1";
+      if (sample[0] < 1) return "error in sample: sample count < 1";
+      if (sample[1] < 1) return "error in sample: num_pcs < 1";
       for (int i = 2; i < slots_this_sample; i++) {
-        if (sample[i] == 0)
-          return "error in sample: NULL PC";
+        if (sample[i] == 0) return "error in sample: NULL PC";
       }
     }
     cur_offset += size_this_sample;
@@ -240,10 +223,8 @@ std::string ProfileDataChecker::ValidateProfile() {
   // There must be at least one line in the (text) list of mapped objects,
   // and it must be terminated by a newline.  Note, the use of newline
   // here and below Might not be reasonable on non-UNIX systems.
-  if (cur_offset >= filesize)
-    return "no list of mapped objects";
-  if (filedata[filesize - 1] != '\n')
-    return "profile did not end with a complete line";
+  if (cur_offset >= filesize) return "no list of mapped objects";
+  if (filedata[filesize - 1] != '\n') return "profile did not end with a complete line";
 
   while (cur_offset < filesize) {
     char* line_start = filedata.get() + cur_offset;
@@ -279,8 +260,7 @@ std::string ProfileDataChecker::ValidateProfile() {
     // space before the filename.
     if (!found_match) {
       int chars_scanned = -1;
-      sscanf(line_cur, "%*x-%*x %*c%*c%*c%*c %*x %*x:%*x %*d %n",
-             &chars_scanned);
+      sscanf(line_cur, "%*x-%*x %*c%*c%*c%*c %*x %*x:%*x %*d %n", &chars_scanned);
       found_match = (chars_scanned > 0 && !has_leading_space);
     }
 
@@ -297,8 +277,7 @@ std::string ProfileDataChecker::ValidateProfile() {
       found_match = (chars_scanned > 0);
     }
 
-    if (!found_match)
-      return "unrecognized line in text section";
+    if (!found_match) return "unrecognized line in text section";
 
     cur_offset += (line_end - line_start) + 1;
   }
@@ -308,9 +287,7 @@ std::string ProfileDataChecker::ValidateProfile() {
 
 class ProfileDataTest : public testing::Test {
  protected:
-  void ExpectStopped() {
-    EXPECT_FALSE(collector_.enabled());
-  }
+  void ExpectStopped() { EXPECT_FALSE(collector_.enabled()); }
 
   void ExpectRunningSamples(int samples) {
     ProfileData::State state;
@@ -319,15 +296,14 @@ class ProfileDataTest : public testing::Test {
     EXPECT_EQ(samples, state.samples_gathered);
   }
 
-  void ExpectSameState(const ProfileData::State& before,
-                       const ProfileData::State& after) {
+  void ExpectSameState(const ProfileData::State& before, const ProfileData::State& after) {
     EXPECT_EQ(before.enabled, after.enabled);
     EXPECT_EQ(before.samples_gathered, after.samples_gathered);
     EXPECT_EQ(before.start_time, after.start_time);
     EXPECT_STREQ(before.profile_name, after.profile_name);
   }
 
-  ProfileData        collector_;
+  ProfileData collector_;
   ProfileDataChecker checker_;
 };
 
@@ -351,7 +327,7 @@ TEST_F(ProfileDataTest, OpsWhenStopped) {
   collector_.FlushTable();
 
   // Safe to call Add.
-  const void *trace[] = { V(100), V(101), V(102), V(103), V(104) };
+  const void* trace[] = {V(100), V(101), V(102), V(103), V(104)};
   collector_.Add(arraysize(trace), trace);
 
   ProfileData::State state_after;
@@ -364,8 +340,8 @@ TEST_F(ProfileDataTest, OpsWhenStopped) {
 TEST_F(ProfileDataTest, StartStopEmpty) {
   const int frequency = 1;
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    0, 1, 0                             // binary trailer
+      0, 3, 0, 1000000 / frequency, 0,  // binary header
+      0, 1, 0                           // binary trailer
   };
 
   ExpectStopped();
@@ -385,21 +361,18 @@ TEST_F(ProfileDataTest, StartStopNoOptionsEmpty) {
   // We're not requesting a specific period, implementation can do
   // whatever it likes.
   ProfileDataSlot slots[] = {
-    0, 3, 0, 0 /* skipped */, 0,        // binary header
-    0, 1, 0                             // binary trailer
+      0, 3, 0, 0 /* skipped */, 0,  // binary header
+      0, 1, 0                       // binary trailer
   };
-  int slots_to_skip[] = { 3 };
+  int slots_to_skip[] = {3};
 
   ExpectStopped();
-  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(),
-                               ProfileData::Options()));
+  EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), ProfileData::Options()));
   ExpectRunningSamples(0);
   collector_.Stop();
   ExpectStopped();
   EXPECT_EQ(kNoError, checker_.ValidateProfile());
-  EXPECT_EQ(kNoError, checker_.CheckWithSkips(slots, arraysize(slots),
-                                              slots_to_skip,
-                                              arraysize(slots_to_skip)));
+  EXPECT_EQ(kNoError, checker_.CheckWithSkips(slots, arraysize(slots), slots_to_skip, arraysize(slots_to_skip)));
 }
 
 // Start after already started.  Should return false and not impact
@@ -407,8 +380,8 @@ TEST_F(ProfileDataTest, StartStopNoOptionsEmpty) {
 TEST_F(ProfileDataTest, StartWhenStarted) {
   const int frequency = 1;
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    0, 1, 0                             // binary trailer
+      0, 3, 0, 1000000 / frequency, 0,  // binary header
+      0, 1, 0                           // binary trailer
   };
 
   ProfileData::Options options;
@@ -435,8 +408,8 @@ TEST_F(ProfileDataTest, StartWhenStarted) {
 TEST_F(ProfileDataTest, StartStopEmpty2) {
   const int frequency = 2;
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    0, 1, 0                             // binary trailer
+      0, 3, 0, 1000000 / frequency, 0,  // binary header
+      0, 1, 0                           // binary trailer
   };
 
   ExpectStopped();
@@ -453,9 +426,11 @@ TEST_F(ProfileDataTest, StartStopEmpty2) {
 TEST_F(ProfileDataTest, CollectOne) {
   const int frequency = 2;
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    1, 5, 100, 101, 102, 103, 104,      // our sample
-    0, 1, 0                             // binary trailer
+      0,   3,   0,   1000000 / frequency,
+      0,  // binary header
+      1,   5,   100, 101,
+      102, 103, 104,  // our sample
+      0,   1,   0     // binary trailer
   };
 
   ExpectStopped();
@@ -464,7 +439,7 @@ TEST_F(ProfileDataTest, CollectOne) {
   EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
 
-  const void *trace[] = { V(100), V(101), V(102), V(103), V(104) };
+  const void* trace[] = {V(100), V(101), V(102), V(103), V(104)};
   collector_.Add(arraysize(trace), trace);
   ExpectRunningSamples(1);
 
@@ -477,9 +452,11 @@ TEST_F(ProfileDataTest, CollectOne) {
 TEST_F(ProfileDataTest, CollectTwoMatching) {
   const int frequency = 2;
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    2, 5, 100, 201, 302, 403, 504,      // our two samples
-    0, 1, 0                             // binary trailer
+      0,   3,   0,   1000000 / frequency,
+      0,  // binary header
+      2,   5,   100, 201,
+      302, 403, 504,  // our two samples
+      0,   1,   0     // binary trailer
   };
 
   ExpectStopped();
@@ -489,7 +466,7 @@ TEST_F(ProfileDataTest, CollectTwoMatching) {
   ExpectRunningSamples(0);
 
   for (int i = 0; i < 2; ++i) {
-    const void *trace[] = { V(100), V(201), V(302), V(403), V(504) };
+    const void* trace[] = {V(100), V(201), V(302), V(403), V(504)};
     collector_.Add(arraysize(trace), trace);
     ExpectRunningSamples(i + 1);
   }
@@ -503,10 +480,13 @@ TEST_F(ProfileDataTest, CollectTwoMatching) {
 TEST_F(ProfileDataTest, CollectTwoFlush) {
   const int frequency = 2;
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    1, 5, 100, 201, 302, 403, 504,      // first sample (flushed)
-    1, 5, 100, 201, 302, 403, 504,      // second identical sample
-    0, 1, 0                             // binary trailer
+      0,   3,   0,   1000000 / frequency,
+      0,  // binary header
+      1,   5,   100, 201,
+      302, 403, 504,  // first sample (flushed)
+      1,   5,   100, 201,
+      302, 403, 504,  // second identical sample
+      0,   1,   0     // binary trailer
   };
 
   ExpectStopped();
@@ -515,7 +495,7 @@ TEST_F(ProfileDataTest, CollectTwoFlush) {
   EXPECT_TRUE(collector_.Start(checker_.filename().c_str(), options));
   ExpectRunningSamples(0);
 
-  const void *trace[] = { V(100), V(201), V(302), V(403), V(504) };
+  const void* trace[] = {V(100), V(201), V(302), V(403), V(504)};
 
   collector_.Add(arraysize(trace), trace);
   ExpectRunningSamples(1);
@@ -550,8 +530,8 @@ TEST_F(ProfileDataTest, StartResetRestart) {
 
   const int frequency = 2;  // Different frequency than used above.
   ProfileDataSlot slots[] = {
-    0, 3, 0, 1000000 / frequency, 0,    // binary header
-    0, 1, 0                             // binary trailer
+      0, 3, 0, 1000000 / frequency, 0,  // binary header
+      0, 1, 0                           // binary trailer
   };
 
   options.set_frequency(frequency);
