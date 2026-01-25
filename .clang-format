@@ -1,0 +1,7 @@
+# -*- Mode: yaml -*-
+---
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 120
+SortIncludes: Never
+...
