@@ -33,6 +33,11 @@
 
 #include <config.h>
 
+#if __APPLE__
+// sbrk is deprecated on OSXen and fails at runtime anyways.
+#undef HAVE_SBRK
+#endif
+
 #include "system-alloc.h"
 
 #include <errno.h>   // for EAGAIN, errno
