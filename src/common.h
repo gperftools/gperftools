@@ -71,9 +71,12 @@ static const size_t kMinAlign = 16;
 // central lists.  Also, larger pages are less likely to get freed.
 // These two factors cause a bounded increase in memory use.
 #if defined(TCMALLOC_PAGE_SIZE_SHIFT)
-static const size_t kPageShift = TCMALLOC_PAGE_SIZE_SHIFT;
+static constexpr size_t kPageShift = TCMALLOC_PAGE_SIZE_SHIFT;
+#elif defined(__aarch64__) && defined(__APPLE__)
+// ARMs on OSX use 16k pages.
+static constexpr size_t kPageShift = 14;
 #else
-static const size_t kPageShift = 13;
+static constexpr size_t kPageShift = 13;
 #endif
 
 static const size_t kClassSizesMax = 128;
