@@ -37,6 +37,9 @@ NORMAL_INCLUDES = %w[
   vendor/googletest/googletest/
 ].map {|d| "-I#{d}"}
 
+CXX = ENV["CXX"] || "clang++"
+CC = ENV["CC"] || CXX.gsub(/\+\+$/,"")
+
 entries = all_files.map do |filename|
   args = case classify(filename)
          when :default
@@ -59,14 +62,14 @@ entries = all_files.map do |filename|
                                   else
                                     []
                                   end
-           ["clang++", "-x", "c++", "-std=c++17",
+           [CXX, "-x", "c++", "-std=c++17",
             "-DENABLE_EMERGENCY_MALLOC",
             *NORMAL_INCLUDES,
             *maybe_libc_override,
             *maybe_generic_config,
             "--", filename]
          when :libbacktrace
-           ["clang",
+           [CC,
             "-Ivendor/libbacktrace-integration",
             "-Ivendor/libbacktrace",
             "--", filename]
