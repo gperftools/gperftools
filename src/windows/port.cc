@@ -58,7 +58,7 @@ int getpagesize() {
   if (pagesize == 0) {
     SYSTEM_INFO system_info;
     GetSystemInfo(&system_info);
-    pagesize = std::max(system_info.dwPageSize, system_info.dwAllocationGranularity);
+    pagesize = system_info.dwPageSize;
   }
   return pagesize;
 }
