@@ -70,7 +70,7 @@ TEST(FragTest, Slack) {
   TestingPortal* portal = TestingPortal::Get();
 
   // Make kAllocSize one page larger than the maximum small object size.
-  const int kAllocSize = portal->GetMaxSize() + portal->GetPageSize();
+  const int kAllocSize = portal->GetMaxSize() + portal->GetMinSpanSize();
   // Allocate 400MB in total.
   const int kTotalAlloc = 400 << 20;
   const int kAllocIterations = kTotalAlloc / kAllocSize;

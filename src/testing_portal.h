@@ -69,7 +69,7 @@ class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortal {
 
   virtual bool HaveSystemRelease() = 0;
   virtual bool IsDebuggingMalloc() = 0;
-  virtual size_t GetPageSize() = 0;
+  virtual size_t GetMinSpanSize() = 0;
   virtual size_t GetMinAlign() = 0;
   virtual size_t GetMaxSize() = 0;
   virtual int64_t& GetSampleParameter() = 0;

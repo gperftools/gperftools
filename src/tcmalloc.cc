@@ -499,7 +499,9 @@ class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortalImpl : public TestingPortal {
     return have;
   }
   bool IsDebuggingMalloc() override { return false; }
-  size_t GetPageSize() override { return kPageSize; }
+  size_t GetMinSpanSize() override {
+    return Static::sizemap()->min_span_size_in_pages() * kPageSize;
+  }
   size_t GetMinAlign() override { return kMinAlign; }
   size_t GetMaxSize() override { return kMaxSize; }
   int64_t& GetSampleParameter() override { return FLAGS_tcmalloc_sample_parameter; }
