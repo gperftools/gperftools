@@ -127,18 +127,11 @@ int SizeMap::NumMoveSize(size_t size) {
 void SizeMap::Init() {
   InitTCMallocTransferNumObjects();
 
-#if (!defined(_WIN32) || defined(TCMALLOC_BRAVE_EFFECTIVE_PAGE_SIZE)) && !defined(TCMALLOC_COWARD_EFFECTIVE_PAGE_SIZE)
+#if !defined(TCMALLOC_COWARD_EFFECTIVE_PAGE_SIZE)
   size_t native_page_size =
       tcmalloc::commandlineflags::StringToLongLong(TCMallocGetenvSafe("TCMALLOC_OVERRIDE_PAGESIZE"), getpagesize());
 #else
-  // So windows getpagesize() returns 64k. Because that is
-  // "granularity size" w.r.t. their virtual memory facility. So kinda
-  // maybe not a bad idea to also have effective logical pages at 64k
-  // too. But it breaks frag_unittest (for mostly harmless
-  // reason). And I am not brave enough to have our behavior change so
-  // much on windows (which isn't that much; people routinely run 256k
-  // logical pages anyways).
-  constexpr size_t native_page_size = kPageSize;
+  size_t native_page_size = kPageSize;
 #endif
 
   size_t min_span_size = std::max<size_t>(native_page_size, kPageSize);
