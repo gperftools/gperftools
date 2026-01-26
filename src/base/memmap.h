@@ -36,11 +36,23 @@
 #ifdef _WIN32
 // Windows has mmap bits defined in it's port.h header
 #else
-// Everything we assume is sufficiently POSIX-compatible. Also we
+// Everything else we assume is sufficiently POSIX-compatible. Also we
 // assume ~everyone has MAP_ANONYMOUS or similar (POSIX, strangely,
 // doesn't!)
+#include <stdint.h>
 #include <sys/mman.h>
 #include <sys/types.h>
+
+// OSX's mmap of anonymous memory allows us to pass extra "tag" in the
+// (otherwise unused) fd argument.
+#if defined __APPLE__
+#if __has_include(<mach/vm_statistics.h>)
+#include <mach/vm_statistics.h>
+#ifdef VM_MEMORY_APPLICATION_SPECIFIC_16
+#define TCMALLOC_MMAP_TAG VM_MAKE_TAG(VM_MEMORY_APPLICATION_SPECIFIC_16 - 2)
+#endif  // VM_MEMORY_APPLICATION_SPECIFIC_16
+#endif  // __has_include
+#endif  // __APPLE__
 
 // Someone still cares about those near-obsolete OSes that fail to
 // supply MAP_ANONYMOUS.
@@ -50,21 +62,30 @@
 
 #endif
 
+#ifndef TCMALLOC_MMAP_TAG
+#define TCMALLOC_MMAP_TAG -1
+#endif
+
 namespace tcmalloc {
 
 struct MMapResult {
   void* addr;
   bool success;
+
+  uintptr_t AsNumber() const { return reinterpret_cast<uintptr_t>(addr); }
 };
 
-// MapAnonymous does mmap of r+w anonymous memory, simply saving us
+// MapAnonymousWithHint does mmap of r+w anonymous memory, simply saving us
 // some hassle of spreading (not 100% portable) flags.
-static inline MMapResult MapAnonymous(size_t length) {
+static inline MMapResult MapAnonymousWithHint(size_t length, uintptr_t hint) {
   MMapResult result;
-  result.addr = mmap(nullptr, length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+  result.addr = mmap(reinterpret_cast<void*>(hint), length, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE,
+                     /* fd = */ TCMALLOC_MMAP_TAG, /* offset = */ 0);
   result.success = (result.addr != MAP_FAILED);
   return result;
 }
+
+static inline MMapResult MapAnonymous(size_t length) { return MapAnonymousWithHint(length, 0); }
 
 }  // namespace tcmalloc
 
