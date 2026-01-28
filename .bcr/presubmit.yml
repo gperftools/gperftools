@@ -16,3 +16,9 @@ tasks:
     build_targets:
     - '@gperftools//:cpu_profiler'
     - '@gperftools//:tcmalloc'
+  verify_targets_windows:
+    name: Verify build targets (Windows)
+    platform: windows
+    bazel: ${{ bazel }}
+    build_targets:
+    - '@gperftools//:tcmalloc'

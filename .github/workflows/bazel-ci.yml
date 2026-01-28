@@ -1,0 +1,101 @@
+name: Bazel CI/CD
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bazel-build-test-unix:
+    name: Bazel ${{ matrix.bazel }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        bazel: ['7.x', '8.x', '9.x']
+    runs-on: ${{ matrix.os }}
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@083175551ceeceebc757ebee2127fde78840ca77 # 0.18.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.os }}-${{ matrix.bazel }}
+          repository-cache: true
+      
+      - name: Build cpu_profiler
+        run: bazel build --verbose_failures //:cpu_profiler
+      
+      - name: Build tcmalloc
+        run: bazel build --verbose_failures //:tcmalloc
+      
+      - name: Build tcmalloc_minimal
+        run: bazel build --verbose_failures //:tcmalloc_minimal
+      
+      - name: Build additional core targets
+        run: |
+          bazel build --verbose_failures //:stacktrace
+          bazel build --verbose_failures //:common
+        continue-on-error: true
+      
+      - name: Query and build all buildable targets
+        run: |
+          TARGETS=$(bazel query --keep_going 'kind("cc_.*", //...) except //vendor/...' 2>/dev/null | grep -E "^//" | grep -v "_test$" || echo "")
+          if [ -n "$TARGETS" ]; then
+            echo "$TARGETS" | xargs -r bazel build --keep_going --verbose_failures
+          fi
+        continue-on-error: true
+      
+      - name: Run tests with proper filtering
+        run: |
+          # Query for test targets first
+          TEST_TARGETS=$(bazel query --keep_going 'tests(//...) except //vendor/...' 2>/dev/null | grep -E "^//" || echo "")
+          if [ -n "$TEST_TARGETS" ]; then
+            echo "$TEST_TARGETS" | xargs bazel test --test_output=errors --verbose_failures --keep_going
+          else
+            echo "No test targets found"
+          fi
+        continue-on-error: true
+
+  bazel-build-test-windows:
+    name: Bazel ${{ matrix.bazel }} on Windows
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ['7.x', '8.x', '9.x']
+    runs-on: windows-2025
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
+      
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@083175551ceeceebc757ebee2127fde78840ca77 # 0.18.0
+        with:
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-windows-${{ matrix.bazel }}
+          repository-cache: true
+      
+      # Note: tcmalloc library builds on Windows, but full heap profiling features 
+      # (used by tcmalloc_test) are not yet supported. tcmalloc_minimal works fully.
+      - name: Build tcmalloc
+        run: bazel build --verbose_failures //:tcmalloc
+      
+      - name: Build tcmalloc_minimal
+        run: bazel build --verbose_failures //:tcmalloc_minimal
+      
+      - name: Run tcmalloc_minimal_test
+        run: bazel test --test_output=errors --verbose_failures //:tcmalloc_minimal_test

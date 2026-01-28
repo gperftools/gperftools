@@ -1,3 +1,15 @@
+# Enable platform-specific configuration
+build --enable_platform_specific_config
+
+# macOS-specific build options
 # for some reason bazel puts 10.11 as target osx sdk which fails to do
 # even basic c++17 things. So we have to fix it here :(
-build --macos_sdk_version=13.2
+build:macos --macos_sdk_version=13.2
+
+# Windows-specific build options
+# Ensure C++17 standard is used on Windows
+build:windows --cxxopt=/std:c++17
+build:windows --host_cxxopt=/std:c++17
+# Define Windows version for compatibility
+build:windows --cxxopt=/D_WIN32_WINNT=0x0602
+build:windows --host_cxxopt=/D_WIN32_WINNT=0x0602
