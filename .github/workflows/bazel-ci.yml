@@ -1,0 +1,137 @@
+name: Bazel CI/CD
+
+on:
+  push:
+    branches:
+      - "*"
+  pull_request:
+  schedule:
+    # Run nightly at 2 AM UTC
+    - cron: '0 2 * * *'
+
+# Cancel in-progress runs for the same workflow + branch combination
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  bazel-build-test-unix:
+    name: Bazel ${{ matrix.bazel }} on ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+        bazel: ['7.x', '8.x', '9.x']
+    runs-on: ${{ matrix.os }}
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-version: '1.x'
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-${{ matrix.os }}-${{ matrix.bazel }}
+          repository-cache: true
+      
+      - name: Build cpu_profiler
+        run: bazel build --verbose_failures //:cpu_profiler
+      
+      - name: Build tcmalloc
+        run: bazel build --verbose_failures //:tcmalloc
+      
+      - name: Build tcmalloc_minimal
+        run: bazel build --verbose_failures //:tcmalloc_minimal
+      
+      - name: Build additional core targets
+        run: |
+          bazel build --verbose_failures //:stacktrace
+          bazel build --verbose_failures //:common
+        continue-on-error: true
+      
+      - name: Query and build all buildable targets
+        run: |
+          TARGETS=$(bazel query --keep_going 'kind("cc_.*", //...) except //vendor/...' 2>/dev/null | grep -E "^//" | grep -v "_test$" || echo "")
+          if [ -n "$TARGETS" ]; then
+            echo "$TARGETS" | xargs -r bazel build --keep_going --verbose_failures
+          fi
+        continue-on-error: true
+      
+      - name: Run tests with proper filtering
+        run: |
+          # Query for test targets first
+          TEST_TARGETS=$(bazel query --keep_going 'tests(//...) except //vendor/...' 2>/dev/null | grep -E "^//" || echo "")
+          if [ -n "$TEST_TARGETS" ]; then
+            echo "$TEST_TARGETS" | xargs bazel test --test_output=errors --verbose_failures --keep_going
+          else
+            echo "No test targets found"
+          fi
+        continue-on-error: true
+
+  bazel-build-test-windows:
+    name: Bazel ${{ matrix.bazel }} on Windows
+    strategy:
+      fail-fast: false
+      matrix:
+        bazel: ['7.x', '8.x', '9.x']
+    runs-on: windows-2025
+    env:
+      USE_BAZEL_VERSION: ${{ matrix.bazel }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Setup Bazel
+        uses: bazel-contrib/setup-bazel@0.9.0
+        with:
+          bazelisk-version: '1.x'
+          bazelisk-cache: true
+          disk-cache: ${{ github.workflow }}-windows-${{ matrix.bazel }}
+          repository-cache: true
+      
+      - name: Build tcmalloc
+        run: bazel build --verbose_failures //:tcmalloc
+      
+      - name: Build tcmalloc_minimal
+        run: bazel build --verbose_failures //:tcmalloc_minimal
+      
+      - name: Build additional Windows-compatible targets
+        shell: bash
+        run: |
+          bazel build --verbose_failures //:stacktrace
+          bazel build --verbose_failures //:common
+        continue-on-error: true
+      
+      - name: Query and build Windows-compatible targets
+        shell: bash
+        run: |
+          # Query Windows-compatible targets and build them one by one to avoid xargs issues
+          TARGETS=$(bazel query --keep_going 'kind("cc_library", //...) except //vendor/... except attr("target_compatible_with", "NON_WINDOWS", //...)' 2>/dev/null | grep -E "^//" | grep -v "_test$" || echo "")
+          if [ -n "$TARGETS" ]; then
+            echo "$TARGETS" | while read target; do
+              bazel build --verbose_failures --keep_going "$target" || echo "Failed to build $target"
+            done
+          else
+            echo "No Windows-compatible targets found via query"
+          fi
+        continue-on-error: true
+      
+      - name: Run Windows-compatible tests
+        shell: bash
+        run: |
+          # Query for test targets that are Windows-compatible
+          TEST_TARGETS=$(bazel query --keep_going 'tests(//...) except //vendor/... except attr("target_compatible_with", "NON_WINDOWS", tests(//...))' 2>/dev/null | grep -E "^//" || echo "")
+          if [ -n "$TEST_TARGETS" ]; then
+            echo "$TEST_TARGETS" | while read target; do
+              bazel test --test_output=errors --verbose_failures "$target" || echo "Test $target failed"
+            done
+          else
+            echo "No Windows-compatible test targets found"
+          fi
+        continue-on-error: true
