@@ -11,7 +11,7 @@ matrix:
   - 9.x
 tasks:
   verify_targets:
-    name: Verify build targets (Unix)
+    name: Verify build targets
     platform: ${{ platform }}
     bazel: ${{ bazel }}
     build_targets:
