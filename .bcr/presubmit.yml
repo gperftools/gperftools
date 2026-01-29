@@ -12,11 +12,7 @@ matrix:
 tasks:
   verify_targets:
     name: Verify build targets (Unix)
-    platform:
-    - debian10
-    - ubuntu2004
-    - macos
-    - macos_arm64
+    platform: ${{ platform }}
     bazel: ${{ bazel }}
     build_targets:
     - '@gperftools//:cpu_profiler'
