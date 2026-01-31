@@ -5,13 +5,18 @@
 // and slightly modified (particularly by adding multi-threaded
 // operation to hit malloc harder).
 //
+// Modern archive can be found at https://github.com/lemire/ComputerLanguageBenchmark
+//
 // This version of binary trees is mostly new/delete benchmark
 //
-// NOTE: copyright of this code is unclear, but we only distribute
-// source.
+// NOTE: the copyright of this code is not 100% clear, but it seems to
+// be
+// https://github.com/lemire/ComputerLanguageBenchmark/blob/master/contributed-source-code/benchmarksgame/binarytrees/LICENSE
+// i.e. 3-clause BSD and "Copyright © 2004-2008 Brent Fulgham, 2005-2017 Isaac Gouy"
 
 /* The Computer Language Benchmarks Game
  * http://benchmarksgame.alioth.debian.org/
+ *
  *
  * Contributed by Jon Harrop
  * Modified by Alex Mizrahi
