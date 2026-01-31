@@ -531,6 +531,19 @@ cc_binary(
     ],
 )
 
+cc_library(
+    name = "single_stepper",
+    srcs = ["src/base/single_stepper.cc"],
+    hdrs = ["src/base/single_stepper.h"],
+    copts = CXXFLAGS,
+    includes = [
+        "generic-config",
+        "src",
+        "src/base",
+    ],
+    deps = [":all_headers"],
+)
+
 cc_test(
     name = "tcmalloc_minimal_test",
     srcs = [
@@ -540,6 +553,7 @@ cc_test(
     copts = CXXFLAGS,
     deps = [
         ":all_headers",
+        ":single_stepper",
         ":tcmalloc_minimal",
         "@googletest//:gtest_main",
     ],
@@ -554,6 +568,7 @@ cc_test(
     copts = CXXFLAGS,
     deps = [
         ":all_headers",
+        ":single_stepper",
         ":tcmalloc_minimal_debug",
         "@googletest//:gtest_main",
     ],
@@ -568,6 +583,7 @@ cc_test(
     copts = CXXFLAGS,
     deps = [
         ":all_headers",
+        ":single_stepper",
         ":tcmalloc",
         "@googletest//:gtest_main",
     ],
@@ -582,6 +598,7 @@ cc_test(
     copts = CXXFLAGS,
     deps = [
         ":all_headers",
+        ":single_stepper",
         ":tcmalloc_debug",
         "@googletest//:gtest_main",
     ],
