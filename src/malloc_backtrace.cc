@@ -41,7 +41,7 @@ void tc_delete(void*);
 }
 
 namespace tcmalloc {
-
+#ifndef NO_TCMALLOC_SAMPLES
 // GrabBacktrace is the API to use when capturing backtrace for
 // various tcmalloc features. It has optional emergency malloc
 // integration for occasional case where stacktrace capturing method
@@ -82,5 +82,5 @@ ATTRIBUTE_VISIBILITY_HIDDEN ATTRIBUTE_NOINLINE int GrabBacktrace(void** result, 
   // Prevent tail calling WithStacktraceScope above
   return *const_cast<volatile int*>(&args.result_depth);
 }
-
+#endif
 }  // namespace tcmalloc
