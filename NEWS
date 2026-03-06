@@ -1,3 +1,10 @@
+== 6 March 2026
+
+gperftools 2.18.1 is out!
+
+This release contains just one trivial fix for compilation failure on
+PPC.
+
 == 23 January 2026
 
 gperftools 2.18 is out!
