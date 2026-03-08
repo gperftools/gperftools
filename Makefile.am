@@ -8,6 +8,9 @@
 ACLOCAL_AMFLAGS = -I m4
 AUTOMAKE_OPTIONS = subdir-objects
 
+# when compressing with xz, use maximum compression
+XZ_OPT=-9e
+
 # This is so we can #include <gperftools/foo>
 AM_CPPFLAGS = -I$(top_srcdir)/src -I$(top_builddir)/src
 

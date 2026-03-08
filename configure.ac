@@ -20,7 +20,7 @@ AC_SUBST(TCMALLOC_AND_PROFILER_SO_VERSION)
 AC_CONFIG_SRCDIR(README)
 AC_CONFIG_MACRO_DIR([m4])
 AC_CANONICAL_HOST
-AM_INIT_AUTOMAKE([dist-zip foreign tar-ustar nostdinc])
+AM_INIT_AUTOMAKE([dist-zip dist-xz foreign tar-ustar nostdinc])
 AC_CONFIG_HEADERS([src/config.h])
 
 AM_MAINTAINER_MODE()
