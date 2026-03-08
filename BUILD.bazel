@@ -28,7 +28,10 @@ CXXFLAGS_FOR_GCC = CFLAGS_FOR_GCC + [
 ]
 
 CXXFLAGS = select({
-    ":is_msvc": ["/std:c++17 /D_WIN32_WINNT=0x0602"],
+    ":is_msvc": [
+        "/std:c++17",
+        "/D_WIN32_WINNT=0x0602",
+    ],
     "//conditions:default": CXXFLAGS_FOR_GCC,
     ":is_clang": CXXFLAGS_FOR_GCC + ["-Wthread-safety"],
 })
@@ -292,6 +295,7 @@ cc_library(
     deps = [
         ":all_headers",
         ":libbacktrace",
+        ":low_level_alloc",
     ],
 )
 
@@ -357,10 +361,14 @@ cc_library(
 cc_library(
     name = "stacktrace",
     srcs = [
-        "src/base/elf_mem_image.cc",
-        "src/base/vdso_support.cc",
         "src/stacktrace.cc",
-    ],
+    ] + select({
+        "@platforms//os:windows": [],
+        "//conditions:default": [
+            "src/base/elf_mem_image.cc",
+            "src/base/vdso_support.cc",
+        ],
+    }),
     hdrs = ["src/gperftools/stacktrace.h"],
     copts = CXXFLAGS,
     includes = [
@@ -424,11 +432,18 @@ cc_library(
         "src/span.cc",
         "src/stack_trace_table.cc",
         "src/static_vars.cc",
-        "src/system-alloc.cc",
-        "src/tcmalloc.cc",
         "src/thread_cache.cc",
         "src/thread_cache_ptr.cc",
-    ],
+    ] + select({
+        "@platforms//os:windows": [
+            "src/windows/patch_functions.cc",
+            "src/windows/system-alloc.cc",
+        ],
+        "//conditions:default": [
+            "src/system-alloc.cc",
+            "src/tcmalloc.cc",
+        ],
+    }),
     hdrs = [
         "src/gperftools/heap-profiler.h",
         "src/gperftools/malloc_extension.h",
@@ -446,7 +461,10 @@ cc_library(
     ],
     # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
     local_defines = ["ENABLE_EMERGENCY_MALLOC"],
-    target_compatible_with = NON_WINDOWS,
+    textual_hdrs = select({
+        "@platforms//os:windows": ["src/tcmalloc.cc"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":all_headers",
@@ -581,6 +599,8 @@ cc_test(
         "src/tests/testutil.h",
     ],
     copts = CXXFLAGS,
+    # Full tcmalloc with heap profiling not yet supported on Windows
+    target_compatible_with = NON_WINDOWS,
     deps = [
         ":all_headers",
         ":single_stepper",
