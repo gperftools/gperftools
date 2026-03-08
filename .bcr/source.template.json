@@ -1,5 +1,0 @@
-{
-  "integrity": "",
-  "strip_prefix": "gperftools-{VERSION}",
-  "url": "https://github.com/{OWNER}/{REPO}/releases/download/{TAG}/{REPO}-{VERSION}.tar.gz"
-}
