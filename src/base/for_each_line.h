@@ -38,11 +38,11 @@
 #include "base/function_ref.h"
 #include "base/logging.h"
 
-#ifndef        PATH_MAX
+#ifndef PATH_MAX
 #ifdef MAXPATHLEN
-#define        PATH_MAX        MAXPATHLEN
+#define PATH_MAX MAXPATHLEN
 #else
-#define        PATH_MAX        4096         // seems conservative for max filename len!
+#define PATH_MAX 4096  // seems conservative for max filename len!
 #endif
 #endif
 
