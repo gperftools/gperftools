@@ -38,6 +38,14 @@
 #include "base/function_ref.h"
 #include "base/logging.h"
 
+#ifndef        PATH_MAX
+#ifdef MAXPATHLEN
+#define        PATH_MAX        MAXPATHLEN
+#else
+#define        PATH_MAX        4096         // seems conservative for max filename len!
+#endif
+#endif
+
 namespace tcmalloc {
 
 // Using buffer of the given size, reads some contents, find lines

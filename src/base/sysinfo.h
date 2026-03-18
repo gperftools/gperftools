@@ -40,6 +40,14 @@
 #include <stdint.h>
 #include <limits.h>  // for PATH_MAX
 
+#ifndef PATH_MAX
+#ifdef MAXPATHLEN
+#define PATH_MAX        MAXPATHLEN
+#else
+#define PATH_MAX        4096         // seems conservative for max filename len!
+#endif
+#endif
+
 #include "base/basictypes.h"
 
 // This getenv function is safe to call before the C runtime is

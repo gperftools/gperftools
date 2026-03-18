@@ -137,7 +137,7 @@ bool CheckAddressFirstCall(uintptr_t addr, int pagesize) {
 
 #else
 
-#if HAVE_SYS_SYSCALL_H && !__APPLE__
+#if HAVE_SYS_SYSCALL_H && !__APPLE__ && !__GNU__
 static int raw_read(int fd, void* buf, size_t count) { return syscall(SYS_read, fd, buf, count); }
 static int raw_write(int fd, void* buf, size_t count) { return syscall(SYS_write, fd, buf, count); }
 #else

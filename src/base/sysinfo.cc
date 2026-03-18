@@ -54,7 +54,7 @@
 #include <sys/sysctl.h>
 #endif
 
-#ifdef __MACH__
+#if defined(__APPLE__) && defined(__MACH__)
 #include <mach-o/dyld.h>  // for GetProgramInvocationName()
 #endif
 
@@ -310,7 +310,7 @@ namespace tcmalloc {
 // Returns nullptr if we're on an OS where we can't get the invocation name.
 // Using a static var is ok because we're not called from a thread.
 const char* GetProgramInvocationName() {
-#if defined(__linux__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__NetBSD__) || defined(__GNU__)
   // Those systems have functional procfs. And we can simply readlink
   // /proc/self/exe.
   static const char* argv0 = readlink_strdup("/proc/self/exe");
