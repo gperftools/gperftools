@@ -53,19 +53,19 @@
 #include <tlhelp32.h>  // for Module32First()
 #endif
 
-#if defined __MACH__        // Mac OS X, almost certainly
-#include <mach-o/dyld.h>    // for iterating over dll's in ProcMapsIter
-#include <mach-o/loader.h>  // for iterating over dll's in ProcMapsIter
+#if defined(__APPLE__) && defined(__MACH__) // Mac OS X, almost certainly
+#include <mach-o/dyld.h>                    // for iterating over dll's in ProcMapsIter
+#include <mach-o/loader.h>                  // for iterating over dll's in ProcMapsIter
 #include <sys/types.h>
-#include <sys/sysctl.h>  // how we figure out numcpu's on OS X
+#include <sys/sysctl.h>                     // how we figure out numcpu's on OS X
 #elif defined __FreeBSD__
 #include <sys/sysctl.h>
-#elif defined __sun__  // Solaris
-#include <procfs.h>    // for, e.g., prmap_t
+#elif defined __sun__                       // Solaris
+#include <procfs.h>                         // for, e.g., prmap_t
 #elif defined(PLATFORM_WINDOWS)
-#include <process.h>   // for getpid() (actually, _getpid())
-#include <shlwapi.h>   // for SHGetValueA()
-#include <tlhelp32.h>  // for Module32First()
+#include <process.h>                        // for getpid() (actually, _getpid())
+#include <shlwapi.h>                        // for SHGetValueA()
+#include <tlhelp32.h>                       // for Module32First()
 #elif defined(__QNXNTO__)
 #include <sys/mman.h>
 #include <sys/sysmacros.h>
@@ -203,7 +203,7 @@ bool StringToIntegerUntilCharWithCheck(uint64_t* outptr, char* text, int base, i
   return true;
 }
 
-#if defined(__linux__) || defined(__NetBSD__)
+#if defined(__linux__) || defined(__NetBSD__) || defined(__GNU__)
 bool ParseProcMapsLine(char* text, uint64_t* start, uint64_t* end, char* flags, uint64_t* offset, uint64_t* inode,
                        unsigned* filename_offset) {
   /*
@@ -387,7 +387,7 @@ bool DoIterateWindows(void (*body)(const ProcMapping& mapping, void* arg), void*
 }
 #endif  // defined(PLATFORM_WINDOWS)
 
-#if defined(__MACH__)
+#if defined(__APPLE_) && defined(__MACH__)
 // A templatized helper function instantiated for Mach (OS X) only.
 // It can handle finding info for both 32 bits and 64 bits.
 // Returns true if it successfully handled the hdr, false else.
@@ -531,7 +531,7 @@ bool DoForEachProcMapping(void (*body)(const ProcMapping& mapping, void* arg), v
   return true;
 #elif defined(PLATFORM_WINDOWS)
   return DoIterateWindows(body, arg);
-#elif defined(__MACH__)
+#elif defined(__APPLE__) && defined(__MACH__)
   return DoIterateOSX(body, arg);
 #elif defined(__sun__)
   return DoIterateSolaris(body, arg);
@@ -539,7 +539,7 @@ bool DoForEachProcMapping(void (*body)(const ProcMapping& mapping, void* arg), v
   return DoIterateQNX(body, arg);
 #elif defined(__FreeBSD__)
   return DoIterateFreeBSD(body, arg);
-#elif defined(__linux__) || defined(__NetBSD__)
+#elif defined(__linux__) || defined(__NetBSD__) || defined(__GNU__)
   return DoIterateLinux("/proc/self/maps", body, arg);
 #else
   return false;
