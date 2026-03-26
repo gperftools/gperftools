@@ -65,6 +65,14 @@
 #include "heap-profile-table.h"
 #include "malloc_backtrace.h"
 
+#ifndef PATH_MAX
+#ifdef MAXPATHLEN
+#define PATH_MAX MAXPATHLEN
+#else
+#define PATH_MAX 4096  // seems conservative for max filename len!
+#endif
+#endif
+
 using tcmalloc::LowLevelAlloc;
 
 //----------------------------------------------------------------------

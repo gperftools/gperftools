@@ -196,4 +196,12 @@ union MemoryAligner {
 #define ALWAYS_INLINE inline
 #endif
 
+#ifndef PATH_MAX
+#ifdef MAXPATHLEN
+#define PATH_MAX MAXPATHLEN
+#else
+#define PATH_MAX 4096
+#endif
+#endif
+
 #endif  // _BASICTYPES_H_
