@@ -426,11 +426,6 @@ target_sources(common PRIVATE
 
 set(SYSTEM_ALLOC_CC src/windows/system-alloc.cc)
 set(TCMALLOC_CC src/windows/patch_functions.cc)
-
-# patch_function uses -lpsapi and spinlock bits use -synchronization
-# and -lshlwapi
-link_libraries(psapi synchronization shlwapi)
-
 endif()
 
 if(BUILD_TESTING)
@@ -519,6 +514,9 @@ endif()
 target_compile_definitions(tcmalloc_minimal PRIVATE NO_TCMALLOC_SAMPLES)
 target_link_options(tcmalloc_minimal INTERFACE ${TCMALLOC_FLAGS})
 target_link_libraries(tcmalloc_minimal PRIVATE common)
+if(MINGW OR MSVC)
+  target_link_libraries(tcmalloc_minimal PUBLIC psapi synchronization shlwapi)
+endif()
 
 if(BUILD_TESTING)
   add_executable(tcmalloc_minimal_unittest
