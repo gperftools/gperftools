@@ -1,8 +1,8 @@
 # NOTE: as of this writing Bazel support is highly experimental. It is
 # also not entirely complete. It lacks most tests, for example.
 
-load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 config_setting(
     name = "is_clang",
@@ -292,12 +292,14 @@ cc_library(
     deps = [
         ":all_headers",
         ":libbacktrace",
+        ":low_level_alloc",
     ],
 )
 
 cc_library(
     name = "low_level_alloc",
     srcs = ["src/base/low_level_alloc.cc"],
+    hdrs = ["src/base/low_level_alloc.h"],
     copts = CXXFLAGS,
     includes = [
         "generic-config",
