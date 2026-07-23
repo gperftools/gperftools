@@ -1,0 +1,2 @@
+# Don't pick up vendored gtest, we use it from MODULE.bazel
+vendor/googletest
