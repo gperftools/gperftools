@@ -84,6 +84,11 @@ if test "$enable_minimal" = yes; then
   enable_cpu_profiler=no
   enable_heap_profiler=no
 fi
+AC_ARG_ENABLE([tests],
+              [AS_HELP_STRING([--disable-tests],
+                              [do not build or run tests])],
+              [enable_tests="$enableval"],
+              [enable_tests=yes])
 AC_ARG_ENABLE([stacktrace-via-backtrace],
               [AS_HELP_STRING([--enable-stacktrace-via-backtrace],
                               [enable use of backtrace() for stacktrace capturing (may deadlock)])],
@@ -507,6 +512,10 @@ AM_CONDITIONAL([MISSING_ASCIIDOCTOR], [test "x$ASCIIDOCTOR" = "x"])
 AS_IF([test "x$ASCIIDOCTOR" = "x"],
       [AC_MSG_WARN([asciidoctor tool not found. Will skip building .html documentation from .adoc])])
 AC_ARG_VAR(ASCIIDOCTOR_FLAGS, [flags to pass to asciidoctor])
+
+AM_CONDITIONAL(BUILD_TESTS, test "x$enable_tests" = xyes)
+AS_IF([test "x$enable_tests" != xyes],
+      [AC_MSG_WARN([--disable-tests is passed so tests won't be built and run])])
 
 # Write generated configuration file
 AC_CONFIG_FILES([Makefile])
