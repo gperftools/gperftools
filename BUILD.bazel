@@ -557,6 +557,7 @@ cc_test(
         ":all_headers",
         ":single_stepper",
         ":tcmalloc_minimal",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
 )
@@ -572,6 +573,7 @@ cc_test(
         ":all_headers",
         ":single_stepper",
         ":tcmalloc_minimal_debug",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
 )
@@ -587,6 +589,7 @@ cc_test(
         ":all_headers",
         ":single_stepper",
         ":tcmalloc",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
 )
@@ -602,6 +605,7 @@ cc_test(
         ":all_headers",
         ":single_stepper",
         ":tcmalloc_debug",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
 )
@@ -616,6 +620,7 @@ cc_test(
     deps = [
         ":all_headers",
         ":tcmalloc_debug",
+        "@googletest//:gtest",
         "@googletest//:gtest_main",
     ],
 )
