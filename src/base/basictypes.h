@@ -168,6 +168,8 @@ inline void bit_store(Dest* dest, const Source* source) {
 #define CACHELINE_ALIGNED __attribute__((aligned(64)))
 #elif defined(__sparcv9) || defined(__sparcv9__) || defined(__sparc_v9__)
 #define CACHELINE_ALIGNED __attribute__((aligned(64)))
+#elif defined(__alpha) || defined(__alpha__)
+#define CACHELINE_ALIGNED __attribute__((aligned(64)))
 #else
 #error Could not determine cache line length - unknown architecture
 #endif

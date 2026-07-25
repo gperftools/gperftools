@@ -33,7 +33,9 @@ struct Empty {
 #ifdef DEFINE_TRIVIAL_GET
 #define HAVE_TRIVIAL_GET
   // special thing for stacktrace_generic_fp-inl which wants no-op case
-  static void* Get(...) { return nullptr; }
+  static void* Get(...) {
+    return nullptr;
+  }
 #endif
 };
 
@@ -126,6 +128,18 @@ struct get_b94b7246<U, P, void_t<decltype(((U*){})->uc_mcontext.pc)>> : public P
   static void* Get(const U* uc) {
     // Linux/{mips,aarch64}
     return (void*)(uc->uc_mcontext.pc);
+  }
+};
+
+// Linux/alpha
+template <class U, class P, class = void>
+struct get_1ff18906 : public P {};
+
+template <class U, class P>
+struct get_1ff18906<U, P, void_t<decltype(((U*){})->uc_mcontext.sc_pc)>> : public P {
+  static void* Get(const U* uc) {
+    // Linux/alpha
+    return (void*)(uc->uc_mcontext.sc_pc);
   }
 };
 
@@ -374,8 +388,10 @@ inline void* RawUCToPC(const ucontext_t* uc) {
   using g_a81f6801 = get_a81f6801<ucontext_t, g_24e794ef>;
   // Linux/ppc (with #ifdef PT_NIP)
   using g_d0eeceae = get_d0eeceae<ucontext_t, g_a81f6801>;
+  // Linux/alpha
+  using g_1ff18906 = get_1ff18906<ucontext_t, g_d0eeceae>;
   // Linux/{mips,aarch64}
-  using g_b94b7246 = get_b94b7246<ucontext_t, g_d0eeceae>;
+  using g_b94b7246 = get_b94b7246<ucontext_t, g_1ff18906>;
   // Linux/loongarch64
   using g_4e9b682d = get_4e9b682d<ucontext_t, g_b94b7246>;
   // Linux/ia64
