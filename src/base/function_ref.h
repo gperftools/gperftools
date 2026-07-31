@@ -90,7 +90,7 @@ struct FunctionRefFirstDataArg<R(Args...)> {
 
   explicit FunctionRefFirstDataArg(R (*fn)(void*, Args...), void* data) : fn(fn), data(data) {}
 
-  template <typename Body>
+  template <typename Body, typename = EnableIfCompatible<const Body&>>
   FunctionRefFirstDataArg(const Body& body)
       : FunctionRefFirstDataArg(
             [](void* data, Args... args) {
