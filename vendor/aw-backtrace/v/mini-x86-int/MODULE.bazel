@@ -1,0 +1,22 @@
+module(
+    name = "mini-x86-int",
+    version = "0.0.1",
+    compatibility_level = 0,
+)
+
+bazel_dep(name = "rules_cc", version = "0.2.16")
+# bazel_dep(name = "gperftools", version = "2.18")
+# git_override(
+#     module_name = "gperftools",
+#     commit = "6ed73507dd3970a123e267a50b3ee73392e3b053",
+#     remote = "https://github.com/gperftools/gperftools",
+# )
+
+# bazel_dep(name = "tcmalloc", version = "0.0.0-20250927-12f2552")
+# git_override(
+#     module_name = "tcmalloc",
+#     commit = "875a24dd98d8233f561a870e68d6129763dd2951",
+#     remote = "https://github.com/google/tcmalloc",
+# )
+
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)

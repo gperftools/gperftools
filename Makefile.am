@@ -216,6 +216,20 @@ libstacktrace_la_SOURCES = src/stacktrace.cc \
                            src/base/vdso_support.cc
 libstacktrace_la_LIBADD = $(UNWIND_LIBS)
 
+if ENABLE_AW_BACKTRACE
+noinst_LTLIBRARIES += libaw_backtrace.la
+libaw_backtrace_la_SOURCES = vendor/aw-backtrace/aw-backtrace.cc \
+		vendor/aw-backtrace/backtrace-core.cc \
+		vendor/aw-backtrace/aw-addrcheck.c \
+		src/stacktrace-aw-backtrace.cc
+# note, no AM_CPPFLAGS deliberately
+libaw_backtrace_la_CPPFLAGS = -I$(top_srcdir)/vendor/aw-backtrace/include -DAW_RENAME_PREFIX=tcmalloc_ -include $(top_srcdir)/vendor/aw-backtrace/renamings.h
+libaw_backtrace_la_CXXFLAGS = -std=c++20 -fno-exceptions $(AM_CXXFLAGS)
+libaw_backtrace_la_LIBADD = -latomic
+
+libstacktrace_la_LIBADD += libaw_backtrace.la
+endif ENABLE_AW_BACKTRACE
+
 ### Unittests
 if BUILD_TESTS
 TESTS += stacktrace_unittest

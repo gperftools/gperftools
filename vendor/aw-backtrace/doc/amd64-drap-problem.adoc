@@ -1,0 +1,44 @@
+== amd64 DRAP problem
+
+So gcc on amd64 (and on i386, but we ignore legacy cases for now)
+sometimes produces DRAP code sequences when stack needs to be
+realigned. It produces (and requires) very unusual unwind info. See
+amd64-drap-test.c and amd64-drap-test.s.
+
+So it uses dwarf expressions to handle CFA and RBP restoration. And
+our backtracer is explicitly built not to deal with such complexities.
+
+So we hardcode the DRAP handling. Another notable thing that we handle
+is that gcc produces slightly incorrect unwind info for DRAP
+case. Specifically after pop rbp (or leave) and before lea from r10 to
+rsp. At this point unwind info lacks cfi_restore for rbp (and other
+registers if they're saved). So we have special detection of this
+place.
+
+Note, gcc 16 actually fixed the cfi_restore problem \o/ Of course,
+there is still plenty of code compiled with older versions.
+
+Strategy:
+
+* while parsing CFI bits and detecting either def_cfa_expression or
+  expression commands we detect those specific expressions that are
+  used by DRAP and update "drap state"
+
+* we detect the following states:
+
+** NONE (with obvious meaning)
+
+** "cfa is r10". This is the state at the beginning (after lea
+   8(%rsp), %r10).
+
+** "cfa is r10 and rbp is at previous rbp". This state after first
+   expression (for the rbp register) and before second expression (for
+   the cfa). Or after r10 is restored and cfa is switched back to
+   r10. This is where final lea instruction needs to be detected.
+
+** "full drap". This ias after cfa is defined by dwarf expression that
+   loads CFA from location at rbp-8.
+
+Detecting and handling those states seems to be solving our ability to
+handle DRAP as seen by the minimal_drap test case at the end of
+aw-backtrace-test.cc

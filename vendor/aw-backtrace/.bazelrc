@@ -1,0 +1,6 @@
+# Build the whole graph (including deps like abseil) as C++20 so that
+# std::source_location-based overloads in abseil's status.cc match what
+# //perf-convert compiles against. The library targets already pass
+# -std=c++20 per-target; this makes it uniform.
+build --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
+test --test_output=errors

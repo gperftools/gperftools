@@ -1,0 +1,8 @@
+# -*- Mode: yaml -*-
+---
+Language: Cpp
+BasedOnStyle: Google
+ColumnLimit: 120
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: Never
+...

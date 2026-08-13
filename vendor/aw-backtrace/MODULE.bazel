@@ -1,0 +1,19 @@
+module(
+    name = "aw-backtrace",
+    version = "0.0.1",
+)
+
+bazel_dep(name = "mini-x86-int", version = "0.0.1", dev_dependency = True)
+local_path_override(module_name = "mini-x86-int", path = "v/mini-x86-int")
+
+bazel_dep(name = "lua", version = "5.5.0", dev_dependency = True)
+
+bazel_dep(name = "rules_cc", version = "0.2.22")
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2", dev_dependency = True)
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.0", dev_dependency = True)
+
+# For //perf-convert (offline perf.data DWARF-callchain converter). The core
+# library is signal-safe and dependency-free; the offline tool is neither and
+# uses abseil freely.
+bazel_dep(name = "abseil-cpp", version = "20260526.0", dev_dependency = True)

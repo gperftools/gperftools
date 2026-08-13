@@ -1,0 +1,9 @@
+-std=c++20
+-x
+c++
+-I../include
+-I..
+-Wall
+-Wextra
+-Wsign-compare
+-Wthread-safety

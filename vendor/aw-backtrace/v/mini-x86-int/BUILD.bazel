@@ -1,0 +1,73 @@
+# Note, this file is auto-generated from generate_builds.rb. So if you
+# intend to make longer-lasting changes, make them over there.
+
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:public"])
+
+DEFAULT_COPTS = []  #["-std=c++20 -fsized-deallocation"]
+
+cc_library(
+    name = "mini-x86-int",
+    srcs = [
+        "mini-x86-int.cc",
+        "mini-x86-int.h",
+        "performs.S",
+    ],
+    copts = DEFAULT_COPTS,
+)
+
+cc_library(
+    name = "single_stepper",
+    srcs = [
+        "base/cleanup.h",
+        "base/single_stepper.cc",
+        "base/static_storage.h",
+    ],
+    hdrs = ["base/single_stepper.h"],
+    copts = DEFAULT_COPTS,
+)
+
+cc_library(
+    name = "sim_stepper",
+    srcs = ["sim_stepper.cc"],
+    hdrs = ["sim_stepper.h"],
+    copts = DEFAULT_COPTS,
+    deps = [
+        ":mini-x86-int",
+        ":single_stepper",
+    ],
+)
+
+cc_test(
+    name = "mini-x86-int_test",
+    srcs = [
+        "mini-x86-int_test.cc",
+        "test-cases.S",
+    ],
+    copts = DEFAULT_COPTS,
+    linkstatic = True,
+    deps = [":mini-x86-int"],
+)
+
+cc_test(
+    name = "sim_stepper_test",
+    srcs = ["sim_stepper_test.cc"],
+    copts = DEFAULT_COPTS,
+    # needed to prevent GNU ld crashes
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    deps = [
+        ":mini-x86-int",
+        ":sim_stepper",
+        ":single_stepper",
+    ],
+)
+
+cc_test(
+    name = "test-signal-disable",
+    srcs = ["test-signal-disable.cc"],
+    copts = DEFAULT_COPTS,
+    linkstatic = True,
+    deps = [":sim_stepper"],
+)

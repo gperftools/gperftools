@@ -1,0 +1,9 @@
+{
+    global:
+        StartBacktraceComparer;
+        StopBacktraceComparer;
+        sigaltstack;
+        sigaction;
+    local:
+        *;
+};

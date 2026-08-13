@@ -167,6 +167,7 @@
 /unique_path_unittest.exe
 /unwind_bench
 /unwind_bench.exe
+/vendor/aw-backtrace/.dirstamp
 /vendor/googletest/googletest/src/.deps
 /vendor/googletest/googletest/src/.dirstamp
 /vendor/libbacktrace-integration/.deps

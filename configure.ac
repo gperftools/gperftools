@@ -25,6 +25,15 @@ AC_CONFIG_HEADERS([src/config.h])
 
 AM_MAINTAINER_MODE()
 
+# Checks for programs.
+AC_PROG_CXX
+AC_PROG_CC
+AM_PROG_AS
+AC_LANG([C++])
+AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
+
+AX_CXX_COMPILE_STDCXX(17, ext, mandatory)
+
 # The user can choose not to compile in the heap-profiler, , or the
 # cpu-profiler.  There's also the possibility for a 'fully minimal'
 # compile, which leaves out the stacktrace code as well.  By default,
@@ -52,6 +61,38 @@ return 1
                    default_enable_backtrace=yes],
                   [default_enable_libunwind=yes
                    default_enable_backtrace=no])
+
+AC_ARG_ENABLE([aw-backtrace],
+              [AS_HELP_STRING([--{enable,disable}-aw-backtrace],
+                              [build with aw-backtrace (default on Linux/amd64 or arm64)])],
+              [enable_aw_backtrace="$enableval"],
+              [enable_aw_backtrace=maybe])
+
+# modern Linux and x86-64 or aarch64 for now
+AS_IF([test "$enable_aw_backtrace" = maybe],
+[save_CXXFLAGS="$CXXFLAGS"
+# aw-backtrace itself is built as C++20 (see libaw_backtrace_la_CXXFLAGS in
+# Makefile.am) even though the rest of gperftools targets C++17. Compile
+# this probe as C++20 too, so we don't default to aw-backtrace on a
+# toolchain that has _dl_find_object but can't actually compile it.
+CXXFLAGS="$CXXFLAGS -std=c++20"
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([
+#include <dlfcn.h>
+], [
+#if (!__x86_64__ && !__aarch64__) || !__linux__
+#error not defaulting to aw-backtrace here yet
+#endif
+struct dl_find_object dlfo;
+auto res = _dl_find_object(reinterpret_cast<void*>(&_dl_find_object), &dlfo);
+])],
+                  [enable_aw_backtrace=yes],
+                  [enable_aw_backtrace=no])
+CXXFLAGS="$save_CXXFLAGS"])
+
+AS_IF([test x"$enable_aw_backtrace" = xyes],
+      [AC_MSG_NOTICE([Will build with aw-backtrace])
+       AC_DEFINE(BUILD_WITH_AW_BACKTRACE, 1, [If we're building with aw-backtrace])])
+AM_CONDITIONAL(ENABLE_AW_BACKTRACE, [test "x$enable_aw_backtrace" = xyes])
 
 # Disable libunwind linking on ppc64 by default.
 AC_COMPILE_IFELSE([AC_LANG_PROGRAM(, [return __PPC64__])],
@@ -148,13 +189,6 @@ case "$with_tcmalloc_alignment" in
        AC_MSG_WARN([${with_tcmalloc_alignment} bytes not supported, using default tcmalloc allocation alignment.])
 esac
 
-# Checks for programs.
-AC_PROG_CXX
-AC_PROG_CC
-AC_LANG([C++])
-AM_CONDITIONAL(GCC, test "$GCC" = yes)   # let the Makefile know if we're gcc
-
-AX_CXX_COMPILE_STDCXX(17, ext, mandatory)
 
 LT_INIT
 

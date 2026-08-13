@@ -1,0 +1,10 @@
+-std=c++20
+-x
+c++
+-Ibazel-aw-backtrace/external/googletest+/googletest/include
+-Iinclude
+-Iv/mini-x86-int
+-Wall
+-Wextra
+-Wsign-compare
+-Wthread-safety

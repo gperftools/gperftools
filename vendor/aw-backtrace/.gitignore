@@ -1,0 +1,18 @@
+*.o
+/.cache
+/.deps
+/.ninja_deps
+/.ninja_log
+/.obj
+/MODULE.bazel.lock
+/backtrace-comparer.so
+/bazel-*
+/build
+/build.ninja
+/cjm
+/cjm0
+/sym_helper_bin
+/test-signal-disable
+
+# perf-convert: capture blobs and reference dumps (regenerated, never committed)
+*.data

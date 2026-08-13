@@ -5,6 +5,11 @@ googletest is vendored at tag v1.18.0 (git describe gives:
 release-1.8.0-3707-g063de7e9). It was copied verbatim via git archive
 and added here.
 
+== aw-backtrace
+
+https://github.com/gperftools/aw-backtrace is vendored verbatim at
+d30c1a9a513ee85d43b3c8efaf762ac4718530bc.
+
 == libbacktrace
 
 libbacktrace was vendored from github.com/ianlancetaylor/libbacktrace

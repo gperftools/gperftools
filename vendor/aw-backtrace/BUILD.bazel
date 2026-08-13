@@ -1,0 +1,318 @@
+# -*- Mode: python; -*-
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:private"])
+
+# Our sources are C++20. This has to live on the targets, not in .bazelrc:
+# a consumer that pulls this module in never reads our .bazelrc, so a project
+# building everything else as C++17 would otherwise compile these sources with
+# its own -std.
+#
+# The public header (include/aw-backtrace/aw-backtrace.h) is deliberately
+# standard-agnostic -- it compiles as C99 and as C++11 and up -- so a consumer
+# on an older standard can still include it.
+CXXOPTS = [
+    "-std=c++20",
+    "-fno-exceptions",
+    "-fno-rtti",
+]
+
+cc_library(
+    name = "aw-addrcheck",
+    srcs = ["aw-addrcheck.c"],
+    hdrs = ["aw-addrcheck.h"],
+    deps = [":headers"],
+)
+
+# Every internal header, in one target. Anything that compiles C++ here just
+# deps :headers and #includes whatever it needs -- no per-header library and
+# no dependency-layering bookkeeping.
+cc_library(
+    name = "headers",
+    hdrs = glob(
+        ["*.h"],
+        exclude = ["aw-addrcheck.h"],  # comes via :aw-addrcheck
+    ),
+    # UnwindInfoCache uses 16-byte atomics; gcc and clang both call libatomic.
+    linkopts = ["-latomic"],
+)
+
+cc_library(
+    name = "aw-backtrace",
+    srcs = [
+        "aw-backtrace.cc",
+        "backtrace-core.cc",
+    ],
+    hdrs = ["include/aw-backtrace/aw-backtrace.h"],
+    cxxopts = CXXOPTS,
+    strip_include_prefix = "include",
+    visibility = ["//visibility:public"],
+    deps = [
+        ":aw-addrcheck",
+        ":headers",
+    ],
+)
+
+# Header-only seam for //perf-convert: it compiles the fast-path decoder with
+# its own -std, so it can't consume a target carrying our CXXOPTS.
+cc_library(
+    name = "aw-fastpath",
+    visibility = ["//perf-convert:__pkg__"],
+    deps = [":headers"],
+)
+
+# We need to copy the binary to a known location so we can include it
+# and crucially, we need it to be in the same package (genfiles root)
+# Convert binary to object file using objcopy
+# We copy it to a simple name first so objcopy generates predictable symbol names
+genrule(
+    name = "sym_helper_obj",
+    srcs = [":sym-helper"],
+    outs = ["sym_helper.o"],
+    cmd = "cp $(location :sym-helper) $(@D)/sym_helper_bin && " +
+          "cd $(@D) && objcopy -I binary -O " +
+          select({
+              "@platforms//cpu:aarch64": "elf64-littleaarch64",
+              "//conditions:default": "elf64-x86-64",
+          }) + " sym_helper_bin `basename $@` --rename-section .data=.rodata,alloc,load,readonly,data,contents",
+)
+
+cc_library(
+    name = "symbolize-backtrace",
+    srcs = [
+        "sym_helper.o",
+        "symbolize-backtrace.cc",
+    ],
+    hdrs = ["symbolize-backtrace.h"],
+    cxxopts = CXXOPTS,
+    deps = [":headers"],
+)
+
+cc_library(
+    name = "backtrace-comparer",
+    srcs = select({
+        "@platforms//cpu:x86_64": ["backtrace-comparer.cc"],
+        "//conditions:default": [],
+    }),
+    hdrs = ["backtrace-comparer.h"],
+    cxxopts = CXXOPTS,
+    deps = [":headers"] + select({
+        "@platforms//cpu:x86_64": [
+            ":aw-backtrace",
+            ":symbolize-backtrace",
+            "@mini-x86-int//:sim_stepper",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+cc_library(
+    name = "simple-fp-backtrace",
+    srcs = ["simple-fp-backtrace.cc"],
+    hdrs = ["simple-fp-backtrace.h"],
+    cxxopts = CXXOPTS,
+    deps = [":headers"],
+)
+
+cc_binary(
+    name = "sym-helper",
+    srcs = ["sym-helper.cc"],
+    cxxopts = CXXOPTS,
+)
+
+cc_binary(
+    name = "bench-addrcheck",
+    srcs = ["bench-addrcheck.c"],
+    deps = [":aw-addrcheck"],
+)
+
+cc_test(
+    name = "eh-frame-reader-test",
+    srcs = ["eh-frame-reader-test.cc"],
+    cxxopts = CXXOPTS,
+    deps = [
+        ":headers",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "aw-backtrace-skip-test",
+    srcs = ["aw-backtrace-skip-test.cc"],
+    cxxopts = CXXOPTS,
+    features = ["-supports_start_end_lib"],
+    deps = [
+        ":aw-backtrace",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_test(
+    name = "with-exit-test",
+    srcs = ["with-exit-test.cc"],
+    cxxopts = CXXOPTS,
+    deps = [":headers"],
+)
+
+cc_test(
+    name = "aw-backtrace-test",
+    srcs = [
+        "aw-backtrace-test.cc",
+    ] + select({
+        "@platforms//cpu:x86_64": [
+            "amd64-drap-test.s",
+        ],
+        "//conditions:default": [],
+    }),
+    cxxopts = CXXOPTS,
+    # needed to prevent GNU ld crashes
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    deps = [
+        ":aw-backtrace",
+        ":backtrace-comparer",
+        ":headers",
+        ":symbolize-backtrace",
+    ] + select({
+        "@platforms//cpu:x86_64": ["@mini-x86-int//:sim_stepper"],
+        "//conditions:default": [],
+    }),
+)
+
+cc_test(
+    name = "simple-backtrace-test",
+    srcs = [
+        "aw-backtrace-test.cc",
+    ],
+    cxxopts = CXXOPTS,
+    defines = ["BT_USE_SIMPLE=1"],
+    linkstatic = True,
+    deps = [
+        ":headers",
+        ":simple-fp-backtrace",
+        ":symbolize-backtrace",
+    ],
+)
+
+cc_test(
+    name = "symbolize-backtrace-test",
+    srcs = ["symbolize-backtrace-test.cc"],
+    cxxopts = CXXOPTS,
+    linkstatic = True,
+    deps = [
+        ":headers",
+        ":symbolize-backtrace",
+    ],
+)
+
+cc_test(
+    name = "aw-addrcheck-test",
+    srcs = ["aw-addrcheck-test.c"],
+    deps = [":aw-addrcheck"],
+)
+
+cc_test(
+    name = "lua-test",
+    srcs = ["lua-test.cc"],
+    cxxopts = CXXOPTS,
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    deps = [
+        ":aw-backtrace",
+        ":backtrace-comparer",
+        "@lua",
+    ],
+)
+
+cc_test(
+    name = "amd64-leaf-test",
+    srcs = [
+        "amd64-leaf-test.cc",
+    ],
+    cxxopts = CXXOPTS,
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    deps = [
+        ":aw-backtrace",
+        ":headers",
+        ":symbolize-backtrace",
+    ],
+)
+
+cc_binary(
+    name = "recursion-test",
+    srcs = ["recursion-test.cc"],
+    cxxopts = CXXOPTS,
+    defines = ["USE_AW_BACKTRACE"],
+    features = ["-supports_start_end_lib"],
+    deps = [":aw-backtrace"],
+)
+
+cc_binary(
+    name = "recursion-test-libgcc",
+    srcs = ["recursion-test.cc"],
+    cxxopts = CXXOPTS,
+    defines = ["USE_LIBGCC_BACKTRACE"],
+)
+
+cc_binary(
+    name = "recursion-test-fp",
+    srcs = ["recursion-test.cc"],
+    copts = ["-fno-omit-frame-pointer"],
+    cxxopts = CXXOPTS,
+    defines = ["USE_FP_BACKTRACE"],
+    deps = [":simple-fp-backtrace"],
+)
+
+# Internal-only builds of :aw-addrcheck and :aw-backtrace with every symbol
+# prefixed, exactly as an embedder (e.g. gperftools) would build them. These
+# exist solely so aw-backtrace-prefixed-symbols-test below can catch
+# renamings.h falling out of sync with the library's real external-linkage
+# surface -- nothing should depend on them for any other reason.
+cc_library(
+    name = "aw-addrcheck-prefixed",
+    testonly = True,
+    srcs = ["aw-addrcheck.c"],
+    hdrs = ["aw-addrcheck.h"],
+    local_defines = ["AW_RENAME_PREFIX=tcmalloc_"],
+    deps = [":headers"],
+)
+
+cc_library(
+    name = "aw-backtrace-prefixed",
+    testonly = True,
+    srcs = [
+        "aw-backtrace.cc",
+        "backtrace-core.cc",
+    ],
+    hdrs = ["include/aw-backtrace/aw-backtrace.h"],
+    cxxopts = CXXOPTS,
+    local_defines = ["AW_RENAME_PREFIX=tcmalloc_"],
+    strip_include_prefix = "include",
+    deps = [
+        ":aw-addrcheck-prefixed",
+        ":headers",
+    ],
+)
+
+genrule(
+    name = "aw-backtrace-prefixed-symbols-check",
+    testonly = True,
+    srcs = [
+        ":aw-addrcheck-prefixed",
+        ":aw-backtrace-prefixed",
+    ],
+    outs = ["aw-backtrace-prefixed-symbols-check.ok"],
+    cmd = "sh $(location :check-prefixed-symbols.sh) tcmalloc_ $(SRCS) > $@",
+    tools = [":check-prefixed-symbols.sh"],
+)
+
+build_test(
+    name = "aw-backtrace-prefixed-symbols-test",
+    targets = [":aw-backtrace-prefixed-symbols-check"],
+)

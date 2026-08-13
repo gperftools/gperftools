@@ -1,0 +1,9 @@
+
+A simple x86-64 interpreter for a subset of x86-64 instructions. I
+have another project that single-steps through all instructions of
+some program, and having interpreter for a most common subset of
+instructions allows it to run faster. Skipping overheads of SIGTRAP
+delivery on every instruction.
+
+We target roughly half of instructions actually executed on a common
+integer codes.

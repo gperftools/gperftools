@@ -1,0 +1,18 @@
+* in the aw_backtrace callback API consider extending pc_before_insn to
+  flags. To support AW_FRAME_IS_SIGNAL indicator too.
+
+* make the code clean on -Wconversion. Painful but worth it. Core of
+  backtracer is mostly done, but needs to be permanent and do the
+  rest. Introduce relevant helpers to make it nice and readable.
+
+* signal frame should have callback invoked with is_leaf = true
+  (because it is "exact pc"). Actually double check
+  this. libgcc/libbacktrace don't do it. So we need to decide.
+
+* consider exposing some richer indication whether backtrace captured
+  was reliable/full or if we truncated due to error. And perhaps which
+  frames we had to guess.
+
+* when backtracing main thread we end up unwinding up to _start which
+  has hlt and undefined pc or something. Anyways, slows us down
+  unnecessarily, so consider something. Cache such cases too ?

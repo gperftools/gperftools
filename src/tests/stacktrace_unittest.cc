@@ -198,7 +198,8 @@ int ATTRIBUTE_NOINLINE CaptureLeafUContext(void** stack, int stack_len) {
   CHECK(rv == 0);
 
   printf("Obtained %d stack frames.\n", size);
-  CHECK_GE(size, 1);
+  // max_depth == 0 legitimately yields no frames at all.
+  CHECK_GE(size, (stack_len > 0) ? 1 : 0);
   CHECK_LE(size, stack_len);
 
   DECLARE_ADDRESS_LABEL(end);
@@ -215,7 +216,8 @@ int ATTRIBUTE_NOINLINE CaptureLeafPlain(void** stack, int stack_len) {
   int size = GetStackTrace(stack, stack_len, 0);
 
   printf("Obtained %d stack frames.\n", size);
-  CHECK_GE(size, 1);
+  // max_depth == 0 legitimately yields no frames at all.
+  CHECK_GE(size, (stack_len > 0) ? 1 : 0);
   CHECK_LE(size, stack_len);
 
   DECLARE_ADDRESS_LABEL(end);
@@ -230,7 +232,8 @@ int ATTRIBUTE_NOINLINE CaptureLeafPlainEmptyUCP(void** stack, int stack_len) {
   int size = GetStackTraceWithContext(stack, stack_len, 0, nullptr);
 
   printf("Obtained %d stack frames.\n", size);
-  CHECK_GE(size, 1);
+  // max_depth == 0 legitimately yields no frames at all.
+  CHECK_GE(size, (stack_len > 0) ? 1 : 0);
   CHECK_LE(size, stack_len);
 
   DECLARE_ADDRESS_LABEL(end);
@@ -258,7 +261,8 @@ int ATTRIBUTE_NOINLINE CaptureLeafWSkip(void** stack, int stack_len) {
   size = trampoline(stack, stack_len);
 
   printf("Obtained %d stack frames.\n", size);
-  CHECK_GE(size, 1);
+  // max_depth == 0 legitimately yields no frames at all.
+  CHECK_GE(size, (stack_len > 0) ? 1 : 0);
   CHECK_LE(size, stack_len);
 
   DECLARE_ADDRESS_LABEL(end);
@@ -409,6 +413,9 @@ int main(int argc, char** argv) {
 
     printf("\nSet max capture length to 3:\n");
     RunTest(3);  // depth of 3 is less than space we have for stacktrace
+
+    printf("\nSet max capture length to 0:\n");
+    RunTest(0);  // implementations must not write anything when asked for 0 frames
   }
 
   return 0;

@@ -1,0 +1,104 @@
+# -*- Mode: python; -*-
+# Offline perf.data DWARF-callchain converter. Uses aw-backtrace's fast-path
+# CFI decoder (//:aw-fastpath) but links none of the in-process unwinder.
+load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
+
+package(default_visibility = ["//visibility:private"])
+
+COPTS = [
+    "-Wall",
+    "-Wextra",
+    "-Wsign-compare",
+]
+
+PLATFORM = [
+    "@platforms//os:linux",
+    "@platforms//cpu:x86_64",
+]
+
+cc_library(
+    name = "interval-map",
+    hdrs = ["interval-map.h"],
+    copts = COPTS,
+)
+
+cc_test(
+    name = "interval-map-test",
+    srcs = ["interval-map-test.cc"],
+    copts = COPTS,
+    deps = [
+        ":interval-map",
+        "@googletest//:gtest_main",
+    ],
+)
+
+cc_library(
+    name = "perf-convert-lib",
+    srcs = [
+        "elf-module.cc",
+        "perf-data.cc",
+        "perf-writer.cc",
+        "process-table.cc",
+        "sample-dump.cc",
+        "unwinder.cc",
+    ],
+    hdrs = [
+        "elf-module.h",
+        "perf-data.h",
+        "perf-format.h",
+        "perf-writer.h",
+        "process-table.h",
+        "sample-dump.h",
+        "unwinder.h",
+    ],
+    copts = COPTS,
+    target_compatible_with = PLATFORM,
+    deps = [
+        ":interval-map",
+        "//:aw-fastpath",
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:absl_check",
+        "@abseil-cpp//absl/status",
+        "@abseil-cpp//absl/status:statusor",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_binary(
+    name = "perf-convert",
+    srcs = ["perf-convert.cc"],
+    copts = COPTS,
+    target_compatible_with = PLATFORM,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":perf-convert-lib",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:absl_check",
+        "@abseil-cpp//absl/log:globals",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings",
+        "@abseil-cpp//absl/strings:str_format",
+        "@abseil-cpp//absl/types:span",
+    ],
+)
+
+cc_test(
+    name = "perf-convert-test",
+    srcs = ["perf-convert-test.cc"],
+    copts = COPTS,
+    # SelfTest.SweepOwnFDEs sweeps this binary's own .eh_frame, so it must
+    # be a self-contained ELF -- no split .so for the deps.
+    linkstatic = True,
+    target_compatible_with = PLATFORM,
+    deps = [
+        ":perf-convert-lib",
+        "//:aw-fastpath",
+        "@googletest//:gtest_main",
+    ],
+)

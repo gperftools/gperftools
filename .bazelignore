@@ -1,2 +1,3 @@
-# Don't pick up vendored gtest, we use it from MODULE.bazel
+# Don't pick up anything vendored, we use it from MODULE.bazel
 vendor/googletest
+vendor/aw-backtrace

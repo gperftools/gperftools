@@ -1,0 +1,11 @@
+-std=c++20
+-x
+c++
+-I../bazel-aw-backtrace/external/googletest+/googletest/include
+-I../bazel-aw-backtrace/external/abseil-cpp+/
+-I../include
+-I..
+-Wall
+-Wextra
+-Wsign-compare
+-Wthread-safety

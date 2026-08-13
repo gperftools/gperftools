@@ -67,28 +67,18 @@
 // Some code may do that.
 
 #include <config.h>
+
+#include "gperftools/stacktrace.h"
+
+#include "stacktrace_internal.h"
+
 #include <stdlib.h>  // for getenv
 #include <string.h>  // for strcmp
 #include <stdio.h>   // for fprintf
-#include "gperftools/stacktrace.h"
+
 #include "base/commandlineflags.h"
 #include "base/googleinit.h"
 #include "getenv_safe.h"
-
-// we're using plain struct and not class to avoid any possible issues
-// during initialization. Struct of pointers is easy to init at
-// link-time.
-struct GetStackImplementation {
-  int (*GetStackFramesPtr)(void** result, int* sizes, int max_depth, int skip_count);
-
-  int (*GetStackFramesWithContextPtr)(void** result, int* sizes, int max_depth, int skip_count, const void* uc);
-
-  int (*GetStackTracePtr)(void** result, int max_depth, int skip_count);
-
-  int (*GetStackTraceWithContextPtr)(void** result, int max_depth, int skip_count, const void* uc);
-
-  const char* name;
-};
 
 #if HAVE_DECL_BACKTRACE
 #define STACKTRACE_INL_HEADER "stacktrace_generic-inl.h"
@@ -221,7 +211,12 @@ static int null_GetStackTraceWithContext(void** result, int max_depth, int skip_
 static GetStackImplementation impl__null = {null_GetStackFrames, null_GetStackFramesWithContext, null_GetStackTrace,
                                             null_GetStackTraceWithContext, "null"};
 
+extern GetStackImplementation tcmalloc_gst_impl_aw_backtrace;
+
 static GetStackImplementation* all_impls[] = {
+#if BUILD_WITH_AW_BACKTRACE
+  &tcmalloc_gst_impl_aw_backtrace,
+#endif
 #ifdef HAVE_GST_instrument
     &impl__instrument,
 #endif

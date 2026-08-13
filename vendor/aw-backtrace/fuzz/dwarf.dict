@@ -1,0 +1,68 @@
+# DWARF / .eh_frame fuzzing dictionary
+# Based on dwarf-constants.h
+
+# DWARF pointer encoding constants (DW_EH_PE_*)
+dw_eh_pe_absptr="\x00"
+dw_eh_pe_uleb128="\x01"
+dw_eh_pe_udata2="\x02"
+dw_eh_pe_udata4="\x03"
+dw_eh_pe_udata8="\x04"
+dw_eh_pe_sleb128="\x09"
+dw_eh_pe_sdata2="\x0a"
+dw_eh_pe_sdata4="\x0b"
+dw_eh_pe_sdata8="\x0c"
+dw_eh_pe_pcrel="\x10"
+dw_eh_pe_datarel="\x30"
+dw_eh_pe_indirect="\x80"
+dw_eh_pe_omitted="\xff"
+
+# Common composite pointer encodings
+dw_eh_pe_pcrel_sdata4="\x1b"
+dw_eh_pe_datarel_sdata4="\x3b"
+dw_eh_pe_pcrel_udata4="\x13"
+dw_eh_pe_datarel_udata4="\x33"
+
+# DWARF CFA instruction opcodes (DW_CFA_*)
+dw_cfa_nop="\x00"
+dw_cfa_set_loc="\x01"
+dw_cfa_advance_loc1="\x02"
+dw_cfa_advance_loc2="\x03"
+dw_cfa_advance_loc4="\x04"
+dw_cfa_offset_extended="\x05"
+dw_cfa_restore_extended="\x06"
+dw_cfa_undefined="\x07"
+dw_cfa_same_value="\x08"
+dw_cfa_register="\x09"
+dw_cfa_remember_state="\x0a"
+dw_cfa_restore_state="\x0b"
+dw_cfa_def_cfa="\x0c"
+dw_cfa_def_cfa_register="\x0d"
+dw_cfa_def_cfa_offset="\x0e"
+dw_cfa_def_cfa_expression="\x0f"
+dw_cfa_expression="\x10"
+dw_cfa_offset_extended_sf="\x11"
+dw_cfa_def_cfa_sf="\x12"
+dw_cfa_def_cfa_offset_sf="\x13"
+dw_cfa_val_offset="\x14"
+dw_cfa_val_offset_sf="\x15"
+dw_cfa_val_expression="\x16"
+dw_cfa_gnu_args_size="\x2e"
+dw_cfa_aarch64_negate_ra_state="\x2d"
+
+# Primary CFA opcodes (high 2-bits)
+dw_cfa_advance_loc="\x40"
+dw_cfa_offset="\x80"
+dw_cfa_restore="\xc0"
+
+# Common CIE augmentation strings & markers
+aug_z="z"
+aug_zr="zR"
+aug_zpr="zPR"
+aug_zplr="zPLR"
+aug_zl="zL"
+aug_s="zS"
+aug_eh="eh"
+
+# Common lengths / markers
+dwarf64_len="\xff\xff\xff\xff"
+cie_id_zero="\x00\x00\x00\x00"
