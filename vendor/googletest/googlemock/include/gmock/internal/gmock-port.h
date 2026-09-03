@@ -57,19 +57,10 @@
 #include "gmock/internal/custom/gmock-port.h"
 #include "gtest/internal/gtest-port.h"
 
-#if defined(GTEST_HAS_ABSL)
-#include "absl/base/macros.h"
-
-#define GMOCK_DEPRECATE_AND_INLINE() ABSL_DEPRECATE_AND_INLINE()
-
-#if !defined(GTEST_NO_ABSL_FLAGS)
+#if defined(GTEST_HAS_ABSL) && !defined(GTEST_NO_ABSL_FLAGS)
 #include "absl/flags/declare.h"
 #include "absl/flags/flag.h"
-#endif  // !defined(GTEST_NO_ABSL_FLAGS)
-
-#else  // defined(GTEST_HAS_ABSL)
-#define GMOCK_DEPRECATE_AND_INLINE()
-#endif  // defined(GTEST_HAS_ABSL)
+#endif
 
 // For MS Visual C++, check the compiler version. At least VS 2015 is
 // required to compile Google Mock.
@@ -95,11 +86,11 @@
 
 // Macros for declaring flags.
 #define GMOCK_DECLARE_bool_(name) \
-  ABSL_DECLARE_FLAG(bool, GMOCK_FLAG_NAME_(name))
+  GTEST_API_ ABSL_DECLARE_FLAG(bool, GMOCK_FLAG_NAME_(name))
 #define GMOCK_DECLARE_int32_(name) \
-  ABSL_DECLARE_FLAG(int32_t, GMOCK_FLAG_NAME_(name))
+  GTEST_API_ ABSL_DECLARE_FLAG(int32_t, GMOCK_FLAG_NAME_(name))
 #define GMOCK_DECLARE_string_(name) \
-  ABSL_DECLARE_FLAG(std::string, GMOCK_FLAG_NAME_(name))
+  GTEST_API_ ABSL_DECLARE_FLAG(std::string, GMOCK_FLAG_NAME_(name))
 
 #define GMOCK_FLAG_GET(name) ::absl::GetFlag(GMOCK_FLAG(name))
 #define GMOCK_FLAG_SET(name, value) \

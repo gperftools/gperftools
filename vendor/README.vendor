@@ -1,8 +1,9 @@
 
 == googletest
 
-googletest is vendored at release-1.8.0-3576-ga05c0915. It was copied
-verbatim via git archive and added here.
+googletest is vendored at tag v1.18.0 (git describe gives:
+release-1.8.0-3707-g063de7e9). It was copied verbatim via git archive
+and added here.
 
 == libbacktrace
 

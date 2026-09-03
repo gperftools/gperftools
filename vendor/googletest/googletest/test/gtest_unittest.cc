@@ -33,6 +33,8 @@
 
 #include "gtest/gtest.h"
 
+#include <iterator>
+
 // Verifies that the command line flag variables can be accessed in
 // code once "gtest.h" has been #included.
 // Do not move it after other gtest #includes.
@@ -87,6 +89,20 @@ void operator<<(ConvertibleGlobalType&, int);
 static_assert(sizeof(decltype(std::declval<ConvertibleGlobalType&>()
                               << 1)(*)()) > 0,
               "error in operator<< overload resolution");
+
+namespace {
+
+template <bool MutableResult, bool ConstResult>
+struct ConvertibleToBool {
+  explicit operator bool() { return MutableResult; }
+  explicit operator bool() const { return ConstResult; }
+};
+
+struct Bitfield {
+  bool bit : 1;
+};
+
+}  // namespace
 
 namespace testing {
 namespace internal {
@@ -195,7 +211,7 @@ class TestEventListenersAccessor {
 
 class UnitTestRecordPropertyTestHelper : public Test {
  protected:
-  UnitTestRecordPropertyTestHelper() {}
+  UnitTestRecordPropertyTestHelper() = default;
 
   // Forwards to UnitTest::RecordProperty() to bypass access controls.
   void UnitTestRecordProperty(const char* key, const std::string& value) {
@@ -375,7 +391,7 @@ TEST(CanonicalizeForStdLibVersioning, LeavesUnversionedNamesUnchanged) {
   EXPECT_EQ("std::bind", CanonicalizeForStdLibVersioning("std::bind"));
   EXPECT_EQ("std::_", CanonicalizeForStdLibVersioning("std::_"));
   EXPECT_EQ("std::__foo", CanonicalizeForStdLibVersioning("std::__foo"));
-  EXPECT_EQ("gtl::__1::x", CanonicalizeForStdLibVersioning("gtl::__1::x"));
+  EXPECT_EQ("absl::__1::x", CanonicalizeForStdLibVersioning("absl::__1::x"));
   EXPECT_EQ("__1::x", CanonicalizeForStdLibVersioning("__1::x"));
   EXPECT_EQ("::__1::x", CanonicalizeForStdLibVersioning("::__1::x"));
 }
@@ -442,11 +458,11 @@ class FormatEpochTimeInMillisAsIso8601Test : public Test {
   void SetUp() override {
     saved_tz_.reset();
 
-    GTEST_DISABLE_MSC_DEPRECATED_PUSH_(/* getenv: deprecated */)
+    GTEST_DISABLE_DEPRECATED_PUSH_(/* getenv: deprecated */)
     if (const char* tz = getenv("TZ")) {
       saved_tz_ = std::make_unique<std::string>(tz);
     }
-    GTEST_DISABLE_MSC_DEPRECATED_POP_()
+    GTEST_DISABLE_DEPRECATED_POP_()
 
     // Set the local time zone for FormatEpochTimeInMillisAsIso8601 to be
     // a fixed time zone for reproducibility purposes.
@@ -1873,36 +1889,31 @@ TEST(ShouldRunTestOnShardTest, IsPartitionWhenThereIsOneShard) {
 
 class ShouldShardTest : public testing::Test {
  protected:
-  void SetUp() override {
-    index_var_ = GTEST_FLAG_PREFIX_UPPER_ "INDEX";
-    total_var_ = GTEST_FLAG_PREFIX_UPPER_ "TOTAL";
-  }
+  void SetUp() override {}
 
   void TearDown() override {
-    SetEnv(index_var_, "");
-    SetEnv(total_var_, "");
+    GTEST_FLAG_SET(shard_index, -1);
+    GTEST_FLAG_SET(total_shards, -1);
   }
-
-  const char* index_var_;
-  const char* total_var_;
 };
 
 // Tests that sharding is disabled if neither of the environment variables
 // are set.
 TEST_F(ShouldShardTest, ReturnsFalseWhenNeitherEnvVarIsSet) {
-  SetEnv(index_var_, "");
-  SetEnv(total_var_, "");
+  GTEST_FLAG_SET(shard_index, -1);
+  GTEST_FLAG_SET(total_shards, -1);
 
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, false));
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, true));
+  EXPECT_FALSE(ShouldShard(false));
+  EXPECT_FALSE(ShouldShard(true));
 }
 
 // Tests that sharding is not enabled if total_shards  == 1.
 TEST_F(ShouldShardTest, ReturnsFalseWhenTotalShardIsOne) {
-  SetEnv(index_var_, "0");
-  SetEnv(total_var_, "1");
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, false));
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, true));
+  GTEST_FLAG_SET(shard_index, 0);
+  GTEST_FLAG_SET(total_shards, 1);
+
+  EXPECT_FALSE(ShouldShard(false));
+  EXPECT_FALSE(ShouldShard(true));
 }
 
 // Tests that sharding is enabled if total_shards > 1 and
@@ -1910,20 +1921,20 @@ TEST_F(ShouldShardTest, ReturnsFalseWhenTotalShardIsOne) {
 // Environment variables are not supported on Windows CE.
 #ifndef GTEST_OS_WINDOWS_MOBILE
 TEST_F(ShouldShardTest, WorksWhenShardEnvVarsAreValid) {
-  SetEnv(index_var_, "4");
-  SetEnv(total_var_, "22");
-  EXPECT_TRUE(ShouldShard(total_var_, index_var_, false));
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, true));
+  GTEST_FLAG_SET(shard_index, 4);
+  GTEST_FLAG_SET(total_shards, 22);
+  EXPECT_TRUE(ShouldShard(false));
+  EXPECT_FALSE(ShouldShard(true));
 
-  SetEnv(index_var_, "8");
-  SetEnv(total_var_, "9");
-  EXPECT_TRUE(ShouldShard(total_var_, index_var_, false));
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, true));
+  GTEST_FLAG_SET(shard_index, 8);
+  GTEST_FLAG_SET(total_shards, 9);
+  EXPECT_TRUE(ShouldShard(false));
+  EXPECT_FALSE(ShouldShard(true));
 
-  SetEnv(index_var_, "0");
-  SetEnv(total_var_, "9");
-  EXPECT_TRUE(ShouldShard(total_var_, index_var_, false));
-  EXPECT_FALSE(ShouldShard(total_var_, index_var_, true));
+  GTEST_FLAG_SET(shard_index, 0);
+  GTEST_FLAG_SET(total_shards, 9);
+  EXPECT_TRUE(ShouldShard(false));
+  EXPECT_FALSE(ShouldShard(true));
 }
 #endif  // !GTEST_OS_WINDOWS_MOBILE
 
@@ -1932,21 +1943,21 @@ TEST_F(ShouldShardTest, WorksWhenShardEnvVarsAreValid) {
 typedef ShouldShardTest ShouldShardDeathTest;
 
 TEST_F(ShouldShardDeathTest, AbortsWhenShardingEnvVarsAreInvalid) {
-  SetEnv(index_var_, "4");
-  SetEnv(total_var_, "4");
-  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(total_var_, index_var_, false), ".*");
+  GTEST_FLAG_SET(shard_index, 4);
+  GTEST_FLAG_SET(total_shards, 4);
+  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(false), ".*");
 
-  SetEnv(index_var_, "4");
-  SetEnv(total_var_, "-2");
-  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(total_var_, index_var_, false), ".*");
+  GTEST_FLAG_SET(shard_index, 4);
+  GTEST_FLAG_SET(total_shards, -2);
+  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(false), ".*");
 
-  SetEnv(index_var_, "5");
-  SetEnv(total_var_, "");
-  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(total_var_, index_var_, false), ".*");
+  GTEST_FLAG_SET(shard_index, 5);
+  GTEST_FLAG_SET(total_shards, 5);
+  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(false), ".*");
 
-  SetEnv(index_var_, "");
-  SetEnv(total_var_, "5");
-  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(total_var_, index_var_, false), ".*");
+  GTEST_FLAG_SET(shard_index, -1);
+  GTEST_FLAG_SET(total_shards, 5);
+  EXPECT_DEATH_IF_SUPPORTED(ShouldShard(false), ".*");
 }
 
 // Tests that ShouldRunTestOnShard is a partition when 5
@@ -2649,8 +2660,8 @@ TEST(IsSubstringTest, GeneratesCorrectMessageForCString) {
 // Tests that IsSubstring returns the correct result when the input
 // argument type is ::std::string.
 TEST(IsSubstringTest, ReturnsCorrectResultsForStdString) {
-  EXPECT_TRUE(IsSubstring("", "", std::string("hello"), "ahellob"));
-  EXPECT_FALSE(IsSubstring("", "", "hello", std::string("world")));
+  EXPECT_TRUE(IsSubstring("", "", "hello", "ahellob"));
+  EXPECT_FALSE(IsSubstring("", "", "hello", "world"));
 }
 
 #if GTEST_HAS_STD_WSTRING
@@ -2707,8 +2718,8 @@ TEST(IsNotSubstringTest, GeneratesCorrectMessageForWideCString) {
 // Tests that IsNotSubstring returns the correct result when the input
 // argument type is ::std::string.
 TEST(IsNotSubstringTest, ReturnsCorrectResultsForStdString) {
-  EXPECT_FALSE(IsNotSubstring("", "", std::string("hello"), "ahellob"));
-  EXPECT_TRUE(IsNotSubstring("", "", "hello", std::string("world")));
+  EXPECT_FALSE(IsNotSubstring("", "", "hello", "ahellob"));
+  EXPECT_TRUE(IsNotSubstring("", "", "hello", "world"));
 }
 
 // Tests that IsNotSubstring() generates the correct message when the input
@@ -2719,8 +2730,7 @@ TEST(IsNotSubstringTest, GeneratesCorrectMessageForStdString) {
       "  Actual: \"needle\"\n"
       "Expected: not a substring of haystack_expr\n"
       "Which is: \"two needles\"",
-      IsNotSubstring("needle_expr", "haystack_expr", ::std::string("needle"),
-                     "two needles")
+      IsNotSubstring("needle_expr", "haystack_expr", "needle", "two needles")
           .failure_message());
 }
 
@@ -3655,8 +3665,7 @@ TEST(AssertionTest, EqFailure) {
       msg4.c_str());
 
   const std::string msg5(
-      EqFailure("foo", "bar", std::string("\"x\""), std::string("\"y\""), true)
-          .failure_message());
+      EqFailure("foo", "bar", "\"x\"", "\"y\"", true).failure_message());
   EXPECT_STREQ(
       "Expected equality of these values:\n"
       "  foo\n"
@@ -3706,6 +3715,15 @@ TEST(AssertionTest, AppendUserMessage) {
 TEST(AssertionTest, ASSERT_TRUE) {
   ASSERT_TRUE(2 > 1);  // NOLINT
   EXPECT_FATAL_FAILURE(ASSERT_TRUE(2 < 1), "2 < 1");
+
+  ASSERT_TRUE((ConvertibleToBool<true, false>()));
+  ASSERT_TRUE((std::add_const_t<ConvertibleToBool<false, true>>()));
+
+  Bitfield bf = {true};
+  ASSERT_TRUE(bf.bit);                                             // &
+  ASSERT_TRUE(Bitfield{true}.bit);                                 // &&
+  ASSERT_TRUE(static_cast<const Bitfield&>(Bitfield{true}).bit);   // const&
+  ASSERT_TRUE(static_cast<const Bitfield&&>(Bitfield{true}).bit);  // const&&
 }
 
 // Tests ASSERT_TRUE(predicate) for predicates returning AssertionResult.
@@ -3732,6 +3750,15 @@ TEST(AssertionTest, ASSERT_FALSE) {
                        "Value of: 2 > 1\n"
                        "  Actual: true\n"
                        "Expected: false");
+
+  ASSERT_FALSE((ConvertibleToBool<false, true>()));
+  ASSERT_FALSE((std::add_const_t<ConvertibleToBool<true, false>>()));
+
+  Bitfield bf = {false};
+  ASSERT_FALSE(bf.bit);                                              // &
+  ASSERT_FALSE(Bitfield{false}.bit);                                 // &&
+  ASSERT_FALSE(static_cast<const Bitfield&>(Bitfield{false}).bit);   // const&
+  ASSERT_FALSE(static_cast<const Bitfield&&>(Bitfield{false}).bit);  // const&&
 }
 
 // Tests ASSERT_FALSE(predicate) for predicates returning AssertionResult.
@@ -4433,6 +4460,15 @@ TEST(ExpectTest, EXPECT_TRUE) {
                           "  Actual: false\n"
                           "Expected: true");
   EXPECT_NONFATAL_FAILURE(EXPECT_TRUE(2 > 3), "2 > 3");
+
+  EXPECT_TRUE((ConvertibleToBool<true, false>()));
+  EXPECT_TRUE((std::add_const_t<ConvertibleToBool<false, true>>()));
+
+  Bitfield bf = {true};
+  EXPECT_TRUE(bf.bit);                                             // &
+  EXPECT_TRUE(Bitfield{true}.bit);                                 // &&
+  EXPECT_TRUE(static_cast<const Bitfield&>(Bitfield{true}).bit);   // const&
+  EXPECT_TRUE(static_cast<const Bitfield&&>(Bitfield{true}).bit);  // const&&
 }
 
 // Tests EXPECT_TRUE(predicate) for predicates returning AssertionResult.
@@ -4462,6 +4498,15 @@ TEST(ExpectTest, EXPECT_FALSE) {
                           "  Actual: true\n"
                           "Expected: false");
   EXPECT_NONFATAL_FAILURE(EXPECT_FALSE(2 < 3), "2 < 3");
+
+  EXPECT_FALSE((ConvertibleToBool<false, true>()));
+  EXPECT_FALSE((std::add_const_t<ConvertibleToBool<true, false>>()));
+
+  Bitfield bf = {false};
+  EXPECT_FALSE(bf.bit);                                              // &
+  EXPECT_FALSE(Bitfield{false}.bit);                                 // &&
+  EXPECT_FALSE(static_cast<const Bitfield&>(Bitfield{false}).bit);   // const&
+  EXPECT_FALSE(static_cast<const Bitfield&&>(Bitfield{false}).bit);  // const&&
 }
 
 // Tests EXPECT_FALSE(predicate) for predicates returning AssertionResult.
@@ -5810,9 +5855,8 @@ class ParseFlagsTest : public Test {
   // to specify the array sizes.
 
 #define GTEST_TEST_PARSING_FLAGS_(argv1, argv2, expected, should_print_help) \
-  TestParsingFlags(sizeof(argv1) / sizeof(*argv1) - 1, argv1,                \
-                   sizeof(argv2) / sizeof(*argv2) - 1, argv2, expected,      \
-                   should_print_help)
+  TestParsingFlags(std::size(argv1) - 1, argv1, std::size(argv2) - 1, argv2, \
+                   expected, should_print_help)
 };
 
 // Tests parsing an empty command line.

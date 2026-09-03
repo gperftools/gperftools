@@ -614,13 +614,13 @@ TEST(ThrowActionTest, ThrowsGivenExceptionInNullaryFunction) {
 
 class Object {
  public:
-  virtual ~Object() {}
+  virtual ~Object() = default;
   virtual void Func() {}
 };
 
 class MockObject : public Object {
  public:
-  ~MockObject() override {}
+  ~MockObject() override = default;
   MOCK_METHOD(void, Func, (), (override));
 };
 
@@ -1026,9 +1026,8 @@ TEST(DoAllTest, NoArgs) {
 
 TEST(DoAllTest, MoveOnlyArgs) {
   bool ran_first = false;
-  Action<int(std::unique_ptr<int>)> a =
-      DoAll(InvokeWithoutArgs([&] { ran_first = true; }),
-            [](std::unique_ptr<int> p) { return *p; });
+  Action<int(std::unique_ptr<int>)> a = DoAll(
+      [&] { ran_first = true; }, [](std::unique_ptr<int> p) { return *p; });
   EXPECT_EQ(7, a.Perform(std::make_tuple(std::unique_ptr<int>(new int(7)))));
   EXPECT_TRUE(ran_first);
 }

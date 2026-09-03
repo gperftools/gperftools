@@ -35,6 +35,13 @@
 // Silence C4503 (decorated name length exceeded) for MSVC.
 GTEST_DISABLE_MSC_WARNINGS_PUSH_(4503)
 
+#ifdef __clang__
+#pragma clang diagnostic push
+// This file intentionally tests many ways of writing Mock classes, including
+// with and without the override keyword.
+#pragma clang diagnostic ignored "-Winconsistent-missing-override"
+#endif
+
 #ifdef GTEST_OS_WINDOWS
 // MSDN says the header file to be included for STDMETHOD is BaseTyps.h but
 // we are getting compiler errors if we use basetyps.h, hence including
@@ -451,6 +458,87 @@ TYPED_TEST(FunctionMockerTest, MocksReturnTypeWithCommaAndCallType) {
 
 #endif  // GTEST_OS_WINDOWS
 
+// Compilability test, to ensure macros expand to all the arguments they're
+// supposed to.
+class MockManyArgs {
+  using T = int;
+
+ public:
+  MockManyArgs() = default;
+
+  MOCK_METHOD(void, F, (), ());
+  MOCK_METHOD(void, F, (T), ());
+  MOCK_METHOD(void, F, (T, T), ());
+  MOCK_METHOD(void, F, (T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F, (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T), ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T, T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T, T, T, T, T, T),
+              ());
+  MOCK_METHOD(void, F,
+              (T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T, T,
+               T, T, T, T, T, T, T, T, T),
+              ());
+
+ private:
+  MockManyArgs(const MockManyArgs&) = delete;
+  MockManyArgs& operator=(const MockManyArgs&) = delete;
+};
+
 TEST(FunctionMockerTest, RefQualified) {
   MockFoo mock_foo;
 
@@ -849,10 +937,19 @@ namespace {
 template <typename Expected, typename F>
 static constexpr bool IsMockFunctionTemplateArgumentDeducedTo(
     const internal::MockFunction<F>&) {
-  return std::is_same<F, Expected>::value;
+  return std::is_same_v<F, Expected>;
 }
 
 }  // namespace
+
+// Like std::add_const, but for function types.
+template <typename F>
+struct AddConstToFunction;
+
+template <typename R, typename... Args>
+struct AddConstToFunction<R(Args...)> {
+  using type = R(Args...) const;
+};
 
 template <typename F>
 class MockMethodMockFunctionSignatureTest : public Test {};
@@ -865,25 +962,69 @@ TYPED_TEST_SUITE(MockMethodMockFunctionSignatureTest,
 
 TYPED_TEST(MockMethodMockFunctionSignatureTest,
            IsMockFunctionTemplateArgumentDeducedForRawSignature) {
-  using Argument = TypeParam;
-  MockFunction<Argument> foo;
-  EXPECT_TRUE(IsMockFunctionTemplateArgumentDeducedTo<TypeParam>(foo));
+  // Non-const
+  {
+    using Argument = TypeParam;
+    MockFunction<Argument> foo;
+    EXPECT_TRUE(IsMockFunctionTemplateArgumentDeducedTo<TypeParam>(foo));
+  }
+
+  // Const
+  {
+    using Argument = typename AddConstToFunction<TypeParam>::type;
+    MockFunction<Argument> foo;
+    EXPECT_TRUE(IsMockFunctionTemplateArgumentDeducedTo<TypeParam>(foo));
+  }
 }
 
 TYPED_TEST(MockMethodMockFunctionSignatureTest,
            IsMockFunctionTemplateArgumentDeducedForStdFunction) {
-  using Argument = std::function<TypeParam>;
-  MockFunction<Argument> foo;
-  EXPECT_TRUE(IsMockFunctionTemplateArgumentDeducedTo<TypeParam>(foo));
+  // Non-const
+  {
+    using Argument = std::function<TypeParam>;
+    MockFunction<Argument> foo;
+    EXPECT_TRUE(IsMockFunctionTemplateArgumentDeducedTo<TypeParam>(foo));
+  }
+
+// As of 2026-05 MSVC doesn't know how to deal with this, providing pages of
+// inscrutable errors about std::_Get_function_impl. But this is fine, since
+// std::function<R(Args...) const> doesn't apply the const qualifier correctly
+// anyway.
+#if !defined(_MSC_VER)
+
+  // Const
+  {
+    using Argument =
+        std::function<typename AddConstToFunction<TypeParam>::type>;
+
+    MockFunction<Argument> foo;
+    EXPECT_TRUE(IsMockFunctionTemplateArgumentDeducedTo<TypeParam>(foo));
+  }
+
+#endif
 }
 
 TYPED_TEST(
     MockMethodMockFunctionSignatureTest,
     IsMockFunctionCallMethodSignatureTheSameForRawSignatureAndStdFunction) {
-  using ForRawSignature = decltype(&MockFunction<TypeParam>::Call);
-  using ForStdFunction =
-      decltype(&MockFunction<std::function<TypeParam>>::Call);
-  EXPECT_TRUE((std::is_same<ForRawSignature, ForStdFunction>::value));
+  // Non-const
+  {
+    using ForRawSignature = decltype(&MockFunction<TypeParam>::Call);
+    using ForStdFunction =
+        decltype(&MockFunction<std::function<TypeParam>>::Call);
+    EXPECT_TRUE((std::is_same<ForRawSignature, ForStdFunction>::value));
+  }
+
+  // Const
+  {
+    using ConstTypeParam = typename AddConstToFunction<TypeParam>::type;
+    using ForRawSignature = decltype(&MockFunction<ConstTypeParam>::Call);
+
+    using ForStdFunction =
+        decltype(&MockFunction<std::function<ConstTypeParam>>::Call);
+
+    EXPECT_TRUE((std::is_same<ForRawSignature, ForStdFunction>::value));
+  }
 }
 
 template <typename F>

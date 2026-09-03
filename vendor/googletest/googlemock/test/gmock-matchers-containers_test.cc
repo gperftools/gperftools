@@ -217,7 +217,7 @@ TEST(PointeeTest, ReferenceToNonConstRawPointer) {
 TEST(PointeeTest, SmartPointer) {
   const Matcher<std::unique_ptr<int>> m = Pointee(Ge(0));
 
-  std::unique_ptr<int> n(new int(1));
+  std::unique_ptr<int> n = std::make_unique<int>(1);
   EXPECT_TRUE(m.Matches(n));
 }
 
@@ -254,7 +254,7 @@ TEST(PointerTest, RawPointerToConst) {
 }
 
 TEST(PointerTest, SmartPointer) {
-  std::unique_ptr<int> n(new int(10));
+  std::unique_ptr<int> n = std::make_unique<int>(10);
   int* raw_n = n.get();
   const Matcher<std::unique_ptr<int>> m = Pointer(Eq(raw_n));
 
@@ -1047,8 +1047,8 @@ TEST(ResultOfTest, WorksForCompatibleMatcherTypes) {
 // a NULL function pointer.
 TEST(ResultOfDeathTest, DiesOnNullFunctionPointers) {
   EXPECT_DEATH_IF_SUPPORTED(
-      ResultOf(static_cast<std::string (*)(int dummy)>(nullptr),
-               Eq(std::string("foo"))),
+      (void)ResultOf(static_cast<std::string (*)(int dummy)>(nullptr),
+                     Eq(std::string("foo"))),
       "NULL function pointer is passed into ResultOf\\(\\)\\.");
 }
 
@@ -2796,7 +2796,7 @@ TEST(UnorderedPointwiseTest, WorksWithMoveOnly) {
 }
 
 TEST(PointeeTest, WorksOnMoveOnlyType) {
-  std::unique_ptr<int> p(new int(3));
+  std::unique_ptr<int> p = std::make_unique<int>(3);
   EXPECT_THAT(p, Pointee(Eq(3)));
   EXPECT_THAT(p, Not(Pointee(Eq(2))));
 }
@@ -3437,6 +3437,78 @@ TEST(ContainsTest, WorksForTwoDimensionalNativeArray) {
   EXPECT_THAT(a, Contains(Contains(5)));
   EXPECT_THAT(a, Not(Contains(ElementsAre(3, 4, 5))));
   EXPECT_THAT(a, Contains(Not(Contains(5))));
+}
+
+// Tests ContainsSubsequence().
+
+TEST(ContainsSubsequenceTest, WorksForNativeArray) {
+  const int a[] = {1, 2, 3, 4, 5};
+  EXPECT_THAT(a, ContainsSubsequence(1, 3, 4));
+  EXPECT_THAT(a, Not(ContainsSubsequence(1, 3, 2)));
+}
+
+TEST(ContainsSubsequenceTest, AcceptsMatcher) {
+  const int a[] = {1, 2, 3, 4, 5};
+  EXPECT_THAT(a, ContainsSubsequence(Eq(1), Gt(3), Gt(4)));
+  EXPECT_THAT(a, Not(ContainsSubsequence(1, Gt(3), Lt(3))));
+}
+
+TEST(ContainsSubsequenceTest, WorksForTwoDimensionalNativeArray) {
+  int a[][3] = {{1, 2, 3}, {7, 8, 9}, {4, 5, 6}};
+  EXPECT_THAT(a, ContainsSubsequence(ElementsAre(1, 2, 3), Contains(4)));
+  EXPECT_THAT(a,
+              Not(ContainsSubsequence(Contains(1), Contains(8), Contains(9))));
+}
+
+TEST(ContainsSubsequenceTest, WorksForVector) {
+  const vector<int> a = {1, 2, 3, 4, 5};
+  EXPECT_THAT(a, ContainsSubsequence(1, 3, 4));
+  EXPECT_THAT(a, Not(ContainsSubsequence(1, 3, 2)));
+}
+
+TEST(ContainsSubsequenceTest, WorksForEmptySmallSizedSubsequences) {
+  const int a[] = {1, 2, 3, 4, 5};
+  EXPECT_THAT(a, ContainsSubsequence());
+  EXPECT_THAT(a, ContainsSubsequence(Gt(4)));
+  EXPECT_THAT(a, Not(ContainsSubsequence(Gt(6))));
+  EXPECT_THAT(a, ContainsSubsequence(Lt(2), Gt(3)));
+  EXPECT_THAT(a, Not(ContainsSubsequence(Lt(2), Lt(2))));
+}
+
+TEST(ContainsSubsequenceTest, DescribesItselfCorrectly) {
+  Matcher<const int (&)[5]> m = ContainsSubsequence(1, 3, 4);
+  EXPECT_EQ(
+      "contains in order a subsequence of elements that matches: is equal to "
+      "1, then is equal to 3, then is equal to 4",
+      Describe(m));
+  m = ContainsSubsequence(Eq(1), Gt(3), Gt(4));
+  EXPECT_EQ(
+      "contains in order a subsequence of elements that matches: is equal to "
+      "1, then is > 3, then is > 4",
+      Describe(m));
+
+  m = Not(ContainsSubsequence(1, 3, 4));
+  EXPECT_EQ(
+      "does not contain in order a subsequence of elements that matches is "
+      "equal to 1, then is equal to 3, then is equal to 4",
+      Describe(m));
+}
+
+TEST(ContainsSubsequenceTest, ExplainsMismatchCorrectlyForSingleMatcher) {
+  const int a[] = {1, 2, 3, 4, 5};
+  Matcher<const int (&)[5]> m = ContainsSubsequence(Eq(6));
+  EXPECT_EQ(Explain(m, a),
+            "could not find a match for matcher #0 (is equal to 6)");
+}
+
+TEST(ContainsSubsequenceTest, ExplainsMismatchCorrectlyForMultipleMatchers) {
+  const int a[] = {1, 2, 3, 4, 5};
+  Matcher<const int (&)[5]> m = ContainsSubsequence(Eq(2), Gt(4), Gt(4));
+  EXPECT_EQ(
+      Explain(m, a),
+      "found match for matcher #0 with element at position #1, found match for "
+      "matcher #1 with element at position #4, but could not find a match for "
+      "matcher #2 (is > 4) after the last match at position #4");
 }
 
 }  // namespace
