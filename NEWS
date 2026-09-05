@@ -1,3 +1,88 @@
+== 5 September 2026
+
+gperftools 2.19rc is out!
+
+2.19 headline change is the integration of aw-backtrace
+(https://github.com/gperftools/aw-backtrace), a new stack-trace
+capturing engine. aw-backtrace is built to a) never crash, b) give
+perfect backtraces whenever possible (with heuristics to cover some
+cases that lack unwind info), and c) be fast enough to make
+frame-pointer-based unwinding a thing of the past.
+
+Currently it is Linux-only and requires a reasonably recent glibc for
+_dl_find_object support (which sadly rules out rhel 9, though rhel 10
+should be fine). For now, only amd64 and arm64 are supported.
+
+When it is built, aw-backtrace becomes the default stack trace
+implementation, so CPU profiles, heap/allocation sampling and other
+profiling tools get accurate backtraces even in -fomit-frame-pointer
+builds, without the cost or fragility of libunwind or the libgcc
+unwinder.
+
+Here is a complete list of reasonably notable changes:
+
+* [headline] gperftools now vendors and integrates aw-backtrace (see
+  above). It is enabled by default on Linux/x86-64 and Linux/aarch64,
+  provided the toolchain can compile it (it is built as C++20, while
+  the rest of gperftools is C++17) and glibc is recent enough to
+  provide _dl_find_object (glibc 2.35 or later). Pass
+  --disable-aw-backtrace (autotools) or
+  -Dgperftools_enable_aw_backtrace=OFF (cmake) to opt
+  out. aw-backtrace is not yet wired into the top-level Bazel build.
+
+* new --disable-tests configure flag makes the build skip the tests
+  and benchmarks entirely (including the vendored googletest), for
+  much faster library-only builds. That said, we advise against it --
+  the build-time savings aren't worth shipping something you haven't
+  tested.
+
+* basic support for Alpha was added. Original patch by Michael Cree,
+  via Debian bug #1142755.
+
+* compilation on Linux sparc64 has been enabled.
+
+* build fix for musl libc: elf_mem_image no longer relies on the
+  glibc-only __WORDSIZE macro, deriving the ELF class from the pointer
+  size instead. Thanks to Josef Schlehofer and Karel Kočí.
+
+* two fixes to the PowerPC/Linux stack unwinder around PT_NIP access
+  in ucontext on non-glibc (musl) systems. Thanks to Josef Schlehofer.
+
+* macOS: we now default to 16k pages on Apple ARM hardware, disable
+  sbrk, and tag tcmalloc's memory regions with VM tag 253 so that
+  tools like vmmap attribute the memory correctly.
+
+* Windows: getpagesize() now reports the real OS page size (typically
+  4k), which is the granularity at which Windows commits and decommits
+  memory, rather than the 64k allocation granularity. The SysAllocator
+  now rounds its requests up to the allocation granularity. Plus a
+  cmake fix for pulling in the right Windows DLLs.
+
+* the whole source tree was reformatted with clang-format and a
+  .clang-format file was added.
+
+* gen_compile_commands.rb now understands cross-compilers, e.g. running
+  it with CXX pointing at a cross-compiler (such as
+  x86_64-w64-mingw32-clang++) produces a compile_commands.json that
+  picks up the right (mingw) headers and defines.
+
+* "make dist" now also produces a highly compressed .tar.xz release
+  archive.
+
+* a couple of Bazel build fixes: don't pick up the vendored googletest,
+  and fix the link of backtrace-alloc. Thanks to Henner Zeller.
+
+* Henry Rieke tracked down the original copyright of the binary_trees
+  benchmark we bundle (it is from the Computer Language Benchmarks
+  Game).
+
+* CI: GitHub Actions versions were bumped and msvc-env.rb was updated
+  to find the latest MSVC.
+
+Please find the list of tickets explicitly closed by this release
+here:
+https://github.com/gperftools/gperftools/issues?q=label%3A%22fixed-in-2.19%22%20
+
 == 6 March 2026
 
 gperftools 2.18.1 is out!
