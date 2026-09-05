@@ -58,6 +58,24 @@ else()
   set(default_enable_backtrace OFF)
 endif()
 
+# modern Linux and x86-64 or aarch64 for now. aw-backtrace itself is built
+# as C++20 (see below) even though the rest of gperftools targets C++17,
+# so probe with -std=c++20 too -- otherwise we could default to aw-backtrace
+# on a toolchain that has _dl_find_object but can't actually compile it.
+set(CMAKE_REQUIRED_FLAGS -std=c++20)
+check_cxx_source_compiles("
+#include <dlfcn.h>
+int main() {
+#if (!__x86_64__ && !__aarch64__) || !__linux__
+#error not defaulting to aw-backtrace here yet
+#endif
+  struct dl_find_object dlfo;
+  auto res = _dl_find_object(reinterpret_cast<void*>(&_dl_find_object), &dlfo);
+  return 0;
+}"
+  default_enable_aw_backtrace)
+set(CMAKE_REQUIRED_FLAGS)
+
 # Disable libunwind linking on ppc64 by default.
 if(PPC64)
   set(default_enable_libunwind OFF)
@@ -98,9 +116,13 @@ option(gperftools_enable_stacktrace_via_backtrace
 option(gperftools_enable_libunwind
        "Enable libunwind linking"
        ${default_enable_libunwind})
+option(gperftools_enable_aw_backtrace
+       "Build with aw-backtrace stacktrace capturer (Linux/x86-64 or aarch64 only)"
+       ${default_enable_aw_backtrace})
 
 set(enable_backtrace ${gperftools_enable_stacktrace_via_backtrace})
 set(enable_libunwind ${gperftools_enable_libunwind})
+set(BUILD_WITH_AW_BACKTRACE ${gperftools_enable_aw_backtrace})
 
 option(gperftools_enable_libgcc_unwinder_by_default
        "Prefer libgcc's _Unwind_Backtrace as default stacktrace capturing method"
@@ -474,6 +496,32 @@ if(WITH_STACK_TRACE)
                  PROPERTY POSITION_INDEPENDENT_CODE ON)
   endif()
 
+  if(BUILD_WITH_AW_BACKTRACE)
+    # note, deliberately not inheriting the project's global include dirs
+    # and defines beyond what aw-backtrace itself needs.
+    add_library(aw_backtrace STATIC
+      vendor/aw-backtrace/aw-backtrace.cc
+      vendor/aw-backtrace/backtrace-core.cc
+      vendor/aw-backtrace/aw-addrcheck.c
+      src/stacktrace-aw-backtrace.cc)
+    set_target_properties(aw_backtrace PROPERTIES
+      CXX_STANDARD 20
+      CXX_STANDARD_REQUIRED ON
+      CXX_EXTENSIONS ON)
+    target_include_directories(aw_backtrace PRIVATE
+      $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/aw-backtrace/include>)
+    target_compile_definitions(aw_backtrace PRIVATE AW_RENAME_PREFIX=tcmalloc_)
+    target_compile_options(aw_backtrace PRIVATE
+      -fno-exceptions
+      -include ${CMAKE_CURRENT_SOURCE_DIR}/vendor/aw-backtrace/renamings.h)
+    target_link_libraries(aw_backtrace PRIVATE atomic)
+    if(BUILD_SHARED_LIBS)
+      set_property(TARGET aw_backtrace
+                   PROPERTY POSITION_INDEPENDENT_CODE ON)
+    endif()
+    target_link_libraries(stacktrace PRIVATE aw_backtrace)
+  endif()
+
   if(BUILD_TESTING)
     add_executable(stacktrace_unittest
       src/tests/stacktrace_unittest.cc
@@ -481,6 +529,9 @@ if(WITH_STACK_TRACE)
       src/base/elf_mem_image.cc
       src/base/vdso_support.cc)
     target_link_libraries(stacktrace_unittest ${unwind_libs} common gtest)
+    if(BUILD_WITH_AW_BACKTRACE)
+      target_link_libraries(stacktrace_unittest aw_backtrace)
+    endif()
     target_compile_definitions(stacktrace_unittest PRIVATE STACKTRACE_IS_TESTED PERFTOOLS_DLL_DECL= )
     add_test(stacktrace_unittest stacktrace_unittest)
 

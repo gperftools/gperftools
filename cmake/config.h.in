@@ -1,6 +1,9 @@
 #ifndef GPERFTOOLS_CONFIG_H_
 #define GPERFTOOLS_CONFIG_H_
 
+/* If we're building with aw-backtrace */
+#cmakedefine01 BUILD_WITH_AW_BACKTRACE
+
 /* Enable aggressive decommit by default */
 #cmakedefine ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT
 
