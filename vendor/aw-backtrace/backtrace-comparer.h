@@ -7,9 +7,9 @@
 extern "C" {
 #endif
 
-void StartBacktraceComparer();
+void StartBacktraceComparer(void);
 
-void StopBacktraceComparer();
+void StopBacktraceComparer(void);
 
 #if defined(__cplusplus)
 }

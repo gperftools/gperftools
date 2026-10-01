@@ -569,16 +569,22 @@ static void atfork_child(void)
 
 void aw_addrcheck_initialize(void)
 {
-	fd_self_maps = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
-	if (fd_self_maps < 0)
+	int tmp_fd = open("/proc/self/maps", O_RDONLY | O_CLOEXEC);
+	if (tmp_fd < 0)
 		return;
 
-	aw_addrcheck_session_t tmp_s = { .fd = fd_self_maps };
+	aw_addrcheck_session_t tmp_s = { .fd = tmp_fd };
 	if (try_maps_query(&tmp_s, (uintptr_t)&tmp_s) != 1) {
-		(void)close(fd_self_maps);
-		fd_self_maps = -1;
+		(void)close(tmp_fd);
 		return;
 	}
+
+	// NOTE: is it important to only set fd_self_maps _after_
+	// we've verified ioctl works. Otherwise when single-stepping
+	// via backtrace-comparer, we see intermediate state where
+	// fd_self_maps is set, but not confirmed to be ioctl-capable
+	// and then bounds checking returns false-negatives.
+	fd_self_maps = tmp_fd;
 
 	pthread_atfork(atfork_prepare, atfork_parent, atfork_child);
 }

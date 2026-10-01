@@ -1,0 +1,16 @@
+# -*- Mode: yaml -*-
+# Like Linux but with 120 columns
+---
+BasedOnStyle: LLVM
+IndentWidth: 8
+TabWidth: 8
+UseTab: Always
+BreakBeforeBraces: Linux
+ColumnLimit: 120
+ContinuationIndentWidth: 8
+IndentCaseLabels: false
+AllowShortBlocksOnASingleLine: false
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: false
+AllowShortLoopsOnASingleLine: false
+...

@@ -8,7 +8,7 @@ and added here.
 == aw-backtrace
 
 https://github.com/gperftools/aw-backtrace is vendored verbatim at
-d30c1a9a513ee85d43b3c8efaf762ac4718530bc.
+e39eba385cd51335016273645bb4d4f7482a148f.
 
 == libbacktrace
 

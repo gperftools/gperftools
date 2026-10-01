@@ -1,0 +1,90 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  tests:
+    name: tests
+    strategy:
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04, ubuntu-22.04-arm, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure ruby
+        shell: bash
+        run: |
+          command -v ruby >/dev/null && exit 0
+          [ "$(id -u)" = 0 ] && SUDO= || SUDO=sudo
+          $SUDO apt-get update -qq
+          $SUDO apt-get install -y --no-install-recommends ruby
+
+      - name: Install build dependencies
+        run: ci/install-deps.rb
+
+      # Keyed on ci/build-qemu.rb (the pinned commit, the target list, the
+      # configure flags) and on the patches it applies -- change any of them
+      # and this misses, which is exactly when it should.
+      - name: Restore cached qemu
+        id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/qemu
+          key: qemu-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('ci/build-qemu.rb', 'ci/qemu-patches/*.patch') }}
+
+      # Building qemu sadly insists on 3.12 or later which
+      # ubuntu-22.04 doesn't have
+      - name: Setup python 3.12
+        uses: actions/setup-python@v7
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        with:
+          python-version: 3.12
+
+      - name: Build qemu
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        run: ci/build-qemu.rb
+
+      # pstepper's own tests first: they are seconds, they need no bazel, and
+      # if the stepping facility is broken every stepped test below fails in
+      # a much less legible way.
+      - name: pstepper tests under qemu
+        run: ci/check-pstepper.rb
+
+      - name: Restore cached bazel release
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazelisk
+          key: bazelisk-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.bazelversion') }}
+
+      - name: Install bazelisk
+        run: |
+          ci/install-bazelisk.rb
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Generate system package fingerprint
+        run: dpkg-query -W > /tmp/dpkg-packages.txt
+
+      - name: Cache Bazel Disk Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-disk-cache
+          key: bazel-stepped-${{ matrix.os }}-${{ hashFiles('/tmp/dpkg-packages.txt') }}-${{ github.sha }}
+          restore-keys: |
+            bazel-stepped-${{ matrix.os }}-${{ hashFiles('/tmp/dpkg-packages.txt') }}-
+
+      - name: Cache Bazel Repo Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/bazel-repo-cache
+          key: bazel-stepped-repo-${{ matrix.os }}-${{ hashFiles('MODULE.bazel') }}
+          restore-keys: |
+            bazel-stepped-repo-${{ matrix.os }}-
+
+      - name: Run tests
+        run: PATH=$HOME/qemu/bin:$PATH ./test-all-cfg.rb --disk_cache=$HOME/.cache/bazel-disk-cache --repository_cache=$HOME/.cache/bazel-repo-cache --cache_test_results=no

@@ -1,116 +1,136 @@
 # AGENT.md — orientation for coding agents
 
-Where things live and why they are the way they are. Deliberately not a
-substitute for reading the code: when this file describes a mechanism it says
-*why it exists*, not how it is spelled. Grep for a named symbol rather than
-trusting a description that looks stale.
-
-`README.md` is the *user's* introduction — what the library does, why, and how
-to call it. It is also where the design rationale now lives; this file is the
-part that only matters once you are editing the code.
+Where things live and the traps worth knowing before editing. `README.md` is
+the user-facing introduction and design rationale. When a description here
+looks stale, grep for the named symbol and trust the code.
 
 ## 1. What this project is
 
-A from-scratch, **async-signal-safe backtrace library for profilers** ("aw" =
-the prefix on all public symbols). Unwinds from `.eh_frame` / `.eh_frame_hdr`
-CFI parsed by hand, with no libunwind/libgcc dependency.
+A from-scratch, **async-signal-safe backtrace library for profilers**. The
+public symbols start with `aw_`. It unwinds from hand-parsed `.eh_frame` /
+`.eh_frame_hdr` CFI and does not depend on libunwind or libgcc.
 
 The contract:
 
 * Never crash, never deadlock, never allocate on the sampling path. An
   occasional *wrong* backtrace is acceptable; crashing is not.
-* Only PC, SP and FP are unwound. Full DWARF register-state unwinding is
-  deliberately absent — the bet is that essentially all real frames are either
-  fixed-offset-from-SP or RBP-framed.
-* Anything outside that model is an explicit, reported error, never a silent
-  guess.
-* Modern Linux, glibc 2.35+ (`_dl_find_object`). x86-64 is where the testing
-  is; aarch64 builds and passes the basic tests but has no comparer and no
-  `GuessUnwindInfo`. riscv and 32-bit eventually.
+* Only PC, SP and FP are unwound. There is no full DWARF register-state
+  unwinding, on the bet that real frames are SP-offset or FP-framed.
+* CFI outside that model fails the frame (reported when diagnostics are
+  enabled; otherwise the backtrace is silently truncated). It is never
+  reinterpreted. Heuristics (PLT and trampoline byte matching,
+  `GuessUnwindInfo`) run only when CFI is missing or is an expression
+  (§4.1), and they run silently.
+* Targets modern Linux with glibc 2.35+ (`_dl_find_object`). x86-64
+  and aarch64 are supported; x86-64 has much more test coverage. riscv
+  and 32-bit may come later.
 
 ## 2. Build and test
 
-**Two build systems that build different things.** Neither is a superset.
+**There are two build systems, and they build different things.**
 
 ### Bazel — the library and the test suite
 
-bzlmod, one top-level package, module `aw-backtrace`.
+bzlmod, module `aw-backtrace`, two packages: `//` and `//perf-convert`.
 
 ```
-bazel test ...:all               # the normal loop: 12 tests
+bazel test ...:all
 bazel test -c opt ...:all        # NDEBUG: drops assert(), keeps CHECK()
-./test-all-cfg.rb                # gcc/clang x dbg/opt sweep, all four green
+./test-all-cfg.rb                # gcc/clang x opt/dbg, plain and stepped; what CI runs
 ```
 
-Eleven tests: nine in the top package plus `//perf-convert`'s two. `:all` instead
-of `...:all` skips perf-convert. `v/mini-x86-int` is in `.bazelignore`, so
-`@mini-x86-int//:sim_stepper_test` runs only by explicit label.
+For each of the four configurations, `test-all-cfg.rb` first runs a plain
+`bazel test ...:all`. It then reruns the `stepped`-tagged targets
+(`aw-backtrace-test`, `lua-test`) with
+`--run_under="qemu-$(uname -m) -plugin v/pstepper/pstepper_plugin.so"`,
+`AW_BT_REQUIRE_STEPPER=1` and `--test_output=all`. It needs:
 
-Traps worth knowing before you fight the build:
+* `qemu-<arch>` on `PATH`. Build it with `ci/build-qemu.rb`, which installs to
+  `~/qemu/bin`.
+* The plugin, built with `cd v/pstepper && ./genbuild.rb check`.
 
-* **`-std=c++20 -fno-exceptions -fno-rtti` live in `BUILD.bazel`'s `CXXOPTS`,
-  per target, on purpose.** A project that consumes this module never reads our
-  `.bazelrc`, so anything we need has to travel with the targets. `cxxopts`
-  rather than `copts` so it stays off the C compiles (`aw-addrcheck.c`). The
-  public header is deliberately standard-agnostic — it compiles as C99 and as
-  C++11 and up — so a consumer on an older standard can still include it.
-* **All internal headers are one target, `:internal`** (a `glob(["*.h"])`).
-  Every target that compiles C++ deps `:internal` and `#include`s whatever it
-  needs — there are no per-header libraries and no dependency-layering to keep
-  in sync. `:internal` carries no compile options (headers only), so it leaks
-  nothing into a consumer; the `.cc` implementations still have their own
-  targets. Two things stay out of the glob: `aw-addrcheck.h` (its own `:aw-
-  addrcheck` C target, `exclude`d) and the public header (`:aw-backtrace-hdr`,
-  shipped under `aw-backtrace/` via `strip_include_prefix`). `:internal` also
-  carries `linkopts = ["-latomic"]`, so every C++ target gets it.
-* **`.bazelrc` is for *this* workspace only.** It forces `-std=c++20` across the
-  whole graph so abseil matches what `//perf-convert` compiles against. It does
-  nothing for anyone depending on us.
-* **`.bazelversion` pins 9.2.0, load-bearing.** `dev_dependency` belongs on the
-  `bazel_dep` line; 9.2.0 rejects it on `local_path_override` and every `bazel`
-  invocation dies.
-* **GNU ld intermittently segfaults linking this package.** Worked around with
-  `features = ["-supports_start_end_lib"]` on the targets that hit it — a
-  toolchain interaction, not a code bug. Copy the line onto any new binary
-  target that starts crashing `ld`.
-* **`-latomic` is required for gcc *and* clang.** `UnwindInfoCache` uses 16-byte
-  atomics; without `-mavx -mcx16` both compilers call libatomic (~2.5ns/step
-  under clang). `ATTR_DWORD_ATOMICS`, which used to inline them, is deliberately
-  an empty macro — it emitted VEX unconditionally and `SIGILL`ed on pre-AVX.
-* **`v/mini-x86-int` is "vendored" only mechanically** — co-developed, same
-  author, no upstream. A fix belonging in the stepper goes in the stepper.
-* `:aw-backtrace` is the only public target and the only public header
-  (`include/aw-backtrace/aw-backtrace.h`, via `strip_include_prefix`).
-* `with-exit.h` is header-only: `WithExit::Run`/`Exit` are a thin
-  `_setjmp`/`_longjmp` wrapper.
+Extra arguments are passed through to every `bazel` invocation. On arm64 it
+adds `-cpu cortex-a76` to qemu and sets `AW_BT_CLANG_KNOWN_BUGS=1` for clang
+(§5). It leaves out `//perf-convert` when the compiler lacks a working
+`std::source_location`, which is clang 14 on ubuntu-22.04 (abseil needs it).
+
+Traps:
+
+* **`-std=c++20 -fno-exceptions -fno-rtti` are in `BUILD.bazel`'s `CXXOPTS`, per
+  target.** A consumer of the module never reads our `.bazelrc`, so the flags
+  must travel with the targets. They are in `cxxopts` rather than `copts` to
+  keep them off the C compiles. The public header compiles as C99 and as
+  C++11 and later, so keep it that way.
+* **Every internal header is in one target, `:headers`** (`glob(["*.h"])`). A
+  target that compiles C++ deps on `:headers`; there are no per-header
+  libraries. Two headers are outside the glob: `aw-addrcheck.h` (in
+  `:aw-addrcheck`) and the public header (`:aw-backtrace`, which exposes it as
+  `aw-backtrace/aw-backtrace.h` via `strip_include_prefix`). `:aw-backtrace` is
+  the only public target in `//`.
+* **`.bazelrc` applies to this workspace only.** It forces `-std=c++20` across
+  the whole graph so that abseil matches what `//perf-convert` compiles
+  against.
+* **`.bazelversion` pins 9.2.0.** If you add a `local_path_override` or
+  `git_override`, put `dev_dependency` on the `bazel_dep` line only. 9.2.0
+  rejects it on the override.
+* **GNU ld intermittently segfaults when linking this package.** The
+  workaround is `features = ["-supports_start_end_lib"]`. Copy it onto any new
+  binary target that crashes `ld`.
+* `aw-backtrace-prefixed-symbols-test` rebuilds the library with
+  `AW_RENAME_PREFIX=tcmalloc_` and fails if an external symbol escapes
+  `renamings.h`. When you add an external-linkage symbol, add it there too.
 
 ### genbuild.rb / ninja — the LD_PRELOAD comparer
 
-`genbuild.rb` is a self-contained generator (`build!` at the top is the part you
-edit). **Edit `genbuild.rb`, never `build.ninja`.**
+**Edit `genbuild.rb`, never `build.ninja`.** The part you edit is `build!` at
+the top of the file.
 
 ```
 ./genbuild.rb ninja                          # regenerate if stale, then build
 ./genbuild.rb ninja CC=clang CXX=clang++     # ENV overrides; re-execs itself
 ```
 
-Defaults are `-ggdb3 -O2 -DNDEBUG -Wall -Wextra -march=native`, i.e. an NDEBUG,
-machine-specific build — don't copy the `.so` to another machine, it will
-`SIGILL`. Five artifacts, none of which Bazel builds: `backtrace-comparer.so`,
-`sym_helper_bin`, `test-signal-disable`, and `cjm`/`cjm0`.
+It builds four artifacts that Bazel does not: `backtrace-comparer.so`,
+`sym_helper_bin`, `cjm` and `cjm0`. The default flags are `-ggdb3 -O2
+-DNDEBUG`. No cross build support yet.
 
-### Two things about test configurations
+### `ci/` and the workflow
 
-**Only `bazel test -c dbg` traps on unwinder diagnostics.** Non-`NDEBUG` builds
-capture with `trap_diagnostics`, so a diagnostic aborts where it happened; `#if
-defined(NDEBUG) || defined(BUILD_SO)` opts out, so the preloadable `.so` never
-traps — it walks startup and libc code nobody will fix.
+`.github/workflows/ci.yml` runs one job, `tests`, on ubuntu-22.04 and
+ubuntu-24.04 (x86-64 only). Its steps are `ci/install-deps.rb`,
+`ci/build-qemu.rb` (cached), `ci/check-pstepper.rb`, `ci/install-bazelisk.rb`
+and then `test-all-cfg.rb`. Every step is a ruby script that also runs on a
+developer box.
 
-**A comparer mismatch is a test failure.** `aw-backtrace-test` sets
-`AW_BT_DIAG=0` and `AW_BT_DIAG_VIA_CORE=1` (with `overwrite=0`, so your values
-win) so the first mismatch kills the process, in `-c opt` too. Knobs in §5.
-Cache counters only exist when `AW_BUMP_STATS_IN_PRODUCTION` is defined —
-`genbuild.rb` defines it, Bazel does not.
+* `ci/build-qemu.rb` builds a pinned upstream qemu, linux-user only, with
+  every patch in `ci/qemu-patches/` applied. **The patch is required.**
+  Without it, upstream i386 TCG leaves EIP and the lazy EFLAGS stale at the
+  arbitrary instruction boundaries where the plugin reads or redirects state,
+  and `v/pstepper`'s tests segfault. The cache key hashes both the script and
+  the patches.
+* `ci/check-pstepper.rb` runs `v/pstepper`'s own suite under that qemu. It is
+  fast, and when it fails, every stepped test would fail less legibly.
+* `ci/install-deps.rb` includes **`libc6-dbg`, which the stepped tests
+  need** (§4.6, suppressions).
+
+### Test configurations
+
+**Only the comparer's capture traps on unwinder diagnostics**, and only in
+non-`NDEBUG`, non-`BUILD_SO` builds (`CaptureBacktrace` passes
+`trap_diagnostics`). The comparer captures only while stepping, so a native
+`bazel test -c dbg` never traps. The preloadable `.so` never traps, because it
+walks startup and libc code.
+
+**A comparer mismatch fails a test only under qemu.** A plain `bazel test`
+reports `pstepper_enable FAILED: Function not implemented`, passes, and
+compares nothing. `AW_BT_REQUIRE_STEPPER=1` exists to catch that silent pass
+(§5).
+
+The production (`NoDiag`) path bumps the cache and per-frame fast-path
+counters only when `AW_BUMP_STATS_IN_PRODUCTION` is defined. `genbuild.rb`
+defines it; Bazel does not. The `RuntimeDiag` path always bumps them, so
+`aw-backtrace-test`, which routes every capture through
+`OverrideGlobalBacktracer`, still gets numbers.
 
 ## 3. Code map
 
@@ -118,472 +138,528 @@ Cache counters only exist when `AW_BUMP_STATS_IN_PRODUCTION` is defined —
 
 | file | what |
 | --- | --- |
-| `include/aw-backtrace/aw-backtrace.h` | the whole public API: `aw_backtrace_full`, `aw_backtrace`, plus `aw_backtrace_ext::DebugExtensionV0` (test/inspection surface, `TryGet()` may return null, not stable ABI) |
-| `aw-backtrace.cc` | entry points, `UnwindLoop`, `UnwindLoopFastPath`, `StackAccess`, the `NoDiag`/`RuntimeDiag` policies, `FrameInfoCache`, `DebugExtensionV0` impl |
-| `aw-backtrace-fastpath.h` | `TryFastFrameInfo` / `FastPathFrame` (§4.8): a single inlined pass over `.eh_frame_hdr`+FDE+CIE that handles the common frame shapes and bails (`Failure()`) on anything else. `ToFrameInfo` turns its result into a `FrameInfo` |
-| `backtrace-core.{h,cc}` | the *policy* half of CFI lookup: a visitor turning decoded CFI into a `FrameInfo`. No `.eh_frame` parsing, no arch cases, no `is_leaf` |
-| `eh-frame-reader.h` | the *decoder* half: `.eh_frame_hdr` search, CIE/FDE parsing, the CFI opcode loop. Visitor-templated, knows nothing above it |
-| `backtrace-drap.h` | x86-64 only. Second minimal visitor for gcc's DRAP prologues (§4.3) |
+| `include/aw-backtrace/aw-backtrace.h` | the public API: `aw_backtrace_full`, `aw_backtrace`, plus `aw_backtrace_ext::DebugExtensionV0`. The extension is a test/inspection surface, `TryGet()` may return null, and it is not a stable ABI |
+| `aw-backtrace.cc` | entry points, `UnwindLoop`, `UnwindLoopFastPath`, `StackAccess`, the `NoDiag`/`RuntimeDiag` policies, `FrameInfoCache`, `LoadedSetHolder` |
+| `aw-backtrace-fastpath.h` | `TryFastFrameInfo` / `FastPathFrame` (§4.7) |
+| `backtrace-core.{h,cc}` | the *policy* half of CFI lookup: a visitor that turns decoded CFI into a `FrameInfo`. Also `DoUnwindLookupFromInputs`, which serves a module without a live process |
+| `eh-frame-reader.h` | the *decoder* half: `.eh_frame_hdr` search, CIE/FDE parsing and the CFI opcode loop. It is visitor-templated |
+| `backtrace-drap.h` | x86-64 only: a second visitor for gcc DRAP prologues (§4.3) |
 | `aw-structs.h` | the unwind model: `CfaRule`, `RegisterRule`, `FrameInfo`, `Cursor`, `CompressedFrameInfo` |
-| `aw-arch.h`, `aw-arch-x86_64.h`, `aw-arch-aarch64.h` | per-arch `struct Arch` with a fixed static interface. Adding an arch means implementing exactly that set |
-| `unwind-info-cache.h` | `UnwindInfoCache`: lock-free, fixed-size, bucketed, second-chance eviction (§4.4) |
-| `aw-addrcheck.{h,c}` | async-signal-safe `/proc/self/maps` querying, `PROCMAP_QUERY` or snapshot+bsearch. Validates addresses before dereferencing |
-| `with-exit.h` | `WithExit::Run`/`Exit` — header-only `_setjmp`/`_longjmp` wrapper hiding the returns-twice. **Nothing runs on the way out**, no destructors |
-| `check.h` | `CHECK()`, unconditional (not `NDEBUG`-gated). For differential self-checks, never the capture path |
-| `dwarf-constants.h`, `utils.h`, `simple-counter.h`, `static_storage.h`, `function_ref.h` | constants and small utilities lifted from gperftools/tcmalloc |
+| `aw-arch.h`, `aw-arch-{x86_64,aarch64}.h` | per-arch `struct Arch` with a fixed static interface: register numbers, PLT and signal-frame byte matching, `GuessUnwindInfo` |
+| `unwind-info-cache.h` | `UnwindInfoCache` (§4.4) |
+| `aw-addrcheck.{h,c}` | async-signal-safe `/proc/self/maps` queries, using `PROCMAP_QUERY` or a snapshot plus bsearch |
+| `with-exit.h` | `WithExit::Run`/`Exit`, a `_setjmp`/`_longjmp` wrapper. **Nothing runs on the way out, not even destructors** |
+| `check.h` | `CHECK()`, which is not gated on `NDEBUG`. Use it for self-checks. On the capture path it only guards can't-happen invariants (`Decoder::DoExit`) |
+| `renamings.h` | the `AW_RENAME_PREFIX` symbol renaming used by embedders such as gperftools |
+| `dwarf-constants.h`, `utils.h`, `simple-counter.h`, `static_storage.h`, `function_ref.h` | small utilities |
 
-### Reference / comparison implementations
+### Comparer
 
-* `simple-fp-backtrace.{h,cc}` — pure frame-pointer walker, the passing baseline.
+* **`backtrace-comparer.cc` is the best test asset in the repo.** It
+  single-steps the whole process via `v/pstepper` and keeps a shadow call stack
+  from calls and returns. At every instruction it compares a capture against
+  that stack, so it needs no expected values. Known-bogus spots are suppressed
+  by symbolizing the top frames (§4.6). The file is arch-neutral; all
+  machine-dependent code sits behind `ComparerArch`.
+* `comparer-arch.h`, `comparer-arch-{x86_64,aarch64}.h`, `comparer-types.h`
+  hold the per-arch `struct ComparerArch` (§4.6).
+* `nop-backtrace-comparer.c` stands in for the comparer on other arches.
+* `backtrace-comparer.so` (`-DBUILD_SO`, ninja only) is the comparer as an
+  LD_PRELOAD object. It interposes `sigaction`, `unsetenv`s `LD_PRELOAD`, and
+  exports almost nothing (`backtrace-comparer.so.map`). Usage is in §5.
+* `v/pstepper/` is a co-developed sibling that provides a per-instruction
+  upcall facility. It is implemented by a QEMU TCG plugin, and the comparer uses only
+  `pstepper.h`. `pstepper_enable` returns `ENOSYS` when no plugin is loaded.
+  "Acceleration" runs the handler as *host* code when the guest and host
+  arches match. The design is in its `README.md`.
 
-### Test / tooling
+### Tests
 
-* **`backtrace-comparer.cc` — the best test asset in the repo.**
-  Single-steps the whole process via `mini-x86-int`'s sim-stepper,
-  maintains a shadow call stack from `call`/`ret`, and compares the
-  capture against it *at every instruction*. Needs no expected
-  values. Known-bogus spots (`_dl_fixup`, `call_init`,
-  `__run_exit_handlers`) are suppressed by symbolizing the top frames;
-  matches are cached, and an unsuppressed mismatch registers its own
-  top frame so each location reports once. §4.6 before trusting a
-  quiet run. Uses x86 TF flag and SIGTRAP so "hostile" to GDB-ing.
-* **`backtrace-comparer.so`** (`-DBUILD_SO`, ninja only) — the same
-  thing as an LD_PRELOAD object, which is what points the differential
-  machine at arbitrary already-built binaries. Interposes
-  `sigaltstack`/`sigaction` so the target can't disable the stepper,
-  `unsetenv`s `LD_PRELOAD` so it doesn't follow into children, exports
-  almost nothing (version script). Usage in §5.
-* `aw-backtrace-test.cc` — main end-to-end test. Captures from a
-  SIGILL handler (so the top frame is a real signal frame with a
-  `ucontext`) and checks that walking *through* the signal frame
-  without one lands in the same place — the direct test of
-  `Arch::IsSignalFrame`. Also hosts the DRAP fixtures. Compiled twice,
-  the second time as `simple-backtrace-test` (`BT_USE_SIMPLE`).
-* `amd64-leaf-test.cc` — hand-written asm with deliberate CFI shapes,
-  compared against glibc `backtrace()`. The minimized repro vehicle
-  for leaf/epilogue issues, and the gdb-friendly binary (no comparer).
-  Also holds the jump-through-null test (§4.1): `call *%rax` with `%rax == 0`,
-  caught by a SIGSEGV handler that captures and `siglongjmp`s out.
-* `aw-backtrace-skip-test.cc` — the `skip` argument of `aw_backtrace`: skipping
-  N frames must equal a full capture with N dropped, and the returned count is
-  what was actually filled.
-* `amd64-drap-test.{c,s}` — gcc 16 `-mforce-drap` output supplying
-  `minimal_drap`; the pre-gcc-16 shape lives on as `minimal_drap_2` in
-  `aw-backtrace-test.cc`.
-* `eh-frame-reader-test.cc` — the only place the decoder runs without a real
-  process image. `Optionalize()` turns a reader `Fail()` into `std::nullopt`, so
-  "must be rejected" is an `EXPECT_EQ`. Stops at the byte-level helpers.
-* `symbolize-backtrace-test.cc` — installs a **`SIGCHLD` handler that
-  `abort()`s** first thing in `main`; that is the assertion for §4.5's whole
-  design. Also the repeated-PC regression test and
-  `DumpStackTraceWithClosedStdio` (symbolizes with 0/1/2 closed).
-* `comparer-longjmp.cc` → `cjm`/`cjm0` — the first in-tree program written to
-  make the comparer *fail*: `_longjmp` out of deep recursion, then a frame
-  pointer deliberately off by one bit. **Asserts nothing** — an eyeball vehicle.
-  So does `recursion-test.cc`, a jump-table-heavy benchmark built three ways
-  (aw/libgcc/fp) to compare speed — the numbers in README's Benchmark section
-  come from it.
-* `lua-test.cc` — the comparer over the Lua compiler, for varied real codegen.
-* `aw-addrcheck-test.c`, `bench-addrcheck.c` — unit test / microbenchmark. The
-  test `#undef NDEBUG`s at the top because it asserts for effect.
-* `symbolize-backtrace.{h,cc}` + `sym-helper.cc` — async-signal-safe
-  symbolization; `sym-helper` is embedded as a blob, written out, spawned, and
-  shells to addr2line. **Diagnostics and tests only, never the capture path.**
-  The spawning half is the subtlest code in the tree after the cache — §4.5.
-* `v/mini-x86-int/` — co-developed sibling: partial x86-64 interpreter +
-  `sim_stepper` providing the per-instruction callback the comparer rides on.
-  **No `ptrace` anywhere in it** — stepping is `EFLAGS.TF` plus an `SA_ONSTACK`
-  `SIGTRAP` handler, i.e. the process steps itself, and the interpreter is a
-  fast path that simulates runs of instructions to avoid a trap each. §4.7.
+* `aw-backtrace-test.cc` is the main end-to-end test and hosts the comparer. It
+  captures from a SIGILL handler and checks that walking *through* the signal
+  frame without a `ucontext` lands in the same place. That is the direct test
+  of `Arch::IsSignalFrame`. It also hosts the DRAP fixtures. A second build,
+  `simple-backtrace-test` (`BT_USE_SIMPLE`), runs the same source against
+  `simple-fp-backtrace`.
+* `lua-test.cc` runs the comparer over the Lua compiler to get varied real
+  codegen.
+* `amd64-leaf-test.cc` holds hand-written asm with deliberate CFI shapes and
+  compares it against glibc `backtrace()`. It is the minimal repro vehicle
+  for leaf and epilogue issues, and it includes the jump-through-null case
+  (§4.1).
+* `arm64-leaf-test.cc` is the aarch64 companion and the only test of §4.8. Its
+  `cfiless_*` fixtures have no `.cfi_startproc`, so every step out of them is
+  a guess. The PLT0 fixtures are also CFI-less, but `DetectPLTEntry` handles
+  them. glibc's `backtrace()` gives up on these frames, so the fixtures export
+  their own expected addresses. The `paciasp` fixture has no effect without
+  FEAT_PAuth.
+* `amd64-drap-test.{c,s}` is gcc 16 `-mforce-drap` output (`minimal_drap`). The
+  pre-gcc-16 shape is `minimal_drap_2` in `aw-backtrace-test.cc`.
+* `fastpath-sweep-test.cc` is the fast path's oracle (§4.9).
+* `eh-frame-reader-test.cc` is the only place where the decoder runs without a
+  process image. `Optionalize()` turns a `Fail()` into `std::nullopt`.
+* `symbolize-backtrace-test.cc` installs a `SIGCHLD` handler that `abort()`s
+  (§4.5). It also covers dumping with 0/1/2 closed and the dead-daemon
+  fallback.
+* `aw-backtrace-skip-test.cc` tests `aw_backtrace`'s `skip` argument.
+  `with-exit-test.cc` and `aw-addrcheck-test.c` are unit tests. The addrcheck
+  test `#undef`s `NDEBUG` because it asserts for effect.
+* These assert nothing: `comparer-longjmp.cc` (`cjm`/`cjm0`, written to make
+  the comparer fail), `recursion-test.cc` (the benchmark behind README, built
+  as aw/libgcc/fp variants) and `bench-addrcheck.c`.
 
-### Fuzzing and offline tooling
+### Symbolizer (diagnostics and tests only)
 
-* `fuzz/` — libFuzzer target for the fast path (`TryFastFrameInfo`), fed real
-  `.eh_frame_hdr`+`.eh_frame` blobs from `fuzz/data/` plus byte mutations. The
-  `FuzzXlate` accessor is the reason `Access` / `TryFastFrameInfo` are templated
-  on an `Xlate` at all (production is `IdentityXlate` and compiles away); it
-  emits `__sanitizer_cov_trace_cmp4` so mutations aim at bytes the decoder
-  actually reads. `fuzz/README.md` has the input layout and how to run it.
-  Built by `fuzz/build.sh` (clang, ASan+UBSan), not by Bazel.
-* `perf-convert/` — offline `perf.data` converter: reads a `--call-graph dwarf`
-  recording and rewrites the raw stack dumps as plain callchains. Uses
-  `//:aw-fastpath` (the header-only fast-path decoder) and none of the
-  in-process unwinder, and links abseil freely — it is neither signal-safe nor
-  dependency-free, deliberately. `//:aw-fastpath` is visible only to this
-  package, since header-only targets can't carry `CXXOPTS` into a consumer's
-  compile. `perf-convert/compare.rb` diffs its output against `perf`'s own.
+`symbolize-backtrace.{h,cc}`, `sym-helper.cc` and `sym-helper-protocol.h` make
+up the symbolizer. `sym-helper` is embedded as a blob and runs as a daemon per
+process image (§4.5).
 
-### Docs
+### Elsewhere
 
-* `doc/amd64-drap-problem.adoc` — why the DRAP handling exists. The only
-  long-form doc that survived the release cleanup.
-* `TODO` — live task list.
-* `LICENSE` is 0BSD; every source file carries an SPDX line.
+* `fuzz/` holds two libFuzzer targets for `TryFastFrameInfo`
+  (`fastpath-fuzz`, `fastpath-fuzz-naive`), built by `fuzz/build.sh` (clang,
+  ASan+UBSan) rather than Bazel. Its `FuzzXlate` is
+  why `Access` and `TryFastFrameInfo` are templated on an `Xlate`. See
+  `fuzz/README.md`.
+* `perf-convert/` rewrites `perf record --call-graph dwarf` stack dumps as
+  plain callchains. It uses `//:aw-fastpath` (header-only, visible only to
+  this package) and links abseil freely, because it is neither signal-safe
+  nor dependency-free. `compare.rb` diffs its output against `perf`'s own.
+  `frame-info-dump` also links `//:aw-backtrace`. It prints what both decoders
+  derive at a module vaddr without running the process; use it for offline
+  CFI debugging on either arch.
+* `doc/amd64-drap-problem.adoc` explains DRAP. `TODO` is the live task
+  list.  The license is 0BSD. C/C++ sources carry an SPDX line;
+  scripts and build files don't.
 
 ## 4. How it works
 
 ### 4.1 The main loop
 
-`aw_backtrace_full` (callback) / `aw_backtrace` (array) → `PrepareCursor()`
-(from the `ucontext` for a signal capture, or from `__builtin_frame_address(0)`
-for a direct call; both `NEVER_INLINE`, which matters for correctness) →
-`UnwindLoopFastPath()`, which falls through to `UnwindLoop()`.
+`aw_backtrace_full` (callback) and `aw_backtrace` (array) build a `Cursor`
+with `PrepareCursor()`, starting from the `ucontext` or from their own
+`__builtin_frame_address(0)`. They, and `DebugExtensionV0::BacktraceExt`, are
+`NEVER_INLINE` because that frame address must name their own frame. They then
+call `UnwindLoopFastPath()`, which falls through to `UnwindLoop()`. When
+`OverrideGlobalBacktracer` is set, they go through `DiagUnwindLoop`
+(`RuntimeDiag`) instead.
 
-`is_leaf` really means **"pc came from a register file, not from an unwind
-step"** — hence the public callback parameter being named `pc_before_insn`. It
-is true for frame 0 of a `ucontext` capture and for a frame reached by stepping
-through a signal trampoline. Non-leaf frames look up `pc - 1` and consult the
-cache; leaf frames go straight to a fresh lookup. Getting this flag onto the
-right frame is fiddlier than it looks: `UnwindLoop` threads `next_uc` /
-`this_frame_uc` precisely so the flag belongs to the frame being *reported*
-rather than the one being unwound *from*.
+**`is_leaf` means "the pc came from a register file, not from an unwind
+step"**; that is why the public parameter is named `pc_before_insn`. It is
+true for frame 0 of a `ucontext` capture and for a frame reached through a
+signal trampoline. Non-leaf frames look up `pc - 1` and use the cache. Leaf
+frames always do a fresh lookup. `UnwindLoop` threads `next_uc` /
+`this_frame_uc` so that the flag goes with the frame being *reported*.
 
-**A zero pc means two different things, and `is_leaf` is what tells them
-apart.** From an unwind step it is the end of the chain — the outermost frame's
-return-address slot is zeroed — and the walk stops. From a register file it is a
-live jump through a null function pointer: the pc really is 0, the `call` pushed
-its return address before faulting on the fetch at 0, so `sp` points straight at
-it and `Arch::GuessUnwindInfo` recovers the caller. Both loops therefore break
-only on `pc == 0 && !is_leaf`, which is also what keeps `lookup_pc`'s `- 1` from
-underflowing. Regression test in `amd64-leaf-test.cc`; libgcc and libunwind both
-give up here, so there is no reference implementation to diff against.
+**A zero pc means different things depending on `is_leaf`.** After an unwind
+step it marks the end of the chain. From a register file it is a jump through
+a null pointer, and the caller can still be recovered: `call` pushed the
+return address, or `blr` wrote x30. Both loops therefore stop only on
+`pc == 0 && !is_leaf`, which also keeps `pc - 1` from underflowing. libgcc and
+libunwind both give up here, so the leaf tests are the only reference.
 
-When the lookup produces nothing, a **fallback chain** runs in this order: PLT
-detection (leaf only) → signal-trampoline byte match → DRAP (x86-64, and only
-if the failure was a CFI expression) → refuse outright if it was a CFI
-expression → `Arch::GuessUnwindInfo`. Everything in it that reads code bytes is
-bounds-checked against `AddrChecker::ExecutableBoundsFor()`, the DRAP `lea`
-sniff included — that one takes the bounds as a parameter and falls back to
-trusting the unwind info when it can't read safely.
+**`kUndefinedRA`** (`DW_CFA_undefined` on the RA column, covering the pc)
+stops the walk. It ends every backtrace at `_start`, and it saves the
+`ExecutableBoundsFor` call that the fallback chain would otherwise make.
 
-All stack reads go through `StackAccess` (alignment + containment in a stack
-VMA). Two properties, both driven by comparer findings: a read outside the
-cached bounds re-discovers them rather than failing, so an unwind can cross onto
-or off a `sigaltstack`; and the TLS bounds cache is a seqlock, because a signal
-handler can nest on the same thread and update it for a different VMA mid-write.
+When a lookup produces nothing, the **fallback chain** runs in this order:
 
-### 4.2 The CFI lookup, and how failure is reported
+1. PLT detection, leaf frames only. x86-64 matches these shapes:
+   * classic lazy `.plt` and PLT0;
+   * IBT `.plt` / `.plt.sec`;
+   * the MPX `bnd` variants;
+   * GNU ld's 8-byte `.plt.sec` / `.plt.got` entries;
+   * lld `-z retpolineplt`;
+   * glibc's runtime `plt_rewrite`.
 
-**Decoder/visitor split.** `eh-frame-reader.h` reads bytes and knows nothing
-about this unwinder; `backtrace-core.cc` is the visitor that gives decoded
-instructions meaning. **Callback arguments are the whole contract** — the
-visitor is handed no reader state, so a new callback must be passed what it
-needs rather than handed the state back.
+   aarch64 matches ordinary 16-byte entries and PLT0 (optionally `bti c`),
+   which moves sp by 16.
+2. Signal-trampoline byte match, at any instruction of the trampoline.
+3. DRAP: x86-64 only, and only if the failure was a CFI expression.
+4. Refusal, if the failure was a CFI expression.
+5. `Arch::GuessUnwindInfo`.
 
-**Diagnostics are flags, not an interface.** `DoUnwindLookup` returns
-`kOk`/`kFail`/`kFailExpression` and takes a `DiagFlags` by value; reporting is a
-single variadic `ReportError` that formats into a stack buffer and optionally
-`write(2)`s or traps. `kFailExpression` is broken out because it is the one
-failure the fallback chain can plausibly explain away; its message costs a
-second full decode, so it is `if constexpr`-gated out of production entirely.
+Everything in the chain that reads code is bounds-checked against
+`LazyAddrChecker::ExecutableBoundsFor()`. Byte matching of this kind breaks
+easily across compiler and linker versions.
 
-**Two flavours of failure, not symmetric.** *The reader gives up* (truncation,
-unsupported encoding, unknown opcode, out-of-range address) via
-`Decoder::Fail()`, which `WithExit::Exit`s out, **discarding every intervening
-frame with no destructors** — so nothing in `eh-frame-reader.h` may own anything
-by RAII. *The visitor gives up* by returning false, which stops the decode
-normally. Either way the caller only sees an outcome code.
+The unwind step's stack reads go through `StackAccess`, which checks
+alignment and that the address lies in a readable VMA. It starts from the
+sp's VMA. A read outside the cached bounds rediscovers them from whatever VMA
+holds the address, so unwinding can cross a `sigaltstack`. The TLS bounds
+cache is a seqlock because a nested signal can update it mid-write. The
+guesses (`GuessUnwindInfo`) read the stack directly, after doing their own
+read+write VMA lookup.
 
-Unsupported things report and fail the frame rather than guessing, with a few
-deliberate exceptions the code calls out: expressions on non-critical registers,
-`DW_CFA_undefined` on RA (a normal stop — crt startup has nothing to return to),
-and unknown registers, so a future greg expansion won't break unwinding.
+### 4.2 CFI lookup and failure reporting
 
-**The asymmetry above is a live trap when editing `backtrace-core.cc`.** The
-reader exits non-locally; the visitor does not. So a visitor helper that detects
-a problem can only *return* the failure, and a caller that forgets to propagate
-it turns an explicit error into a silent wrong answer — which is exactly how an
-invalid `DW_CFA_register` operand once became `%rax`. `NarrowOffset` and
-`NarrowReg` are therefore `[[nodiscard]]`: forgetting is a compile error.
+**The decoder and the visitor are separate.** `eh-frame-reader.h` knows nothing
+about this unwinder, and `backtrace-core.cc` gives decoded instructions their
+meaning. **Callback arguments are the whole contract**: a new callback must
+receive what it needs as arguments.
 
-The reader also rejects a few things up front that would otherwise produce
-plausible-looking nonsense rather than a failure: a `code_align` of 0 (every
-`advance_loc` becomes a no-op, so the row search never advances and the frame
-gets built from every row in the FDE), a `data_align` of 0 (every offset becomes
-0, putting RA at CFA+0), and either of them beyond ±16. `AdvanceLoc` and
-`OffsetWithDataAlign` check the multiplications for overflow.
+`DoUnwindLookup` returns `kOk`, `kFail`, `kFailExpression` or `kUndefinedRA`,
+and takes `DiagFlags` by value. Reporting goes through one variadic
+`ReportError`. The `kFailExpression` message costs a second decode, so it is
+compiled out of production with `if constexpr`.
 
-`LocateEHFrame` returns null — failing the frame — when `_dl_find_object` can't
-place the `.eh_frame_hdr` it just handed us. There is no "assume everything is
-readable" fallback: that would be the one unbounded read in the library.
+**The two kinds of failure behave differently, and that is a live trap.**
+
+* The reader gives up through `Decoder::Fail()`, which `WithExit::Exit`s
+  **without running destructors**. Nothing in `eh-frame-reader.h` may own
+  anything by RAII.
+* The visitor gives up by returning false. A helper that detects a problem can
+  only *return* it, and a caller that forgets to propagate the failure turns
+  an error into a wrong answer. That is why `NarrowOffset` and `NarrowReg` are
+  `[[nodiscard]]`.
+
+Unsupported constructs fail the frame, with these deliberate exceptions:
+
+* expressions on non-critical registers;
+* unknown registers;
+* `DW_CFA_undefined` on RA, which produces `kUndefinedRA`;
+* on aarch64, `DW_CFA_same_value` on x30, which means "the RA is live in x30".
+
+**`DW_CFA_undefined` on RA is decided by the row covering the pc, not by the
+instruction.** A later `DW_CFA_offset` / `DW_CFA_restore` can define RA again,
+and bailing out early would silently truncate the walk.
+
+The reader rejects inputs that would otherwise produce plausible nonsense:
+
+* `code_align` or `data_align` equal to 0 or outside ±16;
+* multiplications in `AdvanceLoc` / `OffsetWithDataAlign` that overflow.
+
+`LocateEHFrame` fails the frame when `_dl_find_object` cannot place the
+`.eh_frame_hdr`. The library has no "assume readable" fallback.
+
+`DW_CFA_restore` restores the architectural default rather than the CIE's
+initial rule, and refuses the frame when the CIE set up something else.
 
 ### 4.3 DRAP (x86-64 only)
 
-gcc's stack-realigning prologues produce unwind info the three-register model
-cannot follow, and in places it is outright missing — read
+gcc's stack-realigning prologues produce CFI that the three-register model
+cannot follow, and in places the CFI is missing. Read
 `doc/amd64-drap-problem.adoc` first. The handling is a **second decode of the
-same FDE** with a visitor tracking a four-state machine that maps directly onto
-a new `Cursor`. Two of the four states read `%r10`, for them unwind is leaf-only.
+same FDE** with a visitor that tracks a four-state machine, and each state
+maps onto a `Cursor`. Two of the states read `%r10`, so unwinding in them is
+leaf-only.
 
-The test bites because of `drap_test_trampoline`, an RSP-framed naked caller: a
-DRAP prologue looks like an ordinary frame, so the naive guess gets RIP and RBP
-right and only **RSP** wrong — invisible unless the caller is RSP-framed. Both
-shapes are covered (gcc 16's, with the `.cfi_restore 6`, and every gcc before
-it). Verified, not assumed: making the DRAP call unreachable fails the test.
+The test depends on `drap_test_trampoline`, an RSP-framed naked caller. A
+naive guess gets RIP and RBP right and only **RSP** wrong, so the bug is
+visible only under an RSP-framed caller. The test covers both gcc 16's shape
+(with `.cfi_restore 6`) and the older one.
 
 ### 4.4 Caching
 
-**One cache, non-leaf only** — leaf frames always take a fresh
-lookup. We also only cache for addresses in modules present at
-constructor time, because there is no invalidation. Those modules are
-assumed to be permanently loaded (not unloadable). Cache
-implementation is two layers: `FrameInfoCache` is policy (compression,
-cacheability) and `UnwindInfoCache`, which is storage and eviction
-and knows nothing about the unwinder.
+**There is one cache, and it holds non-leaf frames only.** It caches only
+addresses in modules that were present at constructor time, because the cache
+has no invalidation and those modules are assumed never to be unloaded. There
+are two layers:
 
-**The whole entry is one 128-bit atomic** — 8 bytes key+flags, 8 bytes
-compressed `FrameInfo` — and the rest follows: no seqlock, no lock bit, no retry
-loop, because a reader can never catch a half-written value. The only cleanup is
-a duplicate-insert undo. Eviction is second-chance: an insert marks the other
-entries in its bucket, a hit clears its own mark, `Put` prefers free, then
-marked, then random.
+* `FrameInfoCache` is the policy: compression and cacheability.
+* `UnwindInfoCache` is the storage and eviction, and knows nothing about the
+  unwinder.
 
-**Three constraints on edits here.** The entry must stay exactly 16 bytes with
-no padding — `compare_exchange` compares bitwise, so an indeterminate padding
-bit makes a CAS fail forever — hence anything added to the metadata comes out of
-the tag; the `alignas(16)` is load-bearing; and every function touching the
-table carries `ATTR_DWORD_ATOMICS` (a no-op today, kept for when it returns).
+**`LoadedSetHolder`** records the executable `PT_LOAD` segments of every module
+at constructor time, one sorted entry per segment. The same table answers
+`ExecutableBoundsFor` without touching `/proc/self/maps`. A single segment is
+contiguous, with no `PROT_NONE` holes, and its extent is the segment's own
+rather than page-rounded. Addresses outside the table go to `aw-addrcheck`:
+JIT code, later `dlopen`s and anonymous executable mappings.
 
-`sizeof(...) == 8` does *not* enforce the first one: dropping a field leaves the
-byte behind as padding and the size assert still passes. That happened once.
-`static_assert(std::has_unique_object_representations_v<...>)` on
-`CompressedFrameInfo` is what actually catches it, which is why the struct
-carries an explicit `unused` member rather than a hole.
+**Each bucket has a seqlock, and no atomic is wider than 64 bits.** An entry
+is two `atomic<uint64_t>`s: key+flags, and the compressed `FrameInfo`
+`bit_cast` to a word. The `uint32_t` seqs are a separate table, so each bucket
+is exactly 128 bytes and 128-aligned. Wraparound is harmless.
 
-### 4.5 Spawning the symbolizer helper
+**Nobody ever waits on the lock**, because a signal can interrupt a writer on
+the same thread:
 
-Diagnostics-only code, documented here because it is the one place where
-*process*-level details carry the correctness argument: the comparer preloads
-into arbitrary host processes, and a symbolizer that spawns a visible child
-perturbs whatever process management the host is doing.
+* `Put` try-locks and drops the insert if it fails.
+* A `Lookup` that finds the bucket locked counts as a miss. It retries only if
+  a writer came and went during the read.
+* The one unlocked write is a hit clearing `pending_eviction`, which readers
+  ignore.
+* Eviction is second-chance. `PrintStats` shows `dropped` and `retries`.
 
-`WithSpawnedChild` builds a two-level sandwich: the caller blocks all signals
-and clones an **intermediate** (`CLONE_VM | CLONE_VFORK`), which clones the
-**helper**, runs the caller's body itself, reaps the helper and relays its
-status. Every layer of that is load-bearing and the reasoning is commented in
-the file — the short version is that `execve` unconditionally resets
-`exit_signal` to `SIGCHLD`, so an intermediate that never execs is the only way
-to keep a `SIGCHLD` from reaching the host or showing up in its `wait(-1)`; that
-`CLONE_VFORK` suspends the caller, so the body has to run in the intermediate or
-the pipe deadlocks; and that `CLONE_VM` is what lets the output land in the
-caller's address space anyway. Don't simplify a layer away without reading why
-it is there.
+`CompressedFrameInfo` has an explicit `unused` member instead of padding,
+enforced by `has_unique_object_representations`. `bit_cast` of a padding
+byte would be indeterminate.
 
-**Descriptors 0/1/2 are the recurring hazard here, twice over.** A target may
-close its standard descriptors — glibc's `close_stdout` atexit handler does —
-and then `memfd_create` and `pipe()` hand back numbers in that range, where the
-helper's `dup2` onto stdout collides with them. Both sites are guarded now, with
-`DumpStackTraceWithClosedStdio` as the regression test. Neither symptom was
-loud: the memfd one crashed on a `CHECK`, the pipe one made every symbolized
-dump come back silently **empty**. Assume a third descriptor acquired here has
-the same problem.
+### 4.5 The symbolizer daemon
+
+This code is diagnostics-only, but the comparer preloads into arbitrary
+processes, so process-level side effects matter.
+
+**Each process image has one persistent `sym-helper`.** It is spawned lazily
+and reached through an `AF_UNIX` `SOCK_SEQPACKET` mailbox. Each request is one
+datagram carrying two descriptors via `SCM_RIGHTS`:
+
+* A memfd holding the addresses and the caller's `/proc/self/maps`. The daemon
+  rewrites it in place with a binary response that the caller `mmap`s. The
+  maps are the caller's so that qemu-user's synthesized guest view is what
+  gets resolved.
+* A fresh pipe write end whose close signals "committed". A daemon that dies
+  also closes it, which is why the caller checks `kSymResponseMagic`.
+
+Concurrent callers, including forked children sharing the mailbox, need no
+locking. Only the spawn is serialized, by a CAS spinlock with all signals
+blocked. The spawn is a `vfork` + `execve` of the blob from a memfd:
+
+* It passes on **only `PATH`**, so `LD_PRELOAD` does not follow.
+* The mailbox is `CLOEXEC`, so an exec'd child spawns its own daemon.
+
+Healthy operation produces **no `SIGCHLD` for the host**. The `addr2line`s are
+the daemon's children, and the daemon exits only on mailbox EOF. The daemon
+also closes every descriptor it inherited, so it cannot hold a host pipe open.
+
+**Descriptors 0/1/2 are the recurring hazard.** Targets close them (gnulib's
+`close_stdout`, used by coreutils, does), so caller-side descriptors can land there. The daemon
+first moves its mailbox to fd 16 or higher, then reopens 0/1/2. A dump with
+**no body** means this area broke. Treat any new descriptor handed across the
+same way.
+
+**A failed request still produces frames.** A `sym-helper request failed`
+line goes to stderr. Then `ReportUnsymbolized` hands each pc to the callback
+with its module and vaddr, but no function or line. The daemon is never
+respawned.
 
 ### 4.6 The comparer's shadow stack
 
-Before touching `BacktraceBuffer`:
+**`ComparerArch` holds everything machine-dependent**, and it has two jobs:
+
+* classify the instruction at the trapped pc as a call or a return, and say
+  what a retired call put where;
+* recognize a signal delivery from the kernel-built frame.
+
+**It deliberately shares no code with the unwinder's `struct Arch`.** Otherwise
+a wrong `Arch::IsSignalFrame` would agree with itself and the tests would pass.
+
+**The model is the same on both arches, for different reasons.**
+
+* On x86-64 an entry retires at `sp + 8`.
+* On aarch64 `bl` touches no stack, so an entry retires at exactly the sp the
+  call was made with.
+* x86-64's "`*sp` is the return address" must not be ported. At a callee's
+  entry `*sp` belongs to the caller, and often holds the caller's spilled x30.
+
+`BacktraceBuffer`:
 
 * **Entries carry the SP their frame will return to**, so one `ret` can retire
-  several at once — which is what a `longjmp` leaves behind, having restored
-  `%rsp` with no `ret`s at all. The reverse case (shadow stack shorter than the
-  capture) is accepted outright: the comparer can start mid-stack.
-* **`Pop` can drain the stack entirely, and an empty shadow stack passes
-  everything**, so one mis-modelled return turns the comparer off until calls
-  refill it. Deliberate — it is what makes `longjmp` survivable — but it traded
-  a noisy failure mode for a quiet one. `return_buffer_pop_skips` in
-  `PrintStats` is the instrument; a big jump means go looking.
-* **Suppression is also a cache, and it cuts both ways.** The table is checked
-  against the top of the *shadow stack* as well as the capture, so a
-  once-reported pc that later appears as a return address silently skips that
-  comparison too; and it saturates at 256 entries (saying so once).
-* **Windows where `SIGTRAP` is blocked are forgiven.** The stepper sees nothing
-  while the target has it masked, so the comparer recognizes the *disable*
-  syscall and resynchronizes from empty on the next callback — by definition
-  already past the re-enable. That check must sit **first** in the
-  sigtrap-disable/call/ret chain.
+  several of them. That is how `longjmp` is survived. A shadow stack shorter
+  than the capture is accepted, because the comparer can start mid-stack.
+* **An empty shadow stack passes everything except frame 0**, which must
+  equal the current pc. One mis-modelled return can silently disable
+  comparison until calls refill the stack. Watch the "pop resync skips" line
+  in the comparer's exit report (`return_buffer_pop_skips`).
+* **Suppressions are a cache**, checked against the top two frames of both the
+  capture and the shadow stack. A suppressed pc that later shows up as a
+  return address also skips comparison. The cache saturates at 256 entries.
+  An active suppression also disables the fast-path cross-check (§4.7) until
+  its frame is popped.
+* **Suppressions match symbol names and need glibc debug info**
+  (`libc6-dbg`). The names are `_dl_fixup`, `_dl_runtime_resolve`,
+  `call_init`, `__run_exit_handlers` and `__libc_arm_za_disable`. Without
+  debug info, addr2line returns the nearest exported symbol, every suppression
+  misses, and the frames read `(:0)`.
+* **Signal delivery is modelled explicitly.** `TryRecognizeSignalEntry` spots
+  the `rt_sigframe` at the new sp and pushes two entries: the interrupted pc
+  and the trampoline return. `rt_sigreturn` is then just a return. The
+  interrupted entry re-reads its pc from the frame, because handlers may edit
+  the context. A call or return pending from the previous step is resolved
+  against the *interrupted* register file (`sig.interrupted_uc`). It is
+  skipped when the signal is that instruction's own fault, because then the
+  instruction never retired.
 
-### 4.7 Why the stepper redirects syscalls through a trampoline
+### 4.7 The fast path
 
-`EFLAGS.TF` stepping **cannot observe the instruction after a `syscall`**:
-`SYSCALL` clears `TF` in hardware, the kernel leaves via `IRET`, and `IRET`
-restoring `TF` re-arms stepping only for the instruction *after* it, so two
-instructions retire between two callbacks. The kernel closes this hole only for
-ptrace, which we don't use. Rather than model it in the comparer, the handler
-points `rip` at a private `syscall; nop; …` trampoline and restores the real
-resume address on the next trap; the load-bearing details (restore before the
-`!active` early return, strict lower bound, `clone`/`clone3` excluded because a
-new thread's fresh TLS would send it to `rip` 0) are commented at the site.
+`aw-backtrace-fastpath.h` has TryFastFrameInfo which is one
+`NEVER_INLINE` function. It reads `.eh_frame_hdr`, binary-searches the
+FDE, and decodes just enough CFI to fill a `FastPathFrame`. It
+hard-codes the encodings that sane toolchains emit:
 
-**The bigger hole this does not close: signal handlers are invisible**, because
-the kernel clears `TF` on handler entry. A coverage gap rather than a
-correctness one — a handler that returns normally is invisible but balanced.
-Note the sigcontext handed to the target has `TF=1` in it, so a handler that
-normalizes eflags silently kills stepping.
+* `eh_frame_hdr` encodings `0x1b`, `0x03` and `0x3b`;
+* augmentation `z...`;
+* one CIE alignment pair per arch, compared with `memcmp`: `1/-8` on x86-64
+  and `4/-8` on aarch64.
 
-### 4.8 The fast path
+For anything else it returns `Failure()`, never a wrong answer. It never
+reports diagnostics and owns nothing. `Access`, `kSmallBump` and `kSlop` keep
+a malformed section from walking off the end. Every raw read goes through
+`Access::internal_ptr_as`. For struct headers, only the first touch goes
+through it, so a translating `Xlate` sees one call per struct.
 
-`aw-backtrace-fastpath.h` is a single `ALWAYS_INLINE` function that reads
-`.eh_frame_hdr`, binary-searches the FDE, and decodes just enough of the FDE+CIE
-CFI to produce a `FastPathFrame` (SP/FP-relative CFA, optional `%rbp` spill
-slot, "end of chain"). It hard-codes the encodings glibc/gcc/clang actually emit
-(`eh_frame_hdr` enc `0x1b`/`0x03`/`0x3b`, CIE `code_align 1` / `data_align -8` /
-aug `z...`, RA at CFA-8) and returns `FastPathFrame::Failure()` — not a wrong
-answer — for anything outside that. It never reports a diagnostic and owns
-nothing; the bounds math (`Access`, `kSmallBump`, `kSlop`) is what keeps a
-malformed `.eh_frame` from walking off the section.
+`UnwindLoopFastPath` checks the cache (non-leaf only), then calls
+`TryFastFrameInfo` and `ToFrameInfo`, then takes the same cursor step as
+`UnwindLoop`. On *any* miss it tail-calls `UnwindLoop` with
+`skip_first_callback=true`, so the fast path must never change behaviour.
+**Every `goto fallback` sits before the cursor commit.** `UnwindLoop` must see
+the cursor still describing the frame that was already reported.
 
-`Access` and `TryFastFrameInfo` are templated on an `Xlate` policy that maps a
-decoder pointer to the bytes behind it. Production is `IdentityXlate` (a plain
-dereference, compiles away); `fuzz/` swaps in one that redirects reads and
-reports accessed offsets. Every raw read the decoder issues goes through
-`Access::internal_ptr_as` for this. The struct-header reads (`hdr`, `cie_hdr`,
-…) route their *first* touch through it and then the caller re-reads fields
-off the returned pointer, so a translating accessor sees one call per struct,
-not per field.
+Per-arch details:
 
-`UnwindLoopFastPath` (in `aw-backtrace.cc`) is the loop around it: cache lookup
-(non-leaf only) → `TryFastFrameInfo` → `FastPathFrame::ToFrameInfo` → the same
-cursor step as `UnwindLoop`. On *any* miss it tail-calls `UnwindLoop` with
-`skip_first_callback=true` — so the fast path is a pure accelerator, never a
-behaviour change. Neither loop counts frames; both return void and the caller
-counts if it cares (`aw_backtrace` returns what it actually stored). Getting
-that arithmetic wrong across the handoff was easier than getting it right.
+* **A zero `ra_offset` means "architectural default"**, as supplied by
+  `Arch::ResetFrameInfo`: CFA-8 on x86-64, live in x30 on aarch64.
+* **aarch64 clang emits `code_align 1 / data_align -4`**, so clang-built objects
+  miss the fast path and take the slow one. The trade-off is accepted on
+  purpose; do not add a second alignment pair to the hot loop.
+* `DW_CFA_AARCH64_negate_ra_state` is a no-op here, as in the reader. gcc emits
+  it in nearly every FDE under `-mbranch-protection`.
+* **The leaf frame must support RA-in-register**, read from the `ucontext`.
+  Without that, the fast path would bail on frame 0 of every signal capture.
+  The recovered pc goes through `Arch::CleanReturnAddress`, which strips PAC on
+  aarch64.
 
-**Every `goto fallback` sits upstream of the cursor commit.** The unwind step
-reads into `next_fp`/`next_pc` and only writes `cursor` once every read has
-succeeded, and `uc` is cleared after that — so when the fast path hands off,
-`UnwindLoop` recomputes the same `is_leaf` and `lookup_pc` and continues from a
-cursor that still describes the frame the fast path already reported. Committing
-`cursor.fp` early used to leave the two halves describing different frames.
+Both loops are templated on `NoDiag`/`RuntimeDiag`.
+`RuntimeDiag::use_fastpath()` and `use_cache()` read
+`DiagOptions::disable_fastpath` / `disable_cache`. `PrintStats` shows
+`fast_path_*` counters.
 
-**It is on the diagnostics path too, not just production.** Both loops are
-templated on the `NoDiag`/`RuntimeDiag` policy; `RuntimeDiag::use_fastpath()` /
-`use_cache()` read `DiagOptions::disable_fastpath` / `disable_cache`. The
-dispatch lives at the top of `UnwindLoopFastPath` itself, so it covers both
-entry points and `DiagUnwindLoop` alike; for `NoDiag` on x86-64 it folds to a
-compile-time `true` and the branch disappears, and on other arches the whole
-fast-path body dead-codes out. Counters `fast_path_frames` /
-`fast_path_cache_hits` / `fast_path_fallbacks` show in `PrintStats` (the
-per-frame two only under `AW_BUMP_STATS_IN_PRODUCTION`, like the cache's own).
+**The comparer cross-checks the fast path at every step.**
+`CaptureReferenceBacktrace` re-captures with the fast path and cache disabled
+and requires an exact match (`--fast:` / `--ref:` dumps). This is on by default
+and doubles the cost of each step; `AW_BT_CROSS_CHECK=0` turns it off.
 
-**The comparer cross-checks it every step.** `CaptureReferenceBacktrace` in
-`backtrace-comparer.cc` re-captures with `disable_fastpath` + `disable_cache`
-and `StepperCallback` requires an exact match against the normal capture before
-it even consults the shadow stack — so a fast-path or cache bug is a test
-failure with `--fast:` / `--ref:` dumps, independent of the shadow-stack
-machinery.
+### 4.8 The aarch64 guess
+
+`Arch::GuessUnwindInfo` is per-arch because **`bl` puts the RA in x30, not on
+the stack**. x86-64's "`*sp` looks like a pc" guess would report the
+grandparent on aarch64. Two shapes remain:
+
+* **x30 is live.** This covers leaf functions, prologue and epilogue windows,
+  PLT stubs and `blr` through null. CFA == sp, which is exactly
+  `ResetFrameInfo`. It needs a register file, so it applies to leaf frames
+  only.
+* **The AAPCS64 frame record at fp**, `{caller's x29, RA}`.
+
+x86-64's mid-prologue guess has no aarch64 equivalent: a leaf frame has x30,
+and a non-leaf pc can't land inside a prologue.
+
+**x30 is tried first. The reason is damage, not confidence.** A stale x30
+looks exactly as valid as a live one. Preferring x30 wrongly costs one
+spurious frame, because the next step is non-leaf and reaches the real caller
+through fp. Preferring the record wrongly deletes a caller.
+`arm64-leaf-test.cc` covers both cases.
+
+**The frame-record walk takes the CFA from `*(fp)`**, the caller's x29, because
+`fp + 16` is only a lower bound. gcc keeps `x29 == sp` through the body
+whenever the CFA is sp-based. The rule is `cfa = DerefFpRel(0)`,
+`fp = MemFpRel(0)`, `ra = MemFpRel(8)`. `RegisterRule::MemFpRel` for RA exists
+only for this rule, and `CompressedFrameInfo` cannot represent it, which is
+fine because guesses are never cached.
+
+**The guess never reads code**, so it cannot fault on execute-only text. A
+candidate pc must be nonzero, 4-aligned and in an executable VMA. There is one
+known wrong case, documented in `arm64-leaf-test.cc`: a CFI-less leaf that
+carves stack space keeps x30 right but gets the CFA wrong.
+
+### 4.9 The differential sweep
+
+The fast path's contract is to *agree with `DoUnwindLookup` or fail*.
+`fastpath-sweep-test.cc` checks this on both arches without stepping. For every
+FDE of every loaded module, it probes four pcs through both decoders and
+requires an exact `FrameInfo` match wherever the fast path answers. The
+coverage percentage is only a loose floor, because the corpus depends on the
+toolchain. On aarch64 clang only that floor is skipped (§4.7); mismatches
+must still be zero.
+
+One agreement is not exact: an RA `DW_CFA_undefined` is `EndOfChain` on the
+fast path and `kUndefinedRA` on the slow one. The sweep counts these probes
+separately and requires *both* sides to agree.
 
 ## 5. Conventions and gotchas
 
-* C++20, 2-space indent, 120 cols, Google-ish (`.clang-format`). Emacs mode
-  lines on nearly every file, SPDX line under them — keep both on new ones.
-  clang-format has not been run across the tree recently and several files have
-  drifted, so format the block you touched, not the file.
-* Everything internal is in `namespace aw_backtrace_internal`; the public API is
-  `extern "C"` and `aw_`-prefixed.
+* The code is C++20 with 2-space indent and 120 columns, Google-ish
+  (`.clang-format`). Put an Emacs mode line and an SPDX line on new files.
+  Files have drifted from the format, so run clang-format on the block you
+  touched, not on the whole file.
+* Internal code lives in `namespace aw_backtrace_internal`. The public API is
+  `extern "C"` and prefixed `aw_`. New file names use dashes.
 * **The capture path stays allocation-free, lock-free and signal-safe.**
-  Anything that allocates happens at init or in test-only code. Statics on that
-  path are `constinit`/trivially-constructible so they land in `.bss` with no
-  initializer-ordering hazard — there are `static_assert`s; don't add a
-  constructor to those types.
-* Nothing reachable from `eh-frame-reader.h`'s failure path may own anything by
-  RAII (§4.2).
-* Byte-pattern matching (PLT shapes, sigreturn trampolines, the DRAP `lea`) is
-  compiler/linker-version fragile by nature.
-* History was squashed at the first public release, so there is no pre-release
-  archaeology to do. Infer intent from `TODO`, `README.md` and this file.
-* **Debugging.** `aw-backtrace-test` and `lua-test` start the single-stepping
-  comparer, which fights gdb. Use `aw-backtrace-test --nocompare`,
-  `amd64-leaf-test` (never starts it), or `cjm0`. `AW_BT_BREAK_AT=0x<addr>` (or
-  `0x<addr>:<skips>`) stops the stepper there, prints the pid and `SIGSTOP`s so
-  you can attach; `kill -CONT` resumes.
-* **Comparer mismatch knobs**, both read once at start: `AW_BT_DIAG=N` means
-  "act on the (N+1)-th unsuppressed mismatch" (default: print and keep going),
-  and `AW_BT_DIAG_VIA_CORE` picks *how* to act — `ud2` for a core dump instead
-  of the soft breakpoint.
-* **Comparer diagnostics never go through stdio** — they are `write(2)`s to a
-  private dup of stderr taken at startup and moved to fd 900+, because the
-  comparer prints from inside the SIGTRAP handler and because the target may
-  have closed or redirected 0/1/2. `AW_BT_DIAG_FILE=<path>` redirects them. Use
-  `DiagPrintf`/`DiagWrite`, never `printf`/`fprintf`, anywhere in that file.
+  Statics on it are `constinit` or trivially constructible, enforced by
+  `static_assert`s.
+* **The `sym_helper` blob carries an empty `.note.GNU-stack`**, added by
+  `objcopy` in both `BUILD.bazel` and `genbuild.rb`. Without it, binutils older
+  than 2.43 gives everything that links the blob an executable stack.
+* Infer intent from `TODO`, `README.md` and this file. There is no
+  pre-release git history.
+* **Debugging.** Natively nothing steps, so every test works under gdb.
+  `aw-backtrace-test --nocompare` skips the comparer entirely. Under qemu with
+  acceleration, the handler runs as host code, so attach to qemu. With the
+  preloaded `.so` (`BUILD_SO` only), `diag_all_text_sections` holds the
+  `add-symbol-file` arguments.
+  `AW_BT_BREAK_AT=0x<addr>[:<skips>]` runs a lone `nop` in `StepperCallback`
+  at that pc so you can set a breakpoint on it. It also turns acceleration
+  off.
+* **Comparer knobs**, mostly read in `StartBacktraceComparer`:
+  * `AW_BT_REQUIRE_STEPPER` (any value, even `0`) fails the run in three
+    cases: no stepper, zero instructions stepped (exit 91), or any unsuppressed
+    diagnostic at exit (exit 92). It ignores `AW_BT_DIAG`. Among in-tree
+    programs, only `cjm` under a stepper trips it.
+  * `AW_BT_CLANG_KNOWN_BUGS` (any value, read at exit) downgrades the exit-92
+    failure to a message. `test-all-cfg.rb` sets it for clang on arm64.
+  * `AW_BT_DIAG=N` calls `raise(SIGTRAP)` on the (N+1)-th unsuppressed
+    diagnostic. `aw-backtrace-test` defaults it to 0 unless run with
+    `--nocompare`.
+  * `AW_BT_CROSS_CHECK=0` turns off the per-step cross-check (§4.7).
+  * `AW_BT_ACCEL=0`/`1` forces acceleration off or on. `AW_BT_DIAG` and
+    `AW_BT_BREAK_AT` turn it off by default, because a `raise` from host code
+    lands in qemu.
+  * `AW_BT_DIAG_FILE=<path>` redirects diagnostics (read in `EnsureDiagFD`).
+  * `AW_BT_DONT_DROP_PRELOAD` (any value) keeps `LD_PRELOAD` for children.
+    Only the `.so`'s constructor reads it.
+* **Comparer diagnostics never use stdio.** They are `write(2)`s to a private
+  dup of stderr at fd 900 or higher. Use `DiagPrintf`/`DiagWrite` in that file.
 * **Running the comparer against an arbitrary binary:**
 
   ```
-  LD_PRELOAD=./backtrace-comparer.so some-program args...
+  qemu-x86_64 -plugin v/pstepper/pstepper_plugin.so \
+      -E LD_PRELOAD=./backtrace-comparer.so some-program args...
   kill -USR1 <pid>   # cache stats + instructions stepped
   kill -USR2 <pid>   # dump the next captured backtrace
   ```
 
-  Everything is single-stepped, so expect it to be *very* slow.
-  `AW_BT_DONT_DROP_PRELOAD=1` keeps the preload for children (usually you want
-  it off). The opening `allowing sigaltstack for 262144 …` line is the stepper
-  installing its own stack, not a warning.
-
-  **Expect zero mismatches** on a small dynamically linked program — `/bin/true
-  hello` and friends print three `added cached suppression` lines and nothing
-  else. When a run isn't clean: **check the exit code**, not just the mismatch
-  count, and **check that a report has a body** — a `Mismatch at 1` with no
-  `--bad:`/`--good:` lines means symbolization returned nothing, which is a bug
-  in the spawn path (§4.5), not in the unwinder.
+  **`-E` is required.** A bare `LD_PRELOAD=… qemu-x86_64 …` preloads into qemu
+  itself: it prints a banner, then `pstepper_enable FAILED`. Expect the run to
+  be very slow. A small program like `/bin/true` should print only a few
+  `added cached suppression` lines. When a run isn't clean:
+  * check the exit code;
+  * check that each report has `--bad:`/`--good:` lines, because an empty
+    report means a symbolizer bug (§4.5).
 
 ## 6. Known gaps
 
-From `TODO`: a flags word instead of the callback's `pc_before_insn` bool
-(including a signal-frame indicator); whether a signal frame should report
-`pc_before_insn = true`; exposing whether a backtrace was
-complete/reliable/guessed; finishing and making permanent the `-Wconversion`
-cleanup; short-circuiting the walk into `_start`.
+`TODO` lists these items:
 
-On `-Wconversion` specifically: `bazel build --copt=-Wconversion :aw-backtrace`
-is down to three warnings — `unwind-info-cache.h`'s `uint64_t` → 62-bit `tag`
-bitfield (benign; `tag` is already masked, gcc can't see it) and two
-`-Wsign-conversion` in `aw-addrcheck.c`. Everything else in the core is clean.
+* a flags word instead of `pc_before_insn`;
+* signal-frame `pc_before_insn` semantics;
+* reporting whether a backtrace was complete or guessed;
+* making `-Wconversion` permanent. `bazel build --copt=-Wconversion
+  :aw-backtrace` is down to two `-Wsign-conversion` warnings, both in
+  `aw-addrcheck.c`.
 
-True of the tree but not in `TODO`:
+Also open:
 
-* **aarch64 builds and passes the basic tests, but is not release-ready** — no
-  `GuessUnwindInfo`, no comparer (the sim-stepper is x86-only), no CI. The
-  biggest coverage hole. It is also easy to break without noticing, since
-  nothing in the default build compiles it; `aarch64-linux-gnu-g++ -c` on the
-  core sources is a cheap smoke test.
-* **The comparer's own machinery is the fastest-moving code in the tree and
-  almost none of it is under test.** `BacktraceBuffer`, the truncation rule, the
-  SIGTRAP resynchronization and the two libc interposers are validated only by
-  "the tests still pass" and by eyeballing a preload run. Empirically not
-  enough: three out-of-bounds reads plus both §4.5 descriptor bugs were
-  unreachable from anything the tests assert on, and the descriptor ones each
-  took a hand-run preload to find. `BacktraceBuffer` is the easy win — it needs
-  nothing but `<span>`.
-* **No dedicated test of the cache**, and no coverage of its *concurrency* at
-  all. Single-threaded correctness is now checked at least: the comparer's
-  §4.8 cross-check re-captures with `disable_cache` and diffs, so a stale or
-  wrong entry fails a test.
-* No CI, no sanitizer configs. The fuzzer (§3) is a crash-only oracle so far;
-  the full-decoder wrong-answer cross-check and a hand-built CIE/FDE blob target
-  (`eh-frame-reader-test.cc` is the unit-level beachhead) are still open, and it
-  is not wired into any automated run.
-* Open in-code on the DRAP path: only apply the tail workaround when the main
-  DRAP shape was seen.
-* Making `DW_CFA_restore` spec-accurate — it restores the CIE's initial rule,
-  we restore the architectural default and refuse the frame when the CIE set up
-  something else. Nothing in the current corpus exercises the difference.
-* `//perf-convert`'s `SelfTest.SweepOwnFDEs` is a threshold over the *test
-  binary's own* FDEs, so its bound moves with the toolchain — it has already had
-  to be widened once. A fixed input would be better.
-
-### Loose ends the first release shipped with
-
-* **Symbol hygiene is nearly done, and the remaining bits are test-only.** The
-  release set (`:aw-backtrace` and its deps) exports twelve unmangled symbols,
-  all `aw_`-prefixed, which is what makes the planned `tcmalloc_` renaming for
-  gperftools a small bounded job. What is *not* prefixed —
-  `simple-fp-backtrace`'s `simple_backtrace`, `symbolize-backtrace.h`'s types in
-  the global namespace, `_binary_sym_helper_bin_*` — belongs to targets that
-  `:aw-backtrace` does not depend on. `aw-addrcheck.h` declares a test-only
-  ioctl-disable setter, but that header is internal (only
-  `include/aw-backtrace/aw-backtrace.h` is exported), so it is not a public API
-  wart.
-* **`linkopts = ["-latomic"]` on `:internal` propagates to every consumer.** Fine
-  for a normal Bazel build, an integration wart for static links and non-glibc.
-* Naming mixes dashes and underscores (`function_ref.h`, `static_storage.h`,
-  target `sym_helper_obj`…); new files go the dashed way.
-* No `make install`, no pkg-config, no CMake. Bazel or vendoring, for now.
+* **No guess-vs-CFI differ.** This is the cheap oracle for `GuessUnwindInfo`
+  on either arch: wherever `DoUnwindLookup` succeeds, also run the guess and
+  diff the step.
+* **The comparer's own machinery is largely untested.** This covers
+  `BacktraceBuffer`, the resync rule and the `sigaction` interposer. Past
+  out-of-bounds reads and descriptor bugs were found only by hand-run
+  preloads. `BacktraceBuffer` needs only `<span>` to test.
+* **The cache has no dedicated test** and no concurrency coverage. The
+  per-step cross-check does catch single-threaded staleness.
+* **CI does not cover:**
+  * the `genbuild.rb` artifacts or preload runs;
+  * the fuzzer, which is a crash-only oracle so far;
+  * sanitizers;
+  * aarch64.
+* No in-tree test covers the x86-64 `plt_rewrite` shape (tested manually once)
+  or the lld retpoline shapes.
+* On the DRAP path, the tail workaround should apply only when the main DRAP
+  shape was seen.
+* `//perf-convert` is still x86-64-only (`PLATFORM`). Its `perf.data` parsing
+  needs an audit for arch assumptions. `SelfTest.SweepOwnFDEs` has a
+  toolchain-dependent threshold, and `fastpath-sweep-test` mostly subsumes it.
+* There is no `make install`, pkg-config or CMake; use Bazel or vendor the
+  sources.

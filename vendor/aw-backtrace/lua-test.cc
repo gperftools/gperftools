@@ -45,9 +45,7 @@ int main() {
     return 1;
   }
 
-#if __x86_64__
   StartBacktraceComparer();
-#endif
 
   int status = luaL_loadbuffer(L, g_code.data(), g_code.size(), "=stress");
   if (status != LUA_OK) {

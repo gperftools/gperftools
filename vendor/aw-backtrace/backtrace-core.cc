@@ -36,6 +36,11 @@ class FrameLookupState : public UnwindVisitor {
   LookupOutcome DoLookup(const EHReaderInputs& inputs, FrameInfo* info) {
     info_ = info;
     FindAndDecodeFDE(inputs, this);
+    // Decided here, on the row that actually covers pc_, rather than in
+    // HandleUndefined when the instruction goes by -- see there.
+    if (outcome_ == LookupOutcome::kOk && info_->ra.kind == RegisterRule::Kind::Undefined) {
+      outcome_ = LookupOutcome::kUndefinedRA;
+    }
     return outcome_;
   }
 
@@ -113,7 +118,7 @@ class FrameLookupState : public UnwindVisitor {
     } else if (reg == Arch::kFPReg) {
       info_->cfa = CfaRule::FpRel(o32);
     } else {
-      int8_t r;
+      int8_t r = 0;
       if (!NarrowReg(reg, "def_cfa", &r)) {
         return false;
       }
@@ -165,14 +170,13 @@ class FrameLookupState : public UnwindVisitor {
   // For everything else we don't look at it at all -- see the comment at
   // the bottom about ignoring unknown registers.
   bool HandleRegister(uintptr_t reg, uintptr_t stored_in_reg) {
+    int8_t r = 0;
     if (reg == Arch::kRAReg) {
-      int8_t r;
       if (!NarrowReg(stored_in_reg, "register", &r)) {
         return false;
       }
       info_->ra = RegisterRule::InReg(r);
     } else if (reg == Arch::kFPReg) {
-      int8_t r;
       if (!NarrowReg(stored_in_reg, "register", &r)) {
         return false;
       }
@@ -216,6 +220,27 @@ class FrameLookupState : public UnwindVisitor {
       info_->fp = RegisterRule::SameValue();
       return true;
     }
+    if (reg == Arch::kRAReg) {
+      // Real compilers (LLVM at least) emit this on architectures
+      // where RA is aliased to an actual, still-live register --
+      // e.g. x30/LR on aarch64. Meaning of this is still somewhat odd
+      // to me. What does it mean x30 is "same as caller" if it's
+      // original caller's value is forever lost after bl (branch with
+      // link) instruction. In any case, this is what we see. And I
+      // guess it could also mean "x30 of the caller after we return"
+      // which is the call site we return to.
+      //
+      // On x86 the kRAReg is "virtual" register DWARF-wise, and would
+      // make no sense to say "rip is now same as call site". So we
+      // check if arch default is link register (so x30 on arm64-s)
+      // and then allow it with that meaning described above.
+      FrameInfo defaults;
+      Arch::ResetFrameInfo(&defaults);
+      if (defaults.ra.kind == RegisterRule::Kind::InReg) {
+        info_->ra = defaults.ra;
+        return true;
+      }
+    }
     return ReportError("same_value for critical register %lu", (unsigned long)reg);
   }
 
@@ -224,17 +249,19 @@ class FrameLookupState : public UnwindVisitor {
       return true;
     }
     if (reg == Arch::kRAReg) {
-      // In startup object we actually have a case were RIP is set to
-      // undefined because there is nothing to return to. While we bail
-      // out in this case (nothing to backtrace further), lets not
-      // report any specific errors, since it is "normal".
+      // A frame with nothing to return to: the process and thread entry
+      // points, _dl_start_user, clone's child. Normal, so no diagnostic.
       //
-      // NOTE: we used to only stay quiet when this was the FDE's last
-      // instruction, which is the only place it legitimately occurs.
-      // The reader doesn't show us the position past the instruction
-      // we're being told about, so we can't tell anymore. Either way
-      // the frame fails; only the diagnostic differs.
-      return false;
+      // Record the rule and keep decoding rather than stopping here. Whether
+      // this applies is a property of the row covering pc_, not of where the
+      // instruction sits in the FDE's stream, and DoLookup reads it off the
+      // finished row. Stopping here was harmless while every failure fed the
+      // fallback chain, which might still recover the frame; now that this
+      // outcome ends the walk, an Undefined in a row *preceding* pc_'s --
+      // with RA defined again afterwards by a later offset/restore -- would
+      // silently truncate the backtrace instead.
+      info_->ra = RegisterRule::Undefined();
+      return true;
     }
     return ReportError("undefined for critical register %lu", (unsigned long)reg);
   }
@@ -402,6 +429,13 @@ EHReaderInputs* LocateEHFrame(uintptr_t lookup_ip, EHReaderInputs* inputs) {
   return inputs;
 }
 
+LookupOutcome DoUnwindLookupFromInputs(const EHReaderInputs& inputs, FrameInfo* info, DiagFlags diag) {
+  FrameLookupState lookup{inputs.lookup_pc, diag};
+
+  Arch::ResetFrameInfo(info);
+  return lookup.DoLookup(inputs, info);
+}
+
 LookupOutcome DoUnwindLookup(uintptr_t lookup_ip, FrameInfo* info, DiagFlags diag) {
   EHReaderInputs inputs_storage;
   EHReaderInputs* inputs = LocateEHFrame(lookup_ip, &inputs_storage);
@@ -409,10 +443,7 @@ LookupOutcome DoUnwindLookup(uintptr_t lookup_ip, FrameInfo* info, DiagFlags dia
     return LookupOutcome::kFail;
   }
 
-  FrameLookupState lookup{lookup_ip, diag};
-
-  Arch::ResetFrameInfo(info);
-  return lookup.DoLookup(*inputs, info);
+  return DoUnwindLookupFromInputs(*inputs, info, diag);
 }
 
 }  // namespace aw_backtrace_internal

@@ -10,3 +10,25 @@ FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY
 DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
 AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+----------------------------------------------------------------------
+
+The license above covers everything in this repository except the
+following, which keep their own licenses:
+
+* v/pstepper/third_party/qemu-plugin.h -- QEMU's plugin API header,
+  vendored so the TCG plugin can be built without a QEMU
+  source tree. GPL-2.0-or-later; see the notice in the file.
+
+* ci/qemu-patches/*.patch -- patches against QEMU, applied by
+  ci/build-qemu.rb when building the emulator CI runs on. As
+  modifications of QEMU they are GPL-2.0-or-later, same as QEMU.
+
+* fuzz/data/* -- .eh_frame_hdr/.eh_frame sections extracted verbatim
+  from system libraries (glibc, libstdc++, libc++; see fuzz/README.md)
+  for use as fuzzer inputs. They remain under the licenses of the
+  libraries they were taken from.
+
+Neither the QEMU header nor the patches is linked into, or needed by,
+the aw-backtrace library itself; only the test-only pstepper plugin
+compiles against the header.

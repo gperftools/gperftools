@@ -22,12 +22,11 @@
 #include "aw-arch.h"
 #include "check.h"
 #include "utils.h"
+//
+#include "backtrace-comparer.h"
 
 #if !BT_USE_SIMPLE
 #include "aw-backtrace/aw-backtrace.h"
-#if defined(__x86_64__)
-#include "backtrace-comparer.h"
-#endif
 #else
 #include "simple-fp-backtrace.h"
 #endif
@@ -182,13 +181,10 @@ int main(int argc, char** argv) {
     (void)atexit([]() { aw_backtrace_ext::DebugExtensionV0::TryGet()->PrintStats(); });
   }
 
-#if defined(__x86_64__)
   if (argc < 2 || std::string_view{argv[1]} != "--nocompare") {
     setenv("AW_BT_DIAG", "0", 0);
-    setenv("AW_BT_DIAG_VIA_CORE", "1", 0);
     StartBacktraceComparer();
   }
-#endif
 #endif  // !BT_USE_SIMPLE
 
   SetupSignal(SIGILL, sigill_handler);

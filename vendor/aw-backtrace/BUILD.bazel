@@ -34,8 +34,6 @@ cc_library(
         ["*.h"],
         exclude = ["aw-addrcheck.h"],  # comes via :aw-addrcheck
     ),
-    # UnwindInfoCache uses 16-byte atomics; gcc and clang both call libatomic.
-    linkopts = ["-latomic"],
 )
 
 cc_library(
@@ -75,7 +73,14 @@ genrule(
           select({
               "@platforms//cpu:aarch64": "elf64-littleaarch64",
               "//conditions:default": "elf64-x86-64",
-          }) + " sym_helper_bin `basename $@` --rename-section .data=.rodata,alloc,load,readonly,data,contents",
+          }) + " sym_helper_bin `basename $@` --rename-section .data=.rodata,alloc,load,readonly,data,contents" +
+          # An `objcopy -I binary` object has no .note.GNU-stack, and a linker
+          # older than binutils 2.43 takes that to mean the whole program wants
+          # an executable stack -- silently, apart from a warning. Everything
+          # linking the blob then gets PT_GNU_STACK RWE. Add the empty note so
+          # the artifact is correct wherever it is linked.
+          " --add-section .note.GNU-stack=/dev/null" +
+          " --set-section-flags .note.GNU-stack=contents,readonly",
 )
 
 cc_library(
@@ -91,21 +96,57 @@ cc_library(
 
 cc_library(
     name = "backtrace-comparer",
-    srcs = select({
-        "@platforms//cpu:x86_64": ["backtrace-comparer.cc"],
-        "//conditions:default": [],
-    }),
+    srcs = ["backtrace-comparer.cc"],
     hdrs = ["backtrace-comparer.h"],
     cxxopts = CXXOPTS,
-    deps = [":headers"] + select({
+    deps = [
+        ":aw-backtrace",
+        ":headers",
+        ":pstepper_plumbing",
+        ":symbolize-backtrace",
+    ],
+)
+
+cc_library(
+    name = "nop-backtrace-comparer",
+    srcs = ["nop-backtrace-comparer.c"],
+    deps = [":headers"],
+)
+
+cc_library(
+    name = "pstepper_plumbing",
+    srcs = [
+        "v/pstepper/pstepper.c",
+        "v/pstepper/pstepper.h",
+        "v/pstepper/pstepper_abi.h",
+        "v/pstepper/pstepper_internal.h",
+    ] + select({
         "@platforms//cpu:x86_64": [
-            ":aw-backtrace",
-            ":symbolize-backtrace",
-            "@mini-x86-int//:sim_stepper",
+            "v/pstepper/pstepper_amd64.c",
+            "v/pstepper/pstepper_amd64.h",
+            "v/pstepper/pstepper_frame_amd64.h",
+            "v/pstepper/pstepper_trampoline_amd64.S",
         ],
-        "//conditions:default": [],
+        "@platforms//cpu:aarch64": [
+            "v/pstepper/pstepper_arm64.c",
+            "v/pstepper/pstepper_arm64.h",
+            "v/pstepper/pstepper_frame_arm64.h",
+            "v/pstepper/pstepper_trampoline_arm64.S",
+        ],
+    }),
+    defines = ["_GNU_SOURCE"],
+    target_compatible_with = ["@platforms//os:linux"] + select({
+        "@platforms//cpu:x86_64": [],
+        "@platforms//cpu:aarch64": [],
+        "//conditions:default": ["@platforms//:incompatible"],
     }),
 )
+
+COMPARER = select({
+    "@platforms//cpu:x86_64": [":backtrace-comparer"],
+    "@platforms//cpu:aarch64": [":backtrace-comparer"],
+    "//conditions:default": [":nop-backtrace-comparer"]
+    })
 
 cc_library(
     name = "simple-fp-backtrace",
@@ -117,7 +158,10 @@ cc_library(
 
 cc_binary(
     name = "sym-helper",
-    srcs = ["sym-helper.cc"],
+    srcs = [
+        "sym-helper.cc",
+        "sym-helper-protocol.h",
+    ],
     cxxopts = CXXOPTS,
 )
 
@@ -169,15 +213,16 @@ cc_test(
     # needed to prevent GNU ld crashes
     features = ["-supports_start_end_lib"],
     linkstatic = True,
+    # Hosts the comparer, so --config=stepped (ci/run-stepped.rb) runs it
+    # under qemu with the pstepper plugin, where it compares every
+    # instruction. A plain `bazel test` still runs it natively, where the
+    # comparer finds no stepper and stays out of the way.
+    tags = ["stepped"],
     deps = [
         ":aw-backtrace",
-        ":backtrace-comparer",
         ":headers",
         ":symbolize-backtrace",
-    ] + select({
-        "@platforms//cpu:x86_64": ["@mini-x86-int//:sim_stepper"],
-        "//conditions:default": [],
-    }),
+    ] + COMPARER,
 )
 
 cc_test(
@@ -206,6 +251,20 @@ cc_test(
     ],
 )
 
+# Differential sweep of the fast-path decoder against the full one.
+cc_test(
+    name = "fastpath-sweep-test",
+    srcs = ["fastpath-sweep-test.cc"],
+    cxxopts = CXXOPTS,
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    deps = [
+        ":aw-backtrace",
+        ":headers",
+        "@googletest//:gtest_main",
+    ],
+)
+
 cc_test(
     name = "aw-addrcheck-test",
     srcs = ["aw-addrcheck-test.c"],
@@ -218,11 +277,15 @@ cc_test(
     cxxopts = CXXOPTS,
     features = ["-supports_start_end_lib"],
     linkstatic = True,
+    # Hosts the comparer, so --config=stepped (ci/run-stepped.rb) runs it
+    # under qemu with the pstepper plugin, where it compares every
+    # instruction. A plain `bazel test` still runs it natively, where the
+    # comparer finds no stepper and stays out of the way.
+    tags = ["stepped"],
     deps = [
         ":aw-backtrace",
-        ":backtrace-comparer",
         "@lua",
-    ],
+    ] + COMPARER,
 )
 
 cc_test(
@@ -236,6 +299,25 @@ cc_test(
     target_compatible_with = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
+    ],
+    deps = [
+        ":aw-backtrace",
+        ":headers",
+        ":symbolize-backtrace",
+    ],
+)
+
+cc_test(
+    name = "arm64-leaf-test",
+    srcs = [
+        "arm64-leaf-test.cc",
+    ],
+    cxxopts = CXXOPTS,
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
     ],
     deps = [
         ":aw-backtrace",

@@ -26,7 +26,6 @@
 #include "aw-backtrace-fastpath.h"
 #include "check.h"
 #include "fuzz-common.h"
-#include "v/mini-x86-int/base/cleanup.h"
 
 using aw_backtrace_internal::EHReaderInputs;
 using aw_backtrace_internal::FrameInfo;
@@ -69,7 +68,10 @@ template <typename R>
 R OpenAndStat(std::string path, const std::function<R(int fd, struct stat* st)>& body) {
   int fd = open(path.c_str(), O_RDONLY);
   CHECK_PERROR(fd >= 0, "open");
-  tcmalloc::Cleanup close_fd{[fd]() { close(fd); }};
+  struct CloseFD {
+    int fd;
+    ~CloseFD() { close(fd); }
+  } close_fd{fd};
 
   struct stat st;
   CHECK_PERROR(fstat(fd, &st) == 0, path.c_str());

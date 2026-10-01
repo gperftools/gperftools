@@ -1,42 +1,86 @@
 /* -*- Mode: C++; c-basic-offset: 2; indent-tabs-mode: nil -*- */
 // SPDX-License-Identifier: 0BSD
 //
-// This file contains a helper program that is spawned by
-// symbolize-backtrace.cc. It reads /proc/$pid/map, then it does the
-// necessary "data massaging" (addr2lines need vaddrs, we got offsets
-// from mmap-ed data) to invoke {llvm-,}addr2line for actual
-// symbolization and then communicates the results back over stdout
-// via simple netstrings-based format.
+// This file is a helper *daemon*, spawned once (see EnsureHelperOwner
+// / SpawnHelperDaemon in symbolize-backtrace.cc) and kept running for
+// the life of the owning process. At spawn time the caller creates an
+// AF_UNIX SOCK_SEQPACKET socketpair, keeps one end (the "mailbox")
+// for itself, and hands us the other; every symbolization request
+// thereafter is one datagram sent to that mailbox.
 //
-// Since it is a separate binary (instead of being in
-// async-signal-safe context in symbolize-backtrace) it does
-// straightforward things using plain normal C and C++ APIs.
+// Each request datagram carries two fds via SCM_RIGHTS, handed over
+// atomically in one message: a memfd holding the whole request as
+// SymRequest, and the write end of a pipe created fresh for this one
+// request. We reuse that *same* memfd for the response (truncate it,
+// then write our answer back into it as a small binary struct -- see
+// SymResponseHeader/SymResponseEntry below), saving an fd per
+// request; the pipe now carries no data of its own, only a close()
+// once the response is fully committed, since the caller reads the
+// response via mmap() rather than by streaming it, and mmap() has no
+// "wait until ready" signal of its own. Concurrent callers (e.g. two
+// threads each hitting a mismatch at the same moment) never share any
+// mutable state with each other this way -- sendmsg() to the shared
+// mailbox is atomic per-message, and each request's response travels
+// over its own, private memfd+pipe pair -- so nothing here needs
+// locking on the caller's side; we still process one request at a
+// time (see main()'s loop), which is what lets every per-binary
+// addr2line session below be touched with no locking on this side
+// either.
+//
+// The maps snapshot is deliberately the *caller's own* view: under
+// qemu-user this is the guest-address-space view QEMU synthesizes for
+// the caller.
+//
+// Addresses are correlated to an ELF file + vaddr using that maps snapshot,
+// batched per backing binary, and resolved via a persistent addr2line (or
+// llvm-addr2line) subprocess per binary -- spawned once per binary and reused
+// across every request for the life of this daemon, rather than respawned
+// (and made to re-parse that binary's debug info from scratch) every time.
+//
+// Since this is a separate binary (instead of being in async-signal-safe
+// context in symbolize-backtrace.cc) it does straightforward things using
+// plain normal C and C++ APIs.
 
 #include <elf.h>
 #include <fcntl.h>
 #include <link.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/mman.h>
+#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include <algorithm>
+#include <deque>
 #include <map>
-#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
-struct MemoryMap {
-  uint64_t start;
-  uint64_t end;
-  uint64_t offset;
-  std::string path;
+#include "sym-helper-protocol.h"
+
+struct ProcVMA {
+  const uint64_t start;
+  const uint64_t end;
+  const uint64_t offset;
+  const std::string path;
+
+  ProcVMA(uint64_t start, uint64_t end, uint64_t offset, std::string_view path)
+      : start{start}, end{end}, offset{offset}, path{std::string{path}} {
+  }
+};
+
+struct PTLoadSeg {
+  uint64_t vaddr;
+  uint64_t off;
+  uint64_t memsz;
 };
 
 struct Frame {
@@ -51,87 +95,51 @@ struct Request {
   uint64_t orig_addr;
   bool valid;
   std::string map_path;
-  uint64_t elf_vaddr;
+  uint64_t elf_vaddr = 0;
   std::vector<Frame> frames;
-};
 
-struct ProgHeaderInfo {
-  uint64_t vaddr;
-  uint64_t off;
-  uint64_t memsz;
-};
-
-using ElfCacheMap = std::map<std::string, std::vector<ProgHeaderInfo>>;
-
-template <typename Fn>
-static void ForEachLine(FILE* f, Fn&& body) {
-  char* line_buf = nullptr;
-  size_t line_len = 0;
-  ssize_t nread;
-  while ((nread = getline(&line_buf, &line_len, f)) != -1) {
-    while (nread > 0 && line_buf[nread - 1] == '\n') {
-      line_buf[--nread] = '\0';
-    }
-    if (!body(std::string_view(line_buf, nread))) {
-      break;
-    }
+  Request(int index, unsigned long addr) : index{index}, orig_addr{addr}, valid{true} {
   }
-  free(line_buf);
-}
+};
 
-static std::vector<MemoryMap> ParseMaps(const std::string& pid) {
-  std::vector<MemoryMap> maps;
-  std::string maps_path = "/proc/" + pid + "/maps";
-  FILE* f = fopen(maps_path.c_str(), "r");
-  if (!f)
-    return maps;
+using ElfCacheMap = std::unordered_map<std::string, std::vector<PTLoadSeg>>;
+
+static std::vector<ProcVMA> ParseProcMaps(std::string_view full_text) {
+  FILE* f = fmemopen(const_cast<char*>(full_text.data()), full_text.size(), "r");
+  std::vector<ProcVMA> maps;
 
   // The proc-maps line looks like this: (man 5 proc_pid_maps)
   // 7ffff7f78000-7ffff7f7a000 rw-p 001e7000 103:02 1338729752                /usr/lib/x86_64-linux-gnu/libc.so.6
   // First "field" is address range, then perms, then file offset.
-  ForEachLine(f, [&](std::string_view line) {
-    size_t idx = 0;
-    for (int col = 0; col < 5; ++col) {
-      while (idx < line.size() && line[idx] != ' ') idx++;
-      while (idx < line.size() && line[idx] == ' ') idx++;
+  for (;;) {
+    unsigned long start, end, offset;
+    int before_path, after_path = -1;
+    long pos = ftell(f);
+    int dummy = fscanf(f, "%lx-%lx %*[^ ] %lx %*[^ ] %*[^ ]%n%*[^\n]%n",  //
+                       &start, &end, &offset, &before_path, &after_path);
+    (void)dummy;
+    if (after_path < 0) {
+      // eof or garbage. Cannot parse further.
+      break;
     }
-    if (idx >= line.size())
-      return true;
+    std::string_view map_path = full_text.substr(pos + before_path, after_path - before_path);
+    while (!map_path.empty() && isspace(map_path[0])) {
+      map_path.remove_prefix(1);
+    }
+    if (!map_path.starts_with('/')) {
+      // bad line. skip
+      continue;
+    }
 
-    std::string_view map_path = line.substr(idx);
-    while (!map_path.empty() && (map_path.back() == ' ' || map_path.back() == '\r' || map_path.back() == '\n')) {
-      map_path.remove_suffix(1);
-    }
-    static constexpr std::string_view kDeletedSuffix = " (deleted)";
-    if (map_path.ends_with(kDeletedSuffix)) {
-      map_path.remove_suffix(kDeletedSuffix.size());
-    }
-
-    if (!map_path.starts_with('/'))
-      return true;
-
-    char field0[64] = {0};
-    char perms[16] = {0};
-    char field2[64] = {0};
-    std::string line_str(line);
-    if (sscanf(line_str.c_str(), "%63s %15s %63s", field0, perms, field2) == 3) {
-      char* dash = strchr(field0, '-');
-      if (dash) {
-        *dash = '\0';
-        uint64_t start = strtoull(field0, nullptr, 16);
-        uint64_t end = strtoull(dash + 1, nullptr, 16);
-        uint64_t offset = strtoull(field2, nullptr, 16);
-        maps.push_back({start, end, offset, std::string(map_path)});
-      }
-    }
-    return true;
-  });
+    maps.emplace_back(start, end, offset, map_path);
+  }
 
   fclose(f);
+
   return maps;
 }
 
-static std::vector<ProgHeaderInfo> ReadElfLoadSegments(const std::string& path) {
+static std::vector<PTLoadSeg> ReadElfLoadSegments(const std::string& path) {
   int fd = open(path.c_str(), O_RDONLY);
   if (fd < 0)
     return {};
@@ -147,7 +155,7 @@ static std::vector<ProgHeaderInfo> ReadElfLoadSegments(const std::string& path) 
   if (map == MAP_FAILED)
     return {};
 
-  std::vector<ProgHeaderInfo> phdrs;
+  std::vector<PTLoadSeg> phdrs;
   const auto* ehdr = static_cast<const ElfW(Ehdr)*>(map);
 
   if (memcmp(ehdr->e_ident, ELFMAG, SELFMAG) == 0 &&
@@ -164,44 +172,25 @@ static std::vector<ProgHeaderInfo> ReadElfLoadSegments(const std::string& path) 
   return phdrs;
 }
 
-static bool GetElfVAddrAndPath(const std::string& pid, const MemoryMap& m, uint64_t file_offset, ElfCacheMap& elf_cache,
-                               uint64_t* out_vaddr, std::string* out_path) {
-  const std::vector<ProgHeaderInfo>* phdrs = nullptr;
-  std::string actual_path;
-
-  auto try_path = [&](const std::string& path) -> bool {
-    auto [it, inserted] = elf_cache.try_emplace(path);
-    if (inserted) {
-      it->second = ReadElfLoadSegments(path);
-      if (it->second.empty()) {
-        elf_cache.erase(it);
-        return false;
-      }
-    }
-
-    phdrs = &it->second;
-    actual_path = path;
-    return true;
-  };
-
-  if (!try_path(m.path)) {
-    struct stat st;
-    if (stat(m.path.c_str(), &st) != 0) {
-      char buf[128];
-      snprintf(buf, sizeof(buf), "/proc/%s/map_files/%lx-%lx", pid.c_str(), m.start, m.end);
-      if (!try_path(buf)) {
-        try_path("/proc/" + pid + "/root" + m.path);
-      }
-    }
+// Unlike the pid-based version this replaces, there is no external process
+// to fall back to for a deleted/relocated path: the caller's own maps
+// snapshot is the only information we have, and its path is either openable
+// directly (the common case -- same architecture, real file still on disk)
+// or the address simply cannot be resolved.
+static bool GetElfVAddrAndPath(const ProcVMA& m, uint64_t file_offset, ElfCacheMap* elf_cache, uint64_t* out_vaddr,
+                               std::string* out_path) {
+  auto [it, inserted] = elf_cache->try_emplace(m.path);
+  if (inserted) {
+    it->second = ReadElfLoadSegments(m.path);
+  }
+  if (it->second.empty()) {
+    return false;
   }
 
-  if (!phdrs)
-    return false;
-
-  for (const auto& phdr : *phdrs) {
+  for (const auto& phdr : it->second) {
     if (file_offset >= phdr.off && file_offset < phdr.off + phdr.memsz) {
       *out_vaddr = phdr.vaddr + (file_offset - phdr.off);
-      *out_path = actual_path;
+      *out_path = m.path;
       return true;
     }
   }
@@ -237,199 +226,331 @@ static Frame ParseFrame(std::string func_name, std::string_view file_line) {
   return Frame{std::move(func_name), std::move(file), std::move(line), false};
 }
 
-static void WriteNetstring(FILE* out, const std::string& s) {
-  fprintf(out, "%zu:%s,", s.size(), s.c_str());
-}
+// A persistent addr2line (or llvm-addr2line) subprocess for one backing
+// binary, kept alive across every request this daemon ever serves for that
+// binary rather than respawned per request -- spawning it and having it
+// re-parse that binary's debug info from scratch is the expensive part this
+// daemon exists to amortize.
+struct Addr2LineSession {
+  pid_t pid = -1;
+  FILE* stdin_fp = nullptr;
+  FILE* stdout_fp = nullptr;
 
-static void BatchAddr2Line(const std::string& path, const std::vector<Request*>& batch) {
-  int pipefd[2];
-  if (pipe(pipefd) != 0)
-    return;
+  bool Alive() const {
+    return pid > 0;
+  }
+};
+
+// A bogus address that will never legitimately be requested and always
+// resolves to "no symbol": our explicit end-of-batch marker for reading a
+// persistent session's stdout, since (unlike the one-shot design this
+// replaces) there is no EOF between batches to rely on.
+static constexpr uint64_t kSentinelAddr = (uint64_t)~uintptr_t{};
+
+static std::map<std::string, Addr2LineSession> g_sessions;
+
+static Addr2LineSession* GetOrCreateSession(const std::string& path) {
+  auto [it, inserted] = g_sessions.try_emplace(path);
+  Addr2LineSession& s = it->second;
+  if (s.Alive()) {
+    return &s;
+  }
+
+  struct OwnedFD {
+    const int fd;
+    bool released = false;
+    OwnedFD(int fd) : fd{fd} {
+    }
+
+    int Release() {
+      released = true;
+      return fd;
+    }
+    OwnedFD(const OwnedFD& other) = delete;
+    ~OwnedFD() {
+      if (!released)
+        close(fd);
+    }
+  };
+
+  std::deque<OwnedFD> cleanup;
+
+  auto pipe_with_cleanup = [&](OwnedFD* fds[2]) -> bool {
+    int pair[2];
+    int rv = pipe2(pair, O_CLOEXEC);
+    if (rv != 0) {
+      perror("pipe2");
+      return false;
+    }
+    cleanup.emplace_back(pair[0]);
+    fds[0] = &cleanup.back();
+    cleanup.emplace_back(pair[1]);
+    fds[1] = &cleanup.back();
+    return true;
+  };
+
+  OwnedFD* in_pipe[2];
+  if (!pipe_with_cleanup(in_pipe)) {
+    return nullptr;
+  }
+  OwnedFD* out_pipe[2];
+  if (!pipe_with_cleanup(out_pipe)) {
+    return nullptr;
+  }
 
   pid_t pid = fork();
   if (pid < 0) {
-    close(pipefd[0]);
-    close(pipefd[1]);
-    return;
+    return nullptr;
   }
 
   if (pid == 0) {
-    // Unlike the equivalent dance in symbolize-backtrace.cc's WithSpawnedChild,
-    // this one needs no guard against pipefd landing on STDOUT_FILENO: our own
-    // stdout is the netstring pipe our parent installed, so it is always open
-    // and pipe() above can never have handed us descriptor 1. Keep it that way.
-    close(pipefd[0]);
-    dup2(pipefd[1], STDOUT_FILENO);
-    close(pipefd[1]);
+    // child
+    //
+    // close write side of the child's STDIN and read side of child's STDOUT
+    close(in_pipe[1]->fd);
+    close(out_pipe[0]->fd);
+    // move those read/write ends to their relevant FDs
+    dup2(in_pipe[0]->fd, STDIN_FILENO);
+    close(in_pipe[0]->fd);
+    dup2(out_pipe[1]->fd, STDOUT_FILENO);
+    close(out_pipe[1]->fd);
 
-    int devnull = open("/dev/null", O_WRONLY);
-    if (devnull >= 0) {
-      dup2(devnull, STDERR_FILENO);
-      close(devnull);
-    }
-
+    // No addresses on the command line this time: they are fed one per line
+    // on stdin for as long as this process lives.
     std::vector<std::string> arg_storage = {"llvm-addr2line", "-a", "-f", "-i", "-C", "-e", path};
-
-    for (const auto* req : batch) {
-      char addr_buf[32];
-      snprintf(addr_buf, sizeof(addr_buf), "0x%lx", req->elf_vaddr);
-      arg_storage.push_back(addr_buf);
-    }
-
     std::vector<char*> argv_ptrs;
-    for (auto& s : arg_storage) {
-      argv_ptrs.push_back(s.data());
-    }
+    for (auto& a : arg_storage) argv_ptrs.push_back(a.data());
     argv_ptrs.push_back(nullptr);
 
-    // We try llvm-addr2line and GNU addr2line in order. Both speak
-    // the format ParseFrame() expects (llvm's leaves the address line
-    // unpadded, which is_address() does not care about).
+    // We try llvm-addr2line and GNU addr2line in order. Both speak the
+    // format ParseFrame() expects, and both support reading addresses from
+    // stdin indefinitely when none are given on the command line.
     execvp(argv_ptrs[0], argv_ptrs.data());
     argv_ptrs[0] = const_cast<char*>("addr2line");
     execvp(argv_ptrs[0], argv_ptrs.data());
     _exit(127);
   }
 
-  close(pipefd[1]);
+  // parent
 
-  FILE* fp = fdopen(pipefd[0], "r");
-  if (!fp) {
-    close(pipefd[0]);
-    waitpid(pid, nullptr, 0);
-    return;
+  s.pid = pid;
+  s.stdin_fp = fdopen(in_pipe[1]->Release(), "w");
+  s.stdout_fp = fdopen(out_pipe[0]->Release(), "r");
+  if (!s.stdout_fp) {
+    abort();  // not possible in practice. keep it simple
   }
+  return &s;
+}
 
-  size_t target_idx = 0;
-  std::vector<Frame> current_frames;
+struct LineBuf {
   char* line_buf = nullptr;
   size_t line_len = 0;
 
-  auto next_line = [&]() -> std::optional<std::string> {
-    ssize_t nread = getline(&line_buf, &line_len, fp);
+  std::optional<std::string> Read(FILE* f) {
+    ssize_t nread = getline(&line_buf, &line_len, f);
     if (nread < 0) {
       return std::nullopt;
     }
+    // chomp it
     if (nread > 0 && line_buf[nread - 1] == '\n') {
       nread--;
     }
-    return std::make_optional<std::string>(line_buf, static_cast<size_t>(nread));
+    return std::optional<std::string>(std::in_place, line_buf, (size_t)nread);
+  }
+
+  ~LineBuf() {
+    free(line_buf);
+  }
+};
+
+static void RunAddr2LineBatch(const std::string& path, const std::vector<Request*>& batch) {
+  Addr2LineSession* s = GetOrCreateSession(path);
+  if (!s)
+    return;  // leave requests unresolved -- best effort
+
+  std::thread batch_writer([&]() {
+    for (const auto* req : batch) {
+      fprintf(s->stdin_fp, "0x%lx\n", (unsigned long)req->elf_vaddr);
+    }
+    fprintf(s->stdin_fp, "0x%lx\n", kSentinelAddr);
+    fflush(s->stdin_fp);
+  });
+
+  LineBuf lb;
+
+  bool success = false;
+
+  // addr2line outputs: address-line \n (function-name \n file:line \n)+,
+  // repeated once per address we fed it, in order, terminated by our own
+  // sentinel address instead of EOF (this session outlives this one batch).
+  size_t target_idx = 0;
+  std::vector<Frame> current_frames;
+  for (;;) {
+    // address
+    unsigned long addr;
+    char maybe_nl;
+    int r = fscanf(s->stdout_fp, "%lx%c", &addr, &maybe_nl);
+    if (r != 2 || maybe_nl != '\n') {
+      break;
+    }
+
+    if (addr == kSentinelAddr) {
+      success = true;
+      // Eat sentinel function and file lines.
+      lb.Read(s->stdout_fp);
+      lb.Read(s->stdout_fp);
+      break;
+    }
+
+    if (target_idx >= batch.size() || addr != batch[target_idx]->elf_vaddr) {
+      break;
+    }
+    int peek_char;
+    do {
+      // parse function line followed by file line
+      std::optional<std::string> fn_line = lb.Read(s->stdout_fp);
+      std::optional<std::string> file_line = lb.Read(s->stdout_fp);
+      if (!fn_line || !file_line) {
+        break;
+      }
+      current_frames.push_back(ParseFrame(std::move(fn_line).value(), std::move(file_line).value()));
+      // peek if next line looks like address or we have more inlined frames
+      peek_char = getc(s->stdout_fp);
+      if (peek_char == EOF) {
+        break;
+      }
+      ungetc(peek_char, s->stdout_fp);
+    } while (peek_char != '0');
+    std::swap(batch[target_idx++]->frames, current_frames);
+  }
+
+  if (ferror(s->stdout_fp)) {
+    success = false;
+  }
+
+  auto kill_s = [s]() {
+    if (!s->Alive())
+      return;
+    kill(s->pid, SIGKILL);
+    s->pid = -1;
   };
 
-  // addr2line outputs: address-line \n (function-name \n file:line \n)+
-  //
-  // I.e. sequence of function-name file:line pairs given inlinings then next address etc.
-  for (;;) {
-    std::optional<std::string> function_line = next_line();
-    if (!function_line) {
-      break;
-    }
-
-    auto is_address = [](const std::string& line, uint64_t expected) -> bool {
-      if (!line.starts_with("0x"))
-        return false;
-      const char* buf = line.c_str();
-      char* endptr = nullptr;
-      uint64_t val = strtoull(buf, &endptr, 16);
-      return endptr != buf && *endptr == '\0' && val == expected;
-    };
-
-    // Line could be another function name or address.
-    if (target_idx < batch.size() && is_address(function_line.value(), batch[target_idx]->elf_vaddr)) {
-      // if it is address we append current set of frames to previous request and start new request
-      if (target_idx > 0) {
-        std::swap(batch[target_idx - 1]->frames, current_frames);
-      }
-      target_idx++;
-      continue;
-    }
-
-    std::optional<std::string> file_line = next_line();
-    if (!file_line) {
-      break;
-    }
-
-    current_frames.push_back(ParseFrame(std::move(*function_line), *file_line));
+  if (!success) {
+    // make sure the writer isn't stuck trying to write to the bad
+    // child
+    kill_s();
   }
 
-  if (target_idx > 0) {
-    batch[target_idx - 1]->frames = std::move(current_frames);
+  batch_writer.join();
+
+  if (success && ferror(s->stdout_fp)) {
+    success = false;
   }
 
-  free(line_buf);
-  fclose(fp);
-  waitpid(pid, nullptr, 0);
+  if (!success) {
+    fprintf(stderr, "add2line batch failed for %s\n", path.c_str());
+    kill_s();
+    fclose(s->stdout_fp);
+    fclose(s->stdin_fp);
+    s->stdin_fp = s->stdout_fp = nullptr;
+  }
 }
 
-int main(int argc, char* argv[]) {
-  if (argc < 3) {
-    fprintf(stderr, "Usage: %s <pid> <addr1> [<addr2> ...]\n", argv[0]);
-    return 1;
+// `mem_fd` carries the whole request as SymRequest. I.e. array of
+// addresses and text of caller's /proc/self/maps. It then reuses the
+// same memfd to produce SymResponseHeader + many(SymResponseEntry) +
+// blobs. Header is written last to let caller detect our premature
+// death.
+//
+// We mmap request whole into memory first, keeping it simple.
+static void HandleRequest(int mem_fd) {
+  struct stat mem_fd_st;
+  int rv = fstat(mem_fd, &mem_fd_st);
+  if (rv < 0) {
+    perror("fstat");
+    return;
+  }
+  void* mmap_addr = mmap(nullptr, mem_fd_st.st_size, PROT_READ, MAP_SHARED, mem_fd, 0);
+  if (mmap_addr == MAP_FAILED) {
+    perror("mmap");
+    return;
   }
 
-  std::string pid = argv[1];
+  struct Unmap {
+    void* addr;
+    size_t sz;
+    ~Unmap() {
+      munmap(addr, sz);
+    }
+  };
+  Unmap cleanup_mmap{mmap_addr, (size_t)mem_fd_st.st_size};
+
   std::vector<Request> all_requests;
 
-  // 1. Parse requested arguments
-  for (int i = 2; i < argc; ++i) {
-    Request req;
-    req.index = i - 2;
-    req.valid = false;
-    char* endptr = nullptr;
-    uint64_t addr = strtoull(argv[i], &endptr, 0);
-    if (endptr != argv[i]) {
-      req.orig_addr = addr;
-      req.valid = true;
-    }
-    all_requests.push_back(std::move(req));
+  SymRequest* req = static_cast<SymRequest*>(cleanup_mmap.addr);
+  for (size_t i = 0; i < req->count; i++) {
+    all_requests.emplace_back((int)all_requests.size(), req->vaddrs[i]);
   }
 
-  std::vector<MemoryMap> maps = ParseMaps(pid);
+  std::string_view full_request{reinterpret_cast<char*>(cleanup_mmap.addr), cleanup_mmap.sz};
+  auto proc_maps_offset = offsetof(SymRequest, vaddrs) + req->count * sizeof(req->vaddrs[0]);
+  std::vector<ProcVMA> maps = ParseProcMaps(full_request.substr(proc_maps_offset));
+
+  if (maps.size() < 1) {
+    fprintf(stderr, "empty proc-maps\n");
+    return;
+  }
   ElfCacheMap elf_cache;
 
-  // 2. Correlate memory bounds and resolve to an exact ELF VMA
+  // 1. Correlate memory bounds and resolve to an exact ELF VMA
   for (auto& req : all_requests) {
     if (!req.valid)
       continue;
 
-    const MemoryMap* matched_map = nullptr;
+    const ProcVMA* matched_map = nullptr;
     for (const auto& m : maps) {
       if (req.orig_addr >= m.start && req.orig_addr < m.end) {
         matched_map = &m;
         break;
       }
     }
-
     if (!matched_map) {
       req.valid = false;
       continue;
     }
 
     uint64_t file_offset = req.orig_addr - matched_map->start + matched_map->offset;
-    uint64_t vaddr = 0;
-    std::string actual_path;
-    if (!GetElfVAddrAndPath(pid, *matched_map, file_offset, elf_cache, &vaddr, &actual_path)) {
+    if (!GetElfVAddrAndPath(*matched_map, file_offset, &elf_cache, &req.elf_vaddr, &req.map_path)) {
       req.valid = false;
-      continue;
     }
-
-    req.map_path = actual_path;
-    req.elf_vaddr = vaddr;
   }
 
-  std::map<std::string, std::vector<Request*>> by_path;
+  std::unordered_map<std::string_view, std::vector<Request*>> by_path;
   for (auto& req : all_requests) {
     if (req.valid) {
       by_path[req.map_path].push_back(&req);
     }
   }
 
-  // 3. Batch invoke addr2line asynchronously per backing binary
+  // 2. Batch resolve per backing binary, via this binary's persistent
+  //    addr2line session (spawned on first use, reused thereafter).
   for (const auto& [path, batch] : by_path) {
-    BatchAddr2Line(path, batch);
+    RunAddr2LineBatch(batch[0]->map_path, batch);
   }
 
-  // 4. Safely flush out DJB-Netstrings sequence back to stdout memory file descriptor
+  // 3. Build the response as one entry per frame (a request with N inlined
+  //    frames produces N entries, exactly as the netstring format used to),
+  //    plus a flat blob every string is appended to as it is produced --
+  //    each entry records where its strings landed by offset+length rather
+  //    than repeating any delimiter-based framing.
+  std::vector<SymResponseEntry> entries;
+  std::string blob;
+  auto append_to_blob = [&](std::string_view s, uint32_t* off, uint32_t* len) {
+    *off = (uint32_t)blob.size();
+    *len = (uint32_t)s.size();
+    blob.append(s);
+  };
+
   for (auto& req : all_requests) {
     if (req.frames.empty()) {
       req.frames.push_back(Frame{"", "", "", false});
@@ -439,25 +560,142 @@ int main(int argc, char* argv[]) {
       }
     }
 
-    std::string idx_str = std::to_string(req.index);
-    std::string module_path;
-    std::string vaddr_hex;
-    if (req.valid && !req.map_path.empty()) {
-      module_path = req.map_path;
-      char buf[32];
-      snprintf(buf, sizeof(buf), "0x%lx", req.elf_vaddr);
-      vaddr_hex = buf;
-    }
     for (const auto& f : req.frames) {
-      WriteNetstring(stdout, idx_str);
-      WriteNetstring(stdout, f.func_name);
-      WriteNetstring(stdout, f.file_name);
-      WriteNetstring(stdout, f.line_num);
-      WriteNetstring(stdout, f.inlined ? "1" : "0");
-      WriteNetstring(stdout, module_path);
-      WriteNetstring(stdout, vaddr_hex);
-      fputc('\n', stdout);
+      SymResponseEntry e = {};
+      e.addr_index = (uint32_t)req.index;
+      e.lineno = (uint32_t)atoi(f.line_num.c_str());
+      e.inlined = f.inlined ? 1 : 0;
+      e.vaddr = req.elf_vaddr;
+      append_to_blob(f.func_name, &e.function_off, &e.function_len);
+      append_to_blob(f.file_name, &e.filename_off, &e.filename_len);
+      append_to_blob(req.map_path, &e.module_off, &e.module_len);
+      entries.push_back(e);
     }
+  }
+
+  // 4. Commit: write the bulk data (entries +
+  //    string blob), and only once that has fully succeeded, write the
+  //    header -- with the real magic -- as one final, separate, tiny write.
+  //    A crash at any point before that last write leaves offset 0 at its
+  //    natural, post-truncate zero value, which a reader can tell apart
+  //    from a genuine response; see kSymResponseMagic's own comment.
+  lseek(mem_fd, sizeof(SymResponseHeader), SEEK_SET);
+
+  size_t entries_bytes = entries.size() * sizeof(SymResponseEntry);
+  if (write(mem_fd, entries.data(), entries_bytes) != (ssize_t)entries_bytes) {
+    return;
+  }
+  if (write(mem_fd, blob.data(), blob.size()) != (ssize_t)blob.size()) {
+    return;
+  }
+  SymResponseHeader header = {kSymResponseMagic, (uint32_t)entries.size()};
+  // Nothing further to do if this last write fails.
+  auto dummy = pwrite(mem_fd, &header, sizeof(header), 0);
+  (void)dummy;  // glibc and gcc insist on using it
+}
+
+int main(int argc, char* argv[]) {
+  if (argc != 2) {
+    fprintf(stderr, "Usage: %s <mailbox-fd-number>\n", argv[0]);
+    return 1;
+  }
+
+  // We are a detached daemon (see SpawnHelperDaemon in
+  // symbolize-backtrace.cc). Ignoring SIGCHLD makes the kernel reap our
+  // addr2line children automatically as they exit, with no explicit wait()
+  // loop needed; ignoring SIGPIPE means a caller that vanishes mid-response
+  // just fails a write() rather than killing this daemon.
+  signal(SIGCHLD, SIG_IGN);
+  signal(SIGPIPE, SIG_IGN);
+  // When process group gets Ctrl-C lets stay up to help
+  // backtrace-comparer dump backtraces.
+  signal(SIGINT, SIG_IGN);
+
+  int orig_mailbox_fd = atoi(argv[1]);
+  if (orig_mailbox_fd <= 0) {
+    fprintf(stderr, "bug: orig_mailbox_fd <= 0\n");
+    abort();
+  }
+
+  // make sure mailbox fd is not one of 0, 1 or 2.
+  int mailbox_fd = fcntl(orig_mailbox_fd, F_DUPFD_CLOEXEC, 16);
+  if (mailbox_fd < 0) {
+    perror("dup3");
+    fprintf(stderr, "orig_mailbox_fd = %d; argv[1] = %s\n", orig_mailbox_fd, argv[1]);
+    return 1;
+  }
+  close(orig_mailbox_fd);
+
+  // We inherited stdin/stdout/stderr from whatever process happened to spawn
+  // us. This could be "garbage" FDs. Lets detach.
+  for (int i = 0; i < 3; i++) {
+    close(i);
+    int fd;
+#ifdef NDEBUG
+    constexpr bool kWantTTY = false;
+#else
+    constexpr bool kWantTTY = true;
+#endif
+    if (kWantTTY && i == 2 && (fd = open("/dev/tty", O_WRONLY)) >= 0) {
+      // succeeded connecting stderr to controlling terminal. Better
+      // than nothing.
+    } else {
+      fd = open("/dev/null", (i == 0) ? O_RDONLY : O_WRONLY);
+    }
+    if (fd != i) {
+      abort();  // bug
+    }
+  }
+
+  for (int i = 3; i < mailbox_fd; i++) {
+    close(i);
+  }
+  closefrom(mailbox_fd + 1);
+
+  // Single-threaded request loop, deliberately: each request is handled to
+  // completion before the next is even read, which is what lets every
+  // per-binary addr2line session above be touched with no locking at all.
+  // Symbolization is a diagnostic path, not a hot one, so a second caller
+  // waiting for the first to finish is an acceptable, much simpler tradeoff
+  // than a threaded/locked server.
+  for (;;) {
+    char one_byte;
+    struct iovec iov = {&one_byte, sizeof(one_byte)};
+
+    union {
+      char buf[CMSG_SPACE(sizeof(int) * 2)];
+      struct cmsghdr align;
+    } cmsg_buf;
+
+    struct msghdr msg = {};
+    msg.msg_iov = &iov;
+    msg.msg_iovlen = 1;
+    msg.msg_control = cmsg_buf.buf;
+    msg.msg_controllen = sizeof(cmsg_buf.buf);
+
+    ssize_t n = recvmsg(mailbox_fd, &msg, MSG_CMSG_CLOEXEC);
+    if (n < 0) {
+      if (errno == EINTR)
+        continue;
+      break;
+    }
+    if (n == 0) {
+      break;
+    }
+
+    struct cmsghdr* cmsg = CMSG_FIRSTHDR(&msg);
+    if (!cmsg || cmsg->cmsg_level != SOL_SOCKET || cmsg->cmsg_type != SCM_RIGHTS ||
+        cmsg->cmsg_len != CMSG_LEN(sizeof(int) * 2)) {
+      abort();  // malformed request (wrong fd count or none at all). Keep it simple.
+    }
+    int fds[2];
+    memcpy(fds, CMSG_DATA(cmsg), sizeof(fds));
+    int mem_fd = fds[0];
+    int done_fd = fds[1];
+
+    HandleRequest(mem_fd);
+    close(mem_fd);
+    close(done_fd);  // this is the completion signal the caller is waiting on
   }
 
   return 0;

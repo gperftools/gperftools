@@ -15,6 +15,19 @@
 
 namespace perf_convert {
 
+namespace {
+// The CFI decoders this module feeds (fast path and slow path alike) are
+// compiled per-arch via aw-arch.h's __x86_64__/__aarch64__ split, so a module
+// only makes sense to this binary if it was built for the same machine.
+#if defined(__x86_64__)
+constexpr uint16_t kExpectedMachine = EM_X86_64;
+#elif defined(__aarch64__)
+constexpr uint16_t kExpectedMachine = EM_AARCH64;
+#else
+#error "elf-module.cc: unsupported architecture"
+#endif
+}  // namespace
+
 ElfModule::~ElfModule() {
   if (base_ != nullptr) {
     munmap(const_cast<uint8_t*>(base_), size_);
@@ -46,8 +59,9 @@ std::unique_ptr<ElfModule> ElfModule::Open(const char* path) {
   mod->size_ = st.st_size;
 
   const auto* eh = reinterpret_cast<const Elf64_Ehdr*>(mod->base_);
-  if (memcmp(eh->e_ident, ELFMAG, SELFMAG) != 0 || eh->e_ident[EI_CLASS] != ELFCLASS64 || eh->e_machine != EM_X86_64) {
-    LOG(WARNING) << "perf-convert: not an x86-64 ELF64: " << path;
+  if (memcmp(eh->e_ident, ELFMAG, SELFMAG) != 0 || eh->e_ident[EI_CLASS] != ELFCLASS64 ||
+      eh->e_machine != kExpectedMachine) {
+    LOG(WARNING) << "perf-convert: not an ELF64 for this build's arch (e_machine=" << eh->e_machine << "): " << path;
     return nullptr;
   }
   if (eh->e_phoff == 0 || eh->e_phnum == 0 ||

@@ -58,6 +58,19 @@ int dl_iterate_phdr_with_fn(aw_backtrace_internal::FunctionRef<int(struct dl_phd
 // LD_PRELOAD. Its constructor runs dl_iterate_phdr and finds all
 // initially loaded objects. Those are then segments of addresses that
 // we're willing to put in our caches.
+//
+// What we record is their *executable* PT_LOAD segments, and that serves two
+// callers. One is cacheability, above. The other is ExecutableBoundsFor: a
+// segment is a contiguous mapping with no PROT_NONE alignment holes in it, so
+// "which segment is this pc in" is also a safe answer to "how far either way
+// may code bytes be read", which the fallback chain's byte matchers need.
+// Answering it from here costs a binary search; answering it from
+// /proc/self/maps costs a snapshot and a parse of the whole file on every
+// call, unless the kernel has PROCMAP_QUERY.
+//
+// Executable segments are enough because every address anyone looks up here
+// is a pc. The union of a module's PT_LOADs, which this used to record, is
+// both wider than needed and unusable as read bounds.
 
 struct LoadedSetHolder {
   bool initialized;
@@ -70,14 +83,28 @@ struct LoadedSetHolder {
     return {std::span<const std::pair<uintptr_t, uintptr_t>>(*vec_storage.get())};
   }
 
-  bool IsCacheableAddr(uintptr_t addr) const {
+  // The executable segment containing addr, or an empty range. Returns {0, 0}
+  // rather than std::nullopt to match ExecutableBoundsFor's existing "empty
+  // means no" convention; callers test first != second.
+  //
+  // Before Initialize() this reports nothing, so early-constructor unwinds
+  // fall through to /proc/self/maps as they always did.
+  std::pair<uintptr_t, uintptr_t> FindExecutableSegment(uintptr_t addr) const {
     std::optional<std::span<const std::pair<uintptr_t, uintptr_t>>> maybe_loaded = loaded_set();
     if (!maybe_loaded) {
-      return false;
+      return {};
     }
     auto it = std::upper_bound(maybe_loaded->begin(), maybe_loaded->end(), addr,
                                [](uintptr_t addr, const auto& pair) -> bool { return addr < pair.second; });
-    return it != maybe_loaded->end() && it->first <= addr;
+    if (it != maybe_loaded->end() && it->first <= addr) {
+      return *it;
+    }
+    return {};
+  }
+
+  bool IsCacheableAddr(uintptr_t addr) const {
+    auto [start, end] = FindExecutableSegment(addr);
+    return start != end;
   }
 
   void Initialize() {
@@ -85,25 +112,23 @@ struct LoadedSetHolder {
 
     std::vector<std::pair<uintptr_t, uintptr_t>> loaded_set;
     dl_iterate_phdr_with_fn([&](struct dl_phdr_info* info, size_t) -> int {
-      // We inspect all PT_LOAD headers and compute union of their
-      // load addresses. This interval is then appended to loaded_set.
-
+      // Each executable PT_LOAD becomes its own entry -- see the note above
+      // the struct. A module can legitimately have more than one.
       uintptr_t load_bias = info->dlpi_addr;
-      uintptr_t map_start = ~uintptr_t{0};
-      uintptr_t map_end = 0;
       std::span<const ElfW(Phdr)> all_phdrs{info->dlpi_phdr, (size_t)info->dlpi_phnum};
       for (const auto& phdr : all_phdrs) {
-        if (phdr.p_type != PT_LOAD) {
+        if (phdr.p_type != PT_LOAD || (phdr.p_flags & PF_X) == 0) {
           continue;
         }
+        // Deliberately the segment's own extent, not the page-rounded mapping
+        // the kernel actually made. Tighter is the safe direction here: it can
+        // only make a byte matcher decline, never read past what the object
+        // declared.
         uintptr_t start = load_bias + phdr.p_vaddr;
         uintptr_t end = start + phdr.p_memsz;
-        map_start = std::min(map_start, start);
-        map_end = std::max(map_end, end);
-      }
-
-      if (map_start < map_end) {
-        loaded_set.emplace_back(map_start, map_end);
+        if (start < end) {
+          loaded_set.emplace_back(start, end);
+        }
       }
       return 0;
     });
@@ -162,6 +187,13 @@ class LazyAddrChecker {
     return get()->Lookup(addr);
   }
   std::pair<uintptr_t, uintptr_t> ExecutableBoundsFor(uintptr_t addr) {
+    // Initially-loaded modules answer without a syscall, which is nearly
+    // always. Only what is not there needs /proc/self/maps: JIT-ed code,
+    // anything dlopen'd after our constructor, bare anonymous exec mappings.
+    auto bounds = cacheable_addrs.FindExecutableSegment(addr);
+    if (bounds.first != bounds.second) {
+      return bounds;
+    }
     return get()->ExecutableBoundsFor(addr);
   }
 
@@ -389,7 +421,7 @@ struct NoDiag {
   // code is exactly what it was. TESTING_NO_FASTPATH / TESTING_NO_CACHE
   // force the slow / uncached path for benchmarking (see recursion-test).
   bool use_fastpath() const {
-#if __x86_64__ && !defined(TESTING_NO_FASTPATH)
+#if (defined(__x86_64__) || defined(__aarch64__)) && !defined(TESTING_NO_FASTPATH)
     return true;
 #else
     return false;
@@ -506,6 +538,15 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
       }
     }
 
+    if (outcome == LookupOutcome::kUndefinedRA) {
+      // The FDE says this frame has nothing to return to. That is an explicit
+      // answer, not missing information, so it outranks the whole fallback
+      // chain below -- no PLT sniff, no trampoline match, no guess, and in
+      // particular no ExecutableBoundsFor, which without PROCMAP_QUERY is a
+      // /proc/self/maps read on the one frame that ends every backtrace.
+      break;
+    }
+
     {
       std::pair<uintptr_t, uintptr_t> pc_bounds = checker.ExecutableBoundsFor(lookup_pc);
 
@@ -587,6 +628,15 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
         break;
       case RegisterRule::Kind::MemCfaRel:
         if (!acc.TryReadPtr(AddOffset(cfa, info.ra.offset), &new_ip)) {
+          new_ip = 0;
+        }
+        break;
+      // Only guesses produce this: an fp-relative RA lets a frame-record walk
+      // read the return address without first committing to a CFA it cannot
+      // know (see aarch64's GuessFrameRecord). Failure is handled the same way
+      // as above -- a zero pc stops the walk at the top of the next iteration.
+      case RegisterRule::Kind::MemFpRel:
+        if (!acc.TryReadPtr(AddOffset(cursor.fp, info.ra.offset), &new_ip)) {
           new_ip = 0;
         }
         break;
@@ -723,19 +773,35 @@ void UnwindLoopFastPath(Cursor cursor, const ucontext_t* uc, aw_backtrace_callba
         }
         // no-op
       }
-      if (info.ra.kind != RegisterRule::Kind::MemCfaRel) {
-        if (info.ra.kind == RegisterRule::Kind::Undefined) {
-          break;  // this case is specially considered as "end of chain"
+      if (PREDICT_TRUE(info.ra.kind == RegisterRule::Kind::MemCfaRel)) {
+        if (PREDICT_FALSE(!acc.TryReadPtr(AddOffset(cfa, info.ra.offset), &next_pc))) {
+          break;
         }
+      } else if (info.ra.kind == RegisterRule::Kind::InReg && uc != nullptr) {
+        // aarch64's CIE leaves the return address live in x30, so this is the
+        // ordinary shape for frame 0 of a signal capture: a leaf that never
+        // spilled it, or the window before a prologue's stp / after an
+        // epilogue's ldp. It needs a register file, hence the uc test -- and
+        // a non-leaf frame with this rule falls through to UnwindLoop, which
+        // refuses it the same way. On x86-64 the rule never arises (the CIE
+        // puts RA at CFA-8), so this branch is dead there.
+        //
+        // Handling it here rather than falling back is not an optimization:
+        // the leaf is the *first* frame, so bailing on it would hand the
+        // entire walk to UnwindLoop and the fast path would never run at all
+        // on the signal captures it exists for.
+        next_pc = Arch::GetDWARFReg(uc, info.ra.reg);
+      } else if (info.ra.kind == RegisterRule::Kind::Undefined) {
+        break;  // this case is specially considered as "end of chain"
+      } else {
         goto fallback;
-      }
-      if (PREDICT_FALSE(!acc.TryReadPtr(AddOffset(cfa, info.ra.offset), &next_pc))) {
-        break;
       }
 
       cursor.sp = cfa;
       cursor.fp = next_fp;
-      cursor.pc = next_pc;
+      // Same as UnwindLoop: a recovered return address may be PAC-signed on
+      // aarch64. Identity, and free, on x86-64.
+      cursor.pc = Arch::CleanReturnAddress(next_pc);
     }
 
     uc = nullptr;
@@ -860,7 +926,8 @@ class DebugExtensionImpl final : public DebugExtensionV0 {
     P(gets);
     P(puts);
     P(saves);
-    P(undos);
+    P(dropped);
+    P(retries);
 #undef P
     p(aw_backtrace_internal::fast_path_fallbacks, "fast_path_fallbacks");
     p(aw_backtrace_internal::fast_path_frames, "fast_path_frames");

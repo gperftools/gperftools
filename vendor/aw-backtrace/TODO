@@ -13,6 +13,3 @@
   was reliable/full or if we truncated due to error. And perhaps which
   frames we had to guess.
 
-* when backtracing main thread we end up unwinding up to _start which
-  has hlt and undefined pc or something. Anyways, slows us down
-  unnecessarily, so consider something. Cache such cases too ?

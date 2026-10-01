@@ -1,0 +1,22 @@
+# genbuild.rb / ninja build outputs
+/build.ninja
+/.obj/
+/.ninja_deps
+/.ninja_log
+
+# `ninja check` outputs
+/.tests/
+/test-suite.log
+
+# built artifacts (produced by ./genbuild.rb ninja)
+/pstepper_plugin.so
+/pstepper_test
+/pstepper_signal_test
+/pstepper_thread_test
+/pstepper_xsave_test
+/pstepper_ucontext_test
+/pstepper_sve_test
+
+# clangd stuff
+/.cache
+/compile_commands.json

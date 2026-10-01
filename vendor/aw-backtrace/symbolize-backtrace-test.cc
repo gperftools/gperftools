@@ -15,6 +15,8 @@
 #include <thread>
 #include <vector>
 
+#include "check.h"
+
 std::string DoDumpToString(int pipe_rd, int pipe_wr, void* const* stack, int stack_depth, bool want_symbolize,
                            std::string_view line_prefix) {
   std::string result;
@@ -43,6 +45,16 @@ std::string DumpStackTraceToString(void* const* stack, int stack_depth, bool wan
   return DoDumpToString(pipefd[0], pipefd[1], stack, stack_depth, want_symbolize, line_prefix);
 }
 
+// The first line of a dump, with its line prefix removed; empty if the dump
+// does not start with that prefix.
+std::string FirstLineAfterPrefix(const std::string& dump, std::string_view prefix) {
+  if (dump.compare(0, prefix.size(), prefix) != 0) {
+    return "";
+  }
+  size_t end = dump.find('\n');
+  return dump.substr(prefix.size(), end == std::string::npos ? std::string::npos : end - prefix.size());
+}
+
 static int MoveOutOfTheWay(int fd) {
   // Anything comfortably above 2; the point is only to leave 0/1/2 free.
   static constexpr int kHighFdBase = 900;
@@ -57,8 +69,9 @@ static int MoveOutOfTheWay(int fd) {
 // Symbolizes with the standard descriptors closed, which is the state an
 // LD_PRELOAD target is normally in by the time it runs its atexit handlers
 // (glibc's close_stdout closes stdout and stderr). Descriptors 0/1/2 being
-// free is what makes pipe() inside WithSpawnedChild hand them back, and every
-// descriptor the spawn path installs has to survive that.
+// free is what makes the socketpair, memfd and pipe the symbolizer creates land
+// in that range, and every descriptor it hands to the sym-helper daemon has to
+// survive that.
 std::string DumpStackTraceWithClosedStdio(void* const* stack, int stack_depth, bool close_stdin) {
   int pipefd[2];
   if (pipe(pipefd) != 0) {
@@ -164,7 +177,13 @@ int compare_ints(const void* a, const void* b) {
   return (*(int*)a - *(int*)b);
 }
 
+extern "C" {
+void test_only_symbolize_backtrace_kill_daemon(void);
+}
+
 int main() {
+  // A healthy sym-helper daemon never delivers SIGCHLD to its owner: its
+  // addr2line children are its own, and it outlives every request here.
   signal(SIGCHLD, [](int) -> void {
     fprintf(stderr, "SIGCHLD!\n");
     abort();
@@ -246,18 +265,21 @@ expecting several entries like this:
   }
 
   {
-    // We had a bug where symbolizing with 0/1/2 closed produced nothing at
-    // all: pipe() inside WithSpawnedChild returned descriptors in that range,
-    // and redirecting the helper's stdout closed the descriptor it had just
-    // installed, so sym-helper's output went nowhere. sym-helper still exited
-    // 0, so the CHECK on its status passed and every dump came back empty.
+    // With 0/1/2 closed, the memfd and completion pipe each request creates
+    // land in that range before being handed to the daemon. Getting
+    // descriptors in that range wrong has historically been silent: the spawn
+    // code the daemon replaced once made every dump come back empty here, with
+    // nothing failing.
+    //
+    // Note the daemon is already running by now (the cases above symbolized),
+    // so this does not cover its spawn with 0/1/2 closed, where its own end of
+    // the mailbox is the descriptor at risk.
     void* stack[8];
     int depth = backtrace(stack, 8);
     if (depth > 4) {
       depth = 4;  // the top few frames prove the point; keep the log readable
     }
-    // stdin closed too is the harder case: pipe() then returns {0, 1} and the
-    // write end already *is* stdout, so it must not be redirected or closed.
+    // With stdin closed as well, all three standard slots are up for grabs.
     for (bool close_stdin : {false, true}) {
       std::string output = DumpStackTraceWithClosedStdio(stack, depth, close_stdin);
       printf("closed-stdio dump (stdin %s):\n%s\n", close_stdin ? "closed" : "open", output.c_str());
@@ -268,6 +290,41 @@ expecting several entries like this:
         printf("FAILED: closed-stdio dump was not symbolized (no 'main' in it)\n");
         successes = false;
       }
+    }
+  }
+
+  {
+    // A dead daemon must still leave a usable dump: every frame as its pc,
+    // module and ELF vaddr, just without symbols. Last, because nothing
+    // respawns the daemon. Frame 0 is in main, so its address line has to match
+    // what the live daemon printed for it, vaddr included.
+    void* stack[8];
+    int depth = backtrace(stack, 8);
+    if (depth > 4) {
+      depth = 4;
+    }
+    std::string live_output = DumpStackTraceToString(stack, depth, true, "LIVE: ");
+
+    // NOTE: stateful. Breaks symbolization. So keep it last test in
+    // the file.
+    signal(SIGCHLD, SIG_DFL);
+    test_only_symbolize_backtrace_kill_daemon();
+
+    std::string output = DumpStackTraceToString(stack, depth, true, "DEAD: ");
+    printf("dead-daemon dump:\n%s\n", output.c_str());
+    std::string live_line = FirstLineAfterPrefix(live_output, "LIVE: ");
+    std::string dead_line = FirstLineAfterPrefix(output, "DEAD: ");
+    unsigned long vaddr_dead, vaddr_live;
+    unsigned long addr_dead, addr_live;
+    char brace;
+    CHECK(sscanf(live_line.c_str(), "@ 0x%lx (%*[^+]+%lx%c", &addr_live, &vaddr_live, &brace) == 3 && brace == ')');
+    CHECK(sscanf(dead_line.c_str(), "@ 0x%lx (%*[^+]+%lx%c", &addr_dead, &vaddr_dead, &brace) == 3 && brace == ')');
+    printf("addr_live = 0x%lx, vaddr_live = 0x%lx\n", addr_live, vaddr_live);
+    if (addr_dead != addr_live || vaddr_dead != vaddr_live) {
+      successes = false;
+      printf("FAILED: non-matching live vs dead sym-helper daemon\n");
+      printf("live: %s\n", live_line.c_str());
+      printf("dead: %s\n", dead_line.c_str());
     }
   }
 

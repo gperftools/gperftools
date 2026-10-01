@@ -3,19 +3,26 @@
 require 'digest/md5'
 require 'shellwords'
 
-BASE_CFLAGS = ENV['CFLAGS'] || "-ggdb3 -O2 -DNDEBUG -Wall -Wextra -march=native"
-APPEND_CFLAGS = ENV['APPEND_CFLAGS'] || "-Iv/mini-x86-int -Imini-x86-int/base -Iinclude"
+CC = ENV['CC'] || 'cc'
+CXX = ENV['CXX'] || 'c++'
+
+ARCH = case `#{CXX} -dumpmachine` or raise
+       when /\Ax86_64-/ then :amd64
+       when /\Aaarch64-/ then :arm64
+       else
+         raise "unsupported architecture: #{`#{CXX} -dumpmachine`.chomp}"
+       end
+
+BASE_CFLAGS = ENV['CFLAGS'] || "-ggdb3 -O2 -DNDEBUG -Wall -Wextra"
+APPEND_CFLAGS = ENV['APPEND_CFLAGS'] || "-Iinclude"
 # Nicer to have compile cmdline to start with BASE_CFLAGS and cruft
 # like includes later, but sometimes we need to be able to override
 # these
 CFLAGS = [BASE_CFLAGS, APPEND_CFLAGS].join(' ')
 LDFLAGS = ENV['LDFLAGS'] || ''
 
-REQUIRED_LIBS = "-latomic"
+REQUIRED_LIBS = ""
 LIBS = [(ENV['LIBS'] || ''), REQUIRED_LIBS].join(' ')
-
-CC = ENV['CC'] || 'cc'
-CXX = ENV['CXX'] || 'c++'
 
 # NOTE: CXXFLAGS is unorhtodox by being addition to CFLAGS
 BASE_CXXFLAGS = ENV['CXXFLAGS'] || "-std=c++20 -fno-exceptions -fno-rtti"
@@ -47,20 +54,12 @@ def build! b
     b.o(src: "symbolize-backtrace.cc"),
     b.objcopy(from: sym_helper_bin)]
 
-  sim_stepper = b.o(src: %w[sim_stepper.cc base/single_stepper.cc mini-x86-int.cc performs.S].map {|s| "v/mini-x86-int/#{s}"})
-
-  def override_visibility(b, objs)
-    # return b.override_cflags objs do |name, cflags|
-    #   cflags + ["-fvisibility=hidden", "-DAW_HIDDEN_VISIBILITY"]
-    # end
-    objs
-  end
+  pstepper_plumbing = b.o(src: %W[pstepper.c pstepper_#{ARCH}.c pstepper_trampoline_#{ARCH}.S].map {|s| "v/pstepper/#{s}"},
+                          cflags: %w[-D_GNU_SOURCE])
 
   backtrace_comparer_so = b.dot_so(name: "backtrace-comparer.so",
-                                   inputs: override_visibility(b, [comparer, aw_backtrace, aw_addrcheck, symbolize_backtrace, sim_stepper]),
+                                   inputs: [comparer, aw_backtrace, aw_addrcheck, symbolize_backtrace, pstepper_plumbing],
                                    version_script: "backtrace-comparer.so.map")
-
-  test_signal_disable = b.program(name: "test-signal-disable", inputs: [b.o(src: "v/mini-x86-int/test-signal-disable.cc"), sim_stepper])
 
   def add_nopie(b, objs)
     return b.override_cflags(objs) do |name, cflags|
@@ -71,15 +70,15 @@ def build! b
   cjm = b.program(name: "cjm",
                   inputs: add_nopie(b,
                                     [b.o(src: %w[comparer-longjmp.cc backtrace-comparer.cc]),
-                                     sim_stepper, aw_backtrace, aw_addrcheck, symbolize_backtrace]),
+                                     pstepper_plumbing, aw_backtrace, aw_addrcheck, symbolize_backtrace]),
                   libs: %w[-no-pie])
 
   cjm0 = b.program(name: "cjm0",
-                   inputs: [b.o(src: %w[comparer-longjmp.cc], cflags: %w[-DSKIP_COMPARER -no-pie])],
+                   inputs: [b.o(src: %w[comparer-longjmp.cc], cflags: %w[-DSKIP_COMPARER -fno-pie])],
                    libs: %w[-no-pie])
 
 
-  [backtrace_comparer_so, sym_helper_bin, test_signal_disable,
+  [backtrace_comparer_so, sym_helper_bin,
    cjm, cjm0]
 end
 
@@ -159,7 +158,7 @@ rule LINK_A
   command = rm -f $out && ar cr $out $in && ranlib $out
 
 rule OBJCOPY
-  command = objcopy -I binary -O #{BFD_ARCH} $in $out --rename-section .data=.rodata,alloc,load,readonly,data,contents
+  command = objcopy -I binary -O #{BFD_ARCH} $in $out --rename-section .data=.rodata,alloc,load,readonly,data,contents --add-section .note.GNU-stack=/dev/null --set-section-flags .note.GNU-stack=contents,readonly
 
 rule regenerate_build_files
   command = #{__FILE__}#{OVERRIDES}

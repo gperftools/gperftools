@@ -6,11 +6,10 @@
 // entries dropped, and the returned count is the number of entries actually
 // filled (i.e. after skipping), never more than max_frames.
 
-#include "include/aw-backtrace/aw-backtrace.h"
-
 #include <array>
 
 #include "gtest/gtest.h"
+#include "include/aw-backtrace/aw-backtrace.h"
 
 namespace {
 

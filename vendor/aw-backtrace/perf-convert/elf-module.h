@@ -39,8 +39,9 @@ class ElfModule {
   ~ElfModule();
 
   // Returns nullptr (and logs once) if the path can't be opened/mapped or
-  // isn't an x86-64 ELF. A module with no PT_GNU_EH_FRAME loads fine but
-  // has_eh_frame() is false and every lookup against it fails.
+  // isn't an ELF64 for the architecture this binary was built for. A module
+  // with no PT_GNU_EH_FRAME loads fine but has_eh_frame() is false and every
+  // lookup against it fails.
   static std::unique_ptr<ElfModule> Open(const char* path);
 
   const std::string& path() const {

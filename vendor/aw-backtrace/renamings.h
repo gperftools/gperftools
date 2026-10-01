@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: 0BSD
 #ifndef RENAMINGS_H_
 #define RENAMINGS_H_
 
@@ -8,8 +9,8 @@
 #ifndef AW_RENAME_PREFIX
 #define AW_RENAME(n) n
 #else
-#define AW_RENAME_APPLY2(a,b) a##b
-#define AW_RENAME_APPLY(a,b) AW_RENAME_APPLY2(a,b)
+#define AW_RENAME_APPLY2(a, b) a##b
+#define AW_RENAME_APPLY(a, b) AW_RENAME_APPLY2(a, b)
 #define AW_RENAME(n) AW_RENAME_APPLY(AW_RENAME_PREFIX, n)
 #endif
 

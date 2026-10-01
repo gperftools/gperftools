@@ -9,6 +9,7 @@
 #include <string.h>
 
 #include <algorithm>
+#include <type_traits>
 
 #include "aw-arch.h"
 #include "aw-structs.h"
@@ -204,40 +205,57 @@ struct Access {
 };
 
 struct FastPathFrame {
-  // lowest bit is 0 if SP-based and 1 if FP-based. Positive. E.g. CFA
-  // is %rsp + cfa_offset. Value of 0 is "impossible" used to indicate
-  // failure or "end of chain" signal.
+  // Flag bits, we store them in low bits of fp_offset field for efficiency.
+  static constexpr uint16_t kFlagInvalid = 0;
+  static constexpr uint16_t kFlagEndOfChain = 1;
+  static constexpr uint16_t kFlagSPBased = 2;  // CFA is SP-relative
+  static constexpr uint16_t kFlagFPBased = 3;  // CFA is FP-relative
+  static constexpr uint16_t kFlagMask = 3;
+
+  // Bit #1 above is 1 when valid (either sp- or fp-based cfa)
+  static constexpr uint16_t kFlagValidMask = 2;
+
+  // CFA offset as a plain magnitude: CFA is (SP or FP) + cfa_offset, with
+  // kFlagFPBased picking which. Carries no tag bits.
   uint32_t cfa_offset;
-  // CFA offset where fp is saved. 0 when fp is not save (same as
-  // caller). Negated. E.g. %rbp is CFA - fp_offset
+  // Bits 2+: magnitude of the CFA-relative slot the frame pointer was spilled
+  // to, i.e. FP is at CFA - (fp_offset & ~kFlagMask). Zero means the frame
+  // pointer is unchanged from the caller's. Bits 0-1 are the flags above.
   uint16_t fp_offset;
-  // CFA offset where ra is saved. 0 if in RA register. Unused on
-  // x86. Negative.
+  // Magnitude of the CFA-relative slot the return address was spilled to: RA
+  // is at CFA - ra_offset. Zero means "the architectural default rule", which
+  // Arch::ResetFrameInfo supplies -- CFA - 8 on x86-64, live in x30 on
+  // aarch64, where a leaf function never spills it at all.
   uint16_t ra_offset;
 
-  bool IsFPBased() const {
-    assert(cfa_offset != 0);
-    return (cfa_offset & 1) != 0;
+  constexpr bool IsValid() const {
+    return (fp_offset & kFlagValidMask) != 0;
   }
-
-  uint32_t actual_cfa_offset() const {
-    assert(cfa_offset != 0);
-    return cfa_offset & ~uint32_t{1};
+  constexpr bool IsFPBased() const {
+    assert(IsValid());
+    return (fp_offset & kFlagMask) == kFlagFPBased;
   }
 
   bool operator==(const FastPathFrame&) const = default;
 
   static constexpr FastPathFrame Failure() {
-    return FastPathFrame{};
+    return FastPathFrame{};  // see kFlagInvalid being 0 above
   }
   static constexpr FastPathFrame EndOfChain() {
-    return FastPathFrame{.cfa_offset = 0, .fp_offset = 1, .ra_offset = 0};
+    return FastPathFrame{.cfa_offset = 0, .fp_offset = kFlagEndOfChain, .ra_offset = 0};
   }
-  constexpr FastPathFrame SwitchToSP() {
-    return FastPathFrame{.cfa_offset = cfa_offset & ~uint32_t{1}, .fp_offset = fp_offset, .ra_offset = ra_offset};
+  constexpr FastPathFrame DoSetFlags(uint16_t flags_value) const {
+    uint16_t fo = fp_offset & ~uint16_t{kFlagMask};
+    fo |= flags_value;
+    return FastPathFrame{.cfa_offset = cfa_offset, .fp_offset = fo, .ra_offset = ra_offset};
   }
-  constexpr FastPathFrame SwitchToFP() {
-    return FastPathFrame{.cfa_offset = cfa_offset | uint32_t{1}, .fp_offset = fp_offset, .ra_offset = ra_offset};
+  constexpr FastPathFrame SwitchToSP() const {
+    assert(IsValid());
+    return DoSetFlags(kFlagSPBased);
+  }
+  constexpr FastPathFrame SwitchToFP() const {
+    assert(IsValid());
+    return DoSetFlags(kFlagFPBased);
   }
   static constexpr bool IsGoodOffset(int32_t offset) {
     if (PREDICT_FALSE(offset >= 0)) {
@@ -255,58 +273,76 @@ struct FastPathFrame {
     if (PREDICT_FALSE((offset & (sizeof(uintptr_t) - 1)) != 0)) {
       return false;
     }
-    if (PREDICT_FALSE(offset == 0)) {
+    // Zero is legal (it is aarch64's architectural CFA), but the value has to
+    // stay non-negative as an int32_t: ToFrameInfo hands it to CfaRule, whose
+    // offset is signed, and it does not re-check.
+    if (PREDICT_FALSE(static_cast<int32_t>(offset) < 0)) {
       return false;
     }
     return true;
   }
-  constexpr FastPathFrame SetCFAOffset(uint32_t offset) {
+  constexpr FastPathFrame SetCFAOffset(uint32_t offset) const {
     assert(IsGoodCFAOffset(offset));
-    return FastPathFrame{.cfa_offset = offset | (cfa_offset & 1), .fp_offset = fp_offset, .ra_offset = ra_offset};
+    return FastPathFrame{.cfa_offset = offset, .fp_offset = fp_offset, .ra_offset = ra_offset};
   }
-  constexpr FastPathFrame SetFPOffset(int32_t offset) {
+  constexpr FastPathFrame SetFPOffset(int32_t offset) const {
     assert(offset == 0 || IsGoodOffset(offset));
-    return FastPathFrame{.cfa_offset = cfa_offset, .fp_offset = static_cast<uint16_t>(-offset), .ra_offset = ra_offset};
+    // -offset is 8-aligned, so it never collides with the flags below it.
+    return FastPathFrame{.cfa_offset = cfa_offset,
+                         .fp_offset = static_cast<uint16_t>((fp_offset & kFlagMask) | static_cast<uint16_t>(-offset)),
+                         .ra_offset = ra_offset};
+  }
+  constexpr FastPathFrame SetRAOffset(int32_t offset) const {
+    assert(offset == 0 || IsGoodOffset(offset));
+    return FastPathFrame{.cfa_offset = cfa_offset, .fp_offset = fp_offset, .ra_offset = static_cast<uint16_t>(-offset)};
   }
 
   bool ToFrameInfo(FrameInfo* info) const {
-    if (*this == Failure() || (int32_t)cfa_offset < 0) {
-      return false;
+    uint16_t flags = fp_offset & kFlagMask;
+    uint16_t actual_fp_offset = fp_offset & ~kFlagMask;
+
+    if (PREDICT_TRUE((flags & kFlagValidMask) != 0)) {
+      // Start from the architectural default row and overwrite what the
+      // decoded CFI actually changed. Note *info is reused across frames
+      // by the caller, so every field has to be written unconditionally.
+      Arch::ResetFrameInfo(info);
+
+      const int32_t cfa = static_cast<int32_t>(cfa_offset);
+      // SP-based is a little more common, or so I think.
+      if (PREDICT_TRUE(flags == kFlagSPBased)) {
+        info->cfa = CfaRule::SpRel(cfa);
+      } else {
+        info->cfa = CfaRule::FpRel(cfa);
+      }
+      if (actual_fp_offset != 0) {
+        info->fp = RegisterRule::MemCfaRel(-static_cast<int32_t>(actual_fp_offset));
+      }
+      // Zero leaves whatever Arch::ResetFrameInfo set: RA at CFA - 8 on
+      // x86-64, live in the RA register on aarch64.
+      if (ra_offset != 0) {
+        info->ra = RegisterRule::MemCfaRel(-static_cast<int32_t>(ra_offset));
+      }
+      return true;
     }
-    // Start from the architectural default row and overwrite what the
-    // decoded CFI actually changed. Note *info is reused across frames
-    // by the caller, so every field has to be written unconditionally.
-    *info = FrameInfo{};
-    if (*this == EndOfChain()) {
+
+    if (flags == kFlagEndOfChain) {
+      Arch::ResetFrameInfo(info);
       info->ra = RegisterRule::Undefined();
       return true;
     }
-    if (IsFPBased()) {
-      info->cfa = CfaRule::FpRel((int32_t)actual_cfa_offset());
-    } else {
-      info->cfa = CfaRule::SpRel((int32_t)cfa_offset);
-    }
-    // fp_offset is the positive magnitude of the CFA-relative slot %rbp
-    // was spilled to (0 means "not spilled", i.e. unchanged from the
-    // caller). ra_offset stays unused on x86: the CFI loop already
-    // verified RA sits at the architectural CFA - 8, which is what the
-    // fresh FrameInfo{} above encodes.
-    if (fp_offset != 0) {
-      info->fp = RegisterRule::MemCfaRel(-static_cast<int32_t>(fp_offset));
-    }
-    return true;
+    return false;  // Failure()
   }
 
   static constexpr FastPathFrame ArchDefault() {
-    // TODO: figure out arm64 and others. Right now cfa_offset = 0 is
-    // okay for arms and risc-v-s and invalid for us.
-#if __x86_64__
-    return FastPathFrame{.cfa_offset = 8, .fp_offset = 0, .ra_offset = 0};
-#else
-    return FastPathFrame{};
-#endif
+    return FastPathFrame{.cfa_offset = Arch::kInitialCFAOffset, .fp_offset = kFlagSPBased, .ra_offset = 0};
   }
 };
+
+// The whole point of the layout above: one register, no padding, so the
+// decoder holds the frame in a single value and remember_state/restore_state
+// are register moves.
+static_assert(sizeof(FastPathFrame) == 8);
+static_assert(std::has_unique_object_representations_v<FastPathFrame>);
 
 template <class Xlate = IdentityXlate>
 NEVER_INLINE FastPathFrame TryFastFrameInfo(const uintptr_t eh_frame_start, const uintptr_t eh_frame_end,
@@ -493,15 +529,24 @@ NEVER_INLINE FastPathFrame TryFastFrameInfo(const uintptr_t eh_frame_start, cons
       uint8_t zero;        // aug string's '\0'
       uint8_t code_align;  // code align. Nominally uleb but we check against single-byte constant
       uint8_t data_align;  // data align. Nominally sleb and usually negative. But check against single-byte constant.
-      uint8_t ret_reg;     // return reg (16 for x86; we don't bother)
+      uint8_t ret_reg;     // return reg
     };
     static_assert(sizeof(AfterAug) == sizeof(uint32_t));
     uint32_t after_aug_data = acc.ReadSmallInt(ptr, sizeof(uint32_t));
     ptr += sizeof(uint32_t);
 
-    const uint8_t kMinus8Sleb = -8 & 0x7f;
+    // We insist on code/data align to be small constants commonly
+    // produced by arch assemblers. There is always slow-path to fall
+    // back to.
+    static_assert(0 < Arch::kCodeAlign && Arch::kCodeAlign < 128);  // single-byte ULEB
+    static_assert(-64 <= Arch::kDataAlign && Arch::kDataAlign < 0);
     constexpr AfterAug expected_after_aug = {
-        .zero = 0, .code_align = 1, .data_align = kMinus8Sleb, .ret_reg = Arch::kRAReg};
+        .zero = 0,
+        .code_align = static_cast<uint8_t>(Arch::kCodeAlign),
+        .data_align = static_cast<uint8_t>(Arch::kDataAlign & 0x7f),
+        .ret_reg = Arch::kRAReg,
+    };
+    // nominal memcmp is optimized to 32-bit load and compare
     ASSURE(memcmp(&after_aug_data, &expected_after_aug, sizeof(AfterAug)) == 0);
 
     ASSURE(ptr < acc.data_end);
@@ -518,10 +563,15 @@ decode_insn:
     ASSURE(ptr < acc.data_end);
   }
 
-#define ADVANCE_LOC(by)                             \
-  ({                                                \
-    ASSURE(!__builtin_add_overflow(pc, (by), &pc)); \
-    PREDICT_FALSE(pc > lookup_pc);                  \
+// The operand is in code-alignment units -- bytes on x86-64, 4-byte
+// instructions on aarch64 (Arch::kCodeAlign, a compile-time constant).
+// Widening to uintptr_t before scaling is what keeps advance_loc4's full
+// uint32 range from overflowing the multiply.
+#define ADVANCE_LOC(by)                                                  \
+  ({                                                                     \
+    uintptr_t adv_bytes = static_cast<uintptr_t>(by) * Arch::kCodeAlign; \
+    ASSURE(!__builtin_add_overflow(pc, adv_bytes, &pc));                 \
+    PREDICT_FALSE(pc > lookup_pc);                                       \
   })
 
   assert(ptr != 0);
@@ -553,19 +603,18 @@ decode_insn:
         ASSURE(ptr = acc.ReadULEB(ptr, &offset_arg));
         uint32_t reg = small_operand;
         int32_t offset;
-        if (PREDICT_FALSE(__builtin_mul_overflow(offset_arg, -8, &offset) || !FastPathFrame::IsGoodOffset(offset))) {
+        if (PREDICT_FALSE(__builtin_mul_overflow(offset_arg, Arch::kDataAlign, &offset) ||
+                          !FastPathFrame::IsGoodOffset(offset))) {
           return FastPathFrame::Failure();
         }
         if (reg == Arch::kFPReg) {
           info = info.SetFPOffset(offset);
         } else if (reg == Arch::kRAReg) {
-#if __x86_64__
-          if (offset != -8)  // NOTE: this is x86-specific for now
-            return FastPathFrame::Failure();
-#else
-          // FIXME. But at least don't assume that info already stores offset == -8
-          return FastPathFrame::Failure();
-#endif
+          // x86-64 only ever stores RA at architectural default
+          // cfa-8. aarch64 picks a per-function slot (cfa-8, cfa-24,
+          // cfa-88, ...), which is the reason ra_offset exists at
+          // all.
+          info = info.SetRAOffset(offset);
         } else if (reg == Arch::kSPReg) {
           return FastPathFrame::Failure();  // too confusing
         }
@@ -580,21 +629,21 @@ decode_insn:
 
       case DW_CFA_advance_loc1:
         ptr++;
-        if (ADVANCE_LOC(acc.ReadSmallInt(ptr - 1, 1) * 1)) {
+        if (ADVANCE_LOC(acc.ReadSmallInt(ptr - 1, 1))) {
           goto found;
         }
         break;
 
       case DW_CFA_advance_loc2:
         ptr += 2;
-        if (ADVANCE_LOC(acc.ReadSmallInt(ptr - 2, 2) * 1)) {
+        if (ADVANCE_LOC(acc.ReadSmallInt(ptr - 2, 2))) {
           goto found;
         }
         break;
 
       case DW_CFA_advance_loc4:
         ptr += 4;
-        if (ADVANCE_LOC(acc.ReadSmallInt(ptr - 4, 4) * 1)) {
+        if (ADVANCE_LOC(acc.ReadSmallInt(ptr - 4, 4))) {
           goto found;
         }
         break;
@@ -639,7 +688,7 @@ decode_insn:
       case DW_CFA_def_cfa_offset_sf: {
         int32_t offset;
         ASSURE(ptr = acc.ReadSLEB(ptr, &offset));
-        ASSURE(!__builtin_mul_overflow(offset, -8, &offset));
+        ASSURE(!__builtin_mul_overflow(offset, Arch::kDataAlign, &offset));
         ASSURE(offset > 0 && FastPathFrame::IsGoodCFAOffset(static_cast<uint32_t>(offset)));
         info = info.SetCFAOffset(static_cast<uint32_t>(offset));
         break;
@@ -685,6 +734,15 @@ decode_insn:
         }
         return FastPathFrame::Failure();
 
+      case DW_CFA_AARCH64_negate_ra_state:
+        // PAC return-address signing state toggle. We strip PAC bits from
+        // every recovered return address unconditionally (Arch::
+        // CleanReturnAddress), so the state does not change what we compute --
+        // exactly as eh-frame-reader.h treats it. Skipping it matters: gcc
+        // emits it as the second instruction of nearly every FDE it builds
+        // with -mbranch-protection, which is the distro default on aarch64.
+        break;
+
       case DW_CFA_GNU_args_size: {
         uint32_t dummy;
         ASSURE(ptr = acc.ReadULEB(ptr, &dummy));
@@ -703,8 +761,14 @@ decode_insn:
             // default). So a little nominal incorrectness is no big deal
             // IMO.
             info = info.SetFPOffset(0);
-          } else if (small_operand == Arch::kRAReg || small_operand == Arch::kSPReg)
-            return FastPathFrame::Failure();  // those regs are too weird to touch
+          } else if (small_operand == Arch::kRAReg) {
+            // Same reasoning as above, and on aarch64 this is every epilogue:
+            // `DW_CFA_restore: r30` puts the return address back in x30. The
+            // CIE there really is just `def_cfa sp, 0`, so the architectural
+            // default and the CIE's initial row coincide.
+            info = info.SetRAOffset(0);
+          } else if (small_operand == Arch::kSPReg)
+            return FastPathFrame::Failure();  // that reg is too weird to touch
           break;
         }
         return FastPathFrame::Failure();

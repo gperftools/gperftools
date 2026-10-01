@@ -1,0 +1,54 @@
+Sync cc_op and EIP at every instruction boundary when a plugin is loaded
+
+v/pstepper's plugin reads and writes the guest register file and redirects
+execution with qemu_plugin_set_pc() from an arbitrary instruction boundary.
+The i386 translator only materializes EIP and the lazily tracked condition
+codes into env where it has a reason to, so at such a boundary they belong to
+some earlier instruction -- EFLAGS read back through the register interface,
+or recomputed by the guest after a redirect, comes from a stale cc_op with
+fresh cc_src/cc_dst.
+
+Without this, pstepper_signal_test, pstepper_xsave_test and
+pstepper_ucontext_test segfault under an otherwise identical qemu; with it,
+all five of v/pstepper's tests pass. It is not upstream, so CI has to apply
+it: recovered from ~/src/External/QEMU on the development box, which is the
+tree /opt/qemu was built from (its build directory's binary is byte-identical
+to the installed one).
+
+ci/build-qemu.rb applies every *.patch in this directory, in name order, with
+`git apply` after checking out the pinned commit.
+
+diff --git a/target/i386/tcg/translate.c b/target/i386/tcg/translate.c
+index d8de290acb..1c32df7ab9 100644
+--- a/target/i386/tcg/translate.c
++++ b/target/i386/tcg/translate.c
+@@ -3483,6 +3483,29 @@ static void i386_tr_insn_start(DisasContextBase *dcbase, CPUState *cpu)
+     DisasContext *dc = container_of(dcbase, DisasContext, base);
+     target_ulong pc_arg = dc->base.pc_next;
+ 
++    /*
++     * A plugin callback can read and write the architectural register file
++     * (QEMU_PLUGIN_CB_R_REGS / _RW_REGS) and can redirect execution
++     * (qemu_plugin_set_pc()) from a point in the middle of a TB. EIP and the
++     * lazy condition-code state are materialized into env only where the
++     * translator has a reason to, so at an arbitrary instruction boundary
++     * they belong to some earlier instruction: EFLAGS read back through the
++     * register interface, or recomputed by the guest after such a callback
++     * redirected execution, would be derived from a stale cc_op with fresh
++     * cc_src/cc_dst. Sync both at every instruction boundary when a plugin
++     * is loaded -- two stores per instruction, and only then.
++     *
++     * This happens before prev_insn_end is taken on purpose. The ops belong
++     * to the state *entering* this instruction, which is exactly the state
++     * the TB must leave behind if disas_insn goes on to rewind this
++     * instruction (the tcg_remove_ops_after() path below); keeping them
++     * outside that range is what keeps cc_op_dirty honest afterwards.
++     */
++    if (unlikely(dcbase->plugin_enabled)) {
++        gen_update_cc_op(dc);
++        gen_update_eip_cur(dc);
++    }
++
+     dc->prev_insn_start = dc->base.insn_start;
+     dc->prev_insn_end = tcg_last_op();
+     if (tb_cflags(dcbase->tb) & CF_PCREL) {

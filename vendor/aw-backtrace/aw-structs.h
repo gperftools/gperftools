@@ -90,6 +90,50 @@ struct FrameInfo {
   bool operator==(const FrameInfo&) const = default;
 };
 
+#ifdef BUILDING_TEST
+// This is testing only because it cannot be used in production. But
+// lets have it here so there is one place, so we don't reinvent it
+// all the time.
+inline std::string DescribeFrameInfo(const FrameInfo& f) {
+  auto reg = [](const RegisterRule& r) -> std::string {
+    switch (r.kind) {
+      case RegisterRule::Kind::Unsupported:
+        return "unsupported";
+      case RegisterRule::Kind::SameValue:
+        return "same";
+      case RegisterRule::Kind::MemCfaRel:
+        return "cfa" + std::to_string(r.offset);
+      case RegisterRule::Kind::MemFpRel:
+        return "fp" + std::to_string(r.offset);
+      case RegisterRule::Kind::InReg:
+        return "r" + std::to_string(r.reg);
+      case RegisterRule::Kind::Undefined:
+        return "undefined";
+    }
+    return "?";
+  };
+  std::string cfa;
+  switch (f.cfa.kind) {
+    case CfaRule::Kind::SpRel:
+      cfa = "sp+" + std::to_string(f.cfa.offset);
+      break;
+    case CfaRule::Kind::FpRel:
+      cfa = "fp+" + std::to_string(f.cfa.offset);
+      break;
+    case CfaRule::Kind::RegRel:
+      cfa = "r" + std::to_string(f.cfa.reg) + "+" + std::to_string(f.cfa.offset);
+      break;
+    case CfaRule::Kind::DerefFpRel:
+      cfa = "*(fp+" + std::to_string(f.cfa.offset) + ")";
+      break;
+    case CfaRule::Kind::Unsupported:
+      cfa = "unsupported";
+      break;
+  }
+  return "cfa=" + cfa + " fp=" + reg(f.fp) + " ra=" + reg(f.ra);
+}
+#endif
+
 // Compressed form of FrameInfo for dense caching. 8 bytes, no padding.
 // Conversions are fallible since not all FrameInfo values are representable.
 struct CompressedFrameInfo {

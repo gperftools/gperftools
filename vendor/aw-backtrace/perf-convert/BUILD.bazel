@@ -32,10 +32,26 @@ cc_test(
     ],
 )
 
+# mmap + ELF program-header parsing only, no CFI decoding of its own -- so,
+# unlike perf-convert-lib, it carries no target_compatible_with and can be
+# depended on from an aarch64 target too (see :frame-info-dump).
+cc_library(
+    name = "elf-module",
+    srcs = ["elf-module.cc"],
+    hdrs = ["elf-module.h"],
+    copts = COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        "@abseil-cpp//absl/container:flat_hash_map",
+        "@abseil-cpp//absl/functional:function_ref",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:absl_check",
+    ],
+)
+
 cc_library(
     name = "perf-convert-lib",
     srcs = [
-        "elf-module.cc",
         "perf-data.cc",
         "perf-writer.cc",
         "process-table.cc",
@@ -43,7 +59,6 @@ cc_library(
         "unwinder.cc",
     ],
     hdrs = [
-        "elf-module.h",
         "perf-data.h",
         "perf-format.h",
         "perf-writer.h",
@@ -54,6 +69,7 @@ cc_library(
     copts = COPTS,
     target_compatible_with = PLATFORM,
     deps = [
+        ":elf-module",
         ":interval-map",
         "//:aw-fastpath",
         "@abseil-cpp//absl/container:flat_hash_map",
@@ -100,5 +116,28 @@ cc_test(
         ":perf-convert-lib",
         "//:aw-fastpath",
         "@googletest//:gtest_main",
+    ],
+)
+
+# Debugging aid: given an ELF module and a link-time vaddr in it, prints the
+# FrameInfo the fast path and/or the full CFI decoder derive there, with no
+# live process needed. Deliberately not target_compatible_with x86_64 only --
+# :elf-module, //:aw-fastpath and //:aw-backtrace are all arch-neutral, and
+# this is the tool meant for aarch64 unwind-info debugging.
+cc_binary(
+    name = "frame-info-dump",
+    srcs = ["frame-info-dump.cc"],
+    copts = COPTS,
+    visibility = ["//visibility:public"],
+    deps = [
+        ":elf-module",
+        "//:aw-backtrace",
+        "//:aw-fastpath",
+        "@abseil-cpp//absl/flags:flag",
+        "@abseil-cpp//absl/flags:parse",
+        "@abseil-cpp//absl/flags:usage",
+        "@abseil-cpp//absl/log",
+        "@abseil-cpp//absl/log:initialize",
+        "@abseil-cpp//absl/strings:str_format",
     ],
 )

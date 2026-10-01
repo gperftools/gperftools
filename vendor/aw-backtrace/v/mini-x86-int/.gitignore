@@ -1,6 +1,0 @@
-*.o
-/.cache
-/.deps
-/MODULE.bazel.lock
-/bazel-*
-/build

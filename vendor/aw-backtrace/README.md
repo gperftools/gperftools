@@ -35,7 +35,7 @@ is highly welcome!
 We currently support modern Linux with `_dl_find_object` (so
 glibc-only right now; needs glibc 2.35 or later). x86-64 support has
 been the main focus so far, particularly on the testing side. Aarch64
-support exists, but is currently very basic.
+should be solid as well, but is not as well tested yet.
 
 I did all the testing on a recent Linux kernel with the
 `PROCMAP_QUERY` ioctl (so 6.11 or later), and the best performance
@@ -46,7 +46,7 @@ bounds, so in most cases we won't need to look this up again.
 
 The eventual goal is to support other systems, including those without
 `_dl_find_object`. The author plans to add full support for common
-architectures: aarch64, i386, RISC-V, and (classic, 32-bit) ARM.
+architectures: i386, RISC-V, and (classic, 32-bit) ARM.
 
 The bulk of the testing was validating that aw-backtrace, indeed,
 meets its goals ***at every instruction boundary*** in practical
@@ -105,7 +105,9 @@ simply because cache hits cover the speed in practice. Although I did
 pay some attention to proving that "DWARF bits" are not too bad
 perf-wise.
 
-Current cache implementation requires double-word atomics. But it is
+The current cache is a fixed-size table with a seqlock per bucket, and
+nothing ever waits on it: a lookup that finds its bucket mid-update is
+a miss, and an insert that can't take the lock is dropped. Lookups are
 load-only in the common case (so no cache lines dirtying). I had a
 fancier design but decided to ship a simpler, more obviously correct
 variant. Don't want people to get the impression that a fast,
@@ -125,11 +127,12 @@ limitation and enable caching that fully respects `dl{open,close}`.
 ## Testing
 
 There are some basic tests to ensure simple, straightforward cases are
-covered. Those pass even on aarch64 currently. The main testing
-approach was the `backtrace-comparer` thing. The backtrace comparer
-uses a single-stepping interrupt of x86. It tracks the ~actual call
-stack by monitoring the execution of call and return instructions. And
-it invokes aw_backtrace and compares the two. This testing currently
+covered. The main testing approach was the `backtrace-comparer`
+thing. The backtrace comparer uses a qemu plugin to single-step
+program execution. See its corresponding
+`v/pstepper/README.md`. Backtrace comparer tracks the ~actual call stack
+by monitoring the execution of call and return instructions. And it
+invokes aw_backtrace and compares the two. This testing currently
 finds cases of missing or incorrect unwind info, as well as some
 unwind cases that are currently not supported (e.g., longjmp with
 unusual CFI bits (caller's SP != CFA)).
@@ -144,7 +147,7 @@ aw-backtrace looks superior, even with fast-path limitations. It is
 also incredibly fast at converting multi-gigabyte perf recordings in
 seconds (and without any caching!).
 
-Another form of testing is in the sibling project unwind-check,
+Another form of testing is in the sibling project [unwind-check](https://github.com/gperftools/unwind-check),
 which performs "offline" analysis of code's stack/call-frame-slot
 effects against CFI unwind info. Mismatches that I discovered and
 verified manually are not due to bad unwind info
@@ -185,6 +188,7 @@ Here is what I get:
 ```
 $ CC=clang bazel build -c opt --copt=-ggdb3 --copt=-fno-omit-frame-pointer --copt=-march=native :recursion-test{,-libgcc,-fp}
 
+# first, the ultimate perf goal of FP-based backtracer
 $ ./bazel-bin/recursion-test-fp
 nanos per iter (for depth of 1024): 1179.49
 ... per unwind step: 1.15185
@@ -199,6 +203,7 @@ nanos per iter (for depth of 64): 51.3672
 nanos per iter (for depth of 32): 20.4102
 ... per unwind step: 0.637817
 
+# This is our cache-hitting case
 $ ./bazel-bin/recursion-test
 nanos per iter (for depth of 1024): 9283.2
 ... per unwind step: 9.06563
@@ -348,25 +353,18 @@ possible to follow/inspect.
 
 ### Backtrace comparer
 
-Note: backtrace comparer is used both by aw-backtrace-test (built and
-exercised by bazel) and by ./genbuild.rb, which produces
-LD_PRELOAD-able .so. As noted above, single-stepping callback tracks
-real call stack (modulo non-local exits) and compares it with what
-aw-backtrace captures. On every instruction (modulo fragments that
-block SIGTRAP signal). If a mismatch is detected, it either dies or
-prints the mismatch. Few known suppressions are considered. They're in
-gcc startup/exit bits that, for complicated-ish reasons, don't have
-unwind info and are not handled by unwind heuristics.
+Note: backtrace comparer is used by some tests: aw-backtrace-test and
+lua-test (built and exercised by bazel; but they only compare when run
+under qemu with plugin; see `test-all-cfg.rb` below), and by
+./genbuild.rb, which produces LD_PRELOAD-able .so. As noted above,
+single-stepping callback tracks real call stack (modulo non-local
+exits) and compares it with what aw-backtrace captures. On every
+instruction. If a mismatch is detected, it either dies or prints the
+mismatch. Few known suppressions are considered. They match
+glibc/ld.so functions by symbol name, so glibc debug info
+(e.g. libc6-dbg) should be installed, or they won't apply.
 
-Code is a little messy in places, because the problem space is, and
-because we can afford some mess for testing bits. Also notable is that
-since it relies on TF and SIGTRAP, it is incompatible with gdb. Which
-makes debugging mismatches a bit of pain and is the source of some
-mess in backtrace-comparer.
-
-* `v/mini-x86-int/**` -- "mini x86 interpreter" -- the single stepper
-  bits I pulled from gperftools and some "interpreter" for
-  small/simple subset of x86 so that single-stepping is not as slow.
+* `v/pstepper/**` -- qemu plugin and "plumbing" for the stepping.
 * `backtrace-comparer.{cc,h,so.map}` -- the thing.
 * `symbolize-backtrace.{h,cc}` and `sym-helper.cc` the bits that
   symbolize backtraces (convert addresses in backtrace to inline-ful
@@ -378,26 +376,39 @@ mess in backtrace-comparer.
 If you want to exercise backtrace-comparer yourself, here is how:
 
 ```
-$ ./genbuild.rb ninja
-$ LD_PRELOAD=./backtrace-comparer.so /usr/bin/true
-$ LD_PRELOAD=./backtrace-comparer.so gcc --version
-$ LD_PRELOAD=./backtrace-comparer.so ruby -e 'pp ENV'
+$ ./genbuild.rb ninja && (cd v/pstepper && ./genbuild.rb ninja)
+$ qemu-x86_64 -plugin v/pstepper/pstepper_plugin.so -E LD_PRELOAD=./backtrace-comparer.so /usr/bin/true
+$ qemu-x86_64 -plugin v/pstepper/pstepper_plugin.so -E LD_PRELOAD=./backtrace-comparer.so ruby -e 'pp ENV'
 ```
 
-The slowdown is approximately 1000x (what you wanted? We're capturing
-full backtrace on every instruction boundary; twice).
+Note, you will need recent qemu with plugin API v7 support. Distros
+don't currently ship those, so you will need to build it yourself. As
+of this writing x86 needs a patch. See `ci/build-qemu.rb`.
+
+arm64 is supported as well. Just use e.g. qemu-aarch64 instead. Also
+you will likely want to pass something like -cpu cortex-a76 to
+prevent crashes due to our "unorthodox" acceleration approach. See
+`v/pstepper/README.md` for details.
+
+The slowdown varies from approximately couple hundred times to few
+thousand times (what you wanted? We're capturing full backtrace on
+every instruction boundary; twice). Set environment variable
+`AW_BT_CROSS_CHECK=0` to speed up execution, by disabling cross
+check with no-cache/no-fast-path backtraces.
 
 ### Testing/benchmarking
 
 Mentioning only particularly notable parts:
 
 * aw-backtrace-test.cc -- main test which does basics and exercises
-  backtrace-comparer when on x86-64. Including the DRAP thing in
-  `amd64-drap-test.s`
+  backtrace-comparer. Also tests the DRAP thing in `amd64-drap-test.s`
 * lua-test.cc -- runs lua parser and compiler through
   backtrace-comparer.
 * `simple-fp-backtrace.{h,cc}` -- the straightforward frame-pointer-based
   backtracer. Used to compare performance with our "production" bits.
+* `test-all-cfg.rb` -- for each of {gcc,clang}×{opt,dbg}, runs the
+  whole suite, then reruns the comparer-hosting tests stepped under
+  qemu. Needs `qemu-<arch>` on `PATH` and the pstepper plugin built.
 * `recursion-test.cc` -- fake AST interpreter that produces deep stack
   traces and "interesting" CFI. This is our microbenchmark. Gets built
   into bazel-bin/recursion-test{,-fp,-libgcc}. I.e., 3 variants to
