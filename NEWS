@@ -1,3 +1,39 @@
+== 1 October 2026
+
+gperftools 2.19rc2 is out!
+
+This is a quick follow-up to 2.19rc. The only change is an update of
+the vendored aw-backtrace (https://github.com/gperftools/aw-backtrace)
+to a newer revision; everything else is as in 2.19rc (see below).
+
+Notable aw-backtrace changes since 2.19rc:
+
+* arm64 support has caught up with x86-64. Frames without unwind info
+  (hand-written assembly, a call through a null function pointer, and
+  the like) are now recovered heuristically instead of cutting the
+  backtrace short. The fast unwinding path, previously x86-64-only,
+  is now used on arm64 too. PLT detection now covers PLT0 (the
+  lazy-binding entry), the signal-return trampoline is recognized at
+  any of its instructions, and a few smaller unwinding bugs were
+  fixed.
+
+* x86-64 recognizes more PLT variants: bnd-prefixed PLTs (found on
+  older distros such as Ubuntu 22.04), -z plt-rewrite and
+  -z retpolineplt. The signal-return trampoline is now also recognized
+  when interrupted between its two instructions.
+
+* the unwind info cache no longer uses 128-bit atomics, which turned
+  out to be broken on aarch64 with some not-so-old GCC versions
+  (e.g. Ubuntu 22.04's). It now uses a simple seqlock instead.
+
+* testing: backtrace-comparer, which single-steps a program and checks
+  aw-backtrace's result against the actual call stack at every
+  instruction, was reworked. It used to rely on an x86-only
+  interpreter; it now runs the program under QEMU with a custom plugin
+  ("pstepper"), so the same checking covers both x86-64 and arm64.
+  Upstream now also has CI, including arm64 configurations. None of
+  this affects the built library.
+
 == 5 September 2026
 
 gperftools 2.19rc is out!
