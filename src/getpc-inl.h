@@ -245,6 +245,18 @@ struct get_5bb1da03<U, P, void_t<decltype(((U*){})->uc_mcontext.mc_rip)>> : publ
   }
 };
 
+// FreeBSD/aarch64
+template <class U, class P, class = void>
+struct get_2e7fb68f : public P {};
+
+template <class U, class P>
+struct get_2e7fb68f<U, P, void_t<decltype(((U*){})->uc_mcontext.mc_gpregs.gp_elr)>> : public P {
+  static void* Get(const U* uc) {
+    // FreeBSD/aarch64
+    return (void*)(uc->uc_mcontext.mc_gpregs.gp_elr);
+  }
+};
+
 // OS X (i386, <=10.4)
 template <class U, class P, class = void>
 struct get_880f83fe : public P {};
@@ -372,8 +384,10 @@ inline void* RawUCToPC(const ucontext_t* uc) {
   using g_92fcd89a = get_92fcd89a<ucontext_t, g_773e27c8>;
   // OS X (i386, <=10.4)
   using g_880f83fe = get_880f83fe<ucontext_t, g_92fcd89a>;
+  // FreeBSD/aarch64
+  using g_2e7fb68f = get_2e7fb68f<ucontext_t, g_880f83fe>;
   // FreeBSD/x86_64
-  using g_5bb1da03 = get_5bb1da03<ucontext_t, g_880f83fe>;
+  using g_5bb1da03 = get_5bb1da03<ucontext_t, g_2e7fb68f>;
   // FreeBSD/ppc
   using g_2812b129 = get_2812b129<ucontext_t, g_5bb1da03>;
   // FreeBSD/i386
