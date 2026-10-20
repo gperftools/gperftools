@@ -2,6 +2,7 @@
 # also not entirely complete. It lacks most tests, for example.
 
 load("@bazel_skylib//lib:selects.bzl", "selects")
+load("@bazel_skylib//rules:common_settings.bzl", "bool_flag")
 load("@rules_cc//cc:defs.bzl", "cc_binary", "cc_library", "cc_test")
 
 config_setting(
@@ -38,6 +39,37 @@ CFLAGS = select({
     "//conditions:default": CFLAGS_FOR_GCC,
     ":is_clang": CFLAGS_FOR_GCC + ["-Wthread-safety"],
 })
+
+# aw-backtrace (pulled from the Bazel Central Registry) is used for
+# stack trace capturing on Linux/x86-64 and Linux/aarch64. It needs
+# glibc 2.35 or later (for _dl_find_object). Pass
+# --@gperftools//:enable_aw_backtrace=false to build without it.
+bool_flag(
+    name = "enable_aw_backtrace",
+    build_setting_default = True,
+)
+
+config_setting(
+    name = "aw_backtrace_enabled",
+    flag_values = {":enable_aw_backtrace": "True"},
+)
+
+selects.config_setting_group(
+    name = "aw_backtrace_cpu",
+    match_any = [
+        "@platforms//cpu:x86_64",
+        "@platforms//cpu:aarch64",
+    ],
+)
+
+selects.config_setting_group(
+    name = "use_aw_backtrace",
+    match_all = [
+        ":aw_backtrace_enabled",
+        ":aw_backtrace_cpu",
+        "@platforms//os:linux",
+    ],
+)
 
 NON_WINDOWS = select({
     "@platforms//os:windows": ["@platforms//:incompatible"],
@@ -362,7 +394,10 @@ cc_library(
         "src/base/elf_mem_image.cc",
         "src/base/vdso_support.cc",
         "src/stacktrace.cc",
-    ],
+    ] + select({
+        ":use_aw_backtrace": ["src/stacktrace-aw-backtrace.cc"],
+        "//conditions:default": [],
+    }),
     hdrs = ["src/gperftools/stacktrace.h"],
     copts = CXXFLAGS,
     includes = [
@@ -370,11 +405,18 @@ cc_library(
         "src",
         "src/base",
     ],
+    local_defines = select({
+        ":use_aw_backtrace": ["BUILD_WITH_AW_BACKTRACE=1"],
+        "//conditions:default": [],
+    }),
     visibility = ["//visibility:public"],
     deps = [
         ":all_headers",
         ":common",
-    ],
+    ] + select({
+        ":use_aw_backtrace": ["@aw-backtrace"],
+        "//conditions:default": [],
+    }),
 )
 
 cc_binary(
