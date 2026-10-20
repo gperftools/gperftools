@@ -44,9 +44,9 @@
 /* Define the version number so folks can check against it */
 /* Note, maintainers are expected to update this to match configure.ac for each release */
 #define TC_VERSION_MAJOR 2
-#define TC_VERSION_MINOR 18
-#define TC_VERSION_PATCH ".91"
-#define TC_VERSION_STRING "gperftools 2.18.91"
+#define TC_VERSION_MINOR 19
+#define TC_VERSION_PATCH ""
+#define TC_VERSION_STRING "gperftools 2.19"
 
 #if __GLIBC__ * 1000 + __GLIBC_MINOR__ >= 2033
 /* glibc 2.33 has mallinfo2 */

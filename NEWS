@@ -1,3 +1,28 @@
+== 20 October 2026
+
+gperftools 2.19 is out!
+
+There have been a couple of changes since 2.19rc2:
+
+* the Bazel build now uses aw-backtrace too. It is pulled from the
+  Bazel Central Registry (as the aw-backtrace module) and becomes the
+  default stack trace capturing method on Linux/x86-64 and
+  Linux/aarch64. Note that this means Bazel builds for those targets
+  now require glibc 2.35 or later (for _dl_find_object). If you target
+  an older glibc, pass --@gperftools//:enable_aw_backtrace=false
+  (e.g. in your .bazelrc).
+
+* Xin LI has contributed GetPC support for FreeBSD/aarch64, which
+  makes the CPU profiler buildable and usable there. See
+  https://github.com/gperftools/gperftools/issues/1362.
+
+The headline change of 2.19 is the integration of aw-backtrace
+(https://github.com/gperftools/aw-backtrace), a new stack-trace
+capturing engine. See the 2.19rc and 2.19rc2 entries below for the
+complete list of notable changes.
+
+Much thanks to all the contributors.
+
 == 1 October 2026
 
 gperftools 2.19rc2 is out!
