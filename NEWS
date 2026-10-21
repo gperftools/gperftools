@@ -1,3 +1,27 @@
+== 21 October 2026
+
+gperftools 2.19.1 is out!
+
+This is a quick bug-fix release on top of 2.19:
+
+* when both libtcmalloc and libprofiler were loaded into the same
+  process, the two copies of the vendored aw-backtrace bits clashed,
+  causing a check failure at initialization. Those bits are now built
+  with hidden visibility, so each library uses its own private copy.
+
+* GCC 16 in LTO mode can now devirtualize and inline indirect calls,
+  which broke the skip_count handling of the aw-backtrace stack trace
+  capturing method (and slightly affected the CPU profiler's
+  signal handler too). The relevant functions are now marked
+  noinline. See https://github.com/gperftools/gperftools/issues/1649.
+
+* the autotools and CMake builds no longer link libaw_backtrace with
+  -latomic, which hasn't been needed since aw-backtrace stopped using
+  128-bit atomics.
+
+* make dist archives no longer include stray vendor/aw-backtrace/.deps
+  files.
+
 == 20 October 2026
 
 gperftools 2.19 is out!
