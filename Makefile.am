@@ -968,4 +968,5 @@ dist-hook: $(top_distdir)/ChangeLog
 	rm -rf $(distdir)/vendor/googletest/googletest/src/.deps
 	rm -rf $(distdir)/vendor/libbacktrace/.deps
 	rm -rf $(distdir)/vendor/libbacktrace-integration/.deps
+	rm -rf $(distdir)/vendor/aw-backtrace/.deps
 	rm -f $(distdir)/src/config.h
