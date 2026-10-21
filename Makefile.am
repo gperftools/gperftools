@@ -495,7 +495,7 @@ libbacktrace_la_SOURCES = vendor/libbacktrace-integration/file-format.c \
 # note, we're not including our "usual" project-wide AM_CPPFLAGS here
 libbacktrace_la_CPPFLAGS = -I$(top_srcdir)/vendor/libbacktrace-integration \
                            -I$(top_srcdir)/vendor/libbacktrace
-
+libbacktrace_la_CFLAGS = -fvisibility=hidden $(AM_CFLAGS)
 
 noinst_LTLIBRARIES += libsymbolize.la
 libsymbolize_la_SOURCES = src/symbolize.cc vendor/libbacktrace-integration/backtrace-alloc.cc

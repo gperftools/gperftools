@@ -726,6 +726,8 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     vendor/libbacktrace/sort.c
     vendor/libbacktrace/state.c
     vendor/libbacktrace/read.c)
+  target_compile_options(libbacktrace PRIVATE
+    -fvisibility=hidden)
   target_include_directories(libbacktrace BEFORE PRIVATE
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/libbacktrace-integration>
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/libbacktrace>)
