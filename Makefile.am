@@ -224,7 +224,12 @@ libaw_backtrace_la_SOURCES = vendor/aw-backtrace/aw-backtrace.cc \
 		src/stacktrace-aw-backtrace.cc
 # note, no AM_CPPFLAGS deliberately
 libaw_backtrace_la_CPPFLAGS = -I$(top_srcdir)/vendor/aw-backtrace/include -DAW_RENAME_PREFIX=tcmalloc_ -include $(top_srcdir)/vendor/aw-backtrace/renamings.h
-libaw_backtrace_la_CXXFLAGS = -std=c++20 -fno-exceptions $(AM_CXXFLAGS)
+# Hidden visibility keeps each of our .so-s (e.g. libtcmalloc and
+# libprofiler) with its own private copy of aw-backtrace. Otherwise
+# the copies interpose each other's symbols and state at runtime
+# (e.g. linking with both -ltcmalloc -lprofiler crashed at startup).
+libaw_backtrace_la_CXXFLAGS = -std=c++20 -fno-exceptions -fvisibility=hidden $(AM_CXXFLAGS)
+libaw_backtrace_la_CFLAGS = -fvisibility=hidden $(AM_CFLAGS)
 
 libstacktrace_la_LIBADD += libaw_backtrace.la
 endif ENABLE_AW_BACKTRACE
@@ -868,6 +873,10 @@ tcmalloc_and_profiler_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
 tcmalloc_and_profiler_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
 tcmalloc_and_profiler_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 tcmalloc_and_profiler_unittest_LDADD = libtcmalloc_and_profiler.la libgtest.la libsingle_stepper.la
+
+TESTS += tcmalloc_and_profiler_libs_test
+tcmalloc_and_profiler_libs_test_SOURCES = src/tests/tcmalloc_and_profiler_libs_test.cc
+tcmalloc_and_profiler_libs_test_LDADD = libtcmalloc.la libprofiler.la
 endif BUILD_TESTS
 
 endif WITH_CPU_PROFILER

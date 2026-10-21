@@ -511,8 +511,12 @@ if(WITH_STACK_TRACE)
     target_include_directories(aw_backtrace PRIVATE
       $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/vendor/aw-backtrace/include>)
     target_compile_definitions(aw_backtrace PRIVATE AW_RENAME_PREFIX=tcmalloc_)
+    # Hidden visibility keeps each of our .so-s (e.g. libtcmalloc and
+    # libprofiler) with its own private copy of aw-backtrace. Otherwise
+    # the copies interpose each other's symbols and state at runtime.
     target_compile_options(aw_backtrace PRIVATE
       -fno-exceptions
+      -fvisibility=hidden
       -include ${CMAKE_CURRENT_SOURCE_DIR}/vendor/aw-backtrace/renamings.h)
     if(BUILD_SHARED_LIBS)
       set_property(TARGET aw_backtrace
@@ -922,6 +926,13 @@ if(GPERFTOOLS_BUILD_CPU_PROFILER)
     add_executable(profiler_unittest src/tests/profiler_unittest.cc
             src/tests/testutil.h src/tests/testutil.cc)
     target_link_libraries(profiler_unittest PRIVATE profiler)
+
+    if(GPERFTOOLS_BUILD_HEAP_PROFILER)
+      add_executable(tcmalloc_and_profiler_libs_test
+        src/tests/tcmalloc_and_profiler_libs_test.cc)
+      target_link_libraries(tcmalloc_and_profiler_libs_test tcmalloc profiler)
+      add_test(tcmalloc_and_profiler_libs_test tcmalloc_and_profiler_libs_test)
+    endif()
   endif()
 endif()
 
