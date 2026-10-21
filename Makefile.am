@@ -363,6 +363,7 @@ sampler_test_LDADD = libcommon.la libgtest.la
 
 noinst_LTLIBRARIES += libsingle_stepper.la
 libsingle_stepper_la_SOURCES = src/base/single_stepper.cc
+libsingle_stepper_la_LIBADD = libcommon.la
 
 ### Unittests for libtcmalloc_minimal.la
 

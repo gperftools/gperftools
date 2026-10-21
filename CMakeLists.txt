@@ -480,6 +480,7 @@ if(BUILD_TESTING)
   add_test(low_level_alloc_unittest low_level_alloc_unittest)
 
   add_library(single_stepper STATIC src/base/single_stepper.cc)
+  target_link_libraries(single_stepper PRIVATE common)
 endif()
 
 ### ------- stack trace
