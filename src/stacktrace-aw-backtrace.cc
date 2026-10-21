@@ -83,6 +83,15 @@ struct Capturer {
   }
 };
 
+// The +2 accounts for our get_stack_* function and its caller in
+// stacktrace.cc (GetStackTrace and friends). This is why get_stack_*
+// functions below must be noinline. Otherwise, e.g. LTO can inline
+// them into callers and we'd skip one frame too many.
+//
+// Note, we use __attribute__((noinline)) directly rather than
+// ATTRIBUTE_NOINLINE, since this file is deliberately built without
+// our usual include paths (so no config.h or base/basictypes.h). And
+// aw-backtrace already targets gcc or gcc-compatible compilers only.
 static int adjust_skip(int skip_count, const void* uc) {
   if (uc) {
     return 0;
@@ -90,25 +99,27 @@ static int adjust_skip(int skip_count, const void* uc) {
   return skip_count + 2;
 }
 
-static int get_stack_frames(void** result, int* sizes, int max_depth, int skip_count) {
+__attribute__((noinline)) static int get_stack_frames(void** result, int* sizes, int max_depth, int skip_count) {
   Capturer c{result, sizes, max_depth, adjust_skip(skip_count, nullptr)};
   aw_backtrace_full(nullptr, &Capturer::Add, &c);
   return c.i;
 }
 
-static int get_stack_frames_with_uc(void** result, int* sizes, int max_depth, int skip_count, const void* uc) {
+__attribute__((noinline)) static int get_stack_frames_with_uc(void** result, int* sizes, int max_depth, int skip_count,
+                                                              const void* uc) {
   Capturer c{result, sizes, max_depth, adjust_skip(skip_count, uc)};
   aw_backtrace_full(uc, &Capturer::Add, &c);
   return c.i;
 }
 
-static int get_stack_trace(void** result, int max_depth, int skip_count) {
+__attribute__((noinline)) static int get_stack_trace(void** result, int max_depth, int skip_count) {
   Capturer c{result, nullptr, max_depth, adjust_skip(skip_count, nullptr)};
   aw_backtrace_full(nullptr, &Capturer::Add, &c);
   return c.i;
 }
 
-static int get_stack_trace_with_uc(void** result, int max_depth, int skip_count, const void* uc) {
+__attribute__((noinline)) static int get_stack_trace_with_uc(void** result, int max_depth, int skip_count,
+                                                             const void* uc) {
   Capturer c{result, nullptr, max_depth, adjust_skip(skip_count, uc)};
   aw_backtrace_full(uc, &Capturer::Add, &c);
   return c.i;

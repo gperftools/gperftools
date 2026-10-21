@@ -313,7 +313,8 @@ void CpuProfiler::DisableHandler() {
 // access the data touched by prof_handler() disable this signal handler before
 // accessing the data and therefore cannot execute concurrently with
 // prof_handler().
-void CpuProfiler::prof_handler(int sig, siginfo_t*, void* signal_ucontext, void* cpu_profiler) {
+ATTRIBUTE_NOINLINE void CpuProfiler::prof_handler(int sig, siginfo_t*,
+                                                  void* signal_ucontext, void* cpu_profiler) {
   CpuProfiler* instance = static_cast<CpuProfiler*>(cpu_profiler);
 
   if (instance->filter_ == nullptr || (*instance->filter_)(instance->filter_arg_)) {
