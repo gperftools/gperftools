@@ -451,15 +451,22 @@ AS_IF([test "x$ac_cv_header_execinfo_h" = xyes],
      LIBS=$save_LIBS]))
 AC_SUBST(STACKTRACE_UNITTEST_LIBS)
 
+# Hidden visibility is on by default, except on PE targets
+# (mingw/cygwin/msys) where symbol visibility isn't a thing.
+default_enable_visibility=yes
+case "$host" in
+   *-mingw*|*-cygwin*|*-msys*) default_enable_visibility=no;;
+esac
+
 AC_ARG_ENABLE([hidden-visibility],
-              [AS_HELP_STRING([--enable-hidden-visibility],
-                              [build libraries with -fvisibility=hidden])],
-              [enable_visibility=yes],
-              [enable_visibility=no])
+              [AS_HELP_STRING([--disable-hidden-visibility],
+                              [don't build libraries with -fvisibility=hidden])],
+              [],
+              [enable_hidden_visibility=$default_enable_visibility])
 
 AC_DEFINE([PERFTOOLS_DLL_DECL], [], [dllexport or attribute visibility])
 
-AS_IF([test "x$enable_visibility" = xyes],
+AS_IF([test "x$enable_hidden_visibility" = xyes],
   [AC_DEFINE([PERFTOOLS_DLL_DECL], [__attribute((visibility("default")))], [])
    CXXFLAGS="-fvisibility=hidden $CXXFLAGS"])
 
