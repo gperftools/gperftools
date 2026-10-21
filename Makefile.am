@@ -225,7 +225,6 @@ libaw_backtrace_la_SOURCES = vendor/aw-backtrace/aw-backtrace.cc \
 # note, no AM_CPPFLAGS deliberately
 libaw_backtrace_la_CPPFLAGS = -I$(top_srcdir)/vendor/aw-backtrace/include -DAW_RENAME_PREFIX=tcmalloc_ -include $(top_srcdir)/vendor/aw-backtrace/renamings.h
 libaw_backtrace_la_CXXFLAGS = -std=c++20 -fno-exceptions $(AM_CXXFLAGS)
-libaw_backtrace_la_LIBADD = -latomic
 
 libstacktrace_la_LIBADD += libaw_backtrace.la
 endif ENABLE_AW_BACKTRACE

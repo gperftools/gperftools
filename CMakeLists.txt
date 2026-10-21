@@ -514,7 +514,6 @@ if(WITH_STACK_TRACE)
     target_compile_options(aw_backtrace PRIVATE
       -fno-exceptions
       -include ${CMAKE_CURRENT_SOURCE_DIR}/vendor/aw-backtrace/renamings.h)
-    target_link_libraries(aw_backtrace PRIVATE atomic)
     if(BUILD_SHARED_LIBS)
       set_property(TARGET aw_backtrace
                    PROPERTY POSITION_INDEPENDENT_CODE ON)
