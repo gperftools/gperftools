@@ -5,7 +5,7 @@
 This file documents the binary data file format produced by the
 gperftools CPU Profiler. It is one of "legacy" formats supported by
 the pprof tool. For information about using the CPU Profiler, see
-link:cpuprofile.html[its user guide].
+link:cpuprofile.adoc[its user guide].
 
 The profiler source code, which generates files using this format, is at
 `src/profiler.cc`.
