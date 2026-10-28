@@ -856,9 +856,14 @@ TEST(TCMallocTest, OperatorsNewOOMs) {
 // that we used the tcmalloc version of the call, and not the libc.
 // Note the ... in the hook signature: we don't care what arguments
 // the hook takes.
+// Also note that IncrementCallsTo* has to use "n = n + 1" instead of
+// "++n" to avoid using compound operations on volatile objects, which
+// were deprecated in C++20 and removed in C++26.
 #define MAKE_HOOK_CALLBACK(hook_type, ...)                                                       \
   static volatile int g_##hook_type##_calls = 0;                                                 \
-  static void IncrementCallsTo##hook_type(__VA_ARGS__) { g_##hook_type##_calls++; }              \
+  static void IncrementCallsTo##hook_type(__VA_ARGS__) {                                         \
+    g_##hook_type##_calls = g_##hook_type##_calls + 1;                                           \
+  }                                                                                              \
   static void Verify##hook_type##WasCalled() {                                                   \
     CHECK_GT(g_##hook_type##_calls, 0);                                                          \
     g_##hook_type##_calls = 0; /* reset for next call */                                         \
