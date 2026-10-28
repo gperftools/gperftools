@@ -191,8 +191,11 @@ inline bool Sampler::TryRecordAllocationFast(size_t k) {
     // is no need to keep previous value of bytes_until_sample_ in
     // register. This helps compiler generate slightly more efficient
     // sub <reg>, <mem> instruction for subtraction above.
+    //
+    // Note that compound operations on volatile objects are deprecated
+    // in C++20 and removed in C++26, so avoid using operator+=.
     volatile ssize_t* ptr = const_cast<volatile ssize_t*>(&bytes_until_sample_);
-    *ptr += k;
+    *ptr = *ptr + k;
     return false;
   }
   return true;
