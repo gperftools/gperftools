@@ -173,7 +173,7 @@ cc_binary(
 
 cc_test(
     name = "eh-frame-reader-test",
-    srcs = ["eh-frame-reader-test.cc"],
+    srcs = ["tests/eh-frame-reader-test.cc"],
     cxxopts = CXXOPTS,
     deps = [
         ":headers",
@@ -183,7 +183,7 @@ cc_test(
 
 cc_test(
     name = "aw-backtrace-skip-test",
-    srcs = ["aw-backtrace-skip-test.cc"],
+    srcs = ["tests/aw-backtrace-skip-test.cc"],
     cxxopts = CXXOPTS,
     features = ["-supports_start_end_lib"],
     deps = [
@@ -194,21 +194,14 @@ cc_test(
 
 cc_test(
     name = "with-exit-test",
-    srcs = ["with-exit-test.cc"],
+    srcs = ["tests/with-exit-test.cc"],
     cxxopts = CXXOPTS,
     deps = [":headers"],
 )
 
 cc_test(
     name = "aw-backtrace-test",
-    srcs = [
-        "aw-backtrace-test.cc",
-    ] + select({
-        "@platforms//cpu:x86_64": [
-            "amd64-drap-test.s",
-        ],
-        "//conditions:default": [],
-    }),
+    srcs = ["tests/aw-backtrace-test.cc"],
     cxxopts = CXXOPTS,
     # needed to prevent GNU ld crashes
     features = ["-supports_start_end_lib"],
@@ -225,10 +218,37 @@ cc_test(
     ] + COMPARER,
 )
 
+# Unwinding through gcc's DRAP frames. See doc/amd64-drap-problem.adoc.
+cc_test(
+    name = "amd64-drap-test",
+    srcs = [
+        "tests/amd64-drap-test.cc",
+        "tests/drap/minimal.s",
+        "tests/drap/regs.s",
+        "tests/drap/variants.s",
+    ],
+    cxxopts = CXXOPTS,
+    # needed to prevent GNU ld crashes
+    features = ["-supports_start_end_lib"],
+    linkstatic = True,
+    # Hosts the comparer, so --config=stepped (ci/run-stepped.rb) runs it
+    # under qemu with the pstepper plugin, where it compares every
+    # instruction, including the DRAP prologue and epilogue rows.
+    tags = ["stepped"],
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:x86_64",
+    ],
+    deps = [
+        ":aw-backtrace",
+        ":headers",
+    ] + COMPARER,
+)
+
 cc_test(
     name = "simple-backtrace-test",
     srcs = [
-        "aw-backtrace-test.cc",
+        "tests/aw-backtrace-test.cc",
     ],
     cxxopts = CXXOPTS,
     defines = ["BT_USE_SIMPLE=1"],
@@ -242,7 +262,7 @@ cc_test(
 
 cc_test(
     name = "symbolize-backtrace-test",
-    srcs = ["symbolize-backtrace-test.cc"],
+    srcs = ["tests/symbolize-backtrace-test.cc"],
     cxxopts = CXXOPTS,
     linkstatic = True,
     deps = [
@@ -254,7 +274,7 @@ cc_test(
 # Differential sweep of the fast-path decoder against the full one.
 cc_test(
     name = "fastpath-sweep-test",
-    srcs = ["fastpath-sweep-test.cc"],
+    srcs = ["tests/fastpath-sweep-test.cc"],
     cxxopts = CXXOPTS,
     features = ["-supports_start_end_lib"],
     linkstatic = True,
@@ -267,13 +287,13 @@ cc_test(
 
 cc_test(
     name = "aw-addrcheck-test",
-    srcs = ["aw-addrcheck-test.c"],
+    srcs = ["tests/aw-addrcheck-test.c"],
     deps = [":aw-addrcheck"],
 )
 
 cc_test(
     name = "lua-test",
-    srcs = ["lua-test.cc"],
+    srcs = ["tests/lua-test.cc"],
     cxxopts = CXXOPTS,
     features = ["-supports_start_end_lib"],
     linkstatic = True,
@@ -291,7 +311,7 @@ cc_test(
 cc_test(
     name = "amd64-leaf-test",
     srcs = [
-        "amd64-leaf-test.cc",
+        "tests/amd64-leaf-test.cc",
     ],
     cxxopts = CXXOPTS,
     features = ["-supports_start_end_lib"],
@@ -310,7 +330,7 @@ cc_test(
 cc_test(
     name = "arm64-leaf-test",
     srcs = [
-        "arm64-leaf-test.cc",
+        "tests/arm64-leaf-test.cc",
     ],
     cxxopts = CXXOPTS,
     features = ["-supports_start_end_lib"],
@@ -328,7 +348,7 @@ cc_test(
 
 cc_binary(
     name = "recursion-test",
-    srcs = ["recursion-test.cc"],
+    srcs = ["tests/recursion-test.cc"],
     cxxopts = CXXOPTS,
     defines = ["USE_AW_BACKTRACE"],
     features = ["-supports_start_end_lib"],
@@ -337,14 +357,14 @@ cc_binary(
 
 cc_binary(
     name = "recursion-test-libgcc",
-    srcs = ["recursion-test.cc"],
+    srcs = ["tests/recursion-test.cc"],
     cxxopts = CXXOPTS,
     defines = ["USE_LIBGCC_BACKTRACE"],
 )
 
 cc_binary(
     name = "recursion-test-fp",
-    srcs = ["recursion-test.cc"],
+    srcs = ["tests/recursion-test.cc"],
     copts = ["-fno-omit-frame-pointer"],
     cxxopts = CXXOPTS,
     defines = ["USE_FP_BACKTRACE"],

@@ -13,6 +13,7 @@
 #include <unistd.h>
 
 #include <algorithm>
+#include <limits>
 
 #include "aw-arch.h"
 #include "eh-frame-reader.h"
@@ -128,7 +129,17 @@ class FrameLookupState : public UnwindVisitor {
   }
 
   bool HandleDefCFAReg(uintptr_t reg) {
-    return HandleDefCFA(reg, static_cast<uintptr_t>(intptr_t{info_->cfa.offset}));
+    // Only valid when the current rule is register + offset; it keeps the
+    // offset. Not after a def_cfa_expression, whose offset means something
+    // else entirely.
+    switch (info_->cfa.kind) {
+      case CfaRule::Kind::SpRel:
+      case CfaRule::Kind::FpRel:
+      case CfaRule::Kind::RegRel:
+        return HandleDefCFA(reg, static_cast<uintptr_t>(intptr_t{info_->cfa.offset}));
+      default:
+        return ReportError("def_cfa_register on unsupported cfa rule");
+    }
   }
 
   bool HandleDefCFAOffset(uintptr_t offset) {
@@ -143,7 +154,28 @@ class FrameLookupState : public UnwindVisitor {
     }
   }
 
+  // gcc's DRAP frames (x86-64 stack realignment, see
+  // doc/amd64-drap-problem.adoc) describe the CFA and the saved frame
+  // pointer with DWARF expressions. Like gas does when it generates
+  // SFrame from the same CFI, we interpret only the two shapes those use,
+  // both relative to the frame pointer, whatever the offsets:
+  //
+  //   DW_CFA_def_cfa_expression: DW_OP_breg<fp> off; DW_OP_deref
+  //     CFA = *(fp + off). The DRAP register's saved copy.
+  //   DW_CFA_expression <fp>: DW_OP_breg<fp> off
+  //     caller's fp is at *(fp + off).
+  //
+  // How many registers sit between the saved fp and the saved DRAP
+  // register, which register is the DRAP one (r10 or r13), and in which
+  // order the rules appear, all vary with the function, so nothing else
+  // about the frame is assumed. Expressions on other critical registers
+  // still fail the frame.
   bool HandleDefCFAExpression(std::span<const uint8_t> expr) {
+    int32_t off;
+    if (ParseFpRelExpression(expr, /*deref=*/true, &off)) {
+      info_->cfa = CfaRule::DerefFpRel(off);
+      return true;
+    }
     return ReportExpressionFailure(~uintptr_t{}, expr);
   }
 
@@ -275,9 +307,18 @@ class FrameLookupState : public UnwindVisitor {
   }
 
   bool HandleExpression(uintptr_t reg, std::span<const uint8_t> expr) {
-    // Same as HandleDefCFAExpression. But we simply ignore expressions
-    // for registers we don't care about
+    // We simply ignore expressions for registers we don't care about.
+    // DRAP frames have plenty: every callee-saved register, and with
+    // no_caller_saved_registers every other one too, including the DRAP
+    // register itself.
     if (!IsCriticalReg(reg)) {
+      return true;
+    }
+
+    // See HandleDefCFAExpression.
+    int32_t off;
+    if (reg == Arch::kFPReg && ParseFpRelExpression(expr, /*deref=*/false, &off)) {
+      info_->fp = RegisterRule::MemFpRel(off);
       return true;
     }
 
@@ -339,6 +380,46 @@ class FrameLookupState : public UnwindVisitor {
   }
 
  private:
+  // Matches exactly DW_OP_breg<fp> <sleb128 off>, followed by DW_OP_deref
+  // when deref is set, with off fitting in 32 bits.
+  static bool ParseFpRelExpression(std::span<const uint8_t> expr, bool deref, int32_t* out) {
+    static_assert(Arch::kFPReg >= 0 && Arch::kFPReg < 32, "DW_OP_bregN covers registers 0..31 only");
+    if (expr.empty() || expr[0] != DW_OP_breg0 + Arch::kFPReg) {
+      return false;
+    }
+    size_t end = expr.size();
+    if (deref) {
+      if (end < 2 || expr[end - 1] != DW_OP_deref) {
+        return false;
+      }
+      end--;
+    }
+    // sleb128 in expr[1, end), and it must use up all of it. 5 bytes is the
+    // most a 32-bit value needs.
+    int64_t value = 0;
+    unsigned shift = 0;
+    size_t i = 1;
+    for (;;) {
+      if (i >= end || shift > 28) {
+        return false;
+      }
+      uint8_t b = expr[i++];
+      value |= static_cast<int64_t>(b & 0x7f) << shift;
+      shift += 7;
+      if ((b & 0x80) == 0) {
+        if (b & 0x40) {
+          value -= int64_t{1} << shift;
+        }
+        break;
+      }
+    }
+    if (i != end || value < std::numeric_limits<int32_t>::min() || value > std::numeric_limits<int32_t>::max()) {
+      return false;
+    }
+    *out = static_cast<int32_t>(value);
+    return true;
+  }
+
   // Builds the "unsupported dwarf expression" diagnostic under diag_.report_expression_diag.
   bool ReportExpressionFailure(uintptr_t reg, std::span<const uint8_t> expr) {
     outcome_ = LookupOutcome::kFailExpression;

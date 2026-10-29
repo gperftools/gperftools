@@ -114,12 +114,6 @@ std::span<void*> raw_sigill_backtrace;
 
 bool seen_sigill;
 
-extern "C" {
-int minimal_drap(void (*fn)(int*));
-int minimal_drap_2(void (*fn)(int*));
-int drap_test_trampoline(decltype(minimal_drap) test_fn, void (*arg)(int*));
-}
-
 // macro because we cannot afford an extra function frame
 #define DO_BT(fn, uc, buf, res, ...)                                     \
   do {                                                                   \
@@ -220,27 +214,6 @@ int main(int argc, char** argv) {
     printf("raw_sigill_backtrace doesn't match sigill_backtrace\n");
   }
   all_ok = all_ok && ok;
-
-#if __x86_64__
-  // test drap bits. See doc/amd64-drap-problem.adoc.
-  {
-    int res = drap_test_trampoline(minimal_drap, [](int* p) -> void {
-      *p = 41;
-      *p += minimal_drap([](int* p) -> void { *p = 1; });
-    });
-    printf("drap test result value %d (need 42)\n", res);
-    all_ok = all_ok & (res == 42);
-
-    // Same as above but exercises minimal_drap_2 doesn't have which does not have
-    //  .cfi_restore fix at the epilogue (it was fixed in gcc 16)
-    res = drap_test_trampoline(minimal_drap_2, [](int* p) -> void {
-      *p = 41;
-      *p += minimal_drap_2([](int* p) -> void { *p = 1; });
-    });
-    printf("drap test 2 result value %d (need 42)\n", res);
-    all_ok = all_ok & (res == 42);
-  }
-#endif  // __x86_64__
 #endif  // !BT_USE_SIMPLE
 
 #if defined(__aarch64__)
@@ -262,64 +235,6 @@ int main(int argc, char** argv) {
 
   return all_ok ? 0 : 1;
 }
-
-#if __x86_64__
-
-// DRAP sets up "fake" stack frame, so general GuessUnwindInfo will be
-// able to correctly restore caller's RIP and RBP (after fake frame is
-// setup). But not RSP. Such mismatch will only fail tests if
-// minimal_drap{,_2} caller is using RSP-offset-based frame layout. To
-// force that we have special hand-coded asm. Otherwise main() could
-// well be compiled with -fno-omit-frame-pointer and "pass" even with
-// broken DRAP detection logic.
-__attribute__((naked)) int drap_test_trampoline(decltype(minimal_drap) /* test_fn */, void (*)(int*)) {
-  asm volatile(R"(
-        push %rdi
-        .cfi_def_cfa 7, 16
-        push %rbp
-        .cfi_def_cfa_offset 24
-        push %rsi
-        .cfi_def_cfa_offset 32
-        xchg %rsi, %rdi
-        // we also "corrupt" rbp to make it even more likely for naive frame-pointer-based backtracing to fail
-        mov %rsi, %rbp
-        .cfi_offset 6, -24
-        call *%rsi
-        add $24, %rsp
-        .cfi_def_cfa 7, 8
-        mov -16(%rsp), %rbp
-        ret
-)");
-}
-// same as amd64-drap-test.s but without .cfi_restore 6 fix from gcc 16
-__attribute__((naked)) int minimal_drap_2(void (*)(int*)) {
-  asm volatile(R"(
-	leaq	8(%rsp), %r10	#,
-	.cfi_def_cfa 10, 0
-	andq	$-4096, %rsp	#,
-	movq	%rdi, %rax	# fn, fn
-	pushq	-8(%r10)	#
-	pushq	%rbp	#
-	movq	%rsp, %rbp	#,
-# NOTE: This cfi is DW_CFA_expression: r6 (rbp) (DW_OP_breg6 (rbp): 0)
-	.cfi_escape 0x10,0x6,0x2,0x76,0
-	pushq	%r10	#
-# NOTE: This cfi is DW_CFA_def_cfa_expression (DW_OP_breg6 (rbp): -8; DW_OP_deref)
-	.cfi_escape 0xf,0x3,0x76,0x78,0x6
-	leaq	-8176(%rbp), %rdi	#, tmp100
-	subq	$8168, %rsp	#,
-	call	*%rax	# fn
-	movq	-8(%rbp), %r10	#,
-	.cfi_def_cfa 10, 0
-	movl	-8176(%rbp), %eax	# aligned_array[0],
-	leave
-#	.cfi_restore 6
-	leaq	-8(%r10), %rsp	#,
-	.cfi_def_cfa 7, 8
-	ret
-)");
-}
-#endif
 
 #if defined(__aarch64__)
 // Note: GCC on AArch64 does not support __attribute__((naked)) on C functions
