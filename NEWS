@@ -1,3 +1,19 @@
+== 28 October 2026
+
+gperftools 2.19.2 is out!
+
+This is another quick bug-fix release on top of 2.19.1. It updates
+the vendored aw-backtrace.
+
+Updated aw-backtrace expands x86-64 DRAP support. With -march=x86-64-v3
+(e.g. Ubuntu 26.04's amd64v3 variant) gcc realigns the stack for AVX
+much more often, and a realigned function that also passes arguments
+on the stack uses a DRAP frame. The layout of those frames turned out
+to be more general than we previously assumed, so backtraces through
+them were truncated (this affected CPU and heap profiles as well as
+debugallocation's stack traces). This fixes the test failures seen on
+github's Ubuntu 26.04 builders.
+
 == 21 October 2026
 
 gperftools 2.19.1 is out!
