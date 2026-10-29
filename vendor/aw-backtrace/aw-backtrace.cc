@@ -31,7 +31,6 @@
 #include "aw-backtrace-fastpath.h"
 #include "aw-structs.h"
 #include "backtrace-core.h"
-#include "backtrace-drap.h"
 #include "check.h"
 #include "function_ref.h"
 #include "simple-counter.h"
@@ -467,6 +466,58 @@ static uintptr_t AddOffset(uintptr_t base, int32_t offset) {
   return base + static_cast<uintptr_t>(offset);  // sign-extend
 }
 
+#if __x86_64__
+// When the stack is realigned to 64 bytes or less, gcc's DRAP epilogue
+// lacks .cfi_restore for %rbp after the pop %rbp / leave that ends it (gcc
+// bug https://gcc.gnu.org/bugzilla/show_bug.cgi?id=128270, and see doc/amd64-drap-problem.adoc):
+//
+//     movq   -8(%rbp), %r10      .cfi_def_cfa r10, 0
+//     leave                      (no .cfi_restore 6)
+//     leaq   -8(%r10), %rsp      .cfi_def_cfa rsp, 8
+//     ret
+//
+// So from the leave on, the CFI still says the caller's %rbp is at
+// *(%rbp + off), but %rbp already holds the caller's value, and reading
+// through it would corrupt the unwind. Two rows are affected:
+//
+// * Right before the lea (or, with %r13 as the DRAP register, lea
+//   -16(%r13), %rsp, followed by pop %r13): the CFA is the DRAP register.
+//   The lea, which rebuilds %rsp from that register, is how we recognize
+//   the spot. Any of r8..r15 is matched the same way.
+// * After it: the CFA is %rsp-based again. An %rsp-based CFA together with
+//   an fp-relative rule for %rbp can only be this stale tail, since gcc
+//   emits that rule only in DRAP frames, after setting %rbp up.
+//
+// Both are function epilogues, so this only matters with a register file
+// (no call returns there), and that is the only case we're called for.
+static void FixupStaleDRAPEpilogue(uintptr_t pc, LazyAddrChecker* checker, FrameInfo* info) {
+  if (info->fp.kind != RegisterRule::Kind::MemFpRel) {
+    return;
+  }
+  if (info->cfa.kind == CfaRule::Kind::SpRel) {
+    info->fp = RegisterRule::SameValue();
+    return;
+  }
+  if (info->cfa.kind != CfaRule::Kind::RegRel) {
+    return;
+  }
+  const int reg = info->cfa.reg;
+  // lea disp8(%rN), %rsp: REX.W+B, 8d, modrm mod=01 reg=rsp rm=N&7. %r12
+  // would need a SIB byte, so it's not a form this matches.
+  if (reg < 8 || reg > 15 || reg == 12) {
+    return;
+  }
+  const uint8_t want[3] = {0x49, 0x8d, static_cast<uint8_t>(0x60 | (reg & 7))};
+  auto bounds = checker->ExecutableBoundsFor(pc);
+  if (!(bounds.first <= pc && pc < bounds.second && bounds.second - pc >= sizeof(want) + 1)) {
+    return;
+  }
+  if (memcmp(reinterpret_cast<const void*>(pc), want, sizeof(want)) == 0) {
+    info->fp = RegisterRule::SameValue();
+  }
+}
+#endif  // __x86_64__
+
 template <typename Diag>
 void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback callback, void* user_data, Diag diag,
                 bool skip_first_callback) {
@@ -519,6 +570,9 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
       outcome = DoUnwindLookup(lookup_pc, &info, diag.flags());
 
       if (outcome == LookupOutcome::kOk) {
+#if __x86_64__
+        FixupStaleDRAPEpilogue(cursor.pc, &checker, &info);
+#endif
         goto have_info;
       }
 
@@ -562,19 +616,10 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
       }
 
       if (outcome == LookupOutcome::kFailExpression) {
-        // DRAP stuff is x86_64
-#if __x86_64__
-        auto acc_reader = FunctionRef<std::optional<uintptr_t>(uintptr_t)>{
-            [](uintptr_t addr, void* data) { return static_cast<StackAccess*>(data)->ReadPtr(addr); }, &acc};
-        if (auto maybe_cursor = TryLookupWithDRAP(lookup_pc, cursor, this_frame_uc, acc_reader, pc_bounds)) {
-          cursor = maybe_cursor.value();
-          continue;
-        }
-#endif  // __x86_64__
-
-        // Recovery failed. Redo the lookup, this time letting the
-        // expression diagnostic actually fire -- a second full decode, but
-        // this is already the exceptional, off-the-fast-path case.
+        // An expression we don't interpret, and nothing above recognized
+        // the frame. Redo the lookup, this time letting the expression
+        // diagnostic actually fire -- a second full decode, but this is
+        // already the exceptional, off-the-fast-path case.
         if constexpr (!Diag::kNoDiag) {
           DoUnwindLookup(lookup_pc, &info, diag.flags_with_expression_diag());
         }

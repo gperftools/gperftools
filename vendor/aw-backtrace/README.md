@@ -73,8 +73,9 @@ shipping, I became quite convinced that DWARF isn't the problem people
 think it is. aw-backtrace implements a subset of DWARF which is
 slightly richer than what is assumed by ORC or SFrame. Common
 unsupported cases (e.g., GNU ld puts smart DWARF expressions
-describing PLT entries, or occasional DRAP, or signal frames) are
-handled by dedicated heuristics. I've swept my own machine for cases
+describing PLT entries, or signal frames) are handled by dedicated
+heuristics. For amd64 DRAP frames we interpret the couple of DWARF
+expression shapes gcc emits for them. I've swept my own machine for cases
 that need more DWARF than is currently supported, and there are only a
 few such FDEs, mostly in "leaf functions", so shouldn't compromise CPU
 profiles too much and should not affect other cases at all (e.g.,
@@ -181,7 +182,7 @@ microbenchmark, libgcc is about 5x slower. LLVM's libunwind is another
 safety. Unlike, e.g., libgcc, we won't crash the process on wrong
 unwind info.
 
-See recursion-test.cc for more details.
+See tests/recursion-test.cc for more details.
 
 Here is what I get:
 
@@ -341,10 +342,6 @@ async-signal-safe context are:
 * `aw-addrcheck.{c.h}` -- locating VMA bounds.
 * `aw-backtrace.cc` the main thing that wires up everything and
   provides "public" API and some diagnostics.
-* `backtrace-drap.h` -- specialized "visitor" for eh-frame-reader that
-  knows how to recognize FrameInfo for x86 DRAP functions. See
-  `doc/amd64-drap-problem.adoc`. Chances are, you've never heard of
-  DRAP. In that case, I suggest you ignore this part.
 * `with-exit.h` -- header-only non-local exits: a thin `_setjmp`/`_longjmp`
   wrapper (`WithExit::Run`/`Exit`) that hides the returns-twice from callers.
 
@@ -353,8 +350,8 @@ possible to follow/inspect.
 
 ### Backtrace comparer
 
-Note: backtrace comparer is used by some tests: aw-backtrace-test and
-lua-test (built and exercised by bazel; but they only compare when run
+Note: backtrace comparer is used by some tests: aw-backtrace-test,
+amd64-drap-test and lua-test (built and exercised by bazel; but they only compare when run
 under qemu with plugin; see `test-all-cfg.rb` below), and by
 ./genbuild.rb, which produces LD_PRELOAD-able .so. As noted above,
 single-stepping callback tracks real call stack (modulo non-local
@@ -398,10 +395,12 @@ check with no-cache/no-fast-path backtraces.
 
 ### Testing/benchmarking
 
-Mentioning only particularly notable parts:
+Mentioning only particularly notable parts (tests live in `tests/`):
 
 * aw-backtrace-test.cc -- main test which does basics and exercises
-  backtrace-comparer. Also tests the DRAP thing in `amd64-drap-test.s`
+  backtrace-comparer.
+* amd64-drap-test.cc -- unwinding through gcc's DRAP frames, using the
+  gcc output in `tests/drap/`. See doc/amd64-drap-problem.adoc.
 * lua-test.cc -- runs lua parser and compiler through
   backtrace-comparer.
 * `simple-fp-backtrace.{h,cc}` -- the straightforward frame-pointer-based

@@ -53,6 +53,11 @@ enum {
   DW_CFA_GNU_window_save = 0x2d,
   DW_CFA_GNU_args_size = 0x2e,
 };
+// DWARF expression operations (only the ones we interpret)
+enum {
+  DW_OP_deref = 0x06,
+  DW_OP_breg0 = 0x70,  // DW_OP_breg0 + N is DW_OP_bregN, for N in 0..31
+};
 
 // DWARF register numbers (x86_64)
 // These mappings are specified by the x86-64 ABI.

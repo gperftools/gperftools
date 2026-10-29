@@ -3,6 +3,7 @@
 c++
 -Ibazel-aw-backtrace/external/googletest+/googletest/include
 -Iinclude
+-I.
 -Wall
 -Wextra
 -Wsign-compare

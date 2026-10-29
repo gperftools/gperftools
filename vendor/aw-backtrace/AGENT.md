@@ -41,7 +41,7 @@ bazel test -c opt ...:all        # NDEBUG: drops assert(), keeps CHECK()
 
 For each of the four configurations, `test-all-cfg.rb` first runs a plain
 `bazel test ...:all`. It then reruns the `stepped`-tagged targets
-(`aw-backtrace-test`, `lua-test`) with
+(`aw-backtrace-test`, `amd64-drap-test`, `lua-test`) with
 `--run_under="qemu-$(uname -m) -plugin v/pstepper/pstepper_plugin.so"`,
 `AW_BT_REQUIRE_STEPPER=1` and `--test_output=all`. It needs:
 
@@ -143,7 +143,6 @@ defines it; Bazel does not. The `RuntimeDiag` path always bumps them, so
 | `aw-backtrace-fastpath.h` | `TryFastFrameInfo` / `FastPathFrame` (§4.7) |
 | `backtrace-core.{h,cc}` | the *policy* half of CFI lookup: a visitor that turns decoded CFI into a `FrameInfo`. Also `DoUnwindLookupFromInputs`, which serves a module without a live process |
 | `eh-frame-reader.h` | the *decoder* half: `.eh_frame_hdr` search, CIE/FDE parsing and the CFI opcode loop. It is visitor-templated |
-| `backtrace-drap.h` | x86-64 only: a second visitor for gcc DRAP prologues (§4.3) |
 | `aw-structs.h` | the unwind model: `CfaRule`, `RegisterRule`, `FrameInfo`, `Cursor`, `CompressedFrameInfo` |
 | `aw-arch.h`, `aw-arch-{x86_64,aarch64}.h` | per-arch `struct Arch` with a fixed static interface: register numbers, PLT and signal-frame byte matching, `GuessUnwindInfo` |
 | `unwind-info-cache.h` | `UnwindInfoCache` (§4.4) |
@@ -175,10 +174,13 @@ defines it; Bazel does not. The `RuntimeDiag` path always bumps them, so
 
 ### Tests
 
+All tests and their fixtures live in `tests/`; the targets are still in the
+top-level `BUILD.bazel`.
+
 * `aw-backtrace-test.cc` is the main end-to-end test and hosts the comparer. It
   captures from a SIGILL handler and checks that walking *through* the signal
   frame without a `ucontext` lands in the same place. That is the direct test
-  of `Arch::IsSignalFrame`. It also hosts the DRAP fixtures. A second build,
+  of `Arch::IsSignalFrame`. A second build,
   `simple-backtrace-test` (`BT_USE_SIMPLE`), runs the same source against
   `simple-fp-backtrace`.
 * `lua-test.cc` runs the comparer over the Lua compiler to get varied real
@@ -193,8 +195,20 @@ defines it; Bazel does not. The `RuntimeDiag` path always bumps them, so
   them. glibc's `backtrace()` gives up on these frames, so the fixtures export
   their own expected addresses. The `paciasp` fixture has no effect without
   FEAT_PAuth.
-* `amd64-drap-test.{c,s}` is gcc 16 `-mforce-drap` output (`minimal_drap`). The
-  pre-gcc-16 shape is `minimal_drap_2` in `aw-backtrace-test.cc`.
+* `amd64-drap-test.cc` is the DRAP test (§4.3), and also hosts the comparer.
+  Its fixtures are gcc `-mforce-drap` output in `tests/drap/`:
+* `drap/minimal.{c,s}` (`minimal_drap`) realigns to 4096 bytes, so its
+  epilogue has `.cfi_restore 6`. gcc leaves that out at 64 bytes or less;
+  `minimal_drap_2` in `amd64-drap-test.cc` is that shape.
+* `drap/regs.{c,s}` (`drap_saved_regs`) is the same, with %rbx and
+  %r12 saved in the DRAP frame: %r10 sits at -16(%rbp) and both registers get
+  `DW_CFA_expression` rules.
+* `drap/variants.{c,s}` has more gcc DRAP shapes: all callee-saved
+  registers saved (`drap_many_regs`, %r10 at -40(%rbp)), and %r13 as the DRAP
+  register, from a nested function (`drap_r13_nested`) and from
+  `no_caller_saved_registers` (`drap_r13_ncsr`).
+* All DRAP cases also check, natively, that a backtrace from inside them
+  reaches `drap_test_trampoline_ret`.
 * `fastpath-sweep-test.cc` is the fast path's oracle (§4.9).
 * `eh-frame-reader-test.cc` is the only place where the decoder runs without a
   process image. `Optionalize()` turns a `Fail()` into `std::nullopt`.
@@ -316,6 +330,7 @@ compiled out of production with `if constexpr`.
 Unsupported constructs fail the frame, with these deliberate exceptions:
 
 * expressions on non-critical registers;
+* the two fp-relative expression shapes of gcc's DRAP frames (§4.3);
 * unknown registers;
 * `DW_CFA_undefined` on RA, which produces `kUndefinedRA`;
 * on aarch64, `DW_CFA_same_value` on x30, which means "the RA is live in x30".
@@ -337,17 +352,25 @@ initial rule, and refuses the frame when the CIE set up something else.
 
 ### 4.3 DRAP (x86-64 only)
 
-gcc's stack-realigning prologues produce CFI that the three-register model
-cannot follow, and in places the CFI is missing. Read
-`doc/amd64-drap-problem.adoc` first. The handling is a **second decode of the
-same FDE** with a visitor that tracks a four-state machine, and each state
-maps onto a `Cursor`. Two of the states read `%r10`, so unwinding in them is
-leaf-only.
+gcc's stack-realigning prologues describe the CFA and `%rbp` with DWARF
+expressions, and when the realignment is 64 bytes or less, the epilogue's
+CFI is stale ([gcc bug 128270](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=128270)). Read
+`doc/amd64-drap-problem.adoc` first. **There is no DRAP-specific decoder**:
+like gas's SFrame generator, `backtrace-core.cc` interprets the two
+fp-relative shapes generically, for any offset. `DW_OP_breg<fp> off;
+DW_OP_deref` as the CFA is `CfaRule::DerefFpRel`, and `DW_OP_breg<fp> off`
+for fp is `RegisterRule::MemFpRel`. The DRAP register (`%r10` or `%r13`) as
+the CFA is an ordinary `RegRel`, so those rows are leaf-only. Don't add
+assumptions about register order or offsets: they vary with the function.
+`FixupStaleDRAPEpilogue` in `aw-backtrace.cc` patches the two stale
+epilogue rows, leaf-only. DRAP rows are not compressible, so they
+are never cached, and the fast path bails on them.
 
 The test depends on `drap_test_trampoline`, an RSP-framed naked caller. A
 naive guess gets RIP and RBP right and only **RSP** wrong, so the bug is
-visible only under an RSP-framed caller. The test covers both gcc 16's shape
-(with `.cfi_restore 6`) and the older one.
+visible only under an RSP-framed caller. Each DRAP case also checks natively
+that a backtrace reaches `drap_test_trampoline_ret`. The stepped run is what
+covers the prologue and epilogue rows.
 
 ### 4.4 Caching
 

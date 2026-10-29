@@ -1,44 +1,93 @@
 == amd64 DRAP problem
 
-So gcc on amd64 (and on i386, but we ignore legacy cases for now)
-sometimes produces DRAP code sequences when stack needs to be
-realigned. It produces (and requires) very unusual unwind info. See
-amd64-drap-test.c and amd64-drap-test.s.
+gcc on amd64 (and on i386, but we ignore legacy cases for now)
+produces DRAP ("dynamic realign argument pointer") code when a
+function needs its stack realigned and also does something that
+needs its incoming stack pointer later: alloca/VLAs, outgoing
+arguments on the stack (including structs passed by value), nonlocal
+gotos, `__builtin_setjmp`/`longjmp` and so on. `-mforce-drap` forces
+it. Realignment itself got much more common with x86-64-v3 builds
+(e.g. Ubuntu's amd64v3 variant), where spilling AVX values needs a
+32-byte aligned stack. See tests/drap/minimal.c and tests/drap/minimal.s.
 
-So it uses dwarf expressions to handle CFA and RBP restoration. And
-our backtracer is explicitly built not to deal with such complexities.
+A DRAP prologue looks like this:
 
-So we hardcode the DRAP handling. Another notable thing that we handle
-is that gcc produces slightly incorrect unwind info for DRAP
-case. Specifically after pop rbp (or leave) and before lea from r10 to
-rsp. At this point unwind info lacks cfi_restore for rbp (and other
-registers if they're saved). So we have special detection of this
-place.
+----
+  leaq   8(%rsp), %r10     .cfi_def_cfa r10, 0     # DRAP register = CFA
+  andq   $-4096, %rsp
+  pushq  -8(%r10)                                  # copy of return address
+  pushq  %rbp
+  movq   %rsp, %rbp        DW_CFA_expression rbp: (DW_OP_breg6 0)
+  pushq  %r12                                      # 0+ callee-saved regs
+  pushq  %r10              DW_CFA_def_cfa_expression: (DW_OP_breg6 -16; DW_OP_deref)
+  pushq  %rbx                                      # more callee-saved regs
+----
 
-Note, gcc 16 actually fixed the cfi_restore problem \o/ Of course,
-there is still plenty of code compiled with older versions.
+So the CFA and %rbp are described with DWARF expressions. How many
+registers sit between the saved %rbp and the saved DRAP register (and
+so the offset in the CFA expression), which register is the DRAP one
+(%r10, or %r13 in nested functions, `no_caller_saved_registers`
+functions and functions with tail calls, in which case %r13 itself is
+pushed first and the CFA is briefly rsp+16), and in which order the
+CFI appears all vary. Callee-saved registers, and with
+`no_caller_saved_registers` every other register too, get
+`DW_CFA_expression` rules of their own.
 
-Strategy:
+=== How we handle it
 
-* while parsing CFI bits and detecting either def_cfa_expression or
-  expression commands we detect those specific expressions that are
-  used by DRAP and update "drap state"
+Like gas when it generates SFrame from the same CFI, we don't match
+whole prologues. The regular CFI decoder (backtrace-core.cc)
+interprets the two expression shapes DRAP uses, both relative to the
+frame pointer, for any offset:
 
-* we detect the following states:
+* `DW_CFA_def_cfa_expression: DW_OP_breg6 off; DW_OP_deref` is
+  `CfaRule::DerefFpRel(off)`: CFA = *(rbp + off).
+* `DW_CFA_expression rbp: DW_OP_breg6 off` is
+  `RegisterRule::MemFpRel(off)`: caller's rbp is at *(rbp + off).
 
-** NONE (with obvious meaning)
+Everything else in a DRAP FDE is already ordinary: `def_cfa` with
+%r10/%r13 is `CfaRule::RegRel`, which needs a register file and so is
+only usable in leaf frames, which is fine, because those rows are only
+in the prologue and epilogue. Expressions and restores for
+non-critical registers are ignored. Any other expression on rbp, rsp
+or rip still fails the frame (kFailExpression).
 
-** "cfa is r10". This is the state at the beginning (after lea
-   8(%rsp), %r10).
+=== gcc's missing .cfi_restore
 
-** "cfa is r10 and rbp is at previous rbp". This state after first
-   expression (for the rbp register) and before second expression (for
-   the cfa). Or after r10 is restored and cfa is switched back to
-   r10. This is where final lea instruction needs to be detected.
+When the stack is realigned to 64 bytes or less, which covers the
+common AVX case of 32 bytes, the epilogue lacks `.cfi_restore 6` after
+the `pop %rbp`/`leave`. gcc 10 through 16 all behave this way; with
+128 bytes or more they emit the restore. This is
+https://gcc.gnu.org/bugzilla/show_bug.cgi?id=128270[gcc bug 128270]:
 
-** "full drap". This ias after cfa is defined by dwarf expression that
-   loads CFA from location at rbp-8.
+----
+  movq   -8(%rbp), %r10    .cfi_def_cfa r10, 0
+  leave                                            # no .cfi_restore 6
+  leaq   -8(%r10), %rsp    .cfi_def_cfa rsp, 8
+  ret
+----
 
-Detecting and handling those states seems to be solving our ability to
-handle DRAP as seen by the minimal_drap test case at the end of
-aw-backtrace-test.cc
+So from the leave on, the CFI says the caller's %rbp is at
+*(%rbp + 0) while %rbp already holds the caller's value.
+`FixupStaleDRAPEpilogue` in aw-backtrace.cc corrects the two affected
+rows (leaf frames only, as no call returns there): right before the
+lea that rebuilds %rsp from the DRAP register (recognized by its
+bytes), and after it, where an %rsp-based CFA paired with an
+fp-relative %rbp rule can only be this stale tail.
+
+=== Tests
+
+tests/amd64-drap-test.cc runs all of these through `drap_test_trampoline`
+(an RSP-framed caller, so that getting only RSP wrong is still caught)
+and checks that a backtrace from the callee reaches the trampoline:
+
+* `minimal_drap` (tests/drap/minimal.s, realigned to 4096, so with
+  `.cfi_restore 6`) and `minimal_drap_2` (the same without it, as gcc
+  emits for 64 bytes or less): the classic shape.
+* `drap_saved_regs` (tests/drap/regs.s): callee-saved registers
+  around the saved %r10, so the CFA expression is breg6 -16.
+* tests/drap/variants.s: `drap_many_regs` (breg6 -40) and %r13
+  as the DRAP register in `drap_r13_nested` and `drap_r13_ncsr`.
+
+Under the stepped configuration the comparer also checks every
+instruction of them, including the prologue and epilogue rows.
