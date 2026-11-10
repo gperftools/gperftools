@@ -700,7 +700,7 @@ heap_checker_stub_test_LDADD = libtcmalloc.la
 
 if !SKIP_PPROF_TESTS
 TESTS += sampling_test
-sampling_test_SOURCES = src/tests/sampling_test.cc
+sampling_test_SOURCES = src/tests/sampling_test.cc src/tests/posix_testutil.cc
 sampling_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 sampling_test_CPPFLAGS = $(gtest_CPPFLAGS)
 sampling_test_LDADD = libtcmalloc.la $(REGEX_LIBS)

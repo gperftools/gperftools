@@ -31,73 +31,44 @@
 // ---
 // Author: Craig Silverstein
 //
-// This tests ReadStackTraces and ReadGrowthStackTraces.  It does this
-// by doing a bunch of allocations and then calling those functions.
-// A driver shell-script can call this, and then call pprof, and
-// verify the expected output.  The output is written to
-// argv[1].heap and argv[1].growth
+// This tests GetHeapSample and GetHeapGrowthStacks. It does a bunch
+// of allocations, saves both profiles to temporary files and checks
+// with pprof that the allocations are accounted for.
+//
+// pprof must be in PATH.
 
 #include "config_for_unittests.h"
 
 #include "gperftools/malloc_extension.h"
 
+#include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <regex.h>
 
-#include <memory>
 #include <string>
 #include <string_view>
 
+#include "tests/posix_testutil.h"
 #include "tests/testutil.h"
 
 #include "base/logging.h"
-#include "base/cleanup.h"
 #include "testing_portal.h"
-
-static std::string NaiveShellQuote(std::string_view arg) {
-  // We're naive, so don't support paths with quote char. With that
-  // we're able to quote by simply wrapping things with quotes.
-  CHECK_EQ(arg.find('"'), std::string_view::npos);
-  std::string retval({'"'});
-  retval.append(arg);
-  retval.append({'"'});
-  return retval;
-}
 
 extern "C" ATTRIBUTE_NOINLINE void* AllocateAllocate() {
   auto local_noopt = [](void* ptr) ATTRIBUTE_NOINLINE { return noopt(ptr); };
   return local_noopt(malloc(10000));
 }
 
-#ifndef PPROF_PATH
-#define PPROF_PATH pprof
-#endif
-
-#define XSTR(x) #x
-#define STR(x) XSTR(x)
-
-const char kPProfPath[] = STR(PPROF_PATH);
-
-static void VerifyWithPProf(std::string_view argv0, std::string_view path) {
-  std::string cmdline = NaiveShellQuote(kPProfPath) + " --text " + NaiveShellQuote(argv0) + " " + NaiveShellQuote(path);
-  printf("pprof cmdline: %s\n", cmdline.c_str());
-  FILE* p = popen(cmdline.c_str(), "r");
-  if (!p) {
-    perror("popen");
+static void VerifyWithPProf(std::string_view argv0, const std::string& path) {
+  tcmalloc::ProcessResult result = tcmalloc::RunProcess({"pprof", "--text", std::string(argv0), path});
+  fprintf(stderr, "pprof output:\n%s\n\n", result.output.c_str());
+  if (!result.Succeeded()) {
+    fprintf(stderr, "pprof %s. It needs to be in PATH (go install github.com/google/pprof@latest).\n",
+            result.Describe().c_str());
     abort();
   }
-  tcmalloc::Cleanup close_pipe([p]() { (void)pclose(p); });
-
-  constexpr int kBufSize = 1024;
-  std::string contents;
-  char buf[kBufSize];
-  while (!feof(p)) {
-    size_t amt = fread(buf, 1, kBufSize, p);
-    contents.append(buf, buf + amt);
-  }
-
-  fprintf(stderr, "pprof output:\n%s\n\n", contents.c_str());
+  const std::string& contents = result.output;
 
   regmatch_t pmatch[3];
   regex_t regex;
@@ -124,49 +95,15 @@ static void VerifyWithPProf(std::string_view argv0, std::string_view path) {
   }
 }
 
-struct TempFile {
-  FILE* f;
-  std::string const path;
-
-  TempFile(FILE* f, std::string_view path) : f(f), path(path) {}
-
-  ~TempFile() {
-    if (f) {
-      (void)fclose(f);
-    }
+static void WriteFile(const std::string& path, const std::string& contents) {
+  FILE* f = fopen(path.c_str(), "w");
+  if (f == nullptr) {
+    perror(path.c_str());
+    abort();
   }
-
-  FILE* ReleaseFile() {
-    FILE* retval = f;
-    f = nullptr;
-    return retval;
-  }
-
-  static TempFile Create(std::string_view base_template) {
-    CHECK_EQ(base_template.substr(base_template.size() - 6), "XXXXXX");
-
-    const char* raw_tmpdir = getenv("TMPDIR");
-    if (raw_tmpdir == nullptr) {
-      raw_tmpdir = "/tmp";
-    }
-    std::string_view tmpdir{raw_tmpdir};
-    size_t len = tmpdir.size() + 1 + base_template.size() + 1;
-    std::unique_ptr<char[]> path_template{new char[len]};
-    auto it = std::copy(tmpdir.begin(), tmpdir.end(), path_template.get());
-    *it++ = '/';
-    it = std::copy(base_template.begin(), base_template.end(), it);
-    *it++ = '\0';
-    CHECK_EQ(it, path_template.get() + len);
-
-    int fd = mkstemp(path_template.get());
-    if (fd < 0) {
-      perror("mkstemp");
-    }
-    CHECK_GE(fd, 0);
-
-    return TempFile{fdopen(fd, "r+"), std::string(path_template.get(), len - 1)};
-  }
-};
+  fwrite(contents.data(), 1, contents.size(), f);
+  fclose(f);
+}
 
 int main(int argc, char** argv) {
   tcmalloc::TestingPortal::Get()->GetSampleParameter() = 512 << 10;
@@ -178,23 +115,16 @@ int main(int argc, char** argv) {
     AllocateAllocate();
   }
 
-  TempFile heap_tmp = TempFile::Create("sampling_test.heap.XXXXXX");
-  TempFile growth_tmp = TempFile::Create("sampling_test.growth.XXXXXX");
-  tcmalloc::Cleanup unlink_temps{[&]() {
-    (void)unlink(heap_tmp.path.c_str());
-    (void)unlink(growth_tmp.path.c_str());
-  }};
+  tcmalloc::TempDir dir("sampling_test");
 
   std::string s;
   MallocExtension::instance()->GetHeapSample(&s);
-  fwrite(s.data(), 1, s.size(), heap_tmp.f);
-  fclose(heap_tmp.ReleaseFile());
+  WriteFile(dir.Path("heap"), s);
 
   s.clear();
   MallocExtension::instance()->GetHeapGrowthStacks(&s);
-  fwrite(s.data(), 1, s.size(), growth_tmp.f);
-  fclose(growth_tmp.ReleaseFile());
+  WriteFile(dir.Path("growth"), s);
 
-  VerifyWithPProf(argv[0], heap_tmp.path);
-  VerifyWithPProf(argv[0], growth_tmp.path);
+  VerifyWithPProf(argv[0], dir.Path("heap"));
+  VerifyWithPProf(argv[0], dir.Path("growth"));
 }
