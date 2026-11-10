@@ -50,7 +50,8 @@ Everything else in a DRAP FDE is already ordinary: `def_cfa` with
 only usable in leaf frames, which is fine, because those rows are only
 in the prologue and epilogue. Expressions and restores for
 non-critical registers are ignored. Any other expression on rbp, rsp
-or rip still fails the frame (kFailExpression).
+or rip still fails the lookup (kFailExpression), and the frame is
+guessed.
 
 === gcc's missing .cfi_restore
 

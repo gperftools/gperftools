@@ -218,7 +218,9 @@ libstacktrace_la_LIBADD = $(UNWIND_LIBS)
 
 if ENABLE_AW_BACKTRACE
 noinst_LTLIBRARIES += libaw_backtrace.la
-libaw_backtrace_la_SOURCES = vendor/aw-backtrace/aw-backtrace.cc \
+libaw_backtrace_la_SOURCES = vendor/aw-backtrace/aw-asm-aarch64.S \
+		vendor/aw-backtrace/aw-asm-x86_64.S \
+		vendor/aw-backtrace/aw-backtrace.cc \
 		vendor/aw-backtrace/backtrace-core.cc \
 		vendor/aw-backtrace/aw-addrcheck.c \
 		src/stacktrace-aw-backtrace.cc

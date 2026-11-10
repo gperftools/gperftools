@@ -10,18 +10,20 @@
 #include "aw-structs.h"
 #include "utils.h"
 
+using aw_backtrace_internal::Arch;
 using aw_backtrace_internal::Cursor;
-using aw_backtrace_internal::PrepareCursor;
+
+// A frame record: what the frame pointer points at, on both arches.
+struct frame {
+  frame* parent;
+  void* pc;
+};
 
 int do_capture_fp_backtrace(void** result, int max_frames, void* initial_pc, void* initial_frame) {
   if (max_frames < 1) {
     return 0;
   }
 
-  struct frame {
-    frame* parent;
-    void* pc;
-  };
   int count = 0;
   result[count++] = initial_pc;
 
@@ -30,8 +32,7 @@ int do_capture_fp_backtrace(void** result, int max_frames, void* initial_pc, voi
     if (!f || (uintptr_t)f < 4096) {
       break;
     }
-    void* pc =
-        reinterpret_cast<void*>(aw_backtrace_internal::Arch::CleanReturnAddress(reinterpret_cast<uintptr_t>(f->pc)));
+    void* pc = reinterpret_cast<void*>(Arch::CleanReturnAddress(reinterpret_cast<uintptr_t>(f->pc)));
     if (pc == nullptr) {
       break;
     }
@@ -44,8 +45,17 @@ int do_capture_fp_backtrace(void** result, int max_frames, void* initial_pc, voi
 
 NEVER_INLINE int simple_backtrace(const void* _uc, void** result, int max_frames) {
   const ucontext_t* uc = static_cast<const ucontext_t*>(_uc);
-  Cursor cursor = PrepareCursor(uc, __builtin_frame_address(0));
+  if (uc) {
+    Cursor cursor = Arch::CursorFromContext(uc);
+    return do_capture_fp_backtrace(result, max_frames, reinterpret_cast<void*>(cursor.pc),
+                                   reinterpret_cast<void*>(cursor.fp));
+  }
 
-  return do_capture_fp_backtrace(result, max_frames, reinterpret_cast<void*>(cursor.pc),
-                                 reinterpret_cast<void*>(cursor.fp));
+  // Start from our own frame record, which gives the caller's pc and fp. That
+  // is all a frame-pointer walk needs. (The caller's sp is not recoverable
+  // from it on aarch64, which is why the CFI unwinder starts from
+  // aw_capture_caller_cursor instead; see aw-arch.h.)
+  const frame* self = static_cast<const frame*>(__builtin_frame_address(0));
+  void* pc = reinterpret_cast<void*>(Arch::CleanReturnAddress(reinterpret_cast<uintptr_t>(self->pc)));
+  return do_capture_fp_backtrace(result, max_frames, pc, self->parent);
 }

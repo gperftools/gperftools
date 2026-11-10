@@ -251,6 +251,7 @@ TEST_F(ReadOpsTest, ReadEncodedPointerBoundsFailure) {
 TEST_F(ReadOpsTest, AArch64NegateRAStateAndArgsSize) {
   auto data = std::to_array<uint8_t>({
       DW_CFA_AARCH64_negate_ra_state,
+      DW_CFA_AARCH64_negate_ra_state_with_pc,
       DW_CFA_GNU_args_size,
       0x10,  // uleb128 args size = 16
       DW_CFA_nop,

@@ -16,11 +16,10 @@ The contract:
   occasional *wrong* backtrace is acceptable; crashing is not.
 * Only PC, SP and FP are unwound. There is no full DWARF register-state
   unwinding, on the bet that real frames are SP-offset or FP-framed.
-* CFI outside that model fails the frame (reported when diagnostics are
-  enabled; otherwise the backtrace is silently truncated). It is never
-  reinterpreted. Heuristics (PLT and trampoline byte matching,
-  `GuessUnwindInfo`) run only when CFI is missing or is an expression
-  (§4.1), and they run silently.
+* CFI outside that model fails the lookup (reported when diagnostics are
+  enabled). It is never reinterpreted. Heuristics (PLT and trampoline byte
+  matching, then `GuessCaller`) run only when the lookup fails, whether CFI
+  is missing or unusable (§4.1), and they run silently.
 * Targets modern Linux with glibc 2.35+ (`_dl_find_object`). x86-64
   and aarch64 are supported; x86-64 has much more test coverage. riscv
   and 32-bit may come later.
@@ -36,11 +35,26 @@ bzlmod, module `aw-backtrace`, two packages: `//` and `//perf-convert`.
 ```
 bazel test ...:all
 bazel test -c opt ...:all        # NDEBUG: drops assert(), keeps CHECK()
-./test-all-cfg.rb                # gcc/clang x opt/dbg, plain and stepped; what CI runs
+./test-all-cfg.rb                # gcc/clang x opt/dbg x flag sets, plain and stepped; what CI runs
 ```
 
-For each of the four configurations, `test-all-cfg.rb` first runs a plain
-`bazel test ...:all`. It then reruns the `stepped`-tagged targets
+`test-all-cfg.rb` runs gcc and clang, each with `-c opt` and `-c dbg`. With
+`-c opt` it also runs these flag sets, passed as `--copt` (bazel places them
+after its own `-fstack-protector -fno-omit-frame-pointer`, so they win):
+
+* `hardened`: `-fstack-protector-strong -fstack-clash-protection`, plus
+  `-mbranch-protection=standard` on arm64 or `-fcf-protection=full` on x86-64;
+* `stress`: `-fstack-protector-all -fomit-frame-pointer`;
+* `bare`: `-fno-stack-protector -fomit-frame-pointer`;
+* `x86-64-v3`: `-march=x86-64-v3` (DRAP frames), on x86-64 hosts with AVX2
+  only. Its stepped runs use qemu `-cpu Haswell-noTSX`.
+
+A flag the compiler rejects is dropped, and a set left empty is skipped. Only
+the default set builds `//perf-convert`. Every configuration runs even after a
+failure, and the failed ones are listed at the end.
+
+For each configuration it first runs a plain `bazel test ...:all`. It then
+reruns the `stepped`-tagged targets
 (`aw-backtrace-test`, `amd64-drap-test`, `lua-test`) with
 `--run_under="qemu-$(uname -m) -plugin v/pstepper/pstepper_plugin.so"`,
 `AW_BT_REQUIRE_STEPPER=1` and `--test_output=all`. It needs:
@@ -51,8 +65,11 @@ For each of the four configurations, `test-all-cfg.rb` first runs a plain
 
 Extra arguments are passed through to every `bazel` invocation. On arm64 it
 adds `-cpu cortex-a76` to qemu and sets `AW_BT_CLANG_KNOWN_BUGS=1` for clang
-(§5). It leaves out `//perf-convert` when the compiler lacks a working
-`std::source_location`, which is clang 14 on ubuntu-22.04 (abseil needs it).
+(§5), and links gcc's builds with `-mno-fix-cortex-a53-843419`: GNU ld's
+workaround for that erratum moves instructions into CFI-less stubs, which the
+stepped runs would keep flagging. It leaves out `//perf-convert` when the
+compiler lacks a working `std::source_location`, which is clang 14 on
+ubuntu-22.04 (abseil needs it).
 
 Traps:
 
@@ -144,7 +161,8 @@ defines it; Bazel does not. The `RuntimeDiag` path always bumps them, so
 | `backtrace-core.{h,cc}` | the *policy* half of CFI lookup: a visitor that turns decoded CFI into a `FrameInfo`. Also `DoUnwindLookupFromInputs`, which serves a module without a live process |
 | `eh-frame-reader.h` | the *decoder* half: `.eh_frame_hdr` search, CIE/FDE parsing and the CFI opcode loop. It is visitor-templated |
 | `aw-structs.h` | the unwind model: `CfaRule`, `RegisterRule`, `FrameInfo`, `Cursor`, `CompressedFrameInfo` |
-| `aw-arch.h`, `aw-arch-{x86_64,aarch64}.h` | per-arch `struct Arch` with a fixed static interface: register numbers, PLT and signal-frame byte matching, `GuessUnwindInfo` |
+| `aw-arch.h`, `aw-arch-{x86_64,aarch64}.h` | per-arch `struct Arch` with a fixed static interface: register numbers, PLT and signal-frame byte matching, `GuessCaller` |
+| `aw-asm-{x86_64,aarch64}.S`, `aw-asm-notes.h` | the library's assembly, currently just `aw_capture_caller_cursor`, which gives the entry points their starting `Cursor` (§4.1); the ELF notes every `.S` must carry |
 | `unwind-info-cache.h` | `UnwindInfoCache` (§4.4) |
 | `aw-addrcheck.{h,c}` | async-signal-safe `/proc/self/maps` queries, using `PROCMAP_QUERY` or a snapshot plus bsearch |
 | `with-exit.h` | `WithExit::Run`/`Exit`, a `_setjmp`/`_longjmp` wrapper. **Nothing runs on the way out, not even destructors** |
@@ -250,13 +268,42 @@ process image (§4.5).
 
 ### 4.1 The main loop
 
-`aw_backtrace_full` (callback) and `aw_backtrace` (array) build a `Cursor`
-with `PrepareCursor()`, starting from the `ucontext` or from their own
-`__builtin_frame_address(0)`. They, and `DebugExtensionV0::BacktraceExt`, are
-`NEVER_INLINE` because that frame address must name their own frame. They then
-call `UnwindLoopFastPath()`, which falls through to `UnwindLoop()`. When
-`OverrideGlobalBacktracer` is set, they go through `DiagUnwindLoop`
+`aw_backtrace_full` (callback), `aw_backtrace` (array) and
+`DebugExtensionV0::BacktraceExt` start from the `ucontext` when given one.
+Without one they call `aw_capture_caller_cursor` (`aw-asm-*.S`), which
+returns their *own* frame as an ordinary non-leaf `Cursor`. The loop steps out
+of that frame by its CFI without reporting it (`skip_first_callback`).
+They then call `UnwindLoopFastPath()`, which falls through to `UnwindLoop()`.
+When `OverrideGlobalBacktracer` is set, they go through `DiagUnwindLoop`
 (`RuntimeDiag`) instead.
+
+**The caller's sp cannot be derived from the frame record on aarch64.**
+AAPCS64 doesn't fix where in the frame the `{x29, x30}` record goes. gcc moves
+it right before the CFA (the frame's highest addresses) whenever the function
+gets a stack canary (`-fstack-protector-strong`), and it then still describes
+the CFA from sp. That
+is why the walk unwinds through the entry point's own frame instead of
+guessing from `__builtin_frame_address(0)`. `__builtin_dwarf_cfa()` is no
+replacement: clang returns plain x29 for it on aarch64. Only
+`simple-fp-backtrace.cc` still starts from its own frame record, and it
+never uses sp.
+
+Traps:
+
+* `aw_capture_caller_cursor` must be called *by the entry point itself*.
+  Called from a helper, it captures the helper's frame. The entry points stay
+  `NEVER_INLINE`, because inlined into a caller the skipped frame would be the
+  caller's.
+* Both `aw-asm-*.S` are compiled on every arch, and each is `#if`'ed to
+  its own. So an embedder can add both files unconditionally. Each ends by
+  `#include`-ing `aw-asm-notes.h`, so that the wrong-arch, empty object also
+  carries `.note.GNU-stack` and the `.note.gnu.property` BTI/PAC/GCS or
+  IBT/SHSTK bits. The linker ANDs those bits over all inputs, empty ones
+  included, so one unmarked object drops them for the whole output. The bits
+  and the `bti c`/`endbr64` landing pads are unconditional, whatever the build
+  flags: they are NOPs where unused, and the AND means they can never mark an
+  output the rest of the build doesn't.
+* The asm hardcodes `Cursor`'s layout; `aw-arch.h` `static_assert`s it.
 
 **`is_leaf` means "the pc came from a register file, not from an unwind
 step"**; that is why the public parameter is named `pc_before_insn`. It is
@@ -289,9 +336,11 @@ When a lookup produces nothing, the **fallback chain** runs in this order:
    aarch64 matches ordinary 16-byte entries and PLT0 (optionally `bti c`),
    which moves sp by 16.
 2. Signal-trampoline byte match, at any instruction of the trampoline.
-3. DRAP: x86-64 only, and only if the failure was a CFI expression.
-4. Refusal, if the failure was a CFI expression.
-5. `Arch::GuessUnwindInfo`.
+3. If the failure was a CFI expression, its diagnostic, which needs the
+   second decode. It is reported only here so that steps 1 and 2 can claim
+   the frame first (glibc's `__restore_rt` and the lazy PLT carry
+   expressions).
+4. `Arch::GuessCaller`, as for any other CFI we can't use.
 
 Everything in the chain that reads code is bounds-checked against
 `LazyAddrChecker::ExecutableBoundsFor()`. Byte matching of this kind breaks
@@ -302,7 +351,7 @@ alignment and that the address lies in a readable VMA. It starts from the
 sp's VMA. A read outside the cached bounds rediscovers them from whatever VMA
 holds the address, so unwinding can cross a `sigaltstack`. The TLS bounds
 cache is a seqlock because a nested signal can update it mid-write. The
-guesses (`GuessUnwindInfo`) read the stack directly, after doing their own
+guesses (`GuessCaller`) read the stack directly, after doing their own
 read+write VMA lookup.
 
 ### 4.2 CFI lookup and failure reporting
@@ -526,8 +575,9 @@ Per-arch details:
 * **aarch64 clang emits `code_align 1 / data_align -4`**, so clang-built objects
   miss the fast path and take the slow one. The trade-off is accepted on
   purpose; do not add a second alignment pair to the hot loop.
-* `DW_CFA_AARCH64_negate_ra_state` is a no-op here, as in the reader. gcc emits
-  it in nearly every FDE under `-mbranch-protection`.
+* `DW_CFA_AARCH64_negate_ra_state` (and its `_with_pc` variant, from clang's
+  `-mbranch-protection=pac-ret+pc`) is a no-op here, as in the reader. gcc
+  emits the former in nearly every FDE under `-mbranch-protection`.
 * **The leaf frame must support RA-in-register**, read from the `ucontext`.
   Without that, the fast path would bail on frame 0 of every signal capture.
   The recovered pc goes through `Arch::CleanReturnAddress`, which strips PAC on
@@ -545,13 +595,15 @@ and doubles the cost of each step; `AW_BT_CROSS_CHECK=0` turns it off.
 
 ### 4.8 The aarch64 guess
 
-`Arch::GuessUnwindInfo` is per-arch because **`bl` puts the RA in x30, not on
-the stack**. x86-64's "`*sp` looks like a pc" guess would report the
+`Arch::GuessCaller` returns the caller's cursor directly, built from the
+values it has already read and checked; `UnwindLoop` continues from it as it
+does after a signal frame. It is per-arch because **`bl` puts the RA in x30,
+not on the stack**. x86-64's "`*sp` looks like a pc" guess would report the
 grandparent on aarch64. Two shapes remain:
 
 * **x30 is live.** This covers leaf functions, prologue and epilogue windows,
-  PLT stubs and `blr` through null. CFA == sp, which is exactly
-  `ResetFrameInfo`. It needs a register file, so it applies to leaf frames
+  PLT stubs and `blr` through null. The caller's sp is this frame's sp, and
+  its fp is unchanged. It needs a register file, so it applies to leaf frames
   only.
 * **The AAPCS64 frame record at fp**, `{caller's x29, RA}`.
 
@@ -564,12 +616,31 @@ spurious frame, because the next step is non-leaf and reaches the real caller
 through fp. Preferring the record wrongly deletes a caller.
 `arm64-leaf-test.cc` covers both cases.
 
-**The frame-record walk takes the CFA from `*(fp)`**, the caller's x29, because
-`fp + 16` is only a lower bound. gcc keeps `x29 == sp` through the body
-whenever the CFA is sp-based. The rule is `cfa = DerefFpRel(0)`,
-`fp = MemFpRel(0)`, `ra = MemFpRel(8)`. `RegisterRule::MemFpRel` for RA exists
-only for this rule, and `CompressedFrameInfo` cannot represent it, which is
-fine because guesses are never cached.
+**The frame record gives the caller's pc and x29 exactly, but not its sp**
+(the CFA). AAPCS64 doesn't fix where in the frame the record goes. gcc puts it
+at the frame's lowest address, but after any outgoing stack arguments, and
+right before the CFA for any function with a stack canary; clang puts it near
+the CFA. So the guess sets the caller's sp to **`kUnknownReg`** (`~0`:
+unaligned, and any offset from it wraps to an address no stack read accepts).
+The callback gets 0 for it, as `aw-backtrace.h` promises.
+
+**The caller's own CFI then decides**, in `UnwindLoop`:
+
+* an x29-based CFA (clang's frame-pointer frames, gcc's alloca frames) makes
+  sp exact again;
+* an sp-based CFA can't be used, so the frame is guessed too, through its own
+  frame record;
+* with sp unknown, signal frames can't be found (the sigframe is located from
+  sp), so a walk that reaches one goes to the guess instead.
+
+gcc's frame-pointer frames use an sp-based CFA, so on gcc code the rest of the
+walk after a guess is usually a frame-record walk. Frame records are near
+universal in aarch64 code, so that loses little: a function without one (an
+explicit `-fomit-frame-pointer` build, some asm) drops its caller from the
+trace. `arm64-leaf-test.cc` case 7 covers the guess-again path and case 8 the
+way back to a known sp.
+
+Guesses produce no `FrameInfo`, so there is nothing of theirs to cache.
 
 **The guess never reads code**, so it cannot fault on execute-only text. A
 candidate pc must be nonzero, 4-aligned and in an executable VMA. There is one
@@ -663,7 +734,7 @@ separately and requires *both* sides to agree.
 
 Also open:
 
-* **No guess-vs-CFI differ.** This is the cheap oracle for `GuessUnwindInfo`
+* **No guess-vs-CFI differ.** This is the cheap oracle for `GuessCaller`
   on either arch: wherever `DoUnwindLookup` succeeds, also run the guess and
   diff the step.
 * **The comparer's own machinery is largely untested.** This covers

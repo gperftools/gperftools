@@ -5,6 +5,14 @@ module(
 )
 
 bazel_dep(name = "aw-backtrace", version = "0.0.1")
+
+# most recent aw-backtrace is not in the BCR yet. Keep this commit in
+# sync with vendor/README.vendor.
+git_override(
+    module_name = "aw-backtrace",
+    remote = "https://github.com/gperftools/aw-backtrace.git",
+    commit = "b8358948becef4705fb1929465b5b38830e95031",
+)
 bazel_dep(name = "bazel_skylib", version = "1.9.0")
 bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "rules_cc", version = "0.2.16")

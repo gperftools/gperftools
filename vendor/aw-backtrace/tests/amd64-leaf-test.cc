@@ -110,7 +110,7 @@ static void sigill_handler(int, siginfo_t*, void* _uc) {
 // on the instruction fetch at 0. So the ucontext handed to the SIGSEGV handler
 // has RIP == 0 with RSP pointing straight at the pushed return address. There
 // is of course no unwind info for pc 0, so the entire backtrace hangs off
-// Arch::GuessUnwindInfo recognizing that word as a return address -- which is
+// Arch::GuessCaller recognizing that word as a return address -- which is
 // exactly what it is there for.
 //
 // This is the case where a backtrace is worth the most, and it is one libgcc

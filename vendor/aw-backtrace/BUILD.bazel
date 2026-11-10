@@ -39,6 +39,9 @@ cc_library(
 cc_library(
     name = "aw-backtrace",
     srcs = [
+        # Both, on every arch: each is #if'ed to its own (see aw-asm-notes.h).
+        "aw-asm-aarch64.S",
+        "aw-asm-x86_64.S",
         "aw-backtrace.cc",
         "backtrace-core.cc",
     ],
@@ -346,6 +349,26 @@ cc_test(
     ],
 )
 
+# Unwinding through a function with an SVE local. Skips itself on CPUs
+# without SVE and on compilers too old for its target attribute.
+cc_test(
+    name = "sve-test",
+    srcs = ["tests/sve-test.cc"],
+    # The SVE frame is guessed through its frame record (we don't evaluate
+    # its CFA expression), which needs one. Per-target copts come after
+    # --copt, so this holds in test-all-cfg.rb's -fomit-frame-pointer sets.
+    copts = ["-fno-omit-frame-pointer"],
+    cxxopts = CXXOPTS,
+    target_compatible_with = [
+        "@platforms//os:linux",
+        "@platforms//cpu:aarch64",
+    ],
+    deps = [
+        ":aw-backtrace",
+        ":headers",
+    ],
+)
+
 cc_binary(
     name = "recursion-test",
     srcs = ["tests/recursion-test.cc"],
@@ -389,6 +412,9 @@ cc_library(
     name = "aw-backtrace-prefixed",
     testonly = True,
     srcs = [
+        # Both, on every arch: each is #if'ed to its own (see aw-asm-notes.h).
+        "aw-asm-aarch64.S",
+        "aw-asm-x86_64.S",
         "aw-backtrace.cc",
         "backtrace-core.cc",
     ],

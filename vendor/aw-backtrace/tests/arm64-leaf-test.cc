@@ -3,7 +3,7 @@
 //
 // The aarch64 companion of amd64-leaf-test.cc: hand-written asm with
 // deliberately *absent* CFI, so that every unwind step out of it has to come
-// from Arch::GuessUnwindInfo. None of the cfiless_* functions below carry
+// from Arch::GuessCaller. None of the cfiless_* functions below carry
 // .cfi_startproc, so the assembler emits no FDE for them and DoUnwindLookup
 // fails on every pc inside them.
 //
@@ -39,6 +39,8 @@ int call_cfiless_leaf();
 int call_cfiless_framed();
 int call_cfiless_pac();
 int call_cfiless_subsp();
+int call_cfiless_toprec_outer();
+int call_cfiless_resync_outer();
 void null_call_test_fn();
 
 // Return sites, i.e. the addresses x30 holds while the corresponding cfiless_*
@@ -47,6 +49,14 @@ extern const char cfiless_leaf_ret_site[];
 extern const char cfiless_framed_ret_site[];
 extern const char cfiless_pac_ret_site[];
 extern const char cfiless_subsp_ret_site[];
+extern const char cfiless_toprec_ret_site[];
+// One frame further out than cfiless_toprec_ret_site: where a wrong CFA for the
+// toprec caller shows.
+extern const char cfiless_toprec_outer_ret_site[];
+// Case 8's return sites, innermost first after cfiless_resync_ret_site.
+extern const char cfiless_resync_ret_site[];
+extern const char cfiless_resync_nofp_ret_site[];
+extern const char cfiless_resync_outer_ret_site[];
 // Inside cfiless_framed, just past its own `bl`: the value a *stale* x30 has.
 extern const char cfiless_stale_lr_site[];
 // The instruction after `blr` on a null register, i.e. what x30 holds when the
@@ -62,6 +72,7 @@ extern const char plt0_plain_fault_site[];
 extern const char plt0_call_ret_site[];
 extern const char plt0_outer_ret_site[];
 extern char plt0_got[];
+extern char plt0_got_slot[];
 }
 
 // All the fixtures. `udf #0` raises SIGILL and, unlike x86's ud2, is exactly
@@ -227,6 +238,157 @@ cfiless_subsp_ret_site:
 	.cfi_endproc
 	.size call_cfiless_subsp, .-call_cfiless_subsp
 
+// ---- case 7: CFI-less function with a frame record, called from a caller
+// whose CFA is sp-based but whose frame record is at the frame's highest
+// addresses, x29 = sp + 80. That is gcc's layout for any function with a stack
+// canary. x30 is clobbered, as if used as scratch, so the leaf guess rejects
+// it and the frame-record walk runs directly. The walk gets the caller's pc
+// and x29 exactly, but not its sp: assuming sp == x29 would put the caller's
+// CFA 80 bytes too high and read its return address from the wrong place. So
+// sp is left unknown, and the caller is guessed through its own record. ----
+	.global cfiless_toprec_callee
+	.type cfiless_toprec_callee, %function
+	.balign 16
+cfiless_toprec_callee:
+	bti	c
+	stp	x29, x30, [sp, #-32]!
+	mov	x29, sp
+	mov	x30, xzr
+	udf	#0
+	ldp	x29, x30, [sp], #32
+	ret
+	.size cfiless_toprec_callee, .-cfiless_toprec_callee
+
+	.global call_cfiless_toprec
+	.type call_cfiless_toprec, %function
+call_cfiless_toprec:
+	.cfi_startproc
+	bti	c
+	sub	sp, sp, #96
+	.cfi_def_cfa_offset 96
+	stp	x29, x30, [sp, #80]
+	.cfi_offset 29, -16
+	.cfi_offset 30, -8
+	add	x29, sp, #80
+	bl	cfiless_toprec_callee
+	.global cfiless_toprec_ret_site
+cfiless_toprec_ret_site:
+	mov	w0, #7
+	ldp	x29, x30, [sp, #80]
+	.cfi_restore 30
+	.cfi_restore 29
+	add	sp, sp, #96
+	.cfi_def_cfa_offset 0
+	ret
+	.cfi_endproc
+	.size call_cfiless_toprec, .-call_cfiless_toprec
+
+	.global call_cfiless_toprec_outer
+	.type call_cfiless_toprec_outer, %function
+call_cfiless_toprec_outer:
+	.cfi_startproc
+	bti	c
+	stp	x29, x30, [sp, #-16]!
+	.cfi_def_cfa_offset 16
+	.cfi_offset 29, -16
+	.cfi_offset 30, -8
+	mov	x29, sp
+	bl	call_cfiless_toprec
+	.global cfiless_toprec_outer_ret_site
+cfiless_toprec_outer_ret_site:
+	ldp	x29, x30, [sp], #16
+	.cfi_restore 30
+	.cfi_restore 29
+	.cfi_def_cfa_offset 0
+	ret
+	.cfi_endproc
+	.size call_cfiless_toprec_outer, .-call_cfiless_toprec_outer
+
+// ---- case 8: sp becomes known again. The CFI-less callee is guessed as in
+// case 7, which leaves the caller's sp unknown. Its caller, call_cfiless_resync,
+// has an x29-based CFA, which makes sp exact again. Its own caller,
+// call_cfiless_resync_nofp, keeps no frame record (x29 still points at
+// call_cfiless_resync_outer's) and has an sp-based CFA: only an exact sp finds
+// its return address. With sp still unknown it would be guessed through
+// x29, and call_cfiless_resync_outer's frame would go missing. ----
+	.global cfiless_resync_callee
+	.type cfiless_resync_callee, %function
+	.balign 16
+cfiless_resync_callee:
+	bti	c
+	stp	x29, x30, [sp, #-32]!
+	mov	x29, sp
+	mov	x30, xzr
+	udf	#0
+	ldp	x29, x30, [sp], #32
+	ret
+	.size cfiless_resync_callee, .-cfiless_resync_callee
+
+	.global call_cfiless_resync
+	.type call_cfiless_resync, %function
+call_cfiless_resync:
+	.cfi_startproc
+	bti	c
+	stp	x29, x30, [sp, #-32]!
+	.cfi_def_cfa_offset 32
+	.cfi_offset 29, -32
+	.cfi_offset 30, -24
+	mov	x29, sp
+	.cfi_def_cfa 29, 32
+	bl	cfiless_resync_callee
+	.global cfiless_resync_ret_site
+cfiless_resync_ret_site:
+	mov	w0, #8
+	.cfi_def_cfa sp, 32
+	ldp	x29, x30, [sp], #32
+	.cfi_restore 30
+	.cfi_restore 29
+	.cfi_def_cfa_offset 0
+	ret
+	.cfi_endproc
+	.size call_cfiless_resync, .-call_cfiless_resync
+
+	.global call_cfiless_resync_nofp
+	.type call_cfiless_resync_nofp, %function
+call_cfiless_resync_nofp:
+	.cfi_startproc
+	bti	c
+	sub	sp, sp, #48
+	.cfi_def_cfa_offset 48
+	str	x30, [sp, #24]
+	.cfi_offset 30, -24
+	bl	call_cfiless_resync
+	.global cfiless_resync_nofp_ret_site
+cfiless_resync_nofp_ret_site:
+	ldr	x30, [sp, #24]
+	.cfi_restore 30
+	add	sp, sp, #48
+	.cfi_def_cfa_offset 0
+	ret
+	.cfi_endproc
+	.size call_cfiless_resync_nofp, .-call_cfiless_resync_nofp
+
+	.global call_cfiless_resync_outer
+	.type call_cfiless_resync_outer, %function
+call_cfiless_resync_outer:
+	.cfi_startproc
+	bti	c
+	stp	x29, x30, [sp, #-16]!
+	.cfi_def_cfa_offset 16
+	.cfi_offset 29, -16
+	.cfi_offset 30, -8
+	mov	x29, sp
+	bl	call_cfiless_resync_nofp
+	.global cfiless_resync_outer_ret_site
+cfiless_resync_outer_ret_site:
+	ldp	x29, x30, [sp], #16
+	.cfi_restore 30
+	.cfi_restore 29
+	.cfi_def_cfa_offset 0
+	ret
+	.cfi_endproc
+	.size call_cfiless_resync_outer, .-call_cfiless_resync_outer
+
 // ---- case 5: branch-and-link through a null register. ----
 	.global null_call_test_fn
 	.type null_call_test_fn, %function
@@ -260,11 +422,11 @@ null_call_return_site:
 plt0_bti_fixture:
 	bti	c
 	stp	x16, x30, [sp, #-16]!
-	adrp	x16, plt0_got
+	adrp	x16, plt0_got_slot
 	.global plt0_bti_fault_site
 plt0_bti_fault_site:
-	ldr	x17, [x16, #:lo12:plt0_got]
-	add	x16, x16, #:lo12:plt0_got
+	ldr	x17, [x16, #:lo12:plt0_got_slot]
+	add	x16, x16, #:lo12:plt0_got_slot
 	br	x17
 	nop
 	nop
@@ -275,18 +437,18 @@ plt0_bti_fault_site:
 	.balign 16
 plt0_plain_fixture:
 	stp	x16, x30, [sp, #-16]!
-	adrp	x16, plt0_got
+	adrp	x16, plt0_got_slot
 	.global plt0_plain_fault_site
 plt0_plain_fault_site:
-	ldr	x17, [x16, #:lo12:plt0_got]
-	add	x16, x16, #:lo12:plt0_got
+	ldr	x17, [x16, #:lo12:plt0_got_slot]
+	add	x16, x16, #:lo12:plt0_got_slot
 	br	x17
 	nop
 	nop
 	nop
 	.size plt0_plain_fixture, .-plt0_plain_fixture
 
-// x0 = the fixture. Two CFI'd frames above it, so that the frame *after* the
+// x0 = the fixture. Two CFI'd frames call it, so that the frame *after* the
 // one x30 recovers is checkable too: that is where a wrong CFA shows, as
 // call_plt0 repeated.
 	.global call_plt0
@@ -337,7 +499,13 @@ plt0_outer_ret_site:
 	.balign 65536
 	.global plt0_got
 plt0_got:
-	.skip 65536
+	.skip 16
+// The slot the fixtures load from. Its lo12 must be nonzero: with lo12 == 0
+// newer GNU ld relaxes `add x16, x16, #0` into a nop, and the fixture no longer
+// has the PLT0 shape DetectPLT0 matches.
+	.global plt0_got_slot
+plt0_got_slot:
+	.skip 65536 - 16
 	.text
 )");
 
@@ -354,9 +522,12 @@ struct Fixture {
   // Non-null for case 2 only: the spurious frame a stale x30 produces before
   // the walk self-corrects.
   const char* stale_site;
-  // False for the fixture whose CFA we knowingly get wrong, where everything
-  // below the recovered frame is garbage by construction.
+  // False for the fixture whose CFA we knowingly get wrong, where every frame
+  // after the recovered one is garbage by construction.
   bool walk_continues;
+  // The frames right after ret_site, where set: the check that the CFA (or
+  // its absence) recovered along with ret_site is handled right.
+  const char* outer_sites[2];
 };
 
 const Fixture* current_case;
@@ -405,6 +576,10 @@ void sigill_handler(int, siginfo_t*, void* _uc) {
     next++;
   }
   CHECK(aw_trace[next] == reinterpret_cast<const void*>(current_case->ret_site));
+  for (int i = 0; i < 2 && current_case->outer_sites[i] != nullptr; i++) {
+    CHECK(aw_count > next + 1 + i);
+    CHECK(aw_trace[next + 1 + i] == reinterpret_cast<const void*>(current_case->outer_sites[i]));
+  }
 
   if (current_case->walk_continues) {
     // The walk has to keep going past the recovered frame, not stop on it.
@@ -444,7 +619,7 @@ const Plt0Case* current_plt0;
 sigjmp_buf plt0_jmp;
 
 void HandlePlt0Fault(siginfo_t* si, ucontext_t* uc) {
-  CHECK(si->si_addr == plt0_got);
+  CHECK(si->si_addr == plt0_got_slot);
 
   printf("=== %s\n", current_plt0->name);
 
@@ -550,15 +725,34 @@ int main() {
   InstallHandler(SIGSEGV, sigsegv_handler);
 
   static const Fixture kFixtures[] = {
-      {"cfi-less leaf (x30 live)", call_cfiless_leaf, 1, cfiless_leaf_ret_site, nullptr, true},
-      {"cfi-less framed, stale x30", call_cfiless_framed, 2, cfiless_framed_ret_site, cfiless_stale_lr_site, true},
-      {"cfi-less leaf with paciasp", call_cfiless_pac, 3, cfiless_pac_ret_site, nullptr, true},
+      {"cfi-less leaf (x30 live)", call_cfiless_leaf, 1, cfiless_leaf_ret_site, nullptr, true, {}},
+      {"cfi-less framed, stale x30", call_cfiless_framed, 2, cfiless_framed_ret_site, cfiless_stale_lr_site, true, {}},
+      {"cfi-less leaf with paciasp", call_cfiless_pac, 3, cfiless_pac_ret_site, nullptr, true, {}},
       // Known limitation. x30 is live, so the caller's pc comes back right,
       // but CFA == sp is wrong by the 64 bytes this one carves off, and the
       // caller's own CFI is sp-based -- so the frame after the recovered one
       // is read from the wrong place. Nothing here can detect that without
       // reading code, which the guess deliberately never does.
-      {"cfi-less leaf that moves sp", call_cfiless_subsp, 4, cfiless_subsp_ret_site, nullptr, false},
+      {"cfi-less leaf that moves sp", call_cfiless_subsp, 4, cfiless_subsp_ret_site, nullptr, false, {}},
+      // The frame record leaves the caller's sp unknown, and the caller's
+      // sp-based CFA can't use it, so the caller is guessed through its own
+      // record too (see Arch::GuessFrameRecord and UnwindLoop).
+      {"cfi-less framed, caller with record right before its CFA (gcc canary layout)",
+       call_cfiless_toprec_outer,
+       7,
+       cfiless_toprec_ret_site,
+       nullptr,
+       true,
+       {cfiless_toprec_outer_ret_site}},
+      // sp unknown, then known again from an x29-based CFA, then needed by a
+      // caller with no frame record.
+      {"cfi-less framed, sp known again via x29-based caller",
+       call_cfiless_resync_outer,
+       8,
+       cfiless_resync_ret_site,
+       nullptr,
+       true,
+       {cfiless_resync_nofp_ret_site, cfiless_resync_outer_ret_site}},
   };
   for (const Fixture& f : kFixtures) {
     RunCase(&f);

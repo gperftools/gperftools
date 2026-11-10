@@ -38,9 +38,9 @@
 #include "unwind-info-cache.h"
 #include "utils.h"
 
+using aw_backtrace_internal::Arch;
 using aw_backtrace_internal::Cursor;
 using aw_backtrace_internal::FrameInfo;
-using aw_backtrace_internal::PrepareCursor;
 
 using aw_backtrace_ext::DebugExtensionV0;
 
@@ -537,7 +537,7 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
     // a live jump through a null function pointer. There the pc is genuinely 0
     // and worth reporting, and the stack is intact: `call *%rax` pushed the
     // return address before faulting on the fetch at 0, so sp points right at
-    // it and Arch::GuessUnwindInfo below recovers the caller. Bailing out here
+    // it and Arch::GuessCaller below recovers the caller. Bailing out here
     // would throw away the whole backtrace in the case that needs it most.
     //
     // This is also what keeps lookup_pc's `- 1` below from underflowing.
@@ -548,7 +548,9 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
     if (PREDICT_FALSE(skip_first_callback)) {
       skip_first_callback = false;
     } else {
-      if (!callback(reinterpret_cast<void*>(cursor.pc), reinterpret_cast<void*>(cursor.sp), is_leaf, user_data)) {
+      // An unknown sp is reported as 0, as aw-backtrace.h promises.
+      const uintptr_t report_sp = (cursor.sp == kUnknownReg) ? 0 : cursor.sp;
+      if (!callback(reinterpret_cast<void*>(cursor.pc), reinterpret_cast<void*>(report_sp), is_leaf, user_data)) {
         break;
       }
     }
@@ -579,15 +581,19 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
     } else {  // !is_leaf
       const bool use_cache = diag.use_cache();
       if (use_cache && g_frame_info_cache.Lookup<Diag::kUseCacheStats>(lookup_pc, &info)) {
-        goto have_info;
-      }
-
-      outcome = DoUnwindLookup(lookup_pc, &info, diag.flags());
-
-      if (outcome == LookupOutcome::kOk) {
-        if (use_cache) {
+        outcome = LookupOutcome::kOk;
+      } else {
+        outcome = DoUnwindLookup(lookup_pc, &info, diag.flags());
+        if (outcome == LookupOutcome::kOk && use_cache) {
           g_frame_info_cache.Put<Diag::kUseCacheStats>(lookup_pc, &info);
         }
+      }
+
+      // After a guess that could not tell the caller's sp (aarch64's
+      // GuessFrameRecord), an sp-based CFA has nothing to start from, so this
+      // frame is guessed too. Any other CFA rule makes sp known again. (Leaf
+      // frames come from a register file, so their sp is always known.)
+      if (outcome == LookupOutcome::kOk && !(cursor.sp == kUnknownReg && info.cfa.kind == CfaRule::Kind::SpRel)) {
         goto have_info;
       }
     }
@@ -609,7 +615,9 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
         goto have_info;
       }
 
-      if (Arch::IsSignalFrame(cursor.pc, cursor.sp, pc_bounds, &next_uc)) {
+      // The sigframe is found from sp, so with sp unknown a signal frame can't
+      // be stepped through, and the guess below decides.
+      if (cursor.sp != kUnknownReg && Arch::IsSignalFrame(cursor.pc, cursor.sp, pc_bounds, &next_uc)) {
         // Step through signal frame
         cursor = Arch::CursorFromContext(next_uc);
         continue;
@@ -619,16 +627,19 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
         // An expression we don't interpret, and nothing above recognized
         // the frame. Redo the lookup, this time letting the expression
         // diagnostic actually fire -- a second full decode, but this is
-        // already the exceptional, off-the-fast-path case.
+        // already the exceptional, off-the-fast-path case. Then guess, as
+        // for any other CFI we can't use.
         if constexpr (!Diag::kNoDiag) {
           DoUnwindLookup(lookup_pc, &info, diag.flags_with_expression_diag());
         }
-        break;
       }
 
-      if (Arch::GuessUnwindInfo(cursor, this_frame_uc, &checker, &info)) {
-        // info is good already
-        goto have_info;
+      // A guess gives the caller's cursor directly, from values it has
+      // already read and checked.
+      Cursor caller;
+      if (Arch::GuessCaller(cursor, this_frame_uc, &checker, &caller)) {
+        cursor = caller;
+        continue;
       }
 
       break;  // no way to step from current cursor
@@ -673,15 +684,6 @@ void UnwindLoop(Cursor cursor, const ucontext_t* in_uc, aw_backtrace_callback ca
         break;
       case RegisterRule::Kind::MemCfaRel:
         if (!acc.TryReadPtr(AddOffset(cfa, info.ra.offset), &new_ip)) {
-          new_ip = 0;
-        }
-        break;
-      // Only guesses produce this: an fp-relative RA lets a frame-record walk
-      // read the return address without first committing to a CFA it cannot
-      // know (see aarch64's GuessFrameRecord). Failure is handled the same way
-      // as above -- a zero pc stops the walk at the top of the next iteration.
-      case RegisterRule::Kind::MemFpRel:
-        if (!acc.TryReadPtr(AddOffset(cursor.fp, info.ra.offset), &new_ip)) {
           new_ip = 0;
         }
         break;
@@ -736,11 +738,13 @@ static inline void BumpFastPathStat(SimpleCounter& counter) {
   }
 }
 
+// skip_first_callback: the first frame is one the caller has already dealt
+// with -- as for UnwindLoop -- so step out of it without reporting it.
 template <typename Diag>
-void UnwindLoopFastPath(Cursor cursor, const ucontext_t* uc, aw_backtrace_callback callback, void* user_data,
-                        Diag diag) {
+void UnwindLoopFastPath(Cursor cursor, const ucontext_t* uc, aw_backtrace_callback callback, void* user_data, Diag diag,
+                        bool skip_first_callback) {
   if (!diag.use_fastpath()) {
-    return UnwindLoop<Diag>(cursor, uc, callback, user_data, diag, /*skip_first_callback=*/false);
+    return UnwindLoop<Diag>(cursor, uc, callback, user_data, diag, skip_first_callback);
   }
 
   LazyAddrChecker checker;
@@ -752,6 +756,14 @@ void UnwindLoopFastPath(Cursor cursor, const ucontext_t* uc, aw_backtrace_callba
   EHReaderInputs eh_frame_storage;
   EHReaderInputs* eh_frame = nullptr;
   FrameInfo info;
+
+  // Enter the loop past the callback rather than testing a flag on every
+  // frame. This also skips the zero-pc check, which is fine: the skipped frame
+  // is the entry point's own, captured by aw_capture_caller_cursor, so its pc
+  // is a real return address.
+  if (skip_first_callback) {
+    goto skip_callback;
+  }
 
   while (true) {
     // Same policy as UnwindLoop: a zero pc ends the walk only when it came from
@@ -766,6 +778,7 @@ void UnwindLoopFastPath(Cursor cursor, const ucontext_t* uc, aw_backtrace_callba
       return;
     }
 
+  skip_callback:
     const uintptr_t lookup_pc = PREDICT_TRUE(uc == nullptr) ? cursor.pc - 1 : cursor.pc;
 
     // Same policy as UnwindLoop: cache non-leaf frames only (uc == nullptr
@@ -861,26 +874,40 @@ fallback:
 
 NEVER_INLINE
 void DiagUnwindLoop(Cursor cursor, const ucontext_t* uc, aw_backtrace_callback callback, void* user_data,
-                    const DebugExtensionV0::DiagOptions& options) {
+                    const DebugExtensionV0::DiagOptions& options, bool skip_first_callback) {
   RuntimeDiag diag{&options};
-  return UnwindLoopFastPath<RuntimeDiag>(cursor, uc, callback, user_data, diag);
+  return UnwindLoopFastPath<RuntimeDiag>(cursor, uc, callback, user_data, diag, skip_first_callback);
 }
 
 }  // namespace aw_backtrace_internal
 
 using aw_backtrace_internal::global_options_override;
 
+// How the entry points start a walk. With a ucontext: the interrupted frame,
+// reported as frame 0. Without one: the entry point's own frame, captured by
+// aw_capture_caller_cursor, which the loop steps out of without reporting
+// (skip_first). That call has to be made by the entry point itself -- from a
+// helper it would capture the helper's frame -- and the entry points are
+// NEVER_INLINE so that "the entry point's own frame" exists: inlined, the
+// skipped frame would be its caller's.
 NEVER_INLINE
 void aw_backtrace_full(const void* _uc, aw_backtrace_callback callback, void* user_data) {
   const ucontext_t* uc = static_cast<const ucontext_t*>(_uc);
-  Cursor cursor = PrepareCursor(uc, __builtin_frame_address(0));
+  Cursor cursor;
+  const bool skip_first = (uc == nullptr);
+  if (skip_first) {
+    aw_capture_caller_cursor(&cursor);
+  } else {
+    cursor = Arch::CursorFromContext(uc);
+  }
 
   if (PREDICT_FALSE(global_options_override != nullptr)) {
-    DiagUnwindLoop(cursor, uc, callback, user_data, *global_options_override);
+    DiagUnwindLoop(cursor, uc, callback, user_data, *global_options_override, skip_first);
     return;
   }
 
-  aw_backtrace_internal::UnwindLoopFastPath(cursor, uc, callback, user_data, aw_backtrace_internal::NoDiag{});
+  aw_backtrace_internal::UnwindLoopFastPath(cursor, uc, callback, user_data, aw_backtrace_internal::NoDiag{},
+                                            skip_first);
 }
 
 NEVER_INLINE
@@ -911,14 +938,21 @@ int aw_backtrace(const void* _uc, void** result, int max_frames, int skip) {
 
   struct State state = {result, max_frames, skip > 0 ? skip : 0, 0};
   const ucontext_t* uc = static_cast<const ucontext_t*>(_uc);
-  Cursor cursor = PrepareCursor(uc, __builtin_frame_address(0));
+  Cursor cursor;
+  const bool skip_first = (uc == nullptr);
+  if (skip_first) {
+    aw_capture_caller_cursor(&cursor);
+  } else {
+    cursor = Arch::CursorFromContext(uc);
+  }
 
   if (PREDICT_FALSE(global_options_override != nullptr)) {
-    DiagUnwindLoop(cursor, uc, State::callback, &state, *global_options_override);
+    DiagUnwindLoop(cursor, uc, State::callback, &state, *global_options_override, skip_first);
     return state.count;
   }
 
-  aw_backtrace_internal::UnwindLoopFastPath(cursor, uc, State::callback, &state, aw_backtrace_internal::NoDiag{});
+  aw_backtrace_internal::UnwindLoopFastPath(cursor, uc, State::callback, &state, aw_backtrace_internal::NoDiag{},
+                                            skip_first);
   return state.count;
 }
 
@@ -936,14 +970,20 @@ class DebugExtensionImpl final : public DebugExtensionV0 {
  public:
   constexpr DebugExtensionImpl() = default;
 
-  // noinline for the same reason aw_backtrace() is: __builtin_frame_address(0)
-  // has to name this frame, and within this TU the call is devirtualizable.
+  // noinline for the same reason aw_backtrace_full() is, and within this TU
+  // the call is devirtualizable.
   NEVER_INLINE
   void BacktraceExt(const void* _uc, aw_backtrace_callback callback, void* user_data,
                     const DiagOptions& options) override {
     const ucontext_t* uc = static_cast<const ucontext_t*>(_uc);
-    Cursor cursor = PrepareCursor(uc, __builtin_frame_address(0));
-    DiagUnwindLoop(cursor, uc, callback, user_data, options);
+    Cursor cursor;
+    const bool skip_first = (uc == nullptr);
+    if (skip_first) {
+      aw_capture_caller_cursor(&cursor);
+    } else {
+      cursor = Arch::CursorFromContext(uc);
+    }
+    DiagUnwindLoop(cursor, uc, callback, user_data, options, skip_first);
   }
 
   bool LookupFrameInfo(uintptr_t lookup_ip,

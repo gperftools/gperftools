@@ -29,8 +29,8 @@ enum class LookupOutcome {
   // The lookup failed specifically because it hit an unsupported
   // DW_CFA_{def_cfa_,}expression on a register/CFA we track (e.g. the lazy
   // PLT's or glibc's __restore_rt's). Callers use this to try PLT/signal-frame
-  // recovery before deciding it's a real problem -- see the fallback chain in
-  // aw-backtrace.cc's UnwindLoop.
+  // recovery before reporting it -- see the fallback chain in aw-backtrace.cc's
+  // UnwindLoop.
   kFailExpression,
 };
 

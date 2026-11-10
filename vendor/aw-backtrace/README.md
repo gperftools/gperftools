@@ -326,6 +326,11 @@ async-signal-safe context are:
 * `aw-arch.h` and `aw-arch-{x86_64,aarch64}.h` --
   architecture-specific parts (arch defaults, plt/signal-frame
   detection, guessing unwind info etc).
+* `aw-asm-{x86_64,aarch64}.S` -- the library's assembly. Currently
+  just the tiny function the entry points use to start a backtrace
+  from their own frame. Both files are meant to be compiled on every
+  architecture; each one is `#if`'ed to its own (and `aw-asm-notes.h`
+  holds the ELF notes they need).
 * `aw-structs.h` and `dwarf-constants.h` -- basic arch-neutral
   definitions
 * `eh-frame-reader.h` -- general code for reading `.eh_frame{,_hdr}`
@@ -405,9 +410,11 @@ Mentioning only particularly notable parts (tests live in `tests/`):
   backtrace-comparer.
 * `simple-fp-backtrace.{h,cc}` -- the straightforward frame-pointer-based
   backtracer. Used to compare performance with our "production" bits.
-* `test-all-cfg.rb` -- for each of {gcc,clang}×{opt,dbg}, runs the
-  whole suite, then reruns the comparer-hosting tests stepped under
-  qemu. Needs `qemu-<arch>` on `PATH` and the pstepper plugin built.
+* `test-all-cfg.rb` -- for each of {gcc,clang}×{opt,dbg}, and with
+  opt also for several stack protector, frame pointer and hardening
+  flag sets, runs the whole suite, then reruns the comparer-hosting
+  tests stepped under qemu. Needs `qemu-<arch>` on `PATH` and the
+  pstepper plugin built. See AGENT.md for the flag sets.
 * `recursion-test.cc` -- fake AST interpreter that produces deep stack
   traces and "interesting" CFI. This is our microbenchmark. Gets built
   into bazel-bin/recursion-test{,-fp,-libgcc}. I.e., 3 variants to

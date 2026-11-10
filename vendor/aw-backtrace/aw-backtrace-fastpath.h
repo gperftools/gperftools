@@ -735,7 +735,9 @@ decode_insn:
         return FastPathFrame::Failure();
 
       case DW_CFA_AARCH64_negate_ra_state:
-        // PAC return-address signing state toggle. We strip PAC bits from
+      case DW_CFA_AARCH64_negate_ra_state_with_pc:
+        // PAC return-address signing state toggle (the _with_pc variant
+        // also mixes the pc into the signature). We strip PAC bits from
         // every recovered return address unconditionally (Arch::
         // CleanReturnAddress), so the state does not change what we compute --
         // exactly as eh-frame-reader.h treats it. Skipping it matters: gcc

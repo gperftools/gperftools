@@ -497,9 +497,14 @@ if(WITH_STACK_TRACE)
   endif()
 
   if(BUILD_WITH_AW_BACKTRACE)
+    # aw-backtrace has .S files. Enable ASM only here, so other
+    # configurations (e.g. Windows) don't need an assembler.
+    enable_language(ASM)
     # note, deliberately not inheriting the project's global include dirs
     # and defines beyond what aw-backtrace itself needs.
     add_library(aw_backtrace STATIC
+      vendor/aw-backtrace/aw-asm-aarch64.S
+      vendor/aw-backtrace/aw-asm-x86_64.S
       vendor/aw-backtrace/aw-backtrace.cc
       vendor/aw-backtrace/backtrace-core.cc
       vendor/aw-backtrace/aw-addrcheck.c

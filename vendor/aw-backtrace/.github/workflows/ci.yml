@@ -6,8 +6,93 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Fetches every external bazel dependency once, instead of six times in
+  # parallel from the matrix jobs. The repository cache is content-addressed
+  # source tarballs, identical on every runner, so it is shared across the
+  # whole matrix.
+  #
+  # It is kept in two places on purpose: actions/cache so that it survives
+  # between runs (pushes that don't touch MODULE.bazel never go to the
+  # network), and an artifact to hand it to the matrix jobs, since an
+  # artifact is tied to this run and cannot be evicted between this job and
+  # theirs the way a cache entry can.
+  #
+  # Only content_addressable/ (the downloaded archives) is shared, not
+  # contents/ (bazel's cache of already-extracted repos): artifacts are zips
+  # and drop file modes, so an extracted rules_cc came back without the +x on
+  # generate_system_module_map.sh and every clang config died with
+  # "Permission denied". Extracting from the archives is a few seconds.
+  deps:
+    name: deps
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure ruby
+        shell: bash
+        run: |
+          command -v ruby >/dev/null && exit 0
+          [ "$(id -u)" = 0 ] && SUDO= || SUDO=sudo
+          $SUDO apt-get update -qq
+          $SUDO apt-get install -y --no-install-recommends ruby
+
+      - name: Restore cached bazel release
+        id: bazelisk-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/bazelisk
+          key: bazelisk-deps-${{ runner.arch }}-${{ hashFiles('.bazelversion') }}
+
+      - name: Install bazelisk
+        run: |
+          ci/install-bazelisk.rb
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Restore Bazel Repo Cache
+        id: repo-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/bazel-repo-cache/content_addressable
+          key: bazel-repo-${{ hashFiles('MODULE.bazel', 'MODULE.bazel.lock') }}
+          restore-keys: |
+            bazel-repo-
+
+      - name: Fetch bazel dependencies
+        run: |
+          for i in 1 2 3 4 5; do
+            bazel fetch --repository_cache=$HOME/.cache/bazel-repo-cache //... && exit 0
+            echo "bazel fetch failed (attempt $i), retrying" >&2
+            sleep $((i * 15))
+          done
+          exit 1
+
+      - name: Save bazelisk cache
+        if: always() && steps.bazelisk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazelisk
+          key: ${{ steps.bazelisk-cache.outputs.cache-primary-key }}
+
+      - name: Save Bazel Repo Cache
+        if: always() && steps.repo-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazel-repo-cache/content_addressable
+          key: ${{ steps.repo-cache.outputs.cache-primary-key }}
+
+      - name: Upload Bazel Repo Cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: bazel-repo-cache
+          path: ~/.cache/bazel-repo-cache/content_addressable
+          retention-days: 1
+          if-no-files-found: error
+
   tests:
     name: tests
+    needs: deps
     strategy:
       matrix:
         os: [ubuntu-22.04, ubuntu-24.04, ubuntu-26.04, ubuntu-22.04-arm, ubuntu-24.04-arm, ubuntu-26.04-arm]
@@ -33,7 +118,7 @@ jobs:
       # and this misses, which is exactly when it should.
       - name: Restore cached qemu
         id: qemu-cache
-        uses: actions/cache@v4
+        uses: actions/cache/restore@v4
         with:
           path: ~/qemu
           key: qemu-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('ci/build-qemu.rb', 'ci/qemu-patches/*.patch') }}
@@ -50,6 +135,16 @@ jobs:
         if: steps.qemu-cache.outputs.cache-hit != 'true'
         run: ci/build-qemu.rb
 
+      # Saved here, not in a post step: actions/cache only saves when the
+      # whole job succeeds, and a later flaky download must not throw away a
+      # qemu that took minutes to build.
+      - name: Save cached qemu
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/qemu
+          key: ${{ steps.qemu-cache.outputs.cache-primary-key }}
+
       # pstepper's own tests first: they are seconds, they need no bazel, and
       # if the stepping facility is broken every stepped test below fails in
       # a much less legible way.
@@ -57,7 +152,8 @@ jobs:
         run: ci/check-pstepper.rb
 
       - name: Restore cached bazel release
-        uses: actions/cache@v4
+        id: bazelisk-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/bazelisk
           key: bazelisk-${{ matrix.os }}-${{ runner.arch }}-${{ hashFiles('.bazelversion') }}
@@ -67,24 +163,46 @@ jobs:
           ci/install-bazelisk.rb
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
+      # hashFiles() only sees files under the workspace, so hashing a file
+      # in /tmp silently yields an empty string. Hash it in the shell.
       - name: Generate system package fingerprint
-        run: dpkg-query -W > /tmp/dpkg-packages.txt
+        id: dpkg
+        run: echo "hash=$(dpkg-query -W | sha256sum | cut -d' ' -f1)" >> "$GITHUB_OUTPUT"
 
-      - name: Cache Bazel Disk Cache
-        uses: actions/cache@v4
+      - name: Restore Bazel Disk Cache
+        id: disk-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/bazel-disk-cache
-          key: bazel-stepped-${{ matrix.os }}-${{ hashFiles('/tmp/dpkg-packages.txt') }}-${{ github.sha }}
+          key: bazel-stepped-${{ matrix.os }}-${{ steps.dpkg.outputs.hash }}-${{ github.sha }}
           restore-keys: |
-            bazel-stepped-${{ matrix.os }}-${{ hashFiles('/tmp/dpkg-packages.txt') }}-
+            bazel-stepped-${{ matrix.os }}-${{ steps.dpkg.outputs.hash }}-
 
-      - name: Cache Bazel Repo Cache
-        uses: actions/cache@v4
+      # From the deps job (same run, so it cannot have been evicted).
+      - name: Download Bazel Repo Cache
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.cache/bazel-repo-cache
-          key: bazel-stepped-repo-${{ matrix.os }}-${{ hashFiles('MODULE.bazel') }}
-          restore-keys: |
-            bazel-stepped-repo-${{ matrix.os }}-
+          name: bazel-repo-cache
+          path: ~/.cache/bazel-repo-cache/content_addressable
 
       - name: Run tests
         run: PATH=$HOME/qemu/bin:$PATH ./test-all-cfg.rb --disk_cache=$HOME/.cache/bazel-disk-cache --repository_cache=$HOME/.cache/bazel-repo-cache --cache_test_results=no
+
+      # Saved explicitly with always(): the stock post-step save is skipped
+      # when the job fails, and a failed run (say, a download timeout) would
+      # then leave the next attempt just as cold as this one. All of these
+      # are content-addressed or exactly keyed, so saving after a failure is
+      # safe.
+      - name: Save bazelisk cache
+        if: always() && steps.bazelisk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazelisk
+          key: ${{ steps.bazelisk-cache.outputs.cache-primary-key }}
+
+      - name: Save Bazel Disk Cache
+        if: always() && steps.disk-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/bazel-disk-cache
+          key: ${{ steps.disk-cache.outputs.cache-primary-key }}

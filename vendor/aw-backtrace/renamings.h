@@ -27,4 +27,7 @@
 #define aw_backtrace_full AW_RENAME(aw_backtrace_full)
 #define aw_backtrace AW_RENAME(aw_backtrace)
 
+// extern "C", defined in aw-asm-*.S (which include this file too)
+#define aw_capture_caller_cursor AW_RENAME(aw_capture_caller_cursor)
+
 #endif  // RENAMINGS_H_
