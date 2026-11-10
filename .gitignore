@@ -106,6 +106,7 @@
 /page_heap_test.exe
 /pagemap_unittest
 /pagemap_unittest.exe
+/posix_testutil_test
 /proc_maps_iterator_test
 /proc_maps_iterator_test.exe
 /profile_handler_unittest

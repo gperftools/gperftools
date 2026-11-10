@@ -688,6 +688,11 @@ tcmalloc_large_heap_fragmentation_unittest_LDADD = libtcmalloc.la libgtest.la
 # These unittests often need to run binaries.  They're in the current dir
 TESTS_ENVIRONMENT += BINDIR=.
 
+TESTS += posix_testutil_test
+posix_testutil_test_SOURCES = src/tests/posix_testutil_test.cc src/tests/posix_testutil.cc
+posix_testutil_test_CPPFLAGS = $(gtest_CPPFLAGS)
+posix_testutil_test_LDADD = libgtest.la
+
 TESTS += heap_checker_stub_test
 heap_checker_stub_test_SOURCES = src/tests/heap-checker-stub-test.cc
 heap_checker_stub_test_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
