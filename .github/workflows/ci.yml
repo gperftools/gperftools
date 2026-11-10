@@ -9,7 +9,14 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The -arm runners are Linux/aarch64. They matter for
+        # aw-backtrace, which has a separate aarch64 implementation
+        # (see https://github.com/gperftools/gperftools/issues/1653).
+        os: [ubuntu-latest, ubuntu-24.04-arm, ubuntu-26.04-arm]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Clone
         uses: actions/checkout@v7
@@ -52,7 +59,7 @@ jobs:
         uses: actions/upload-artifact@v7
         if: ${{ always() }}
         with:
-          name: test-logs-${{ github.job }}
+          name: test-logs-${{ github.job }}-${{ matrix.os }}
           retention-days: 7
           path: |
             *.log
@@ -107,7 +114,7 @@ jobs:
   test-cmake:
     strategy:
       matrix:
-        os: [macos-latest, ubuntu-latest]
+        os: [macos-latest, ubuntu-latest, ubuntu-24.04-arm]
         build_type: [RelWithDebInfo, Debug]
     runs-on: ${{ matrix.os }}
     steps:
@@ -128,6 +135,10 @@ jobs:
           go install github.com/google/pprof@latest
           echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
           PATH=$HOME/go/bin:$PATH which -a pprof
+      # The arm64 runner images aren't guaranteed to have ninja preinstalled.
+      - name: Ensure ninja
+        if: runner.os == 'Linux'
+        run: command -v ninja || { sudo apt-get update && sudo apt-get install -y ninja-build; }
       - name: mkdir build/
         run: cmake -E make_directory ${{runner.workspace}}/build
       - name: cmake setup
