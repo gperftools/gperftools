@@ -229,6 +229,13 @@ struct Cursor {
   uintptr_t fp;
 };
 
+// Cursor::sp after a guess that could not tell it (aarch64's frame-record
+// guess, see Arch::GuessCaller). Never a
+// real sp: it is unaligned, and any offset from it wraps to an address no
+// stack read accepts. 0 would not do for fp, where it marks the end of the
+// frame chain, so this one value is kept for both.
+inline constexpr uintptr_t kUnknownReg = ~uintptr_t{0};
+
 }  // namespace aw_backtrace_internal
 
 #endif  // AW_STRUCTS_H_

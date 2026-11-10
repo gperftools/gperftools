@@ -156,7 +156,7 @@ int main(int argc, char** argv) {
   return all_ok ? 0 : 1;
 }
 
-// DRAP sets up "fake" stack frame, so general GuessUnwindInfo will be
+// DRAP sets up "fake" stack frame, so general GuessCaller will be
 // able to correctly restore caller's RIP and RBP (after fake frame is
 // setup). But not RSP. Such mismatch will only fail tests if
 // the DRAP function's caller is using RSP-offset-based frame layout. To

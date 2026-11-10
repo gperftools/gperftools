@@ -17,7 +17,7 @@
 // callee it still belongs to the caller, and very often holds the caller's own
 // spilled x30, so x86-64's "the word at *sp looks like a return address"
 // reasoning would quietly report the grandparent. Same trap as
-// Arch::GuessUnwindInfo -- see AGENT.md 4.8.
+// Arch::GuessCaller -- see AGENT.md 4.8.
 //
 #ifndef COMPARER_ARCH_AARCH64_H_
 #define COMPARER_ARCH_AARCH64_H_

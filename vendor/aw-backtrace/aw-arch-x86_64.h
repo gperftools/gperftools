@@ -96,19 +96,6 @@ struct Arch {
     return cursor;
   }
 
-  static Cursor InitializeUnwindForCaller(const void* bin_frame_addr) {
-    struct Frame {
-      uintptr_t save_fp;
-      uintptr_t return_addr;
-    };
-    const Frame* f = static_cast<const Frame*>(bin_frame_addr);
-    Cursor ret;
-    ret.pc = f->return_addr;
-    ret.fp = f->save_fp;
-    ret.sp = reinterpret_cast<uintptr_t>(f + 1);
-    return ret;
-  }
-
   static uintptr_t CleanReturnAddress(uintptr_t addr) {
     return addr;
   }
@@ -358,8 +345,8 @@ struct Arch {
     // never .eh_frame, so the *static* CFI describing this address is still
     // elf_x86_64_eh_frame_lazy_plt's DW_CFA_def_cfa_expression -- i.e.
     // LookupOutcome::kFailExpression, not kFail -- and skipping this check
-    // would end the walk with an unsupported-expression diagnostic instead
-    // of reaching the guess.
+    // would leave this exactly-known frame to the guess, with an
+    // unsupported-expression diagnostic on top.
     {
       int at = match_at(0, {0xf3, 0x0f, 0x1e, 0xfa}) ? 4 : 0;
       int end = -1;
@@ -394,8 +381,11 @@ struct Arch {
     return (pc_vma && pc_vma->perm_exec);
   }
 
+  // A frame-pointer frame: rbp points at {saved rbp, return address}, and the
+  // CFA is right above it. On success *caller is the caller's cursor.
   template <typename AddrChecker>
-  static bool GuessFPFrame(Cursor cursor, AddrChecker* checker, uintptr_t stack_low, uintptr_t stack_high) {
+  static bool GuessFPFrame(Cursor cursor, AddrChecker* checker, uintptr_t stack_low, uintptr_t stack_high,
+                           Cursor* caller) {
     assert(stack_low <= cursor.sp && cursor.sp < stack_high);  // checked by the caller
     (void)stack_low;
     static constexpr uintptr_t kMaxHeuristicsFrameSize = 32 << 10;
@@ -411,13 +401,20 @@ struct Arch {
       return false;
     }
 
-    uintptr_t caller_pc = *reinterpret_cast<uintptr_t*>(ret_location);
-    return CheckPossiblePC(checker, caller_pc);
+    const uintptr_t* record = reinterpret_cast<const uintptr_t*>(cursor.fp);
+    if (!CheckPossiblePC(checker, record[1])) {
+      return false;
+    }
+    *caller = Cursor{.pc = record[1], .sp = cursor.fp + 16, .fp = record[0]};
+    return true;
   }
 
  public:
+  // Recovering a frame with no unwind info at all. Each guess gives the
+  // caller's cursor with an exact sp, so sp never becomes kUnknownReg on
+  // x86-64. (If it ever did, the VMA lookup below would reject it.)
   template <typename AddrChecker>
-  static bool GuessUnwindInfo(Cursor cursor, const ucontext_t*, AddrChecker* checker, FrameInfo* info) {
+  static bool GuessCaller(Cursor cursor, const ucontext_t*, AddrChecker* checker, Cursor* caller) {
     auto stack_vma = checker->Lookup(cursor.sp);
     if (!stack_vma || !stack_vma->perm_read || !stack_vma->perm_write || (cursor.sp & (sizeof(uintptr_t) - 1)) != 0) {
       return false;
@@ -425,50 +422,27 @@ struct Arch {
 
     uintptr_t top_stack_value = *reinterpret_cast<uintptr_t*>(cursor.sp);
 
-    // auto rp = [](auto ptr) -> uintptr_t {
-    //   return *reinterpret_cast<const uintptr_t*>(ptr);
-    // };
-
-    // One thing we can detect is if we're in the middle of
-    // setting up frame-pointer. Just after push %rbp, but before
-    // saving rsp (new frame address) into rbp.
+    // One thing we can detect is if we're in the middle of setting up the
+    // frame pointer: just after push %rbp, but before mov %rsp, %rbp. That is
+    // a frame-pointer frame whose rbp is still sp.
     if (top_stack_value == cursor.fp) {
       Cursor modified{cursor};
       modified.fp = modified.sp;
-      if (GuessFPFrame(modified, checker, stack_vma->start, stack_vma->end)) {
-        // printf("at 0x%zx guessed cfa: (sp + 16) = 0x%zx, fp *(cfa - 16) = 0x%zx, and pc = *(cfa - 8) = %zx\n",
-        //        cursor.pc, cursor.sp + 16, rp(cursor.sp + 16 - 16),
-        //        rp(cursor.sp + 16 - 8));
-        ResetFrameInfo(info);
-        info->cfa = CfaRule::SpRel(16);  // use SP+16 as CFA (also SP at the call site)
-        info->fp = RegisterRule::MemCfaRel(-16);
+      if (GuessFPFrame(modified, checker, stack_vma->start, stack_vma->end, caller)) {
         return true;
       }
     }
 
     // A number of simpler asm codes which often lack unwind info
-    // simply don't use stack. So we check if top of the stack
-    // contains probable return address.
+    // simply don't use stack. So we check if the word at sp is a
+    // probable return address.
     if (CheckPossiblePC(checker, top_stack_value)) {
-      // printf("at 0x%zx guessed cfa: (sp + 8) = 0x%zx, fp same = 0x%zx, and pc = *(cfa - 8) = %zx\n",
-      //        cursor.pc, cursor.sp + 8, cursor.fp,
-      //        rp(cursor.sp + 8 - 8));
-      ResetFrameInfo(info);
+      *caller = Cursor{.pc = top_stack_value, .sp = cursor.sp + 8, .fp = cursor.fp};
       return true;
     }
 
     // Some unwind-info-less codes have straightforward frame-pointer setup.
-    if (GuessFPFrame(cursor, checker, stack_vma->start, stack_vma->end)) {
-      // printf("at 0x%zx guessed cfa: (fp + 16) = 0x%zx, fp *(cfa - 16) = 0x%zx, and pc = *(cfa - 8) = %zx\n",
-      //        cursor.pc, cursor.fp + 16, rp(cursor.fp + 16 - 16),
-      //        rp(cursor.fp + 16 - 8));
-      ResetFrameInfo(info);
-      info->cfa = CfaRule::FpRel(16);
-      info->fp = RegisterRule::MemCfaRel(-16);
-      return true;
-    }
-
-    return false;
+    return GuessFPFrame(cursor, checker, stack_vma->start, stack_vma->end, caller);
   }
 
   static void ResetFrameInfo(FrameInfo* info) {

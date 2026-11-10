@@ -250,16 +250,28 @@ int SpawnHelperDaemon(const char* exec_path, char* const* envp) {
   return sv[0];
 }
 
-// Ensures a sym-helper daemon is running, and returns the mailbox fd to
-// send requests to (or -1 if spawning ever failed -- cached permanently,
-// not retried). Safe to call concurrently, including from async-signal
-// context: the common case (already resolved) takes no lock at all; the
-// rare case (first call ever, in this process or an ancestor it forked
-// from without an intervening exec) is serialized by SpinLock with signals
-// blocked for its duration.
+// Ensures a sym-helper daemon is running, and returns the mailbox fd
+// to send requests to (or -1 if spawning ever failed -- cached
+// permanently, not retried). Safe to call concurrently, including
+// from async-signal context: the common case (already resolved) takes
+// no lock at all; the rare case (first call ever, in this process or
+// an ancestor it forked from without an intervening exec) is
+// serialized by SpinLock with signals blocked for its
+// duration. Nested call during the spawn gets -1. Note, we block
+// signals during spawn, but pstepper upcalls cannot be masked.
 int EnsureHelperOwner() {
   int mailbox = g_helper_mailbox_fd.load(std::memory_order_acquire);
   if (mailbox == kHelperUnresolved) {
+    static __thread bool recursion __attribute__((tls_model("initial-exec")));
+    if (recursion) {
+      // This EnsureHelperOwner could in principle be invoked from
+      // signal handler (or pstepper upcall) while it is spawning the
+      // helper. So to prevent deadlock we detect this condition and
+      // return -1, so only the nested symbolization request fails
+      // (unsymbolized output).
+      return -1;
+    }
+    recursion = true;
     WithBlockedSignals blocked;
     SpinLock lock{&g_helper_lock};
     lock.Lock();
@@ -286,6 +298,7 @@ int EnsureHelperOwner() {
     }
 
     lock.Unlock();
+    recursion = false;
   }
 
   return mailbox;

@@ -771,6 +771,22 @@ void StartBacktraceComparer() {
   EnsureDiagFD();
   orig_pid = getpid();
 
+  // trigger symbolizer helper process. glibc on x86-64 with shadow
+  // stack support has broken vfork cfi, which would otherwise break
+  // aw-backtrace-test.cc.
+  //
+  // NOTE: this spawns symbolization helper even if we're not running
+  // under qemu and pstepper will not activate. Mostly harmless for
+  // this testing code.
+  //
+  // Another thing worth keeping in mind, now that helper child is
+  // always running, some codes could get stuck if they run wait(),
+  // because symbolization helper never dies. Was the case before too,
+  // but now that we start this eagerly and not in signal context, we
+  // can double fork. So maybe we will, later.
+  WithSymbolizerFnRef([](Symbolizer* s) -> void { s->Add(reinterpret_cast<uintptr_t>(&StartBacktraceComparer)); },
+                      [](const SymbolizeOutcome&) -> void {});
+
   bool enable_acceleration = true;
 
   require_stepper = (getenv("AW_BT_REQUIRE_STEPPER") != nullptr);

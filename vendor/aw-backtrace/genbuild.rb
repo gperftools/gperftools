@@ -42,7 +42,8 @@ CXXFLAGS = [BASE_CFLAGS, BASE_CXXFLAGS, APPEND_CFLAGS].join(' ')
 # automagically flattened. So it could be singular thing or (nested)
 # array of things and it just works.
 def build! b
-  aw_backtrace = b.o(src: %w[aw-backtrace.cc backtrace-core.cc])
+  # Both aw-asm-*.S on every arch: each is #if'ed to its own.
+  aw_backtrace = b.o(src: %w[aw-backtrace.cc backtrace-core.cc aw-asm-x86_64.S aw-asm-aarch64.S])
   aw_addrcheck = b.o(src: "aw-addrcheck.c")
 
   comparer = b.o(src: "backtrace-comparer.cc", cflags: %w[-DBUILD_SO -DAW_BUMP_STATS_IN_PRODUCTION])

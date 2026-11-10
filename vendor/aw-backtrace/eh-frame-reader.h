@@ -848,8 +848,11 @@ bool Decoder<V>::RunInstructions(byte_slice slice, bool is_cie) {
       }
 
       case DW_CFA_AARCH64_negate_ra_state:
+      case DW_CFA_AARCH64_negate_ra_state_with_pc:
         // AArch64 PAC return address signing state toggle (also DW_CFA_GNU_window_save on SPARC).
         // Return addresses have PAC tags stripped architecturally on PC read, so this is a no-op.
+        // The _with_pc variant (FEAT_PAuth_LR, -mbranch-protection=pac-ret+pc) only changes
+        // what the signature covers, so it is a no-op too.
         break;
 
       case DW_CFA_GNU_args_size:

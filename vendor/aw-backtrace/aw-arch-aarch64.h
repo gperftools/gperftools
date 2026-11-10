@@ -86,19 +86,6 @@ struct Arch {
     return cursor;
   }
 
-  static Cursor InitializeUnwindForCaller(const void* bin_frame_addr) {
-    struct Frame {
-      uintptr_t save_fp;
-      uintptr_t return_addr;
-    };
-    const Frame* f = static_cast<const Frame*>(bin_frame_addr);
-    Cursor ret;
-    ret.pc = CleanReturnAddress(f->return_addr);
-    ret.fp = f->save_fp;
-    ret.sp = ret.fp;
-    return ret;
-  }
-
   static bool IsSignalFrame(uintptr_t pc, uintptr_t sp, std::pair<uintptr_t, uintptr_t> pc_bounds,
                             const ucontext_t** uc_loc) {
     // Two instructions, and every aarch64 instruction is 4-byte
@@ -228,23 +215,29 @@ struct Arch {
 
   // H2: walk the AAPCS64 frame record at fp, {caller's x29, return address}.
   //
-  // The CFA -- the caller's sp -- is not recoverable from this side: the
-  // record sits at the *bottom* of the frame in both gcc's and clang's
-  // layouts, so the frame size, which we cannot know without unwind info,
-  // separates fp from the CFA. It is recoverable from the other side.
-  // *(fp) is the caller's x29, and gcc keeps x29 == sp through the whole body
-  // of any function with a static frame -- which is exactly the case where it
-  // also leaves the CFA sp-based. Once sp becomes dynamic gcc switches the CFA
-  // to x29-relative and the value we supply goes unused (clang switches
-  // always). So `cfa = *(fp)` is right in both branches, and it is the same
-  // identity InitializeUnwindForCaller already relies on.
+  // That gives the caller's pc and x29 exactly. What it does not give is the
+  // CFA -- the caller's sp. AAPCS64 does not say where in the frame the record
+  // goes (gcc puts it at the frame's lowest address, but after any outgoing
+  // stack arguments, and right before the CFA for functions with a stack
+  // canary; clang puts it near the CFA), so only the frame size, which we
+  // cannot know without unwind info, separates fp from the CFA.
+  //
+  // So the caller's sp is kUnknownReg. The caller's own CFI then decides: an
+  // x29-based CFA makes sp known again, and an sp-based one sends the caller
+  // here too (see UnwindLoop). Frame records are near universal in aarch64
+  // code, so walking them until then loses little.
   template <typename AddrChecker>
-  static bool GuessFrameRecord(Cursor cursor, AddrChecker* checker, FrameInfo* info) {
+  static bool GuessFrameRecord(Cursor cursor, AddrChecker* checker, Cursor* caller) {
     static constexpr uintptr_t kMaxHeuristicsFrameSize = 32 << 10;
 
     uintptr_t fp = cursor.fp;
-    // sp is always 16-aligned on aarch64, and x29 is set from it.
-    if ((fp & 15) != 0 || fp < cursor.sp || fp - cursor.sp > kMaxHeuristicsFrameSize) {
+    // sp is always 16-aligned on aarch64, and x29 is set from it. The frame
+    // size bound needs a known sp; without one, fp is checked only against
+    // its VMA below, which keeps working across stack switches.
+    if ((fp & 15) != 0) {
+      return false;
+    }
+    if (cursor.sp != kUnknownReg && (fp < cursor.sp || fp - cursor.sp > kMaxHeuristicsFrameSize)) {
       return false;
     }
 
@@ -264,15 +257,13 @@ struct Arch {
       return false;
     }
     // Either the chain terminator libc plants in the outermost frame, or a
-    // record strictly further up the stack. The +16 is the far end of the
-    // bracket the CFA lives in: a caller's x29 below fp + 16 cannot be real.
+    // record at a strictly higher address. The +16 is the lowest address the
+    // CFA can have: a caller's x29 lower than fp + 16 cannot be real.
     if (saved_fp != 0 && (saved_fp < fp + 16 || (saved_fp & 15) != 0)) {
       return false;
     }
 
-    info->cfa = CfaRule::DerefFpRel(0);    // caller's sp  == caller's x29 == *(fp)
-    info->fp = RegisterRule::MemFpRel(0);  // caller's x29 == *(fp)
-    info->ra = RegisterRule::MemFpRel(8);  // caller's pc  == *(fp + 8)
+    *caller = Cursor{.pc = saved_lr, .sp = kUnknownReg, .fp = saved_fp};
     return true;
   }
 
@@ -303,7 +294,7 @@ struct Arch {
   // with an exact CFA; and a non-leaf pc, being a return address, can never
   // land inside a prologue.
   template <typename AddrChecker>
-  static bool GuessUnwindInfo(Cursor cursor, const ucontext_t* uc_if_leaf, AddrChecker* checker, FrameInfo* info) {
+  static bool GuessCaller(Cursor cursor, const ucontext_t* uc_if_leaf, AddrChecker* checker, Cursor* caller) {
     if (uc_if_leaf != nullptr) {
       // CleanReturnAddress first: with FEAT_PAuth the register holds a signed
       // pointer, which would fail the checks below on its tag bits alone.
@@ -311,12 +302,12 @@ struct Arch {
       if (CheckPossiblePC(checker, lr)) {
         // Exactly the architectural default: CFA = sp, RA in x30, fp
         // unchanged.
-        ResetFrameInfo(info);
+        *caller = Cursor{.pc = lr, .sp = cursor.sp, .fp = cursor.fp};
         return true;
       }
     }
 
-    return GuessFrameRecord(cursor, checker, info);
+    return GuessFrameRecord(cursor, checker, caller);
   }
 
   static void ResetFrameInfo(FrameInfo* info) {

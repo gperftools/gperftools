@@ -4,3 +4,9 @@
 # -std=c++20 per-target; this makes it uniform.
 build --cxxopt=-std=c++20 --host_cxxopt=-std=c++20
 test --test_output=errors
+
+# BCR's registry lists no mirrors, so a module's source archive (lua from
+# lua.org, say) has exactly one host to try. This adds a second, tried first;
+# the original URL stays as the fallback and bazel still verifies every
+# archive against the registry's integrity hash.
+common --module_mirrors=https://bcr.cloudflaremirrors.com

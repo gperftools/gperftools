@@ -40,7 +40,7 @@ CFLAGS = select({
     ":is_clang": CFLAGS_FOR_GCC + ["-Wthread-safety"],
 })
 
-# aw-backtrace (pulled from the Bazel Central Registry) is used for
+# aw-backtrace (pulled via git_override in MODULE.bazel) is used for
 # stack trace capturing on Linux/x86-64 and Linux/aarch64. It needs
 # glibc 2.35 or later (for _dl_find_object). Pass
 # --@gperftools//:enable_aw_backtrace=false to build without it.
