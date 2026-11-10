@@ -1,3 +1,48 @@
+== 10 November 2026
+
+gperftools 2.19.3 is out!
+
+This is another bug-fix release on top of 2.19.2. It updates the
+vendored aw-backtrace.
+
+With the previous version of aw-backtrace, we got broken backtraces on
+aarch64 when gperftools was built with -fstack-protector-strong, which
+is the default compiler setting on many distros, e.g. Ubuntu (see
+https://github.com/gperftools/gperftools/issues/1653). This release
+fixes that and related issues. aw-backtrace's own CI now also tests
+builds with stack protector, hardening (-mbranch-protection or
+-fcf-protection), without frame pointers, and, on x86-64,
+x86-64-v3 builds (stack realignment).
+
+Notable changes:
+
+* aw-backtrace now has a small piece of assembly (aw-asm-x86_64.S and
+  aw-asm-aarch64.S) that captures the exact pc, sp and frame pointer
+  of aw_backtrace_full's own frame, so the backtrace starts from known
+  values. It is used on both architectures. Previously, on aarch64, we
+  guessed the stack pointer of the frame we started from, and that
+  guess was the bug described above.
+
+* aarch64: when a frame has no usable unwind info, aw-backtrace
+  steps to the caller through the frame record (saved x29/x30). A
+  frame record gives the caller's pc and frame pointer, but not its
+  stack pointer. We used to guess the stack pointer; now it is
+  treated as unknown until the caller's own unwind info makes it known
+  again.
+
+* aw-backtrace now steps through frames whose unwind info uses an
+  unsupported DWARF expression via the fallback (frame record based on
+  aarch64), instead of stopping the backtrace there. This fixes
+  backtraces on aarch64 through functions with SVE stack slots.
+
+* aarch64: aw-backtrace now understands the
+  DW_CFA_AARCH64_negate_ra_state_with_pc unwind instruction, which
+  clang emits with -mbranch-protection=pac-ret+pc. Previously, frames
+  using it were handled by the fallback instead of their unwind info.
+
+* the Bazel build now pulls aw-backtrace via git_override, since the
+  needed version isn't in the BCR yet.
+
 == 28 October 2026
 
 gperftools 2.19.2 is out!
