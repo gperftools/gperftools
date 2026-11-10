@@ -61,9 +61,7 @@
 /heap-checker_unittest
 /heap-checker_unittest.sh
 /heap-profiler_debug_unittest
-/heap-profiler_debug_unittest.sh
 /heap-profiler_unittest
-/heap-profiler_unittest.sh
 /heap_checker_stub_test
 /install-sh
 /libprofiler.pc

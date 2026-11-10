@@ -713,24 +713,13 @@ if WITH_HEAP_PROFILER
 
 if BUILD_TESTS
 if !SKIP_PPROF_TESTS
-TESTS += heap-profiler_unittest.sh$(EXEEXT)
-heap_profiler_unittest_sh_SOURCES = src/tests/heap-profiler_unittest.sh
-noinst_SCRIPTS += $(heap_profiler_unittest_sh_SOURCES)
-heap-profiler_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) \
-                                    heap-profiler_unittest
-	rm -f $@
-	cp -p $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) $@
-
-# These are sub-programs used by heap-profiler_unittest.sh
-noinst_PROGRAMS += heap-profiler_unittest
-heap_profiler_unittest_SOURCES = src/tests/heap-profiler_unittest.cc
+TESTS += heap-profiler_unittest
+heap_profiler_unittest_SOURCES = src/tests/heap-profiler_unittest.cc src/tests/posix_testutil.cc
 heap_profiler_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
-heap_profiler_unittest_LDADD = libtcmalloc.la
+heap_profiler_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+heap_profiler_unittest_LDADD = libtcmalloc.la libgtest.la
 endif !SKIP_PPROF_TESTS
-else !BUILD_TESTS
-heap-profiler_unittest.sh$(EXEEXT):
-	@true
-endif !BUILD_TESTS
+endif BUILD_TESTS
 
 endif WITH_HEAP_PROFILER
 
@@ -770,24 +759,13 @@ if WITH_HEAP_PROFILER
 
 if BUILD_TESTS
 if !SKIP_PPROF_TESTS
-TESTS += heap-profiler_debug_unittest.sh$(EXEEXT)
-heap_profiler_debug_unittest_sh_SOURCES = src/tests/heap-profiler_unittest.sh
-heap-profiler_debug_unittest.sh$(EXEEXT): $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) \
-                                    heap-profiler_debug_unittest
-	rm -f $@
-	cp -p $(top_srcdir)/$(heap_profiler_unittest_sh_SOURCES) $@
-
-# These are sub-programs used by heap-profiler_debug_unittest.sh
-noinst_PROGRAMS += heap-profiler_debug_unittest
+TESTS += heap-profiler_debug_unittest
 heap_profiler_debug_unittest_SOURCES = $(heap_profiler_unittest_SOURCES)
-heap_profiler_debug_unittest_CXXFLAGS = $(heap_profiler_unittest_CXXFLAGS)
+heap_profiler_debug_unittest_CPPFLAGS = $(heap_profiler_unittest_CPPFLAGS)
 heap_profiler_debug_unittest_LDFLAGS = $(heap_profiler_unittest_LDFLAGS)
-heap_profiler_debug_unittest_LDADD = libtcmalloc_debug.la
+heap_profiler_debug_unittest_LDADD = libtcmalloc_debug.la libgtest.la
 endif !SKIP_PPROF_TESTS
-else !BUILD_TESTS
-heap-profiler_debug_unittest.sh$(EXEEXT):
-	@true
-endif !BUILD_TESTS
+endif BUILD_TESTS
 
 endif WITH_HEAP_PROFILER
 
