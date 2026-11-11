@@ -166,14 +166,22 @@ extern "C" int(NTAPI* const p_process_term_tcmalloc)(void) = on_process_term;
 
 #else  // #ifdef _MSC_VER  [probably msys/mingw]
 
-// We have to try the DllMain solution here, because we can't use the
-// msvc-specific pragmas.
-BOOL WINAPI DllMain(HINSTANCE h, DWORD dwReason, PVOID pv) {
-  if (dwReason == DLL_THREAD_DETACH)
-    on_tls_callback(h, dwReason, pv);
-  else if (dwReason == DLL_PROCESS_DETACH)
+// mingw's crt (tlssup.c) builds the PE TLS directory's callback array
+// out of the .CRT$XL* sections, same as MSVC's does. So we can use the
+// very same mechanism, which, unlike DllMain, also works when we're
+// statically linked into an executable. For DLLs the loader runs TLS
+// callbacks too, so this covers both cases. Note that unlike MSVC, we
+// handle process exit from the very same callback.
+static void NTAPI on_tls_callback_mingw(PVOID h, DWORD dwReason, PVOID pv) {
+  if (dwReason == DLL_PROCESS_DETACH) {
     on_process_term();
-  return TRUE;
+  } else {
+    on_tls_callback(static_cast<HINSTANCE>(h), dwReason, pv);
+  }
+}
+
+extern "C" {
+__attribute__((section(".CRT$XLB"), used)) PIMAGE_TLS_CALLBACK p_thread_callback_tcmalloc = on_tls_callback_mingw;
 }
 
 #endif  // #ifdef _MSC_VER
