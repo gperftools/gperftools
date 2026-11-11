@@ -77,12 +77,6 @@ NON_WINDOWS = select({
 })
 
 cc_library(
-    name = "trivialre",
-    hdrs = ["benchmark/trivialre.h"],
-    copts = CXXFLAGS,
-)
-
-cc_library(
     name = "all_headers",
     hdrs = glob([
         "src/*h",
@@ -105,7 +99,6 @@ cc_library(
     ],
     deps = [
         ":all_headers",
-        ":trivialre",
     ],
 )
 

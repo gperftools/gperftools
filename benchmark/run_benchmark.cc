@@ -28,9 +28,8 @@
 
 #include "run_benchmark.h"
 
-#include "trivialre.h"
-
 #include <functional>
+#include <regex>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -52,28 +51,23 @@ static std::function<bool(std::string_view bench)> benchmark_filter;
 bool benchmark_list_only;
 
 static std::function<bool(std::string_view bench)> parse_filter_or_die(std::string_view filter) {
-  struct Policy {
-    bool failed{};
-    std::string_view msg{};
-    std::string_view at{};
-
-    void NoteError(std::string_view msg, std::string_view at) {
-      failed = true;
-      this->msg = msg;
-      this->at = at;
-    }
-    void StartedParsing(std::string_view str) {}
-  };
-
-  trivialre::re_compiler::C<trivialre::matchers::MatcherBuilder, Policy> compiler({});
-  trivialre::Matcher matcher = compiler.CompileOrDie(filter);
-  if (compiler.failed) {
-    fprintf(stderr, "failed to parse benchmark filter: '%.*s'.\nParse error: %.*s at %.*s\n", (int)filter.size(),
-            filter.data(), (int)compiler.msg.size(), compiler.msg.data(), (int)compiler.at.size(), compiler.at.data());
+  std::regex re;
+#if defined(__cpp_exceptions)
+  try {
+    re = std::regex(filter.begin(), filter.end());
+  } catch (const std::regex_error& e) {
+    fprintf(stderr, "failed to parse benchmark filter: '%.*s'.\nParse error: %s\n", (int)filter.size(),
+            filter.data(), e.what());
     exit(1);
   }
+#else
+  // Without exceptions, a bad pattern aborts inside std::regex.
+  re = std::regex(filter.begin(), filter.end());
+#endif
 
-  return [matcher](std::string_view candidate) { return trivialre::MatchSubstring(matcher, candidate); };
+  return [re = std::move(re)](std::string_view candidate) {
+    return std::regex_search(candidate.begin(), candidate.end(), re);
+  };
 }
 
 void init_benchmark(int* argc, char*** argv) {
