@@ -278,6 +278,19 @@ class LibcInfoWithPatchFunctions : public LibcInfo {
   // reference origstub_fn_.
   static GenericFnPtr origstub_fn_[kNumFunctions];
 
+  // Returns the original (pre-patch) implementation of ifunction. If
+  // this particular patch unit didn't patch it (which happens when
+  // another unit has already patched very same function, see
+  // PopulateWindowsFn, which then nullptr-s our windows_fn_ entry),
+  // we have no origstub_fn_ of our own. In this case we fall back to
+  // calling the function via its "static" address. That ends up in
+  // the unit that did patch it, which handles everything correctly
+  // (including foreign pointers). E.g. mingw's main executable can end
+  // up with realloc patched, but _msize already patched via ucrtbase.
+  static GenericFnPtr OrigFn(int ifunction) {
+    return origstub_fn_[ifunction] ? origstub_fn_[ifunction] : LibcInfo::static_fn(ifunction);
+  }
+
   // This is the function we want to patch in
   static const GenericFnPtr perftools_fn_[kNumFunctions];
 
@@ -798,7 +811,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
   // allocated by tcmalloc.  Note it calls the origstub_free from
   // *this* templatized instance of LibcInfo.  See "template
   // trickiness" above.
-  do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFree], false, 0);
+  do_free_with_callback(ptr, (void (*)(void*))OrigFn(kFree), false, 0);
 }
 
 template <int T>
@@ -808,7 +821,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW {
   // allocated by tcmalloc.  Note it calls the origstub_free from
   // *this* templatized instance of LibcInfo.  See "template
   // trickiness" above.
-  do_free_with_callback(ptr, (void (*)(void*))origstub_fn_[kFreeBase], false, 0);
+  do_free_with_callback(ptr, (void (*)(void*))OrigFn(kFreeBase), false, 0);
 }
 
 template <int T>
@@ -818,7 +831,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use)
   if (MallocExtension::instance()->GetOwnership(ptr) == MallocExtension::kOwned) {
     do_free(ptr);
   } else {
-    reinterpret_cast<void (*)(void*, int)>(origstub_fn_[kFreeDbg])(ptr, block_use);
+    reinterpret_cast<void (*)(void*, int)>(OrigFn(kFreeDbg))(ptr, block_use);
   }
 }
 
@@ -831,11 +844,11 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(void* old_ptr, size_t new
   }
   if (new_size == 0) {
     tcmalloc::InvokeDeleteHook(old_ptr);
-    do_free_with_callback(old_ptr, (void (*)(void*))origstub_fn_[kFree], false, 0);
+    do_free_with_callback(old_ptr, (void (*)(void*))OrigFn(kFree), false, 0);
     return nullptr;
   }
-  return do_realloc_with_callback(old_ptr, new_size, (void (*)(void*))origstub_fn_[kFree],
-                                  (size_t (*)(const void*))origstub_fn_[k_Msize]);
+  return do_realloc_with_callback(old_ptr, new_size, (void (*)(void*))OrigFn(kFree),
+                                  (size_t (*)(const void*))OrigFn(k_Msize));
 }
 
 template <int T>
@@ -858,13 +871,13 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete(void* p) {
   tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
+  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void* p) {
   tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
+  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
 }
 
 template <int T>
@@ -880,13 +893,13 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(size_t size, con
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(void* p, const std::nothrow_t&) __THROW {
   tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
+  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
   tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))origstub_fn_[kFree], false, 0);
+  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
 }
 
 // _msize() lets you figure out how much space is reserved for a
@@ -899,7 +912,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(void* p, const
 
 template <int T>
 size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
-  return GetSizeWithCallback(ptr, (size_t (*)(const void*))origstub_fn_[k_Msize]);
+  return GetSizeWithCallback(ptr, (size_t (*)(const void*))OrigFn(k_Msize));
 }
 
 LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags, DWORD_PTR dwBytes) {
