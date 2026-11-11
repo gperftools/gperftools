@@ -113,6 +113,7 @@ jobs:
             *.log
   test-cmake:
     strategy:
+      fail-fast: false
       matrix:
         os: [macos-latest, ubuntu-latest, ubuntu-24.04-arm]
         build_type: [RelWithDebInfo, Debug]
