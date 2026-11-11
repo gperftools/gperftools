@@ -857,7 +857,7 @@ if(GPERFTOOLS_BUILD_HEAP_PROFILER)
     add_test(posix_testutil_test posix_testutil_test)
 
     # These unittests often need to run binaries.  They're in the current dir
-    list(APPEND TESTS_ENVIRONMENT BINDIR=. TMPDIR=/tmp/perftools)
+    list(APPEND TESTS_ENVIRONMENT BINDIR=.)
     set(sampling_test_SOURCES src/tests/sampling_test.cc src/tests/posix_testutil.cc)
     add_executable(sampling_test ${sampling_test_SOURCES})
     target_link_libraries(sampling_test tcmalloc)
