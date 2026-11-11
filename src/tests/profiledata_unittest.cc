@@ -115,7 +115,6 @@ class ProfileDataChecker {
   ProfileDataChecker() {
     const char* tmpdir = getenv("TMPDIR");
     if (tmpdir == nullptr) tmpdir = "/tmp";
-    mkdir(tmpdir, 0755);  // if necessary
     filename_ = std::string(tmpdir) + "/profiledata_unittest.tmp";
   }
 
