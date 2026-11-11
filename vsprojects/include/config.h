@@ -15,9 +15,6 @@
 /* Enable aggressive decommit by default */
 /* #undef ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT */
 
-/* Build runtime detection for sized delete */
-/* #undef ENABLE_DYNAMIC_SIZED_DELETE */
-
 /* Report large allocation */
 /* #undef ENABLE_LARGE_ALLOC_REPORT */
 

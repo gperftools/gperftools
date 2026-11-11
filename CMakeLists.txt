@@ -260,13 +260,6 @@ if (use_omit_leaf_fp)
   add_compile_options(-fno-omit-frame-pointer -momit-leaf-frame-pointer)
 endif()
 
-option(gperftools_dynamic_sized_delete_support
-       "Try to build run-time switch for sized delete operator"
-       OFF)
-if(gperftools_dynamic_sized_delete_support)
-  set(ENABLE_DYNAMIC_SIZED_DELETE 1)
-endif()
-
 option(gperftools_sized_delete "Build sized delete operator" OFF)
 if(gperftools_sized_delete)
   set(ENABLE_SIZED_DELETE 1)

@@ -327,16 +327,6 @@ AC_ARG_ENABLE(frame_pointers,
 	      , enable_frame_pointers=no)
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 
-AC_ARG_ENABLE([dynamic-sized-delete-support],
-              [AS_HELP_STRING([--enable-dynamic-sized-delete-support],
-                [try to build run-time switch for sized delete operator])],
-              [enable_dyn_sized_delete="$enableval"],
-              [enable_dyn_sized_delete=no])
-
-AS_IF([test "x$enable_dyn_sized_delete" = xyes],
-      [AC_DEFINE([ENABLE_DYNAMIC_SIZED_DELETE], 1,
-                 [Build runtime detection for sized delete])])
-
 AC_ARG_ENABLE([sized-delete],
               [AS_HELP_STRING([--enable-sized-delete],
                               [build sized delete operator])],
@@ -345,9 +335,7 @@ AC_ARG_ENABLE([sized-delete],
 AS_IF([test "x$enable_sized_delete" = xyes],
         [AC_DEFINE([ENABLE_SIZED_DELETE], 1, [Build sized deletion operators])
          AC_MSG_NOTICE([Will build sized deallocation operators])],
-      [AS_IF([test "x$enable_dyn_sized_delete" = xyes],
-             [AC_MSG_NOTICE([Will build dynamically detected sized deallocation operators])],
-             [AC_MSG_NOTICE([Will build sized deallocation operators that ignore size])])])
+      [AC_MSG_NOTICE([Will build sized deallocation operators that ignore size])])
 
 AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                [perftools_cv_sized_deallocation_result],

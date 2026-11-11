@@ -7,9 +7,6 @@
 /* Enable aggressive decommit by default */
 #cmakedefine ENABLE_AGGRESSIVE_DECOMMIT_BY_DEFAULT
 
-/* Build runtime detection for sized delete */
-#cmakedefine ENABLE_DYNAMIC_SIZED_DELETE
-
 /* Report large allocation */
 #cmakedefine ENABLE_LARGE_ALLOC_REPORT
 

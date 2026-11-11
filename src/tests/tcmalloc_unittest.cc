@@ -2080,9 +2080,6 @@ static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
 // * TCMALLOC_AGGRESSIVE_DECOMMIT = t
 //
 // * TCMALLOC_HEAP_LIMIT_MB = 512
-//
-// * TCMALLOC_ENABLE_SIZED_DELETE = t (note, this one is no-op in most
-//     common builds)
 void HandleVariableRuns(int argc, char** argv) {
   if (argc != 1) {
     return;
@@ -2094,7 +2091,6 @@ void HandleVariableRuns(int argc, char** argv) {
   static constexpr EnvProperty kTransferNumObjEnv{"TCMALLOC_TRANSFER_NUM_OBJ"};
   static constexpr EnvProperty kAggressiveDecommitEnv{"TCMALLOC_AGGRESSIVE_DECOMMIT"};
   static constexpr EnvProperty kHeapLimitEnv{"TCMALLOC_HEAP_LIMIT_MB"};
-  static constexpr EnvProperty kEnableSizedDeleteEnv{"TCMALLOC_ENABLE_SIZED_DELETE"};
 
   if (!kMarker.Get().empty()) {
     return;  // We're unitttest child
@@ -2123,12 +2119,6 @@ void HandleVariableRuns(int argc, char** argv) {
   ReSpawnWithEnv([](override_set* overrides) {
     kAggressiveDecommitEnv.Set(overrides, "");
     kHeapLimitEnv.SetAndPrint(overrides, "512");
-    kMarker.Set(overrides, "_");
-  });
-
-  ReSpawnWithEnv([](override_set* overrides) {
-    kHeapLimitEnv.Set(overrides, "");
-    kEnableSizedDeleteEnv.SetAndPrint(overrides, "t");
     kMarker.Set(overrides, "_");
   });
 
