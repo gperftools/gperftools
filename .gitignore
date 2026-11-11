@@ -27,6 +27,7 @@
 /binary_trees_shared
 /binary_trees_shared.exe
 /build/
+/ci-build/
 /check_address_test
 /cleanup_test
 /cleanup_test.exe

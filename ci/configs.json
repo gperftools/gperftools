@@ -1,0 +1,161 @@
+{
+    "optInTags": [
+        "i386",
+        "msvc"
+    ],
+    "configs": [
+        {
+            "tags": [
+                "autotools"
+            ],
+            "sys": "autotools",
+            "runners": [
+                "ubuntu-latest",
+                "ubuntu-24.04-arm",
+                "ubuntu-26.04-arm"
+            ],
+            "configure": [],
+            "env": {
+                "GPERFTOOLS_ENSURE_PACKAGE_VERSION": "1"
+            },
+            "apt": [
+                "libunwind-dev"
+            ],
+            "expect": [
+                "getpc_test",
+                "tcmalloc_minimal_debug_unittest",
+                "tcmalloc_debug_unittest",
+                "heap-profiler_unittest"
+            ],
+            "ccache": false,
+            "ccacheCompilers": [],
+            "msvc": false,
+            "builddir": "ci-build/autotools"
+        },
+        {
+            "tags": [
+                "autotools",
+                "i386"
+            ],
+            "sys": "autotools",
+            "runners": [
+                "ubuntu-latest"
+            ],
+            "configure": [
+                "--host=i686-linux-gnu",
+                "--enable-frame-pointers"
+            ],
+            "env": {
+                "GPERFTOOLS_ENSURE_PACKAGE_VERSION": "1"
+            },
+            "apt": [
+                "g++-i686-linux-gnu",
+                "libc6-i386",
+                "lib32stdc++6"
+            ],
+            "ccache": true,
+            "ccacheCompilers": [
+                "i686-linux-gnu-gcc",
+                "i686-linux-gnu-g++"
+            ],
+            "expect": [
+                "getpc_test",
+                "tcmalloc_minimal_debug_unittest",
+                "tcmalloc_debug_unittest",
+                "heap-profiler_unittest"
+            ],
+            "msvc": false,
+            "builddir": "ci-build/autotools_i386"
+        },
+        {
+            "tags": [
+                "cmake",
+                "opt"
+            ],
+            "sys": "cmake",
+            "runners": [
+                "macos-latest",
+                "ubuntu-latest",
+                "ubuntu-24.04-arm"
+            ],
+            "configure": [
+                "-DCMAKE_BUILD_TYPE=RelWithDebInfo"
+            ],
+            "env": {},
+            "apt": [],
+            "expect": [],
+            "ccache": true,
+            "ccacheCompilers": [],
+            "msvc": false,
+            "builddir": "ci-build/cmake_opt"
+        },
+        {
+            "tags": [
+                "cmake",
+                "dbg"
+            ],
+            "sys": "cmake",
+            "runners": [
+                "macos-latest",
+                "ubuntu-latest",
+                "ubuntu-24.04-arm"
+            ],
+            "configure": [
+                "-DCMAKE_BUILD_TYPE=Debug"
+            ],
+            "env": {},
+            "apt": [],
+            "expect": [],
+            "ccache": true,
+            "ccacheCompilers": [],
+            "msvc": false,
+            "builddir": "ci-build/cmake_dbg"
+        },
+        {
+            "tags": [
+                "cmake",
+                "msvc",
+                "opt"
+            ],
+            "sys": "cmake",
+            "apt": [],
+            "ccache": false,
+            "ccacheCompilers": [],
+            "configure": [
+                "-DCMAKE_BUILD_TYPE=RelWithDebInfo",
+                "-DGPERFTOOLS_BUILD_HEAP_PROFILER=OFF",
+                "-Dgperftools_build_minimal=ON"
+            ],
+            "env": {},
+            "expect": [],
+            "msvc": true,
+            "runners": [
+                "windows-latest"
+            ],
+            "builddir": "ci-build/cmake_msvc_opt"
+        },
+        {
+            "tags": [
+                "cmake",
+                "msvc",
+                "dbg"
+            ],
+            "sys": "cmake",
+            "apt": [],
+            "ccache": false,
+            "ccacheCompilers": [],
+            "configure": [
+                "-DCMAKE_BUILD_TYPE=Debug",
+                "-DGPERFTOOLS_BUILD_HEAP_PROFILER=OFF",
+                "-Dgperftools_build_minimal=ON"
+            ],
+            "env": {},
+            "expect": [],
+            "msvc": true,
+            "runners": [
+                "windows-latest"
+            ],
+            "builddir": "ci-build/cmake_msvc_dbg"
+        }
+    ]
+}
