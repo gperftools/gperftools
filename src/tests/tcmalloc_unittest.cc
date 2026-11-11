@@ -1883,6 +1883,20 @@ TEST(TCMallocTest, Version) {
   ASSERT_EQ(strcmp(TC_VERSION_STRING, human_version), 0);
 }
 
+// When run with TCMALLOC_OVERRIDE_PAGESIZE (see HandleVariableRuns
+// below), make sure that override actually took effect. Min span size
+// can be larger than requested value if malloc's logical page size is
+// larger than that.
+TEST(TCMallocTest, MinSpanSize) {
+  const char* env = getenv("TCMALLOC_OVERRIDE_PAGESIZE");
+  if (env == nullptr) {
+    GTEST_SKIP() << "TCMALLOC_OVERRIDE_PAGESIZE is not set";
+  }
+  size_t want = atol(env);
+  ASSERT_GT(want, 0u);
+  ASSERT_GE(TestingPortal::Get()->GetMinSpanSize(), want);
+}
+
 struct EnvProperty {
   const char* const name;
   constexpr EnvProperty(const char* name) : name(name) {}
@@ -2067,7 +2081,7 @@ static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
 // by passing --gtest_filter or other flags, you'll need to set up
 // environment variables yourself. See SetupExec below.
 //
-// We test 4 extra settings:
+// We test those extra settings:
 //
 // * TCMALLOC_TRANSFER_NUM_OBJ = 40
 //
@@ -2076,6 +2090,8 @@ static void ReSpawnWithEnv(EnvProperty::env_override_fn env_override) {
 // * TCMALLOC_AGGRESSIVE_DECOMMIT = t
 //
 // * TCMALLOC_HEAP_LIMIT_MB = 512
+//
+// * TCMALLOC_OVERRIDE_PAGESIZE = 65536
 void HandleVariableRuns(int argc, char** argv) {
   if (argc != 1) {
     return;
@@ -2087,6 +2103,7 @@ void HandleVariableRuns(int argc, char** argv) {
   static constexpr EnvProperty kTransferNumObjEnv{"TCMALLOC_TRANSFER_NUM_OBJ"};
   static constexpr EnvProperty kAggressiveDecommitEnv{"TCMALLOC_AGGRESSIVE_DECOMMIT"};
   static constexpr EnvProperty kHeapLimitEnv{"TCMALLOC_HEAP_LIMIT_MB"};
+  static constexpr EnvProperty kPageSizeOverride{"TCMALLOC_OVERRIDE_PAGESIZE"};
 
   if (!kMarker.Get().empty()) {
     return;  // We're unitttest child
@@ -2107,14 +2124,17 @@ void HandleVariableRuns(int argc, char** argv) {
   });
 
   ReSpawnWithEnv([](override_set* overrides) {
-    kTransferNumObjEnv.Set(overrides, "");
     kAggressiveDecommitEnv.SetAndPrint(overrides, "t");
     kMarker.Set(overrides, "_");
   });
 
   ReSpawnWithEnv([](override_set* overrides) {
-    kAggressiveDecommitEnv.Set(overrides, "");
     kHeapLimitEnv.SetAndPrint(overrides, "512");
+    kMarker.Set(overrides, "_");
+  });
+
+  ReSpawnWithEnv([](override_set* overrides) {
+    kPageSizeOverride.SetAndPrint(overrides, "65536");
     kMarker.Set(overrides, "_");
   });
 
