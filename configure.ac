@@ -328,14 +328,14 @@ AC_ARG_ENABLE(frame_pointers,
 AM_CONDITIONAL(ENABLE_FRAME_POINTERS, test "$enable_frame_pointers" = yes)
 
 AC_ARG_ENABLE([sized-delete],
-              [AS_HELP_STRING([--enable-sized-delete],
-                              [build sized delete operator])],
+              [AS_HELP_STRING([--disable-sized-delete],
+                              [make sized delete operators (and tc_free_sized) ignore passed size])],
               [enable_sized_delete="$enableval"],
-              [enable_sized_delete="no"])
-AS_IF([test "x$enable_sized_delete" = xyes],
-        [AC_DEFINE([ENABLE_SIZED_DELETE], 1, [Build sized deletion operators])
-         AC_MSG_NOTICE([Will build sized deallocation operators])],
-      [AC_MSG_NOTICE([Will build sized deallocation operators that ignore size])])
+              [enable_sized_delete="yes"])
+AS_IF([test "x$enable_sized_delete" = xno],
+      [AC_MSG_NOTICE([Will build sized deallocation operators that ignore size])],
+      [AC_DEFINE([ENABLE_SIZED_DELETE], 1, [Sized delete operators trust passed size])
+       AC_MSG_NOTICE([Will build sized deallocation operators that trust passed size])])
 
 AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                [perftools_cv_sized_deallocation_result],

@@ -260,7 +260,9 @@ if (use_omit_leaf_fp)
   add_compile_options(-fno-omit-frame-pointer -momit-leaf-frame-pointer)
 endif()
 
-option(gperftools_sized_delete "Build sized delete operator" OFF)
+option(gperftools_sized_delete
+       "Sized delete operators (and tc_free_sized) trust passed size; turn off to ignore it"
+       ON)
 if(gperftools_sized_delete)
   set(ENABLE_SIZED_DELETE 1)
 endif()

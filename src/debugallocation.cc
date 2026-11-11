@@ -1189,6 +1189,17 @@ inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
 // have to do call. frame_forcer call at the end of such functions
 // prevents tail calls to DebugDeallocate.
 static int frame_forcer;
+
+// When built with --disable-sized-delete we ignore sizes passed to
+// sized delete (and tc_free_sized), so don't verify them either.
+static inline size_t SizeHint(size_t size) {
+#ifdef ENABLE_SIZED_DELETE
+  return size;
+#else
+  return 0;
+#endif
+}
+
 static void force_frame() {
   int dummy = *(int volatile*)&frame_forcer;
   (void)dummy;
@@ -1208,7 +1219,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_NOTHROW {
 
 extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW {
   tcmalloc::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, size);
+  DebugDeallocate(ptr, MallocBlock::kMallocType, SizeHint(size));
   force_frame();
 }
 
@@ -1292,7 +1303,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW {
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
   tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kNewType, size);
+  DebugDeallocate(p, MallocBlock::kNewType, SizeHint(size));
   force_frame();
 }
 
@@ -1327,7 +1338,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW {
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
   tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kArrayNewType, size);
+  DebugDeallocate(p, MallocBlock::kArrayNewType, SizeHint(size));
   force_frame();
 }
 

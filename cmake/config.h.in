@@ -10,7 +10,7 @@
 /* Report large allocation */
 #cmakedefine ENABLE_LARGE_ALLOC_REPORT
 
-/* Build sized deletion operators */
+/* Sized delete operators trust passed size */
 #cmakedefine ENABLE_SIZED_DELETE
 
 /* Define to 1 if you have the <asm/ptrace.h> header file. */

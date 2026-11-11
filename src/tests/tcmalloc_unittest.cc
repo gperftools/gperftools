@@ -1430,7 +1430,6 @@ TEST(TCMallocTest, AllTests) {
     std::stable_sort(v.begin(), v.end());
   }
 
-#ifdef ENABLE_SIZED_DELETE
   {
     printf("Testing large sized delete is not crashing\n");
     // Large sized delete
@@ -1445,7 +1444,6 @@ TEST(TCMallocTest, AllTests) {
       ::operator delete[](addresses[i], 12686);
     }
   }
-#endif
 
   // Test each of the memory-allocation functions once, just as a sanity-check
   printf("Sanity-testing all the memory allocation functions\n");
@@ -1577,7 +1575,6 @@ TEST(TCMallocTest, AllTests) {
     ::operator delete(p2, std::nothrow);
     VerifyDeleteHookWasCalled();
 
-#ifdef ENABLE_SIZED_DELETE
     p2 = noopt(new char);
     ASSERT_NE(p2, nullptr);
     VerifyNewHookWasCalled();
@@ -1589,7 +1586,6 @@ TEST(TCMallocTest, AllTests) {
     VerifyNewHookWasCalled();
     ::operator delete[](p2, sizeof(char) * 100);
     VerifyDeleteHookWasCalled();
-#endif
 
     overaligned_type* poveraligned = noopt(new overaligned_type);
     ASSERT_NE(poveraligned, nullptr);

@@ -43,8 +43,8 @@
 /* report large allocation */
 /* #undef ENABLE_LARGE_ALLOC_REPORT */
 
-/* Build sized deletion operators */
-/* #undef ENABLE_SIZED_DELETE */
+/* Sized delete operators trust passed size */
+#define ENABLE_SIZED_DELETE 1
 
 /* Define to 1 if you have the <asm/ptrace.h> header file. */
 #if defined __has_include

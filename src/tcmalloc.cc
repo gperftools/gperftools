@@ -1875,6 +1875,11 @@ static ALWAYS_INLINE void free_fast_path(void* ptr) {
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free(void* ptr) PERFTOOLS_NOTHROW { free_fast_path(ptr); }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW {
+#ifndef ENABLE_SIZED_DELETE
+  // built with --disable-sized-delete. Ignore passed size.
+  tc_free(ptr);
+  return;
+#endif
   if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
     tcmalloc::invoke_hooks_and_free(ptr);
     return;
