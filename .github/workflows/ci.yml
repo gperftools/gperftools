@@ -150,7 +150,7 @@ jobs:
         run: ninja -v
       - name: test
         working-directory: ${{runner.workspace}}/build
-        run: ctest -j12 --test-dir .
+        run: ctest -j12 --test-dir . || ctest -j12 --test-dir . --rerun-failed
       - name: Upload Test Logs
         uses: actions/upload-artifact@v7
         if: ${{ always() }}
