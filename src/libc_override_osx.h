@@ -190,13 +190,13 @@ boolean_t mi_zone_locked(malloc_zone_t* zone) {
 // support either memalign() or posix_memalign().  If you need them
 // and are willing to code to tcmalloc, you can use tc_posix_memalign().
 extern "C" {
-void cfree(void* p) { tc_cfree(p); }
-void* pvalloc(size_t s) { return tc_pvalloc(s); }
-void malloc_stats(void) { tc_malloc_stats(); }
-int mallopt(int cmd, int v) { return tc_mallopt(cmd, v); }
+PERFTOOLS_DLL_DECL void cfree(void* p) { tc_cfree(p); }
+PERFTOOLS_DLL_DECL void* pvalloc(size_t s) { return tc_pvalloc(s); }
+PERFTOOLS_DLL_DECL void malloc_stats(void) { tc_malloc_stats(); }
+PERFTOOLS_DLL_DECL int mallopt(int cmd, int v) { return tc_mallopt(cmd, v); }
 // No struct mallinfo on OS X, so don't define mallinfo().
 // An alias for malloc_size(), which OS X defines.
-size_t malloc_usable_size(void* p) { return tc_malloc_size(p); }
+PERFTOOLS_DLL_DECL size_t malloc_usable_size(void* p) { return tc_malloc_size(p); }
 }  // extern "C"
 
 static malloc_zone_t* get_default_zone() {
