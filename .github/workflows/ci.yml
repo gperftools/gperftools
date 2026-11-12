@@ -71,7 +71,7 @@ jobs:
       - name: Install dependencies
         run: |
           sudo apt update
-          sudo apt install automake autoconf libtool build-essential patch perl libc-bin g++-multilib
+          sudo apt install automake autoconf libtool build-essential patch perl libc-bin g++-i686-linux-gnu libc6-i386 lib32stdc++6
       - name: Install Go
         uses: actions/setup-go@v7
         with:
@@ -85,14 +85,17 @@ jobs:
         with:
           key: ${{ github.job }}-${{ matrix.os }}
       - name: Add ccache to PATH
-        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+        run: |
+          echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+          sudo ln -s /usr/bin/ccache /usr/lib/ccache/i686-linux-gnu-gcc || true
+          sudo ln -s /usr/bin/ccache /usr/lib/ccache/i686-linux-gnu-g++ || true
       # when testing autotools-based build ensure that we check PACKAGE_VERSION matches versions in tcmalloc.h
       - run: echo GPERFTOOLS_ENSURE_PACKAGE_VERSION=1 >> $GITHUB_ENV
       - name: Build and test
         # GNU/Linux i386 currently fails with libgcc backtracer due to wrong unwind info in memcpy-ia32.S. So we force frame pointers.
         run: |
           ./autogen.sh
-          ./configure CXX='g++ -m32' CC='gcc -m32' --enable-frame-pointers
+          ./configure --host=i686-linux-gnu --enable-frame-pointers
           export NUMCPUS=`getconf _NPROCESSORS_ONLN`
           export MORECPUS="$(($NUMCPUS * 3))"
           printf "NUMCPUS=%d MORECPUS=%d\n" "$NUMCPUS" "$MORECPUS"
