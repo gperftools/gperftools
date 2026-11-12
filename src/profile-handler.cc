@@ -280,8 +280,10 @@ static void StartLinuxThreadTimer(int timer_type, int signal_number, int32_t fre
     RAW_LOG(FATAL, "aborting due to tcmalloc::SetTlsValue error: %s", strerror(rv));
   }
 
-  its.it_interval.tv_sec = 0;
-  its.it_interval.tv_nsec = 1000000000 / frequency;
+  const int kBillion = 1000000000;
+  int interval_nsec = kBillion / frequency;
+  its.it_interval.tv_sec = interval_nsec / kBillion;
+  its.it_interval.tv_nsec = interval_nsec % kBillion;
   its.it_value = its.it_interval;
   rv = timer_settime(timerid, 0, &its, 0);
   if (rv) {
