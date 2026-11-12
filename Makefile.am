@@ -943,7 +943,7 @@ EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
              src/windows/CMakeLists.txt \
              $(WINDOWS_EXTRA) \
-             gperftools.sln vsprojects vendor \
+             vendor \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \
              $(top_srcdir)/benchmark/*h \
              $(top_srcdir)/src/tests/*h \
@@ -951,10 +951,7 @@ EXTRA_DIST = $(SCRIPTS) \
              CMakeLists.txt cmake \
              generic-config/config.h .bazelrc BUILD.bazel MODULE.bazel
 
-# Windows wants write permission to .vcxproj files and maybe even sln files.
 dist-hook: $(top_distdir)/ChangeLog
-	test -e "$(distdir)/vsprojects" \
-	   && chmod -R u+w $(distdir)/*.sln $(distdir)/vsprojects/
 	rm -rf $(distdir)/vendor/googletest/googletest/src/.deps
 	rm -rf $(distdir)/vendor/libbacktrace/.deps
 	rm -rf $(distdir)/vendor/libbacktrace-integration/.deps

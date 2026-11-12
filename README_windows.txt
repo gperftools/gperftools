@@ -1,73 +1,44 @@
 --- COMPILING
 
-This project has begun being ported to Windows, only tcmalloc_minimal
-is supported at this time.  A working solution file exists in this
-directory:
-    gperftools.sln
+Windows builds use CMake (3.15 or later) and any generator/toolchain
+supported by it, e.g. Visual Studio or Ninja with MSVC:
 
-You can load this solution file into Visual Studio 2015 or
-later -- in the latter case, it will automatically convert the files
-to the latest format for you.
+    cmake -S . -B build -Dgperftools_build_minimal=ON
+    cmake --build build --config Release
+    ctest --test-dir build -C Release
 
-When you build the solution, it will create a number of unittests,
-which you can run by hand (or, more easily, under the Visual Studio
-debugger) to make sure everything is working properly on your system.
-The binaries will end up in a directory called "debug" or "release" in
-the top-level directory (next to the .sln file).
+Only tcmalloc_minimal is supported at this time.  Unit tests are built
+along with the library and can be run via ctest.
 
-I don't know very much about how to install DLLs on Windows, so you'll
-have to figure out that part for yourself.  If you choose to just
-re-use the existing .sln, make sure you set the IncludeDir's
-appropriately!  Look at the properties for libtcmalloc_minimal.dll.
-
-Note that these systems are set to build in Debug mode by default.
-You may want to change them to Release mode.
-
-To use tcmalloc_minimal in your own projects, you should only need to
-build the dll and install it someplace, so you can link it into
-further binaries.  To use the dll, you need to add the following to
-the linker line of your executable:
+To use tcmalloc_minimal in your own project, link against the
+tcmalloc_minimal library (CMake target) or, when linking by hand, add
+the following to the linker line of your executable:
    "libtcmalloc_minimal.lib" /INCLUDE:"__tcmalloc"
 
-Here is how to accomplish this in Visual Studio 2015:
+The /INCLUDE is necessary so the linker doesn't "optimize out" the
+libtcmalloc dependency.  In Visual Studio it can be set in Project
+Properties -> Linker -> Input -> "Force Symbol References".
 
-1) Have your executable depend on the tcmalloc library by selecting
-   "Project Dependencies..." from the "Project" menu.  Your executable
-   should depend on "libtcmalloc_minimal".
+You can also link tcmalloc code in statically.  For this to work,
+you'll need to add "/D PERFTOOLS_DLL_DECL=" to the compile line of
+every perftools .cc file.  You do not need the __tcmalloc symbol
+reference in this case.
 
-2) Have your executable depend on a tcmalloc symbol -- this is
-   necessary so the linker doesn't "optimize out" the libtcmalloc
-   dependency -- by right-clicking on your executable's project (in
-   the solution explorer), selecting Properties from the pull-down
-   menu, then selecting "Configuration Properties" -> "Linker" ->
-   "Input".  Then, in the "Force Symbol References" field, enter the
-   text "__tcmalloc" (without the quotes).  Be sure to do this for both
-   debug and release modes!
+--- OVERRIDE MODE
 
-You can also link tcmalloc code in statically -- see the example
-project tcmalloc_minimal_unittest-static, which does this.  For this
-to work, you'll need to add "/D PERFTOOLS_DLL_DECL=" to the compile
-line of every perftools .cc file.  You do not need to depend on the
-tcmalloc symbol in this case (that is, you don't need to do either
-step 1 or step 2 from above).
+An alternative to all the above is "override" mode: statically link
+your application with the CRT (/MT), and have tcmalloc replace the
+CRT's malloc and friends at link time instead of patching them at
+run time.  This is more reliable than run-time patching (which is
+inherently fragile).  Enable it with:
 
-An alternative to all the above is to statically link your application
-with libc, and then replace its malloc with tcmalloc.  This allows you
-to just build and link your program normally; the tcmalloc support
-comes in a post-processing step.  This is more reliable than the above
-technique (which depends on run-time patching, which is inherently
-fragile), though more work to set up.  For details, see
-   https://groups.google.com/group/google-perftools/browse_thread/thread/41cd3710af85e57b
+    cmake -S . -B build -Dgperftools_build_minimal=ON \
+          -Dgperftools_windows_override=ON -DBUILD_SHARED_LIBS=OFF \
+          -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
 
-
---- THE HEAP-PROFILER
-
-The heap-profiler has had a preliminary port to Windows but does not
-build on Windows by default.  It has not been well tested, and
-probably does not work at all when Frame Pointer Optimization (FPO) is
-enabled -- that is, in release mode.  The other features of perftools,
-such as the cpu-profiler and leak-checker, have not yet been ported to
-Windows at all.
+It requires a static build of tcmalloc and a static CRT.  Your
+executable still needs to pull tcmalloc in at link time, e.g. with
+/INCLUDE:__tcmalloc as described above.
 
 
 --- ISSUES
@@ -84,14 +55,5 @@ _recalloc() is a tricky routine to use in any case (it's not safe to
 use with realloc, for instance).
 
 
-I have little experience with Windows programming, so there may be
-better ways to set this up than I've done!  If you run across any
-problems, please post to the google-perftools Google Group, or report
-them on the gperftools Google Code site:
-   http://groups.google.com/group/google-perftools
-   http://code.google.com/p/gperftools/issues/list
-
--- craig
--- updated by alk on 31 July 2023
-
-Last modified: 31 July 2023
+If you run across any problems, please report them at
+   https://github.com/gperftools/gperftools/issues
