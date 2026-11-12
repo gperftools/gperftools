@@ -108,6 +108,11 @@ if(gperftools_build_minimal)
 endif()
 
 cmake_dependent_option(
+  gperftools_windows_override
+  "MSVC: statically override CRT malloc instead of runtime patching (needs static CRT)"
+  OFF "MSVC" OFF)
+
+cmake_dependent_option(
   gperftools_build_benchmark "Build benchmark" ON "NOT MINGW AND NOT MSVC" OFF)
 
 option(gperftools_enable_stacktrace_via_backtrace
@@ -442,7 +447,19 @@ target_sources(common PRIVATE
   src/windows/preamble_patcher_with_stub.cc)
 
 set(SYSTEM_ALLOC_CC src/windows/system-alloc.cc)
-set(TCMALLOC_CC src/windows/patch_functions.cc)
+if(gperftools_windows_override)
+  # "Override" mode: tcmalloc is linked statically together with
+  # static CRT (/MT) and simply defines malloc & friends (plus
+  # CRT-internal _malloc_base etc), so that CRT's own heap objects
+  # never get pulled in from libucrt.lib.
+  if(BUILD_SHARED_LIBS)
+    message(FATAL_ERROR "gperftools_windows_override requires -DBUILD_SHARED_LIBS=OFF")
+  endif()
+  set(TCMALLOC_CC src/windows/override_functions.cc)
+  add_compile_definitions(WIN32_OVERRIDE_ALLOCATORS)
+else()
+  set(TCMALLOC_CC src/windows/patch_functions.cc)
+endif()
 
 # patch_function uses -lpsapi and spinlock bits use -synchronization
 # and -lshlwapi
