@@ -941,7 +941,6 @@ $(top_distdir)/ChangeLog:
 
 EXTRA_DIST = $(SCRIPTS) \
              src/windows/get_mangled_names.cc src/windows/override_functions.cc \
-             src/windows/CMakeLists.txt \
              $(WINDOWS_EXTRA) \
              vendor \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \

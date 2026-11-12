@@ -725,6 +725,23 @@ if(BUILD_TESTING)
   add_executable(min_per_thread_cache_size_test src/tests/min_per_thread_cache_size_test.cc)
   target_link_libraries(min_per_thread_cache_size_test tcmalloc_minimal gtest)
   add_test(min_per_thread_cache_size_test min_per_thread_cache_size_test)
+
+  # preamble_patcher_test needs shortproc.asm, which is amd64-only
+  # MASM (ml64). PreamblePatcher itself lives in the `common` library.
+  if(MSVC AND CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
+    enable_language(ASM_MASM)
+
+    add_executable(preamble_patcher_test
+      src/windows/preamble_patcher_test.cc
+      src/windows/shortproc.asm)
+    # shortproc.asm uses `IFNDEF AMD64` to skip the .MODEL directive
+    # that ml64 doesn't accept.
+    set_source_files_properties(src/windows/shortproc.asm PROPERTIES
+      COMPILE_DEFINITIONS AMD64)
+    target_compile_definitions(preamble_patcher_test PRIVATE PERFTOOLS_DLL_DECL= )
+    target_link_libraries(preamble_patcher_test common)
+    add_test(preamble_patcher_test preamble_patcher_test)
+  endif()
 endif()
 
 ### ------- tcmalloc_minimal_debug (thread-caching malloc with debugallocation)
@@ -963,10 +980,6 @@ if(BUILD_TESTING)
       set_tests_properties(${test} PROPERTIES ENVIRONMENT "${TESTS_ENVIRONMENT}")
     endforeach()
   endif()
-endif()
-
-if(MSVC)
-    add_subdirectory(src/windows)
 endif()
 
 message(WARNING "note: gperftools' cmake support is incomplete and is best-effort only")
