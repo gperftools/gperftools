@@ -22,8 +22,8 @@ jobs:
         uses: actions/checkout@v7
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install automake autoconf libtool build-essential patch perl libc-bin libunwind-dev
+          sudo apt-get update
+          sudo apt-get install -y automake autoconf libtool build-essential patch perl libc-bin libunwind-dev
       - name: Install Go
         uses: actions/setup-go@v7
         with:
@@ -70,8 +70,8 @@ jobs:
         uses: actions/checkout@v7
       - name: Install dependencies
         run: |
-          sudo apt update
-          sudo apt install automake autoconf libtool build-essential patch perl libc-bin g++-i686-linux-gnu libc6-i386 lib32stdc++6
+          sudo apt-get update
+          sudo apt-get install -y automake autoconf libtool build-essential patch perl libc-bin g++-i686-linux-gnu libc6-i386 lib32stdc++6
       - name: Install Go
         uses: actions/setup-go@v7
         with:
