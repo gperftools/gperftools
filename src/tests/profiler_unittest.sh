@@ -130,9 +130,9 @@ VerifyAcrossThreads() {
 # Exercise both clock types and registration of additional threads. Platforms
 # without Linux per-thread timers ignore CPUPROFILE_PER_THREAD_TIMERS.
 env CPUPROFILE_FREQUENCY=1 CPUPROFILE_PER_THREAD_TIMERS=1 \
-  "$PROFILER" --check-thread-registration || RegisterFailure
+  "$PROFILER" --register-and-exit || RegisterFailure
 env CPUPROFILE_FREQUENCY=1 CPUPROFILE_PER_THREAD_TIMERS=1 CPUPROFILE_REALTIME=1 \
-  "$PROFILER" --check-thread-registration || RegisterFailure
+  "$PROFILER" --register-and-exit || RegisterFailure
 
 # profiler1 is a non-threaded version
 "$PROFILER" 50 1 "$TMPDIR/p1" || RegisterFailure

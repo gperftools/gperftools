@@ -111,7 +111,7 @@ static void test_main_thread() {
 }
 
 int main(int argc, char** argv) {
-  if (argc == 2 && strcmp(argv[1], "--check-thread-registration") == 0) {
+  if (argc == 2 && strcmp(argv[1], "--register-and-exit") == 0) {
     RunManyThreads(ProfilerRegisterThread, 2);
     return 0;
   }
