@@ -52,6 +52,14 @@
 
 #include "tcmalloc.cc"
 
+// Same as in patch_functions.cc: linking with /INCLUDE:__tcmalloc
+// (-u__tcmalloc) forces this object (and thus our malloc overrides)
+// into the link ahead of the CRT's own heap objects.
+extern "C" PERFTOOLS_DLL_DECL void _tcmalloc();
+void _tcmalloc() {}
+extern "C" PERFTOOLS_DLL_DECL void __tcmalloc();
+void __tcmalloc() {}
+
 extern "C" {
 
 void* _malloc_base(size_t size) { return malloc(size); }
@@ -59,6 +67,16 @@ void* _malloc_base(size_t size) { return malloc(size); }
 void _free_base(void* p) { free(p); }
 
 void* _calloc_base(size_t n, size_t size) { return calloc(n, size); }
+
+void* _realloc_base(void* p, size_t size) { return realloc(p, size); }
+
+// _expand() is "realloc in place". We don't support it, which is
+// allowed (it is permitted to fail). Without this definition CRT's
+// expand.obj gets linked in and calls HeapReAlloc on our (null)
+// __acrt_heap, crashing.
+void* _expand(void*, size_t) { return nullptr; }
+
+void* _expand_base(void*, size_t) { return nullptr; }
 
 void* _recalloc(void* old_ptr, size_t n, size_t size) {
   // Ensure that (n * size) does not overflow
