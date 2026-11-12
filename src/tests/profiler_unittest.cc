@@ -111,6 +111,11 @@ static void test_main_thread() {
 }
 
 int main(int argc, char** argv) {
+  if (argc == 2 && strcmp(argv[1], "--check-thread-registration") == 0) {
+    RunManyThreads(ProfilerRegisterThread, 2);
+    return 0;
+  }
+
   if (argc <= 1) {
     fprintf(stderr, "USAGE: %s <iters> [num_threads] [filename]\n", argv[0]);
     fprintf(stderr, "   iters: How many million times to run the XOR test.\n");
