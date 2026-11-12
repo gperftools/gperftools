@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.15)
 
 # Please note that cmake support is very preliminary. Autotools-based
 # build is the only fully supported build for now.
