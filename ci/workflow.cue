@@ -170,6 +170,12 @@ workflow: githubactions.#Workflow & {
 		}
 		pull_request: {}
 	}
+	// A new push to the same branch (or PR) cancels the runs still in
+	// progress for the previous one.
+	concurrency: {
+		group:                "${{ github.workflow }}-${{ github.ref }}"
+		"cancel-in-progress": true
+	}
 	jobs: {
 		"ci-gen-check": _genCheck
 		// Job ids only need to be unique and valid (letters, digits,

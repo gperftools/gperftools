@@ -7,6 +7,9 @@ name: CI
     tags:
       - '*'
   pull_request: {}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   ci-gen-check:
     runs-on: ubuntu-latest
@@ -36,6 +39,12 @@ jobs:
         run: |-
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ruby libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
       - name: Install Go
         uses: actions/setup-go@v7
         with:
@@ -64,6 +73,12 @@ jobs:
         run: |-
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ruby libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
       - name: Install Go
         uses: actions/setup-go@v7
         with:
@@ -92,6 +107,12 @@ jobs:
         run: |-
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends ruby libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
       - name: Install Go
         uses: actions/setup-go@v7
         with:
@@ -109,6 +130,182 @@ jobs:
         with:
           name: test-logs-${{ github.job }}
           path: ci-build/autotools/*.log
+          retention-days: 7
+  autotools_clang_ubuntu-latest:
+    name: autotools clang (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby clang libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: |-
+          echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+          sudo ln -s /usr/bin/ccache /usr/lib/ccache/clang || true
+          sudo ln -s /usr/bin/ccache /usr/lib/ccache/clang++ || true
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: Install pprof
+        run: |-
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+          PATH=$HOME/go/bin:$PATH which -a pprof
+      - name: Build and test
+        run: ruby ci/run.rb autotools clang
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          path: ci-build/autotools_clang/*.log
+          retention-days: 7
+  autotools_clang_ubuntu-24_04-arm:
+    name: autotools clang (ubuntu-24.04-arm)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Clone
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby clang libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: |-
+          echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+          sudo ln -s /usr/bin/ccache /usr/lib/ccache/clang || true
+          sudo ln -s /usr/bin/ccache /usr/lib/ccache/clang++ || true
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: Install pprof
+        run: |-
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+          PATH=$HOME/go/bin:$PATH which -a pprof
+      - name: Build and test
+        run: ruby ci/run.rb autotools clang
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          path: ci-build/autotools_clang/*.log
+          retention-days: 7
+  autotools_lto_ubuntu-latest:
+    name: autotools lto (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: Install pprof
+        run: |-
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+          PATH=$HOME/go/bin:$PATH which -a pprof
+      - name: Build and test
+        run: ruby ci/run.rb autotools lto
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          path: ci-build/autotools_lto/*.log
+          retention-days: 7
+  autotools_lto_ubuntu-24_04-arm:
+    name: autotools lto (ubuntu-24.04-arm)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Clone
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: Install pprof
+        run: |-
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+          PATH=$HOME/go/bin:$PATH which -a pprof
+      - name: Build and test
+        run: ruby ci/run.rb autotools lto
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          path: ci-build/autotools_lto/*.log
+          retention-days: 7
+  autotools_O0_ubuntu-latest:
+    name: autotools O0 (ubuntu-latest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        uses: actions/checkout@v7
+      - name: Install dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ruby libunwind-dev
+      - name: Configure ccache action
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ github.job }}
+      - name: Add ccache to PATH
+        run: echo "PATH=/usr/lib/ccache:$PATH" >> $GITHUB_ENV
+      - name: Install Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: stable
+      - name: Install pprof
+        run: |-
+          go install github.com/google/pprof@latest
+          echo "PATH=$HOME/go/bin:$PATH" >> $GITHUB_ENV
+          PATH=$HOME/go/bin:$PATH which -a pprof
+      - name: Build and test
+        run: ruby ci/run.rb autotools O0
+      - name: Upload Test Logs
+        uses: actions/upload-artifact@v7
+        if: ${{ always() }}
+        with:
+          name: test-logs-${{ github.job }}
+          path: ci-build/autotools_O0/*.log
           retention-days: 7
   autotools_i386_ubuntu-latest:
     name: autotools i386 (ubuntu-latest)

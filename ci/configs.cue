@@ -21,9 +21,9 @@ _autotoolsChecks: [
 ]
 
 // Tags that a config only matches when the query names them; for
-// variants needing a special host/toolchain. See optInTags in
-// workflow.cue.
-optInTags: ["i386", "msvc"]
+// variants needing a special host/toolchain, or variants of another
+// config. See optInTags in workflow.cue.
+optInTags: ["i386", "msvc", "clang", "lto", "O0"]
 
 configs: [
 	{
@@ -34,6 +34,48 @@ configs: [
 		// (see https://github.com/gperftools/gperftools/issues/1653).
 		runners: ["ubuntu-latest", "ubuntu-24.04-arm", "ubuntu-26.04-arm"]
 		apt: ["libunwind-dev"]
+		ccache: true
+		expect: _autotoolsChecks
+	},
+	{
+		tags: ["autotools", "clang"]
+		sys: "autotools"
+		runners: ["ubuntu-latest", "ubuntu-24.04-arm"]
+		env: {
+			CC:  "clang"
+			CXX: "clang++"
+		}
+		apt: ["clang", "libunwind-dev"]
+		ccache: true
+		ccacheCompilers: ["clang", "clang++"]
+		expect: _autotoolsChecks
+	},
+	{
+		// LTO lets the compiler inline and devirtualize across
+		// translation units, which has broken stack trace capturing
+		// before (https://github.com/gperftools/gperftools/issues/1649).
+		tags: ["autotools", "lto"]
+		sys: "autotools"
+		runners: ["ubuntu-latest", "ubuntu-24.04-arm"]
+		env: {
+			CFLAGS:   "-g -O2 -flto=auto"
+			CXXFLAGS: "-g -O2 -flto=auto"
+			LDFLAGS:  "-flto=auto"
+		}
+		apt: ["libunwind-dev"]
+		ccache: true
+		expect: _autotoolsChecks
+	},
+	{
+		tags: ["autotools", "O0"]
+		sys: "autotools"
+		runners: ["ubuntu-latest"]
+		env: {
+			CFLAGS:   "-g -O0"
+			CXXFLAGS: "-g -O0"
+		}
+		apt: ["libunwind-dev"]
+		ccache: true
 		expect: _autotoolsChecks
 	},
 	{

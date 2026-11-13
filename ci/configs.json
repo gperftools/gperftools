@@ -1,7 +1,10 @@
 {
     "optInTags": [
         "i386",
-        "msvc"
+        "msvc",
+        "clang",
+        "lto",
+        "O0"
     ],
     "configs": [
         {
@@ -21,16 +24,110 @@
             "apt": [
                 "libunwind-dev"
             ],
+            "ccache": true,
             "expect": [
                 "getpc_test",
                 "tcmalloc_minimal_debug_unittest",
                 "tcmalloc_debug_unittest",
                 "heap-profiler_unittest"
             ],
-            "ccache": false,
             "ccacheCompilers": [],
             "msvc": false,
             "builddir": "ci-build/autotools"
+        },
+        {
+            "tags": [
+                "autotools",
+                "clang"
+            ],
+            "sys": "autotools",
+            "runners": [
+                "ubuntu-latest",
+                "ubuntu-24.04-arm"
+            ],
+            "configure": [],
+            "env": {
+                "CC": "clang",
+                "CXX": "clang++",
+                "GPERFTOOLS_ENSURE_PACKAGE_VERSION": "1"
+            },
+            "apt": [
+                "clang",
+                "libunwind-dev"
+            ],
+            "ccache": true,
+            "ccacheCompilers": [
+                "clang",
+                "clang++"
+            ],
+            "expect": [
+                "getpc_test",
+                "tcmalloc_minimal_debug_unittest",
+                "tcmalloc_debug_unittest",
+                "heap-profiler_unittest"
+            ],
+            "msvc": false,
+            "builddir": "ci-build/autotools_clang"
+        },
+        {
+            "tags": [
+                "autotools",
+                "lto"
+            ],
+            "sys": "autotools",
+            "runners": [
+                "ubuntu-latest",
+                "ubuntu-24.04-arm"
+            ],
+            "configure": [],
+            "env": {
+                "CFLAGS": "-g -O2 -flto=auto",
+                "CXXFLAGS": "-g -O2 -flto=auto",
+                "GPERFTOOLS_ENSURE_PACKAGE_VERSION": "1",
+                "LDFLAGS": "-flto=auto"
+            },
+            "apt": [
+                "libunwind-dev"
+            ],
+            "ccache": true,
+            "expect": [
+                "getpc_test",
+                "tcmalloc_minimal_debug_unittest",
+                "tcmalloc_debug_unittest",
+                "heap-profiler_unittest"
+            ],
+            "ccacheCompilers": [],
+            "msvc": false,
+            "builddir": "ci-build/autotools_lto"
+        },
+        {
+            "tags": [
+                "autotools",
+                "O0"
+            ],
+            "sys": "autotools",
+            "runners": [
+                "ubuntu-latest"
+            ],
+            "configure": [],
+            "env": {
+                "CFLAGS": "-g -O0",
+                "CXXFLAGS": "-g -O0",
+                "GPERFTOOLS_ENSURE_PACKAGE_VERSION": "1"
+            },
+            "apt": [
+                "libunwind-dev"
+            ],
+            "ccache": true,
+            "expect": [
+                "getpc_test",
+                "tcmalloc_minimal_debug_unittest",
+                "tcmalloc_debug_unittest",
+                "heap-profiler_unittest"
+            ],
+            "ccacheCompilers": [],
+            "msvc": false,
+            "builddir": "ci-build/autotools_O0"
         },
         {
             "tags": [
