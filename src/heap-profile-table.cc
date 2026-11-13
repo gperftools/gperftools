@@ -62,9 +62,6 @@
 
 //----------------------------------------------------------------------
 
-DEFINE_bool(cleanup_old_heap_profiles, EnvToBool("HEAP_PROFILE_CLEANUP", true),
-            "At initialization time, delete old heap profiles.");
-
 DEFINE_int32(heap_check_max_leaks, EnvToInt("HEAP_CHECK_MAX_LEAKS", 20),
              "The maximum number of leak reports to print.");
 
@@ -283,7 +280,10 @@ bool HeapProfileTable::WriteProfile(const char* file_name, const Bucket& total, 
 }
 
 void HeapProfileTable::CleanupOldProfiles(const char* prefix) {
-  if (!FLAGS_cleanup_old_heap_profiles) return;
+  // Not a DEFINE_bool flag on purpose: the heap profiler calls us from
+  // its module initializer (see heap-profiler.cc), possibly before
+  // this file's dynamic initializers have run (e.g. with LTO).
+  if (!EnvToBool("HEAP_PROFILE_CLEANUP", true)) return;
   std::string pattern = std::string(prefix) + ".*" + kFileExt;
 #if defined(HAVE_GLOB_H)
   glob_t g;
