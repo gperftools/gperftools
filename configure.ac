@@ -337,6 +337,23 @@ AS_IF([test "x$enable_sized_delete" = xno],
       [AC_DEFINE([ENABLE_SIZED_DELETE], 1, [Sized delete operators trust passed size])
        AC_MSG_NOTICE([Will build sized deallocation operators that trust passed size])])
 
+# Some toolchains (e.g. gcc on Debian and Ubuntu) link with --as-needed
+# by default, which would drop libraries that tcmalloc_both_unittest
+# links in on purpose (it only uses symbols that the first one already
+# provides). So link that test with --no-as-needed where supported.
+AC_CACHE_CHECK([if linker supports -Wl,--no-as-needed],
+               perftools_cv_have_no_as_needed,
+               [save_LDFLAGS="$LDFLAGS"
+                LDFLAGS="$LDFLAGS -Wl,--no-as-needed"
+                AC_LINK_IFELSE([AC_LANG_PROGRAM(, [return 0])],
+                               perftools_cv_have_no_as_needed=yes,
+                               perftools_cv_have_no_as_needed=no)
+                LDFLAGS="$save_LDFLAGS"])
+NO_AS_NEEDED_LDFLAGS=
+AS_IF([test "x$perftools_cv_have_no_as_needed" = xyes],
+      [NO_AS_NEEDED_LDFLAGS="-Wl,--no-as-needed"])
+AC_SUBST(NO_AS_NEEDED_LDFLAGS)
+
 AC_CACHE_CHECK([if C++ compiler supports -fsized-deallocation],
                [perftools_cv_sized_deallocation_result],
                [OLD_CXXFLAGS="$CXXFLAGS"

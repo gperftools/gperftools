@@ -669,7 +669,9 @@ endif WITH_CPU_PROFILER
 if !OSX
 TESTS += tcmalloc_both_unittest
 tcmalloc_both_unittest_SOURCES = $(tcmalloc_both_unittest_srcs)
-tcmalloc_both_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags)
+# --no-as-needed: make sure both libraries are really loaded (see
+# configure.ac).
+tcmalloc_both_unittest_LDFLAGS = $(tcmalloc_both_unittest_lflags) $(NO_AS_NEEDED_LDFLAGS)
 tcmalloc_both_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 tcmalloc_both_unittest_LDADD = $(tcmalloc_both_unittest_ladd)
 endif !OSX
