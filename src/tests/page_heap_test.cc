@@ -79,15 +79,25 @@ TEST(PageHeapTest, Stats) {
   CheckStats(ph.get(), 256, 128, 128);
 }
 
-TEST(PageHeapTest, Decommit) {
+// Verifies that, for large allocations, the page heap prefers reusing
+// a normal span over a returned one of the same size, even when the
+// returned one has the lower address (github pull request #1604).
+//
+// smallest_span_size > 1 is what the global page heap uses when the
+// system page size is bigger than ours (or with
+// TCMALLOC_OVERRIDE_PAGESIZE).
+static void TestDecommit(Length smallest_span_size) {
   if (!HaveSystemRelease()) {
     return;
   }
 
-  std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap());
+  std::unique_ptr<tcmalloc::PageHeap> ph(new tcmalloc::PageHeap(smallest_span_size));
 
   constexpr size_t kNumPtrs = 10;
   constexpr size_t kBigAllocPages = kMaxPages * 2;
+  // So that page heap's rounding up to smallest_span_size doesn't
+  // change the sizes below.
+  ASSERT_EQ(kBigAllocPages % smallest_span_size, 0);
 
   // Ensure we have a chunk of sequential memory useful for the test below.
   {
@@ -129,6 +139,13 @@ TEST(PageHeapTest, Decommit) {
   for (auto span : used_spans) {
     ph->Delete(span);
   }
+}
+
+TEST(PageHeapTest, Decommit) { TestDecommit(1); }
+
+TEST(PageHeapTest, DecommitWithMinSpan) {
+  // E.g. 64 KiB system pages with (default) 8 KiB tcmalloc pages.
+  TestDecommit(8);
 }
 
 // The number of kMaxPages-sized Spans we will allocate and free during the
