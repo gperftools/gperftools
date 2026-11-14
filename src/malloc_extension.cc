@@ -152,6 +152,11 @@ MallocExtension* MallocExtension::instance() {
 
 void MallocExtension::Register(MallocExtension* implementation) { current_instance.store(implementation); }
 
+void tcmalloc::SetDefaultMallocExtension(MallocExtension* impl) {
+  MallocExtension* expected = nullptr;
+  current_instance.compare_exchange_strong(expected, impl);
+}
+
 // -----------------------------------------------------------------------
 // Heap sampling support
 // -----------------------------------------------------------------------

@@ -1128,7 +1128,7 @@ class DebugMallocImplementation : public TCMallocImplementation {
 
 static tcmalloc::StaticStorage<DebugMallocImplementation> debug_malloc_impl_storage;
 
-void SetupMallocExtension() { MallocExtension::Register(debug_malloc_impl_storage.Construct()); }
+void SetupMallocExtension() { tcmalloc::SetDefaultMallocExtension(debug_malloc_impl_storage.Construct()); }
 
 REGISTER_MODULE_DESTRUCTOR(debugallocation, {
   if (!RunningOnValgrind()) {

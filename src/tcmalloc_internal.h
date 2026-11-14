@@ -72,3 +72,18 @@ extern "C" void* pvalloc(size_t __size) __THROW;
 
 // Implemented in tcmalloc.cc or debugallocation.cc
 ATTRIBUTE_VISIBILITY_HIDDEN void SetupMallocExtension();
+
+class MallocExtension;
+
+namespace tcmalloc {
+// Makes impl what this library's MallocExtension::instance() returns,
+// unless something was registered already (via the deprecated
+// MallocExtension::Register). Implemented in malloc_extension.cc.
+//
+// This is hidden on purpose, unlike MallocExtension::Register: when
+// several of our libraries are loaded into one process (e.g. both
+// libtcmalloc and libtcmalloc_minimal), each must only set up its own
+// instance. Calling the exported Register would let one library
+// overwrite the instance of whichever library actually serves malloc.
+ATTRIBUTE_VISIBILITY_HIDDEN void SetDefaultMallocExtension(MallocExtension* impl);
+}  // namespace tcmalloc

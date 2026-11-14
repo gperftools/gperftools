@@ -124,6 +124,7 @@
 #include "static_vars.h"          // for Static
 #include "system-alloc.h"         // for DumpSystemAllocatorStats, etc
 #include "tcmalloc_guard.h"       // for TCMallocGuard
+#include "tcmalloc_internal.h"    // for SetupMallocExtension, etc
 #include "thread_cache.h"         // for ThreadCache
 #include "thread_cache_ptr.h"
 
@@ -1120,7 +1121,7 @@ static TCMallocGuard module_enter_exit_hook;
 
 static tcmalloc::StaticStorage<TCMallocImplementation> malloc_impl_storage;
 
-void SetupMallocExtension() { MallocExtension::Register(malloc_impl_storage.Construct()); }
+void SetupMallocExtension() { tcmalloc::SetDefaultMallocExtension(malloc_impl_storage.Construct()); }
 
 #endif  // TCMALLOC_USING_DEBUGALLOCATION
 
