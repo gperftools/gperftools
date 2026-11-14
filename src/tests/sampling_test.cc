@@ -53,6 +53,7 @@
 #include "tests/testutil.h"
 
 #include "base/logging.h"
+#include "common.h"
 #include "testing_portal.h"
 
 extern "C" ATTRIBUTE_NOINLINE void* AllocateAllocate() {
@@ -60,7 +61,7 @@ extern "C" ATTRIBUTE_NOINLINE void* AllocateAllocate() {
   return local_noopt(malloc(10000));
 }
 
-static void VerifyWithPProf(std::string_view argv0, const std::string& path) {
+static void VerifyWithPProf(std::string_view argv0, const std::string& path, double extra_megs = 0) {
   tcmalloc::ProcessResult result = tcmalloc::RunProcess({"pprof", "--text", std::string(argv0), path});
   fprintf(stderr, "pprof output:\n%s\n\n", result.output.c_str());
   if (!result.Succeeded()) {
@@ -88,9 +89,10 @@ static void VerifyWithPProf(std::string_view argv0, const std::string& path) {
 
   // We allocate 8*10^7 bytes of memory, which is 76M.  Because we
   // sample, the estimate may be a bit high or a bit low: we accept
-  // anything from 50M to 109M.
-  if (!(50 <= megs && megs < 110)) {
-    fprintf(stderr, "expected megs to be between 50 and 110. Got: %f\n", megs);
+  // anything from 50M to 109M (plus extra_megs).
+  const double upper = 110 + extra_megs;
+  if (!(50 <= megs && megs < upper)) {
+    fprintf(stderr, "expected megs to be between 50 and %f. Got: %f\n", upper, megs);
     abort();
   }
 }
@@ -105,8 +107,10 @@ static void WriteFile(const std::string& path, const std::string& contents) {
   fclose(f);
 }
 
+static constexpr size_t kSampleParameter = 512 << 10;
+
 int main(int argc, char** argv) {
-  tcmalloc::TestingPortal::Get()->GetSampleParameter() = 512 << 10;
+  tcmalloc::TestingPortal::Get()->GetSampleParameter() = kSampleParameter;
   // Make sure allocations we sample are done on fresh thread cache, so that
   // sampling parameter update is taken into account.
   MallocExtension::instance()->MarkThreadIdle();
@@ -126,5 +130,10 @@ int main(int argc, char** argv) {
   WriteFile(dir.Path("growth"), s);
 
   VerifyWithPProf(argv[0], dir.Path("heap"));
-  VerifyWithPProf(argv[0], dir.Path("growth"));
+  // Every sampled allocation gets its own span, so with large tcmalloc
+  // pages (e.g. --with-tcmalloc-pagesize=256) each of the ~150 samples
+  // costs a whole page of heap growth on top of the 76M we allocate.
+  constexpr double kExpectedSamples = 8000.0 * 10000 / kSampleParameter;
+  const double kSamplingGrowthMegs = kExpectedSamples * tcmalloc::pages(10000) * kPageSize / (1 << 20);
+  VerifyWithPProf(argv[0], dir.Path("growth"), kSamplingGrowthMegs);
 }
