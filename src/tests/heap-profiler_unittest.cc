@@ -476,10 +476,11 @@ TEST_F(HeapProfilerTest, StartStopDumpGet) {
   }
 }
 
-// Allocates and frees 164 * 64 KiB = 10.25 MiB. 64 KiB divides 1 MiB
-// evenly, so the 1 MiB thresholds below are hit exactly every 16
-// objects, without overshoot adding up.
-static const std::vector<std::string> kAllocThenFree10MiB{"A+164x65536", "A-164"};
+// Allocates and frees 10 * 1 MiB. With objects as big as the 1 MiB
+// intervals below, each allocation (or free) crosses the next
+// threshold by itself, whatever else the process allocated before
+// (as long as that is under 1 MiB).
+static const std::vector<std::string> kAllocThenFree10MiB{"A+10x1048576", "A-10"};
 
 TEST_F(HeapProfilerTest, AllocationInterval) {
   ProcessResult result = RunProfiled(kAllocThenFree10MiB, {{"HEAP_PROFILE_ALLOCATION_INTERVAL", "1048576"}});
