@@ -89,11 +89,38 @@ void Static::InitStaticVars() {
 }
 
 // These following two functions are registered via pthread_atfork to
-// make sure the central_cache locks remain in a consisten state in
-// the forked version of the thread. Also our OSX integration uses it
-// for mi_force_lock.
+// make sure all our locks remain in a consistent state in the forked
+// child. Also our OSX integration uses them for
+// mi_force_lock/mi_force_unlock.
+//
+// This is also the one place where we document full lock order
+// (outermost first):
+//
+//   ThreadCache::threads_lock
+//     -> Static::pageheap_lock
+//       -> central free list locks (Static::central_cache()[i].lock_)
+//       -> metadata_alloc_lock (MetaDataAlloc, common.cc)
+//         -> system allocator lock (GetSysAllocLock)
+//
+//  As usual, nesting pageheap_lock under threads_lock doesn't mean we
+//  always take threads_lock to take pageheap_lock. It merely means if
+//  we _already_ hold pageheap_lock then we cannot take
+//  threads_lock. I.e. if any of those locks are taken at the same
+//  time, they need to be taken in this order.
+//
+// Notably:
+// * central free list locks are never held while taking
+//   pageheap_lock or threads_lock (Populate and ReleaseToSpans drop
+//   the central free list lock before going to page heap). At most
+//   one central free list lock is held at a time (see
+//   CentralFreeList::ShrinkCache and LockInverter).
+// * SlowTLS lock (ThreadCachePtr::GetSlowTLSLock) and
+//   hooklist_spinlock (malloc_hook.cc) are leaf locks: nothing else is
+//   taken while holding them.
+// * no code may call malloc (via public entry points) while holding
+//   any of those locks.
 
-void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS {
+void LockAllForFork() NO_THREAD_SAFETY_ANALYSIS {
   ThreadCache::threads_lock()->Lock();
   Static::pageheap_lock()->Lock();
   for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Lock();
@@ -101,7 +128,7 @@ void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS {
   GetSysAllocLock()->Lock();
 }
 
-void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS {
+void UnlockAllAfterFork() NO_THREAD_SAFETY_ANALYSIS {
   GetSysAllocLock()->Unlock();
   ThreadCachePtr::GetSlowTLSLock()->Unlock();
   for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Unlock();
@@ -139,9 +166,9 @@ void Static::InitLateMaybeRecursive() {
   // be less fortunate and allow some early app constructors to run
   // before malloc is ever called.
 
-  pthread_atfork(CentralCacheLockAll,     // parent calls before fork
-                 CentralCacheUnlockAll,   // parent calls after fork
-                 CentralCacheUnlockAll);  // child calls after fork
+  pthread_atfork(LockAllForFork,        // parent calls before fork
+                 UnlockAllAfterFork,    // parent calls after fork
+                 UnlockAllAfterFork);   // child calls after fork
 #endif
 }
 

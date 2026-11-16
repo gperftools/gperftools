@@ -88,8 +88,8 @@
 #include <new>
 
 namespace tcmalloc {
-void CentralCacheLockAll();
-void CentralCacheUnlockAll();
+void LockAllForFork();
+void UnlockAllAfterFork();
 }  // namespace tcmalloc
 
 // from AvailabilityMacros.h
@@ -165,9 +165,9 @@ void mi_log(malloc_zone_t* zone, void* address) {
   // I don't think we support anything like this
 }
 
-void mi_force_lock(malloc_zone_t* zone) { tcmalloc::CentralCacheLockAll(); }
+void mi_force_lock(malloc_zone_t* zone) { tcmalloc::LockAllForFork(); }
 
-void mi_force_unlock(malloc_zone_t* zone) { tcmalloc::CentralCacheUnlockAll(); }
+void mi_force_unlock(malloc_zone_t* zone) { tcmalloc::UnlockAllAfterFork(); }
 
 void mi_statistics(malloc_zone_t* zone, malloc_statistics_t* stats) {
   // TODO(csilvers): figure out how to fill these out
