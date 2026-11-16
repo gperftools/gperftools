@@ -276,11 +276,8 @@ class ThreadCache {
   // Overall thread cache size.  Protected by threads_lock.
   static size_t overall_thread_cache_size_ GUARDED_BY(threads_lock_);
 
-  // Global per-thread cache size.  Writes are protected by
-  // threads_lock.  Reads are done without any locking, which should be
-  // fine as long as size_t can be written atomically and we don't place
-  // invariants between this variable and other pieces of state.
-  static volatile size_t per_thread_cache_size_;
+  // Global per-thread cache size.  Protected by threads_lock.
+  static size_t per_thread_cache_size_ GUARDED_BY(threads_lock_);
 
   // Represents overall_thread_cache_size_ minus the sum of max_size_
   // across all ThreadCaches.  Protected by threads_lock.

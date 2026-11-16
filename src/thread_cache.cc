@@ -62,7 +62,7 @@ static bool phinited = false;
 
 SpinLock ThreadCache::threads_lock_;
 
-volatile size_t ThreadCache::per_thread_cache_size_ = kMaxThreadCacheSize;
+size_t ThreadCache::per_thread_cache_size_ = kMaxThreadCacheSize;
 
 std::atomic<size_t> ThreadCache::min_per_thread_cache_size_ = kMinThreadCacheSize;
 size_t ThreadCache::overall_thread_cache_size_ = kDefaultOverallThreadCacheSize;
