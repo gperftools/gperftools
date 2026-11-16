@@ -44,6 +44,7 @@
 #include "common.h"
 #include "getenv_safe.h"  // TCMallocGetenvSafe
 
+#include "thread_cache.h"
 #include "thread_cache_ptr.h"
 #include "system-alloc.h"
 
@@ -93,6 +94,7 @@ void Static::InitStaticVars() {
 // for mi_force_lock.
 
 void CentralCacheLockAll() NO_THREAD_SAFETY_ANALYSIS {
+  ThreadCache::threads_lock()->Lock();
   Static::pageheap_lock()->Lock();
   for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Lock();
   ThreadCachePtr::GetSlowTLSLock()->Lock();
@@ -104,6 +106,7 @@ void CentralCacheUnlockAll() NO_THREAD_SAFETY_ANALYSIS {
   ThreadCachePtr::GetSlowTLSLock()->Unlock();
   for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Unlock();
   Static::pageheap_lock()->Unlock();
+  ThreadCache::threads_lock()->Unlock();
 }
 
 void Static::InitLateMaybeRecursive() {

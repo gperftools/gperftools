@@ -41,6 +41,8 @@
 #include <sys/types.h>  // for ssize_t
 
 #include "base/commandlineflags.h"
+#include "base/spinlock.h"
+#include "base/thread_annotations.h"
 #include "common.h"
 #include "linked_list.h"
 #include "page_heap_allocator.h"
@@ -64,10 +66,17 @@ namespace tcmalloc {
 
 class ThreadCache {
  public:
-  // Allocate a new heap. REQUIRES: Static::pageheap_lock is not held.
-  static ThreadCache* NewHeap();
-  // REQUIRES: Static::pageheap_lock is not held.
-  static void DeleteCache(ThreadCache* heap);
+  // Protects the list of all thread caches and the thread cache
+  // size budget (see the static members below). Lock order is
+  // threads_lock -> pageheap_lock (see LockAllForFork in
+  // static_vars.cc). Constant-initialized, so it may be taken at any
+  // time, including before InitModule.
+  static SpinLock* threads_lock() LOCK_RETURNED(threads_lock_) { return &threads_lock_; }
+
+  // Allocate a new heap. REQUIRES: threads_lock is not held.
+  static ThreadCache* NewHeap() LOCKS_EXCLUDED(threads_lock_);
+  // REQUIRES: threads_lock is not held.
+  static void DeleteCache(ThreadCache* heap) LOCKS_EXCLUDED(threads_lock_);
 
   // Accessors (mostly just for printing stats)
   int freelist_length(uint32_t cl) const { return list_[cl].length(); }
@@ -90,7 +99,7 @@ class ThreadCache {
 
   bool TryRecordAllocationFast(size_t k);
 
-  static void InitModule();
+  static void InitModule() LOCKS_EXCLUDED(threads_lock_);
   static void EnsureMallocInitialized() {
     if (Static::IsInited()) {
       return;
@@ -105,14 +114,16 @@ class ThreadCache {
   // Also, if class_count is not nullptr, it must be an array of size kNumClasses,
   // and this function will increment each element of class_count by the number
   // of items in all thread-local freelists of the corresponding size class.
-  // REQUIRES: Static::pageheap_lock is held.
-  static void GetThreadStats(uint64_t* total_bytes, uint64_t* class_count);
+  // REQUIRES: threads_lock is held.
+  static void GetThreadStats(uint64_t* total_bytes, uint64_t* class_count) EXCLUSIVE_LOCKS_REQUIRED(threads_lock_);
 
   // Sets the total thread cache size to new_size, recomputing the
   // individual thread cache sizes as necessary.
-  // REQUIRES: Static::pageheap lock is held.
-  static void set_overall_thread_cache_size(size_t new_size);
-  static size_t overall_thread_cache_size() { return overall_thread_cache_size_; }
+  // REQUIRES: threads_lock is held.
+  static void set_overall_thread_cache_size(size_t new_size) EXCLUSIVE_LOCKS_REQUIRED(threads_lock_);
+  static size_t overall_thread_cache_size() EXCLUSIVE_LOCKS_REQUIRED(threads_lock_) {
+    return overall_thread_cache_size_;
+  }
 
   // Sets the lower bound on per-thread cache size to new_size.
   static void set_min_per_thread_cache_size(size_t new_size) {
@@ -121,7 +132,7 @@ class ThreadCache {
 
   static size_t min_per_thread_cache_size() { return min_per_thread_cache_size_.load(std::memory_order_relaxed); }
 
-  static int thread_heap_count() { return thread_heap_count_; }
+  static int thread_heap_count() EXCLUSIVE_LOCKS_REQUIRED(threads_lock_) { return thread_heap_count_; }
 
  private:
   class FreeList {
@@ -219,9 +230,10 @@ class ThreadCache {
     }
   };
 
-  // REQUIRES: Static::pageheap_lock is held
-  ThreadCache();
-  // REQUIRES: Static::pageheap_lock is not held
+  // REQUIRES: threads_lock is held
+  ThreadCache() EXCLUSIVE_LOCKS_REQUIRED(threads_lock_);
+  // REQUIRES: threads_lock and pageheap_lock are not held (returns
+  // objects to central free lists).
   ~ThreadCache();
 
   // Gets and returns an object from the central cache, and, if possible,
@@ -242,35 +254,37 @@ class ThreadCache {
   // Increase max_size_ by reducing unclaimed_cache_space_ or by
   // reducing the max_size_ of some other thread.  In both cases,
   // the delta is kStealAmount.
-  void IncreaseCacheLimit();
-  // Same as above but requires Static::pageheap_lock() is held.
-  void IncreaseCacheLimitLocked();
+  void IncreaseCacheLimit() LOCKS_EXCLUDED(threads_lock_);
+  // Same as above but requires threads_lock is held.
+  void IncreaseCacheLimitLocked() EXCLUSIVE_LOCKS_REQUIRED(threads_lock_);
 
-  // Linked list of heap objects.  Protected by Static::pageheap_lock.
-  static ThreadCache* thread_heaps_;
-  static int thread_heap_count_;
+  static SpinLock threads_lock_;
+
+  // Linked list of heap objects.  Protected by threads_lock.
+  static ThreadCache* thread_heaps_ GUARDED_BY(threads_lock_);
+  static int thread_heap_count_ GUARDED_BY(threads_lock_);
 
   // A pointer to one of the objects in thread_heaps_.  Represents
   // the next ThreadCache from which a thread over its max_size_ should
   // steal memory limit.  Round-robin through all of the objects in
-  // thread_heaps_.  Protected by Static::pageheap_lock.
-  static ThreadCache* next_memory_steal_;
+  // thread_heaps_.  Protected by threads_lock.
+  static ThreadCache* next_memory_steal_ GUARDED_BY(threads_lock_);
 
   // Lower bound on per thread cache size. Default value is 512 KBs.
   static std::atomic<size_t> min_per_thread_cache_size_;
 
-  // Overall thread cache size.  Protected by Static::pageheap_lock.
-  static size_t overall_thread_cache_size_;
+  // Overall thread cache size.  Protected by threads_lock.
+  static size_t overall_thread_cache_size_ GUARDED_BY(threads_lock_);
 
   // Global per-thread cache size.  Writes are protected by
-  // Static::pageheap_lock.  Reads are done without any locking, which should be
+  // threads_lock.  Reads are done without any locking, which should be
   // fine as long as size_t can be written atomically and we don't place
   // invariants between this variable and other pieces of state.
   static volatile size_t per_thread_cache_size_;
 
   // Represents overall_thread_cache_size_ minus the sum of max_size_
-  // across all ThreadCaches.  Protected by Static::pageheap_lock.
-  static ssize_t unclaimed_cache_space_;
+  // across all ThreadCaches.  Protected by threads_lock.
+  static ssize_t unclaimed_cache_space_ GUARDED_BY(threads_lock_);
 
   // This class is laid out with the most frequently used fields
   // first so that hot elements are placed on the same cache line.
@@ -278,16 +292,21 @@ class ThreadCache {
   FreeList list_[kClassSizesMax];  // Array indexed by size-class
 
   int32_t size_;      // Combined size of data
-  int32_t max_size_;  // size_ > max_size_ --> Scavenge()
+  // size_ > max_size_ --> Scavenge(). Written only under
+  // threads_lock (also for other threads' caches, see
+  // IncreaseCacheLimitLocked and RecomputePerThreadCacheSize); read
+  // without locking by the owning thread.
+  int32_t max_size_;
 
   // We sample allocations, biased by the size of the allocation
   Sampler sampler_;  // A sampler
 
-  static void RecomputePerThreadCacheSize();
+  static void RecomputePerThreadCacheSize() EXCLUSIVE_LOCKS_REQUIRED(threads_lock_);
 
-  // All ThreadCache objects are kept in a linked list (for stats collection)
-  ThreadCache* next_;
-  ThreadCache* prev_;
+  // All ThreadCache objects are kept in a linked list (for stats
+  // collection). Protected by threads_lock.
+  ThreadCache* next_ GUARDED_BY(threads_lock_);
+  ThreadCache* prev_ GUARDED_BY(threads_lock_);
 
   // Ensure that this class is cacheline-aligned. This is critical for
   // performance, as false sharing would negate many of the benefits
@@ -298,8 +317,10 @@ class ThreadCache {
 // This is logically part of the ThreadCache class, but MSVC, at
 // least, does not like using ThreadCache as a template argument
 // before the class is fully defined.  So we put it outside the class.
+// New/Delete are protected by ThreadCache::threads_lock.
 extern PageHeapAllocator<ThreadCache> threadcache_allocator;
 
+// Racy read (stats only).
 inline int ThreadCache::HeapsInUse() { return threadcache_allocator.inuse(); }
 
 ALWAYS_INLINE void* ThreadCache::Allocate(size_t size, uint32_t cl, void* (*oom_handler)(size_t size)) {

@@ -43,6 +43,13 @@
 //  2. We have a lock per central free-list, and hold it while manipulating
 //     the central free list for a particular size.
 //  3. The central page allocator is protected by "pageheap_lock".
+//     The list of all thread caches and the thread cache size budget
+//     (ThreadCache::thread_heaps_, max_size_ of every cache, etc) are
+//     protected by a separate "threads_lock" (ThreadCache::threads_lock()).
+//     Lock order is threads_lock -> pageheap_lock -> (metadata
+//     allocation lock) -> (system allocator lock). Central free list
+//     locks are never held while taking pageheap_lock or
+//     threads_lock. See LockAllForFork in static_vars.cc.
 //  4. The pagemap (which maps from page-number to descriptor),
 //     can be read without holding any locks, and written while holding
 //     the "pageheap_lock".
@@ -302,9 +309,15 @@ static void ExtractStats(TCMallocStats* r, uint64_t* class_count, PageHeap::Smal
 
   // Add stats from per-thread heaps
   r->thread_bytes = 0;
-  {  // scope
-    SpinLockHolder h(Static::pageheap_lock());
+  {
+    SpinLockHolder h(ThreadCache::threads_lock());
     ThreadCache::GetThreadStats(&r->thread_bytes, class_count);
+  }
+
+  // Note, not nested with threads_lock section above. Stats are
+  // inherently racy anyways.
+  {
+    SpinLockHolder h(Static::pageheap_lock());
     r->metadata_bytes = tcmalloc::metadata_system_bytes();
     r->pageheap = Static::pageheap()->StatsLocked();
     if (small_spans != nullptr) {
@@ -738,7 +751,7 @@ class TCMallocImplementation : public MallocExtension {
     }
 
     if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
+      SpinLockHolder l(ThreadCache::threads_lock());
       *value = ThreadCache::overall_thread_cache_size();
       return true;
     }
@@ -768,7 +781,7 @@ class TCMallocImplementation : public MallocExtension {
     }
 
     if (strcmp(name, "tcmalloc.impl.thread_cache_count") == 0) {
-      SpinLockHolder h(Static::pageheap_lock());
+      SpinLockHolder h(ThreadCache::threads_lock());
       *value = ThreadCache::thread_heap_count();
       return true;
     }
@@ -791,7 +804,7 @@ class TCMallocImplementation : public MallocExtension {
     ASSERT(name != nullptr);
 
     if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
+      SpinLockHolder l(ThreadCache::threads_lock());
       ThreadCache::set_overall_thread_cache_size(value);
       return true;
     }
@@ -945,7 +958,7 @@ class TCMallocImplementation : public MallocExtension {
     uint64_t class_count[kClassSizesMax];
     memset(class_count, 0, sizeof(class_count));
     {
-      SpinLockHolder h(Static::pageheap_lock());
+      SpinLockHolder h(ThreadCache::threads_lock());
       uint64_t thread_bytes = 0;
       ThreadCache::GetThreadStats(&thread_bytes, class_count);
     }

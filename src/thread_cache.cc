@@ -57,7 +57,10 @@
 
 namespace tcmalloc {
 
+// Protected by ThreadCache::threads_lock.
 static bool phinited = false;
+
+SpinLock ThreadCache::threads_lock_;
 
 volatile size_t ThreadCache::per_thread_cache_size_ = kMaxThreadCacheSize;
 
@@ -70,7 +73,7 @@ int ThreadCache::thread_heap_count_;
 ThreadCache* ThreadCache::next_memory_steal_;
 
 ThreadCache::ThreadCache() {
-  ASSERT(Static::pageheap_lock()->IsHeld());
+  ASSERT(threads_lock_.IsHeld());
 
   size_ = 0;
 
@@ -236,7 +239,7 @@ void ThreadCache::Scavenge() {
 }
 
 void ThreadCache::IncreaseCacheLimit() {
-  SpinLockHolder h(Static::pageheap_lock());
+  SpinLockHolder h(&threads_lock_);
   IncreaseCacheLimitLocked();
 }
 
@@ -247,7 +250,7 @@ void ThreadCache::IncreaseCacheLimitLocked() {
     SetMaxSize(max_size_ + kStealAmount);
     return;
   }
-  // Don't hold pageheap_lock too long.  Try to steal from 10 other
+  // Don't hold threads_lock too long.  Try to steal from 10 other
   // threads before giving up.  The i < 10 condition also prevents an
   // infinite loop in case none of the existing thread heaps are
   // suitable places to steal from.
@@ -273,10 +276,12 @@ int ThreadCache::GetSamplePeriod() { return Sampler::GetSamplePeriod(); }
 
 void ThreadCache::InitModule() {
   {
-    SpinLockHolder h(Static::pageheap_lock());
+    // Lock order: threads_lock -> pageheap_lock.
+    SpinLockHolder h(&threads_lock_);
     if (phinited) {
       return;
     }
+    SpinLockHolder ph(Static::pageheap_lock());
     const char* tcb = TCMallocGetenvSafe("TCMALLOC_MAX_TOTAL_THREAD_CACHE_BYTES");
     if (tcb) {
       set_overall_thread_cache_size(strtoll(tcb, nullptr, 10));
@@ -299,7 +304,7 @@ void ThreadCache::InitModule() {
 }
 
 ThreadCache* ThreadCache::NewHeap() {
-  SpinLockHolder h(Static::pageheap_lock());
+  SpinLockHolder h(&threads_lock_);
 
   // Create the heap and add it to the linked list
   ThreadCache* heap = new (threadcache_allocator.New()) ThreadCache();
@@ -323,7 +328,7 @@ void ThreadCache::DeleteCache(ThreadCache* heap) {
   heap->~ThreadCache();
 
   // Remove from linked list
-  SpinLockHolder h(Static::pageheap_lock());
+  SpinLockHolder h(&threads_lock_);
   if (heap->next_ != nullptr) heap->next_->prev_ = heap->prev_;
   if (heap->prev_ != nullptr) heap->prev_->next_ = heap->next_;
   if (thread_heaps_ == heap) thread_heaps_ = heap->next_;
