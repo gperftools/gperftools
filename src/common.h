@@ -281,8 +281,8 @@ void* MetaDataAlloc(size_t bytes);
 // Returns lock used by MetaDataAlloc. Only for LockAllForFork.
 SpinLock* GetMetaDataAllocLock();
 
-// Returns the total number of bytes allocated from the system.
-// Requires pageheap_lock is held.
+// Returns the total number of bytes allocated from the system for
+// metadata. Doesn't require any locks.
 uint64_t metadata_system_bytes();
 
 // size/depth are made the same size as a pointer so that some generic

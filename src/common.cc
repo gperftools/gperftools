@@ -39,6 +39,7 @@
 #endif
 
 #include <algorithm>
+#include <atomic>
 
 #include "common.h"
 #include "system-alloc.h"
@@ -252,7 +253,9 @@ void SizeMap::Init() {
 }
 
 // Metadata allocator -- keeps stats about how many bytes allocated.
-static uint64_t metadata_system_bytes_ = 0;
+// Updated both with and without metadata_alloc_lock held and read
+// without it. Thus relaxed atomic.
+static std::atomic<size_t> metadata_system_bytes_;
 static const size_t kMetadataAllocChunkSize = 8 * 1024 * 1024;
 // As ThreadCache objects are allocated with MetaDataAlloc, and also
 // CACHELINE_ALIGNED, we must use the same alignment as TCMalloc_SystemAlloc.
@@ -267,7 +270,7 @@ void* MetaDataAlloc(size_t bytes) {
   if (bytes >= kMetadataAllocChunkSize) {
     void* rv = TCMalloc_SystemAlloc(bytes, nullptr, kMetadataAllignment);
     if (rv != nullptr) {
-      metadata_system_bytes_ += bytes;
+      metadata_system_bytes_.fetch_add(bytes, std::memory_order_relaxed);
     }
     return rv;
   }
@@ -298,11 +301,11 @@ void* MetaDataAlloc(size_t bytes) {
   bytes += alignment;
   metadata_chunk_alloc_ += bytes;
   metadata_chunk_avail_ -= bytes;
-  metadata_system_bytes_ += bytes;
+  metadata_system_bytes_.fetch_add(bytes, std::memory_order_relaxed);
   return rv;
 }
 
-uint64_t metadata_system_bytes() { return metadata_system_bytes_; }
+uint64_t metadata_system_bytes() { return metadata_system_bytes_.load(std::memory_order_relaxed); }
 
 SpinLock* GetMetaDataAllocLock() { return &metadata_alloc_lock; }
 
