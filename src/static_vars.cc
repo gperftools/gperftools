@@ -125,11 +125,13 @@ void LockAllForFork() NO_THREAD_SAFETY_ANALYSIS {
   Static::pageheap_lock()->Lock();
   for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Lock();
   ThreadCachePtr::GetSlowTLSLock()->Lock();
+  GetMetaDataAllocLock()->Lock();
   GetSysAllocLock()->Lock();
 }
 
 void UnlockAllAfterFork() NO_THREAD_SAFETY_ANALYSIS {
   GetSysAllocLock()->Unlock();
+  GetMetaDataAllocLock()->Unlock();
   ThreadCachePtr::GetSlowTLSLock()->Unlock();
   for (int i = 0; i < Static::num_size_classes(); ++i) Static::central_cache()[i].Unlock();
   Static::pageheap_lock()->Unlock();

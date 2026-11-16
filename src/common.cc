@@ -304,4 +304,6 @@ void* MetaDataAlloc(size_t bytes) {
 
 uint64_t metadata_system_bytes() { return metadata_system_bytes_; }
 
+SpinLock* GetMetaDataAllocLock() { return &metadata_alloc_lock; }
+
 }  // namespace tcmalloc

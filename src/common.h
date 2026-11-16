@@ -41,6 +41,7 @@
 #include <stdint.h>            // for uintptr_t, uint64_t
 #include "internal_logging.h"  // for ASSERT, etc
 #include "base/basictypes.h"   // for LIKELY, etc
+#include "base/spinlock.h"     // for SpinLock
 
 // Type that can hold a page number
 typedef uintptr_t PageID;
@@ -272,8 +273,13 @@ class SizeMap {
 
 // Allocates "bytes" worth of memory and returns it.  Increments
 // metadata_system_bytes appropriately.  May return nullptr if
-// allocation fails.  Requires pageheap_lock is held.
+// allocation fails. Internally synchronized (by
+// metadata_alloc_lock), may be called with or without pageheap_lock
+// or threads_lock held.
 void* MetaDataAlloc(size_t bytes);
+
+// Returns lock used by MetaDataAlloc. Only for LockAllForFork.
+SpinLock* GetMetaDataAllocLock();
 
 // Returns the total number of bytes allocated from the system.
 // Requires pageheap_lock is held.
