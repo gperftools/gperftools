@@ -408,6 +408,14 @@ frag_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
 frag_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
 frag_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
 
+if !MINGW
+TESTS += fork_stress_unittest
+fork_stress_unittest_SOURCES = src/tests/fork_stress_unittest.cc
+fork_stress_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)
+fork_stress_unittest_CPPFLAGS = $(gtest_CPPFLAGS)
+fork_stress_unittest_LDADD = libtcmalloc_minimal.la libgtest.la
+endif !MINGW
+
 TESTS += markidle_unittest
 markidle_unittest_SOURCES = src/tests/markidle_unittest.cc
 markidle_unittest_LDFLAGS = $(TCMALLOC_FLAGS) $(AM_LDFLAGS)

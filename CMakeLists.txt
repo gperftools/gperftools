@@ -662,6 +662,12 @@ if(BUILD_TESTING)
   target_link_libraries(malloc_extension_c_test tcmalloc_minimal gtest)
   add_test(malloc_extension_c_test malloc_extension_c_test)
 
+  if(NOT MINGW AND NOT MSVC)
+    add_executable(fork_stress_unittest src/tests/fork_stress_unittest.cc)
+    target_link_libraries(fork_stress_unittest tcmalloc_minimal gtest)
+    add_test(fork_stress_unittest fork_stress_unittest)
+  endif()
+
   if(NOT MINGW AND NOT MSVC AND NOT APPLE)
     add_executable(memalign_unittest src/tests/memalign_unittest.cc src/tests/testutil.cc)
     target_link_libraries(memalign_unittest tcmalloc_minimal gtest)
