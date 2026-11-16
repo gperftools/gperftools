@@ -77,9 +77,9 @@ ThreadCache::ThreadCache() {
 
   size_ = 0;
 
-  max_size_ = 0;
+  SetMaxSize(0);
   IncreaseCacheLimitLocked();
-  if (max_size_ == 0) {
+  if (max_size() == 0) {
     // There isn't enough memory to go around.  Just give the minimum to
     // this thread.
     size_t min_size = min_per_thread_cache_size_.load(std::memory_order_relaxed);
@@ -179,7 +179,7 @@ void ThreadCache::ListTooLong(FreeList* list, uint32_t cl) {
     }
   }
 
-  if (PREDICT_FALSE(size_ > max_size_)) {
+  if (PREDICT_FALSE(size_ > max_size())) {
     Scavenge();
   }
 }
@@ -247,7 +247,7 @@ void ThreadCache::IncreaseCacheLimitLocked() {
   if (unclaimed_cache_space_ > 0) {
     // Possibly make unclaimed_cache_space_ negative.
     unclaimed_cache_space_ -= kStealAmount;
-    SetMaxSize(max_size_ + kStealAmount);
+    SetMaxSize(max_size() + kStealAmount);
     return;
   }
   // Don't hold threads_lock too long.  Try to steal from 10 other
@@ -261,11 +261,11 @@ void ThreadCache::IncreaseCacheLimitLocked() {
       next_memory_steal_ = thread_heaps_;
     }
     if (next_memory_steal_ == this ||
-        next_memory_steal_->max_size_ <= min_per_thread_cache_size_.load(std::memory_order_relaxed)) {
+        next_memory_steal_->max_size() <= min_per_thread_cache_size_.load(std::memory_order_relaxed)) {
       continue;
     }
-    next_memory_steal_->SetMaxSize(next_memory_steal_->max_size_ - kStealAmount);
-    SetMaxSize(max_size_ + kStealAmount);
+    next_memory_steal_->SetMaxSize(next_memory_steal_->max_size() - kStealAmount);
+    SetMaxSize(max_size() + kStealAmount);
 
     next_memory_steal_ = next_memory_steal_->next_;
     return;
@@ -336,7 +336,7 @@ void ThreadCache::DeleteCache(ThreadCache* heap) {
 
   if (next_memory_steal_ == heap) next_memory_steal_ = heap->next_;
   if (next_memory_steal_ == nullptr) next_memory_steal_ = thread_heaps_;
-  unclaimed_cache_space_ += heap->max_size_;
+  unclaimed_cache_space_ += heap->max_size();
 
   threadcache_allocator.Delete(heap);
 }
@@ -357,9 +357,9 @@ void ThreadCache::RecomputePerThreadCacheSize() {
     // Increasing the total cache size should not circumvent the
     // slow-start growth of max_size_.
     if (ratio < 1.0) {
-      h->SetMaxSize(h->max_size_ * ratio);
+      h->SetMaxSize(h->max_size() * ratio);
     }
-    claimed += h->max_size_;
+    claimed += h->max_size();
   }
   unclaimed_cache_space_ = overall_thread_cache_size_ - claimed;
   per_thread_cache_size_ = space;

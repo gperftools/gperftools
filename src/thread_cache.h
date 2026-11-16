@@ -249,7 +249,12 @@ class ThreadCache {
   // Releases N items from this thread cache.
   void ReleaseToCentralCache(FreeList* src, uint32_t cl, int N);
 
-  void SetMaxSize(int32_t new_max_size);
+  // REQUIRES: threads_lock is held. max_size() may be called without
+  // it.
+  void SetMaxSize(int32_t new_max_size) EXCLUSIVE_LOCKS_REQUIRED(threads_lock_) {
+    max_size_.store(new_max_size, std::memory_order_relaxed);
+  }
+  int32_t max_size() const { return max_size_.load(std::memory_order_relaxed); }
 
   // Increase max_size_ by reducing unclaimed_cache_space_ or by
   // reducing the max_size_ of some other thread.  In both cases,
@@ -292,8 +297,9 @@ class ThreadCache {
   // size_ > max_size_ --> Scavenge(). Written only under
   // threads_lock (also for other threads' caches, see
   // IncreaseCacheLimitLocked and RecomputePerThreadCacheSize); read
-  // without locking by the owning thread.
-  int32_t max_size_;
+  // without locking by the owning thread. Thus atomic (relaxed loads
+  // and stores compile to plain loads and stores).
+  std::atomic<int32_t> max_size_;
 
   // We sample allocations, biased by the size of the allocation
   Sampler sampler_;  // A sampler
@@ -356,12 +362,10 @@ ALWAYS_INLINE void ThreadCache::Deallocate(void* ptr, uint32_t cl) {
   }
 
   size_ += list->object_size();
-  if (PREDICT_FALSE(size_ > max_size_)) {
+  if (PREDICT_FALSE(size_ > max_size())) {
     Scavenge();
   }
 }
-
-inline void ThreadCache::SetMaxSize(int32_t new_max_size) { max_size_ = new_max_size; }
 
 #ifndef NO_TCMALLOC_SAMPLES
 
