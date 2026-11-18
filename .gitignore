@@ -27,8 +27,8 @@
 /binary_trees_shared
 /binary_trees_shared.exe
 /build/
-/ci-build/
 /check_address_test
+/ci-build/
 /cleanup_test
 /cleanup_test.exe
 /compile
@@ -46,6 +46,8 @@
 /docs/*.html
 /for_each_line_test
 /for_each_line_test.exe
+/fork_stress_unittest
+/fork_stress_unittest.exe
 /frag_unittest
 /frag_unittest.exe
 /function_ref_test
