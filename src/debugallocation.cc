@@ -1140,30 +1140,13 @@ REGISTER_MODULE_DESTRUCTOR(debugallocation, {
 
 // ========================================================================= //
 
-struct debug_alloc_retry_data {
-  size_t size;
-  int new_type;
-};
-
-static void* retry_debug_allocate(void* arg) {
-  debug_alloc_retry_data* data = static_cast<debug_alloc_retry_data*>(arg);
-  return DebugAllocate(data->size, data->new_type);
-}
-
-// This is mostly the same a cpp_alloc in tcmalloc.cc.
-// TODO(csilvers): change Allocate() above to call cpp_alloc, so we
-// don't have to reproduce the logic here.  To make tc_new_mode work
-// properly, I think we'll need to separate out the logic of throwing
-// from the logic of calling the new-handler.
 inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
   void* p = DebugAllocate(size, new_type);
   if (p != nullptr) {
     return p;
   }
-  struct debug_alloc_retry_data data;
-  data.size = size;
-  data.new_type = new_type;
-  return handle_oom(retry_debug_allocate, &data, true, nothrow);
+  return HandleOOM(nothrow ? kNoThrowOOM : kThrowOOM,
+                   [&] () { return DebugAllocate(size, new_type); });
 }
 
 inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
@@ -1171,10 +1154,8 @@ inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
   if (p != nullptr) {
     return p;
   }
-  struct debug_alloc_retry_data data;
-  data.size = size;
-  data.new_type = MallocBlock::kMallocType;
-  return handle_oom(retry_debug_allocate, &data, false, true);
+  return HandleOOM(kMallocOOM,
+                   [&] () { return DebugAllocate(size, MallocBlock::kMallocType); });
 }
 
 // Exported routines
@@ -1380,33 +1361,22 @@ static void* do_debug_memalign(size_t alignment, size_t size, int type) {
   return p;
 }
 
-struct memalign_retry_data {
-  size_t align;
-  size_t size;
-  int type;
-};
-
-static void* retry_debug_memalign(void* arg) {
-  memalign_retry_data* data = static_cast<memalign_retry_data*>(arg);
-  return do_debug_memalign(data->align, data->size, data->type);
-}
-
-ALWAYS_INLINE
-void* do_debug_memalign_or_debug_cpp_memalign(size_t align, size_t size, int type, bool from_operator, bool nothrow) {
+static ALWAYS_INLINE
+void* debug_memalign_with_oom(size_t align, size_t size,
+                              int type, OOMKind oom) {
   void* p = do_debug_memalign(align, size, type);
   if (p != nullptr) {
     return p;
   }
 
-  struct memalign_retry_data data;
-  data.align = align;
-  data.size = size;
-  data.type = type;
-  return handle_oom(retry_debug_memalign, &data, from_operator, nothrow);
+  return HandleOOM(oom, [&] () {
+    return do_debug_memalign(align, size, type);
+  });
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
-  void* p = do_debug_memalign_or_debug_cpp_memalign(align, size, MallocBlock::kMallocType, false, true);
+  void* p = debug_memalign_with_oom(align, size,
+                                    MallocBlock::kMallocType, kMallocOOM);
   tcmalloc::InvokeNewHook(p, size);
   return p;
 }
@@ -1417,7 +1387,9 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
     return EINVAL;
   }
 
-  void* result = do_debug_memalign_or_debug_cpp_memalign(align, size, MallocBlock::kMallocType, false, true);
+  void* result = debug_memalign_with_oom(
+    align, size,
+    MallocBlock::kMallocType, kMallocOOM);
   tcmalloc::InvokeNewHook(result, size);
   if (result == nullptr) {
     return ENOMEM;
@@ -1429,7 +1401,9 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) PERFTOOLS_NOTHROW {
   // Allocate >= size bytes starting on a page boundary
-  void* p = do_debug_memalign_or_debug_cpp_memalign(getpagesize(), size, MallocBlock::kMallocType, false, true);
+  void* p = debug_memalign_with_oom(
+    getpagesize(), size,
+    MallocBlock::kMallocType, kMallocOOM);
   tcmalloc::InvokeNewHook(p, size);
   return p;
 }
@@ -1442,22 +1416,26 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
   if (size == 0) {    // pvalloc(0) should allocate one page, according to
     size = pagesize;  // http://man.free4web.biz/man3/libmpatrol.3.html
   }
-  void* p = do_debug_memalign_or_debug_cpp_memalign(pagesize, size, MallocBlock::kMallocType, false, true);
+  void* p = debug_memalign_with_oom(
+    pagesize, size,
+    MallocBlock::kMallocType, kMallocOOM);
   tcmalloc::InvokeNewHook(p, size);
   return p;
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
-  void* result =
-      do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kNewType, true, false);
+  void* result = debug_memalign_with_oom(
+    static_cast<size_t>(align), size,
+    MallocBlock::kNewType, kThrowOOM);
   tcmalloc::InvokeNewHook(result, size);
   return result;
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align,
                                                            const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  void* result =
-      do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kNewType, true, true);
+  void* result = debug_memalign_with_oom(
+    static_cast<size_t>(align), size,
+    MallocBlock::kNewType, kNoThrowOOM);
   tcmalloc::InvokeNewHook(result, size);
   return result;
 }
@@ -1480,16 +1458,19 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align) {
-  void* result = do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kArrayNewType,
-                                                         true, false);
+  void* result = debug_memalign_with_oom(
+    static_cast<size_t>(align), size,
+    MallocBlock::kArrayNewType,
+    kThrowOOM);
   tcmalloc::InvokeNewHook(result, size);
   return result;
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t align,
                                                                 const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
-  void* result =
-      do_debug_memalign_or_debug_cpp_memalign(static_cast<size_t>(align), size, MallocBlock::kArrayNewType, true, true);
+  void* result = debug_memalign_with_oom(
+    static_cast<size_t>(align), size,
+    MallocBlock::kArrayNewType, kNoThrowOOM);
   tcmalloc::InvokeNewHook(result, size);
   return result;
 }

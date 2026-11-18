@@ -801,7 +801,7 @@ bool PatchAllModules() {
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
-  return malloc_fast_path<tcmalloc::malloc_oom>(size);
+  return malloc_fast_path<kMallocOOM>(size);
 }
 
 template <int T>
@@ -860,12 +860,12 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(size_t n, size_t elem_size
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new(size_t size) {
-  return malloc_fast_path<tcmalloc::cpp_throw_oom>(size);
+  return malloc_fast_path<kThrowOOM>(size);
 }
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
-  return malloc_fast_path<tcmalloc::cpp_throw_oom>(size);
+  return malloc_fast_path<kThrowOOM>(size);
 }
 
 template <int T>
@@ -882,12 +882,12 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void* p) {
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new_nothrow(size_t size, const std::nothrow_t&) __THROW {
-  return malloc_fast_path<tcmalloc::cpp_nothrow_oom>(size);
+  return malloc_fast_path<kNoThrowOOM>(size);
 }
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW {
-  return malloc_fast_path<tcmalloc::cpp_nothrow_oom>(size);
+  return malloc_fast_path<kNoThrowOOM>(size);
 }
 
 template <int T>

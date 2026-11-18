@@ -1193,10 +1193,14 @@ static void* DoSampledAllocation(size_t size) {
 
 namespace {
 
-typedef void* (*malloc_fn)(void* arg);
+enum OOMKind {
+  kMallocOOM, // oom handling for malloc() (respects tc_new_mode if set)
+  kThrowOOM, // normal throwing oom, with new handler
+  kNoThrowOOM, // nothrow variants
+};
 
-void* handle_oom(malloc_fn retry_fn, void* retry_arg, bool from_operator, bool nothrow) {
-  // we hit out of memory condition, usually if it happens we've
+ATTRIBUTE_NOINLINE void* HandleOOM(OOMKind oom_kind, tcmalloc::FunctionRef<void*()> retry) {
+  // We hit out of memory condition, usually if it happens we've
   // called sbrk or mmap and failed, and thus errno is set. But there
   // is support for setting up custom system allocator or setting up
   // page heap size limit, in which cases errno may remain
@@ -1206,14 +1210,15 @@ void* handle_oom(malloc_fn retry_fn, void* retry_arg, bool from_operator, bool n
   // be set, but doesn't forbid it too (and often C++ oom does happen
   // with ENOMEM set).
   errno = ENOMEM;
-  if (!from_operator && !tc_new_mode) {
-    // we're out of memory in C library function (malloc etc) and no
+  if (oom_kind == kMallocOOM && !tc_new_mode) {
+    // We're out of memory in C library function (malloc etc) and no
     // "new mode" forced on us. Just return nullptr
     return nullptr;
   }
 
   // we're OOM in operator new or "new mode" is set. We might have to
   // call new_handler and maybe retry allocation.
+  const bool nothrow = (oom_kind != kThrowOOM);
 
   for (;;) {
     // Get the current new handler.  NB: this function is not
@@ -1252,8 +1257,7 @@ void* handle_oom(malloc_fn retry_fn, void* retry_arg, bool from_operator, bool n
 
     // we get here if new_handler returns successfully. So we retry
     // allocation.
-    void* rv = retry_fn(retry_arg);
-    if (rv != nullptr) {
+    if (void* rv = retry(); rv != nullptr) {
       return rv;
     }
 
@@ -1396,14 +1400,12 @@ ALWAYS_INLINE void* do_malloc(size_t size) {
   return CheckedMallocResult(cache_ptr->Allocate(allocated_size, cl, nop_oom_handler));
 }
 
-static void* retry_malloc(void* size) { return do_malloc(reinterpret_cast<size_t>(size)); }
-
 ALWAYS_INLINE void* do_malloc_or_cpp_alloc(size_t size) {
   void* rv = do_malloc(size);
   if (PREDICT_TRUE(rv != nullptr)) {
     return rv;
   }
-  return handle_oom(retry_malloc, reinterpret_cast<void*>(size), false, true);
+  return HandleOOM(kMallocOOM, [size] () { return do_malloc(size); });
 }
 
 ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
@@ -1727,16 +1729,7 @@ static ATTRIBUTE_NOINLINE void invoke_hooks_and_free(void* ptr) {
   do_free(ptr);
 }
 
-ATTRIBUTE_NOINLINE
-void* cpp_throw_oom(size_t size) { return handle_oom(retry_malloc, reinterpret_cast<void*>(size), true, false); }
-
-ATTRIBUTE_NOINLINE
-void* cpp_nothrow_oom(size_t size) { return handle_oom(retry_malloc, reinterpret_cast<void*>(size), true, true); }
-
-ATTRIBUTE_NOINLINE
-void* malloc_oom(size_t size) { return handle_oom(retry_malloc, reinterpret_cast<void*>(size), false, true); }
-
-// tcmalloc::allocate_full_XXX is called by fast-path malloc when some
+// tcmalloc::allocate_full is called by fast-path malloc when some
 // complex handling is needed (such as fetching object from central
 // freelist or malloc sampling). It contains all 'operator new' logic,
 // as opposed to malloc_fast_path which only deals with important
@@ -1744,70 +1737,20 @@ void* malloc_oom(size_t size) { return handle_oom(retry_malloc, reinterpret_cast
 //
 // Note that this is under tcmalloc namespace so that pprof
 // can automatically filter it out of growthz/heapz profiles.
-//
-// We have slightly fancy setup because we need to call hooks from
-// function in 'google_malloc' section and we cannot place template
-// into this section. Thus 3 separate functions 'built' by macros.
-//
-// Also note that we're carefully orchestrating for
-// MallocHook::GetCallerStackTrace to work even if compiler isn't
-// optimizing tail calls (e.g. -O0 is given). We still require
-// ALWAYS_INLINE to work for that case, but it was seen to
-// work for -O0 -fno-inline across both GCC and clang. I.e. in this
-// case we'll get stack frame for tc_new, followed by stack frame for
-// allocate_full_cpp_throw_oom, followed by hooks machinery and user
-// code's stack frames. So GetCallerStackTrace will find 2
-// subsequent stack frames in google_malloc section and correctly
-// 'cut' stack trace just before tc_new.
-template <void* OOMHandler(size_t)>
-ALWAYS_INLINE static void* do_allocate_full(size_t size) {
+template <OOMKind OOM>
+ATTRIBUTE_NOINLINE static void* allocate_full(size_t size) {
   void* p = do_malloc(size);
   if (PREDICT_FALSE(p == nullptr)) {
-    p = OOMHandler(size);
+    p = HandleOOM(OOM, [size] () { return do_malloc(size); });
   }
   tcmalloc::InvokeNewHook(p, size);
   return CheckedMallocResult(p);
 }
 
-#define AF(oom)      \
-  ATTRIBUTE_NOINLINE \
-  void* allocate_full_##oom(size_t size) { return do_allocate_full<oom>(size); }
-
-AF(cpp_throw_oom)
-AF(cpp_nothrow_oom)
-AF(malloc_oom)
-
-#undef AF
-
-template <void* OOMHandler(size_t)>
-static ALWAYS_INLINE void* dispatch_allocate_full(size_t size) {
-  if (OOMHandler == cpp_throw_oom) {
-    return allocate_full_cpp_throw_oom(size);
-  }
-  if (OOMHandler == cpp_nothrow_oom) {
-    return allocate_full_cpp_nothrow_oom(size);
-  }
-  ASSERT(OOMHandler == malloc_oom);
-  return allocate_full_malloc_oom(size);
-}
-
-struct retry_memalign_data {
-  size_t align;
-  size_t size;
-};
-
-static void* retry_do_memalign(void* arg) {
-  retry_memalign_data* data = static_cast<retry_memalign_data*>(arg);
-  return do_memalign_pages(data->align, data->size);
-}
-
-static ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, bool from_operator, bool nothrow) {
+static ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, OOMKind oom) {
   void* rv = do_memalign_pages(align, size);
   if (PREDICT_FALSE(rv == nullptr)) {
-    retry_memalign_data data;
-    data.align = align;
-    data.size = size;
-    rv = handle_oom(retry_do_memalign, &data, from_operator, nothrow);
+    rv = HandleOOM(oom, [&] () { return do_memalign_pages(align, size); });
   }
   tcmalloc::InvokeNewHook(rv, size);
   return CheckedMallocResult(rv);
@@ -1820,7 +1763,7 @@ static ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, bool f
 // complex handling is needed (such as a pageheap allocation or
 // sampling) and only performs allocation if none of those uncommon
 // conditions hold. When we have one of those odd cases it simply
-// tail-calls to one of tcmalloc::allocate_full_XXX defined above.
+// tail-calls to tcmalloc::allocate_full defined above.
 //
 // Such approach was found to be quite effective. Generated code for
 // tc_{new,malloc} either succeeds quickly or tail-calls to
@@ -1829,53 +1772,49 @@ static ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, bool f
 // produced code is short enough to enable effort-less human
 // comprehension. Which itself led to elimination of various checks
 // that were not necessary for fast-path.
-template <void* OOMHandler(size_t)>
+template <OOMKind OOM>
 ALWAYS_INLINE static void* malloc_fast_path(size_t size) {
   if (PREDICT_FALSE(!base::internal::new_hooks_.empty())) {
-    return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
+    return tcmalloc::allocate_full<OOM>(size);
   }
 
   ThreadCache* cache = ThreadCachePtr::GetIfPresent();
 
   if (PREDICT_FALSE(cache == nullptr)) {
-    return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
+    return tcmalloc::allocate_full<OOM>(size);
   }
 
   uint32_t cl;
   if (PREDICT_FALSE(!Static::sizemap()->GetSizeClass(size, &cl))) {
-    return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
+    return tcmalloc::allocate_full<OOM>(size);
   }
 
   size_t allocated_size = Static::sizemap()->ByteSizeForClass(cl);
 
   if (PREDICT_FALSE(!cache->TryRecordAllocationFast(allocated_size))) {
-    return tcmalloc::dispatch_allocate_full<OOMHandler>(size);
+    return tcmalloc::allocate_full<OOM>(size);
   }
 
-  return CheckedMallocResult(cache->Allocate(allocated_size, cl, OOMHandler));
+  return CheckedMallocResult(cache->Allocate(allocated_size, cl,
+                                             [] (size_t size) -> void* {
+                                               return HandleOOM(OOM, [size] () { return do_malloc(size); });
+                                             }));
 }
 
-template <void* OOMHandler(size_t)>
+template <OOMKind OOM>
 ALWAYS_INLINE static void* memalign_fast_path(size_t align, size_t size) {
   if (PREDICT_FALSE(align > kPageSize)) {
-    if (OOMHandler == tcmalloc::cpp_throw_oom) {
-      return tcmalloc::memalign_pages(align, size, true, false);
-    } else if (OOMHandler == tcmalloc::cpp_nothrow_oom) {
-      return tcmalloc::memalign_pages(align, size, true, true);
-    } else {
-      ASSERT(OOMHandler == tcmalloc::malloc_oom);
-      return tcmalloc::memalign_pages(align, size, false, true);
-    }
+    return tcmalloc::memalign_pages(align, size, OOM);
   }
 
   // Everything with alignment <= kPageSize we can easily delegate to
   // regular malloc
 
-  return malloc_fast_path<OOMHandler>(align_size_up(size, align));
+  return malloc_fast_path<OOM>(align_size_up(size, align));
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<tcmalloc::malloc_oom>(size);
+  return malloc_fast_path<kMallocOOM>(size);
 }
 
 static ALWAYS_INLINE void free_fast_path(void* ptr) {
@@ -1966,12 +1905,12 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr, size_t new_size) P
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_new(size_t size) {
-  return malloc_fast_path<tcmalloc::cpp_throw_oom>(size);
+  return malloc_fast_path<kThrowOOM>(size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_new_nothrow(size_t size,
                                                                         const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<tcmalloc::cpp_nothrow_oom>(size);
+  return malloc_fast_path<kNoThrowOOM>(size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW
@@ -1999,7 +1938,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size)
     TC_ALIAS(tc_new);
 #else
 {
-  return malloc_fast_path<tcmalloc::cpp_throw_oom>(size);
+  return malloc_fast_path<kThrowOOM>(size);
 }
 #endif
 
@@ -2008,7 +1947,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::
     TC_ALIAS(tc_new_nothrow);
 #else
 {
-  return malloc_fast_path<tcmalloc::cpp_nothrow_oom>(size);
+  return malloc_fast_path<kNoThrowOOM>(size);
 }
 #endif
 
@@ -2031,7 +1970,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::no
 #endif
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
-  return memalign_fast_path<tcmalloc::malloc_oom>(align, size);
+  return memalign_fast_path<kMallocOOM>(align, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
@@ -2049,12 +1988,12 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
-  return memalign_fast_path<tcmalloc::cpp_throw_oom>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kThrowOOM>(static_cast<size_t>(align), size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align,
                                                            const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  return memalign_fast_path<tcmalloc::cpp_nothrow_oom>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kNoThrowOOM>(static_cast<size_t>(align), size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW { free_fast_path(p); }
@@ -2080,7 +2019,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_
     TC_ALIAS(tc_new_aligned);
 #else
 {
-  return memalign_fast_path<tcmalloc::cpp_throw_oom>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kThrowOOM>(static_cast<size_t>(align), size);
 }
 #endif
 
@@ -2090,7 +2029,7 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std
     TC_ALIAS(tc_new_aligned_nothrow);
 #else
 {
-  return memalign_fast_path<tcmalloc::cpp_nothrow_oom>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kNoThrowOOM>(static_cast<size_t>(align), size);
 }
 #endif
 
