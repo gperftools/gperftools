@@ -2017,19 +2017,10 @@ extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free_sized(void* ptr,
   do_free_with_callback(ptr, &InvalidFree, true, size);
 }
 
-#ifdef TC_ALIAS
-
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW TC_ALIAS(tc_free_sized);
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW TC_ALIAS(tc_free_sized);
-
-#else
-
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW { tc_free_sized(p, size); }
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
   tc_free_sized(p, size);
 }
-
-#endif
 
 ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
   // Overflow check
@@ -2105,14 +2096,9 @@ extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_new_nothrow(size_t s
   return malloc_fast_path<kNoThrowOOM>(size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_free);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW {
   free_fast_path(p);
 }
-#endif
 
 // Standard C++ library implementations define and use this
 // (via ::operator delete(ptr, nothrow)).
@@ -2121,41 +2107,21 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow
   free_fast_path(p);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size)
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_new);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
   return malloc_fast_path<kThrowOOM>(size);
 }
-#endif
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_new_nothrow);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW {
   return malloc_fast_path<kNoThrowOOM>(size);
 }
-#endif
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_free);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW {
   free_fast_path(p);
 }
-#endif
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_delete_nothrow);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW {
   free_fast_path(p);
 }
-#endif
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
   return memalign_fast_path<kMallocOOM>(align, size);
@@ -2202,55 +2168,30 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t, size
   free_fast_path(ptr);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align)
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_new_aligned);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align) {
   return memalign_fast_path<kThrowOOM>(static_cast<size_t>(align), size);
 }
-#endif
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t align,
-                                                                const std::nothrow_t& nt) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_new_aligned_nothrow);
-#else
-{
+                                                                const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
   return memalign_fast_path<kNoThrowOOM>(static_cast<size_t>(align), size);
 }
-#endif
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_delete_aligned);
-#else
-{
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
   free_fast_path(p);
 }
-#endif
 
 // There is no easy way to obtain the actual size used by do_memalign to allocate aligned storage, so for now
 // just ignore the size. It might get useful in the future.
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size,
-                                                                std::align_val_t align) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_delete_sized_aligned);
-#else
-{
+                                                                std::align_val_t align) PERFTOOLS_NOTHROW {
   free_fast_path(p);
 }
-#endif
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t,
-                                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW
-#ifdef TC_ALIAS
-    TC_ALIAS(tc_delete_aligned_nothrow);
-#else
-{
+                                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW {
   free_fast_path(p);
 }
-#endif
 
 static size_t pagesize = 0;
 
