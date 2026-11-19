@@ -1214,25 +1214,19 @@ static size_t GrowNallocxTestSize(size_t sz) {
   return sz + divided;
 }
 
-TEST(TCMallocTest, NAllocX) {
-  if (TestingPortal::Get()->IsDebuggingMalloc()) {
-    return;
-  }
-
+static void CheckNAllocX() {
   for (size_t size = 0; size <= (1 << 20); size = GrowNallocxTestSize(size)) {
     size_t rounded = nallocx(size, 0);
     ASSERT_GE(rounded, size);
+    ASSERT_EQ(rounded, MallocExtension::instance()->GetEstimatedAllocatedSize(size));
     void* ptr = malloc(size);
     ASSERT_EQ(rounded, MallocExtension::instance()->GetAllocatedSize(ptr));
+    ASSERT_EQ(rounded, tc_malloc_size(ptr));
     free(ptr);
   }
 }
 
-TEST(TCMallocTest, NAllocXAlignment) {
-  if (TestingPortal::Get()->IsDebuggingMalloc()) {
-    return;
-  }
-
+static void CheckNAllocXAlignment() {
   for (size_t size = 0; size <= (1 << 20); size = GrowNallocxTestSize(size)) {
     for (size_t align_log = 0; align_log < 10; align_log++) {
       size_t rounded = nallocx(size, MALLOCX_LG_ALIGN(align_log));
@@ -1241,9 +1235,40 @@ TEST(TCMallocTest, NAllocXAlignment) {
       ASSERT_EQ(rounded % align, 0);
       void* ptr = tc_memalign(align, size);
       ASSERT_EQ(rounded, MallocExtension::instance()->GetAllocatedSize(ptr));
+      ASSERT_EQ(rounded, tc_malloc_size(ptr));
       free(ptr);
     }
   }
+}
+
+TEST(TCMallocTest, NAllocX) {
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    return;
+  }
+  CheckNAllocX();
+}
+
+TEST(TCMallocTest, NAllocXAlignment) {
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    return;
+  }
+  CheckNAllocXAlignment();
+}
+
+// With new/delete hooks registered, size queries go through overlay
+// dispatcher. Results must be the same.
+TEST(TCMallocTest, NAllocXWithHooks) {
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    return;
+  }
+  SetNewHook();
+  SetDeleteHook();
+  tcmalloc::Cleanup unhook([]() {
+    ResetNewHook();
+    ResetDeleteHook();
+  });
+  CheckNAllocX();
+  CheckNAllocXAlignment();
 }
 
 struct NewHandlerHelper {
@@ -1657,6 +1682,10 @@ TEST(TCMallocTest, EmergencyMalloc) {
 
   EXPECT_FALSE(portal->IsEmergencyPtr(p1));
   EXPECT_TRUE(portal->IsEmergencyPtr(p2));
+
+  // Size queries work for emergency pointers (with hooks active too).
+  EXPECT_GE(MallocExtension::instance()->GetAllocatedSize(p2), 32);
+  EXPECT_GE(tc_malloc_size(p2), 32);
 
   // Emergency malloc automagically does the right thing for free()
   // calls and doesn't invoke hooks.

@@ -1091,10 +1091,9 @@ static bool size_class_with_alignment(size_t size, size_t align, uint32_t* cl) {
 // nallocx slow path. Moved to a separate function because
 // ThreadCache::InitModule is not inlined which would cause nallocx to
 // become non-leaf function with stack frame and stack spills.
-static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
+static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, size_t align) {
   ThreadCache::EnsureMallocInitialized();
 
-  size_t align = static_cast<size_t>(1ull << (flags & 0x3f));
   uint32_t cl;
   bool ok = size_class_with_alignment(size, align, &cl);
   if (ok) {
@@ -1106,22 +1105,51 @@ static ATTRIBUTE_NOINLINE size_t nallocx_slow(size_t size, int flags) {
   }
 }
 
-// The nallocx function allocates no memory, but it performs the same size
-// computation as the malloc function, and returns the real size of the
-// allocation that would result from the equivalent malloc function call.
-// nallocx is a malloc extension originally implemented by jemalloc:
-// http://www.unix.com/man-page/freebsd/3/nallocx/
-extern "C" PERFTOOLS_DLL_DECL size_t tc_nallocx(size_t size, int flags) {
-  if (PREDICT_FALSE(flags != 0)) {
-    return nallocx_slow(size, flags);
+// nallocx of tcmalloc proper (i.e. ignoring overlays). align is as
+// in AllocOps::NAllocX (0 means default alignment).
+static ALWAYS_INLINE size_t nallocx_no_overlay(size_t size, size_t align) {
+  if (PREDICT_FALSE(align != 0)) {
+    return nallocx_slow(size, align);
   }
   uint32_t cl;
   // size class 0 is only possible if malloc is not yet initialized
   if (Static::sizemap()->GetSizeClass(size, &cl) && cl != 0) {
     return Static::sizemap()->ByteSizeForClass(cl);
   } else {
-    return nallocx_slow(size, 0);
+    return nallocx_slow(size, 1);
   }
+}
+
+namespace tcmalloc {
+
+ATTRIBUTE_NOINLINE size_t dispatch_nallocx(size_t size, size_t align, const AllocOps* overlay) {
+  return overlay->NAllocX(size, align);
+}
+
+ATTRIBUTE_NOINLINE size_t dispatch_usable_size(const void* ptr, const AllocOps* overlay) {
+  ASSERT(ptr != nullptr);
+  // Like everything else, emergency pointers are handled before
+  // overlays.
+  if (PREDICT_FALSE(IsEmergencyPtr(ptr))) {
+    return EmergencyAllocatedSize(ptr);
+  }
+  return overlay->UsableSize(ptr);
+}
+
+}  // namespace tcmalloc
+
+// The nallocx function allocates no memory, but it performs the same size
+// computation as the malloc function, and returns the real size of the
+// allocation that would result from the equivalent malloc function call.
+// nallocx is a malloc extension originally implemented by jemalloc:
+// http://www.unix.com/man-page/freebsd/3/nallocx/
+extern "C" PERFTOOLS_DLL_DECL size_t tc_nallocx(size_t size, int flags) {
+  // MALLOCX_LG_ALIGN is the only flag we support
+  size_t align = PREDICT_FALSE(flags != 0) ? size_t{1} << (flags & 0x3f) : 0;
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_nallocx(size, align, overlay);
+  }
+  return nallocx_no_overlay(size, align);
 }
 
 extern "C" PERFTOOLS_DLL_DECL size_t nallocx(size_t size, int flags)
@@ -1129,7 +1157,7 @@ extern "C" PERFTOOLS_DLL_DECL size_t nallocx(size_t size, int flags)
     TC_ALIAS(tc_nallocx);
 #else
 {
-  return nallocx_slow(size, flags);
+  return tc_nallocx(size, flags);
 }
 #endif
 
@@ -1584,7 +1612,7 @@ inline size_t GetSizeWithCallback(const void* ptr, size_t (*invalid_getsize_fn)(
 
   if (span->sample) {
     size_t orig_size = reinterpret_cast<StackTrace*>(span->objects)->size;
-    return tc_nallocx(orig_size, 0);
+    return nallocx_no_overlay(orig_size, 0);
   }
 
   return span->length << kPageShift;
@@ -1603,7 +1631,7 @@ ALWAYS_INLINE void* do_realloc_with_callback(void* old_ptr, size_t new_size, voi
         return 0;
       });
 
-  if (tc_nallocx(new_size, 0) == currently_usable) {
+  if (nallocx_no_overlay(new_size, 0) == currently_usable) {
     // Note: we're skipping sampling updates because we consider this
     // "allocation" 0-cost.
     return old_ptr;
@@ -1690,7 +1718,10 @@ inline Mallinfo do_mallinfo() {
 // As promised, the definition of this function, declared above.
 size_t TCMallocImplementation::GetAllocatedSize(const void* ptr) {
   if (ptr == nullptr) return 0;
-  ASSERT(TCMallocImplementation::GetOwnership(ptr) != TCMallocImplementation::kNotOwned);
+  ASSERT(GetOwnership(ptr) != TCMallocImplementation::kNotOwned);
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_usable_size(ptr, overlay);
+  }
   return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
 }
 
@@ -1744,19 +1775,7 @@ void BaseFree(void* ptr, size_t size_hint, size_t align, uint32_t) {
 bool BaseResizeInPlace(void* ptr, size_t new_size) {
   return (BaseUsableSize(ptr) == BaseNAllocX(new_size, 0));
 }
-size_t BaseNAllocX(size_t size, size_t align) {
-  // TODO: cleanup duplication with nallocx_slow
-  uint32_t cl;
-  align = std::max(sizeof(void*), align);
-  bool ok = size_class_with_alignment(size, align, &cl);
-  if (ok) {
-    return Static::sizemap()->ByteSizeForClass(cl);
-  } else {
-    Length pages = tcmalloc::pages(size);
-    pages = Static::pageheap()->RoundUpSize(pages);
-    return pages << kPageShift;
-  }
-}
+size_t BaseNAllocX(size_t size, size_t align) { return nallocx_no_overlay(size, align); }
 size_t BaseUsableSize(const void* ptr) { return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize); }
 
 static const AllocOps* InitialGetUnderlying() {

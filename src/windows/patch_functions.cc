@@ -1030,6 +1030,13 @@ void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(void* p, const
 
 template <int T>
 size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    if (tcmalloc::IsOwnedByUs(ptr)) {
+      return tcmalloc::dispatch_usable_size(ptr, overlay);
+    }
+    // Foreign (pre-patch) pointers go to original _msize below. See
+    // also FreeFastPathPatched.
+  }
   return GetSizeWithCallback(ptr, (size_t (*)(const void*))OrigFn(k_Msize));
 }
 
