@@ -33,6 +33,8 @@
 
 #include "config_for_unittests.h"
 
+#include <errno.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>  // for memcmp
@@ -40,6 +42,7 @@
 #include <new>
 
 #include "gperftools/malloc_extension.h"
+#include "gperftools/nallocx.h"
 #include "gperftools/tcmalloc.h"
 
 #include "base/basictypes.h"
@@ -359,6 +362,125 @@ TEST(DebugAllocationTest, ReallocAfterMemalign) {
   int rv = memcmp(stuff, p, sizeof(stuff));
   EXPECT_EQ(rv, 0);
 }
+
+static bool IsAligned(const void* p, size_t align) { return (reinterpret_cast<uintptr_t>(p) & (align - 1)) == 0; }
+
+TEST(DebugAllocationTest, MemalignLargeAlignment) {
+  for (size_t align : {size_t{1} << 16, size_t{1} << 20}) {
+    char stuff[100];
+    for (int i = 0; i < sizeof(stuff); i++) {
+      stuff[i] = i;
+    }
+
+    void* p = tc_memalign(align, sizeof(stuff));
+    ASSERT_NE(p, nullptr);
+    EXPECT_TRUE(IsAligned(p, align));
+    EXPECT_GE(MallocExtension::instance()->GetAllocatedSize(p), sizeof(stuff));
+    EXPECT_EQ(MallocExtension::instance()->GetOwnership(p), MallocExtension::kOwned);
+    EXPECT_TRUE(MallocExtension::instance()->VerifyMallocMemory(p));
+    memcpy(p, stuff, sizeof(stuff));
+
+    p = noopt(realloc(p, 2 * sizeof(stuff)));
+    ASSERT_NE(p, nullptr);
+    EXPECT_EQ(memcmp(p, stuff, sizeof(stuff)), 0);
+    free(p);
+
+    p = tc_memalign(align, sizeof(stuff));
+    EXPECT_TRUE(IsAligned(p, align));
+    free(p);
+
+    ASSERT_EQ(tc_posix_memalign(&p, align, sizeof(stuff)), 0);
+    EXPECT_TRUE(IsAligned(p, align));
+    tc_free_aligned_sized(p, align, sizeof(stuff));
+  }
+}
+
+TEST(DebugAllocationTest, NAllocXMatchesUsableSize) {
+  for (size_t size = 0; size < 100000; size = size * 3 + 1) {
+#ifdef __APPLE__
+    if (size == 0) continue;
+#endif
+    void* p = noopt(malloc(size));
+    EXPECT_EQ(nallocx(size, 0), MallocExtension::instance()->GetAllocatedSize(p));
+    EXPECT_EQ(nallocx(size, 0), tc_malloc_size(p));
+    EXPECT_EQ(MallocExtension::instance()->GetEstimatedAllocatedSize(size), nallocx(size, 0));
+    free(p);
+  }
+}
+
+TEST(DebugAllocationTest, CallocKeepsRedzones) {
+  for (size_t n = 0; n < 300; n += 7) {
+    char* p = static_cast<char*>(noopt(calloc(1, n)));
+    for (size_t i = 0; i < n; i++) {
+      ASSERT_EQ(p[i], 0);
+    }
+    // We'd crash with "a word after object" if calloc zeroed past
+    // requested size.
+    EXPECT_TRUE(MallocExtension::instance()->VerifyMallocMemory(p));
+    free(p);
+  }
+}
+
+#if __cpp_exceptions
+static int new_handler_calls;
+static int new_handler_calls_before_giving_up;
+
+static void CountingNewHandler() {
+  new_handler_calls++;
+  if (new_handler_calls >= new_handler_calls_before_giving_up) {
+    std::set_new_handler(nullptr);
+  }
+}
+
+TEST(DebugAllocationTest, OOMPolicy) {
+  // Near SIZE_MAX so it can never succeed, but with enough room that
+  // debug allocator's overhead doesn't trip its own overflow checks
+  // (so failure comes from base).
+  size_t kTooBig = noopt(~size_t{0} - 100000);
+
+  std::new_handler old_handler = std::set_new_handler(nullptr);
+
+  errno = 0;
+  EXPECT_EQ(noopt(malloc(kTooBig)), nullptr);
+  EXPECT_EQ(errno, ENOMEM);
+  EXPECT_EQ(noopt(calloc(1, kTooBig)), nullptr);
+  void* p = noopt(malloc(10));
+  EXPECT_EQ(noopt(realloc(p, kTooBig)), nullptr);
+  free(p);
+
+  // operator new retries after new_handler returns, then throws.
+  new_handler_calls = 0;
+  new_handler_calls_before_giving_up = 3;
+  std::set_new_handler(CountingNewHandler);
+  EXPECT_THROW(noopt((::operator new)(kTooBig)), std::bad_alloc);
+  EXPECT_EQ(new_handler_calls, 3);
+
+  new_handler_calls = 0;
+  new_handler_calls_before_giving_up = 2;
+  std::set_new_handler(CountingNewHandler);
+  EXPECT_THROW(noopt((::operator new[])(kTooBig, std::align_val_t{64})), std::bad_alloc);
+  EXPECT_EQ(new_handler_calls, 2);
+
+  new_handler_calls = 0;
+  new_handler_calls_before_giving_up = 1;
+  std::set_new_handler(CountingNewHandler);
+  EXPECT_EQ(noopt((::operator new)(kTooBig, std::nothrow)), nullptr);
+  EXPECT_EQ(new_handler_calls, 1);
+
+  // malloc calls new_handler only in "new mode".
+  new_handler_calls = 0;
+  new_handler_calls_before_giving_up = 1;
+  std::set_new_handler(CountingNewHandler);
+  EXPECT_EQ(noopt(malloc(kTooBig)), nullptr);
+  EXPECT_EQ(new_handler_calls, 0);
+  int old_mode = tc_set_new_mode(1);
+  EXPECT_EQ(noopt(malloc(kTooBig)), nullptr);
+  EXPECT_EQ(new_handler_calls, 1);
+  tc_set_new_mode(old_mode);
+
+  std::set_new_handler(old_handler);
+}
+#endif  // __cpp_exceptions
 
 int main(int argc, char** argv) {
 #if __APPLE__

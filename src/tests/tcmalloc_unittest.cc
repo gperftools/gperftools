@@ -79,6 +79,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <functional>
 #include <mutex>
 #include <new>
@@ -1800,11 +1801,6 @@ const AllocOps ops = {
 // Checks that every entry point passes right kind, size and alignment
 // to overlays.
 TEST(TCMallocTest, OverlayFlagsFidelity) {
-  if (TestingPortal::Get()->IsDebuggingMalloc()) {
-    // debug malloc doesn't do overlays (yet)
-    return;
-  }
-
   using namespace tcmalloc;
   namespace rl = recording_overlay;
   constexpr size_t kSize = 17;
@@ -1937,6 +1933,251 @@ TEST(TCMallocTest, OverlayFlagsFidelity) {
   });
 #undef CHECK_MALLOC
 #undef CHECK_FREE
+}
+
+// Records new/delete hook invocations made by the thread that created
+// the recorder. Used to check exact pointers, sizes and order of
+// hook invocations (both with and without debug allocator).
+class HookRecorder {
+ public:
+  struct Event {
+    char kind;  // 'n' for new hook, 'd' for delete hook
+    const void* ptr;
+    size_t size;
+
+    bool operator==(const Event& other) const {
+      return kind == other.kind && ptr == other.ptr && size == other.size;
+    }
+  };
+
+  HookRecorder() {
+    CHECK(instance_ == nullptr);
+    owner_ = std::this_thread::get_id();
+    instance_ = this;
+    CHECK(MallocHook::AddNewHook(&OnNew));
+    CHECK(MallocHook::AddDeleteHook(&OnDelete));
+  }
+
+  ~HookRecorder() {
+    CHECK(MallocHook::RemoveNewHook(&OnNew));
+    CHECK(MallocHook::RemoveDeleteHook(&OnDelete));
+    instance_ = nullptr;
+  }
+
+  // Starts recording (forgetting previously recorded events, if any).
+  void Start() {
+    num_events_ = 0;
+    recording_ = true;
+  }
+
+  // Stops recording and returns events recorded since Start().
+  std::vector<Event> Take() {
+    recording_ = false;
+    return std::vector<Event>(events_, events_ + num_events_);
+  }
+
+  static Event New(const void* ptr, size_t size) { return Event{'n', ptr, size}; }
+  static Event Delete(const void* ptr) { return Event{'d', ptr, 0}; }
+
+ private:
+  static constexpr int kMaxEvents = 64;
+
+  void Record(Event e) {
+    if (!recording_ || std::this_thread::get_id() != owner_) {
+      return;
+    }
+    CHECK_LT(num_events_, kMaxEvents);
+    events_[num_events_++] = e;
+  }
+
+  static void OnNew(const void* ptr, size_t size) {
+    if (instance_) instance_->Record(New(ptr, size));
+  }
+  static void OnDelete(const void* ptr) {
+    if (instance_) instance_->Record(Delete(ptr));
+  }
+
+  static inline HookRecorder* volatile instance_;
+  std::thread::id owner_;
+  Event events_[kMaxEvents];
+  volatile int num_events_ = 0;
+  volatile bool recording_ = false;
+};
+
+static std::ostream& operator<<(std::ostream& os, const HookRecorder::Event& e) {
+  return os << e.kind << "(" << e.ptr << ", " << e.size << ")";
+}
+
+using HookEvents = std::vector<HookRecorder::Event>;
+
+TEST(TCMallocTest, NewDeleteHooksSeeUserPointersAndSizes) {
+  HookRecorder rec;
+  // Note, we take recorded events into a variable first. Because
+  // expected values vector's allocation would otherwise get recorded.
+  HookEvents events;
+
+  rec.Start();
+  void* p = noopt(malloc(100));
+  free(p);
+  events = rec.Take();
+  EXPECT_EQ(events, (HookEvents{HookRecorder::New(p, 100), HookRecorder::Delete(p)}));
+
+  rec.Start();
+  p = noopt(calloc(10, 7));
+  free(p);
+  events = rec.Take();
+  EXPECT_EQ(events, (HookEvents{HookRecorder::New(p, 70), HookRecorder::Delete(p)}));
+
+  rec.Start();
+  char* c = noopt(new char[33]);
+  delete[] c;
+  events = rec.Take();
+  EXPECT_EQ(events, (HookEvents{HookRecorder::New(c, 33), HookRecorder::Delete(c)}));
+
+  for (size_t align : {16, 64, 4096, 1 << 16}) {
+    rec.Start();
+    p = tc_memalign(align, 100);
+    tc_free(p);
+    events = rec.Take();
+    EXPECT_EQ(events, (HookEvents{HookRecorder::New(p, 100), HookRecorder::Delete(p)}));
+    EXPECT_EQ(reinterpret_cast<uintptr_t>(p) % align, 0);
+
+#ifndef _WIN32
+    // Note, on windows aligned operator new may end up in CRT's
+    // _aligned_malloc, which we don't patch.
+    rec.Start();
+    p = (::operator new)(100, std::align_val_t{align});
+    (::operator delete)(p, 100, std::align_val_t{align});
+    events = rec.Take();
+    EXPECT_EQ(events, (HookEvents{HookRecorder::New(p, 100), HookRecorder::Delete(p)}));
+#endif
+  }
+
+}
+
+TEST(TCMallocTest, NewDeleteHooksReallocOrder) {
+  HookRecorder rec;
+  // Note, we take recorded events into a variable first. Because
+  // expected values vector's allocation would otherwise get recorded.
+  HookEvents events;
+
+  rec.Start();
+  void* p = noopt(realloc(nullptr, 100));
+  events = rec.Take();
+  EXPECT_EQ(events, HookEvents{HookRecorder::New(p, 100)});
+
+  // Moved: new hook for new pointer, then delete hook for old
+  rec.Start();
+  void* q = noopt(realloc(p, 100000));
+  events = rec.Take();
+  EXPECT_EQ(events, (HookEvents{HookRecorder::New(q, 100000), HookRecorder::Delete(p)}));
+  EXPECT_NE(q, p);
+
+  p = noopt(malloc(100));
+  size_t same_class_size = nallocx(100, 0);
+  rec.Start();
+  void* r = noopt(realloc(p, same_class_size));
+  events = rec.Take();
+  if (r == p) {
+    // In place: delete hook, then new hook for the same pointer with
+    // new size.
+    EXPECT_EQ(events, (HookEvents{HookRecorder::Delete(p), HookRecorder::New(p, same_class_size)}));
+  } else {
+    // Debug allocator always moves.
+    EXPECT_TRUE(TestingPortal::Get()->IsDebuggingMalloc());
+    EXPECT_EQ(events, (HookEvents{HookRecorder::New(r, same_class_size), HookRecorder::Delete(p)}));
+  }
+
+  rec.Start();
+  // Note, we call tc_realloc directly, since OSX's realloc turns
+  // realloc(p, 0) into allocating a new minimal-sized block and
+  // freeing p.
+  void* z = noopt(tc_realloc(r, 0));
+  events = rec.Take();
+  EXPECT_EQ(events, HookEvents{HookRecorder::Delete(r)});
+  EXPECT_EQ(z, nullptr);
+
+  free(q);
+}
+
+TEST(TCMallocTest, NewDeleteHooksAddRemoveWhileAllocating) {
+  static std::atomic<int> new_calls;
+  static std::atomic<int> delete_calls;
+  auto new_hook = +[](const void* ptr, size_t size) { new_calls.fetch_add(1, std::memory_order_relaxed); };
+  auto delete_hook = +[](const void* ptr) { delete_calls.fetch_add(1, std::memory_order_relaxed); };
+
+  // Main thread bumps phase (with release) after adding or removing
+  // hooks. Allocating threads grab it (with acquire) at the start of
+  // each iteration and then publish it in done[i] when iteration is
+  // complete. So once done[i] reaches phase N, thread i has done full
+  // iteration that "happens after" hooks changes made before phase N
+  // (which itself isn't guaranteed for concurrently running threads).
+  constexpr int kThreads = 4;
+  std::atomic<int> phase{0};
+  std::atomic<int> done[kThreads] = {};
+  std::atomic<bool> stop{false};
+  std::vector<std::thread> threads;
+  for (int i = 0; i < kThreads; i++) {
+    threads.emplace_back([&stop, &phase, &done, i]() {
+      size_t size = 8 << i;
+      while (!stop.load(std::memory_order_relaxed)) {
+        int ph = phase.load(std::memory_order_acquire);
+        void* p = noopt(malloc(size));
+        p = noopt(realloc(p, size * 3));
+        free(p);
+        delete noopt(new int);
+        delete[] noopt(new char[size]);
+        tc_free(tc_memalign(64, size));
+        done[i].store(ph, std::memory_order_release);
+      }
+    });
+  }
+  // Also runs when ASSERT-s below fail and return early.
+  tcmalloc::Cleanup stop_threads([&]() {
+    stop = true;
+    for (auto& t : threads) {
+      t.join();
+    }
+    MallocHook::RemoveNewHook(new_hook);
+    MallocHook::RemoveDeleteHook(delete_hook);
+  });
+
+  // Bumps phase and waits until every thread has done full iteration
+  // after that.
+  auto advance = [&]() {
+    int ph = phase.fetch_add(1, std::memory_order_release) + 1;
+    for (auto& d : done) {
+      while (d.load(std::memory_order_acquire) < ph) {
+        std::this_thread::yield();
+      }
+    }
+  };
+
+  // Note, threads keep allocating all the time, so hooks are added
+  // and removed at random points of their allocation paths. Also note
+  // that we don't allocate in this thread below (unless checks fail).
+  for (int round = 0; round < 100; round++) {
+    int new_before = new_calls.load();
+    int delete_before = delete_calls.load();
+    ASSERT_TRUE(MallocHook::AddNewHook(new_hook));
+    ASSERT_TRUE(MallocHook::AddDeleteHook(delete_hook));
+    advance();
+    // Every thread did full iteration with both hooks registered.
+    ASSERT_GE(new_calls.load() - new_before, kThreads);
+    ASSERT_GE(delete_calls.load() - delete_before, kThreads);
+
+    ASSERT_TRUE(MallocHook::RemoveNewHook(new_hook));
+    std::this_thread::yield();
+    ASSERT_TRUE(MallocHook::RemoveDeleteHook(delete_hook));
+    advance();
+    // From now on nobody may call hooks. Even while every thread does
+    // another full iteration.
+    int new_after = new_calls.load();
+    int delete_after = delete_calls.load();
+    advance();
+    ASSERT_EQ(new_calls.load(), new_after);
+    ASSERT_EQ(delete_calls.load(), delete_after);
+  }
 }
 
 TEST(TCMallocTest, ReallocVsFreeSized) {
