@@ -930,27 +930,26 @@ static int TraceFd() {
   return trace_fd;
 }
 
-// Print the hex stack dump on a single line.   PCs are separated by tabs.
-static void TraceStack(void) {
-  void* pcs[16];
-  int n = tcmalloc::GrabBacktrace(pcs, sizeof(pcs) / sizeof(pcs[0]), 0);
-  for (int i = 0; i != n; i++) {
-    TracePrintf(TraceFd(), "\t%p", pcs[i]);
-  }
-}
-
-// This protects MALLOC_TRACE, to make sure its info is atomically written.
+// This protects TraceAlloc, to make sure its info is atomically written.
 static SpinLock malloc_trace_lock;
 
-#define MALLOC_TRACE(name, size, addr)                                                        \
-  do {                                                                                        \
-    if (FLAGS_malloctrace) {                                                                  \
-      SpinLockHolder l(&malloc_trace_lock);                                                   \
-      TracePrintf(TraceFd(), "%s\t%zu\t%p\t%zu", name, size, addr, tcmalloc::SelfThreadId()); \
-      TraceStack();                                                                           \
-      TracePrintf(TraceFd(), "\n");                                                           \
-    }                                                                                         \
-  } while (0)
+// Writes a trace line for given (de)allocation: name, size, address,
+// thread id and hex stack dump. PCs are separated by tabs. Call it
+// only if FLAGS_malloctrace is set.
+static ATTRIBUTE_NOINLINE void TraceAlloc(const char* name, size_t size, const void* addr) {
+  // Note, we must capture backtrace before taking malloc_trace_lock,
+  // since stack trace capturing may call back into malloc.
+  void* pcs[16];
+  int n = tcmalloc::GrabBacktrace(pcs, sizeof(pcs) / sizeof(pcs[0]), 0);
+
+  SpinLockHolder l(&malloc_trace_lock);
+  int fd = TraceFd();
+  TracePrintf(fd, "%s\t%zu\t%p\t%zu", name, size, addr, tcmalloc::SelfThreadId());
+  for (int i = 0; i != n; i++) {
+    TracePrintf(fd, "\t%p", pcs[i]);
+  }
+  TracePrintf(fd, "\n");
+}
 
 // ========================================================================= //
 
@@ -987,7 +986,9 @@ static inline void* DebugAllocate(size_t size, int type) {
 #endif
   MallocBlock* ptr = MallocBlock::Allocate(size, type);
   if (ptr == nullptr) return nullptr;
-  MALLOC_TRACE("malloc", size, ptr->data_addr());
+  if (FLAGS_malloctrace) {
+    TraceAlloc("malloc", size, ptr->data_addr());
+  }
   return ptr->data_addr();
 }
 
@@ -996,7 +997,9 @@ static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
     return tcmalloc::EmergencyFree(ptr);
   }
 
-  MALLOC_TRACE("free", (ptr != 0 ? MallocBlock::FromRawPointer(ptr)->actual_data_size(ptr) : 0), ptr);
+  if (FLAGS_malloctrace) {
+    TraceAlloc("free", (ptr != 0 ? MallocBlock::FromRawPointer(ptr)->actual_data_size(ptr) : 0), ptr);
+  }
   if (ptr) MallocBlock::FromRawPointer(ptr)->Deallocate(type, given_size);
 }
 
@@ -1255,7 +1258,9 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS
   tcmalloc::InvokeDeleteHook(ptr);
   tcmalloc::InvokeNewHook(p->data_addr(), size);
   DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
-  MALLOC_TRACE("realloc", p->actual_data_size(p->data_addr()), p->data_addr());
+  if (FLAGS_malloctrace) {
+    TraceAlloc("realloc", p->actual_data_size(p->data_addr()), p->data_addr());
+  }
   return p->data_addr();
 }
 
