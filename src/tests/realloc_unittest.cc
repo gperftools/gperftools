@@ -40,6 +40,9 @@
 #include <stdlib.h>
 #include <algorithm>
 
+#include <gperftools/malloc_extension.h>
+#include <gperftools/malloc_hook.h>
+
 #include "tests/testutil.h"
 #include "gtest/gtest.h"
 
@@ -86,18 +89,71 @@ static int NextSize(int size) {
   }
 }
 
-TEST(ReallocUnittest, Basics) {
+static int new_hook_calls;
+static const void* new_hook_last_ptr;
+static size_t new_hook_last_size;
+static int delete_hook_calls;
+static const void* delete_hook_last_ptr;
+
+static void TestNewHook(const void* ptr, size_t size) {
+  new_hook_calls++;
+  new_hook_last_ptr = ptr;
+  new_hook_last_size = size;
+}
+
+static void TestDeleteHook(const void* ptr) {
+  delete_hook_calls++;
+  delete_hook_last_ptr = ptr;
+}
+
+static void ResetHookStats() {
+  new_hook_calls = delete_hook_calls = 0;
+  new_hook_last_ptr = delete_hook_last_ptr = nullptr;
+  new_hook_last_size = 0;
+}
+
+static void CheckReallocSizes(bool with_hooks) {
   for (int src_size = 0; src_size >= 0; src_size = NextSize(src_size)) {
     for (int dst_size = 0; dst_size >= 0; dst_size = NextSize(dst_size)) {
       unsigned char* src = (unsigned char*)malloc(src_size);
       Fill(src, src_size);
+      ResetHookStats();
       unsigned char* dst = (unsigned char*)realloc(src, dst_size);
       ASSERT_TRUE(Valid(dst, std::min(src_size, dst_size)));
+      if (dst != nullptr) {
+        // realloc must never hand out less than asked for (i.e. it
+        // must not "resize in place" when the new size doesn't fit).
+        ASSERT_GE(MallocExtension::instance()->GetAllocatedSize(dst), dst_size)
+            << "src_size=" << src_size << " dst_size=" << dst_size;
+      }
+      if (with_hooks) {
+        // Even when resizing in place, realloc reports old block
+        // freed and new block (of the new size) allocated.
+        ASSERT_EQ(delete_hook_calls, 1) << "src_size=" << src_size << " dst_size=" << dst_size;
+        ASSERT_EQ(delete_hook_last_ptr, src);
+        if (dst_size > 0) {
+          ASSERT_EQ(new_hook_calls, 1) << "src_size=" << src_size << " dst_size=" << dst_size;
+          ASSERT_EQ(new_hook_last_ptr, dst);
+          ASSERT_EQ(new_hook_last_size, dst_size);
+        }
+      }
       Fill(dst, dst_size);
       ASSERT_TRUE(Valid(dst, dst_size));
       if (dst != nullptr) free(dst);
     }
   }
+}
+
+TEST(ReallocUnittest, WithHooks) {
+  ASSERT_TRUE(MallocHook::AddNewHook(&TestNewHook));
+  ASSERT_TRUE(MallocHook::AddDeleteHook(&TestDeleteHook));
+  CheckReallocSizes(true);
+  ASSERT_TRUE(MallocHook::RemoveNewHook(&TestNewHook));
+  ASSERT_TRUE(MallocHook::RemoveDeleteHook(&TestDeleteHook));
+}
+
+TEST(ReallocUnittest, Basics) {
+  CheckReallocSizes(false);
 
   // Now make sure realloc works correctly even when we overflow the
   // packed cache, so some entries are evicted from the cache.
