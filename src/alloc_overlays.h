@@ -75,7 +75,16 @@ enum : uint32_t {
   kKindNewArray = 2,
   kKindMask = 3,
   kSized = 1u << 2,  // size_hint is meaningful (even when 0)
+  kAligned = 1u << 3,
 };
+
+constexpr bool AllocFlagsHave(uint32_t flags, uint32_t mask) {
+  return (flags & mask) != 0;
+}
+constexpr bool AllocFlagsHasSized(uint32_t flags) { return AllocFlagsHave(flags, kSized); }
+constexpr bool AllocFlagsHasAligned(uint32_t flags) {
+  return AllocFlagsHave(flags, kAligned);
+}
 
 struct AllocOps {
   // align: 0 = default alignment; otherwise a power of 2 the caller asked for.

@@ -310,7 +310,9 @@ class LibcInfoWithPatchFunctions : public LibcInfo {
     return origstub_fn_[ifunction] ? origstub_fn_[ifunction] : LibcInfo::static_fn(ifunction);
   }
 
-  // equivalent of tcmalloc.cc:free_fast_path but handling passing OrigFn(kFree)
+  // equivalent of tcmalloc.cc:free_fast_path but handling passing
+  // OrigFn(kFree). kFlags are passed to overlays.
+  template <uint32_t kFlags = tcmalloc::kKindMalloc>
   static void FreeFastPathPatched(void* ptr, bool size_given, size_t size, int orig_free_idx);
 
   // realloc of a foreign (pre-patch CRT) pointer while overlays are active
@@ -846,11 +848,11 @@ bool PatchAllModules() {
 
 // equivalent of free_fast_path but handling passing of invalid_free_fn
 template <int T>
+template <uint32_t kFlags>
 ALWAYS_INLINE void LibcInfoWithPatchFunctions<T>::FreeFastPathPatched(void* ptr, bool size_given, size_t size, int orig_free_idx) {
   if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
     if (tcmalloc::IsOwnedByUs(ptr)) {
-      // TODO: flags, eventually
-      return tcmalloc::dispatch_free<0>(ptr, 0, 0, overlay);
+      return tcmalloc::dispatch_free<kFlags>(ptr, 0, 0, overlay);
     }
     // fine to skip overlays for foreign pointers.
     //
@@ -874,7 +876,7 @@ ALWAYS_INLINE void LibcInfoWithPatchFunctions<T>::FreeFastPathPatched(void* ptr,
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
-  return malloc_fast_path<kMallocOOM>(size);
+  return malloc_fast_path<kMallocOOM, tcmalloc::kKindMalloc>(size);
 }
 
 template <int T>
@@ -895,7 +897,7 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use)
     reinterpret_cast<void (*)(void*, int)>(OrigFn(kFreeDbg))(ptr, block_use);
     return;
   }
-  free_fast_path(ptr);
+  free_fast_path<tcmalloc::kKindMalloc>(ptr, 0, 0);
 }
 
 template <int T>
@@ -920,7 +922,7 @@ size_t LibcInfoWithPatchFunctions<T>::OrigMsizeDbg(const void* ptr) {
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc_dbg(size_t size, int, const char*, int) __THROW {
-  return malloc_fast_path<kMallocOOM>(size);
+  return malloc_fast_path<kMallocOOM, tcmalloc::kKindMalloc>(size);
 }
 
 template <int T>
@@ -982,42 +984,42 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(size_t n, size_t elem_size
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new(size_t size) {
-  return malloc_fast_path<kThrowOOM>(size);
+  return malloc_fast_path<kThrowOOM, tcmalloc::kKindNew>(size);
 }
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
-  return malloc_fast_path<kThrowOOM>(size);
+  return malloc_fast_path<kThrowOOM, tcmalloc::kKindNewArray>(size);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete(void* p) {
-  FreeFastPathPatched(p, false, 0, kFree);
+  FreeFastPathPatched<tcmalloc::kKindNew>(p, false, 0, kFree);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void* p) {
-  FreeFastPathPatched(p, false, 0, kFree);
+  FreeFastPathPatched<tcmalloc::kKindNewArray>(p, false, 0, kFree);
 }
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_new_nothrow(size_t size, const std::nothrow_t&) __THROW {
-  return malloc_fast_path<kNoThrowOOM>(size);
+  return malloc_fast_path<kNoThrowOOM, tcmalloc::kKindNew>(size);
 }
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(size_t size, const std::nothrow_t&) __THROW {
-  return malloc_fast_path<kNoThrowOOM>(size);
+  return malloc_fast_path<kNoThrowOOM, tcmalloc::kKindNewArray>(size);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(void* p, const std::nothrow_t&) __THROW {
-  FreeFastPathPatched(p, false, 0, kFree);
+  FreeFastPathPatched<tcmalloc::kKindNew>(p, false, 0, kFree);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
-  FreeFastPathPatched(p, false, 0, kFree);
+  FreeFastPathPatched<tcmalloc::kKindNewArray>(p, false, 0, kFree);
 }
 
 // _msize() lets you figure out how much space is reserved for a

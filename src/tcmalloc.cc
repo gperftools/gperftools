@@ -1769,7 +1769,12 @@ void* BaseMalloc(size_t size, size_t align, uint32_t) {
   size = align ? align_size_up(size, align) : size;
   return do_malloc(size);
 }
-void BaseFree(void* ptr, size_t size_hint, size_t align, uint32_t) {
+void BaseFree(void* ptr, size_t size_hint, size_t align, uint32_t flags) {
+  // We don't use size hint here, but we do check it (just like
+  // non-overlay sized free path does). Aligned case is skipped, since
+  // BaseMalloc may round size up to alignment (see also
+  // free_fast_path).
+  ASSERT(!AllocFlagsHasSized(flags) || AllocFlagsHasAligned(flags) || ValidateSizeHint(ptr, size_hint));
   do_free(ptr);
 }
 bool BaseResizeInPlace(void* ptr, size_t new_size) {
@@ -1949,10 +1954,12 @@ ATTRIBUTE_NOINLINE void* dispatch_realloc(void* old_ptr, size_t new_size, const 
 template <OOMKind OOM>
 void* malloc_fast_path_no_overlay(size_t size);
 
-template <OOMKind OOM>
+// kKind is passed to overlays (tcmalloc::kKindMalloc, kKindNew or
+// kKindNewArray).
+template <OOMKind OOM, uint32_t kKind>
 ALWAYS_INLINE void* malloc_fast_path(size_t size) {
   if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
-    return tcmalloc::dispatch_malloc<OOM>(size, 0, 0, overlay); // TODO: flags
+    return tcmalloc::dispatch_malloc<OOM>(size, 0, kKind, overlay);
   }
   return malloc_fast_path_no_overlay<OOM>(size);
 }
@@ -1982,10 +1989,10 @@ ALWAYS_INLINE void* malloc_fast_path_no_overlay(size_t size) {
                                              }));
 }
 
-template <OOMKind OOM>
+template <OOMKind OOM, uint32_t kKind>
 ALWAYS_INLINE void* memalign_fast_path(size_t align, size_t size) {
   if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
-    return tcmalloc::dispatch_malloc<OOM>(size, align, 0, overlay); // TODO: flags
+    return tcmalloc::dispatch_malloc<OOM>(size, align, kKind | tcmalloc::kAligned, overlay);
   }
 
   if (PREDICT_FALSE(align > kPageSize)) {
@@ -1999,46 +2006,62 @@ ALWAYS_INLINE void* memalign_fast_path(size_t align, size_t size) {
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<kMallocOOM>(size);
+  return malloc_fast_path<kMallocOOM, tcmalloc::kKindMalloc>(size);
 }
 
-ALWAYS_INLINE void free_fast_path(void* ptr) {
-  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
-    return tcmalloc::dispatch_free<0>(ptr, 0, 0, overlay); // TODO: flags
+// kFlags (kind and kSized) as well as size_hint and align are only
+// passed to overlays. Base free ignores them.
+template <uint32_t kFlags>
+ALWAYS_INLINE void free_fast_path(void* ptr, size_t size_hint, size_t align) {
+  if constexpr (tcmalloc::AllocFlagsHasAligned(kFlags)) {
+    ASSERT(align != 0);
+  } else {
+    ASSERT(align == 0);
   }
-  do_free(ptr);
-}
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free(void* ptr) PERFTOOLS_NOTHROW { free_fast_path(ptr); }
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_free<kFlags>(ptr, size_hint, align, overlay);
+  }
 
-extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW {
-#ifndef ENABLE_SIZED_DELETE
-  // built with --disable-sized-delete. Ignore passed size.
-  tc_free(ptr);
-  return;
+#ifdef ENABLE_SIZED_DELETE
+  // We keep size+aligned case simple. Those are rare, so we just
+  // ignore the size (overlays still get full fidelity).
+  constexpr bool can_do_sized = (tcmalloc::AllocFlagsHasSized(kFlags) && !tcmalloc::AllocFlagsHasAligned(kFlags));
+#else
+  constexpr bool can_do_sized = false;
 #endif
-  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
-    return tcmalloc::dispatch_free<0>(ptr, 0, 0, overlay); // TODO: flags
+  if constexpr (!can_do_sized) {
+    return do_free(ptr);
   }
+
 #ifndef NO_TCMALLOC_SAMPLES
   // if ptr is kPageSize-aligned, then it could be sampled allocation,
   // thus we don't trust hint and just do plain free. It also handles
   // nullptr for us.
   if (PREDICT_FALSE((reinterpret_cast<uintptr_t>(ptr) & (kPageSize - 1)) == 0)) {
-    tc_free(ptr);
-    return;
+    return do_free(ptr);
   }
 #else
-  if (!ptr) {
+  if (PREDICT_FALSE(ptr == nullptr)) {
     return;
   }
 #endif
-  do_free_with_callback(ptr, &InvalidFree, true, size);
+  return do_free_with_callback(ptr, &InvalidFree, true, size_hint);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW { tc_free_sized(p, size); }
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
-  tc_free_sized(p, size);
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free(void* ptr) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindMalloc>(ptr, 0, 0);
+}
+
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindMalloc | tcmalloc::kSized>(ptr, size, 0);
+}
+
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindNew | tcmalloc::kSized>(p, size, 0);
+}
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindNewArray | tcmalloc::kSized>(p, size, 0);
 }
 
 ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
@@ -2078,7 +2101,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW
     TC_ALIAS(tc_free);
 #else
 {
-  free_fast_path(ptr);
+  free_fast_path<tcmalloc::kKindMalloc>(ptr, 0, 0);
 }
 #endif
 
@@ -2107,43 +2130,43 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr, size_t new_size) P
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_new(size_t size) {
-  return malloc_fast_path<kThrowOOM>(size);
+  return malloc_fast_path<kThrowOOM, tcmalloc::kKindNew>(size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_new_nothrow(size_t size,
                                                                         const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<kNoThrowOOM>(size);
+  return malloc_fast_path<kNoThrowOOM, tcmalloc::kKindNew>(size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_delete(void* p) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindNew>(p, 0, 0);
 }
 
 // Standard C++ library implementations define and use this
 // (via ::operator delete(ptr, nothrow)).
 // But it's really the same as normal delete, so we just do the same thing.
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+  free_fast_path<tcmalloc::kKindNew>(p, 0, 0);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
-  return malloc_fast_path<kThrowOOM>(size);
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_newarray(size_t size) {
+  return malloc_fast_path<kThrowOOM, tcmalloc::kKindNewArray>(size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<kNoThrowOOM>(size);
+  return malloc_fast_path<kNoThrowOOM, tcmalloc::kKindNewArray>(size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_deletearray(void* p) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindNewArray>(p, 0, 0);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+  free_fast_path<tcmalloc::kKindNewArray>(p, 0, 0);
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
-  return memalign_fast_path<kMallocOOM>(align, size);
+  return memalign_fast_path<kMallocOOM, tcmalloc::kKindMalloc>(align, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
@@ -2161,55 +2184,53 @@ extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t al
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
-  return memalign_fast_path<kThrowOOM>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kThrowOOM, tcmalloc::kKindNew>(static_cast<size_t>(align), size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align,
                                                            const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  return memalign_fast_path<kNoThrowOOM>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kNoThrowOOM, tcmalloc::kKindNew>(static_cast<size_t>(align), size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW { free_fast_path(p); }
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t align) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindNew | tcmalloc::kAligned>(p, 0, static_cast<size_t>(align));
+}
 
-// There is no easy way to obtain the actual size used by do_memalign to allocate aligned storage, so for now
-// just ignore the size. It might get useful in the future.
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size,
                                                            std::align_val_t align) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+  free_fast_path<tcmalloc::kKindNew | tcmalloc::kSized | tcmalloc::kAligned>(p, size, static_cast<size_t>(align));
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t,
+extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t align,
                                                              const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+  free_fast_path<tcmalloc::kKindNew | tcmalloc::kAligned>(p, 0, static_cast<size_t>(align));
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t, size_t) PERFTOOLS_NOTHROW {
-  free_fast_path(ptr);
+extern "C" PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindMalloc | tcmalloc::kSized | tcmalloc::kAligned>(ptr, size, align);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align) {
-  return memalign_fast_path<kThrowOOM>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kThrowOOM, tcmalloc::kKindNewArray>(static_cast<size_t>(align), size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t align,
                                                                 const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
-  return memalign_fast_path<kNoThrowOOM>(static_cast<size_t>(align), size);
+  return memalign_fast_path<kNoThrowOOM, tcmalloc::kKindNewArray>(static_cast<size_t>(align), size);
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t align) PERFTOOLS_NOTHROW {
+  free_fast_path<tcmalloc::kKindNewArray | tcmalloc::kAligned>(p, 0, static_cast<size_t>(align));
 }
 
-// There is no easy way to obtain the actual size used by do_memalign to allocate aligned storage, so for now
-// just ignore the size. It might get useful in the future.
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size,
                                                                 std::align_val_t align) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+  free_fast_path<tcmalloc::kKindNewArray | tcmalloc::kSized | tcmalloc::kAligned>(p, size, static_cast<size_t>(align));
 }
 
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t,
+extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t align,
                                                                   const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  free_fast_path(p);
+  free_fast_path<tcmalloc::kKindNewArray | tcmalloc::kAligned>(p, 0, static_cast<size_t>(align));
 }
 
 static size_t pagesize = 0;
@@ -2254,7 +2275,7 @@ extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_NOTHROW
 // its OOM handling ignores the setting of tc_new_mode. That is OOM
 // always return nullptr and sets ENOMEM, no matter tc_set_new_mode().
 extern "C" PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_NOTHROW {
-  return malloc_fast_path<kMallocOOMSkipNewHandler>(size);
+  return malloc_fast_path<kMallocOOMSkipNewHandler, tcmalloc::kKindMalloc>(size);
 }
 
 #endif  // TCMALLOC_USING_DEBUGALLOCATION
