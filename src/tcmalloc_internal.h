@@ -70,8 +70,13 @@ extern "C" void* valloc(size_t __size) __THROW;
 extern "C" void* pvalloc(size_t __size) __THROW;
 #endif
 
-// Implemented in tcmalloc.cc or debugallocation.cc
+// Implemented in tcmalloc.cc. Sets up default MallocExtension
+// instance (unless some other instance was set up already).
 ATTRIBUTE_VISIBILITY_HIDDEN void SetupMallocExtension();
+
+// Implemented in debugallocation.cc. Installs the debug allocation
+// overlay and sets up debug MallocExtension instance.
+ATTRIBUTE_VISIBILITY_HIDDEN void SetupDebugMalloc();
 
 class MallocExtension;
 

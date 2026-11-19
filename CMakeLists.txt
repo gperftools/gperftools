@@ -777,11 +777,13 @@ if(GPERFTOOLS_BUILD_DEBUGALLOC)
     set_property(TARGET symbolize PROPERTY POSITION_INDEPENDENT_CODE ON)
   endif()
 
-  add_library(tcmalloc_minimal_debug src/debugallocation.cc ${MINIMAL_MALLOC_SRC})
+  # Note, we use src/tcmalloc.cc and not ${TCMALLOC_CC}. Debug
+  # allocation layer is not supported with windows patching.
+  add_library(tcmalloc_minimal_debug src/debugallocation.cc src/tcmalloc.cc ${MINIMAL_MALLOC_SRC})
   if(gperftools_enable_broken_install_targets)
     install(TARGETS tcmalloc_minimal_debug)
   endif()
-  target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES)
+  target_compile_definitions(tcmalloc_minimal_debug PRIVATE NO_TCMALLOC_SAMPLES TCMALLOC_WITH_DEBUGALLOC)
   target_link_libraries(tcmalloc_minimal_debug PRIVATE symbolize low_level_alloc common)
 
   ### Unittests
@@ -910,11 +912,11 @@ endif()
 ### ------- tcmalloc with debugallocation
 if(GPERFTOOLS_BUILD_DEBUGALLOC)
   if(GPERFTOOLS_BUILD_HEAP_PROFILER)
-    add_library(tcmalloc_debug src/debugallocation.cc ${FULL_MALLOC_SRC})
+    add_library(tcmalloc_debug src/debugallocation.cc src/tcmalloc.cc ${FULL_MALLOC_SRC})
     if(gperftools_enable_broken_install_targets)
       install(TARGETS tcmalloc_debug)
     endif()
-    target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE})
+    target_compile_definitions(tcmalloc_debug PRIVATE ${EMERGENCY_MALLOC_DEFINE} TCMALLOC_WITH_DEBUGALLOC)
     target_link_libraries(tcmalloc_debug PRIVATE symbolize low_level_alloc stacktrace common)
 
     ### Unittests

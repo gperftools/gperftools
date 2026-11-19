@@ -52,9 +52,10 @@
 // tail-call the dispatcher when it is non-null.
 //
 // Overlays are installed only from ThreadCache::InitModule
-// (with threads_lock held), before any pointer is handed out, and
-// are never removed. An overlay stores the "next" pointer returned by
-// InstallOverlay in a plain global.
+// (i.e. during very first malloc, when there are no other threads
+// yet), before any pointer is handed out, and are never removed. A
+// overlay stores the "next" pointer returned by InstallOverlay in a
+// plain global.
 //
 // Rules for overlays:
 //
@@ -90,6 +91,10 @@ struct AllocOps {
   // align: 0 = default alignment; otherwise a power of 2 the caller asked for.
   // Returns nullptr on failure; never does OOM handling.
   void* (*Malloc)(size_t size, size_t align, uint32_t flags);
+  // Free, ResizeInPlace and UsableSize only get pointers that were
+  // returned by this overlay's Malloc (dispatcher handles emergency
+  // malloc's chunks itself). Overlays may treat anything else as a bug.
+  //
   // ptr != nullptr. size_hint valid iff (flags & kSized). align = 0 unless aligned delete.
   void (*Free)(void* ptr, size_t size_hint, size_t align, uint32_t flags);
   // ptr != nullptr, new_size != 0. true = resized in place (ptr stays valid with new size).
@@ -106,9 +111,9 @@ extern const AllocOps base_ops;
 // first call to the right ops (normally base_ops).
 extern const AllocOps initial_ops;
 
-// Only from ThreadCache::InitModule with threads_lock held. Returns the
-// previous top (initially &base_ops). Overlay stores it in a plain global.
-// Defined in tcmalloc.cc.
+// Only from ThreadCache::InitModule (see above). Returns the previous
+// top (initially &base_ops). Overlay stores it in a plain global. Not
+// supported with windows patching. Defined in tcmalloc.cc.
 const AllocOps* InstallOverlay(const AllocOps* ops);
 
 // ---- Dispatch state. Everything below is defined in tcmalloc.cc. ----

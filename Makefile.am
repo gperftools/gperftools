@@ -507,9 +507,12 @@ libsymbolize_la_SOURCES = src/symbolize.cc vendor/libbacktrace-integration/backt
 libsymbolize_la_LIBADD = libbacktrace.la
 
 lib_LTLIBRARIES += libtcmalloc_minimal_debug.la
+# Note, we use src/tcmalloc.cc and not $(TCMALLOC_CC). Debug
+# allocation layer is not supported with windows patching.
 libtcmalloc_minimal_debug_la_SOURCES = src/debugallocation.cc \
+                                       src/tcmalloc.cc \
                                        $(MINIMAL_MALLOC_SRC)
-libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS)
+libtcmalloc_minimal_debug_la_CXXFLAGS = $(libtcmalloc_minimal_la_CXXFLAGS) -DTCMALLOC_WITH_DEBUGALLOC
 libtcmalloc_minimal_debug_la_LDFLAGS = $(libtcmalloc_minimal_la_LDFLAGS)
 libtcmalloc_minimal_debug_la_LIBADD = libsymbolize.la liblow_level_alloc.la $(libtcmalloc_minimal_la_LIBADD)
 
@@ -739,8 +742,8 @@ if WITH_DEBUGALLOC
 if WITH_HEAP_PROFILER_OR_CHECKER
 
 lib_LTLIBRARIES += libtcmalloc_debug.la
-libtcmalloc_debug_la_SOURCES = src/debugallocation.cc $(FULL_MALLOC_SRC)
-libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS)
+libtcmalloc_debug_la_SOURCES = src/debugallocation.cc src/tcmalloc.cc $(FULL_MALLOC_SRC)
+libtcmalloc_debug_la_CXXFLAGS = $(libtcmalloc_la_CXXFLAGS) -DTCMALLOC_WITH_DEBUGALLOC
 libtcmalloc_debug_la_LDFLAGS = $(libtcmalloc_la_LDFLAGS)
 libtcmalloc_debug_la_LIBADD = libsymbolize.la $(libtcmalloc_la_LIBADD)
 

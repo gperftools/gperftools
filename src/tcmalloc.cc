@@ -280,6 +280,22 @@ const AllocOps hooks_overlay = {HooksOverlayMalloc, HooksOverlayFree, HooksOverl
 const AllocOps* active_overlay = &initial_ops;
 const AllocOps* top_ops = &base_ops;
 
+const AllocOps* InstallOverlay(const AllocOps* ops) {
+#ifdef WIN32_DO_PATCHING
+  // Patched windows CRT functions handle foreign pointers by
+  // assuming that any pointer not owned by base tcmalloc is foreign
+  // (see FreeFastPathPatched). Overlays may violate that.
+  Log(kCrash, __FILE__, __LINE__, "overlays are not supported with windows patching");
+#endif
+  // Note, we're called during very first malloc (from InitModule),
+  // so there are no other threads to worry about. Thus no locking or
+  // memory ordering concerns.
+  const AllocOps* prev = top_ops;
+  top_ops = ops;
+  UpdateActiveOverlayLocked();
+  return prev;
+}
+
 void UpdateActiveOverlayLocked() {
   bool empty = (base::internal::new_hooks_.empty() && base::internal::delete_hooks_.empty());
   if (empty) {
@@ -1203,13 +1219,11 @@ TCMallocGuard::~TCMallocGuard() {
 
 static TCMallocGuard module_enter_exit_hook;
 
-#ifndef TCMALLOC_USING_DEBUGALLOCATION
 
 static tcmalloc::StaticStorage<TCMallocImplementation> malloc_impl_storage;
 
 void SetupMallocExtension() { tcmalloc::SetDefaultMallocExtension(malloc_impl_storage.Construct()); }
 
-#endif  // TCMALLOC_USING_DEBUGALLOCATION
 
 //-------------------------------------------------------------------
 // Helpers for the exported routines below
@@ -1837,7 +1851,6 @@ size_t HooksOverlayUsableSize(const void* ptr) {
 
 }  // namespace tcmalloc
 
-#ifndef TCMALLOC_USING_DEBUGALLOCATION  // debugallocation.cc defines its own
 
 // CAVEAT: The code structure below ensures that MallocHook methods are always
 //         called from the stack frame of the invoked allocation function.
@@ -2278,4 +2291,3 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERF
   return malloc_fast_path<kMallocOOMSkipNewHandler, tcmalloc::kKindMalloc>(size);
 }
 
-#endif  // TCMALLOC_USING_DEBUGALLOCATION

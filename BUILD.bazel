@@ -350,6 +350,7 @@ cc_library(
         "src/stack_trace_table.cc",
         "src/static_vars.cc",
         "src/system-alloc.cc",
+        "src/tcmalloc.cc",
         "src/thread_cache.cc",
         "src/thread_cache_ptr.cc",
     ],
@@ -360,7 +361,6 @@ cc_library(
         "src/gperftools/malloc_hook_c.h",
         "src/gperftools/nallocx.h",
         "src/gperftools/tcmalloc.h",
-        "src/tcmalloc.cc",
     ],
     copts = CXXFLAGS,
     includes = [
@@ -369,7 +369,10 @@ cc_library(
         "src/base",
     ],
     # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
-    local_defines = ["NO_TCMALLOC_SAMPLES"],
+    local_defines = [
+        "NO_TCMALLOC_SAMPLES",
+        "TCMALLOC_WITH_DEBUGALLOC",
+    ],
     target_compatible_with = NON_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
@@ -525,6 +528,7 @@ cc_library(
         "src/stack_trace_table.cc",
         "src/static_vars.cc",
         "src/system-alloc.cc",
+        "src/tcmalloc.cc",
         "src/thread_cache.cc",
         "src/thread_cache_ptr.cc",
     ],
@@ -536,7 +540,6 @@ cc_library(
         "src/gperftools/malloc_hook_c.h",
         "src/gperftools/nallocx.h",
         "src/gperftools/tcmalloc.h",
-        "src/tcmalloc.cc",  # tcmalloc.cc gets included by debugallocation.cc
     ],
     copts = CXXFLAGS,
     includes = [
@@ -545,7 +548,10 @@ cc_library(
         "src/base",
     ],
     # note, bazel thingy is passing NDEBUG automagically in -c opt builds. So we're okay with that.
-    local_defines = ["ENABLE_EMERGENCY_MALLOC"],
+    local_defines = [
+        "ENABLE_EMERGENCY_MALLOC",
+        "TCMALLOC_WITH_DEBUGALLOC",
+    ],
     target_compatible_with = NON_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [

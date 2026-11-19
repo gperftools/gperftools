@@ -60,32 +60,43 @@
 #include <unistd.h>
 #endif
 
-#include <gperftools/malloc_extension.h>
-#include <gperftools/malloc_hook.h>
+#include <algorithm>
+#include <limits>
+#include <new>
+#include <vector>
 
-// Will be pulled in as along with tcmalloc.cc
-// #include <gperftools/tcmalloc.h>
+#include <gperftools/malloc_extension.h>
 
 #include "addressmap-inl.h"
+#include "base/basictypes.h"
 #include "base/commandlineflags.h"
+#include "base/dynamic_annotations.h"
 #include "base/googleinit.h"
 #include "base/logging.h"
 #include "base/spinlock.h"
 #include "base/static_storage.h"
 #include "base/threading.h"
+#include "common.h"
+#include "internal_logging.h"
 #include "malloc_backtrace.h"
-#include "malloc_hook-inl.h"
 #include "maybe_emergency_malloc.h"  // IWYU pragma: keep
 #include "safe_strerror.h"
+#include "alloc_overlays.h"
 #include "symbolize.h"
+#include "tcmalloc_impl.h"
+#include "tcmalloc_internal.h"
+#include "testing_portal.h"
+#include "thread_cache_ptr.h"
 
-// NOTE: due to #define below, tcmalloc.cc will omit tc_XXX
-// definitions. So that debug implementations can be defined
-// instead. We're going to use do_malloc, do_free and other do_XXX
-// functions that are defined in tcmalloc.cc for actual memory
-// management
-#define TCMALLOC_USING_DEBUGALLOCATION
-#include "tcmalloc.cc"
+// The debug allocator is an overlay (see
+// alloc_overlays.h). It sits on top of base tcmalloc and gets all of
+// its memory from the next overlay down. When built into a library
+// (with TCMALLOC_WITH_DEBUGALLOC), ThreadCache::InitModule installs it
+// via SetupDebugMalloc.
+
+using tcmalloc::TestingPortal;
+using tcmalloc::TestingPortalImpl;
+using tcmalloc::ThreadCachePtr;
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
@@ -140,6 +151,16 @@ static void TracePrintf(int fd, const char* fmt, ...) __attribute__((__format__(
 // Round "value" up to next "alignment" boundary.
 // Requires that "alignment" be a power of two.
 static intptr_t RoundUp(intptr_t value, intptr_t alignment) { return (value + alignment - 1) & ~(alignment - 1); }
+
+// ========================================================================= //
+
+// The next overlay down. Set once by SetupDebugMalloc before any
+// allocation is done.
+static const tcmalloc::AllocOps* debug_next;
+
+// Adapters for getting our own memory from the next overlay.
+static void* NextMalloc(size_t size) { return debug_next->Malloc(size, 0, tcmalloc::kKindMalloc); }
+static void NextFree(void* ptr) { debug_next->Free(ptr, 0, 0, tcmalloc::kKindMalloc); }
 
 // ========================================================================= //
 
@@ -340,14 +361,8 @@ class MallocBlock {
  private:  // other helpers
   void Initialize(size_t size, int type) {
     RAW_CHECK(IsValidMagicValue(magic1_), "");
-    // record us as allocated in the map
-    alloc_map_lock_.Lock();
-    if (!alloc_map_) {
-      void* p = do_malloc(sizeof(AllocMap));
-      alloc_map_ = new (p) AllocMap(do_malloc, do_free);
-    }
-    alloc_map_->Insert(data_addr(), type);
-    // initialize us
+    // initialize us. Note, we're not in alloc_map_ yet. See
+    // RegisterAllocation.
     size1_ = size;
     offset_ = 0;
     alloc_type_ = type;
@@ -355,7 +370,6 @@ class MallocBlock {
       bit_store(magic2_addr(), &magic1_);
       bit_store(size2_addr(), &size);
     }
-    alloc_map_lock_.Unlock();
     memset(data_addr(), kMagicUninitializedByte, size);
     if (!IsMMapped()) {
       RAW_CHECK(memcmp(&size1_, size2_addr(), sizeof(size1_)) == 0, "should hold");
@@ -363,32 +377,30 @@ class MallocBlock {
     }
   }
 
-  // user_ptr is what we handed to the user (see UserSize). given_size
-  // is 0 or the size passed to sized delete.
-  size_t CheckAndClear(int type, const void* user_ptr, size_t given_size) {
+  size_t CheckAndClear(int type, const void* user_ptr, bool sized, size_t given_size) {
     alloc_map_lock_.Lock();
-    CheckLocked(type);
+    CheckLocked(type, user_ptr);
     if (!IsMMapped()) {
       RAW_CHECK(memcmp(&size1_, size2_addr(), sizeof(size1_)) == 0, "should hold");
     }
     // record us as deallocated in the map
-    alloc_map_->Insert(data_addr(), type | kDeallocatedTypeBit);
+    alloc_map_->Insert(user_ptr, type | kDeallocatedTypeBit);
     alloc_map_lock_.Unlock();
+    RAW_CHECK(!sized || given_size == UserSize(user_ptr), "right size must be passed to sized delete");
     // clear us
     const size_t size = real_size();
-    RAW_CHECK(!given_size || given_size == UserSize(user_ptr), "right size must be passed to sized delete");
     memset(this, kMagicDeletedByte, size);
     return size;
   }
 
-  void CheckLocked(int type) const {
+  void CheckLocked(int type, const void* user_ptr) const {
     int map_type = 0;
-    const int* found_type = alloc_map_ != nullptr ? alloc_map_->Find(data_addr()) : nullptr;
+    const int* found_type = alloc_map_ != nullptr ? alloc_map_->Find(user_ptr) : nullptr;
     if (found_type == nullptr) {
       RAW_LOG(FATAL,
               "memory allocation bug: object at %p "
               "has never been allocated",
-              data_addr());
+              user_ptr);
     } else {
       map_type = *found_type;
     }
@@ -396,14 +408,14 @@ class MallocBlock {
       RAW_LOG(FATAL,
               "memory allocation bug: object at %p "
               "has been already deallocated (it was allocated with %s)",
-              data_addr(), AllocName(map_type & ~kDeallocatedTypeBit));
+              user_ptr, AllocName(map_type & ~kDeallocatedTypeBit));
     }
     if (alloc_type_ == kMagicDeletedSizeT) {
       RAW_LOG(FATAL,
               "memory stomping bug: a word before object at %p "
               "has been corrupted; or else the object has been already "
               "deallocated and our memory map has been corrupted",
-              data_addr());
+              user_ptr);
     }
     if (!IsValidMagicValue(magic1_)) {
       RAW_LOG(FATAL,
@@ -411,14 +423,14 @@ class MallocBlock {
               "has been corrupted; "
               "or else our memory map has been corrupted and this is a "
               "deallocation for not (currently) heap-allocated object",
-              data_addr());
+              user_ptr);
     }
     if (!IsMMapped()) {
       if (memcmp(&size1_, size2_addr(), sizeof(size1_))) {
         RAW_LOG(FATAL,
                 "memory stomping bug: a word after object at %p "
                 "has been corrupted",
-                data_addr());
+                user_ptr);
       }
       size_t addr;
       bit_store(&addr, magic2_addr());
@@ -426,7 +438,7 @@ class MallocBlock {
         RAW_LOG(FATAL,
                 "memory stomping bug: a word after object at %p "
                 "has been corrupted",
-                data_addr());
+                user_ptr);
       }
     }
     if (alloc_type_ != type) {
@@ -435,19 +447,19 @@ class MallocBlock {
         RAW_LOG(FATAL,
                 "memory stomping bug: a word before object at %p "
                 "has been corrupted",
-                data_addr());
+                user_ptr);
       }
       RAW_LOG(FATAL,
               "memory allocation/deallocation mismatch at %p: "
               "allocated with %s being deallocated with %s",
-              data_addr(), AllocName(alloc_type_), DeallocName(type));
+              user_ptr, AllocName(alloc_type_), DeallocName(type));
     }
     if (alloc_type_ != map_type) {
       RAW_LOG(FATAL,
               "memory stomping bug: our memory map has been corrupted : "
               "allocation at %p made with %s "
               "is recorded in the map to be made with %s",
-              data_addr(), AllocName(alloc_type_), AllocName(map_type));
+              user_ptr, AllocName(alloc_type_), AllocName(map_type));
     }
   }
 
@@ -506,10 +518,10 @@ class MallocBlock {
       }
       b = (MallocBlock*)(p + (num_pages - 1) * pagesize - sz);
     } else {
-      b = (MallocBlock*)do_malloc(real_malloced_size(size));
+      b = (MallocBlock*)NextMalloc(real_malloced_size(size));
     }
 #else
-    b = (MallocBlock*)do_malloc(real_malloced_size(size));
+    b = (MallocBlock*)NextMalloc(real_malloced_size(size));
 #endif
 
     // It would be nice to output a diagnostic on allocation failure
@@ -523,10 +535,44 @@ class MallocBlock {
     return b;
   }
 
-  void Deallocate(int type, const void* user_ptr, size_t given_size) {
+  // Records user_ptr (see UserSize) as allocated in alloc_map_. Must
+  // be done after the block is fully set up.
+  static void RegisterAllocation(const void* user_ptr, int type) {
+    alloc_map_lock_.Lock();
+    // Note, AllocMap gets its memory from the next overlay while we hold
+    // alloc_map_lock_. Generally, holding an overlay's lock across calls
+    // into next is dangerous, since next may call back into malloc
+    // (and thus into us). E.g. base tcmalloc may capture stack traces
+    // in there (sampling, heap growth). But that is done in emergency
+    // malloc scope, and dispatcher handles emergency malloc's
+    // allocations and chunks before calling into any overlays.
+    if (!alloc_map_) {
+      void* p = NextMalloc(sizeof(AllocMap));
+      RAW_CHECK(p != nullptr, "failed to allocate alloc map");
+      alloc_map_ = new (p) AllocMap(NextMalloc, NextFree);
+    }
+    alloc_map_->Insert(user_ptr, type);
+    alloc_map_lock_.Unlock();
+  }
+
+  // Looks up user_ptr in alloc_map_. Returns false if it is not
+  // there. Otherwise sets *map_type. Doesn't touch memory at user_ptr.
+  static bool FindInAllocMap(const void* user_ptr, int* map_type) {
+    SpinLockHolder l(&alloc_map_lock_);
+    const int* found_type = alloc_map_ != nullptr ? alloc_map_->Find(user_ptr) : nullptr;
+    if (found_type == nullptr) {
+      return false;
+    }
+    *map_type = *found_type;
+    return true;
+  }
+
+  static bool IsDeallocatedType(int map_type) { return (map_type & kDeallocatedTypeBit) != 0; }
+
+  void Deallocate(int type, const void* user_ptr, bool sized, size_t given_size) {
     if (IsMMapped()) {  // have to do this before CheckAndClear
 #ifdef HAVE_MMAP
-      int size = CheckAndClear(type, user_ptr, given_size);
+      int size = CheckAndClear(type, user_ptr, sized, given_size);
       int pagesize = getpagesize();
       int num_pages = (size + pagesize - 1) / pagesize + 1;
       char* p = (char*)this;
@@ -537,7 +583,7 @@ class MallocBlock {
       }
 #endif
     } else {
-      const size_t size = CheckAndClear(type, user_ptr, given_size);
+      const size_t size = CheckAndClear(type, user_ptr, sized, given_size);
       if (FLAGS_malloc_reclaim_memory) {
         // Instead of freeing the block immediately, push it onto a queue of
         // recently freed blocks.  Free only enough blocks to keep from
@@ -561,7 +607,13 @@ class MallocBlock {
     int num_entries = 0;
     MallocBlockQueueEntry new_entry(b, size);
     free_queue_lock_.Lock();
-    if (free_queue_ == nullptr) free_queue_ = new FreeQueue<MallocBlockQueueEntry>;
+    if (free_queue_ == nullptr) {
+      // Like AllocMap above, we're getting this from next overlay while
+      // holding our lock.
+      void* p = NextMalloc(sizeof(FreeQueue<MallocBlockQueueEntry>));
+      RAW_CHECK(p != nullptr, "failed to allocate free queue");
+      free_queue_ = new (p) FreeQueue<MallocBlockQueueEntry>;
+    }
     RAW_CHECK(!free_queue_->Full(), "Free queue mustn't be full!");
 
     if (b != nullptr) {
@@ -584,7 +636,7 @@ class MallocBlock {
         free_queue_lock_.Unlock();
         for (int i = 0; i < num_entries; i++) {
           CheckForDanglingWrites(entries[i]);
-          do_free(entries[i].block);
+          NextFree(entries[i].block);
         }
         num_entries = 0;
         free_queue_lock_.Lock();
@@ -593,7 +645,7 @@ class MallocBlock {
     free_queue_lock_.Unlock();
     for (int i = 0; i < num_entries; i++) {
       CheckForDanglingWrites(entries[i]);
-      do_free(entries[i].block);
+      NextFree(entries[i].block);
     }
   }
 
@@ -717,9 +769,9 @@ class MallocBlock {
     return FromRawPointer(const_cast<void*>(p));
   }
 
-  void Check(int type) const {
+  void Check(int type, const void* user_ptr) const {
     alloc_map_lock_.Lock();
-    CheckLocked(type);
+    CheckLocked(type, user_ptr);
     alloc_map_lock_.Unlock();
   }
 
@@ -728,7 +780,7 @@ class MallocBlock {
     if (alloc_map_) {
       alloc_map_->Iterate([](const void* ptr, int* type) {
         if ((*type & kDeallocatedTypeBit) == 0) {
-          FromRawPointer(ptr)->CheckLocked(*type);
+          FromRawPointer(ptr)->CheckLocked(*type, ptr);
         }
       });
     }
@@ -747,7 +799,7 @@ class MallocBlock {
       alloc_map_->Iterate([](const void* ptr, int* type) {
         if ((*type & kDeallocatedTypeBit) == 0) {
           const MallocBlock* b = FromRawPointer(ptr);
-          b->CheckLocked(*type);
+          b->CheckLocked(*type, ptr);
           ++stats_blocks_;
           size_t mysize = b->size1_;
           int entry = 0;
@@ -964,13 +1016,10 @@ void __malloctrace_write(const char* buf, size_t size) {
 
 // ========================================================================= //
 
+
 // General debug allocation/deallocation
 
-static inline void* DebugAllocate(size_t size, int type) {
-  if (PREDICT_FALSE(tcmalloc::ThreadCachePtr::Grab().IsEmergencyMallocEnabled())) {
-    return tcmalloc::EmergencyMalloc(size);
-  }
-
+static void* DebugAllocate(size_t size, int type) {
 #if defined(__APPLE__)
   // OSX malloc zones integration has some odd behavior. When
   // GetAllocatedSize returns 0 it appears to assume something wrong
@@ -982,22 +1031,124 @@ static inline void* DebugAllocate(size_t size, int type) {
 #endif
   MallocBlock* ptr = MallocBlock::Allocate(size, type);
   if (ptr == nullptr) return nullptr;
+  MallocBlock::RegisterAllocation(ptr->data_addr(), type);
   if (FLAGS_malloctrace) {
     TraceAlloc("malloc", size, ptr->data_addr());
   }
   return ptr->data_addr();
 }
 
-static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
-  if (PREDICT_FALSE(tcmalloc::IsEmergencyPtr(ptr))) {
-    return tcmalloc::EmergencyFree(ptr);
-  }
+// This is mostly the same as do_memalign in tcmalloc.cc.
+static void* do_debug_memalign(size_t alignment, size_t size, int type) {
+#if defined(__APPLE__)
+  // See DebugAllocate
+  if (size == 0) size = 1;
+#endif
+  // Allocate >= size bytes aligned on "alignment" boundary
+  // "alignment" is a power of two.
+  RAW_CHECK((alignment & (alignment - 1)) == 0, "must be power of two");
+  const size_t data_offset = MallocBlock::data_offset();
+  // Allocate "alignment-1" extra bytes to ensure alignment is possible, and
+  // a further data_offset bytes for an additional fake header.
+  size_t extra_bytes = data_offset + alignment - 1;
+  if (size + extra_bytes < size) return nullptr;  // Overflow
+  MallocBlock* b = MallocBlock::Allocate(size + extra_bytes, type);
+  if (b == nullptr) return nullptr;
 
+  intptr_t orig_p = reinterpret_cast<intptr_t>(b->data_addr());
+  // Leave data_offset bytes for fake header, and round up to meet
+  // alignment.
+  void* p = reinterpret_cast<void*>(RoundUp(orig_p + data_offset, alignment));
+  // Create a fake header block with an offset_ that points back to the
+  // real header.  FromRawPointer uses this value.
+  MallocBlock* fake_hdr = reinterpret_cast<MallocBlock*>(reinterpret_cast<char*>(p) - data_offset);
+  // offset_ is distance between real and fake headers.
+  // p is now end of fake header (beginning of client area),
+  // and orig_p is the end of the real header, so offset_
+  // is their difference.
+  //
+  // Note that other fields of fake_hdr are initialized with
+  // kMagicUninitializedByte. Except we record user's size in it (see
+  // MallocBlock::UserSize).
+  fake_hdr->set_offset(reinterpret_cast<intptr_t>(p) - orig_p);
+  fake_hdr->set_user_size(size);
+
+  // Note, we register user-visible pointer. So that we're able to
+  // find memalign-ed chunks in alloc_map_ without touching memory.
+  MallocBlock::RegisterAllocation(p, type);
   if (FLAGS_malloctrace) {
-    TraceAlloc("free", (ptr != 0 ? MallocBlock::UserSize(ptr) : 0), ptr);
+    TraceAlloc("malloc", size, p);
   }
-  if (ptr) MallocBlock::FromRawPointer(ptr)->Deallocate(type, ptr, given_size);
+  return p;
 }
+
+// ========================================================================= //
+
+// The debug allocation overlay's ops. See alloc_overlays.h. Note, those
+// are under tcmalloc namespace so that pprof can automatically filter
+// them out of heap profiles.
+
+namespace tcmalloc {
+
+static int KindToType(uint32_t flags) {
+  switch (flags & kKindMask) {
+    case kKindNew:
+      return MallocBlock::kNewType;
+    case kKindNewArray:
+      return MallocBlock::kArrayNewType;
+    default:
+      return MallocBlock::kMallocType;
+  }
+}
+
+static void* DebugMalloc(size_t size, size_t align, uint32_t flags) {
+  int type = KindToType(flags);
+  if (align == 0) {
+    return DebugAllocate(size, type);
+  }
+  return do_debug_memalign(align, size, type);
+}
+
+static void DebugFree(void* ptr, size_t size_hint, size_t align, uint32_t flags) {
+  MallocBlock* b = MallocBlock::FromRawPointer(ptr);
+  if (FLAGS_malloctrace) {
+    TraceAlloc("free", MallocBlock::UserSize(ptr), ptr);
+  }
+#if defined(__APPLE__)
+  // See DebugAllocate (and do_debug_memalign)
+  if (size_hint == 0) size_hint = 1;
+#endif
+  b->Deallocate(KindToType(flags), ptr, (flags & kSized) != 0, size_hint);
+}
+
+static bool DebugResizeInPlace(void* ptr, size_t new_size) {
+  // Realloc always moves under debug allocator. But lets catch type
+  // mismatches early.
+  MallocBlock::FromRawPointer(ptr)->Check(MallocBlock::kMallocType, ptr);
+  return false;
+}
+
+static size_t DebugNAllocX(size_t size, size_t align) {
+#if defined(__APPLE__)
+  // See DebugAllocate
+  if (size == 0) size = 1;
+#endif
+  // Consistent with DebugUsableSize: we never allow users to touch
+  // more than they asked for.
+  return size;
+}
+
+static size_t DebugUsableSize(const void* ptr) {
+  // Note, we never let users touch more than they asked for
+  // (consistent with DebugNAllocX).
+  return MallocBlock::UserSize(ptr);
+}
+
+static const AllocOps debug_overlay = {
+    DebugMalloc, DebugFree, DebugResizeInPlace, DebugNAllocX, DebugUsableSize,
+};
+
+}  // namespace tcmalloc
 
 class ATTRIBUTE_VISIBILITY_HIDDEN DebugTestingPortal : public TestingPortalImpl {
  public:
@@ -1018,7 +1169,7 @@ class ATTRIBUTE_VISIBILITY_HIDDEN DebugTestingPortal : public TestingPortalImpl 
 // for memory verification and statistics.
 class DebugMallocImplementation : public TCMallocImplementation {
  public:
-  virtual bool GetNumericProperty(const char* name, size_t* value) {
+  bool GetNumericProperty(const char* name, size_t* value) override {
     if (TestingPortal** portal = TestingPortal::CheckGetPortal(name, value); portal) {
       static DebugTestingPortal* ptr = ([]() {
         static tcmalloc::StaticStorage<DebugTestingPortal> storage;
@@ -1040,64 +1191,42 @@ class DebugMallocImplementation : public TCMallocImplementation {
     return result;
   }
 
-  virtual bool VerifyNewMemory(const void* p) {
-    if (p) MallocBlock::FromRawPointer(p)->Check(MallocBlock::kNewType);
+  bool VerifyNewMemory(const void* p) override {
+    if (p) MallocBlock::FromRawPointer(p)->Check(MallocBlock::kNewType, p);
     return true;
   }
 
-  virtual bool VerifyArrayNewMemory(const void* p) {
-    if (p) MallocBlock::FromRawPointer(p)->Check(MallocBlock::kArrayNewType);
+  bool VerifyArrayNewMemory(const void* p) override {
+    if (p) MallocBlock::FromRawPointer(p)->Check(MallocBlock::kArrayNewType, p);
     return true;
   }
 
-  virtual bool VerifyMallocMemory(const void* p) {
-    if (p) MallocBlock::FromRawPointer(p)->Check(MallocBlock::kMallocType);
+  bool VerifyMallocMemory(const void* p) override {
+    if (p) MallocBlock::FromRawPointer(p)->Check(MallocBlock::kMallocType, p);
     return true;
   }
 
-  virtual bool VerifyAllMemory() { return MallocBlock::CheckEverything(); }
+  bool VerifyAllMemory() override { return MallocBlock::CheckEverything(); }
 
-  virtual bool MallocMemoryStats(int* blocks, size_t* total, int histogram[kMallocHistogramSize]) {
+  bool MallocMemoryStats(int* blocks, size_t* total, int histogram[kMallocHistogramSize]) override {
     return MallocBlock::MemoryStats(blocks, total, histogram);
   }
 
-  virtual size_t GetEstimatedAllocatedSize(size_t size) { return size; }
-
-  virtual size_t GetAllocatedSize(const void* p) {
-    if (p) {
-      RAW_CHECK(GetOwnership(p) != MallocExtension::kNotOwned, "ptr not allocated by tcmalloc");
-      if (tcmalloc::IsEmergencyPtr(p)) {
-        return tcmalloc::EmergencyAllocatedSize(p);
-      }
-      // Note, we never let users touch more than they asked for.
-      return MallocBlock::UserSize(p);
-    }
-    return 0;
-  }
-
-  virtual MallocExtension::Ownership GetOwnership(const void* p) {
+  MallocExtension::Ownership GetOwnership(const void* p) override {
     if (!p) {
       // nobody owns nullptr
       return MallocExtension::kNotOwned;
     }
 
-    // FIXME: note that correct GetOwnership should not touch memory
-    // that is not owned by tcmalloc. Main implementation is using
-    // pagemap to discover if page in question is owned by us or
-    // not. But pagemap only has marks for first and last page of
-    // spans.  Note that if p was returned out of our memalign with
-    // big alignment, then it will point outside of marked pages. Also
-    // note that FromRawPointer call below requires touching memory
-    // before pointer in order to handle memalign-ed chunks
-    // (offset_). This leaves us with two options:
-    //
-    // * do FromRawPointer first and have possibility of crashing if
-    //   we're given not owned pointer
-    //
-    // * return incorrect ownership for those large memalign chunks
-    //
-    // I've decided to choose later, which appears to happen rarer and
-    // therefore is arguably a lesser evil
+    // Everything we handed out is in alloc_map_ (keyed by the pointer
+    // we handed out). Note, base's pagemap only has marks for first
+    // and last page of large spans. So pointers returned out of our
+    // memalign with big alignment might point outside of marked
+    // pages. So we need to check alloc_map_ first.
+    int map_type;
+    if (MallocBlock::FindInAllocMap(p, &map_type) && !MallocBlock::IsDeallocatedType(map_type)) {
+      return kOwned;
+    }
 
     MallocExtension::Ownership rv = TCMallocImplementation::GetOwnership(p);
     if (rv != MallocExtension::kOwned) {
@@ -1112,7 +1241,7 @@ class DebugMallocImplementation : public TCMallocImplementation {
     return TCMallocImplementation::GetOwnership(mb);
   }
 
-  virtual void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {
+  void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) override {
     static const char* kDebugFreeQueue = "debug.free_queue";
 
     TCMallocImplementation::GetFreeListSizes(v);
@@ -1128,7 +1257,12 @@ class DebugMallocImplementation : public TCMallocImplementation {
 
 static tcmalloc::StaticStorage<DebugMallocImplementation> debug_malloc_impl_storage;
 
-void SetupMallocExtension() { tcmalloc::SetDefaultMallocExtension(debug_malloc_impl_storage.Construct()); }
+void SetupDebugMalloc() {
+  // Note: this runs under threads_lock and pageheap_lock, so we must
+  // not malloc here.
+  debug_next = tcmalloc::InstallOverlay(&tcmalloc::debug_overlay);
+  tcmalloc::SetDefaultMallocExtension(debug_malloc_impl_storage.Construct());
+}
 
 REGISTER_MODULE_DESTRUCTOR(debugallocation, {
   if (!RunningOnValgrind()) {
@@ -1137,387 +1271,3 @@ REGISTER_MODULE_DESTRUCTOR(debugallocation, {
     DanglingWriteChecker();
   }
 });
-
-// ========================================================================= //
-
-inline void* debug_cpp_alloc(size_t size, int new_type, bool nothrow) {
-  void* p = DebugAllocate(size, new_type);
-  if (p != nullptr) {
-    return p;
-  }
-  return HandleOOM(nothrow ? kNoThrowOOM : kThrowOOM,
-                   [&] () { return DebugAllocate(size, new_type); });
-}
-
-inline void* do_debug_malloc_or_debug_cpp_alloc(size_t size) {
-  void* p = DebugAllocate(size, MallocBlock::kMallocType);
-  if (p != nullptr) {
-    return p;
-  }
-  return HandleOOM(kMallocOOM,
-                   [&] () { return DebugAllocate(size, MallocBlock::kMallocType); });
-}
-
-// Exported routines
-
-// frame forcer and force_frame exist only to prevent tail calls to
-// DebugDeallocate to be actually implemented as tail calls. This is
-// important because stack trace capturing in MallocBlockQueueEntry
-// relies on google_malloc section being on stack and tc_XXX functions
-// are in that section. So they must not jump to DebugDeallocate but
-// have to do call. frame_forcer call at the end of such functions
-// prevents tail calls to DebugDeallocate.
-static int frame_forcer;
-
-// When built with --disable-sized-delete we ignore sizes passed to
-// sized delete (and tc_free_sized), so don't verify them either.
-static inline size_t SizeHint(size_t size) {
-#ifdef ENABLE_SIZED_DELETE
-  return size;
-#else
-  return 0;
-#endif
-}
-
-static void force_frame() {
-  int dummy = *(int volatile*)&frame_forcer;
-  (void)dummy;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
-  void* ptr = do_debug_malloc_or_debug_cpp_alloc(size);
-  tcmalloc::InvokeNewHook(ptr, size);
-  return ptr;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_free(void* ptr) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void* ptr, size_t size) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, SizeHint(size));
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, SizeHint(size));
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t count, size_t size) PERFTOOLS_NOTHROW {
-  // Overflow check
-  const size_t total_size = count * size;
-  if (size != 0 && total_size / size != count) return nullptr;
-
-  void* block = do_debug_malloc_or_debug_cpp_alloc(total_size);
-  if (block) memset(block, 0, total_size);
-  tcmalloc::InvokeNewHook(block, total_size);
-  return block;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS_NOTHROW {
-  if (ptr == nullptr) {
-    ptr = do_debug_malloc_or_debug_cpp_alloc(size);
-    tcmalloc::InvokeNewHook(ptr, size);
-    return ptr;
-  }
-  if (size == 0) {
-    tcmalloc::InvokeDeleteHook(ptr);
-    DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
-    return nullptr;
-  }
-
-  if (PREDICT_FALSE(tcmalloc::IsEmergencyPtr(ptr))) {
-    return tcmalloc::EmergencyRealloc(ptr, size);
-  }
-
-  MallocBlock* old = MallocBlock::FromRawPointer(ptr);
-  old->Check(MallocBlock::kMallocType);
-  MallocBlock* p = MallocBlock::Allocate(size, MallocBlock::kMallocType);
-
-  // If realloc fails we are to leave the old block untouched and
-  // return null
-  if (p == nullptr) return nullptr;
-
-  size_t old_size = MallocBlock::UserSize(ptr);
-
-  memcpy(p->data_addr(), ptr, (old_size < size) ? old_size : size);
-  tcmalloc::InvokeDeleteHook(ptr);
-  tcmalloc::InvokeNewHook(p->data_addr(), size);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
-  if (FLAGS_malloctrace) {
-    TraceAlloc("realloc", size, p->data_addr());
-  }
-  return p->data_addr();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_new(size_t size) {
-  void* ptr = debug_cpp_alloc(size, MallocBlock::kNewType, false);
-  tcmalloc::InvokeNewHook(ptr, size);
-  if (ptr == nullptr) {
-    RAW_LOG(FATAL, "Unable to allocate %zu bytes: new failed.", size);
-  }
-  return ptr;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_new_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  void* ptr = debug_cpp_alloc(size, MallocBlock::kNewType, true);
-  tcmalloc::InvokeNewHook(ptr, size);
-  return ptr;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kNewType, 0);
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kNewType, SizeHint(size));
-  force_frame();
-}
-
-// Some STL implementations explicitly invoke this.
-// It is completely equivalent to a normal delete (delete never throws).
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kNewType, 0);
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size) {
-  void* ptr = debug_cpp_alloc(size, MallocBlock::kArrayNewType, false);
-  tcmalloc::InvokeNewHook(ptr, size);
-  if (ptr == nullptr) {
-    RAW_LOG(FATAL, "Unable to allocate %zu bytes: new[] failed.", size);
-  }
-  return ptr;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_nothrow(size_t size, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  void* ptr = debug_cpp_alloc(size, MallocBlock::kArrayNewType, true);
-  tcmalloc::InvokeNewHook(ptr, size);
-  return ptr;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray(void* p) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kArrayNewType, 0);
-  force_frame();
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kArrayNewType, SizeHint(size));
-  force_frame();
-}
-
-// Some STL implementations explicitly invoke this.
-// It is completely equivalent to a normal delete (delete never throws).
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  tcmalloc::InvokeDeleteHook(p);
-  DebugDeallocate(p, MallocBlock::kArrayNewType, 0);
-  force_frame();
-}
-
-// This is mostly the same as do_memalign in tcmalloc.cc.
-static void* do_debug_memalign(size_t alignment, size_t size, int type) {
-#if defined(__APPLE__)
-  // See DebugAllocate
-  if (size == 0) size = 1;
-#endif
-  // Allocate >= size bytes aligned on "alignment" boundary
-  // "alignment" is a power of two.
-  void* p = 0;
-  RAW_CHECK((alignment & (alignment - 1)) == 0, "must be power of two");
-  const size_t data_offset = MallocBlock::data_offset();
-  // Allocate "alignment-1" extra bytes to ensure alignment is possible, and
-  // a further data_offset bytes for an additional fake header.
-  size_t extra_bytes = data_offset + alignment - 1;
-  if (size + extra_bytes < size) return nullptr;  // Overflow
-  p = DebugAllocate(size + extra_bytes, type);
-  if (p != 0) {
-    intptr_t orig_p = reinterpret_cast<intptr_t>(p);
-    // Leave data_offset bytes for fake header, and round up to meet
-    // alignment.
-    p = reinterpret_cast<void*>(RoundUp(orig_p + data_offset, alignment));
-    // Create a fake header block with an offset_ that points back to the
-    // real header.  FromRawPointer uses this value.
-    MallocBlock* fake_hdr = reinterpret_cast<MallocBlock*>(reinterpret_cast<char*>(p) - data_offset);
-    // offset_ is distance between real and fake headers.
-    // p is now end of fake header (beginning of client area),
-    // and orig_p is the end of the real header, so offset_
-    // is their difference.
-    //
-    // Note that other fields of fake_hdr are initialized with
-    // kMagicUninitializedByte. Except we record user's size in it (see
-    // MallocBlock::UserSize).
-    fake_hdr->set_offset(reinterpret_cast<intptr_t>(p) - orig_p);
-    fake_hdr->set_user_size(size);
-  }
-  return p;
-}
-
-static ALWAYS_INLINE
-void* debug_memalign_with_oom(size_t align, size_t size,
-                              int type, OOMKind oom) {
-  void* p = do_debug_memalign(align, size, type);
-  if (p != nullptr) {
-    return p;
-  }
-
-  return HandleOOM(oom, [&] () {
-    return do_debug_memalign(align, size, type);
-  });
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_memalign(size_t align, size_t size) PERFTOOLS_NOTHROW {
-  void* p = debug_memalign_with_oom(align, size,
-                                    MallocBlock::kMallocType, kMallocOOM);
-  tcmalloc::InvokeNewHook(p, size);
-  return p;
-}
-
-// Implementation taken from tcmalloc/tcmalloc.cc
-extern "C" PERFTOOLS_DLL_DECL int tc_posix_memalign(void** result_ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
-  if (((align % sizeof(void*)) != 0) || ((align & (align - 1)) != 0) || (align == 0)) {
-    return EINVAL;
-  }
-
-  void* result = debug_memalign_with_oom(
-    align, size,
-    MallocBlock::kMallocType, kMallocOOM);
-  tcmalloc::InvokeNewHook(result, size);
-  if (result == nullptr) {
-    return ENOMEM;
-  } else {
-    *result_ptr = result;
-    return 0;
-  }
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_valloc(size_t size) PERFTOOLS_NOTHROW {
-  // Allocate >= size bytes starting on a page boundary
-  void* p = debug_memalign_with_oom(
-    getpagesize(), size,
-    MallocBlock::kMallocType, kMallocOOM);
-  tcmalloc::InvokeNewHook(p, size);
-  return p;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_pvalloc(size_t size) PERFTOOLS_NOTHROW {
-  // Round size up to a multiple of pages
-  // then allocate memory on a page boundary
-  int pagesize = getpagesize();
-  size = RoundUp(size, pagesize);
-  if (size == 0) {    // pvalloc(0) should allocate one page, according to
-    size = pagesize;  // http://man.free4web.biz/man3/libmpatrol.3.html
-  }
-  void* p = debug_memalign_with_oom(
-    pagesize, size,
-    MallocBlock::kMallocType, kMallocOOM);
-  tcmalloc::InvokeNewHook(p, size);
-  return p;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned(size_t size, std::align_val_t align) {
-  void* result = debug_memalign_with_oom(
-    static_cast<size_t>(align), size,
-    MallocBlock::kNewType, kThrowOOM);
-  tcmalloc::InvokeNewHook(result, size);
-  return result;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_new_aligned_nothrow(size_t size, std::align_val_t align,
-                                                           const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  void* result = debug_memalign_with_oom(
-    static_cast<size_t>(align), size,
-    MallocBlock::kNewType, kNoThrowOOM);
-  tcmalloc::InvokeNewHook(result, size);
-  return result;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW { tc_delete(p); }
-
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size,
-                                                           std::align_val_t align) PERFTOOLS_NOTHROW {
-  // Note, sized delete checks size user asked for (see
-  // MallocBlock::UserSize), so no need to know alignment.
-  tc_delete_sized(p, size);
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t,
-                                                             const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  tc_delete(p);
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned(size_t size, std::align_val_t align) {
-  void* result = debug_memalign_with_oom(
-    static_cast<size_t>(align), size,
-    MallocBlock::kArrayNewType,
-    kThrowOOM);
-  tcmalloc::InvokeNewHook(result, size);
-  return result;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_newarray_aligned_nothrow(size_t size, std::align_val_t align,
-                                                                const std::nothrow_t& nt) PERFTOOLS_NOTHROW {
-  void* result = debug_memalign_with_oom(
-    static_cast<size_t>(align), size,
-    MallocBlock::kArrayNewType, kNoThrowOOM);
-  tcmalloc::InvokeNewHook(result, size);
-  return result;
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_val_t) PERFTOOLS_NOTHROW {
-  tc_deletearray(p);
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size,
-                                                                std::align_val_t align) PERFTOOLS_NOTHROW {
-  // See tc_delete_sized_aligned
-  tc_deletearray_sized(p, size);
-}
-
-extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t,
-                                                                  const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  tc_deletearray(p);
-}
-
-// malloc_stats just falls through to the base implementation.
-extern "C" PERFTOOLS_DLL_DECL void tc_malloc_stats(void) PERFTOOLS_NOTHROW { do_malloc_stats(); }
-
-extern "C" PERFTOOLS_DLL_DECL int tc_mallopt(int cmd, int value) PERFTOOLS_NOTHROW { return do_mallopt(cmd, value); }
-
-#ifdef HAVE_STRUCT_MALLINFO
-extern "C" PERFTOOLS_DLL_DECL struct mallinfo tc_mallinfo(void) PERFTOOLS_NOTHROW {
-  return do_mallinfo<struct mallinfo>();
-}
-#endif
-
-#ifdef HAVE_STRUCT_MALLINFO2
-extern "C" PERFTOOLS_DLL_DECL struct mallinfo2 tc_mallinfo2(void) PERFTOOLS_NOTHROW {
-  return do_mallinfo<struct mallinfo2>();
-}
-#endif
-
-extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_NOTHROW {
-  return MallocExtension::instance()->GetAllocatedSize(ptr);
-}
-
-extern "C" PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_NOTHROW {
-  void* result = DebugAllocate(size, MallocBlock::kMallocType);
-  tcmalloc::InvokeNewHook(result, size);
-  return result;
-}

@@ -288,6 +288,14 @@ void ThreadCache::InitModule() {
     }
     Static::InitStaticVars();
     threadcache_allocator.Init();
+#ifdef TCMALLOC_WITH_DEBUGALLOC
+    // Installs debug allocation overlay (see alloc_overlays.h) before any
+    // pointer is handed out. It also sets up debug MallocExtension
+    // instance, so SetupMallocExtension below does nothing.
+    SetupDebugMalloc();
+#endif
+    // Note, this is first-wins. User's early MallocExtension::Register
+    // beats this.
     SetupMallocExtension();
     phinited = 1;
   }
