@@ -160,6 +160,13 @@ HookList<MallocHook::DeleteHook> delete_hooks_;
 }  // namespace internal
 }  // namespace base
 
+namespace tcmalloc {
+void UpdateActiveOverlay() {
+  SpinLockHolder l(&base::internal::hooklist_spinlock);
+  UpdateActiveOverlayLocked();
+}
+}  // namespace tcmalloc
+
 using base::internal::delete_hooks_;
 using base::internal::kHookListMaxValues;
 using base::internal::new_hooks_;

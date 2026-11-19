@@ -42,6 +42,8 @@
 
 namespace tcmalloc {
 
+struct AllocOps;
+
 class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortal {
  public:
   static inline constexpr char kMagic[] = "tcmalloc.impl.testing-portal";
@@ -84,6 +86,13 @@ class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortal {
 
   virtual void* RunReallocWithCallback(void* old_ptr, size_t new_size, void (*invalid_free_fn)(void*),
                                        size_t (*invalid_get_size_fn)(const void*)) = 0;
+
+  // Runs body with ops installed as the top overlay (see
+  // alloc_overlays.h). *next is set (before ops can be called) to the
+  // overlay below, which ops must call down to. Not thread-safe:
+  // there must be no concurrent allocations. Has no effect on debug
+  // malloc.
+  virtual void WithOverlay(const AllocOps* ops, const AllocOps** next, FunctionRef<void()> body) = 0;
 
  protected:
   virtual ~TestingPortal();

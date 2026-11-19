@@ -112,6 +112,7 @@
 
 #include "tests/testutil.h"
 
+#include "alloc_overlays.h"
 #include "testing_portal.h"
 
 #include "gtest/gtest.h"
@@ -1748,6 +1749,194 @@ TEST(TCMallocTest, EmergencyMallocNoHook) {
 
   free(p1);
   VerifyDeleteHookWasCalled();
+}
+
+// Overlay that records what it was called with and passes
+// everything down.
+namespace recording_overlay {
+
+using tcmalloc::AllocOps;
+
+const AllocOps* next;
+
+struct MallocCall {
+  int calls;
+  size_t size;
+  size_t align;
+  uint32_t flags;
+  void* result;
+} last_malloc;
+
+struct FreeCall {
+  int calls;
+  void* ptr;
+  size_t size_hint;
+  size_t align;
+  uint32_t flags;
+} last_free;
+
+void Reset() {
+  last_malloc = {};
+  last_free = {};
+}
+
+const AllocOps ops = {
+    [](size_t size, size_t align, uint32_t flags) -> void* {
+      void* result = next->Malloc(size, align, flags);
+      last_malloc = {last_malloc.calls + 1, size, align, flags, result};
+      return result;
+    },
+    [](void* ptr, size_t size_hint, size_t align, uint32_t flags) {
+      last_free = {last_free.calls + 1, ptr, size_hint, align, flags};
+      next->Free(ptr, size_hint, align, flags);
+    },
+    [](void* ptr, size_t new_size) { return next->ResizeInPlace(ptr, new_size); },
+    [](size_t size, size_t align) { return next->NAllocX(size, align); },
+    [](const void* ptr) { return next->UsableSize(ptr); },
+};
+
+}  // namespace recording_overlay
+
+// Checks that every entry point passes right kind, size and alignment
+// to overlays.
+TEST(TCMallocTest, OverlayFlagsFidelity) {
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    // debug malloc doesn't do overlays (yet)
+    return;
+  }
+
+  using namespace tcmalloc;
+  namespace rl = recording_overlay;
+  constexpr size_t kSize = 17;
+  constexpr size_t kAlign = 64;
+  constexpr std::align_val_t kAlignVal{kAlign};
+
+  // Note: checks must not allocate when passing (so no
+  // SCOPED_TRACE). Also we grab recorded calls before anything (like
+  // failure reporting) could allocate.
+  auto check_malloc = [&](const char* what, void* p, size_t size, size_t align, uint32_t flags) {
+    rl::MallocCall call = rl::last_malloc;
+    rl::Reset();
+    ASSERT_NE(p, nullptr) << what;
+    ASSERT_EQ(call.calls, 1) << what;
+    ASSERT_EQ(call.result, p) << what;
+    ASSERT_EQ(call.size, size) << what;
+    ASSERT_EQ(call.align, align) << what;
+    ASSERT_EQ(call.flags, flags) << what;
+  };
+  auto check_free = [&](const char* what, void* p, size_t size_hint, size_t align, uint32_t flags) {
+    rl::FreeCall call = rl::last_free;
+    rl::Reset();
+    ASSERT_EQ(call.calls, 1) << what;
+    ASSERT_EQ(call.ptr, p) << what;
+    ASSERT_EQ(call.size_hint, size_hint) << what;
+    ASSERT_EQ(call.align, align) << what;
+    ASSERT_EQ(call.flags, flags) << what;
+  };
+// Stop at first failure: failure reporting allocates and would
+// confuse subsequent checks.
+#define CHECK_MALLOC(...)                \
+  do {                                   \
+    check_malloc(__VA_ARGS__);           \
+    if (HasFatalFailure()) return;       \
+  } while (0)
+#define CHECK_FREE(...)                  \
+  do {                                   \
+    check_free(__VA_ARGS__);             \
+    if (HasFatalFailure()) return;       \
+  } while (0)
+
+  TestingPortal::Get()->WithOverlay(&rl::ops, &rl::next, [&]() {
+    rl::Reset();
+    void* p;
+
+    p = tc_malloc(kSize);
+    CHECK_MALLOC("tc_malloc", p, kSize, 0, kKindMalloc);
+    tc_free(p);
+    CHECK_FREE("tc_free", p, 0, 0, kKindMalloc);
+
+    p = tc_malloc_skip_new_handler(kSize);
+    CHECK_MALLOC("tc_malloc_skip_new_handler", p, kSize, 0, kKindMalloc);
+    tc_cfree(p);
+    CHECK_FREE("tc_cfree", p, 0, 0, kKindMalloc);
+
+    p = tc_calloc(1, kSize);
+    CHECK_MALLOC("tc_calloc", p, kSize, 0, kKindMalloc);
+    tc_free_sized(p, kSize);
+    CHECK_FREE("tc_free_sized", p, kSize, 0, kKindMalloc | kSized);
+
+    p = tc_memalign(kAlign, kSize);
+    CHECK_MALLOC("tc_memalign", p, kSize, kAlign, kKindMalloc | kAligned);
+    tc_free_aligned_sized(p, kAlign, kSize);
+    CHECK_FREE("tc_free_aligned_sized", p, kSize, kAlign, kKindMalloc | kSized | kAligned);
+
+    ASSERT_EQ(tc_posix_memalign(&p, kAlign, kSize), 0);
+    CHECK_MALLOC("tc_posix_memalign", p, kSize, kAlign, kKindMalloc | kAligned);
+    tc_free(p);
+    CHECK_FREE("tc_free", p, 0, 0, kKindMalloc);
+
+    p = tc_new(kSize);
+    CHECK_MALLOC("tc_new", p, kSize, 0, kKindNew);
+    tc_delete(p);
+    CHECK_FREE("tc_delete", p, 0, 0, kKindNew);
+
+    p = tc_new_nothrow(kSize, std::nothrow);
+    CHECK_MALLOC("tc_new_nothrow", p, kSize, 0, kKindNew);
+    tc_delete_nothrow(p, std::nothrow);
+    CHECK_FREE("tc_delete_nothrow", p, 0, 0, kKindNew);
+
+    p = tc_new(kSize);
+    CHECK_MALLOC("tc_new", p, kSize, 0, kKindNew);
+    tc_delete_sized(p, kSize);
+    CHECK_FREE("tc_delete_sized", p, kSize, 0, kKindNew | kSized);
+
+    p = tc_newarray(kSize);
+    CHECK_MALLOC("tc_newarray", p, kSize, 0, kKindNewArray);
+    tc_deletearray(p);
+    CHECK_FREE("tc_deletearray", p, 0, 0, kKindNewArray);
+
+    p = tc_newarray_nothrow(kSize, std::nothrow);
+    CHECK_MALLOC("tc_newarray_nothrow", p, kSize, 0, kKindNewArray);
+    tc_deletearray_nothrow(p, std::nothrow);
+    CHECK_FREE("tc_deletearray_nothrow", p, 0, 0, kKindNewArray);
+
+    p = tc_newarray(kSize);
+    CHECK_MALLOC("tc_newarray", p, kSize, 0, kKindNewArray);
+    tc_deletearray_sized(p, kSize);
+    CHECK_FREE("tc_deletearray_sized", p, kSize, 0, kKindNewArray | kSized);
+
+    p = tc_new_aligned(kSize, kAlignVal);
+    CHECK_MALLOC("tc_new_aligned", p, kSize, kAlign, kKindNew | kAligned);
+    tc_delete_aligned(p, kAlignVal);
+    CHECK_FREE("tc_delete_aligned", p, 0, kAlign, kKindNew | kAligned);
+
+    p = tc_new_aligned_nothrow(kSize, kAlignVal, std::nothrow);
+    CHECK_MALLOC("tc_new_aligned_nothrow", p, kSize, kAlign, kKindNew | kAligned);
+    tc_delete_aligned_nothrow(p, kAlignVal, std::nothrow);
+    CHECK_FREE("tc_delete_aligned_nothrow", p, 0, kAlign, kKindNew | kAligned);
+
+    p = tc_new_aligned(kSize, kAlignVal);
+    CHECK_MALLOC("tc_new_aligned", p, kSize, kAlign, kKindNew | kAligned);
+    tc_delete_sized_aligned(p, kSize, kAlignVal);
+    CHECK_FREE("tc_delete_sized_aligned", p, kSize, kAlign, kKindNew | kSized | kAligned);
+
+    p = tc_newarray_aligned(kSize, kAlignVal);
+    CHECK_MALLOC("tc_newarray_aligned", p, kSize, kAlign, kKindNewArray | kAligned);
+    tc_deletearray_aligned(p, kAlignVal);
+    CHECK_FREE("tc_deletearray_aligned", p, 0, kAlign, kKindNewArray | kAligned);
+
+    p = tc_newarray_aligned_nothrow(kSize, kAlignVal, std::nothrow);
+    CHECK_MALLOC("tc_newarray_aligned_nothrow", p, kSize, kAlign, kKindNewArray | kAligned);
+    tc_deletearray_aligned_nothrow(p, kAlignVal, std::nothrow);
+    CHECK_FREE("tc_deletearray_aligned_nothrow", p, 0, kAlign, kKindNewArray | kAligned);
+
+    p = tc_newarray_aligned(kSize, kAlignVal);
+    CHECK_MALLOC("tc_newarray_aligned", p, kSize, kAlign, kKindNewArray | kAligned);
+    tc_deletearray_sized_aligned(p, kSize, kAlignVal);
+    CHECK_FREE("tc_deletearray_sized_aligned", p, kSize, kAlign, kKindNewArray | kSized | kAligned);
+  });
+#undef CHECK_MALLOC
+#undef CHECK_FREE
 }
 
 TEST(TCMallocTest, ReallocVsFreeSized) {

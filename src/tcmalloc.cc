@@ -604,6 +604,15 @@ class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortalImpl : public TestingPortal {
   void* RunReallocWithCallback(void* old_ptr, size_t new_size, void (*invalid_free_fn)(void*),
                                size_t (*invalid_get_size_fn)(const void*)) override;
 
+  void WithOverlay(const AllocOps* ops, const AllocOps** next, FunctionRef<void()> body) override {
+    *next = top_ops;
+    top_ops = ops;
+    UpdateActiveOverlay();
+    body();
+    top_ops = *next;
+    UpdateActiveOverlay();
+  }
+
   static TestingPortalImpl* Get() {
     static TestingPortalImpl* ptr = ([]() {
       static StaticStorage<TestingPortalImpl> storage;

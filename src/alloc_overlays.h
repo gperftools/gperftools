@@ -140,6 +140,9 @@ static inline const AllocOps* ActiveOverlay() {
 // implemented in tcmalloc.cc and malloc_hook_test.cc
 void UpdateActiveOverlayLocked();
 
+// Same, but grabs hooklist_spinlock. Defined in malloc_hook.cc.
+void UpdateActiveOverlay();
+
 }  // namespace tcmalloc
 
 #endif  // TCMALLOC_ALLOC_OVERLAYS_H_
