@@ -138,6 +138,7 @@
 #include "malloc_backtrace.h"
 #include "maybe_emergency_malloc.h"  // IWYU pragma: keep
 #include "testing_portal.h"
+#include "tcmalloc_impl.h"
 
 #include "alloc_overlays.h"
 
@@ -560,513 +561,503 @@ ALWAYS_INLINE bool IsOwnedByUs(const void* ptr) {
 
 TestingPortal::~TestingPortal() = default;
 
-class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortalImpl : public TestingPortal {
- public:
-  ~TestingPortalImpl() override = default;
+bool TestingPortalImpl::HaveSystemRelease() {
+  static bool have = ([]() {
+    size_t actual;
+    auto ptr = TCMalloc_SystemAlloc(kPageSize, &actual, 0);
+    return TCMalloc_SystemRelease(ptr, actual);
+  })();
+  return have;
+}
 
-  bool HaveSystemRelease() override {
-    static bool have = ([]() {
-      size_t actual;
-      auto ptr = TCMalloc_SystemAlloc(kPageSize, &actual, 0);
-      return TCMalloc_SystemRelease(ptr, actual);
-    })();
-    return have;
-  }
-  bool IsDebuggingMalloc() override { return false; }
-  size_t GetMinSpanSize() override {
-    return Static::sizemap()->min_span_size_in_pages() * kPageSize;
-  }
-  size_t GetMinAlign() override { return kMinAlign; }
-  size_t GetMaxSize() override { return kMaxSize; }
-  int64_t& GetSampleParameter() override { return FLAGS_tcmalloc_sample_parameter; }
-  double& GetReleaseRate() override { return FLAGS_tcmalloc_release_rate; }
-  int32_t& GetMaxFreeQueueSize() override { abort(); }
+bool TestingPortalImpl::IsDebuggingMalloc() {
+  return false;
+}
 
-  bool HasEmergencyMalloc() override { return kUseEmergencyMalloc; }
+size_t TestingPortalImpl::GetMinSpanSize() {
+  return Static::sizemap()->min_span_size_in_pages() * kPageSize;
+}
 
-  bool IsEmergencyPtr(void* ptr) override { return tcmalloc::IsEmergencyPtr(ptr); }
+size_t TestingPortalImpl::GetMinAlign() {
+  return kMinAlign;
+}
 
-  void WithEmergencyMallocEnabled(FunctionRef<void()> body) override {
-    auto body_adaptor = [body](bool stacktrace_allowed) {
-      CHECK(stacktrace_allowed);
-      body();
-    };
-    FunctionRef<void(bool)> ref{body_adaptor};
-    ThreadCachePtr::WithStacktraceScope(ref.fn, ref.data);
-  }
+size_t TestingPortalImpl::GetMaxSize() {
+  return kMaxSize;
+}
 
-  uint32_t GetSizeClass(void* p) override {
-    PageID pageid = reinterpret_cast<uintptr_t>(p) >> kPageShift;
-    Span* span = Static::pageheap()->GetDescriptor(pageid);
-    return span->sizeclass;
-  }
+int64_t& TestingPortalImpl::GetSampleParameter() {
+  return FLAGS_tcmalloc_sample_parameter;
+}
 
-  void* RunReallocWithCallback(void* old_ptr, size_t new_size, void (*invalid_free_fn)(void*),
-                               size_t (*invalid_get_size_fn)(const void*)) override;
+double& TestingPortalImpl::GetReleaseRate() {
+  return FLAGS_tcmalloc_release_rate;
+}
 
-  void WithOverlay(const AllocOps* ops, const AllocOps** next, FunctionRef<void()> body) override {
-    *next = top_ops;
-    top_ops = ops;
-    UpdateActiveOverlay();
+int32_t& TestingPortalImpl::GetMaxFreeQueueSize() {
+  abort();
+}
+
+bool TestingPortalImpl::HasEmergencyMalloc() {
+  return kUseEmergencyMalloc;
+}
+
+bool TestingPortalImpl::IsEmergencyPtr(void* ptr) {
+  return tcmalloc::IsEmergencyPtr(ptr);
+}
+
+void TestingPortalImpl::WithEmergencyMallocEnabled(FunctionRef<void()> body) {
+  auto body_adaptor = [body](bool stacktrace_allowed) {
+    CHECK(stacktrace_allowed);
     body();
-    top_ops = *next;
-    UpdateActiveOverlay();
-  }
+  };
+  FunctionRef<void(bool)> ref{body_adaptor};
+  ThreadCachePtr::WithStacktraceScope(ref.fn, ref.data);
+}
 
-  static TestingPortalImpl* Get() {
-    static TestingPortalImpl* ptr = ([]() {
-      static StaticStorage<TestingPortalImpl> storage;
-      return storage.Construct();
-    }());
-    return ptr;
-  }
-};
+uint32_t TestingPortalImpl::GetSizeClass(void* p) {
+  PageID pageid = reinterpret_cast<uintptr_t>(p) >> kPageShift;
+  Span* span = Static::pageheap()->GetDescriptor(pageid);
+  return span->sizeclass;
+}
+
+void TestingPortalImpl::WithOverlay(const AllocOps* ops, const AllocOps** next, FunctionRef<void()> body) {
+  *next = top_ops;
+  top_ops = ops;
+  UpdateActiveOverlay();
+  body();
+  top_ops = *next;
+  UpdateActiveOverlay();
+}
+
+TestingPortalImpl* TestingPortalImpl::Get() {
+  static TestingPortalImpl* ptr = ([]() {
+    static StaticStorage<TestingPortalImpl> storage;
+    return storage.Construct();
+  }());
+  return ptr;
+}
+
 
 }  // namespace tcmalloc
 
 using tcmalloc::TestingPortalImpl;
 
-// TCMalloc's support for extra malloc interfaces
-class TCMallocImplementation : public MallocExtension {
- private:
-  // ReleaseToSystem() might release more than the requested bytes because
-  // the page heap releases at the span granularity, and spans are of wildly
-  // different sizes.  This member keeps track of the extra bytes bytes
-  // released so that the app can periodically call ReleaseToSystem() to
-  // release memory at a constant rate.
-  // NOTE: Protected by Static::pageheap_lock().
-  size_t extra_bytes_released_;
+void TCMallocImplementation::GetStats(char* buffer, int buffer_length) {
+  ASSERT(buffer_length > 0);
+  TCMalloc_Printer printer(buffer, buffer_length);
 
- public:
-  TCMallocImplementation() : extra_bytes_released_(0) {}
-
-  virtual void GetStats(char* buffer, int buffer_length) {
-    ASSERT(buffer_length > 0);
-    TCMalloc_Printer printer(buffer, buffer_length);
-
-    // Print level one stats unless lots of space is available
-    if (buffer_length < 10000) {
-      DumpStats(&printer, 1);
-    } else {
-      DumpStats(&printer, 2);
-    }
+  // Print level one stats unless lots of space is available
+  if (buffer_length < 10000) {
+    DumpStats(&printer, 1);
+  } else {
+    DumpStats(&printer, 2);
   }
+}
 
-  // We may print an extra, tcmalloc-specific warning message here.
-  virtual void GetHeapSample(MallocExtensionWriter* writer) {
-    if (FLAGS_tcmalloc_sample_parameter == 0) {
-      const char* const kWarningMsg =
-          "%warn\n"
-          "%warn This heap profile does not have any data in it, because\n"
-          "%warn the application was run with heap sampling turned off.\n"
-          "%warn To get useful data from GetHeapSample(), you must\n"
-          "%warn set the environment variable TCMALLOC_SAMPLE_PARAMETER to\n"
-          "%warn a positive sampling period, such as 524288.\n"
-          "%warn\n";
-      writer->append(kWarningMsg, strlen(kWarningMsg));
-    }
-    MallocExtension::GetHeapSample(writer);
+void TCMallocImplementation::GetHeapSample(MallocExtensionWriter* writer) {
+  if (FLAGS_tcmalloc_sample_parameter == 0) {
+    const char* const kWarningMsg =
+        "%warn\n"
+        "%warn This heap profile does not have any data in it, because\n"
+        "%warn the application was run with heap sampling turned off.\n"
+        "%warn To get useful data from GetHeapSample(), you must\n"
+        "%warn set the environment variable TCMALLOC_SAMPLE_PARAMETER to\n"
+        "%warn a positive sampling period, such as 524288.\n"
+        "%warn\n";
+    writer->append(kWarningMsg, strlen(kWarningMsg));
   }
+  MallocExtension::GetHeapSample(writer);
+}
 
-  virtual void** ReadStackTraces(int* sample_period) {
-    tcmalloc::StackTraceTable table;
-    {
-      SpinLockHolder h(Static::pageheap_lock());
-      Span* sampled = Static::sampled_objects();
-      for (Span* s = sampled->next; s != sampled; s = s->next) {
-        table.AddTrace(*reinterpret_cast<StackTrace*>(s->objects));
-      }
-    }
-    *sample_period = ThreadCachePtr::Grab()->GetSamplePeriod();
-    return table.ReadStackTracesAndClear();  // grabs and releases pageheap_lock
-  }
-
-  virtual void** ReadHeapGrowthStackTraces() {
-    // Note: growth stacks are append only, and updated atomically. So
-    // we can just read them without any locks. And use arbitrarily long
-    // (since they're never cleared/deleted).
-    const StackTrace* head = Static::growth_stacks();
-    return ProduceStackTracesDump(
-               +[](const void** current_head) {
-                 const StackTrace* current = static_cast<const StackTrace*>(*current_head);
-                 *current_head = current->stack[tcmalloc::kMaxStackDepth - 1];
-                 return current;
-               },
-               head)
-        .release();
-  }
-
-  virtual size_t GetThreadCacheSize() {
-    ThreadCache* tc = ThreadCachePtr::GetIfPresent();
-    if (!tc) return 0;
-    return tc->Size();
-  }
-
-  virtual void Ranges(void* arg, RangeFunction func) { IterateOverRanges(arg, func); }
-
-  virtual bool GetNumericProperty(const char* name, size_t* value) {
-    ASSERT(name != nullptr);
-
-    if (strcmp(name, "generic.current_allocated_bytes") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.pageheap.system_bytes - stats.thread_bytes - stats.central_bytes - stats.transfer_bytes -
-               stats.pageheap.free_bytes - stats.pageheap.unmapped_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "generic.heap_size") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.pageheap.system_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "generic.total_physical_bytes") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.pageheap.system_bytes + stats.metadata_bytes - stats.pageheap.unmapped_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.slack_bytes") == 0) {
-      // Kept for backwards compatibility.  Now defined externally as:
-      //    pageheap_free_bytes + pageheap_unmapped_bytes.
-      SpinLockHolder l(Static::pageheap_lock());
-      PageHeap::Stats stats = Static::pageheap()->StatsLocked();
-      *value = stats.free_bytes + stats.unmapped_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.central_cache_free_bytes") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.central_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.transfer_cache_free_bytes") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.transfer_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.thread_cache_free_bytes") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.thread_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_free_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().free_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_unmapped_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().unmapped_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_committed_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().committed_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_scavenge_count") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().scavenge_count;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_commit_count") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().commit_count;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_total_commit_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().total_commit_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_decommit_count") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().decommit_count;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_total_decommit_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().total_decommit_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_reserve_count") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().reserve_count;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.pageheap_total_reserve_bytes") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = Static::pageheap()->StatsLocked().total_reserve_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
-      SpinLockHolder l(ThreadCache::threads_lock());
-      *value = ThreadCache::overall_thread_cache_size();
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.min_per_thread_cache_bytes") == 0) {
-      *value = ThreadCache::min_per_thread_cache_size();
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.current_total_thread_cache_bytes") == 0) {
-      TCMallocStats stats;
-      ExtractStats(&stats, nullptr, nullptr, nullptr);
-      *value = stats.thread_bytes;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.aggressive_memory_decommit") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = size_t(Static::pageheap()->GetAggressiveDecommit());
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      *value = FLAGS_tcmalloc_heap_limit_mb;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.impl.thread_cache_count") == 0) {
-      SpinLockHolder h(ThreadCache::threads_lock());
-      *value = ThreadCache::thread_heap_count();
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.sample_parameter") == 0) {
-      *value = FLAGS_tcmalloc_sample_parameter;
-      return true;
-    }
-
-    if (TestingPortal** portal = TestingPortal::CheckGetPortal(name, value); portal) {
-      *portal = TestingPortalImpl::Get();
-      *value = 1;
-      return true;
-    }
-
-    return false;
-  }
-
-  virtual bool SetNumericProperty(const char* name, size_t value) {
-    ASSERT(name != nullptr);
-
-    if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
-      SpinLockHolder l(ThreadCache::threads_lock());
-      ThreadCache::set_overall_thread_cache_size(value);
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.min_per_thread_cache_bytes") == 0) {
-      ThreadCache::set_min_per_thread_cache_size(value);
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.aggressive_memory_decommit") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      Static::pageheap()->SetAggressiveDecommit(value != 0);
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
-      SpinLockHolder l(Static::pageheap_lock());
-      FLAGS_tcmalloc_heap_limit_mb = value;
-      return true;
-    }
-
-    if (strcmp(name, "tcmalloc.sample_parameter") == 0) {
-      FLAGS_tcmalloc_sample_parameter = value;
-      // By clearing current thread's cache we force next allocations
-      // to read freshly updated sample parameter. This is only going
-      // to affect current thread, but this is better than nothing.
-      MallocExtension::instance()->MarkThreadIdle();
-      return true;
-    }
-
-    return false;
-  }
-
-  // Note, in gperftools 2.5 we introduced this 'ligher-weight'
-  // equivalent of MarkThreadIdle, but as of now mongo folk tells us
-  // they don't use it anymore. And there was indeed possible issue
-  // with this approach since it didn't 'return' thread's share of
-  // total thread cache back to common pool. But that was almost
-  // exactly the difference between regular mark idle and mark
-  // "temporarily" idle. So we now go back to original mark idle, but
-  // keep API for ABI and API compat sake.
-  virtual void MarkThreadTemporarilyIdle() { MarkThreadIdle(); }
-
-  virtual void MarkThreadIdle() {
-    ThreadCache* cache = ThreadCachePtr::ReleaseAndClear();
-    if (cache) {
-      // When our thread had cache, lets delete it
-      ThreadCache::DeleteCache(cache);
-    }
-  }
-
-  virtual void MarkThreadBusy();  // Implemented below
-
-  virtual SysAllocator* GetSystemAllocator() {
+void** TCMallocImplementation::ReadStackTraces(int* sample_period) {
+  tcmalloc::StackTraceTable table;
+  {
     SpinLockHolder h(Static::pageheap_lock());
-    return tcmalloc_sys_alloc;
+    Span* sampled = Static::sampled_objects();
+    for (Span* s = sampled->next; s != sampled; s = s->next) {
+      table.AddTrace(*reinterpret_cast<StackTrace*>(s->objects));
+    }
+  }
+  *sample_period = ThreadCachePtr::Grab()->GetSamplePeriod();
+  return table.ReadStackTracesAndClear();  // grabs and releases pageheap_lock
+}
+
+void** TCMallocImplementation::ReadHeapGrowthStackTraces() {
+  // Note: growth stacks are append only, and updated atomically. So
+  // we can just read them without any locks. And use arbitrarily long
+  // (since they're never cleared/deleted).
+  const StackTrace* head = Static::growth_stacks();
+  return ProduceStackTracesDump(
+             +[](const void** current_head) {
+               const StackTrace* current = static_cast<const StackTrace*>(*current_head);
+               *current_head = current->stack[tcmalloc::kMaxStackDepth - 1];
+               return current;
+             },
+             head)
+      .release();
+}
+
+size_t TCMallocImplementation::GetThreadCacheSize() {
+  ThreadCache* tc = ThreadCachePtr::GetIfPresent();
+  if (!tc) return 0;
+  return tc->Size();
+}
+
+void TCMallocImplementation::Ranges(void* arg, RangeFunction func) {
+  IterateOverRanges(arg, func);
+}
+
+bool TCMallocImplementation::GetNumericProperty(const char* name, size_t* value) {
+  ASSERT(name != nullptr);
+
+  if (strcmp(name, "generic.current_allocated_bytes") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.pageheap.system_bytes - stats.thread_bytes - stats.central_bytes - stats.transfer_bytes -
+             stats.pageheap.free_bytes - stats.pageheap.unmapped_bytes;
+    return true;
   }
 
-  virtual void SetSystemAllocator(SysAllocator* alloc) {
+  if (strcmp(name, "generic.heap_size") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.pageheap.system_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "generic.total_physical_bytes") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.pageheap.system_bytes + stats.metadata_bytes - stats.pageheap.unmapped_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.slack_bytes") == 0) {
+    // Kept for backwards compatibility.  Now defined externally as:
+    //    pageheap_free_bytes + pageheap_unmapped_bytes.
+    SpinLockHolder l(Static::pageheap_lock());
+    PageHeap::Stats stats = Static::pageheap()->StatsLocked();
+    *value = stats.free_bytes + stats.unmapped_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.central_cache_free_bytes") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.central_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.transfer_cache_free_bytes") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.transfer_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.thread_cache_free_bytes") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.thread_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_free_bytes") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().free_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_unmapped_bytes") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().unmapped_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_committed_bytes") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().committed_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_scavenge_count") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().scavenge_count;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_commit_count") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().commit_count;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_total_commit_bytes") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().total_commit_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_decommit_count") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().decommit_count;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_total_decommit_bytes") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().total_decommit_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_reserve_count") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().reserve_count;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.pageheap_total_reserve_bytes") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = Static::pageheap()->StatsLocked().total_reserve_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
+    SpinLockHolder l(ThreadCache::threads_lock());
+    *value = ThreadCache::overall_thread_cache_size();
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.min_per_thread_cache_bytes") == 0) {
+    *value = ThreadCache::min_per_thread_cache_size();
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.current_total_thread_cache_bytes") == 0) {
+    TCMallocStats stats;
+    ExtractStats(&stats, nullptr, nullptr, nullptr);
+    *value = stats.thread_bytes;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.aggressive_memory_decommit") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = size_t(Static::pageheap()->GetAggressiveDecommit());
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    *value = FLAGS_tcmalloc_heap_limit_mb;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.impl.thread_cache_count") == 0) {
+    SpinLockHolder h(ThreadCache::threads_lock());
+    *value = ThreadCache::thread_heap_count();
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.sample_parameter") == 0) {
+    *value = FLAGS_tcmalloc_sample_parameter;
+    return true;
+  }
+
+  if (TestingPortal** portal = TestingPortal::CheckGetPortal(name, value); portal) {
+    *portal = TestingPortalImpl::Get();
+    *value = 1;
+    return true;
+  }
+
+  return false;
+}
+
+bool TCMallocImplementation::SetNumericProperty(const char* name, size_t value) {
+  ASSERT(name != nullptr);
+
+  if (strcmp(name, "tcmalloc.max_total_thread_cache_bytes") == 0) {
+    SpinLockHolder l(ThreadCache::threads_lock());
+    ThreadCache::set_overall_thread_cache_size(value);
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.min_per_thread_cache_bytes") == 0) {
+    ThreadCache::set_min_per_thread_cache_size(value);
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.aggressive_memory_decommit") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    Static::pageheap()->SetAggressiveDecommit(value != 0);
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.heap_limit_mb") == 0) {
+    SpinLockHolder l(Static::pageheap_lock());
+    FLAGS_tcmalloc_heap_limit_mb = value;
+    return true;
+  }
+
+  if (strcmp(name, "tcmalloc.sample_parameter") == 0) {
+    FLAGS_tcmalloc_sample_parameter = value;
+    // By clearing current thread's cache we force next allocations
+    // to read freshly updated sample parameter. This is only going
+    // to affect current thread, but this is better than nothing.
+    MallocExtension::instance()->MarkThreadIdle();
+    return true;
+  }
+
+  return false;
+}
+
+void TCMallocImplementation::MarkThreadTemporarilyIdle() {
+  MarkThreadIdle();
+}
+
+void TCMallocImplementation::MarkThreadIdle() {
+  ThreadCache* cache = ThreadCachePtr::ReleaseAndClear();
+  if (cache) {
+    // When our thread had cache, lets delete it
+    ThreadCache::DeleteCache(cache);
+  }
+}
+
+SysAllocator* TCMallocImplementation::GetSystemAllocator() {
+  SpinLockHolder h(Static::pageheap_lock());
+  return tcmalloc_sys_alloc;
+}
+
+void TCMallocImplementation::SetSystemAllocator(SysAllocator* alloc) {
+  SpinLockHolder h(Static::pageheap_lock());
+  tcmalloc_sys_alloc = alloc;
+}
+
+void TCMallocImplementation::ReleaseToSystem(size_t num_bytes) {
+  SpinLockHolder h(Static::pageheap_lock());
+  if (num_bytes <= extra_bytes_released_) {
+    // We released too much on a prior call, so don't release any
+    // more this time.
+    extra_bytes_released_ = extra_bytes_released_ - num_bytes;
+    return;
+  }
+  num_bytes = num_bytes - extra_bytes_released_;
+  // num_bytes might be less than one page.  If we pass zero to
+  // ReleaseAtLeastNPages, it won't do anything, so we release a whole
+  // page now and let extra_bytes_released_ smooth it out over time.
+  Length num_pages = std::max<Length>(num_bytes >> kPageShift, 1);
+  size_t bytes_released = Static::pageheap()->ReleaseAtLeastNPages(num_pages) << kPageShift;
+  if (bytes_released > num_bytes) {
+    extra_bytes_released_ = bytes_released - num_bytes;
+  } else {
+    // The PageHeap wasn't able to release num_bytes.  Don't try to
+    // compensate with a big release next time.  Specifically,
+    // ReleaseFreeMemory() calls ReleaseToSystem(LONG_MAX).
+    extra_bytes_released_ = 0;
+  }
+}
+
+void TCMallocImplementation::SetMemoryReleaseRate(double rate) {
+  FLAGS_tcmalloc_release_rate = rate;
+}
+
+double TCMallocImplementation::GetMemoryReleaseRate() {
+  return FLAGS_tcmalloc_release_rate;
+}
+
+MallocExtension::Ownership TCMallocImplementation::GetOwnership(const void* ptr) {
+  return tcmalloc::IsOwnedByUs(ptr) ? kOwned : kNotOwned;
+}
+
+void TCMallocImplementation::GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {
+  static const char kCentralCacheType[] = "tcmalloc.central";
+  static const char kTransferCacheType[] = "tcmalloc.transfer";
+  static const char kThreadCacheType[] = "tcmalloc.thread";
+  static const char kPageHeapType[] = "tcmalloc.page";
+  static const char kPageHeapUnmappedType[] = "tcmalloc.page_unmapped";
+  static const char kLargeSpanType[] = "tcmalloc.large";
+  static const char kLargeUnmappedSpanType[] = "tcmalloc.large_unmapped";
+
+  v->clear();
+
+  // central class information
+  int64_t prev_class_size = 0;
+  for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
+    size_t class_size = Static::sizemap()->ByteSizeForClass(cl);
+    MallocExtension::FreeListInfo i;
+    i.min_object_size = prev_class_size + 1;
+    i.max_object_size = class_size;
+    i.total_bytes_free = Static::central_cache()[cl].length() * class_size;
+    i.type = kCentralCacheType;
+    v->push_back(i);
+
+    // transfer cache
+    i.total_bytes_free = Static::central_cache()[cl].tc_length() * class_size;
+    i.type = kTransferCacheType;
+    v->push_back(i);
+
+    prev_class_size = Static::sizemap()->ByteSizeForClass(cl);
+  }
+
+  // Add stats from per-thread heaps
+  uint64_t class_count[kClassSizesMax];
+  memset(class_count, 0, sizeof(class_count));
+  {
+    SpinLockHolder h(ThreadCache::threads_lock());
+    uint64_t thread_bytes = 0;
+    ThreadCache::GetThreadStats(&thread_bytes, class_count);
+  }
+
+  prev_class_size = 0;
+  for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
+    MallocExtension::FreeListInfo i;
+    i.min_object_size = prev_class_size + 1;
+    i.max_object_size = Static::sizemap()->ByteSizeForClass(cl);
+    i.total_bytes_free = class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
+    i.type = kThreadCacheType;
+    v->push_back(i);
+
+    prev_class_size = Static::sizemap()->ByteSizeForClass(cl);
+  }
+
+  // append page heap info
+  PageHeap::SmallSpanStats small;
+  PageHeap::LargeSpanStats large;
+  {
     SpinLockHolder h(Static::pageheap_lock());
-    tcmalloc_sys_alloc = alloc;
+    Static::pageheap()->GetSmallSpanStatsLocked(&small);
+    Static::pageheap()->GetLargeSpanStatsLocked(&large);
   }
 
-  virtual void ReleaseToSystem(size_t num_bytes) {
-    SpinLockHolder h(Static::pageheap_lock());
-    if (num_bytes <= extra_bytes_released_) {
-      // We released too much on a prior call, so don't release any
-      // more this time.
-      extra_bytes_released_ = extra_bytes_released_ - num_bytes;
-      return;
-    }
-    num_bytes = num_bytes - extra_bytes_released_;
-    // num_bytes might be less than one page.  If we pass zero to
-    // ReleaseAtLeastNPages, it won't do anything, so we release a whole
-    // page now and let extra_bytes_released_ smooth it out over time.
-    Length num_pages = std::max<Length>(num_bytes >> kPageShift, 1);
-    size_t bytes_released = Static::pageheap()->ReleaseAtLeastNPages(num_pages) << kPageShift;
-    if (bytes_released > num_bytes) {
-      extra_bytes_released_ = bytes_released - num_bytes;
-    } else {
-      // The PageHeap wasn't able to release num_bytes.  Don't try to
-      // compensate with a big release next time.  Specifically,
-      // ReleaseFreeMemory() calls ReleaseToSystem(LONG_MAX).
-      extra_bytes_released_ = 0;
-    }
+  // large spans: mapped
+  MallocExtension::FreeListInfo span_info;
+  span_info.type = kLargeSpanType;
+  span_info.max_object_size = (std::numeric_limits<size_t>::max)();
+  span_info.min_object_size = kMaxPages << kPageShift;
+  span_info.total_bytes_free = large.normal_pages << kPageShift;
+  v->push_back(span_info);
+
+  // large spans: unmapped
+  span_info.type = kLargeUnmappedSpanType;
+  span_info.total_bytes_free = large.returned_pages << kPageShift;
+  v->push_back(span_info);
+
+  // small spans
+  for (int s = 1; s <= kMaxPages; s++) {
+    MallocExtension::FreeListInfo i;
+    i.max_object_size = (s << kPageShift);
+    i.min_object_size = ((s - 1) << kPageShift);
+
+    i.type = kPageHeapType;
+    i.total_bytes_free = (s << kPageShift) * small.normal_length[s - 1];
+    v->push_back(i);
+
+    i.type = kPageHeapUnmappedType;
+    i.total_bytes_free = (s << kPageShift) * small.returned_length[s - 1];
+    v->push_back(i);
   }
+}
 
-  virtual void SetMemoryReleaseRate(double rate) { FLAGS_tcmalloc_release_rate = rate; }
-
-  virtual double GetMemoryReleaseRate() { return FLAGS_tcmalloc_release_rate; }
-  virtual size_t GetEstimatedAllocatedSize(size_t size);
-
-  // This just calls GetSizeWithCallback, but because that's in an
-  // unnamed namespace, we need to move the definition below it in the
-  // file.
-  virtual size_t GetAllocatedSize(const void* ptr);
-
-  // This duplicates some of the logic in GetSizeWithCallback, but is
-  // faster.  This is important on OS X, where this function is called
-  // on every allocation operation.
-  virtual Ownership GetOwnership(const void* ptr) {
-    return tcmalloc::IsOwnedByUs(ptr) ? kOwned : kNotOwned;
-  }
-
-  virtual void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {
-    static const char kCentralCacheType[] = "tcmalloc.central";
-    static const char kTransferCacheType[] = "tcmalloc.transfer";
-    static const char kThreadCacheType[] = "tcmalloc.thread";
-    static const char kPageHeapType[] = "tcmalloc.page";
-    static const char kPageHeapUnmappedType[] = "tcmalloc.page_unmapped";
-    static const char kLargeSpanType[] = "tcmalloc.large";
-    static const char kLargeUnmappedSpanType[] = "tcmalloc.large_unmapped";
-
-    v->clear();
-
-    // central class information
-    int64_t prev_class_size = 0;
-    for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
-      size_t class_size = Static::sizemap()->ByteSizeForClass(cl);
-      MallocExtension::FreeListInfo i;
-      i.min_object_size = prev_class_size + 1;
-      i.max_object_size = class_size;
-      i.total_bytes_free = Static::central_cache()[cl].length() * class_size;
-      i.type = kCentralCacheType;
-      v->push_back(i);
-
-      // transfer cache
-      i.total_bytes_free = Static::central_cache()[cl].tc_length() * class_size;
-      i.type = kTransferCacheType;
-      v->push_back(i);
-
-      prev_class_size = Static::sizemap()->ByteSizeForClass(cl);
-    }
-
-    // Add stats from per-thread heaps
-    uint64_t class_count[kClassSizesMax];
-    memset(class_count, 0, sizeof(class_count));
-    {
-      SpinLockHolder h(ThreadCache::threads_lock());
-      uint64_t thread_bytes = 0;
-      ThreadCache::GetThreadStats(&thread_bytes, class_count);
-    }
-
-    prev_class_size = 0;
-    for (int cl = 1; cl < Static::num_size_classes(); ++cl) {
-      MallocExtension::FreeListInfo i;
-      i.min_object_size = prev_class_size + 1;
-      i.max_object_size = Static::sizemap()->ByteSizeForClass(cl);
-      i.total_bytes_free = class_count[cl] * Static::sizemap()->ByteSizeForClass(cl);
-      i.type = kThreadCacheType;
-      v->push_back(i);
-
-      prev_class_size = Static::sizemap()->ByteSizeForClass(cl);
-    }
-
-    // append page heap info
-    PageHeap::SmallSpanStats small;
-    PageHeap::LargeSpanStats large;
-    {
-      SpinLockHolder h(Static::pageheap_lock());
-      Static::pageheap()->GetSmallSpanStatsLocked(&small);
-      Static::pageheap()->GetLargeSpanStatsLocked(&large);
-    }
-
-    // large spans: mapped
-    MallocExtension::FreeListInfo span_info;
-    span_info.type = kLargeSpanType;
-    span_info.max_object_size = (std::numeric_limits<size_t>::max)();
-    span_info.min_object_size = kMaxPages << kPageShift;
-    span_info.total_bytes_free = large.normal_pages << kPageShift;
-    v->push_back(span_info);
-
-    // large spans: unmapped
-    span_info.type = kLargeUnmappedSpanType;
-    span_info.total_bytes_free = large.returned_pages << kPageShift;
-    v->push_back(span_info);
-
-    // small spans
-    for (int s = 1; s <= kMaxPages; s++) {
-      MallocExtension::FreeListInfo i;
-      i.max_object_size = (s << kPageShift);
-      i.min_object_size = ((s - 1) << kPageShift);
-
-      i.type = kPageHeapType;
-      i.total_bytes_free = (s << kPageShift) * small.normal_length[s - 1];
-      v->push_back(i);
-
-      i.type = kPageHeapUnmappedType;
-      i.total_bytes_free = (s << kPageShift) * small.returned_length[s - 1];
-      v->push_back(i);
-    }
-  }
-};
 
 static ALWAYS_INLINE size_t align_size_up(size_t size, size_t align) {
   ASSERT(align <= kPageSize);
