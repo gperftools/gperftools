@@ -1194,9 +1194,10 @@ static void* DoSampledAllocation(size_t size) {
 namespace {
 
 enum OOMKind {
-  kMallocOOM, // oom handling for malloc() (respects tc_new_mode if set)
-  kThrowOOM, // normal throwing oom, with new handler
-  kNoThrowOOM, // nothrow variants
+  kMallocOOM,   // oom handling for malloc() (respects tc_new_mode if set)
+  kThrowOOM,    // normal throwing oom, with new handler
+  kNoThrowOOM,  // nothrow variants
+  kMallocOOMSkipNewHandler, // see tc_malloc_skip_new_handler
 };
 
 ATTRIBUTE_NOINLINE void* HandleOOM(OOMKind oom_kind, tcmalloc::FunctionRef<void*()> retry) {
@@ -1210,7 +1211,7 @@ ATTRIBUTE_NOINLINE void* HandleOOM(OOMKind oom_kind, tcmalloc::FunctionRef<void*
   // be set, but doesn't forbid it too (and often C++ oom does happen
   // with ENOMEM set).
   errno = ENOMEM;
-  if (oom_kind == kMallocOOM && !tc_new_mode) {
+  if ((oom_kind == kMallocOOM && !tc_new_mode) || oom_kind == kMallocOOMSkipNewHandler) {
     // We're out of memory in C library function (malloc etc) and no
     // "new mode" forced on us. Just return nullptr
     return nullptr;
@@ -2102,10 +2103,11 @@ extern "C" PERFTOOLS_DLL_DECL size_t tc_malloc_size(void* ptr) PERFTOOLS_NOTHROW
   return MallocExtension::instance()->GetAllocatedSize(ptr);
 }
 
+// tc_malloc_skip_new_handler is defined to behave like malloc(), but
+// its OOM handling ignores the setting of tc_new_mode. That is OOM
+// always return nullptr and sets ENOMEM, no matter tc_set_new_mode().
 extern "C" PERFTOOLS_DLL_DECL void* tc_malloc_skip_new_handler(size_t size) PERFTOOLS_NOTHROW {
-  void* result = do_malloc(size);
-  tcmalloc::InvokeNewHook(result, size);
-  return result;
+  return malloc_fast_path<kMallocOOMSkipNewHandler>(size);
 }
 
 #endif  // TCMALLOC_USING_DEBUGALLOCATION

@@ -1142,6 +1142,21 @@ TEST(TCMallocTest, SetNewMode) {
   tc_set_new_mode(old_mode);
 }
 
+// tc_malloc_skip_new_handler must behave like malloc on OOM, but
+// ignore tc_new_mode: return nullptr without invoking new handler.
+TEST(TCMallocTest, SkipNewHandlerIgnoresNewMode) {
+  int old_mode = tc_set_new_mode(1);
+
+  g_old_handler = std::set_new_handler(&OnNoMemory);
+  g_no_memory = false;
+  void* ret = noopt(tc_malloc_skip_new_handler(noopt(kTooBig)));
+  EXPECT_EQ(nullptr, ret);
+  EXPECT_FALSE(g_no_memory);
+
+  std::set_new_handler(g_old_handler);
+  tc_set_new_mode(old_mode);
+}
+
 TEST(TCMallocTest, TestErrno) {
   void* ret;
   if (kOSSupportsMemalign) {
