@@ -101,6 +101,7 @@
 #include "gperftools/malloc_hook.h"
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"
+#include "alloc_overlays.h"
 
 // From crtdbg.h; the block type we pass to the debug CRT's *_dbg functions.
 #ifndef _NORMAL_BLOCK
@@ -308,6 +309,12 @@ class LibcInfoWithPatchFunctions : public LibcInfo {
   static GenericFnPtr OrigFn(int ifunction) {
     return origstub_fn_[ifunction] ? origstub_fn_[ifunction] : LibcInfo::static_fn(ifunction);
   }
+
+  // equivalent of tcmalloc.cc:free_fast_path but handling passing OrigFn(kFree)
+  static void FreeFastPathPatched(void* ptr, bool size_given, size_t size, int orig_free_idx);
+
+  // realloc of a foreign (pre-patch CRT) pointer while overlays are active
+  static void* ReallocForeignWithOverlay(void* old_ptr, size_t new_size, const tcmalloc::AllocOps* overlay);
 
   // This is the function we want to patch in
   static const GenericFnPtr perftools_fn_[kNumFunctions];
@@ -837,6 +844,34 @@ bool PatchAllModules() {
 // against the file with do_malloc, and ignore the one with malloc.
 #include "tcmalloc.cc"
 
+// equivalent of free_fast_path but handling passing of invalid_free_fn
+template <int T>
+ALWAYS_INLINE void LibcInfoWithPatchFunctions<T>::FreeFastPathPatched(void* ptr, bool size_given, size_t size, int orig_free_idx) {
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    if (tcmalloc::IsOwnedByUs(ptr)) {
+      // TODO: flags, eventually
+      return tcmalloc::dispatch_free<0>(ptr, 0, 0, overlay);
+    }
+    // fine to skip overlays for foreign pointers.
+    //
+    // TODO: this silently assumes that tcmalloc with overlays always uses
+    // pointers "owned by us". Strictly speaking some possible overlay
+    // implementations could violate it. Here we're forced to assume
+    // !not-ours -> must be pre-patched pointer, which won't work for
+    // those fancier overlays. So, eventually, we'll need to solve it
+    // somehow, or perhaps forbid general overlays on patched windows
+    // runtime.
+  }
+
+  // Passing e.g. OrigFn(kFree) makes us call the original windows
+  // free if do_free decides ptr was not allocated by tcmalloc.  Note
+  // it calls the origstub_free from *this* templatized instance of
+  // LibcInfo.  See "template trickiness" above.
+  auto orig = (void (*)(void*))OrigFn(orig_free_idx);
+  do_free_with_callback(ptr, orig, size_given, size);
+}
+
+
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
   return malloc_fast_path<kMallocOOM>(size);
@@ -844,33 +879,33 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_malloc(size_t size) __THROW {
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free(void* ptr) __THROW {
-  tcmalloc::InvokeDeleteHook(ptr);
-  // This calls the windows free if do_free decides ptr was not
-  // allocated by tcmalloc.  Note it calls the origstub_free from
-  // *this* templatized instance of LibcInfo.  See "template
-  // trickiness" above.
-  do_free_with_callback(ptr, (void (*)(void*))OrigFn(kFree), false, 0);
+  FreeFastPathPatched(ptr, false, 0, kFree);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free_base(void* ptr) __THROW {
-  tcmalloc::InvokeDeleteHook(ptr);
-  // This calls the windows free if do_free decides ptr was not
-  // allocated by tcmalloc.  Note it calls the origstub_free from
-  // *this* templatized instance of LibcInfo.  See "template
-  // trickiness" above.
-  do_free_with_callback(ptr, (void (*)(void*))OrigFn(kFreeBase), false, 0);
+  FreeFastPathPatched(ptr, false, 0, kFreeBase);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use) __THROW {
-  tcmalloc::InvokeDeleteHook(ptr);
   // The windows _free_dbg is called if ptr isn't owned by tcmalloc.
-  if (MallocExtension::instance()->GetOwnership(ptr) == MallocExtension::kOwned) {
-    do_free(ptr);
-  } else {
+  // Can't use FreeFastPathPatched, since _free_dbg takes block_use.
+  if (!tcmalloc::IsOwnedByUs(ptr)) {
     reinterpret_cast<void (*)(void*, int)>(OrigFn(kFreeDbg))(ptr, block_use);
+    return;
   }
+  free_fast_path(ptr);
+}
+
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::ReallocForeignWithOverlay(void* old_ptr, size_t new_size, const AllocOps* overlay) {
+  size_t old_size = ((size_t (*)(const void*))OrigFn(k_Msize))(old_ptr);
+  void* new_ptr = tcmalloc::dispatch_malloc<kMallocOOM>(new_size, 0, 0, overlay);
+  if (!new_ptr) return new_ptr;
+  memcpy(new_ptr, old_ptr, std::min(new_size, old_size));
+  ((void (*)(void*))OrigFn(kFree))(old_ptr);
+  return new_ptr;
 }
 
 template <int T>
@@ -919,14 +954,17 @@ size_t LibcInfoWithPatchFunctions<T>::Perftools__msize_dbg(void* ptr, int) __THR
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(void* old_ptr, size_t new_size) __THROW {
   if (old_ptr == nullptr) {
-    void* result = do_malloc_or_cpp_alloc(new_size);
-    tcmalloc::InvokeNewHook(result, new_size);
-    return result;
+    return tc_malloc(new_size);
   }
   if (new_size == 0) {
-    tcmalloc::InvokeDeleteHook(old_ptr);
-    do_free_with_callback(old_ptr, (void (*)(void*))OrigFn(kFree), false, 0);
+    FreeFastPathPatched(old_ptr, false, 0, kFree);
     return nullptr;
+  }
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    if (!tcmalloc::IsOwnedByUs(old_ptr)) {
+      return ReallocForeignWithOverlay(old_ptr, new_size, overlay);
+    }
+    return tcmalloc::dispatch_realloc(old_ptr, new_size, overlay);
   }
   return do_realloc_with_callback(old_ptr, new_size, (void (*)(void*))OrigFn(kFree),
                                   (size_t (*)(const void*))OrigFn(k_Msize));
@@ -934,9 +972,12 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_realloc(void* old_ptr, size_t new
 
 template <int T>
 void* LibcInfoWithPatchFunctions<T>::Perftools_calloc(size_t n, size_t elem_size) __THROW {
-  void* result = do_calloc(n, elem_size);
-  tcmalloc::InvokeNewHook(result, n * elem_size);
-  return result;
+  // Note: must not be just "return tc_calloc(...)". MSVC compiles
+  // that into a single jmp, and PreamblePatcher::ResolveTarget
+  // follows jmp chains. So the next patch unit that resolves the
+  // (already patched) calloc would end up at tc_calloc and patch it
+  // to jump back to us: infinite jmp loop.
+  return do_calloc(n, elem_size);
 }
 
 template <int T>
@@ -951,14 +992,12 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray(size_t size) {
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete(void* p) {
-  tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
+  FreeFastPathPatched(p, false, 0, kFree);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray(void* p) {
-  tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
+  FreeFastPathPatched(p, false, 0, kFree);
 }
 
 template <int T>
@@ -973,14 +1012,12 @@ void* LibcInfoWithPatchFunctions<T>::Perftools_newarray_nothrow(size_t size, con
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_delete_nothrow(void* p, const std::nothrow_t&) __THROW {
-  tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
+  FreeFastPathPatched(p, false, 0, kFree);
 }
 
 template <int T>
 void LibcInfoWithPatchFunctions<T>::Perftools_deletearray_nothrow(void* p, const std::nothrow_t&) __THROW {
-  tcmalloc::InvokeDeleteHook(p);
-  do_free_with_callback(p, (void (*)(void*))OrigFn(kFree), false, 0);
+  FreeFastPathPatched(p, false, 0, kFree);
 }
 
 // _msize() lets you figure out how much space is reserved for a

@@ -139,6 +139,8 @@
 #include "maybe_emergency_malloc.h"  // IWYU pragma: keep
 #include "testing_portal.h"
 
+#include "alloc_overlays.h"
+
 #if (defined(_WIN32) && !defined(__CYGWIN__) && !defined(__CYGWIN32__)) && !defined(WIN32_OVERRIDE_ALLOCATORS)
 #define WIN32_DO_PATCHING 1
 #endif
@@ -156,6 +158,7 @@ using tcmalloc::StackTrace;
 using tcmalloc::Static;
 using tcmalloc::ThreadCache;
 using tcmalloc::ThreadCachePtr;
+using tcmalloc::AllocOps;
 
 using tcmalloc::TestingPortal;
 
@@ -249,6 +252,43 @@ ATTRIBUTE_NOINLINE size_t tc_malloc_size(void* p) PERFTOOLS_NOTHROW;
 }  // extern "C"
 
 // ----------------------- IMPLEMENTATION -------------------------------
+
+namespace tcmalloc {
+void* BaseMalloc(size_t size, size_t align, uint32_t flags);
+void BaseFree(void* ptr, size_t size_hint, size_t align, uint32_t flags);
+bool BaseResizeInPlace(void* ptr, size_t new_size);
+size_t BaseNAllocX(size_t size, size_t align);
+size_t BaseUsableSize(const void* ptr);
+
+void* InitialMalloc(size_t size, size_t align, uint32_t flags);
+void InitialFree(void* ptr, size_t size_hint, size_t align, uint32_t flags);
+bool InitialResizeInPlace(void* ptr, size_t new_size);
+size_t InitialNAllocX(size_t size, size_t align);
+size_t InitialUsableSize(const void* ptr);
+
+void* HooksOverlayMalloc(size_t size, size_t align, uint32_t flags);
+void HooksOverlayFree(void* ptr, size_t size_hint, size_t align, uint32_t flags);
+bool HooksOverlayResizeInPlace(void* ptr, size_t new_size);
+size_t HooksOverlayNAllocX(size_t size, size_t align);
+size_t HooksOverlayUsableSize(const void* ptr);
+
+const AllocOps base_ops = {BaseMalloc, BaseFree, BaseResizeInPlace, BaseNAllocX, BaseUsableSize};
+const AllocOps initial_ops = {InitialMalloc, InitialFree, InitialResizeInPlace, InitialNAllocX, InitialUsableSize};
+const AllocOps hooks_overlay = {HooksOverlayMalloc, HooksOverlayFree, HooksOverlayResizeInPlace, HooksOverlayNAllocX, HooksOverlayUsableSize};
+
+const AllocOps* active_overlay = &initial_ops;
+const AllocOps* top_ops = &base_ops;
+
+void UpdateActiveOverlayLocked() {
+  bool empty = (base::internal::new_hooks_.empty() && base::internal::delete_hooks_.empty());
+  if (empty) {
+    active_overlay = (top_ops == &base_ops) ? nullptr : top_ops;
+  } else {
+    active_overlay = &hooks_overlay;
+  }
+}
+
+}  // namespace tcmalloc
 
 static int tc_new_mode = 0;  // See tc_set_new_mode().
 
@@ -497,6 +537,26 @@ static void IterateOverRanges(void* arg, MallocExtension::RangeFunction func) {
 }
 
 namespace tcmalloc {
+
+// The "core" of GetOwnership implementation for tcmalloc.
+ALWAYS_INLINE bool IsOwnedByUs(const void* ptr) {
+  const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
+  // The rest of tcmalloc assumes that all allocated pointers use at
+  // most kAddressBits bits.  If ptr doesn't, then it definitely
+  // wasn't allocated by tcmalloc.
+  if (PREDICT_FALSE((p >> (kAddressBits - kPageShift)) > 0)) {
+    return false;
+  }
+  uint32_t cl;
+  if (PREDICT_TRUE(Static::pageheap()->TryGetSizeClass(p, &cl))) {
+    return true;
+  }
+  const Span* span = Static::pageheap()->GetDescriptor(p);
+  if (PREDICT_TRUE(span)) {
+    return true;
+  }
+  return tcmalloc::IsEmergencyPtr(ptr);
+}
 
 TestingPortal::~TestingPortal() = default;
 
@@ -906,22 +966,7 @@ class TCMallocImplementation : public MallocExtension {
   // faster.  This is important on OS X, where this function is called
   // on every allocation operation.
   virtual Ownership GetOwnership(const void* ptr) {
-    const PageID p = reinterpret_cast<uintptr_t>(ptr) >> kPageShift;
-    // The rest of tcmalloc assumes that all allocated pointers use at
-    // most kAddressBits bits.  If ptr doesn't, then it definitely
-    // wasn't alloacted by tcmalloc.
-    if ((p >> (kAddressBits - kPageShift)) > 0) {
-      return kNotOwned;
-    }
-    uint32_t cl;
-    if (Static::pageheap()->TryGetSizeClass(p, &cl)) {
-      return kOwned;
-    }
-    const Span* span = Static::pageheap()->GetDescriptor(p);
-    if (span) {
-      return kOwned;
-    }
-    return tcmalloc::IsEmergencyPtr(ptr) ? kOwned : kNotOwned;
+    return tcmalloc::IsOwnedByUs(ptr) ? kOwned : kNotOwned;
   }
 
   virtual void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) {
@@ -1409,30 +1454,6 @@ ALWAYS_INLINE void* do_malloc_or_cpp_alloc(size_t size) {
   return HandleOOM(kMallocOOM, [size] () { return do_malloc(size); });
 }
 
-ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
-  // Overflow check
-  const size_t size = n * elem_size;
-  if (elem_size != 0 && size / elem_size != n) return nullptr;
-
-  void* result = do_malloc_or_cpp_alloc(size);
-  if (result != nullptr) {
-    size_t total_size = size;
-    if (!tcmalloc::IsEmergencyPtr(result)) {
-      // On windows we support recalloc (which was apparently
-      // originally introduced in Irix). In order for recalloc to work
-      // we need to zero-out not just the size we were asked for, but
-      // entire usable size. See also
-      // https://github.com/gperftools/gperftools/pull/994.
-      //
-      // But we can do it only when not dealing with emergency
-      // malloc-ed memory.
-      total_size = tc_nallocx(size, 0);
-    }
-    memset(result, 0, total_size);
-  }
-  return result;
-}
-
 // If ptr is nullptr, do nothing.  Otherwise invoke the given function.
 inline void free_null_or_invalid(void* ptr, void (*invalid_free_fn)(void*)) {
   if (ptr != nullptr) {
@@ -1583,12 +1604,8 @@ ALWAYS_INLINE void* do_realloc_with_callback(void* old_ptr, size_t new_size, voi
       });
 
   if (tc_nallocx(new_size, 0) == currently_usable) {
-    // stay in place. Communicate new logical size to the hooks.
-    //
     // Note: we're skipping sampling updates because we consider this
     // "allocation" 0-cost.
-    tcmalloc::InvokeDeleteHook(old_ptr);
-    tcmalloc::InvokeNewHook(old_ptr, new_size);
     return old_ptr;
   }
 
@@ -1606,9 +1623,7 @@ ALWAYS_INLINE void* do_realloc_with_callback(void* old_ptr, size_t new_size, voi
     currently_usable = invalid_get_size_fn(old_ptr);
   }
 
-  tcmalloc::InvokeNewHook(new_ptr, new_size);
   memcpy(new_ptr, old_ptr, std::min(currently_usable, new_size));
-  tcmalloc::InvokeDeleteHook(old_ptr);
 
   // We could use a variant of do_free() that leverages the fact that
   // we already know the sizeclass of old_ptr.  The benefit would be
@@ -1712,8 +1727,90 @@ extern "C" PERFTOOLS_DLL_DECL int tc_query_new_mode() PERFTOOLS_NOTHROW { return
 namespace tcmalloc {
 void* TestingPortalImpl::RunReallocWithCallback(void* old_ptr, size_t new_size, void (*invalid_free_fn)(void*),
                                                 size_t (*invalid_get_size_fn)(const void*)) {
+  // NOTE: this is only for testing, so it ignores overlays.
   return do_realloc_with_callback(old_ptr, new_size, invalid_free_fn, invalid_get_size_fn);
 }
+
+void* BaseMalloc(size_t size, size_t align, uint32_t) {
+  if (align > kPageSize) {
+    return do_memalign_pages(align, size);
+  }
+  size = align ? align_size_up(size, align) : size;
+  return do_malloc(size);
+}
+void BaseFree(void* ptr, size_t size_hint, size_t align, uint32_t) {
+  do_free(ptr);
+}
+bool BaseResizeInPlace(void* ptr, size_t new_size) {
+  return (BaseUsableSize(ptr) == BaseNAllocX(new_size, 0));
+}
+size_t BaseNAllocX(size_t size, size_t align) {
+  // TODO: cleanup duplication with nallocx_slow
+  uint32_t cl;
+  align = std::max(sizeof(void*), align);
+  bool ok = size_class_with_alignment(size, align, &cl);
+  if (ok) {
+    return Static::sizemap()->ByteSizeForClass(cl);
+  } else {
+    Length pages = tcmalloc::pages(size);
+    pages = Static::pageheap()->RoundUpSize(pages);
+    return pages << kPageShift;
+  }
+}
+size_t BaseUsableSize(const void* ptr) { return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize); }
+
+static const AllocOps* InitialGetUnderlying() {
+  // Note: plain, unlocked update of active_overlay. We get here only on
+  // the very first malloc call(s), i.e. early in process lifetime
+  // when we expect no threads. So there are no concurrent new/delete hook
+  // (un)registrations (UpdateActiveOverlayLocked) to race with.
+  if (active_overlay == &initial_ops) active_overlay = nullptr;
+  ThreadCache::EnsureMallocInitialized();
+  const AllocOps* overlay = active_overlay;
+  if (!overlay) overlay = &base_ops;
+  return overlay;
+}
+
+void* InitialMalloc(size_t size, size_t align, uint32_t flags) {
+  return InitialGetUnderlying()->Malloc(size, align, flags);
+}
+void InitialFree(void* ptr, size_t size_hint, size_t align, uint32_t flags) {
+  return InitialGetUnderlying()->Free(ptr, size_hint, align, flags);
+}
+bool InitialResizeInPlace(void* ptr, size_t new_size) {
+  return InitialGetUnderlying()->ResizeInPlace(ptr, new_size);
+}
+size_t InitialNAllocX(size_t size, size_t align) {
+  return InitialGetUnderlying()->NAllocX(size, align);
+}
+size_t InitialUsableSize(const void* ptr) {
+  return InitialGetUnderlying()->UsableSize(ptr);
+}
+
+void* HooksOverlayMalloc(size_t size, size_t align, uint32_t flags) {
+  void* ret = top_ops->Malloc(size, align, flags);
+  InvokeNewHook(ret, size);
+  return ret;
+}
+void HooksOverlayFree(void* ptr, size_t size_hint, size_t align, uint32_t flags) {
+  InvokeDeleteHook(ptr);
+  top_ops->Free(ptr, size_hint, align, flags);
+}
+bool HooksOverlayResizeInPlace(void* ptr, size_t new_size) {
+  if (top_ops->ResizeInPlace(ptr, new_size)) {
+    InvokeDeleteHook(ptr);
+    InvokeNewHook(ptr, new_size);
+    return true;
+  }
+  return false;
+}
+size_t HooksOverlayNAllocX(size_t size, size_t align) {
+  return top_ops->NAllocX(size, align);
+}
+size_t HooksOverlayUsableSize(const void* ptr) {
+  return top_ops->UsableSize(ptr);
+}
+
 }  // namespace tcmalloc
 
 #ifndef TCMALLOC_USING_DEBUGALLOCATION  // debugallocation.cc defines its own
@@ -1725,11 +1822,6 @@ void* TestingPortalImpl::RunReallocWithCallback(void* old_ptr, size_t new_size, 
 
 namespace tcmalloc {
 
-static ATTRIBUTE_NOINLINE void invoke_hooks_and_free(void* ptr) {
-  tcmalloc::InvokeDeleteHook(ptr);
-  do_free(ptr);
-}
-
 // tcmalloc::allocate_full is called by fast-path malloc when some
 // complex handling is needed (such as fetching object from central
 // freelist or malloc sampling). It contains all 'operator new' logic,
@@ -1739,22 +1831,84 @@ static ATTRIBUTE_NOINLINE void invoke_hooks_and_free(void* ptr) {
 // Note that this is under tcmalloc namespace so that pprof
 // can automatically filter it out of growthz/heapz profiles.
 template <OOMKind OOM>
-ATTRIBUTE_NOINLINE static void* allocate_full(size_t size) {
+ATTRIBUTE_NOINLINE void* allocate_full(size_t size) {
   void* p = do_malloc(size);
   if (PREDICT_FALSE(p == nullptr)) {
     p = HandleOOM(OOM, [size] () { return do_malloc(size); });
   }
-  tcmalloc::InvokeNewHook(p, size);
   return CheckedMallocResult(p);
 }
 
-static ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, OOMKind oom) {
+ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, OOMKind oom) {
   void* rv = do_memalign_pages(align, size);
   if (PREDICT_FALSE(rv == nullptr)) {
     rv = HandleOOM(oom, [&] () { return do_memalign_pages(align, size); });
   }
-  tcmalloc::InvokeNewHook(rv, size);
   return CheckedMallocResult(rv);
+}
+
+template <OOMKind OOM>
+ATTRIBUTE_NOINLINE void* dispatch_malloc(size_t size, size_t align, uint32_t flags, const AllocOps* overlay) {
+  ASSERT(overlay != nullptr);  // callers invoke us when overlay is non-null
+
+  // grabbing cache_ptr is potentially redundant. We're not using
+  // actual ThreadCache* obtained here. But it checks for the (very
+  // unlikely) case of emergency malloc mode.
+  if constexpr (kUseEmergencyMalloc) {
+    ThreadCachePtr cache_ptr = ThreadCachePtr::Grab();
+    if (cache_ptr.IsEmergencyMallocEnabled()) {
+      // NOTE: emergency malloc doesn't support memalign. And non-hooked
+      // memalign path doesn't handle emergency mode correctly as
+      // well. It is not worth the complexity. So we duplicate this
+      // thinking here, by silently ignoring alignment when in emergency
+      // mode.
+      return EmergencyMalloc(size);
+    }
+  }
+
+  void* ptr = overlay->Malloc(size, align, flags);
+  if (ptr != nullptr) {
+    return ptr;
+  }
+
+  return HandleOOM(OOM, [&] () { return overlay->Malloc(size, align, flags); });
+}
+
+template <uint32_t kFlags>
+ATTRIBUTE_NOINLINE void dispatch_free(void* ptr, size_t size_hint, size_t align, const AllocOps* overlay) {
+  ASSERT(overlay != nullptr);
+  if (PREDICT_FALSE(ptr == nullptr)) {
+    return;
+  }
+  // Note, free path must not trigger ThreadCache allocation because
+  // free might be part of thread dying and running TLS destructors.
+  if (IsEmergencyPtr(ptr)) {
+    return EmergencyFree(ptr);
+  }
+  overlay->Free(ptr, size_hint, align, kFlags);
+}
+
+ATTRIBUTE_NOINLINE void* dispatch_realloc(void* old_ptr, size_t new_size, const AllocOps* overlay) {
+  ASSERT(old_ptr != nullptr && new_size != 0);
+  if (PREDICT_FALSE(tcmalloc::IsEmergencyPtr(old_ptr))) {
+    return tcmalloc::EmergencyRealloc(old_ptr, new_size);
+  }
+  if (overlay->ResizeInPlace(old_ptr, new_size)) {
+    return old_ptr;
+  }
+  // NOTE: emergency ptr has been handled above and we're not yet
+  // handling windows "invalid free goes to underlying heap".
+  size_t currently_usable = overlay->UsableSize(old_ptr);
+  void* new_ptr = overlay->Malloc(new_size, 0, 0);
+  if (PREDICT_FALSE(new_ptr == nullptr)) {
+    new_ptr = HandleOOM(kMallocOOM, [&] () { return overlay->Malloc(new_size, 0, 0); });
+    if (new_ptr == nullptr) {
+      return nullptr;
+    }
+  }
+  memcpy(new_ptr, old_ptr, std::min(currently_usable, new_size));
+  overlay->Free(old_ptr, 0, 0, 0);
+  return new_ptr;
 }
 
 }  // namespace tcmalloc
@@ -1774,11 +1928,18 @@ static ATTRIBUTE_NOINLINE void* memalign_pages(size_t align, size_t size, OOMKin
 // comprehension. Which itself led to elimination of various checks
 // that were not necessary for fast-path.
 template <OOMKind OOM>
-ALWAYS_INLINE static void* malloc_fast_path(size_t size) {
-  if (PREDICT_FALSE(!base::internal::new_hooks_.empty())) {
-    return tcmalloc::allocate_full<OOM>(size);
-  }
+void* malloc_fast_path_no_overlay(size_t size);
 
+template <OOMKind OOM>
+ALWAYS_INLINE void* malloc_fast_path(size_t size) {
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_malloc<OOM>(size, 0, 0, overlay); // TODO: flags
+  }
+  return malloc_fast_path_no_overlay<OOM>(size);
+}
+
+template <OOMKind OOM>
+ALWAYS_INLINE void* malloc_fast_path_no_overlay(size_t size) {
   ThreadCache* cache = ThreadCachePtr::GetIfPresent();
 
   if (PREDICT_FALSE(cache == nullptr)) {
@@ -1803,7 +1964,11 @@ ALWAYS_INLINE static void* malloc_fast_path(size_t size) {
 }
 
 template <OOMKind OOM>
-ALWAYS_INLINE static void* memalign_fast_path(size_t align, size_t size) {
+ALWAYS_INLINE void* memalign_fast_path(size_t align, size_t size) {
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_malloc<OOM>(size, align, 0, overlay); // TODO: flags
+  }
+
   if (PREDICT_FALSE(align > kPageSize)) {
     return tcmalloc::memalign_pages(align, size, OOM);
   }
@@ -1811,17 +1976,16 @@ ALWAYS_INLINE static void* memalign_fast_path(size_t align, size_t size) {
   // Everything with alignment <= kPageSize we can easily delegate to
   // regular malloc
 
-  return malloc_fast_path<OOM>(align_size_up(size, align));
+  return malloc_fast_path_no_overlay<OOM>(align_size_up(size, align));
 }
 
 extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void* tc_malloc(size_t size) PERFTOOLS_NOTHROW {
   return malloc_fast_path<kMallocOOM>(size);
 }
 
-static ALWAYS_INLINE void free_fast_path(void* ptr) {
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(ptr);
-    return;
+ALWAYS_INLINE void free_fast_path(void* ptr) {
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_free<0>(ptr, 0, 0, overlay); // TODO: flags
   }
   do_free(ptr);
 }
@@ -1834,9 +1998,8 @@ extern "C" PERFTOOLS_DLL_DECL CACHELINE_ALIGNED_FN void tc_free_sized(void* ptr,
   tc_free(ptr);
   return;
 #endif
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(ptr);
-    return;
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_free<0>(ptr, 0, 0, overlay); // TODO: flags
   }
 #ifndef NO_TCMALLOC_SAMPLES
   // if ptr is kPageSize-aligned, then it could be sampled allocation,
@@ -1868,10 +2031,36 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized(void* p, size_t size) PE
 
 #endif
 
-extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t n, size_t elem_size) PERFTOOLS_NOTHROW {
-  void* result = do_calloc(n, elem_size);
-  tcmalloc::InvokeNewHook(result, n * elem_size);
+ALWAYS_INLINE void* do_calloc(size_t n, size_t elem_size) {
+  // Overflow check
+  const size_t size = n * elem_size;
+  if (elem_size != 0 && size / elem_size != n) return nullptr;
+
+  void* result = tc_malloc(size);
+
+  if (result == nullptr) {
+    return result;
+  }
+
+  size_t total_size = size;
+  if (!tcmalloc::IsEmergencyPtr(result)) {
+    // On windows we support recalloc (which was apparently
+    // originally introduced in Irix). In order for recalloc to work
+    // we need to zero-out not just the size we were asked for, but
+    // entire usable size. See also
+    // https://github.com/gperftools/gperftools/pull/994.
+    //
+    // But we can do it only when not dealing with emergency
+    // malloc-ed memory.
+    total_size = tc_nallocx(size, 0);
+  }
+  memset(result, 0, total_size);
+
   return result;
+}
+
+extern "C" PERFTOOLS_DLL_DECL void* tc_calloc(size_t n, size_t elem_size) PERFTOOLS_NOTHROW {
+  return do_calloc(n, elem_size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW
@@ -1885,15 +2074,17 @@ extern "C" PERFTOOLS_DLL_DECL void tc_cfree(void* ptr) PERFTOOLS_NOTHROW
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* old_ptr, size_t new_size) PERFTOOLS_NOTHROW {
   if (old_ptr == nullptr) {
-    void* result = do_malloc_or_cpp_alloc(new_size);
-    tcmalloc::InvokeNewHook(result, new_size);
-    return result;
+    return tc_malloc(new_size);
   }
   if (new_size == 0) {
-    tcmalloc::InvokeDeleteHook(old_ptr);
-    do_free(old_ptr);
+    tc_free(old_ptr);
     return nullptr;
   }
+
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return dispatch_realloc(old_ptr, new_size, overlay);
+  }
+
   if (PREDICT_FALSE(tcmalloc::IsEmergencyPtr(old_ptr))) {
     return tcmalloc::EmergencyRealloc(old_ptr, new_size);
   }
@@ -1927,11 +2118,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete(void* p) PERFTOOLS_NOTHROW
 // (via ::operator delete(ptr, nothrow)).
 // But it's really the same as normal delete, so we just do the same thing.
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_nothrow(void* p, const std::nothrow_t&) PERFTOOLS_NOTHROW {
-  if (PREDICT_FALSE(!base::internal::delete_hooks_.empty())) {
-    tcmalloc::invoke_hooks_and_free(p);
-    return;
-  }
-  do_free(p);
+  free_fast_path(p);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void* tc_newarray(size_t size)

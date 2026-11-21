@@ -50,6 +50,13 @@
 
 using base::internal::kHookListMaxValues;
 
+namespace tcmalloc {
+void UpdateActiveOverlayLocked() {
+  // no-op implementation because this test doesn't link rest of
+  // tcmalloc.
+}
+}  // namespace tcmalloc
+
 // Since HookList is a template and is defined in malloc_hook.cc, we can only
 // use an instantiation of it from malloc_hook.cc.  We then reinterpret those
 // values as integers for testing.

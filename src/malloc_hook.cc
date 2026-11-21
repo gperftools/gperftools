@@ -50,6 +50,7 @@
 #include "base/spinlock.h"
 #include "malloc_backtrace.h"
 #include "maybe_emergency_malloc.h"  // IWYU pragma: keep
+#include "alloc_overlays.h"
 
 // __THROW is defined in glibc systems.  It means, counter-intuitively,
 // "This function will never throw an exception."  It's an optional
@@ -86,6 +87,7 @@ bool HookList<T>::Add(T value) {
   if (prev_num_hooks <= index) {
     priv_end.store(index + 1, std::memory_order_relaxed);
   }
+  tcmalloc::UpdateActiveOverlayLocked();
   return true;
 }
 
@@ -114,6 +116,7 @@ bool HookList<T>::Remove(T value) {
   }
   cast_priv_data(index)->store(T{}, std::memory_order_relaxed);
   FixupPrivEndLocked();
+  tcmalloc::UpdateActiveOverlayLocked();
   return true;
 }
 
@@ -143,6 +146,7 @@ T HookList<T>::ExchangeSingular(T value) {
   } else {
     FixupPrivEndLocked();
   }
+  tcmalloc::UpdateActiveOverlayLocked();
   return old_value;
 }
 

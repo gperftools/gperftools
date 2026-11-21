@@ -43,7 +43,11 @@ static constexpr uintptr_t kEmergencyArenaSize = uintptr_t{1} << kEmergencyArena
 
 ATTRIBUTE_VISIBILITY_HIDDEN extern char* emergency_arena_start;
 ATTRIBUTE_VISIBILITY_HIDDEN extern uintptr_t emergency_arena_start_shifted;
-;
+
+// NOTE: Emergency malloc doesn't support memalign. It could be done,
+// but it hasn't been needed so far and it is not worth the cost in
+// complexity. Attempts to use memalign/aligned_alloc in emergency
+// malloc mode will silently misbehave.
 
 ATTRIBUTE_VISIBILITY_HIDDEN void* EmergencyMalloc(size_t size);
 ATTRIBUTE_VISIBILITY_HIDDEN void EmergencyFree(void* p);
