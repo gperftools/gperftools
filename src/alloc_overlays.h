@@ -99,6 +99,10 @@ struct AllocOps {
   void (*Free)(void* ptr, size_t size_hint, size_t align, uint32_t flags);
   // ptr != nullptr, new_size != 0. true = resized in place (ptr stays valid with new size).
   bool (*ResizeInPlace)(void* ptr, size_t new_size);
+  // NAllocX and UsableSize must be consistent: for every p returned
+  // by Malloc(size, align, ...), UsableSize(p) == NAllocX(size,
+  // align). Dispatcher checks that in debug builds. (Emergency
+  // malloc's chunks, which never come from overlays, are exempt.)
   size_t (*NAllocX)(size_t size, size_t align);
   size_t (*UsableSize)(const void* ptr);  // ptr != nullptr
 };

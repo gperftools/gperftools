@@ -1904,11 +1904,12 @@ ATTRIBUTE_NOINLINE void* dispatch_malloc(size_t size, size_t align, uint32_t fla
   }
 
   void* ptr = overlay->Malloc(size, align, flags);
-  if (ptr != nullptr) {
-    return ptr;
+  if (PREDICT_FALSE(ptr == nullptr)) {
+    ptr = HandleOOM(OOM, [&] () { return overlay->Malloc(size, align, flags); });
   }
-
-  return HandleOOM(OOM, [&] () { return overlay->Malloc(size, align, flags); });
+  // See AllocOps
+  ASSERT(ptr == nullptr || overlay->UsableSize(ptr) == overlay->NAllocX(size, align));
+  return ptr;
 }
 
 template <uint32_t kFlags>
