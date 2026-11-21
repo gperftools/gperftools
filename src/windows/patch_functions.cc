@@ -52,7 +52,12 @@
 // considering all the mmap-like functions that windows has (or he may
 // just be ignoring it because he's seen we already patch it).  Of the
 // above, we do not patch the *_dbg functions, and of the windows
-// functions, we only patch HeapAlloc and HeapFree.
+// heap functions, we only patch HeapFree, and only to work around
+// shell32 freeing our malloc-ed memory with HeapFree (see
+// Perftools_HeapFree). We used to also patch HeapAlloc (and report
+// HeapFree) for hooks accounting, but kernel32's HeapAlloc is really
+// ntdll's RtlAllocateHeap, so that made our hooks see all kinds of
+// internal Windows allocations, from any thread.
 //
 // The *_dbg functions come into play with /MDd, /MTd, and /MLd,
 // probably.  It may be ok to just turn off tcmalloc in those cases --
@@ -360,7 +365,7 @@ class WindowsInfo {
  private:
   // TODO(csilvers): should we be patching GlobalAlloc/LocalAlloc instead,
   //                 for pre-XP systems?
-  enum { kHeapAlloc, kHeapFree, kLoadLibraryExW, kFreeLibrary, kNumFunctions };
+  enum { kHeapFree, kLoadLibraryExW, kFreeLibrary, kNumFunctions };
 
   struct FunctionInfo {
     const char* const name;           // name of fn in a module (eg "malloc")
@@ -371,8 +376,6 @@ class WindowsInfo {
 
   static FunctionInfo function_info_[kNumFunctions];
 
-  // A Windows-API equivalent of malloc and free
-  static LPVOID WINAPI Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags, DWORD_PTR dwBytes);
   static BOOL WINAPI Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem);
   // We don't need the other 3 variants because they all call this one. */
   static HMODULE WINAPI Perftools_LoadLibraryExW(LPCWSTR lpFileName, HANDLE hFile, DWORD dwFlags);
@@ -386,7 +389,7 @@ class WindowsInfo {
 // the same executable.  One is responsible for patching the libc
 // routines that live in the main executable (if any) to use tcmalloc;
 // the other is responsible for patching the windows routines like
-// HeapAlloc/etc to use tcmalloc.
+// HeapFree and LoadLibraryExW.
 static LibcInfoWithPatchFunctions<0> main_executable;
 static LibcInfoWithPatchFunctions<1> libc1;
 static LibcInfoWithPatchFunctions<2> libc2;
@@ -478,7 +481,6 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {(GenericFnP
                                                                      (GenericFnPtr)&Perftools_free_dbg};
 
 /*static*/ WindowsInfo::FunctionInfo WindowsInfo::function_info_[] = {
-    {"HeapAlloc", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapAlloc},
     {"HeapFree", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapFree},
     {"LoadLibraryExW", nullptr, nullptr, (GenericFnPtr)&Perftools_LoadLibraryExW},
     {"FreeLibrary", nullptr, nullptr, (GenericFnPtr)&Perftools_FreeLibrary},
@@ -915,16 +917,7 @@ size_t LibcInfoWithPatchFunctions<T>::Perftools__msize(void* ptr) __THROW {
   return GetSizeWithCallback(ptr, (size_t (*)(const void*))OrigFn(k_Msize));
 }
 
-LPVOID WINAPI WindowsInfo::Perftools_HeapAlloc(HANDLE hHeap, DWORD dwFlags, DWORD_PTR dwBytes) {
-  LPVOID result =
-      ((LPVOID(WINAPI*)(HANDLE, DWORD, DWORD_PTR))function_info_[kHeapAlloc].origstub_fn)(hHeap, dwFlags, dwBytes);
-  tcmalloc::InvokeNewHook(result, dwBytes);
-  return result;
-}
-
 BOOL WINAPI WindowsInfo::Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem) {
-  tcmalloc::InvokeDeleteHook(lpMem);
-
   // We perform this check to work around a malloc/HeapFree mismatch
   // in shell32.dll versions [10.0.22000.0, 10.0.22621.900)
   // See issue #1490 for more context and oneapi-src/oneTBB #665
@@ -934,6 +927,9 @@ BOOL WINAPI WindowsInfo::Perftools_HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID 
   if (!owned_by_tcmalloc) {
     return ((BOOL(WINAPI*)(HANDLE, DWORD, LPVOID))function_info_[kHeapFree].origstub_fn)(hHeap, dwFlags, lpMem);
   } else {
+    // This memory came from our (patched) malloc, which reported it
+    // to new hooks, so report its freeing too.
+    tcmalloc::InvokeDeleteHook(lpMem);
     do_free(lpMem);
     return true;
   }
@@ -1016,7 +1012,7 @@ void UnpatchWindowsFunctions() {
   // malloc, can destroy themselves using the system free.  This depends
   // on DLLs unloading in the reverse order in which they load!
   //
-  // We also go back to the default HeapAlloc/etc, just for consistency.
+  // We also go back to the default HeapFree/etc, just for consistency.
   // Who knows, it may help avoid weird bugs in some situations.
   main_executable_windows.Unpatch();
   main_executable.Unpatch();
