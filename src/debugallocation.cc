@@ -455,25 +455,19 @@ class MallocBlock {
 
   static size_t data_offset() { return OFFSETOF_MEMBER(MallocBlock, size_and_magic2_); }
 
-  size_t raw_data_size() const { return size1_; }
-
-  // Note, this allocation might actually be from memalign, so raw_ptr
-  // might be >= data_addr() (see FromRawPointer and do_debug_memalign
-  // for how it works). So in order to get data size we should be
-  // careful.
-  size_t actual_data_size(const void* raw_ptr) const {
-    const char* raw_begin = static_cast<const char*>(data_addr());
-    const char* raw_end = raw_begin + raw_data_size();
-    CHECK_CONDITION(raw_begin <= raw_end);
-    CHECK_CONDITION(raw_begin <= raw_ptr);
-    CHECK_CONDITION(raw_ptr <= raw_end);
-
-    return raw_end - static_cast<const char*>(raw_ptr);
-  }
-
   void set_offset(int offset) { this->offset_ = offset; }
+  // Only for memalign's fake header. See UserSize.
+  void set_user_size(size_t size) { this->size1_ = size; }
 
  public:  // our main interface
+  // Returns size user asked for. p is what we handed to the user. It
+  // is data_addr() or, for memalign-ed blocks, some address inside our
+  // data area. In both cases the header right before p records size
+  // the user asked for (see do_debug_memalign).
+  static size_t UserSize(const void* p) {
+    return reinterpret_cast<const MallocBlock*>(static_cast<const char*>(p) - data_offset())->size1_;
+  }
+
   static MallocBlock* Allocate(size_t size, int type) {
     // Prevent an integer overflow / crash with large allocation sizes.
     // TODO - Note that for a e.g. 64-bit size_t, max_size_t may not actually
@@ -998,7 +992,7 @@ static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
   }
 
   if (FLAGS_malloctrace) {
-    TraceAlloc("free", (ptr != 0 ? MallocBlock::FromRawPointer(ptr)->actual_data_size(ptr) : 0), ptr);
+    TraceAlloc("free", (ptr != 0 ? MallocBlock::UserSize(ptr) : 0), ptr);
   }
   if (ptr) MallocBlock::FromRawPointer(ptr)->Deallocate(type, given_size);
 }
@@ -1073,7 +1067,8 @@ class DebugMallocImplementation : public TCMallocImplementation {
       if (tcmalloc::IsEmergencyPtr(p)) {
         return tcmalloc::EmergencyAllocatedSize(p);
       }
-      return MallocBlock::FromRawPointer(p)->actual_data_size(p);
+      // Note, we never let users touch more than they asked for.
+      return MallocBlock::UserSize(p);
     }
     return 0;
   }
@@ -1252,14 +1247,14 @@ extern "C" PERFTOOLS_DLL_DECL void* tc_realloc(void* ptr, size_t size) PERFTOOLS
   // return null
   if (p == nullptr) return nullptr;
 
-  size_t old_size = old->actual_data_size(ptr);
+  size_t old_size = MallocBlock::UserSize(ptr);
 
   memcpy(p->data_addr(), ptr, (old_size < size) ? old_size : size);
   tcmalloc::InvokeDeleteHook(ptr);
   tcmalloc::InvokeNewHook(p->data_addr(), size);
   DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
   if (FLAGS_malloctrace) {
-    TraceAlloc("realloc", p->actual_data_size(p->data_addr()), p->data_addr());
+    TraceAlloc("realloc", size, p->data_addr());
   }
   return p->data_addr();
 }
@@ -1336,6 +1331,10 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_nothrow(void* p, const std::no
 
 // This is mostly the same as do_memalign in tcmalloc.cc.
 static void* do_debug_memalign(size_t alignment, size_t size, int type) {
+#if defined(__APPLE__)
+  // See DebugAllocate
+  if (size == 0) size = 1;
+#endif
   // Allocate >= size bytes aligned on "alignment" boundary
   // "alignment" is a power of two.
   void* p = 0;
@@ -1360,8 +1359,10 @@ static void* do_debug_memalign(size_t alignment, size_t size, int type) {
     // is their difference.
     //
     // Note that other fields of fake_hdr are initialized with
-    // kMagicUninitializedByte
+    // kMagicUninitializedByte. Except we record user's size in it (see
+    // MallocBlock::UserSize).
     fake_hdr->set_offset(reinterpret_cast<intptr_t>(p) - orig_p);
+    fake_hdr->set_user_size(size);
   }
   return p;
 }

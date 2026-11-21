@@ -298,6 +298,20 @@ TEST(DebugAllocationTest, HugeAlloc) {
 
 // based on test program contributed by mikesart@gmail.com aka
 // mikesart@valvesoftware.com. See issue-464.
+// Debug allocator never lets users touch more than they asked
+// for. Also for memalign-ed chunks (which have alignment slack).
+TEST(DebugAllocationTest, MemalignUsableSizeIsUserSize) {
+  for (size_t align : {16, 64, 4096, 1 << 16}) {
+    for (size_t size : {1, 33, 1000, 100000}) {
+      void* p = noopt(tc_memalign(align, size));
+      ASSERT_NE(p, nullptr);
+      EXPECT_EQ(MallocExtension::instance()->GetAllocatedSize(p), size) << align;
+      EXPECT_EQ(tc_malloc_size(p), size) << align;
+      free(p);
+    }
+  }
+}
+
 TEST(DebugAllocationTest, ReallocAfterMemalign) {
   char stuff[50];
   memset(stuff, 0x11, sizeof(stuff));
