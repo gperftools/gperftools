@@ -37,6 +37,8 @@
 #include <stdlib.h>
 #include <string.h>  // for memcmp
 
+#include <new>
+
 #include "gperftools/malloc_extension.h"
 #include "gperftools/tcmalloc.h"
 
@@ -311,6 +313,38 @@ TEST(DebugAllocationTest, MemalignUsableSizeIsUserSize) {
     }
   }
 }
+
+#ifdef ENABLE_SIZED_DELETE
+// Sized deletes of aligned chunks are checked against the size user
+// asked for.
+TEST(DebugAllocationTest, SizedAlignedDelete) {
+  for (size_t align : {16, 64, 4096, 1 << 16}) {
+    std::align_val_t al{align};
+
+    void* p = noopt((::operator new)(33, al));
+    (::operator delete)(p, 33, al);
+
+    p = noopt((::operator new[])(33, al));
+    (::operator delete[])(p, 33, al);
+
+    p = noopt(tc_memalign(align, 33));
+    tc_free_aligned_sized(p, align, 33);
+  }
+
+  std::align_val_t al{64};
+  void* p = noopt((::operator new)(33, al));
+  EXPECT_DEATH((::operator delete)(p, 34, al), "right size must be passed to sized delete");
+  (::operator delete)(p, 33, al);
+
+  p = noopt((::operator new[])(33, al));
+  EXPECT_DEATH((::operator delete[])(p, 32, al), "right size must be passed to sized delete");
+  (::operator delete[])(p, 33, al);
+
+  p = noopt(tc_memalign(64, 33));
+  EXPECT_DEATH(tc_free_aligned_sized(p, 64, 34), "right size must be passed to sized delete");
+  tc_free_aligned_sized(p, 64, 33);
+}
+#endif
 
 TEST(DebugAllocationTest, ReallocAfterMemalign) {
   char stuff[50];

@@ -363,7 +363,9 @@ class MallocBlock {
     }
   }
 
-  size_t CheckAndClear(int type, size_t given_size) {
+  // user_ptr is what we handed to the user (see UserSize). given_size
+  // is 0 or the size passed to sized delete.
+  size_t CheckAndClear(int type, const void* user_ptr, size_t given_size) {
     alloc_map_lock_.Lock();
     CheckLocked(type);
     if (!IsMMapped()) {
@@ -374,7 +376,7 @@ class MallocBlock {
     alloc_map_lock_.Unlock();
     // clear us
     const size_t size = real_size();
-    RAW_CHECK(!given_size || given_size == size1_, "right size must be passed to sized delete");
+    RAW_CHECK(!given_size || given_size == UserSize(user_ptr), "right size must be passed to sized delete");
     memset(this, kMagicDeletedByte, size);
     return size;
   }
@@ -521,10 +523,10 @@ class MallocBlock {
     return b;
   }
 
-  void Deallocate(int type, size_t given_size) {
+  void Deallocate(int type, const void* user_ptr, size_t given_size) {
     if (IsMMapped()) {  // have to do this before CheckAndClear
 #ifdef HAVE_MMAP
-      int size = CheckAndClear(type, given_size);
+      int size = CheckAndClear(type, user_ptr, given_size);
       int pagesize = getpagesize();
       int num_pages = (size + pagesize - 1) / pagesize + 1;
       char* p = (char*)this;
@@ -535,7 +537,7 @@ class MallocBlock {
       }
 #endif
     } else {
-      const size_t size = CheckAndClear(type, given_size);
+      const size_t size = CheckAndClear(type, user_ptr, given_size);
       if (FLAGS_malloc_reclaim_memory) {
         // Instead of freeing the block immediately, push it onto a queue of
         // recently freed blocks.  Free only enough blocks to keep from
@@ -994,7 +996,7 @@ static inline void DebugDeallocate(void* ptr, int type, size_t given_size) {
   if (FLAGS_malloctrace) {
     TraceAlloc("free", (ptr != 0 ? MallocBlock::UserSize(ptr) : 0), ptr);
   }
-  if (ptr) MallocBlock::FromRawPointer(ptr)->Deallocate(type, given_size);
+  if (ptr) MallocBlock::FromRawPointer(ptr)->Deallocate(type, ptr, given_size);
 }
 
 class ATTRIBUTE_VISIBILITY_HIDDEN DebugTestingPortal : public TestingPortalImpl {
@@ -1202,7 +1204,7 @@ extern "C" PERFTOOLS_DLL_DECL void tc_free_sized(void* ptr, size_t size) PERFTOO
 
 extern "C" PERFTOOLS_DLL_DECL void tc_free_aligned_sized(void* ptr, size_t align, size_t size) PERFTOOLS_NOTHROW {
   tcmalloc::InvokeDeleteHook(ptr);
-  DebugDeallocate(ptr, MallocBlock::kMallocType, 0);
+  DebugDeallocate(ptr, MallocBlock::kMallocType, SizeHint(size));
   force_frame();
 }
 
@@ -1450,12 +1452,9 @@ extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned(void* p, std::align_val_t) 
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_sized_aligned(void* p, size_t size,
                                                            std::align_val_t align) PERFTOOLS_NOTHROW {
-  // Reproduce actual size calculation done by do_debug_memalign
-  const size_t alignment = static_cast<size_t>(align);
-  const size_t data_offset = MallocBlock::data_offset();
-  const size_t extra_bytes = data_offset + alignment - 1;
-
-  tc_delete_sized(p, size + extra_bytes);
+  // Note, sized delete checks size user asked for (see
+  // MallocBlock::UserSize), so no need to know alignment.
+  tc_delete_sized(p, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_delete_aligned_nothrow(void* p, std::align_val_t,
@@ -1487,12 +1486,8 @@ extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned(void* p, std::align_va
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_sized_aligned(void* p, size_t size,
                                                                 std::align_val_t align) PERFTOOLS_NOTHROW {
-  // Reproduce actual size calculation done by do_debug_memalign
-  const size_t alignment = static_cast<size_t>(align);
-  const size_t data_offset = MallocBlock::data_offset();
-  const size_t extra_bytes = data_offset + alignment - 1;
-
-  tc_deletearray_sized(p, size + extra_bytes);
+  // See tc_delete_sized_aligned
+  tc_deletearray_sized(p, size);
 }
 
 extern "C" PERFTOOLS_DLL_DECL void tc_deletearray_aligned_nothrow(void* p, std::align_val_t,
