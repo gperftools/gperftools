@@ -102,6 +102,11 @@
 #include "malloc_hook-inl.h"
 #include "preamble_patcher.h"
 
+// From crtdbg.h; the block type we pass to the debug CRT's *_dbg functions.
+#ifndef _NORMAL_BLOCK
+#define _NORMAL_BLOCK 1
+#endif
+
 // The maximum number of modules we allow to be in one executable
 const int kMaxModules = 8182;
 
@@ -211,6 +216,14 @@ class LibcInfo {
     // Underlying deallocation functions called by CRT internal functions or operator delete
     kFreeBase,
     kFreeDbg,
+    // Debug CRT (ucrtbased.dll) entry points. In debug CRT malloc and
+    // friends are thin wrappers around these, and so are the aligned
+    // allocation functions and strdup, which skip malloc entirely.
+    kMallocDbg,
+    kCallocDbg,
+    kReallocDbg,
+    kExpandDbg,
+    k_MsizeDbg,
     kNumFunctions
   };
 
@@ -303,6 +316,14 @@ class LibcInfoWithPatchFunctions : public LibcInfo {
   static void Perftools_free(void* ptr) __THROW;
   static void Perftools_free_base(void* ptr) __THROW;
   static void Perftools_free_dbg(void* ptr, int block_use) __THROW;
+  static void* Perftools_malloc_dbg(size_t size, int block_use, const char* file, int line) __THROW;
+  static void* Perftools_calloc_dbg(size_t n, size_t elem_size, int block_use, const char* file, int line) __THROW;
+  static void* Perftools_realloc_dbg(void* ptr, size_t size, int block_use, const char* file, int line) __THROW;
+  static size_t Perftools__msize_dbg(void* ptr, int block_use) __THROW;
+  // Adapters that let the do_*_with_callback helpers call the original
+  // debug CRT functions.
+  static void OrigFreeDbg(void* ptr);
+  static size_t OrigMsizeDbg(const void* ptr);
   static void* Perftools_realloc(void* ptr, size_t size) __THROW;
   static void* Perftools_calloc(size_t nmemb, size_t size) __THROW;
   static void* Perftools_new(size_t size);
@@ -412,7 +433,8 @@ const char* const LibcInfo::function_name_[] = {"malloc", "free", "realloc", "ca
                                                 nullptr,  // kMangledNewArrayNothrow,
                                                 nullptr,  // kMangledDeleteNothrow,
                                                 nullptr,  // kMangledDeleteArrayNothrow,
-                                                "_msize", "_expand", "_calloc_crt", "_free_base", "_free_dbg"};
+                                                "_msize", "_expand", "_calloc_crt", "_free_base", "_free_dbg",
+                                                "_malloc_dbg", "_calloc_dbg", "_realloc_dbg", "_expand_dbg", "_msize_dbg"};
 
 // For mingw, I can't patch the new/delete here, because the
 // instructions are too small to patch.  Luckily, they're so small
@@ -450,12 +472,21 @@ const GenericFnPtr LibcInfo::static_fn_[] = {(GenericFnPtr) & ::malloc,
                                              (GenericFnPtr) & ::_expand,
                                              (GenericFnPtr) & ::calloc,
                                              (GenericFnPtr) & ::free,
-                                             (GenericFnPtr) & ::free};
+                                             (GenericFnPtr) & ::free,
+                                             // The _dbg variants take extra (ignored) arguments, which
+                                             // is fine for the static fallback, same as _free_dbg above.
+                                             (GenericFnPtr) & ::malloc,
+                                             (GenericFnPtr) & ::calloc,
+                                             (GenericFnPtr) & ::realloc,
+                                             (GenericFnPtr) & ::_expand,
+                                             (GenericFnPtr) & ::_msize};
 
 template <int T>
 GenericFnPtr LibcInfoWithPatchFunctions<T>::origstub_fn_[] = {
     // This will get filled in at run-time, as patching is done.
 };
+
+static void* empty__expand_dbg(void*, size_t, int, const char*, int) __THROW { return nullptr; }
 
 // _expand() is like realloc but doesn't move the
 // pointer.  We punt, which will cause callers to fall back on realloc.
@@ -478,7 +509,12 @@ const GenericFnPtr LibcInfoWithPatchFunctions<T>::perftools_fn_[] = {(GenericFnP
                                                                      (GenericFnPtr)&empty__expand,
                                                                      (GenericFnPtr)&Perftools_calloc,
                                                                      (GenericFnPtr)&Perftools_free_base,
-                                                                     (GenericFnPtr)&Perftools_free_dbg};
+                                                                     (GenericFnPtr)&Perftools_free_dbg,
+                                                                     (GenericFnPtr)&Perftools_malloc_dbg,
+                                                                     (GenericFnPtr)&Perftools_calloc_dbg,
+                                                                     (GenericFnPtr)&Perftools_realloc_dbg,
+                                                                     (GenericFnPtr)&empty__expand_dbg,
+                                                                     (GenericFnPtr)&Perftools__msize_dbg};
 
 /*static*/ WindowsInfo::FunctionInfo WindowsInfo::function_info_[] = {
     {"HeapFree", nullptr, nullptr, (GenericFnPtr)&Perftools_HeapFree},
@@ -835,6 +871,49 @@ void LibcInfoWithPatchFunctions<T>::Perftools_free_dbg(void* ptr, int block_use)
   } else {
     reinterpret_cast<void (*)(void*, int)>(OrigFn(kFreeDbg))(ptr, block_use);
   }
+}
+
+template <int T>
+void LibcInfoWithPatchFunctions<T>::OrigFreeDbg(void* ptr) {
+  reinterpret_cast<void (*)(void*, int)>(OrigFn(kFreeDbg))(ptr, _NORMAL_BLOCK);
+}
+
+template <int T>
+size_t LibcInfoWithPatchFunctions<T>::OrigMsizeDbg(const void* ptr) {
+  return reinterpret_cast<size_t (*)(const void*, int)>(OrigFn(k_MsizeDbg))(ptr, _NORMAL_BLOCK);
+}
+
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_malloc_dbg(size_t size, int, const char*, int) __THROW {
+  return malloc_fast_path<kMallocOOM>(size);
+}
+
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_calloc_dbg(size_t n, size_t elem_size, int, const char*, int) __THROW {
+  void* result = do_calloc(n, elem_size);
+  tcmalloc::InvokeNewHook(result, n * elem_size);
+  return result;
+}
+
+template <int T>
+void* LibcInfoWithPatchFunctions<T>::Perftools_realloc_dbg(void* old_ptr, size_t new_size, int, const char*,
+                                                           int) __THROW {
+  if (old_ptr == nullptr) {
+    void* result = do_malloc_or_cpp_alloc(new_size);
+    tcmalloc::InvokeNewHook(result, new_size);
+    return result;
+  }
+  if (new_size == 0) {
+    tcmalloc::InvokeDeleteHook(old_ptr);
+    do_free_with_callback(old_ptr, &OrigFreeDbg, false, 0);
+    return nullptr;
+  }
+  return do_realloc_with_callback(old_ptr, new_size, &OrigFreeDbg, &OrigMsizeDbg);
+}
+
+template <int T>
+size_t LibcInfoWithPatchFunctions<T>::Perftools__msize_dbg(void* ptr, int) __THROW {
+  return GetSizeWithCallback(ptr, &OrigMsizeDbg);
 }
 
 template <int T>
