@@ -2131,6 +2131,232 @@ TEST(TCMallocTest, PaddingOverlay) {
   });
 }
 
+// Overlay that fails a given number of Malloc calls of a given
+// size (without setting errno), so we can check dispatcher's OOM
+// policy deterministically. Other sizes pass (e.g. C++ runtime
+// allocates exceptions).
+namespace failing_overlay {
+
+using tcmalloc::AllocOps;
+
+const AllocOps* next;
+
+size_t target_size;
+int malloc_calls;
+int fail_remaining;
+
+const AllocOps ops = {
+    [](size_t size, size_t align, uint32_t flags) -> void* {
+      if (size != target_size) {
+        return next->Malloc(size, align, flags);
+      }
+      malloc_calls++;
+      if (fail_remaining > 0) {
+        fail_remaining--;
+        return nullptr;
+      }
+      return next->Malloc(size, align, flags);
+    },
+    [](void* ptr, size_t size_hint, size_t align, uint32_t flags) { next->Free(ptr, size_hint, align, flags); },
+    [](void* ptr, size_t new_size) { return next->ResizeInPlace(ptr, new_size); },
+    [](size_t size, size_t align) { return next->NAllocX(size, align); },
+    [](const void* ptr) { return next->UsableSize(ptr); },
+};
+
+int handler_calls;
+int handler_calls_before_giving_up;
+bool handler_throws;
+
+void Handler() {
+  handler_calls++;
+  if (handler_calls >= handler_calls_before_giving_up) {
+#if __cpp_exceptions
+    if (handler_throws) {
+      throw std::bad_alloc();
+    }
+#endif
+    std::set_new_handler(nullptr);
+  }
+}
+
+// Prepares for next allocation (of `size` bytes): it will see `fails`
+// failed overlay Malloc calls. If `handler_runs` > 0, new handler is
+// installed and gives up (by uninstalling itself or throwing) on that
+// run.
+void Setup(size_t size, int fails, int handler_runs, bool throws = false) {
+  target_size = size;
+  malloc_calls = 0;
+  fail_remaining = fails;
+  handler_calls = 0;
+  handler_calls_before_giving_up = handler_runs;
+  handler_throws = throws;
+  std::set_new_handler(handler_runs > 0 ? Handler : nullptr);
+  errno = 0;
+}
+
+}  // namespace failing_overlay
+
+// Checks OOM handling (errno, new_handler retries, throwing) when
+// overlay fails allocations. Note, checks inside the overlay's
+// scope only use values we grabbed right after the call (so that no
+// failure-reporting allocation is seen by the overlay before).
+TEST(TCMallocTest, FailingOverlayOOMPolicy) {
+  namespace fl = failing_overlay;
+  constexpr int kForever = 1 << 30;
+  constexpr size_t kSize = 12345;  // unlikely to be allocated by anyone else
+
+  std::new_handler old_handler = std::set_new_handler(nullptr);
+  int old_mode = tc_set_new_mode(0);
+
+  struct Result {
+    void* ptr;
+    int err;
+    int malloc_calls;
+    int handler_calls;
+  };
+  auto grab = [](void* ptr) {
+    Result r{ptr, errno, fl::malloc_calls, fl::handler_calls};
+    fl::fail_remaining = 0;
+    std::set_new_handler(nullptr);
+    return r;
+  };
+
+  TestingPortal::Get()->WithOverlay(&fl::ops, &fl::next, [&]() {
+    Result r;
+
+    // malloc: no new handler calls (unless new mode), no retries,
+    // ENOMEM.
+    fl::Setup(kSize, 1, 1);
+    r = grab(noopt(malloc(kSize)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.err, ENOMEM);
+    CHECK_EQ(r.malloc_calls, 1);
+    CHECK_EQ(r.handler_calls, 0);
+
+    fl::Setup(kSize, 1, 0);
+    r = grab(noopt(calloc(1, kSize)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.err, ENOMEM);
+    CHECK_EQ(r.malloc_calls, 1);
+
+    fl::Setup(kSize, 1, 0);
+    r = grab(noopt(tc_memalign(64, kSize)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.err, ENOMEM);
+    CHECK_EQ(r.malloc_calls, 1);
+
+    fl::Setup(kSize, 1, 0);
+    void* pm = nullptr;
+    int rc = noopt(tc_posix_memalign)(&pm, 64, kSize);
+    r = grab(pm);
+    CHECK_EQ(rc, ENOMEM);
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.malloc_calls, 1);
+
+    // failed realloc keeps old block intact
+    char* old_block = static_cast<char*>(noopt(malloc(kSize)));
+    memset(old_block, 0x33, kSize);
+    fl::Setup(kSize * 10, kForever, 0);
+    r = grab(noopt(realloc(old_block, kSize * 10)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.err, ENOMEM);
+    CHECK_EQ(r.malloc_calls, 1);
+    for (size_t i = 0; i < kSize; i++) {
+      CHECK_EQ(old_block[i], 0x33);
+    }
+    free(old_block);
+
+    // malloc in "new mode" retries after new handler returns.
+    tc_set_new_mode(1);
+    fl::Setup(kSize, 2, 3);
+    r = grab(noopt(malloc(kSize)));
+    CHECK(r.ptr != nullptr);
+    CHECK_EQ(r.malloc_calls, 3);
+    CHECK_EQ(r.handler_calls, 2);
+    free(r.ptr);
+
+    fl::Setup(kSize, kForever, 2);
+    r = grab(noopt(realloc(nullptr, kSize)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.err, ENOMEM);
+    CHECK_EQ(r.malloc_calls, 3);
+    CHECK_EQ(r.handler_calls, 2);
+
+    // ... but not tc_malloc_skip_new_handler
+    fl::Setup(kSize, 1, 1);
+    r = grab(noopt(tc_malloc_skip_new_handler(kSize)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.err, ENOMEM);
+    CHECK_EQ(r.malloc_calls, 1);
+    CHECK_EQ(r.handler_calls, 0);
+    tc_set_new_mode(0);
+
+    // nothrow new: retries while new handler returns, nullptr once
+    // there is no handler or it throws.
+    fl::Setup(kSize, 3, 5);
+    r = grab(noopt((::operator new)(kSize, std::nothrow)));
+    CHECK(r.ptr != nullptr);
+    CHECK_EQ(r.malloc_calls, 4);
+    CHECK_EQ(r.handler_calls, 3);
+    (::operator delete)(r.ptr);
+
+    fl::Setup(kSize, kForever, 2);
+    r = grab(noopt((::operator new[])(kSize, std::nothrow)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.malloc_calls, 3);
+    CHECK_EQ(r.handler_calls, 2);
+
+#ifndef _WIN32
+    // Note, on windows aligned operator new may end up in CRT's
+    // _aligned_malloc, which we don't patch.
+    fl::Setup(kSize, kForever, 0);
+    r = grab(noopt((::operator new)(kSize, std::align_val_t{64}, std::nothrow)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.malloc_calls, 1);
+#endif
+
+#if __cpp_exceptions
+    fl::Setup(kSize, kForever, 1, true);
+    r = grab(noopt((::operator new)(kSize, std::nothrow)));
+    CHECK(r.ptr == nullptr);
+    CHECK_EQ(r.malloc_calls, 1);
+    CHECK_EQ(r.handler_calls, 1);
+
+    // throwing new: retries while new handler returns, throws once
+    // there is no handler (or it throws).
+#ifndef _WIN32
+    // (see above about aligned operator new on windows)
+    fl::Setup(kSize, 2, 5);
+    r = grab(noopt((::operator new)(kSize, std::align_val_t{64})));
+    CHECK(r.ptr != nullptr);
+    CHECK_EQ(reinterpret_cast<uintptr_t>(r.ptr) % 64, 0);
+    CHECK_EQ(r.malloc_calls, 3);
+    CHECK_EQ(r.handler_calls, 2);
+    (::operator delete)(r.ptr, std::align_val_t{64});
+#endif
+
+    for (bool throws : {false, true}) {
+      fl::Setup(kSize, kForever, 3, throws);
+      bool thrown = false;
+      try {
+        noopt((::operator new[])(kSize));
+      } catch (const std::bad_alloc&) {
+        thrown = true;
+      }
+      r = grab(nullptr);
+      CHECK(thrown);
+      // Handler which uninstalls itself returns, so we get one more
+      // retry.
+      CHECK_EQ(r.malloc_calls, throws ? 3 : 4);
+      CHECK_EQ(r.handler_calls, 3);
+    }
+#endif  // __cpp_exceptions
+  });
+
+  tc_set_new_mode(old_mode);
+  std::set_new_handler(old_handler);
+}
+
 // Records new/delete hook invocations made by the thread that created
 // the recorder. Used to check exact pointers, sizes and order of
 // hook invocations (both with and without debug allocator).
