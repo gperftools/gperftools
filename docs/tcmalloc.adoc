@@ -99,7 +99,7 @@ using LD_PRELOAD:
    % LD_PRELOAD="/usr/lib/libtcmalloc.so"
 ....
 
-TCMalloc includes a link:heapprofile.html[heap profiler] as well.
+TCMalloc includes a link:heapprofile.adoc[heap profiler] as well.
 
 If you'd rather link in a version of TCMalloc that does not include
 the heap profiler (perhaps to reduce binary size for a static binary),
