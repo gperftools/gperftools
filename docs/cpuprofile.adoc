@@ -9,7 +9,7 @@ running the code, and analyzing the output.
 
 On the off-chance that you should need to understand it, the CPU
 profiler data file format is documented separately,
-link:cpuprofile-fileformat.html[here].
+link:cpuprofile-fileformat.adoc[here].
 
 == Linking in the Library
 
