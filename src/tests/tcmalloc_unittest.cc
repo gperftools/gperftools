@@ -689,6 +689,27 @@ static void TestCalloc(size_t n, size_t s, bool ok) {
   }
 }
 
+static void CheckCallocCases() {
+  TestCalloc(0, 0, true);
+  TestCalloc(0, 1, true);
+  TestCalloc(1, 1, true);
+  TestCalloc(1 << 10, 0, true);
+  TestCalloc(1 << 20, 0, true);
+  TestCalloc(0, 1 << 10, true);
+  TestCalloc(0, 1 << 20, true);
+  TestCalloc(1 << 20, 2, true);
+  TestCalloc(2, 1 << 20, true);
+  TestCalloc(1000, 1000, true);
+
+  TestCalloc(kMaxSize, 2, false);
+  TestCalloc(2, kMaxSize, false);
+  TestCalloc(kMaxSize, kMaxSize, false);
+
+  TestCalloc(kMaxSignedSize, 3, false);
+  TestCalloc(3, kMaxSignedSize, false);
+  TestCalloc(kMaxSignedSize, kMaxSignedSize, false);
+}
+
 // This makes sure that reallocing a small number of bytes in either
 // direction doesn't cause us to allocate new memory.
 class ReallocTest : public ::testing::TestWithParam<size_t> {};
@@ -1608,24 +1629,7 @@ TEST(TCMallocTest, AllTests) {
 
   // Check calloc() with various arguments
   printf("Testing calloc\n");
-  TestCalloc(0, 0, true);
-  TestCalloc(0, 1, true);
-  TestCalloc(1, 1, true);
-  TestCalloc(1 << 10, 0, true);
-  TestCalloc(1 << 20, 0, true);
-  TestCalloc(0, 1 << 10, true);
-  TestCalloc(0, 1 << 20, true);
-  TestCalloc(1 << 20, 2, true);
-  TestCalloc(2, 1 << 20, true);
-  TestCalloc(1000, 1000, true);
-
-  TestCalloc(kMaxSize, 2, false);
-  TestCalloc(2, kMaxSize, false);
-  TestCalloc(kMaxSize, kMaxSize, false);
-
-  TestCalloc(kMaxSignedSize, 3, false);
-  TestCalloc(3, kMaxSignedSize, false);
-  TestCalloc(kMaxSignedSize, kMaxSignedSize, false);
+  CheckCallocCases();
 
   // Do the memory intensive tests after threads are done, since exhausting
   // the available address space can make pthread_create to fail.
@@ -1933,6 +1937,198 @@ TEST(TCMallocTest, OverlayFlagsFidelity) {
   });
 #undef CHECK_MALLOC
 #undef CHECK_FREE
+}
+
+// Overlay that transforms allocations: it asks the overlay below
+// for extra space, puts a header in front of the object and hands out
+// pointer past the header. Unlike debugallocation (the only other
+// transforming overlay) it is available in every build.
+namespace padding_overlay {
+
+using tcmalloc::AllocOps;
+
+const AllocOps* next;
+
+constexpr uintptr_t kMagic = 0x9add1ab1;
+constexpr size_t kMinHeader = 16;
+
+// Sits right before the pointer we hand out.
+struct Header {
+  size_t header_size;
+  uintptr_t magic;
+};
+static_assert(sizeof(Header) <= kMinHeader);
+
+int live;  // blocks we handed out and haven't seen freed yet
+
+size_t HeaderSize(size_t align) { return std::max(kMinHeader, align); }
+
+// OSX's malloc zones treat zero usable size as "not our pointer"
+// (see mz_size), so there we never hand out zero-sized blocks.
+size_t AdjustSize(size_t size) {
+#ifdef __APPLE__
+  return std::max<size_t>(size, 1);
+#else
+  return size;
+#endif
+}
+
+Header* GetHeaderUnchecked(const void* ptr) {
+  return reinterpret_cast<Header*>(reinterpret_cast<uintptr_t>(ptr) - sizeof(Header));
+}
+
+Header* GetHeader(const void* ptr) {
+  Header* h = GetHeaderUnchecked(ptr);
+  // Catches the dispatcher handing us pointers we never returned
+  // (e.g. emergency malloc chunks or pointers allocated before we
+  // were installed).
+  CHECK_EQ(h->magic, kMagic);
+  return h;
+}
+
+void* Base(const void* ptr) { return reinterpret_cast<char*>(const_cast<void*>(ptr)) - GetHeader(ptr)->header_size; }
+
+const AllocOps ops = {
+    [](size_t size, size_t align, uint32_t flags) -> void* {
+      size_t header_size = HeaderSize(align);
+      size = AdjustSize(size);
+      if (size + header_size < size) {
+        return nullptr;
+      }
+      void* base = next->Malloc(size + header_size, align, flags);
+      if (base == nullptr) {
+        return nullptr;
+      }
+      void* ptr = static_cast<char*>(base) + header_size;
+      *GetHeaderUnchecked(ptr) = Header{header_size, kMagic};
+      live++;
+      return ptr;
+    },
+    [](void* ptr, size_t size_hint, size_t align, uint32_t flags) {
+      Header* h = GetHeader(ptr);
+      size_t header_size = h->header_size;
+      h->magic = 0;
+      live--;
+      if (tcmalloc::AllocFlagsHasSized(flags)) {
+        size_hint += header_size;
+      }
+      next->Free(static_cast<char*>(ptr) - header_size, size_hint, align, flags);
+    },
+    [](void* ptr, size_t new_size) {
+      size_t header_size = GetHeader(ptr)->header_size;
+      return new_size + header_size >= new_size && next->ResizeInPlace(Base(ptr), new_size + header_size);
+    },
+    [](size_t size, size_t align) { return next->NAllocX(AdjustSize(size) + HeaderSize(align), align) - HeaderSize(align); },
+    [](const void* ptr) { return next->UsableSize(Base(ptr)) - GetHeader(ptr)->header_size; },
+};
+
+}  // namespace padding_overlay
+
+// Runs various size, alignment, calloc and realloc checks through a
+// transforming overlay. Note, checks inside the overlay's scope use
+// CHECK, since gtest failure reporting allocates memory which may
+// outlive the overlay.
+TEST(TCMallocTest, PaddingOverlay) {
+  namespace pl = padding_overlay;
+  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+    // Debug's MallocExtension overrides (GetOwnership and friends)
+    // assume they get pointers debug overlay handed out. Also debug
+    // overlay is itself a transforming overlay, so we're covered.
+    return;
+  }
+
+  TestingPortal::Get()->WithOverlay(&pl::ops, &pl::next, [&]() {
+    // Size queries. All of them must report sizes as seen by user of
+    // the overlay.
+    CheckNAllocX();
+    CheckNAllocXAlignment();
+    for (size_t size : {0, 1, 15, 16, 17, 100, 4096, 100000, 1 << 20}) {
+      // Note, no big alignments: our header would push the pointer we
+      // hand out past the first page of base's span. Base's pagemap
+      // only knows first and last pages of large spans, so
+      // GetOwnership (which GetAllocatedSize asserts in debug builds)
+      // wouldn't recognize such pointers. Debug overlay has the same
+      // issue and handles it in its GetOwnership override.
+      for (size_t align : {0, 8, 16, 64, 4096}) {
+        void* p = align ? tc_memalign(align, size) : malloc(size);
+        CHECK(p != nullptr);
+        CHECK_EQ(reinterpret_cast<uintptr_t>(p) % (align ? align : sizeof(void*)), 0);
+        size_t usable = tc_malloc_size(p);
+        CHECK_GE(usable, size);
+        int lg_align = 0;
+        while (align > (size_t{1} << lg_align)) lg_align++;
+        CHECK_EQ(usable, nallocx(size, align ? MALLOCX_LG_ALIGN(lg_align) : 0));
+        CHECK_EQ(usable, MallocExtension::instance()->GetAllocatedSize(p));
+        memset(p, 0x5a, usable);  // the whole usable size is ours to write
+        free(noopt(p));
+      }
+    }
+
+    // Sized and aligned deletes of transformed pointers must go
+    // through the overlay (see live count check below). Overlay
+    // adjusts size hint for the overlay below, which base validates
+    // in debug builds (except for aligned case).
+    for (size_t size : {1, 17, 100, 4096, 100000}) {
+      tc_free_sized(malloc(size), size);
+      (::operator delete)(noopt((::operator new)(size)), size);
+      (::operator delete[])(noopt((::operator new[])(size)), size);
+      (::operator delete)(noopt((::operator new)(size, std::align_val_t{64})), size, std::align_val_t{64});
+      tc_free_aligned_sized(tc_memalign(4096, size), 4096, size);
+    }
+
+    for (int lg = 0; lg < 16; lg++) {
+      TestAlignmentForSize((1 << lg) - 1);
+      TestAlignmentForSize((1 << lg) + 0);
+      TestAlignmentForSize((1 << lg) + 1);
+    }
+
+    CheckCallocCases();
+    // calloc zeroes entire usable size (see do_calloc).
+    for (size_t size : {1, 17, 100, 1000, 4096, 100000}) {
+      // noopt-s, so compiler doesn't drop memset before free as dead
+      // store, nor assumes calloc-ed memory is zeroed.
+      void* p = noopt(malloc(size));
+      memset(p, 0xff, tc_malloc_size(p));
+      free(noopt(p));
+      char* c = static_cast<char*>(noopt(calloc(1, size)));
+      size_t usable = tc_malloc_size(c);
+      for (size_t i = 0; i < usable; i++) {
+        CHECK_EQ(c[i], 0);
+      }
+      free(c);
+    }
+
+    // realloc: in place or not, contents (up to the smaller size) must
+    // be preserved.
+    char* p = nullptr;
+    size_t size = 0;
+    for (size_t new_size : {1, 7, 16, 17, 100, 120, 4096, 4000, 100000, 300000, 90000, 33, 1}) {
+      p = static_cast<char*>(realloc(p, new_size));
+      CHECK(p != nullptr);
+      for (size_t i = 0; i < std::min(size, new_size); i++) {
+        CHECK_EQ(p[i], static_cast<char>(i * 7));
+      }
+      CHECK_GE(tc_malloc_size(p), new_size);
+      for (size_t i = 0; i < new_size; i++) {
+        p[i] = static_cast<char>(i * 7);
+      }
+      size = new_size;
+    }
+    // Note, we call tc_realloc directly, since OSX's realloc turns
+    // realloc(p, 0) into allocating a new minimal-sized block and
+    // freeing p.
+    CHECK(tc_realloc(p, 0) == nullptr);
+
+    p = static_cast<char*>(tc_memalign(4096, 100));
+    memset(p, 0x11, 100);
+    p = static_cast<char*>(realloc(p, 10000));
+    for (size_t i = 0; i < 100; i++) {
+      CHECK_EQ(p[i], 0x11);
+    }
+    free(p);
+
+    CHECK_EQ(pl::live, 0);
+  });
 }
 
 // Records new/delete hook invocations made by the thread that created
