@@ -2043,13 +2043,10 @@ TEST(TCMallocTest, PaddingOverlay) {
     CheckNAllocX();
     CheckNAllocXAlignment();
     for (size_t size : {0, 1, 15, 16, 17, 100, 4096, 100000, 1 << 20}) {
-      // Note, no big alignments: our header would push the pointer we
-      // hand out past the first page of base's span. Base's pagemap
-      // only knows first and last pages of large spans, so
-      // GetOwnership (which GetAllocatedSize asserts in debug builds)
-      // wouldn't recognize such pointers. Debug overlay has the same
-      // issue and handles it in its GetOwnership override.
-      for (size_t align : {0, 8, 16, 64, 4096}) {
+      // Note, with big alignments our header pushes the pointer we
+      // hand out past the first page of base's span (see
+      // TCMallocImplementation::GetAllocatedSize).
+      for (size_t align : {0, 8, 16, 64, 4096, 1 << 16}) {
         void* p = align ? tc_memalign(align, size) : malloc(size);
         CHECK(p != nullptr);
         CHECK_EQ(reinterpret_cast<uintptr_t>(p) % (align ? align : sizeof(void*)), 0);

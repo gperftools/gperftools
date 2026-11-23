@@ -1732,10 +1732,14 @@ inline Mallinfo do_mallinfo() {
 // As promised, the definition of this function, declared above.
 size_t TCMallocImplementation::GetAllocatedSize(const void* ptr) {
   if (ptr == nullptr) return 0;
-  ASSERT(GetOwnership(ptr) != TCMallocImplementation::kNotOwned);
   if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    // Note, we cannot assert ownership here. Pointers handed out by
+    // overlays may point anywhere inside base's chunks, and base's
+    // GetOwnership only recognizes first and last pages of large
+    // spans. Overlays check their pointers themselves.
     return tcmalloc::dispatch_usable_size(ptr, overlay);
   }
+  ASSERT(GetOwnership(ptr) != TCMallocImplementation::kNotOwned);
   return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize);
 }
 
