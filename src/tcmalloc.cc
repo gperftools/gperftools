@@ -260,22 +260,25 @@ void BaseFree(void* ptr, size_t size_hint, size_t align, uint32_t flags);
 bool BaseResizeInPlace(void* ptr, size_t new_size);
 size_t BaseNAllocX(size_t size, size_t align);
 size_t BaseUsableSize(const void* ptr);
+bool BaseOwns(const void* ptr);
 
 void* InitialMalloc(size_t size, size_t align, uint32_t flags);
 void InitialFree(void* ptr, size_t size_hint, size_t align, uint32_t flags);
 bool InitialResizeInPlace(void* ptr, size_t new_size);
 size_t InitialNAllocX(size_t size, size_t align);
 size_t InitialUsableSize(const void* ptr);
+bool InitialOwns(const void* ptr);
 
 void* HooksOverlayMalloc(size_t size, size_t align, uint32_t flags);
 void HooksOverlayFree(void* ptr, size_t size_hint, size_t align, uint32_t flags);
 bool HooksOverlayResizeInPlace(void* ptr, size_t new_size);
 size_t HooksOverlayNAllocX(size_t size, size_t align);
 size_t HooksOverlayUsableSize(const void* ptr);
+bool HooksOverlayOwns(const void* ptr);
 
-const AllocOps base_ops = {BaseMalloc, BaseFree, BaseResizeInPlace, BaseNAllocX, BaseUsableSize};
-const AllocOps initial_ops = {InitialMalloc, InitialFree, InitialResizeInPlace, InitialNAllocX, InitialUsableSize};
-const AllocOps hooks_overlay = {HooksOverlayMalloc, HooksOverlayFree, HooksOverlayResizeInPlace, HooksOverlayNAllocX, HooksOverlayUsableSize};
+const AllocOps base_ops = {BaseMalloc, BaseFree, BaseResizeInPlace, BaseNAllocX, BaseUsableSize, BaseOwns};
+const AllocOps initial_ops = {InitialMalloc, InitialFree, InitialResizeInPlace, InitialNAllocX, InitialUsableSize, InitialOwns};
+const AllocOps hooks_overlay = {HooksOverlayMalloc, HooksOverlayFree, HooksOverlayResizeInPlace, HooksOverlayNAllocX, HooksOverlayUsableSize, HooksOverlayOwns};
 
 const AllocOps* active_overlay = &initial_ops;
 const AllocOps* top_ops = &base_ops;
@@ -981,7 +984,26 @@ double TCMallocImplementation::GetMemoryReleaseRate() {
   return FLAGS_tcmalloc_release_rate;
 }
 
+namespace tcmalloc {
+
+ATTRIBUTE_NOINLINE bool dispatch_owns(const void* ptr, const AllocOps* overlay) {
+  if (ptr == nullptr) {
+    return false;
+  }
+  // Like everything else, emergency pointers are handled before
+  // overlays.
+  if (IsEmergencyPtr(ptr)) {
+    return true;
+  }
+  return overlay->Owns(ptr);
+}
+
+}  // namespace tcmalloc
+
 MallocExtension::Ownership TCMallocImplementation::GetOwnership(const void* ptr) {
+  if (const AllocOps* overlay = tcmalloc::ActiveOverlay(); PREDICT_FALSE(overlay != nullptr)) {
+    return tcmalloc::dispatch_owns(ptr, overlay) ? kOwned : kNotOwned;
+  }
   return tcmalloc::IsOwnedByUs(ptr) ? kOwned : kNotOwned;
 }
 
@@ -1800,6 +1822,7 @@ bool BaseResizeInPlace(void* ptr, size_t new_size) {
 }
 size_t BaseNAllocX(size_t size, size_t align) { return nallocx_no_overlay(size, align); }
 size_t BaseUsableSize(const void* ptr) { return GetSizeWithCallback(ptr, &InvalidGetAllocatedSize); }
+bool BaseOwns(const void* ptr) { return IsOwnedByUs(ptr); }
 
 static const AllocOps* InitialGetUnderlying() {
   // Note: plain, unlocked update of active_overlay. We get here only on
@@ -1828,6 +1851,9 @@ size_t InitialNAllocX(size_t size, size_t align) {
 size_t InitialUsableSize(const void* ptr) {
   return InitialGetUnderlying()->UsableSize(ptr);
 }
+bool InitialOwns(const void* ptr) {
+  return InitialGetUnderlying()->Owns(ptr);
+}
 
 void* HooksOverlayMalloc(size_t size, size_t align, uint32_t flags) {
   void* ret = top_ops->Malloc(size, align, flags);
@@ -1851,6 +1877,9 @@ size_t HooksOverlayNAllocX(size_t size, size_t align) {
 }
 size_t HooksOverlayUsableSize(const void* ptr) {
   return top_ops->UsableSize(ptr);
+}
+bool HooksOverlayOwns(const void* ptr) {
+  return top_ops->Owns(ptr);
 }
 
 }  // namespace tcmalloc

@@ -1144,8 +1144,16 @@ static size_t DebugUsableSize(const void* ptr) {
   return MallocBlock::UserSize(ptr);
 }
 
+static bool DebugOwns(const void* p) {
+  // Everything we handed out (including user-visible pointers of
+  // memalign-ed blocks) is in alloc_map_, and freed blocks are marked
+  // there. So we never need to touch memory at p.
+  int map_type;
+  return MallocBlock::FindInAllocMap(p, &map_type) && !MallocBlock::IsDeallocatedType(map_type);
+}
+
 static const AllocOps debug_overlay = {
-    DebugMalloc, DebugFree, DebugResizeInPlace, DebugNAllocX, DebugUsableSize,
+    DebugMalloc, DebugFree, DebugResizeInPlace, DebugNAllocX, DebugUsableSize, DebugOwns,
 };
 
 }  // namespace tcmalloc
@@ -1210,35 +1218,6 @@ class DebugMallocImplementation : public TCMallocImplementation {
 
   bool MallocMemoryStats(int* blocks, size_t* total, int histogram[kMallocHistogramSize]) override {
     return MallocBlock::MemoryStats(blocks, total, histogram);
-  }
-
-  MallocExtension::Ownership GetOwnership(const void* p) override {
-    if (!p) {
-      // nobody owns nullptr
-      return MallocExtension::kNotOwned;
-    }
-
-    // Everything we handed out is in alloc_map_ (keyed by the pointer
-    // we handed out). Note, base's pagemap only has marks for first
-    // and last page of large spans. So pointers returned out of our
-    // memalign with big alignment might point outside of marked
-    // pages. So we need to check alloc_map_ first.
-    int map_type;
-    if (MallocBlock::FindInAllocMap(p, &map_type) && !MallocBlock::IsDeallocatedType(map_type)) {
-      return kOwned;
-    }
-
-    MallocExtension::Ownership rv = TCMallocImplementation::GetOwnership(p);
-    if (rv != MallocExtension::kOwned) {
-      return rv;
-    }
-
-    if (tcmalloc::IsEmergencyPtr(p)) {
-      return kOwned;
-    }
-
-    const MallocBlock* mb = MallocBlock::FromRawPointer(p);
-    return TCMallocImplementation::GetOwnership(mb);
   }
 
   void GetFreeListSizes(std::vector<MallocExtension::FreeListInfo>* v) override {

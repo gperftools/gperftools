@@ -105,6 +105,13 @@ struct AllocOps {
   // malloc's chunks, which never come from overlays, are exempt.)
   size_t (*NAllocX)(size_t size, size_t align);
   size_t (*UsableSize)(const void* ptr);  // ptr != nullptr
+  // Unlike the rest, Owns may get any pointer (except nullptr and
+  // emergency malloc's chunks): foreign, interior, already freed or
+  // garbage. It must not crash or complain on those. Returns true if
+  // ptr is (as far as the overlay can tell) a pointer it handed
+  // out. It backs MallocExtension::GetOwnership, which OSX's malloc
+  // zones use to find which zone a pointer belongs to.
+  bool (*Owns)(const void* ptr);
 };
 
 // The actual tcmalloc. Defined in tcmalloc.cc.

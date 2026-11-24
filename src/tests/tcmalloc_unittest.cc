@@ -1798,6 +1798,7 @@ const AllocOps ops = {
     [](void* ptr, size_t new_size) { return next->ResizeInPlace(ptr, new_size); },
     [](size_t size, size_t align) { return next->NAllocX(size, align); },
     [](const void* ptr) { return next->UsableSize(ptr); },
+    [](const void* ptr) { return next->Owns(ptr); },
 };
 
 }  // namespace recording_overlay
@@ -1959,7 +1960,41 @@ struct Header {
 };
 static_assert(sizeof(Header) <= kMinHeader);
 
-int live;  // blocks we handed out and haven't seen freed yet
+// Blocks we handed out and haven't seen freed yet. Owns looks
+// pointers up here, so it never touches memory at foreign
+// pointers. Linear scans are fine for a test.
+constexpr int kMaxLive = 1024;
+const void* live_ptrs[kMaxLive];
+int live;
+
+bool IsLive(const void* ptr) {
+  for (const void* p : live_ptrs) {
+    if (p == ptr) return true;
+  }
+  return false;
+}
+
+void AddLive(const void* ptr) {
+  for (const void*& p : live_ptrs) {
+    if (p == nullptr) {
+      p = ptr;
+      live++;
+      return;
+    }
+  }
+  CHECK(!"too many live blocks");
+}
+
+void RemoveLive(const void* ptr) {
+  for (const void*& p : live_ptrs) {
+    if (p == ptr) {
+      p = nullptr;
+      live--;
+      return;
+    }
+  }
+  CHECK(!"freeing block we didn't hand out");
+}
 
 size_t HeaderSize(size_t align) { return std::max(kMinHeader, align); }
 
@@ -2001,14 +2036,14 @@ const AllocOps ops = {
       }
       void* ptr = static_cast<char*>(base) + header_size;
       *GetHeaderUnchecked(ptr) = Header{header_size, kMagic};
-      live++;
+      AddLive(ptr);
       return ptr;
     },
     [](void* ptr, size_t size_hint, size_t align, uint32_t flags) {
       Header* h = GetHeader(ptr);
       size_t header_size = h->header_size;
       h->magic = 0;
-      live--;
+      RemoveLive(ptr);
       if (tcmalloc::AllocFlagsHasSized(flags)) {
         size_hint += header_size;
       }
@@ -2020,6 +2055,7 @@ const AllocOps ops = {
     },
     [](size_t size, size_t align) { return next->NAllocX(AdjustSize(size) + HeaderSize(align), align) - HeaderSize(align); },
     [](const void* ptr) { return next->UsableSize(Base(ptr)) - GetHeader(ptr)->header_size; },
+    [](const void* ptr) { return IsLive(ptr); },
 };
 
 }  // namespace padding_overlay
@@ -2056,10 +2092,14 @@ TEST(TCMallocTest, PaddingOverlay) {
         while (align > (size_t{1} << lg_align)) lg_align++;
         CHECK_EQ(usable, nallocx(size, align ? MALLOCX_LG_ALIGN(lg_align) : 0));
         CHECK_EQ(usable, MallocExtension::instance()->GetAllocatedSize(p));
+        CHECK_EQ(MallocExtension::instance()->GetOwnership(p), MallocExtension::kOwned);
         memset(p, 0x5a, usable);  // the whole usable size is ours to write
         free(noopt(p));
+        // Base still owns that memory, but it isn't our block anymore.
+        CHECK_EQ(MallocExtension::instance()->GetOwnership(p), MallocExtension::kNotOwned);
       }
     }
+    CHECK_EQ(MallocExtension::instance()->GetOwnership(&pl::live), MallocExtension::kNotOwned);
 
     // Sized and aligned deletes of transformed pointers must go
     // through the overlay (see live count check below). Overlay
@@ -2158,6 +2198,7 @@ const AllocOps ops = {
     [](void* ptr, size_t new_size) { return next->ResizeInPlace(ptr, new_size); },
     [](size_t size, size_t align) { return next->NAllocX(size, align); },
     [](const void* ptr) { return next->UsableSize(ptr); },
+    [](const void* ptr) { return next->Owns(ptr); },
 };
 
 int handler_calls;
