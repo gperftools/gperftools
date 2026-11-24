@@ -288,15 +288,22 @@ void ThreadCache::InitModule() {
     }
     Static::InitStaticVars();
     threadcache_allocator.Init();
+    // Sets up tcmalloc's own MallocExtension instance. Overlays
+    // below may replace or wrap it.
+    SetupMallocExtension();
 #ifdef TCMALLOC_WITH_DEBUGALLOC
     // Installs debug allocation overlay (see alloc_overlays.h) before any
-    // pointer is handed out. It also sets up debug MallocExtension
-    // instance, so SetupMallocExtension below does nothing.
+    // pointer is handed out. It also replaces MallocExtension instance
+    // with the debug one.
     SetupDebugMalloc();
 #endif
-    // Note, this is first-wins. User's early MallocExtension::Register
-    // beats this.
-    SetupMallocExtension();
+#ifdef ENABLE_TRACING
+    // Installs malloc tracing overlay (and MallocExtension wrapper) if
+    // tracing is asked for (via TCMALLOC_TRACE_OUTPUT). Note, with
+    // debug allocation, tracing overlay goes on top of the debug
+    // one. So that we trace what the program asks for.
+    SetupTracingMalloc();
+#endif
     phinited = 1;
   }
 

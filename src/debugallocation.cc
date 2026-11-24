@@ -1240,7 +1240,7 @@ void SetupDebugMalloc() {
   // Note: this runs under threads_lock and pageheap_lock, so we must
   // not malloc here.
   debug_next = tcmalloc::InstallOverlay(&tcmalloc::debug_overlay);
-  tcmalloc::SetDefaultMallocExtension(debug_malloc_impl_storage.Construct());
+  tcmalloc::ReplaceMallocExtension(debug_malloc_impl_storage.Construct());
 }
 
 REGISTER_MODULE_DESTRUCTOR(debugallocation, {

@@ -395,6 +395,47 @@ AC_ARG_ENABLE([emergency-malloc],
 
 AM_CONDITIONAL(BUILD_EMERGENCY_MALLOC, [test "x$enable_emergency_malloc" = xyes])
 
+# Malloc tracing support is Linux-only for now (and needs lock-free
+# 64-bit atomics; see malloc_tracer.cc). When enabled, every tcmalloc
+# variant has it built in, and it gets activated at runtime by
+# setting TCMALLOC_TRACE_OUTPUT environment variable. It is off by
+# default.
+AC_ARG_ENABLE([tracing],
+              [AS_HELP_STRING([--enable-tracing],
+                              [build malloc tracing support into tcmalloc (default: no)])],
+              [enable_tracing="$enableval"],
+              [enable_tracing=no])
+
+AS_IF([test "x$enable_tracing" = xyes],
+      [AC_DEFINE([ENABLE_TRACING], 1,
+                 [Build malloc tracing support (activated by TCMALLOC_TRACE_OUTPUT)])])
+AM_CONDITIONAL(WITH_TRACING, [test "x$enable_tracing" = xyes])
+
+AC_ARG_ENABLE([trace-compression],
+              [AS_HELP_STRING([--enable-trace-compression],
+                              [compress malloc traces via lz4])],
+              [enable_lz4=$enableval], [enable_lz4=no])
+
+LZ4_LIBS=
+save_LIBS=$LIBS
+missing_lz4=no
+AS_IF([test "x$enable_lz4" = xyes],
+      [AC_SEARCH_LIBS([LZ4F_getVersion], [lz4],
+       [AC_LINK_IFELSE(
+         [AC_LANG_PROGRAM(
+           [[#include <lz4frame.h>]], [[&LZ4F_getVersion]])],
+       dnl success
+       [LZ4_LIBS=$LIBS
+        AC_DEFINE([USE_LZ4], 1, [Compress malloc traces with LZ4])],
+       [missing_lz4=yes])], dnl AC_LINK_IFELSE failure, missing header perhaps
+       [missing_lz4=yes])]) dnl AC_SEARCH_LIBS failure
+
+LIBS=$save_LIBS
+AC_SUBST(LZ4_LIBS)
+
+AS_IF([test "x$missing_lz4" = xyes],
+      [AC_MSG_ERROR([-llz4 not found])])
+
 # Also make sure we get standard PRI... definitions, even with glibc.
 # We have to use AH_VERBATIM because we need the #ifdef guard (gcc buglet)
 AH_VERBATIM([__STDC_FORMAT_MACROS],

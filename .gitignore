@@ -18,6 +18,7 @@
 /aclocal.m4
 /addressmap_unittest
 /addressmap_unittest.exe
+/altvarint_bench
 /autom4te.cache/
 /bazel-*
 /benchmark/.deps
@@ -136,6 +137,8 @@
 /src/stamp-h1
 /src/tests/.deps
 /src/tests/.dirstamp
+/src/tracing/.deps
+/src/tracing/.dirstamp
 /src/windows/.deps
 /src/windows/.dirstamp
 /stack_trace_table_test

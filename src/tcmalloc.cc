@@ -1248,7 +1248,7 @@ static TCMallocGuard module_enter_exit_hook;
 
 static tcmalloc::StaticStorage<TCMallocImplementation> malloc_impl_storage;
 
-void SetupMallocExtension() { tcmalloc::SetDefaultMallocExtension(malloc_impl_storage.Construct()); }
+void SetupMallocExtension() { tcmalloc::ReplaceMallocExtension(malloc_impl_storage.Construct()); }
 
 
 //-------------------------------------------------------------------

@@ -70,25 +70,34 @@ extern "C" void* valloc(size_t __size) __THROW;
 extern "C" void* pvalloc(size_t __size) __THROW;
 #endif
 
-// Implemented in tcmalloc.cc. Sets up default MallocExtension
-// instance (unless some other instance was set up already).
+// Implemented in tcmalloc.cc. Sets up tcmalloc's own MallocExtension
+// instance.
 ATTRIBUTE_VISIBILITY_HIDDEN void SetupMallocExtension();
 
 // Implemented in debugallocation.cc. Installs the debug allocation
-// overlay and sets up debug MallocExtension instance.
+// overlay and sets up debug MallocExtension instance (replacing the
+// one set up by SetupMallocExtension).
 ATTRIBUTE_VISIBILITY_HIDDEN void SetupDebugMalloc();
 
 class MallocExtension;
 
 namespace tcmalloc {
-// Makes impl what this library's MallocExtension::instance() returns,
-// unless something was registered already (via the deprecated
-// MallocExtension::Register). Implemented in malloc_extension.cc.
+// Makes impl what this library's MallocExtension::instance() returns
+// and returns the previous instance (nullptr if none). Like overlays,
+// MallocExtension instances can be "stacked": an instance can wrap
+// the previous one. Only called during malloc initialization (from
+// ThreadCache::InitModule). Implemented in malloc_extension.cc.
 //
 // This is hidden on purpose, unlike MallocExtension::Register: when
 // several of our libraries are loaded into one process (e.g. both
 // libtcmalloc and libtcmalloc_minimal), each must only set up its own
 // instance. Calling the exported Register would let one library
 // overwrite the instance of whichever library actually serves malloc.
-ATTRIBUTE_VISIBILITY_HIDDEN void SetDefaultMallocExtension(MallocExtension* impl);
+ATTRIBUTE_VISIBILITY_HIDDEN MallocExtension* ReplaceMallocExtension(MallocExtension* impl);
+
+// Implemented in tracing/tracing_overlay.cc (only with ENABLE_TRACING).
+// If TCMALLOC_TRACE_OUTPUT environment variable is set, installs the
+// malloc tracing overlay and MallocExtension instance which wraps
+// the previous one.
+void SetupTracingMalloc();
 }  // namespace tcmalloc

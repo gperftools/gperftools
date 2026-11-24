@@ -113,6 +113,9 @@ libcommon_la_SOURCES = src/base/logging.cc \
                        src/base/dynamic_annotations.cc \
                        src/base/spinlock.cc \
                        src/base/spinlock_internal.cc
+# Note, LZ4_LIBS is only non-empty with --enable-trace-compression. We
+# add it here, since everything that builds tcmalloc links libcommon.
+libcommon_la_LIBADD = $(LZ4_LIBS)
 
 noinst_LTLIBRARIES += liblow_level_alloc.la
 liblow_level_alloc_la_SOURCES = src/base/low_level_alloc.cc
@@ -264,6 +267,16 @@ perftoolsinclude_HEADERS += src/gperftools/malloc_hook.h \
 
 ### Making the library
 
+# Malloc tracing (see src/tracing/tracing_overlay.cc). When enabled, it is
+# built into every tcmalloc variant, and gets activated at runtime by
+# TCMALLOC_TRACE_OUTPUT environment variable.
+TRACING_SRC =
+if WITH_TRACING
+TRACING_SRC += src/tracing/tracing_overlay.cc \
+               src/tracing/malloc_tracer.cc \
+               src/tracing/tracer_buffer.cc
+endif WITH_TRACING
+
 MINIMAL_MALLOC_SRC = src/common.cc \
                      src/internal_logging.cc \
                      $(SYSTEM_ALLOC_CC) \
@@ -278,7 +291,8 @@ MINIMAL_MALLOC_SRC = src/common.cc \
                      src/thread_cache.cc \
                      src/thread_cache_ptr.cc \
                      src/malloc_hook.cc \
-                     src/malloc_extension.cc
+                     src/malloc_extension.cc \
+                     $(TRACING_SRC)
 
 lib_LTLIBRARIES += libtcmalloc_minimal.la
 libtcmalloc_minimal_la_SOURCES = $(TCMALLOC_CC) $(MINIMAL_MALLOC_SRC)
@@ -563,6 +577,14 @@ endif WITH_STACK_TRACE
 endif BUILD_TESTS
 
 endif WITH_DEBUGALLOC
+
+if WITH_TRACING
+if BUILD_TESTS
+noinst_PROGRAMS += altvarint_bench
+altvarint_bench_SOURCES = benchmark/altvarint_codec_bench.cc src/tracing/altvarint_codec.h
+altvarint_bench_LDADD = librun_benchmark.la
+endif BUILD_TESTS
+endif WITH_TRACING
 
 if BUILD_TESTS
 noinst_LTLIBRARIES += librun_benchmark.la
@@ -957,6 +979,7 @@ EXTRA_DIST = $(SCRIPTS) \
              $(WINDOWS_EXTRA) \
              vendor \
              $(top_srcdir)/src/*h $(top_srcdir)/src/base/*h \
+             $(top_srcdir)/src/tracing/*h $(top_srcdir)/src/tracing/README.md \
              $(top_srcdir)/benchmark/*h \
              $(top_srcdir)/src/tests/*h \
              $(top_srcdir)/src/windows/*h $(top_srcdir)/src/gperftools/*h \
