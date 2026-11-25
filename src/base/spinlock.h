@@ -140,6 +140,37 @@ class TrivialOnce {
 
 static_assert(std::is_trivial<TrivialOnce>::value == true, "");
 
+// Simple counting semaphore. It is pretty much like SpinLock, except
+// Release (aka "unlock") can be done by any thread, and count can be
+// above 1.
+//
+// Unlike sem_t, Acquire is not a pthread cancellation point and isn't
+// interrupted by signals (EINTR). Which makes it usable from deep
+// inside malloc. Also it works everywhere SpinLock works (unlike
+// unnamed POSIX semaphores, which OSX doesn't support).
+//
+// We keep it simple: Release always wakes one waiter (if any). So it
+// is meant for cases when Release is relatively rare. And, just like
+// SpinLock, there are no fairness guarantees.
+class CountingSemaphore {
+ public:
+  constexpr CountingSemaphore() : count_(0) {}
+  explicit constexpr CountingSemaphore(int initial) : count_(initial) {}
+
+  // Waits until count is positive and decrements it. Has acquire
+  // semantics (pairs with Release).
+  void Acquire();
+
+  // Increments the count and wakes a waiter. Has release semantics.
+  void Release();
+
+ private:
+  std::atomic<int> count_;
+
+  CountingSemaphore(const CountingSemaphore&) = delete;
+  CountingSemaphore& operator=(const CountingSemaphore&) = delete;
+};
+
 }  // namespace tcmalloc
 
 #endif  // BASE_SPINLOCK_H_

@@ -161,3 +161,28 @@ void SpinLock::SlowUnlock() {
   // wake waiter if necessary
   base::internal::SpinLockWake(&lockword_, false);
 }
+
+namespace tcmalloc {
+
+void CountingSemaphore::Acquire() {
+  int c = count_.load(std::memory_order_relaxed);
+  for (int loop = 1;; ++loop) {
+    while (c > 0) {
+      if (count_.compare_exchange_weak(c, c - 1, std::memory_order_acquire, std::memory_order_relaxed)) {
+        return;
+      }
+    }
+    // Sleeps only while count_ is still 0, so we cannot miss a
+    // Release. Note, early (and timed) wakeups are fine, since we
+    // just check again.
+    base::internal::SpinLockDelay(&count_, 0, loop);
+    c = count_.load(std::memory_order_relaxed);
+  }
+}
+
+void CountingSemaphore::Release() {
+  count_.fetch_add(1, std::memory_order_release);
+  base::internal::SpinLockWake(&count_, false);
+}
+
+}  // namespace tcmalloc
