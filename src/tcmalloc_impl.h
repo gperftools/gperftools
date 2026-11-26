@@ -64,6 +64,7 @@ class ATTRIBUTE_VISIBILITY_HIDDEN TestingPortalImpl : public TestingPortal {
   int32_t& GetMaxFreeQueueSize() override;
 
   bool HasEmergencyMalloc() override;
+  bool IsOverlayed() override;
 
   bool IsEmergencyPtr(void* ptr) override;
 

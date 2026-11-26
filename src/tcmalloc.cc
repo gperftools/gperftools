@@ -593,6 +593,10 @@ bool TestingPortalImpl::IsDebuggingMalloc() {
   return false;
 }
 
+bool TestingPortalImpl::IsOverlayed() {
+  return (active_overlay != nullptr);
+}
+
 size_t TestingPortalImpl::GetMinSpanSize() {
   return Static::sizemap()->min_span_size_in_pages() * kPageSize;
 }

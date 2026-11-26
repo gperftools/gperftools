@@ -1012,7 +1012,7 @@ TEST(TCMallocTest, ReleaseToSystem) {
   // Debug allocation mode adds overhead to each allocation which
   // messes up all the equality tests here.  I just disable the
   // test in this mode.
-  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+  if (TestingPortal::Get()->IsOverlayed()) {
     return;
   }
 
@@ -1072,7 +1072,7 @@ TEST(TCMallocTest, AggressiveDecommit) {
   // Debug allocation mode adds overhead to each allocation which
   // messes up all the equality tests here.  I just disable the
   // teset in this mode.
-  if (TestingPortal::Get()->IsDebuggingMalloc() || !TestingPortal::Get()->HaveSystemRelease()) {
+  if (TestingPortal::Get()->IsOverlayed() || !TestingPortal::Get()->HaveSystemRelease()) {
     return;
   }
 
@@ -2664,7 +2664,7 @@ TEST(TCMallocTest, ReallocVsFreeSized) {
 }
 
 TEST(TCMallocTest, ReallocOnInvalidPointer) {
-  if (TestingPortal::Get()->IsDebuggingMalloc()) {
+  if (TestingPortal::Get()->IsOverlayed()) {
     return;
   }
 
